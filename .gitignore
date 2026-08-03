@@ -1,0 +1,38 @@
+# Environment
+.env
+.env.local
+.env.*.local
+.env.encrypted-dev
+# Per-developer direnv override sourced by flake.nix. `.envrc` itself is
+# tracked (it is the shared entrypoint); the .local override holds real
+# credentials and must never be committed.
+.envrc.local
+.envrc.*.local
+# NixOS
+.direnv
+
+# Go
+backend/tmp/
+backend/bin/
+
+# Node
+# /node_modules is the pnpm workspace root's symlinked store (see pnpm-workspace.yaml);
+# frontend/node_modules is the per-package symlink pnpm also creates there.
+/node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml

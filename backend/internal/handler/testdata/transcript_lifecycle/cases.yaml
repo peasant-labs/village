@@ -1,0 +1,70 @@
+transaction_outcomes:
+  - {operation: create, completion: committed, installed: true, expected: none}
+  - {operation: create, completion: rollback, installed: false, expected: candidate}
+  - {operation: create, completion: ambiguous, installed: true, expected: reconcile}
+  - {operation: create, completion: ambiguous, installed: false, expected: reconcile}
+  - {operation: create, completion: committed, installed: false, expected: candidate}
+  - {operation: create, completion: rollback, installed: true, expected: candidate}
+  - {operation: create, completion: ambiguous, installed: true, expected: reconcile}
+  - {operation: republish, completion: committed, installed: true, expected: superseded}
+  - {operation: republish, completion: rollback, installed: false, expected: candidate}
+  - {operation: republish, completion: ambiguous, installed: true, expected: reconcile}
+  - {operation: republish, completion: ambiguous, installed: false, expected: reconcile}
+  - {operation: republish, completion: committed, installed: false, expected: candidate}
+  - {operation: republish, completion: rollback, installed: true, expected: candidate}
+  - {operation: republish, completion: ambiguous, installed: true, expected: reconcile}
+  - {operation: rewrite, completion: committed, installed: true, expected: superseded}
+  - {operation: rewrite, completion: rollback, installed: false, expected: candidate}
+  - {operation: rewrite, completion: ambiguous, installed: true, expected: reconcile}
+  - {operation: rewrite, completion: ambiguous, installed: false, expected: reconcile}
+  - {operation: rewrite, completion: committed, installed: false, expected: candidate}
+  - {operation: rewrite, completion: rollback, installed: true, expected: candidate}
+  - {operation: rewrite, completion: ambiguous, installed: true, expected: reconcile}
+  - {operation: delete, completion: committed, installed: true, expected: target}
+  - {operation: delete, completion: rollback, installed: false, expected: none}
+  - {operation: delete, completion: ambiguous, installed: true, expected: reconcile}
+  - {operation: delete, completion: ambiguous, installed: false, expected: reconcile}
+  - {operation: delete, completion: committed, installed: false, expected: none}
+  - {operation: delete, completion: rollback, installed: true, expected: none}
+  - {operation: delete, completion: ambiguous, installed: true, expected: reconcile}
+  - {operation: backfill, completion: committed, installed: true, expected: none}
+  - {operation: backfill, completion: rollback, installed: false, expected: none}
+  - {operation: backfill, completion: ambiguous, installed: true, expected: reconcile}
+  - {operation: backfill, completion: ambiguous, installed: false, expected: reconcile}
+  - {operation: backfill, completion: committed, installed: false, expected: none}
+  - {operation: backfill, completion: rollback, installed: true, expected: none}
+  - {operation: backfill, completion: ambiguous, installed: true, expected: reconcile}
+  - {operation: rewrap, completion: committed, installed: true, expected: none}
+  - {operation: rewrap, completion: rollback, installed: false, expected: none}
+  - {operation: rewrap, completion: ambiguous, installed: true, expected: reconcile}
+  - {operation: rewrap, completion: ambiguous, installed: false, expected: reconcile}
+  - {operation: rewrap, completion: committed, installed: false, expected: none}
+  - {operation: rewrap, completion: rollback, installed: true, expected: none}
+  - {operation: rewrap, completion: ambiguous, installed: true, expected: reconcile}
+descriptor_races:
+  - {rows: 1, expected: installed}
+  - {rows: 0, expected: stale}
+  - {rows: 0, expected: stale}
+  - {rows: 0, expected: stale}
+  - {rows: 0, expected: stale}
+  - {rows: 0, expected: stale}
+  - {rows: 0, expected: stale}
+  - {rows: 0, expected: stale}
+  - {rows: 0, expected: stale}
+fresh_retries:
+  - {missing: false, authorized: true, changed: true, etag: false, expected: return_error}
+  - {missing: false, authorized: false, changed: false, etag: false, expected: return_error}
+  - {missing: true, authorized: false, changed: true, etag: false, expected: return_404}
+  - {missing: true, authorized: false, changed: true, etag: true, expected: return_404}
+  - {missing: true, authorized: true, changed: false, etag: false, expected: return_error}
+  - {missing: true, authorized: true, changed: false, etag: true, expected: return_error}
+  - {missing: true, authorized: true, changed: true, etag: true, expected: return_304}
+  - {missing: true, authorized: true, changed: true, etag: false, expected: read_once}
+  - {missing: true, authorized: false, changed: false, etag: false, expected: return_error}
+  - {missing: true, authorized: false, changed: false, etag: true, expected: return_error}
+  - {missing: false, authorized: true, changed: false, etag: true, expected: return_error}
+  - {missing: false, authorized: true, changed: true, etag: true, expected: return_error}
+  - {missing: false, authorized: false, changed: true, etag: false, expected: return_error}
+  - {missing: false, authorized: false, changed: true, etag: true, expected: return_error}
+  - {missing: false, authorized: false, changed: false, etag: true, expected: return_error}
+  - {missing: false, authorized: true, changed: false, etag: false, expected: return_error}

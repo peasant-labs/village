@@ -1,0 +1,175 @@
+# Quality metrics variations for combinatorial testing
+# All fields are optional - test nil, empty, and valid values
+
+title_generated:
+  - name: "nil"
+    value: null
+    description: "No title"
+    
+  - name: "short"
+    value: "Quick fix"
+    description: "Short title"
+    
+  - name: "typical"
+    value: "Implemented user authentication"
+    description: "Normal title"
+    
+  - name: "long"
+    value: "Implemented comprehensive user authentication system with OAuth2 and JWT tokens"
+    description: "Long title"
+    
+  - name: "unicode"
+    value: "添加用户认证"
+    description: "Unicode title"
+
+outcomes:
+  - name: "nil"
+    value: null
+    description: "No outcome"
+    
+  - name: "success"
+    value: "success"
+    description: "Successful session"
+    
+  - name: "failure"
+    value: "failure"
+    description: "Failed session"
+    
+  - name: "partial"
+    value: "partial"
+    description: "Partially completed"
+    
+  - name: "timeout"
+    value: "timeout"
+    description: "Timed out"
+
+files_touched:
+  - name: "nil"
+    value: null
+    description: "No files touched"
+    
+  - name: "zero"
+    value: 0
+    description: "Zero files"
+    
+  - name: "one"
+    value: 1
+    description: "One file"
+    
+  - name: "typical"
+    value: 10
+    description: "Typical count"
+    
+  - name: "many"
+    value: 100
+    description: "Many files"
+
+lines_changed:
+  - name: "nil"
+    value: null
+    description: "No lines changed"
+    
+  - name: "zero"
+    value: 0
+    description: "Zero lines"
+    
+  - name: "few"
+    value: 5
+    description: "Few lines"
+    
+  - name: "typical"
+    value: 100
+    description: "Typical"
+    
+  - name: "large"
+    value: 10000
+    description: "Large change"
+
+ratios:
+  - name: "nil"
+    value: null
+    description: "No value"
+    
+  - name: "zero"
+    value: 0.0
+    description: "Zero ratio"
+    
+  - name: "half"
+    value: 0.5
+    description: "50%"
+    
+  - name: "typical"
+    value: 0.75
+    description: "75%"
+    
+  - name: "full"
+    value: 1.0
+    description: "100%"
+    
+  - name: "overflow"
+    value: 1.5
+    description: "Over 100%"
+    
+  - name: "negative"
+    value: -0.1
+    description: "Negative"
+
+counts:
+  - name: "nil"
+    value: null
+    description: "No value"
+    
+  - name: "zero"
+    value: 0
+    description: "Zero"
+    
+  - name: "typical"
+    value: 5
+    description: "Typical count"
+    
+  - name: "large"
+    value: 100
+    description: "Large count"
+
+booleans:
+  - name: "nil"
+    value: null
+    description: "No value"
+    
+  - name: "true"
+    value: true
+    description: "True"
+    
+  - name: "false"
+    value: false
+    description: "False"
+
+computed_at:
+  - name: "nil"
+    value: null
+    description: "No timestamp"
+    
+  - name: "valid"
+    value: 1700000000000
+    description: "Valid timestamp"
+    
+  - name: "future"
+    value: 9999999999999
+    description: "Future timestamp"
+
+compute_versions:
+  - name: "nil"
+    value: null
+    description: "No version"
+    
+  - name: "v1"
+    value: 1
+    description: "Version 1"
+    
+  - name: "v2"
+    value: 2
+    description: "Version 2"
+    
+  - name: "future"
+    value: 999
+    description: "Future version"

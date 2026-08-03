@@ -1,0 +1,10 @@
+- name: full historical chain
+  operation: full_history
+- name: concurrent migrators serialize
+  operation: concurrent
+- name: exact version lookup
+  operation: exact_version
+- name: registry failure rolls back body
+  operation: registry_rollback
+- name: retry after rollback succeeds
+  operation: retry

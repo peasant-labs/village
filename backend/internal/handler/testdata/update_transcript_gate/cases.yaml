@@ -1,0 +1,46 @@
+- name: menu license accepted
+  arm: accepted_license
+  body: '{"license":"CC-BY-4.0"}'
+  preLicense: CC0-1.0
+  wantStatus: 200
+  wantLicense: CC-BY-4.0
+- name: off-menu license rejected with actionable body
+  arm: off_menu_license
+  body: '{"license":"MIT"}'
+  wantStatus: 400
+  wantBody: send null or a canonical license
+- name: clearing a granted license is blocked
+  arm: blocked_unlicense
+  body: '{"license":""}'
+  preLicense: CC0-1.0
+  wantStatus: 400
+  wantBody: 'cannot remove the license: a granted license is irrevocable; set a different license instead'
+- name: empty license on never-licensed row is a no-op
+  arm: null_noop
+  body: '{"license":""}'
+  wantStatus: 200
+  wantLicenseIsNull: true
+- name: omitted license preserved from pre-image
+  arm: omitted_preserve
+  body: '{"title":"just a rename"}'
+  preLicense: CC0-1.0
+  wantStatus: 200
+  wantLicense: CC0-1.0
+- name: off-menu visibility rejected with actionable body
+  arm: off_menu_visibility
+  body: '{"visibility":"unlisted"}'
+  preLicense: CC0-1.0
+  wantStatus: 400
+  wantBody: use private or public
+- name: group visibility rejected by schema authority
+  arm: group_schema_refusal
+  body: '{"visibility":"group"}'
+  preLicense: CC0-1.0
+  wantStatus: 400
+  wantBody: use private or public
+- name: shared preimage requires explicit narrowing
+  arm: shared_requires_narrowing
+  body: '{"title":"cannot silently preserve shared"}'
+  preVisibility: shared
+  wantStatus: 400
+  wantBody: explicitly narrowing visibility to private or public

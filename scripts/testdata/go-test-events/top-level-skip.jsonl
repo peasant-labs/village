@@ -1,0 +1,4 @@
+{"Time":"2026-08-01T00:00:00Z","Action":"start","Package":"github.com/peasant-labs/village/backend/internal/example"}
+{"Time":"2026-08-01T00:00:00Z","Action":"run","Package":"github.com/peasant-labs/village/backend/internal/example","Test":"TestRealService"}
+{"Time":"2026-08-01T00:00:00Z","Action":"skip","Package":"github.com/peasant-labs/village/backend/internal/example","Test":"TestRealService","Elapsed":0.01}
+{"Time":"2026-08-01T00:00:00Z","Action":"pass","Package":"github.com/peasant-labs/village/backend/internal/example","Elapsed":0.01}

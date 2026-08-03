@@ -1,0 +1,3 @@
+[
+  {"id": "ann-legacy-1", "targetKind": "session", "targetSessionId": "660e8400-e29b-41d4-a716-446655440011", "isPrimary": false, "annotatorKind": "human", "annotatorName": "bob", "typeId": "outcome", "typeName": "Outcome", "value": "partial", "createdAt": 1690000000}
+]

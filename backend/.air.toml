@@ -1,0 +1,5 @@
+[build]
+  cmd = "go build -o ./tmp/server ./cmd/server"
+  bin = "tmp/server"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "internal/database/sqlc"]

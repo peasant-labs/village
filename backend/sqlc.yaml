@@ -1,0 +1,16 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "internal/database/queries"
+    schema: "internal/database/migrations"
+    gen:
+      go:
+        package: "sqlc"
+        out: "internal/database/sqlc"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        # db tags enable name-addressed row scanning (pgx.RowToStructByName) for
+        # hand-built pool queries — SELECT-list/scan-list pairs can't silently
+        # drift (the ListTranscripts license_id regression class).
+        emit_db_tags: true
+        emit_empty_slices: true

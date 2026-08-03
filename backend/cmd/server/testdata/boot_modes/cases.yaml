@@ -1,0 +1,102 @@
+- name: serve by default
+  args: []
+  valid: true
+  mode: serve
+  authority: serving
+  rewrap_limit: 0
+  error_contains: ""
+- name: migrate with database authority only
+  args: ["-migrate-only"]
+  valid: true
+  mode: migrate-only
+  authority: postgresql
+  rewrap_limit: 0
+  error_contains: ""
+- name: content identity backfill
+  args: ["-backfill-content-identity"]
+  valid: true
+  mode: content-identity-backfill
+  authority: blob-processing
+  rewrap_limit: 0
+  error_contains: ""
+- name: title backfill dry run
+  args: ["-backfill-titles=dry-run"]
+  valid: true
+  mode: title-backfill
+  authority: blob-processing
+  rewrap_limit: 0
+  title_mode: dry-run
+  error_contains: ""
+- name: title backfill apply
+  args: ["-backfill-titles=apply"]
+  valid: true
+  mode: title-backfill
+  authority: blob-processing
+  rewrap_limit: 0
+  title_mode: apply
+  error_contains: ""
+- name: title backfill invalid value
+  args: ["-backfill-titles=repair-everything"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  title_mode: ""
+  error_contains: before authority loading
+- name: title backfill conflicts with migrate
+  args: ["-backfill-titles=dry-run", "-migrate-only"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  title_mode: ""
+  error_contains: mutually exclusive
+- name: bounded rewrap uses default
+  args: ["-rewrap-transcript-keys"]
+  valid: true
+  mode: rewrap
+  authority: blob-processing
+  rewrap_limit: 100
+  error_contains: ""
+- name: core development seed
+  args: ["-seed-core"]
+  valid: true
+  mode: core-seed
+  authority: blob-processing
+  rewrap_limit: 0
+  error_contains: ""
+- name: privacy development seed
+  args: ["-seed-privacy"]
+  valid: true
+  mode: privacy-seed
+  authority: blob-processing
+  rewrap_limit: 0
+  error_contains: ""
+- name: unknown mode
+  args: ["-vacuum-everything"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  error_contains: unknown or malformed
+- name: conflicting modes
+  args: ["-migrate-only", "-seed-core"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  error_contains: mutually exclusive
+- name: zero rewrap bound
+  args: ["-rewrap-transcript-keys", "-rewrap-limit=0"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  error_contains: outside the bounded range
+- name: excessive rewrap bound
+  args: ["-rewrap-transcript-keys", "-rewrap-limit=1001"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  error_contains: outside the bounded range

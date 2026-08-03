@@ -1,0 +1,34 @@
+harnesses:
+  - name: strike
+    value: strike
+  - name: cursor
+    value: cursor
+  - name: claude-code
+    value: claude-code
+  - name: gemini-cli
+    value: gemini-cli
+  - name: codex
+    value: codex
+  - name: opencode
+    value: opencode
+offContractHarness:
+  name: rejected-unknown-harness
+  value: unknown-agent
+  transcriptId: transcript-off-contract
+  expectedError: 'Explore transcript transcript-off-contract has unsupported harness "unknown-agent". The Village API returned a model_provider outside the published Schema harness menu; refresh after correcting the stored transcript contract value.'
+sessions:
+  - name: omitted-turns
+    turnsState: omitted
+    expectedText: null
+    expectedTurnCount: 0
+  - name: null-turns
+    turnsState: null
+    expectedText: null
+    expectedTurnCount: 0
+  - name: nullable-turn-fields
+    turnsState: nullable-fields
+    expectedText: nullable contract turn
+    expectedTurnCount: 2
+    stopReasons:
+      - max_turn_requests
+      - refusal

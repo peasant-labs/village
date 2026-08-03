@@ -1,0 +1,247 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PublishRequest",
+  "type": "object",
+  "required": ["identity", "model", "timestamp", "source"],
+  "properties": {
+    "identity": {
+      "type": "object",
+      "required": ["sessionId", "schemaVersion"],
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "parentSessionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "required": ["provider", "model"],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "harnessVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "timestamp": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ingested": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["filePath", "format"],
+      "properties": {
+        "filePath": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["jsonl", "json"]
+        }
+      }
+    },
+    "git": {
+      "type": "object",
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "remote": {
+          "type": "string"
+        },
+        "worktree": {
+          "type": "string"
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "required": ["hash", "name"],
+      "properties": {
+        "hash": {
+          "type": "string"
+        },
+        "filePath": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "turnCount": {
+          "type": "integer"
+        },
+        "toolCallCount": {
+          "type": "integer"
+        },
+        "subagentCount": {
+          "type": "integer"
+        },
+        "durationMs": {
+          "type": "integer"
+        },
+        "tokensIn": {
+          "type": "integer"
+        },
+        "tokensOut": {
+          "type": "integer"
+        }
+      }
+    },
+    "subagents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sessionId"],
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "parentUuid": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "titleGenerated": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": ["success", "failure", "incomplete"]
+        },
+        "filesTouched": {
+          "type": "integer"
+        },
+        "linesChanged": {
+          "type": "integer"
+        },
+        "retryLoops": {
+          "type": "integer"
+        },
+        "retryTokensWasted": {
+          "type": "integer"
+        },
+        "withinSessionReverts": {
+          "type": "integer"
+        },
+        "signalDensity": {
+          "type": "number"
+        },
+        "specQualityScore": {
+          "type": "number"
+        },
+        "explorationRatio": {
+          "type": "number"
+        },
+        "scopeBreadth": {
+          "type": "integer"
+        },
+        "discoveryTurns": {
+          "type": "integer"
+        },
+        "m2TokenOutcomeRatio": {
+          "type": "number"
+        },
+        "m3UniqueToolCount": {
+          "type": "integer"
+        },
+        "m4ErrorRecoveryCount": {
+          "type": "integer"
+        },
+        "m4ConsecutiveErrorMax": {
+          "type": "integer"
+        },
+        "m5ContextUtilizationPct": {
+          "type": "number"
+        },
+        "m5PeakContextTokens": {
+          "type": "integer"
+        },
+        "m5AvgMessageTokens": {
+          "type": "integer"
+        },
+        "m6OutputSurvivalPct": {
+          "type": "number"
+        },
+        "m6LinesSurvived": {
+          "type": "integer"
+        },
+        "m6LinesTotal": {
+          "type": "integer"
+        },
+        "m7SpecWordCount": {
+          "type": "integer"
+        },
+        "m7SpecHasExamples": {
+          "type": "boolean"
+        },
+        "m7SpecHasConstraints": {
+          "type": "boolean"
+        },
+        "computedAt": {
+          "type": "integer"
+        },
+        "computeVersion": {
+          "type": "integer"
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "properties": {
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "partial": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

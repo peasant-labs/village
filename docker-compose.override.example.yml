@@ -1,0 +1,19 @@
+# docker-compose.override.example.yml
+#
+# Local development port exposure.
+# Copy to docker-compose.override.yml to expose postgres and minio on localhost.
+# Ports are bound to 127.0.0.1 only — not exposed on 0.0.0.0.
+#
+# Usage:
+#   cp docker-compose.override.example.yml docker-compose.override.yml
+#   docker compose up
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  minio:
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"

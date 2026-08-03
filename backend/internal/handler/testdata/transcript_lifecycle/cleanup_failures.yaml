@@ -1,0 +1,19 @@
+cases:
+  - name: create_candidate_cleanup_failure_emits_reconciliation
+    operation: create_candidate_cleanup
+    completion: known_rollback
+  - name: republish_candidate_cleanup_failure_emits_reconciliation
+    operation: republish_candidate_cleanup
+    completion: known_rollback
+  - name: superseded_cleanup_failure_emits_reconciliation
+    operation: republish_cleanup
+    completion: committed
+  - name: rewrite_candidate_cleanup_failure_emits_reconciliation
+    operation: rewrite_candidate_cleanup
+    completion: known_rollback
+  - name: rewrite_superseded_cleanup_failure_emits_reconciliation
+    operation: rewrite_superseded_cleanup
+    completion: committed
+  - name: delete_target_cleanup_failure_emits_reconciliation
+    operation: delete_target_cleanup
+    completion: committed

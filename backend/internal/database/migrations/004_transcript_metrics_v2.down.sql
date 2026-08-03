@@ -1,0 +1,33 @@
+DROP INDEX IF EXISTS idx_transcripts_signal_density;
+DROP INDEX IF EXISTS idx_transcripts_outcome;
+
+ALTER TABLE transcripts
+    DROP COLUMN IF EXISTS compute_version,
+    DROP COLUMN IF EXISTS computed_at,
+    DROP COLUMN IF EXISTS m7_spec_has_constraints,
+    DROP COLUMN IF EXISTS m7_spec_has_examples,
+    DROP COLUMN IF EXISTS m7_spec_word_count,
+    DROP COLUMN IF EXISTS m6_lines_total,
+    DROP COLUMN IF EXISTS m6_lines_survived,
+    DROP COLUMN IF EXISTS m6_output_survival_pct,
+    DROP COLUMN IF EXISTS m5_avg_message_tokens,
+    DROP COLUMN IF EXISTS m5_peak_context_tokens,
+    DROP COLUMN IF EXISTS m5_context_utilization_pct,
+    DROP COLUMN IF EXISTS m4_consecutive_error_max,
+    DROP COLUMN IF EXISTS m4_error_recovery_count,
+    DROP COLUMN IF EXISTS m3_unique_tool_count,
+    DROP COLUMN IF EXISTS m2_token_outcome_ratio,
+    DROP COLUMN IF EXISTS discovery_turns,
+    DROP COLUMN IF EXISTS scope_breadth,
+    DROP COLUMN IF EXISTS exploration_ratio,
+    DROP COLUMN IF EXISTS spec_quality_score,
+    DROP COLUMN IF EXISTS signal_density,
+    DROP COLUMN IF EXISTS within_session_reverts,
+    DROP COLUMN IF EXISTS retry_tokens_wasted,
+    DROP COLUMN IF EXISTS retry_loops,
+    DROP COLUMN IF EXISTS lines_changed,
+    DROP COLUMN IF EXISTS files_touched,
+    DROP COLUMN IF EXISTS outcome,
+    DROP COLUMN IF EXISTS title_generated,
+    DROP COLUMN IF EXISTS tokens_out,
+    DROP COLUMN IF EXISTS tokens_in;

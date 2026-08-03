@@ -1,0 +1,50 @@
+expectedCaseCount: 11
+requiredCaseNames:
+  - owner A association round trip
+  - exact association replay
+  - association rebind rejection
+  - association alias rejection
+  - owner B cannot target owner A association
+  - owner B records the same opaque ID independently
+  - same local ID association targets remain owner scoped
+  - multi association publish persists atomically
+  - post-insert ledger failure rolls back mounted publish
+  - concurrent association publish rejects before second blob write
+  - annotation batch rolls back on an unknown association
+cases:
+  - name: owner A association round trip
+    associationId: assoc-ledger-owner-a
+    observedCommitHash: commit-owner-a
+  - name: exact association replay
+    associationId: assoc-ledger-owner-a
+    observedCommitHash: commit-owner-a
+  - name: association rebind rejection
+    associationId: assoc-ledger-owner-a
+    observedCommitHash: commit-owner-a-rebound
+  - name: association alias rejection
+    associationId: assoc-ledger-owner-a-alias
+    observedCommitHash: commit-owner-a
+  - name: owner B cannot target owner A association
+    associationId: assoc-ledger-owner-a
+    observedCommitHash: commit-owner-a
+  - name: owner B records the same opaque ID independently
+    associationId: assoc-ledger-owner-a
+    observedCommitHash: commit-owner-b
+  - name: same local ID association targets remain owner scoped
+    associationId: assoc-ledger-same-local-id
+    observedCommitHash: commit-same-local-id
+  - name: multi association publish persists atomically
+    associationId: assoc-ledger-multi-alpha
+    observedCommitHash: commit-multi-alpha
+    additionalAssociations:
+      - associationId: assoc-ledger-multi-beta
+        observedCommitHash: commit-multi-beta
+  - name: post-insert ledger failure rolls back mounted publish
+    associationId: assoc-ledger-forced-rollback
+    observedCommitHash: commit-forced-rollback
+  - name: concurrent association publish rejects before second blob write
+    associationId: assoc-ledger-concurrent
+    observedCommitHash: commit-concurrent
+  - name: annotation batch rolls back on an unknown association
+    associationId: assoc-ledger-unknown
+    observedCommitHash: commit-owner-a

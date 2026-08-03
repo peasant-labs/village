@@ -1,0 +1,92 @@
+# Model and Provider variations for combinatorial testing
+
+providers:
+  - name: "openai"
+    value: "openai"
+    description: "OpenAI provider"
+    
+  - name: "anthropic"
+    value: "anthropic"
+    description: "Anthropic provider"
+    
+  - name: "google"
+    value: "google"
+    description: "Google provider"
+    
+  - name: "azure"
+    value: "azure-openai"
+    description: "Azure OpenAI"
+    
+  - name: "aws_bedrock"
+    value: "aws-bedrock"
+    description: "AWS Bedrock"
+    
+  - name: "ollama"
+    value: "ollama"
+    description: "Ollama local"
+    
+  - name: "empty"
+    value: ""
+    description: "Empty provider (should fail)"
+
+models:
+  - name: "gpt4"
+    value: "gpt-4"
+    description: "GPT-4"
+    
+  - name: "gpt35"
+    value: "gpt-3.5-turbo"
+    description: "GPT-3.5 Turbo"
+    
+  - name: "claude3"
+    value: "claude-3-opus-20240229"
+    description: "Claude 3 Opus"
+    
+  - name: "claude3_sonnet"
+    value: "claude-3-sonnet-20240229"
+    description: "Claude 3 Sonnet"
+    
+  - name: "gemini"
+    value: "gemini-pro"
+    description: "Gemini Pro"
+    
+  - name: "llama3"
+    value: "llama3"
+    description: "Llama 3"
+    
+  - name: "mistral"
+    value: "mistral-large"
+    description: "Mistral Large"
+    
+  - name: "empty"
+    value: ""
+    description: "Empty model (optional)"
+    
+  - name: "unknown"
+    value: "unknown-model-xyz"
+    description: "Unknown model"
+
+harness_versions:
+  - name: "nil"
+    value: null
+    description: "Null harness version"
+    
+  - name: "v1"
+    value: "1.0"
+    description: "Version 1.0"
+    
+  - name: "v2"
+    value: "2.0.0"
+    description: "Version 2.0.0"
+    
+  - name: "latest"
+    value: "latest"
+    description: "Latest"
+    
+  - name: "commit_sha"
+    value: "abc123def456"
+    description: "Git commit SHA"
+    
+  - name: "empty"
+    value: ""
+    description: "Empty string"

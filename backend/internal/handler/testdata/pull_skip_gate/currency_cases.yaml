@@ -1,0 +1,69 @@
+# Per-field currency controls for the pull skip-gate, each a pos or neg for
+# contentCurrent and/or annotationsCurrent. Driven by the integration test: for
+# each case it publishes one transcript owned by the caller, sets the server
+# content hash (unless empty, which leaves it NULL/legacy), pushes the caller's
+# own annotations, then asks the skip-gate with the client-held hashes and
+# asserts the returned contentCurrent / annotationsCurrent.
+#
+#  serverContentHash: "" means the server holds NO hash (legacy / un-backfilled).
+cases:
+  - name: content matches and annotations match
+    serverContentHash: srv-a
+    clientContentHash: srv-a
+    serverAnnotationHashes: [ann-1, ann-2]
+    clientAnnotationHashes: [ann-1, ann-2]
+    wantContentCurrent: true
+    wantAnnotationsCurrent: true
+  - name: content stale (client holds a diverged hash)
+    serverContentHash: srv-a
+    clientContentHash: stale-hash
+    serverAnnotationHashes: [ann-1]
+    clientAnnotationHashes: [ann-1]
+    wantContentCurrent: false
+    wantAnnotationsCurrent: true
+  - name: annotations stale because the client is missing one
+    serverContentHash: srv-a
+    clientContentHash: srv-a
+    serverAnnotationHashes: [ann-1, ann-2]
+    clientAnnotationHashes: [ann-1]
+    wantContentCurrent: true
+    wantAnnotationsCurrent: false
+  - name: annotations stale because the client holds an extra one
+    serverContentHash: srv-a
+    clientContentHash: srv-a
+    serverAnnotationHashes: [ann-1]
+    clientAnnotationHashes: [ann-1, extra-1]
+    wantContentCurrent: true
+    wantAnnotationsCurrent: false
+  - name: no annotations on either side is current
+    serverContentHash: srv-a
+    clientContentHash: srv-a
+    serverAnnotationHashes: []
+    clientAnnotationHashes: []
+    wantContentCurrent: true
+    wantAnnotationsCurrent: true
+  - name: legacy null server content hash is never current
+    serverContentHash: ""
+    clientContentHash: anything
+    serverAnnotationHashes: [ann-1]
+    clientAnnotationHashes: [ann-1]
+    wantContentCurrent: false
+    wantAnnotationsCurrent: true
+  - name: legacy null server content hash with an empty client hash is never current
+    # Pins the server-holds-no-hash guard directly: an empty client hash equals the
+    # empty String on a NULL row, so ONLY the Valid check keeps this from wrongly
+    # reporting current (and a client from skipping a needed re-download). Dropping
+    # that check reddens this case where the "anything" case above cannot.
+    serverContentHash: ""
+    clientContentHash: ""
+    serverAnnotationHashes: [ann-1]
+    clientAnnotationHashes: [ann-1]
+    wantContentCurrent: false
+    wantAnnotationsCurrent: true
+  - name: both content and annotations diverged
+    serverContentHash: srv-a
+    clientContentHash: stale-hash
+    serverAnnotationHashes: [ann-1]
+    clientAnnotationHashes: [ann-9]
+    wantContentCurrent: false
+    wantAnnotationsCurrent: false

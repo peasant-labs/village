@@ -1,0 +1,6 @@
+cases:
+  - "success|pass|Verified backend and frontend production image revision"
+  - "label_mismatch|fail|reports revision"
+  - "missing_runtime_revision|fail|reports runtime revision ''"
+  - "runtime_revision_mismatch|fail|reports runtime revision '0000000000000000000000000000000000000000'"
+  - "backend_command_mismatch|fail|backend production image command"

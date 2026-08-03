@@ -1,0 +1,6 @@
+- {name: old key installs active wrapped key, outcome: installed}
+- {name: current key is excluded, outcome: remaining-zero}
+- {name: concurrent descriptor change, outcome: stale}
+- {name: custodian failure advances cursor, outcome: failed}
+- {name: ambiguous commit is retained, outcome: uncertain}
+- {name: bounded page reports more work, outcome: remaining}

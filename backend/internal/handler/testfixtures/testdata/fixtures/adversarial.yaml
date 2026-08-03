@@ -1,0 +1,161 @@
+# Adversarial/security test payloads for fuzz testing
+# Covers: injection attacks, boundary conditions, malformed data
+
+injection_payloads:
+  - name: "sql_injection_session"
+    payload: "'; DROP TABLE transcripts; --"
+    category: "injection"
+    description: "SQL injection attempt in session ID"
+    
+  - name: "sql_injection_model"
+    payload: "openai' OR '1'='1"
+    category: "injection"
+    description: "SQL injection in model field"
+    
+  - name: "xss_in_title"
+    payload: "<script>alert('xss')</script>"
+    category: "xss"
+    description: "XSS attempt in title"
+    
+  - name: "xss_in_filename"
+    payload: "<filename>.jpg<script>alert(1)</script>"
+    category: "xss"
+    description: "XSS in file path"
+    
+  - name: "path_traversal"
+    payload: "../../../etc/passwd"
+    category: "path_traversal"
+    description: "Path traversal attempt"
+    
+  - name: "null_bytes"
+    payload: "malicious\x00.exe"
+    category: "null_bytes"
+    description: "Null byte injection"
+    
+  - name: "unicode_overflow"
+    payload: "\u0000\u0000\u0000\u0000\u0000"
+    category: "unicode"
+    description: "Unicode overflow"
+    
+  - name: "emoji_bomb"
+    payload: "😀😀😀😀😀"
+    category: "emoji"
+    description: "Emoji bomb"
+    
+  - name: "control_chars"
+    payload: "\x00\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0e\x0f"
+    category: "control"
+    description: "Control characters"
+
+boundary_payloads:
+  - name: "max_int32"
+    value: 2147483647
+    category: "integer"
+    description: "Max int32"
+    
+  - name: "overflow_int32"
+    value: 2147483648
+    category: "integer"
+    description: "Overflows int32"
+    
+  - name: "max_int64"
+    value: 9223372036854775807
+    category: "integer"
+    description: "Max int64"
+    
+  - name: "negative_one"
+    value: -1
+    category: "integer"
+    description: "Negative one"
+    
+  - name: "negative_max"
+    value: -9223372036854775808
+    category: "integer"
+    description: "Min int64"
+    
+  - name: "float_nan"
+    value: "NaN"
+    category: "float"
+    description: "NaN float"
+    
+  - name: "float_inf"
+    value: "Infinity"
+    category: "float"
+    description: "Infinity float"
+    
+  - name: "float_neg_inf"
+    value: "-Infinity"
+    category: "float"
+    description: "Negative infinity"
+
+json_payloads:
+  - name: "truncated_json"
+    value: '{"sessionId": "'
+    category: "malformed"
+    description: "Truncated JSON"
+    
+  - name: "unclosed_array"
+    value: '{"items": [1, 2, 3'
+    category: "malformed"
+    description: "Unclosed array"
+    
+  - name: "unclosed_object"
+    value: '{"key": "value"'
+    category: "malformed"
+    description: "Unclosed object"
+    
+  - name: "duplicate_keys"
+    value: '{"key": "a", "key": "b"}'
+    category: "malformed"
+    description: "Duplicate JSON keys"
+    
+  - name: "deeply_nested"
+    value: '{"a": {"b": {"c": {"d": {"e": {"f": "value"}}}}}}'
+    category: "malformed"
+    description: "Deeply nested JSON"
+    
+  - name: "huge_array"
+    value: "[1,1,1,1,1,1,1,1,1,1]"
+    category: "size"
+    description: "Large JSON array"
+
+special_values:
+  - name: "empty_object"
+    value: "{}"
+    category: "special"
+    description: "Empty JSON object"
+    
+  - name: "empty_array"
+    value: "[]"
+    category: "special"
+    description: "Empty JSON array"
+    
+  - name: "null_value"
+    value: "null"
+    category: "special"
+    description: "JSON null"
+    
+  - name: "bool_true"
+    value: "true"
+    category: "special"
+    description: "JSON true"
+    
+  - name: "bool_false"
+    value: "false"
+    category: "special"
+    description: "JSON false"
+    
+  - name: "number_zero"
+    value: "0"
+    category: "special"
+    description: "Zero number"
+    
+  - name: "string_zero"
+    value: "\"0\""
+    category: "special"
+    description: "String zero"
+    
+  - name: "whitespace_only"
+    value: "   "
+    category: "special"
+    description: "Whitespace only"

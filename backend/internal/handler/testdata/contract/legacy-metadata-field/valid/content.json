@@ -1,0 +1,19 @@
+{
+  "contractVersion": "0.1.0",
+  "kind": "session_detail",
+  "sessionDetail": {
+    "schemaVersion": "0.1.0",
+    "id": "880e8400-e29b-41d4-a716-446655440033",
+    "harness": "claude-code",
+    "startTime": "2026-02-01T00:00:00Z",
+    "endTime": "2026-02-01T00:01:00Z",
+    "durationMins": 1,
+    "turnCount": 2,
+    "toolCallCount": 0,
+    "turns": [
+      {"index": 0, "role": "user", "content": "metadata-legacy case"},
+      {"index": 1, "role": "assistant", "content": "ok"}
+    ],
+    "outcome": "resolved"
+  }
+}

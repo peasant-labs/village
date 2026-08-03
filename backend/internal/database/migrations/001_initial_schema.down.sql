@@ -1,0 +1,8 @@
+DROP TABLE IF EXISTS transcript_shares;
+DROP TABLE IF EXISTS transcript_tags;
+DROP TABLE IF EXISTS tags;
+DROP TABLE IF EXISTS transcripts;
+DROP TABLE IF EXISTS api_keys;
+DROP TABLE IF EXISTS group_members;
+DROP TABLE IF EXISTS groups;
+DROP TABLE IF EXISTS users;

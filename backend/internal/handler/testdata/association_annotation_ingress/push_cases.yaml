@@ -1,0 +1,27 @@
+expectedCaseCount: 3
+requiredCaseNames:
+  - association target is accepted and stored
+  - association target cannot include a session arm
+  - association target requires an association ID
+cases:
+  - name: association target is accepted and stored
+    contentHash: association-annotation-valid
+    targetKind: association
+    targetAssociationId: assoc-20260727:session-a:commit-1
+    typeId: quality.session_outcome
+    value: resolved
+    expectedStatus: 200
+  - name: association target cannot include a session arm
+    contentHash: association-annotation-mixed
+    targetKind: association
+    targetAssociationId: assoc-20260727:session-a:commit-1
+    sessionId: session-a
+    typeId: quality.session_outcome
+    value: resolved
+    expectedStatus: 422
+  - name: association target requires an association ID
+    contentHash: association-annotation-missing-id
+    targetKind: association
+    typeId: quality.session_outcome
+    value: resolved
+    expectedStatus: 422

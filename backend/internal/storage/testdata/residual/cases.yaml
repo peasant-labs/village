@@ -1,0 +1,13 @@
+- {name: no-such-key, kind: s3_error, code: NoSuchKey, status: 404, expected: true}
+- {name: no-such-bucket-masked-404, kind: s3_error, code: NoSuchBucket, status: 404, expected: false}
+- {name: access-denied-masked-404, kind: s3_error, code: AccessDenied, status: 404, expected: false}
+- {name: generic-http-404, kind: s3_error, status: 404, expected: true}
+- {name: generic-http-403, kind: s3_error, status: 403, expected: false}
+- {name: pending-null-pair, kind: identity, hash_null: true, size_null: true, expected: true}
+- {name: pending-size-zero-preserved, kind: identity, hash_null: true, size: 0, expected: true}
+- {name: pending-positive-size, kind: identity, hash_null: true, size: 42, expected: true}
+- {name: pending-negative-size-rejected, kind: identity, hash_null: true, size: -1, expected: false}
+- {name: known-size-zero, kind: identity, hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, size: 0, expected: true}
+- {name: known-null-size-rejected, kind: identity, hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, size_null: true, expected: false}
+- {name: zero-loaded-state-rejected, kind: zero_state, expected: false}
+- {name: unknown-loaded-state-rejected, kind: unknown_state, expected: false}

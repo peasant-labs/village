@@ -1,0 +1,16 @@
+[
+  {
+    "name": "actionable_title_validation_message",
+    "title": "contact contributor@example.com",
+    "status": 422,
+    "responseError": "title update rejected during PATCH title validation because sensitive categories were detected (PII); no transcript row changed; remove or replace the sensitive content and retry",
+    "expected": "title update rejected during PATCH title validation because sensitive categories were detected (PII); no transcript row changed; remove or replace the sensitive content and retry"
+  },
+  {
+    "name": "generic_fallback_without_safe_validation_message",
+    "title": "contact contributor@example.com",
+    "status": 500,
+    "responseError": "",
+    "expected": "Could not save changes. Try again."
+  }
+]

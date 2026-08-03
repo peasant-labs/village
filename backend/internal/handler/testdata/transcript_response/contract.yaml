@@ -1,0 +1,168 @@
+allowed_fields:
+  - id
+  - owner_id
+  - local_id
+  - title
+  - description
+  - visibility
+  - model_provider
+  - model_name
+  - harness_version
+  - session_start
+  - session_end
+  - turn_count
+  - token_count
+  - blob_size_bytes
+  - schema_version
+  - published_at
+  - updated_at
+  - parent_session_id
+  - ingested_at
+  - source_format
+  - git_branch
+  - git_remote
+  - project_hash
+  - project_name
+  - tool_call_count
+  - subagent_count
+  - duration_ms
+  - subagents
+  - diagnostics_warnings
+  - diagnostics_partial
+  - tokens_in
+  - tokens_out
+  - title_generated
+  - outcome
+  - files_touched
+  - lines_changed
+  - retry_loops
+  - retry_tokens_wasted
+  - within_session_reverts
+  - signal_density
+  - spec_quality_score
+  - exploration_ratio
+  - scope_breadth
+  - discovery_turns
+  - m2_token_outcome_ratio
+  - m3_unique_tool_count
+  - m4_error_recovery_count
+  - m4_consecutive_error_max
+  - m5_context_utilization_pct
+  - m5_peak_context_tokens
+  - m5_avg_message_tokens
+  - m6_output_survival_pct
+  - m6_lines_survived
+  - m6_lines_total
+  - m7_spec_word_count
+  - m7_spec_has_examples
+  - m7_spec_has_constraints
+  - computed_at
+  - compute_version
+  - content_hash
+  - license_id
+denied_fields:
+  - blob_key
+  - source_file_path
+  - project_path
+  - git_worktree
+future_internal_fields:
+  - wrapped_data_key
+  - encryption_algorithm
+  - key_version
+mounted_paths:
+  - name: publish
+    shape: nested
+  - name: detail
+    shape: nested
+  - name: update
+    shape: nested
+  - name: list
+    shape: nested
+  - name: public_group
+    shape: flat_group
+owner_fields:
+  - owner_username
+  - owner_avatar_url
+  - owner_is_discoverable
+owner_values:
+  owner_username: route-owner
+  owner_avatar_url: https://example.test/avatar.png
+  owner_is_discoverable: true
+source_row:
+  id: 10000000-0000-4000-8000-000000000001
+  owner_id: 20000000-0000-4000-8000-000000000002
+  local_id: source-local-03
+  title: source-title-04
+  description: source-description-05
+  visibility: public
+  model_provider: source-provider-07
+  model_name: source-model-08
+  harness_version: source-version-09
+  session_start: 2026-01-10T10:00:00Z
+  session_end: 2026-01-11T11:00:00Z
+  turn_count: 12
+  token_count: 1300
+  blob_key: internal-blob-14
+  blob_size_bytes: 1500
+  schema_version: source-schema-16
+  published_at: 2026-01-17T17:00:00Z
+  updated_at: 2026-01-18T18:00:00Z
+  parent_session_id: source-parent-19
+  ingested_at: 2026-01-20T20:00:00Z
+  source_file_path: /internal/source-21
+  source_format: source-format-22
+  git_branch: source-branch-23
+  git_remote: source-remote-24
+  git_worktree: /internal/worktree-25
+  project_hash: source-project-hash-26
+  project_path: /internal/project-27
+  project_name: source-project-28
+  tool_call_count: 29
+  subagent_count: 30
+  duration_ms: 3100
+  subagents: W3sic291cmNlIjoic3ViYWdlbnQtMzIifV0=
+  diagnostics_warnings: WyJ3YXJuaW5nLTMzIl0=
+  diagnostics_partial: true
+  tokens_in: 3500
+  tokens_out: 3600
+  title_generated: source-generated-37
+  outcome: source-outcome-38
+  files_touched: 39
+  lines_changed: 40
+  retry_loops: 41
+  retry_tokens_wasted: 42
+  within_session_reverts: 43
+  signal_density: 44.25
+  spec_quality_score: 45.25
+  exploration_ratio: 46.25
+  scope_breadth: 47
+  discovery_turns: 48
+  m2_token_outcome_ratio: 49.25
+  m3_unique_tool_count: 50
+  m4_error_recovery_count: 51
+  m4_consecutive_error_max: 52
+  m5_context_utilization_pct: 53.25
+  m5_peak_context_tokens: 5400
+  m5_avg_message_tokens: 5500
+  m6_output_survival_pct: 56.25
+  m6_lines_survived: 57
+  m6_lines_total: 58
+  m7_spec_word_count: 59
+  m7_spec_has_examples: true
+  m7_spec_has_constraints: true
+  computed_at: 2026-03-02T02:00:00Z
+  compute_version: 63
+  content_hash: source-content-hash-64
+  license_id: CC-BY-4.0
+  wrapped_data_key: AQIDBA==
+  encryption_algorithm: aes-256-gcm-random-nonce-v1
+  key_version: 7
+conditional_validators:
+  - value: '"fixture-hash"'
+    matches: true
+  - value: fixture-hash
+    matches: true
+  - value: 'W/"fixture-hash"'
+    matches: true
+  - value: other-hash
+    matches: false

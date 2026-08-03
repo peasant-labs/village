@@ -1,0 +1,30 @@
+# Visual-capture artifacts are EPHEMERAL — never tracked. The harness writes
+# capture PNGs + composites + manifests/logs into a caller-chosen output dir
+# (demo/, village/, sxs/, MANIFEST*, *.log); defaults land in /tmp, but if a run
+# points its BASE inside this folder these patterns keep them out of git.
+#
+# Allowlist: the tracked harness scripts + docs, PLUS the committed `baseline/`
+# (the same-component transcript-browser <SessionDetail> reference — the ONE
+# capture set that IS tracked, as the no-regression "before"). Add a new `!path`
+# line to track any future script.
+*
+!.gitignore
+!README.md
+!probe-village.mjs
+!probe-explore.mjs
+!village-shoot.mjs
+!manage-shoot.mjs
+!explore-shoot.mjs
+!surface-gate.mjs
+!stitch-sxs.mjs
+!manage-stitch-sxs.mjs
+!boot-village.mjs
+!manage-boot-village.mjs
+!boot-explore.mjs
+!mock-rest.mjs
+!mock-rest-explore.mjs
+!png-diff.mjs
+!determinism.mjs
+!manage-README.md
+!baseline/
+!baseline/**

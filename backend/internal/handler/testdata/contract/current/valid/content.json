@@ -1,0 +1,23 @@
+{
+  "contractVersion": "0.1.1",
+  "kind": "session_detail",
+  "sessionDetail": {
+    "schemaVersion": "0.1.1",
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "harness": "claude-code",
+    "startTime": "2026-01-01T00:00:00Z",
+    "endTime": "2026-01-01T00:01:00Z",
+    "durationMins": 1,
+    "totalTokens": 100,
+    "tokensIn": 60,
+    "tokensOut": 40,
+    "turnCount": 2,
+    "toolCallCount": 1,
+    "turns": [
+      {"index": 0, "role": "user", "content": "fix the bug", "partType": "text"},
+      {"index": 1, "role": "assistant", "content": "done", "toolCalls": [{"id": "t1", "name": "Edit", "arguments": "{}", "result": "ok", "toolKind": "edit"}]}
+    ],
+    "outcome": "resolved",
+    "scorecard": {"signalDensity": 0.8, "specQualityScore": 0.9, "outcome": "resolved"}
+  }
+}

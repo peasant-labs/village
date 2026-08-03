@@ -1,0 +1,132 @@
+# Stats variations for combinatorial testing
+# Covers: zero, negative, overflow, boundary values
+
+turn_counts:
+  - name: "zero"
+    value: 0
+    description: "Zero turns"
+    
+  - name: "one"
+    value: 1
+    description: "Single turn"
+    
+  - name: "typical"
+    value: 10
+    description: "Typical session"
+    
+  - name: "large"
+    value: 10000
+    description: "Large session"
+    
+  - name: "overflow"
+    value: 2147483648
+    description: "Overflows int32"
+
+tool_call_counts:
+  - name: "zero"
+    value: 0
+    description: "No tool calls"
+    
+  - name: "typical"
+    value: 25
+    description: "Typical tool calls"
+    
+  - name: "large"
+    value: 100000
+    description: "Many tool calls"
+    
+  - name: "overflow"
+    value: 9999999999
+    description: "Overflows int32"
+
+subagent_counts:
+  - name: "nil"
+    value: null
+    description: "Null (no subagents)"
+    
+  - name: "zero"
+    value: 0
+    description: "Zero subagents"
+    
+  - name: "typical"
+    value: 2
+    description: "Two subagents"
+    
+  - name: "many"
+    value: 50
+    description: "Many subagents"
+
+duration_ms:
+  - name: "zero"
+    value: 0
+    description: "Zero duration"
+    
+  - name: "short"
+    value: 1000
+    description: "1 second"
+    
+  - name: "typical"
+    value: 60000
+    description: "1 minute"
+    
+  - name: "long"
+    value: 3600000
+    description: "1 hour"
+    
+  - name: "very_long"
+    value: 86400000
+    description: "24 hours"
+    
+  - name: "overflow"
+    value: 999999999999
+    description: "Overflows int64"
+
+tokens_in:
+  - name: "zero"
+    value: 0
+    description: "Zero input tokens"
+    
+  - name: "small"
+    value: 100
+    description: "Small input"
+    
+  - name: "typical"
+    value: 5000
+    description: "Typical input"
+    
+  - name: "large"
+    value: 1000000
+    description: "Large input"
+    
+  - name: "context_limit"
+    value: 200000
+    description: "At context limit"
+    
+  - name: "overflow"
+    value: 9999999999
+    description: "Overflows int32"
+
+tokens_out:
+  - name: "zero"
+    value: 0
+    description: "Zero output tokens"
+    
+  - name: "small"
+    value: 50
+    description: "Small output"
+    
+  - name: "typical"
+    value: 10000
+    description: "Typical output"
+    
+  - name: "large"
+    value: 100000
+    description: "Large output"
+    
+  - name: "max"
+    value: 4096
+    description: "At rate limit"
+    
+  - name: "overflow"
+    value: 9999999999
+    description: "Overflows int32"

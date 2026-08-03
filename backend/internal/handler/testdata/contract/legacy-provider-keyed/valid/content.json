@@ -1,0 +1,12 @@
+{
+  "id": "660e8400-e29b-41d4-a716-446655440011",
+  "provider": "claude",
+  "startTime": "2025-07-22T00:00:00Z",
+  "endTime": "2025-07-22T00:01:00Z",
+  "durationMins": 1,
+  "turnCount": 2,
+  "turns": [
+    {"index": 0, "role": "user", "content": "legacy hello"},
+    {"index": 1, "role": "assistant", "content": "legacy reply"}
+  ]
+}

@@ -1,0 +1,14 @@
+- {name: roundtrip-known, action: roundtrip}
+- {name: roundtrip-pending, action: pending}
+- {name: nondeterministic-body, action: nondeterministic}
+- {name: wrong-transcript-aad, action: wrong_uuid}
+- {name: tampered-body, action: tamper_body}
+- {name: tampered-wrapped-key, action: tamper_key}
+- {name: swapped-body, action: swap_body}
+- {name: swapped-wrapped-key, action: swap_key}
+- {name: wrong-content-type, action: content_type}
+- {name: wrong-hash, action: hash}
+- {name: wrong-size, action: size}
+- {name: unsupported-algorithm, action: algorithm}
+- {name: invalid-key-version, action: version}
+- {name: immutable-generation, action: generation}

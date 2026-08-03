@@ -1,0 +1,8 @@
+- {name: authenticated pending identity installs, outcome: installed}
+- {name: descriptor changed concurrently, outcome: stale}
+- {name: prior nullable size changed, outcome: stale}
+- {name: object read fails, outcome: failed}
+- {name: descriptor invalid, outcome: failed}
+- {name: authentication fails, outcome: failed}
+- {name: database CAS fails, outcome: failed}
+- {name: empty plaintext identity installs, outcome: installed}

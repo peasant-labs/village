@@ -1,0 +1,20 @@
+- name: valid-single
+  active: "1"
+  keyring: '{"1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}'
+  valid: true
+- name: valid-rotation
+  active: "2"
+  keyring: '{"1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=","2":"YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODk="}'
+  valid: true
+- {name: missing-active, active: "", keyring: '{}', error: TRANSCRIPT_KEK_ACTIVE_VERSION}
+- {name: zero-active, active: "0", keyring: '{}', error: TRANSCRIPT_KEK_ACTIVE_VERSION}
+- {name: negative-active, active: "-1", keyring: '{}', error: TRANSCRIPT_KEK_ACTIVE_VERSION}
+- {name: overflow-active, active: "2147483648", keyring: '{}', error: TRANSCRIPT_KEK_ACTIVE_VERSION}
+- {name: malformed-json, active: "1", keyring: '{', error: TRANSCRIPT_KEK_KEYRING}
+- {name: non-object, active: "1", keyring: '[]', error: TRANSCRIPT_KEK_KEYRING}
+- {name: duplicate-version, active: "1", keyring: '{"1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=","1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}', error: duplicate}
+- {name: zero-version, active: "1", keyring: '{"0":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}', error: positive}
+- {name: invalid-base64, active: "1", keyring: '{"1":"secret"}', error: base64}
+- {name: short-key, active: "1", keyring: '{"1":"c2hvcnQ="}', error: 32 bytes}
+- {name: absent-active, active: "2", keyring: '{"1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}', error: absent}
+- {name: trailing-json, active: "1", keyring: '{"1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="} {}', error: trailing}

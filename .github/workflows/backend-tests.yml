@@ -1,0 +1,222 @@
+name: Backend Tests
+
+# Runs the village Go backend's unit AND integration suites on PRs (and pushes
+# to the long-lived branches). The integration suite (`-tags=integration`) needs
+# real PostgreSQL and S3-compatible storage. PostgreSQL runs as a service
+# container; the workflow starts an ephemeral pinned MinIO container explicitly.
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "go.work"
+      - "frontend/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "scripts/verify-production-artifacts.sh"
+      - "scripts/check-artifact-source.sh"
+      - "scripts/test-artifact-source.sh"
+      - "scripts/test-production-artifacts.sh"
+      - "scripts/test-production-revision-guard.sh"
+      - "scripts/testdata/production-artifacts/**"
+      - "scripts/run-integration-gates.sh"
+      - "scripts/test-database-admin.go"
+      - "scripts/check-go-test-events.go"
+      - "scripts/test-go-test-events.sh"
+      - "scripts/testdata/go-test-events/**"
+      - ".github/workflows/backend-tests.yml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "backend/**"
+      - "go.work"
+      - "frontend/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "scripts/verify-production-artifacts.sh"
+      - "scripts/check-artifact-source.sh"
+      - "scripts/test-artifact-source.sh"
+      - "scripts/test-production-artifacts.sh"
+      - "scripts/test-production-revision-guard.sh"
+      - "scripts/testdata/production-artifacts/**"
+      - "scripts/run-integration-gates.sh"
+      - "scripts/test-database-admin.go"
+      - "scripts/check-go-test-events.go"
+      - "scripts/test-go-test-events.sh"
+      - "scripts/testdata/go-test-events/**"
+      - ".github/workflows/backend-tests.yml"
+
+# Every job only reads repository contents. The workflow does not expose secrets
+# or write-capable credentials to pull requests from public forks.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Backend, PostgreSQL, and MinIO
+    runs-on: ubuntu-24.04
+
+    # Ephemeral Postgres for the -tags=integration suite. TEST_DATABASE_URL points
+    # the tests at this service; each integration test runs RunMigrations itself,
+    # so no migration step is needed here.
+    services:
+      postgres:
+        # postgres 16.14-alpine3.24, pinned to the linux/amd64 manifest used by ubuntu-24.04.
+        image: postgres@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: village_test
+        ports:
+          - 5432:5432
+        # Gate on readiness so the first connection never races startup.
+        options: >-
+          --health-cmd "pg_isready -U test -d village_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MINIO_IMAGE: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+      MINIO_CONTAINER: village-test-minio
+      TEST_DATABASE_URL: postgres://test:test@localhost:5432/village_test?sslmode=disable
+      TEST_DATABASE_ADMIN_URL: postgres://test:test@localhost:5432/postgres?sslmode=disable
+      TEST_DATABASE_URL_TEMPLATE: postgres://test:test@localhost:5432/{database}?sslmode=disable
+      TEST_S3_ENDPOINT: http://localhost:9000
+      TEST_S3_BUCKET: peasant-transcripts
+      TEST_S3_ACCESS_KEY: minioadmin
+      TEST_S3_SECRET_KEY: minioadmin
+      TRANSCRIPT_KEK_ACTIVE_VERSION: "1"
+      TRANSCRIPT_KEK_KEYRING: '{"1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+
+      - name: Start MinIO and create test bucket
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name "$MINIO_CONTAINER" \
+            --publish 9000:9000 \
+            --env MINIO_ROOT_USER="$TEST_S3_ACCESS_KEY" \
+            --env MINIO_ROOT_PASSWORD="$TEST_S3_SECRET_KEY" \
+            "$MINIO_IMAGE" server /data
+
+          ready=false
+          for attempt in {1..30}; do
+            if docker exec "$MINIO_CONTAINER" \
+              curl --fail --silent --show-error http://127.0.0.1:9000/minio/health/live >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [[ "$ready" != true ]]; then
+            echo "MinIO did not become ready at $TEST_S3_ENDPOINT after $attempt/30 attempts; container logs follow." >&2
+            docker logs "$MINIO_CONTAINER" >&2 || true
+            exit 1
+          fi
+
+          docker exec "$MINIO_CONTAINER" mc alias set local \
+            http://127.0.0.1:9000 "$TEST_S3_ACCESS_KEY" "$TEST_S3_SECRET_KEY"
+          docker exec "$MINIO_CONTAINER" mc mb --ignore-existing "local/$TEST_S3_BUCKET"
+
+      # The backend imports the public contract module github.com/peasant-labs/schema,
+      # fetched over the standard module proxy; no token, GOPRIVATE, or git rewrite.
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          # Pin the toolchain to the module's declared version.
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Preflight PostgreSQL and MinIO
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+          pg_isready --dbname "$TEST_DATABASE_ADMIN_URL"
+          docker exec "$MINIO_CONTAINER" mc stat "local/$TEST_S3_BUCKET" >/dev/null
+
+      - name: Build
+        working-directory: backend
+        run: go build ./...
+
+      - name: Unit tests (-race)
+        working-directory: backend
+        run: go test -race ./...
+
+      - name: Formatting
+        working-directory: backend
+        run: test -z "$(gofmt -l .)"
+
+      - name: Vet
+        working-directory: backend
+        run: go vet ./...
+
+      - name: Isolated integration tests (-tags=integration, -race)
+        run: |
+          scripts/test-go-test-events.sh
+          scripts/run-integration-gates.sh
+
+      - name: Clean up MinIO
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${{ job.status }}" != "success" ]]; then
+            echo "Backend job failed; MinIO container logs follow." >&2
+            docker logs "$MINIO_CONTAINER" >&2 || true
+          fi
+          docker rm --force "$MINIO_CONTAINER" >/dev/null 2>&1 || true
+
+  frontend:
+    name: Frontend frozen build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+        with:
+          version: 11.5.3
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: frontend
+        run: pnpm lint
+
+      - name: Build standalone frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: https://village.invalid/api/v1
+        run: pnpm build
+
+  production-artifacts:
+    name: Production artifact provenance
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build and verify production images
+        env:
+          NEXT_PUBLIC_API_URL: https://village.invalid/api/v1
+        run: |
+          scripts/test-artifact-source.sh
+          scripts/test-production-artifacts.sh
+          scripts/verify-production-artifacts.sh "$GITHUB_SHA"
+          scripts/test-production-revision-guard.sh

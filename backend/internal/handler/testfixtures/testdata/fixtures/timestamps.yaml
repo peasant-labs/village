@@ -1,0 +1,54 @@
+# Timestamp variations for combinatorial testing
+# Covers: zero, negative, max, valid, boundary values
+
+timestamps:
+  - name: "valid"
+    start: 1700000000000
+    end: 1700000060000
+    description: "Valid timestamps (2023-11-14 22:13:20 UTC)"
+    
+  - name: "zero"
+    start: 0
+    end: 0
+    description: "Zero timestamps (Unix epoch)"
+    
+  - name: "negative"
+    start: -1000
+    end: -500
+    description: "Negative timestamps (before epoch)"
+    
+  - name: "max_safe_integer"
+    start: 253402300799999
+    end: 253402300799999
+    description: "Max safe JavaScript timestamp"
+    
+  - name: "overflow"
+    start: 999999999999999
+    end: 999999999999999
+    description: "Overflow timestamp"
+    
+  - name: "start_after_end"
+    start: 1700000100000
+    end: 1700000000000
+    description: "Start after end (logical error)"
+
+ingested:
+  - name: "nil"
+    value: null
+    description: "Null ingested timestamp (optional)"
+    
+  - name: "valid"
+    value: 1700000100000
+    description: "Valid ingested timestamp"
+    
+  - name: "before_start"
+    value: 1699999900000
+    description: "Ingested before session start"
+    
+  - name: "future"
+    value: 9999999999999
+    description: "Far future timestamp"
+    
+  - name: "negative"
+    value: -1000
+    description: "Negative ingested timestamp"

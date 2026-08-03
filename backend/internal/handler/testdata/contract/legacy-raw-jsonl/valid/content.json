@@ -1,0 +1,4 @@
+[
+  {"role": "user", "content": "raw jsonl line one"},
+  {"role": "assistant", "content": "raw jsonl line two"}
+]

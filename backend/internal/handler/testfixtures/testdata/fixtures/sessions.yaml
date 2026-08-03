@@ -1,0 +1,61 @@
+# SessionID variations for combinatorial testing
+# Covers: valid, zero, empty, invalid-uuid, max-length, special chars
+
+session_ids:
+  - name: "valid_v4_uuid"
+    value: "550e8400-e29b-41d4-a716-446655440000"
+    description: "Valid UUID v4 format"
+    
+  - name: "zero_uuid"
+    value: "00000000-0000-0000-0000-000000000000"
+    description: "All zeros UUID"
+    
+  - name: "empty_string"
+    value: ""
+    description: "Empty string (should fail validation)"
+    
+  - name: "invalid_not_uuid"
+    value: "not-a-uuid-at-all"
+    description: "Invalid non-UUID string"
+    
+  - name: "invalid_uuid_v3_format"
+    value: "550e8400-e29b-0000-a716-446655440000"
+    description: "Invalid UUID (v3 variant in v4 position)"
+    
+  - name: "too_short"
+    value: "550e8400-e29b-41d4-a716"
+    description: "Truncated UUID"
+    
+  - name: "too_long"
+    value: "550e8400-e29b-41d4-a716-446655440000-extra"
+    description: "Oversized string"
+
+parent_session_ids:
+  - name: "nil"
+    value: null
+    description: "Null parent (most common)"
+    
+  - name: "valid"
+    value: "660e8400-e29b-41d4-a716-446655440001"
+    description: "Valid parent session"
+    
+  - name: "empty"
+    value: ""
+    description: "Empty string parent"
+
+schema_versions:
+  - name: "default_v2"
+    value: 2
+    description: "Default schema version"
+    
+  - name: "v0"
+    value: 0
+    description: "Version 0"
+    
+  - name: "v1"
+    value: 1
+    description: "Version 1"
+    
+  - name: "future"
+    value: 999
+    description: "Future version"

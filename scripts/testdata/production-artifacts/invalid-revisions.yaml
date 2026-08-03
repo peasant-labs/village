@@ -1,0 +1,4 @@
+cases:
+  - "literal_builtin|$RAILWAY_GIT_COMMIT_SHA"
+  - "short_revision|fecf95c"
+  - "newline_suffix|ffffffffffffffffffffffffffffffffffffffff<NEWLINE>trailing"

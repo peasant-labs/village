@@ -1,0 +1,7 @@
+{
+  "identity": {"sessionId": "550e8400-e29b-41d4-a716-446655440000", "schemaVersion": 2},
+  "model": {"harness": "claude-code", "model": "claude-opus-4-5"},
+  "timestamp": {"start": 1700000000000, "end": 1700000060000},
+  "source": {"filePath": "/proj/transcript.jsonl", "format": "xml"},
+  "project": {"hash": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2", "name": "demo-project"}
+}

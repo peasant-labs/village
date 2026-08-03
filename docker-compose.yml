@@ -1,0 +1,113 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: peasant
+      POSTGRES_PASSWORD: peasant
+      POSTGRES_DB: peasant
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U peasant"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc
+    restart: on-failure
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do
+        echo 'Waiting for minio...'; sleep 2;
+      done;
+      mc mb --ignore-existing local/peasant-transcripts;
+      exit 0;
+      "
+
+  caddy:
+    image: caddy:2-alpine
+    restart: on-failure
+    ports:
+      - "8080:80"
+      - "8443:443"
+      - "8445:8445"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: on-failure
+    volumes:
+      - ./backend:/app
+      - /app/tmp # Prevent host tmp from clobbering container tmp
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://peasant:peasant@postgres:5432/peasant?sslmode=disable
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: peasant-transcripts
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_USE_PATH_STYLE: "true"
+      JWT_SECRET: ${JWT_SECRET}
+      BASE_URL: https://localhost:8443
+      FRONTEND_URL: https://localhost:8443
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITLAB_CLIENT_ID: ${GITLAB_CLIENT_ID:-}
+      GITLAB_CLIENT_SECRET: ${GITLAB_CLIENT_SECRET:-}
+      HUGGINGFACE_CLIENT_ID: ${HUGGINGFACE_CLIENT_ID:-}
+      HUGGINGFACE_CLIENT_SECRET: ${HUGGINGFACE_CLIENT_SECRET:-}
+      CODEBERG_CLIENT_ID: ${CODEBERG_CLIENT_ID:-}
+      CODEBERG_CLIENT_SECRET: ${CODEBERG_CLIENT_SECRET:-}
+      SOURCEHUT_CLIENT_ID: ${SOURCEHUT_CLIENT_ID:-}
+      SOURCEHUT_CLIENT_SECRET: ${SOURCEHUT_CLIENT_SECRET:-}
+      PORT: "8080"
+    depends_on:
+      - postgres
+      - minio-init
+
+  frontend:
+    build:
+      # THIS repo is the whole build context: all deps are published registry
+      # packages, so no sibling worktree (and no worktree-specific path) is
+      # ever referenced; the old context reached two levels up and hardcoded
+      # another worktree's name, breaking every other checkout.
+      context: .
+      dockerfile: frontend/Dockerfile.dev
+      args:
+        NEXT_PUBLIC_API_URL: https://localhost:8443/api/v1
+    volumes:
+      - ./frontend:/workspace/frontend
+      - /workspace/frontend/node_modules # Prevent host node_modules from clobbering container
+      - /workspace/frontend/.next # Prevent host build from clobbering container
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  miniodata:
+  caddy_data:
+  caddy_config:

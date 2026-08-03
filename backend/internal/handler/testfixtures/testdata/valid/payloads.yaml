@@ -1,0 +1,76 @@
+# Valid complete publish request payloads
+# These should all pass validation
+
+- name: "minimal_valid"
+  description: "Minimal valid payload with required fields only"
+  identity:
+    sessionId: "550e8400-e29b-41d4-a716-446655440000"
+    schemaVersion: 2
+  model:
+    provider: "openai"
+    model: "gpt-4"
+  timestamp:
+    start: 1700000000000
+    end: 1700000060000
+  source:
+    filePath: "/path/to/transcript.jsonl"
+    format: "jsonl"
+  stats:
+    turnCount: 10
+
+- name: "full_with_all_fields"
+  description: "Complete payload with all fields populated"
+  identity:
+    sessionId: "550e8400-e29b-41d4-a716-446655440000"
+    parentSessionId: "660e8400-e29b-41d4-a716-446655440001"
+    schemaVersion: 2
+  model:
+    provider: "openai"
+    model: "gpt-4"
+    harnessVersion: "1.0"
+  timestamp:
+    start: 1700000000000
+    end: 1700000060000
+    ingested: 1700000100000
+  source:
+    filePath: "/path/to/transcript.jsonl"
+    format: "jsonl"
+  git:
+    branch: "main"
+    remote: "origin"
+    worktree: "/path/to/worktree"
+  project:
+    hash: "abc123def456"
+    filePath: "/path/to/project"
+    name: "test-project"
+  stats:
+    turnCount: 10
+    toolCallCount: 25
+    subagentCount: 2
+    durationMs: 60000
+    tokensIn: 5000
+    tokensOut: 10000
+  quality:
+    titleGenerated: "Test Session"
+    outcome: "success"
+    filesTouched: 10
+    linesChanged: 100
+    signalDensity: 0.75
+    specQualityScore: 0.9
+    explorationRatio: 0.5
+    scopeBreadth: 5
+    m2TokenOutcomeRatio: 0.85
+    m3UniqueToolCount: 15
+    m4ErrorRecoveryCount: 2
+    m5ContextUtilizationPct: 80
+    m6OutputSurvivalPct: 95
+    m7SpecWordCount: 500
+    m7SpecHasExamples: true
+    m7SpecHasConstraints: true
+    computedAt: 1700000200000
+    computeVersion: 1
+  subagents:
+    - sessionId: "ses_001"
+      parentUuid: "550e8400-e29b-41d4-a716-446655440000"
+  diagnostics:
+    partial: true

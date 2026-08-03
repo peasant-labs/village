@@ -1,0 +1,27 @@
+# Dev image for the village frontend. The build context is THIS repo's root
+# (the pnpm workspace root) — every dependency, including @peasant-labs/fairtrade
+# and @peasant-labs/transcript-browser, resolves from the npm registry, so the
+# image needs no sibling worktrees. (The previous version copied the paired
+# fairtrade-design-system worktree and ran a source prebuild on every start;
+# that dev-link machinery is retired — published packages only.)
+FROM node:24-alpine
+RUN corepack enable && corepack prepare pnpm@11.5.3 --activate
+WORKDIR /workspace
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY frontend/package.json frontend/
+RUN pnpm install --frozen-lockfile
+
+WORKDIR /workspace/frontend
+COPY frontend ./
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_API_URL=https://localhost:8443/api/v1
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+EXPOSE 3000
+
+# The host bind-mount in docker-compose.yml replaces this directory's SOURCE
+# on top of what's baked in here; the anonymous node_modules/.next volume
+# entries there preserve this image's pnpm install instead of being clobbered
+# by the (empty, gitignored) host node_modules/.next.
+CMD ["pnpm", "run", "dev"]

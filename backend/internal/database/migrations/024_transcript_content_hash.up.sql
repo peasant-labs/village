@@ -1,0 +1,14 @@
+-- Stores the server-computed hash of the served blob bytes.
+--
+-- This is the hash the village writes to S3 at publish (SHA3-256 hex over the
+-- exact bytes uploaded). It backs the pull surface's conditional-GET contract:
+--   GET /api/v1/pull/transcripts/{id}/content  =>  ETag: "<content_hash>"
+--   If-None-Match: "<content_hash>"            =>  304 Not Modified
+-- A NULL hash (legacy rows published before this column, not yet backfilled)
+-- means the village serves NO ETag and the client falls back to an
+-- unconditional GET + local hash compare.
+--
+-- NOTE: this is the SERVED-BLOB hash, distinct from UnifiedMetadata.ContentHash
+-- (the peasant ingest-time, pre-push-redaction hash). The village persists no
+-- metadata JSON, so this column is the only authoritative served-blob digest.
+ALTER TABLE transcripts ADD COLUMN content_hash TEXT;

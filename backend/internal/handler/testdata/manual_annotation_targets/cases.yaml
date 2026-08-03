@@ -1,0 +1,56 @@
+expectedCaseCount: 7
+requiredCaseNames:
+  - non-owner labels first shared transcript
+  - same viewer labels second shared transcript with same local ID
+  - repeat label on first exact transcript deduplicates
+  - inaccessible transcript remains hidden
+  - transcript deletion cascades its manual labels
+  - migrated viewer label follows globally unique transcript
+  - duplicate legacy local ID stays unbound
+cases:
+  - name: non-owner labels first shared transcript
+    action: create
+    target: first
+    typeId: turn.helpful
+    value: yes
+    entryIndex: 5
+    wantStatus: 201
+  - name: same viewer labels second shared transcript with same local ID
+    action: create
+    target: second
+    typeId: turn.helpful
+    value: yes
+    entryIndex: 5
+    wantStatus: 201
+  - name: repeat label on first exact transcript deduplicates
+    action: repeat
+    target: first
+    typeId: turn.helpful
+    value: yes
+    entryIndex: 5
+    wantStatus: 201
+  - name: inaccessible transcript remains hidden
+    action: create
+    target: private
+    typeId: turn.helpful
+    value: yes
+    entryIndex: 5
+    wantStatus: 404
+  - name: transcript deletion cascades its manual labels
+    action: delete
+    target: first
+    wantStatus: 204
+  - name: migrated viewer label follows globally unique transcript
+    action: legacy
+    target: legacy
+    typeId: turn.helpful
+    value: yes
+    entryIndex: 5
+    wantStatus: 201
+  - name: duplicate legacy local ID stays unbound
+    action: legacy
+    target: ambiguous
+    typeId: turn.helpful
+    value: yes
+    entryIndex: 5
+    wantStatus: 201

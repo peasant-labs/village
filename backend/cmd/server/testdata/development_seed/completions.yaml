@@ -1,0 +1,3 @@
+- {name: committed retains referenced ciphertext, completion: committed, want_deleted: 0, want_error: false, want_event: false}
+- {name: known rollback deletes candidate, completion: known-rollback, want_deleted: 1, want_error: true, want_event: false}
+- {name: ambiguous commit retains and reconciles, completion: ambiguous, want_deleted: 0, want_error: true, want_event: true}

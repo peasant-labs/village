@@ -1,0 +1,204 @@
+expectedCaseCount: 5
+cases:
+  - name: pool one association publish
+    localId: 10000000-0000-4000-8000-000000000001
+    primaryContent: '[{"role":"user","content":"pool one"}]'
+    expectedPrimaryStatus: 201
+    associations:
+      - associationId: 20000000-0000-4000-8000-000000000001
+        observedCommitHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  - name: mixed source publish
+    localId: 10000000-0000-4000-8000-000000000002
+    primaryContent: '[{"role":"user","content":"empty"}]'
+    competingContent: '[{"role":"user","content":"associated"}]'
+    expectedPrimaryStatus: 201
+    expectedCompetingStatus: 200
+    associations:
+      - associationId: 20000000-0000-4000-8000-000000000002
+        observedCommitHash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  - name: reversed association order
+    localId: 10000000-0000-4000-8000-000000000003
+    competingLocalId: 10000000-0000-4000-8000-000000000004
+    primaryContent: '[{"role":"user","content":"canonical winner"}]'
+    competingContent: '[{"role":"user","content":"conflicting loser"}]'
+    expectedPrimaryStatus: 201
+    expectedCompetingStatus: 422
+    expectedCompetingBody: "{\"error\":\"association ledger binding rejected: association \\\"20000000-0000-4000-8000-000000000004\\\" is already bound to a different transcript or observed commit; durable association IDs cannot be rebound; reuse its original transcript/hash binding or publish a new association ID\"}\n"
+    primaryAssociationOrder:
+      - 20000000-0000-4000-8000-000000000003
+      - 20000000-0000-4000-8000-000000000005
+      - 20000000-0000-4000-8000-000000000004
+    competingAssociationOrder:
+      - 20000000-0000-4000-8000-000000000004
+      - 20000000-0000-4000-8000-000000000005
+      - 20000000-0000-4000-8000-000000000003
+    externalGateAssociationId: 20000000-0000-4000-8000-000000000005
+    expectedTopology:
+      - {name: A, granted: 1, waiting: 1}
+      - {name: B, granted: 1, waiting: 0}
+      - {name: C, granted: 1, waiting: 1}
+    associations:
+      - associationId: 20000000-0000-4000-8000-000000000003
+        observedCommitHash: cccccccccccccccccccccccccccccccccccccccc
+      - associationId: 20000000-0000-4000-8000-000000000004
+        observedCommitHash: dddddddddddddddddddddddddddddddddddddddd
+      - associationId: 20000000-0000-4000-8000-000000000005
+        observedCommitHash: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+  - name: canceled association publish
+    localId: 10000000-0000-4000-8000-000000000006
+    competingLocalId: 10000000-0000-4000-8000-000000000007
+    primaryContent: '[{"role":"user","content":"cancel winner"}]'
+    competingContent: '[{"role":"user","content":"cancel waiter"}]'
+    expectedPrimaryStatus: 201
+    expectedCompetingStatus: 500
+    expectedCompetingBody: "{\"error\":\"Failed to save transcript\"}\n"
+    associations:
+      - associationId: 20000000-0000-4000-8000-000000000006
+        observedCommitHash: ffffffffffffffffffffffffffffffffffffffff
+  - name: post insert rollback
+    localId: 10000000-0000-4000-8000-000000000008
+    competingLocalId: 10000000-0000-4000-8000-000000000009
+    primaryContent: '[{"role":"user","content":"forced rollback"}]'
+    competingContent: '[{"role":"user","content":"rollback recovery"}]'
+    expectedPrimaryStatus: 500
+    expectedPrimaryBody: "{\"error\":\"Failed to save transcript\"}\n"
+    expectedCompetingStatus: 201
+    associations:
+      - associationId: assoc-ledger-forced-rollback
+        observedCommitHash: 1111111111111111111111111111111111111111
+    recoveryAssociations:
+      - associationId: 20000000-0000-4000-8000-000000000009
+        observedCommitHash: 2222222222222222222222222222222222222222
+invalidCases:
+  - name: missing order membership
+    expectedError: field associations/primaryAssociationOrder/competingAssociationOrder has invalid value
+    case:
+      name: reversed association order
+      localId: fixture-invalid-missing
+      primaryContent: primary
+      competingContent: competing
+      expectedPrimaryStatus: 201
+      expectedCompetingStatus: 422
+      expectedCompetingBody: exact error
+      primaryAssociationOrder: [association-a, association-b]
+      competingAssociationOrder: [association-a, association-b, association-c]
+      externalGateAssociationId: association-c
+      expectedTopology: &valid-topology
+        - {name: A, granted: 1, waiting: 1}
+        - {name: B, granted: 1, waiting: 0}
+        - {name: C, granted: 1, waiting: 1}
+      associations:
+        - {associationId: association-a, observedCommitHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+        - {associationId: association-b, observedCommitHash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
+        - {associationId: association-c, observedCommitHash: cccccccccccccccccccccccccccccccccccccccc}
+  - name: unknown order membership
+    expectedError: use only IDs declared in associations
+    case:
+      name: reversed association order
+      localId: fixture-invalid-unknown
+      primaryContent: primary
+      competingContent: competing
+      expectedPrimaryStatus: 201
+      expectedCompetingStatus: 422
+      expectedCompetingBody: exact error
+      primaryAssociationOrder: [association-a, association-unknown, association-c]
+      competingAssociationOrder: [association-a, association-b, association-c]
+      externalGateAssociationId: association-c
+      expectedTopology: *valid-topology
+      associations:
+        - {associationId: association-a, observedCommitHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+        - {associationId: association-b, observedCommitHash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
+        - {associationId: association-c, observedCommitHash: cccccccccccccccccccccccccccccccccccccccc}
+  - name: duplicate order membership
+    expectedError: without duplicates
+    case:
+      name: reversed association order
+      localId: fixture-invalid-duplicate
+      primaryContent: primary
+      competingContent: competing
+      expectedPrimaryStatus: 201
+      expectedCompetingStatus: 422
+      expectedCompetingBody: exact error
+      primaryAssociationOrder: [association-a, association-a, association-c]
+      competingAssociationOrder: [association-a, association-b, association-c]
+      externalGateAssociationId: association-c
+      expectedTopology: *valid-topology
+      associations:
+        - {associationId: association-a, observedCommitHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+        - {associationId: association-b, observedCommitHash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
+        - {associationId: association-c, observedCommitHash: cccccccccccccccccccccccccccccccccccccccc}
+  - name: external gate outside declared set
+    expectedError: select one ID declared in associations
+    case:
+      name: reversed association order
+      localId: fixture-invalid-gate
+      primaryContent: primary
+      competingContent: competing
+      expectedPrimaryStatus: 201
+      expectedCompetingStatus: 422
+      expectedCompetingBody: exact error
+      primaryAssociationOrder: [association-a, association-c, association-b]
+      competingAssociationOrder: [association-b, association-c, association-a]
+      externalGateAssociationId: association-outside
+      expectedTopology: *valid-topology
+      associations:
+        - {associationId: association-a, observedCommitHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+        - {associationId: association-b, observedCommitHash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
+        - {associationId: association-c, observedCommitHash: cccccccccccccccccccccccccccccccccccccccc}
+  - name: recovery association in primary order
+    expectedError: use only IDs declared in associations
+    case:
+      name: reversed association order
+      localId: fixture-invalid-recovery-order
+      primaryContent: primary
+      competingContent: competing
+      expectedPrimaryStatus: 201
+      expectedCompetingStatus: 422
+      expectedCompetingBody: exact error
+      primaryAssociationOrder: [association-a, association-c, association-recovery]
+      competingAssociationOrder: [association-b, association-c, association-a]
+      externalGateAssociationId: association-c
+      expectedTopology: *valid-topology
+      associations:
+        - {associationId: association-a, observedCommitHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+        - {associationId: association-b, observedCommitHash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
+        - {associationId: association-c, observedCommitHash: cccccccccccccccccccccccccccccccccccccccc}
+      recoveryAssociations:
+        - {associationId: association-recovery, observedCommitHash: dddddddddddddddddddddddddddddddddddddddd}
+  - name: recovery association as external gate
+    expectedError: select one ID declared in associations
+    case:
+      name: reversed association order
+      localId: fixture-invalid-recovery-gate
+      primaryContent: primary
+      competingContent: competing
+      expectedPrimaryStatus: 201
+      expectedCompetingStatus: 422
+      expectedCompetingBody: exact error
+      primaryAssociationOrder: [association-a, association-c, association-b]
+      competingAssociationOrder: [association-b, association-c, association-a]
+      externalGateAssociationId: association-recovery
+      expectedTopology: *valid-topology
+      associations:
+        - {associationId: association-a, observedCommitHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+        - {associationId: association-b, observedCommitHash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}
+        - {associationId: association-c, observedCommitHash: cccccccccccccccccccccccccccccccccccccccc}
+      recoveryAssociations:
+        - {associationId: association-recovery, observedCommitHash: dddddddddddddddddddddddddddddddddddddddd}
+  - name: short reversed topology
+    expectedError: declare exactly three primary associations
+    case:
+      name: reversed association order
+      localId: fixture-invalid-short
+      primaryContent: primary
+      competingContent: competing
+      expectedPrimaryStatus: 201
+      expectedCompetingStatus: 422
+      expectedCompetingBody: exact error
+      primaryAssociationOrder: [association-a, association-b]
+      competingAssociationOrder: [association-b, association-a]
+      externalGateAssociationId: association-b
+      expectedTopology: *valid-topology
+      associations:
+        - {associationId: association-a, observedCommitHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+        - {associationId: association-b, observedCommitHash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}

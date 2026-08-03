@@ -1,0 +1,12 @@
+- name: empty table activates encryption
+  operation: empty_activation
+- name: non-empty table refuses activation
+  operation: nonempty_refusal
+- name: queued legacy insert is excluded
+  operation: queued_insert
+- name: descriptor accepts valid values
+  operation: valid_descriptor
+- name: descriptor rejects invalid values
+  operation: invalid_descriptor
+- name: down migration requires empty table
+  operation: guarded_down

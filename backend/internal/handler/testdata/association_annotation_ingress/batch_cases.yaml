@@ -1,0 +1,10 @@
+expectedCaseCount: 1
+requiredCaseNames:
+  - multi-item association batch uses set queries
+cases:
+  - name: multi-item association batch uses set queries
+    associations:
+      - associationId: assoc-batch-alpha
+        observedCommitHash: commit-batch-alpha
+      - associationId: assoc-batch-beta
+        observedCommitHash: commit-batch-beta

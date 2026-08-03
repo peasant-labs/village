@@ -1,0 +1,20 @@
+- name: unmarked insert is rejected
+  operation: old_insert
+- name: wrong marker insert is rejected
+  operation: wrong_marker
+- name: marked insert succeeds
+  operation: marked_insert
+- name: unmarked blob key update is rejected
+  operation: old_blob_update
+- name: unmarked identity update is rejected
+  operation: old_identity_update
+- name: marked descriptor update succeeds
+  operation: marked_update
+- name: unmarked delete is rejected
+  operation: old_delete
+- name: marked delete succeeds
+  operation: marked_delete
+- name: marked cascade delete succeeds
+  operation: marked_cascade
+- name: safe metadata update needs no marker
+  operation: metadata_update

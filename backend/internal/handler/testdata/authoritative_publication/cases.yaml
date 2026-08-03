@@ -1,0 +1,54 @@
+publish:
+  - name: create_returns_complete_authoritative_receipt
+    content: '[{"role":"user","content":"safe fixture"}]'
+    parent_session_id: 660e8400-e29b-41d4-a716-446655440031
+    association_id: assoc-fixture-1
+    observed_commit_hash: abc123
+    want_status: 201
+  - name: update_appends_complete_association_state
+    content: '[{"role":"user","content":"safe replacement"}]'
+    parent_session_id: 660e8400-e29b-41d4-a716-446655440031
+    association_id: assoc-fixture-2
+    observed_commit_hash: def456
+    want_status: 200
+  - name: content_hash_mismatch_has_no_effect
+    content: '[{"role":"user","content":"mismatch"}]'
+    parent_session_id: 660e8400-e29b-41d4-a716-446655440031
+    association_id: assoc-fixture-3
+    observed_commit_hash: fed999
+    want_status: 422
+  - name: alias_is_rejected_before_replacement
+    content: '[{"role":"user","content":"alias"}]'
+    parent_session_id: 660e8400-e29b-41d4-a716-446655440031
+    association_id: assoc-fixture-alias
+    observed_commit_hash: abc123
+    want_status: 422
+  - name: rebind_is_rejected_before_replacement
+    content: '[{"role":"user","content":"rebind"}]'
+    parent_session_id: 660e8400-e29b-41d4-a716-446655440031
+    association_id: assoc-fixture-1
+    observed_commit_hash: changed789
+    want_status: 422
+  - name: database_failure_preserves_prior_pairing
+    content: '[{"role":"user","content":"prior pairing must remain"}]'
+    parent_session_id: 660e8400-e29b-41d4-a716-446655440031
+    association_id: assoc-fixture-4
+    observed_commit_hash: 444aaa
+    want_status: 500
+  - name: staged_cleanup_failure_is_actionable
+    content: '[{"role":"user","content":"staged cleanup must fail safely"}]'
+    parent_session_id: 660e8400-e29b-41d4-a716-446655440031
+    association_id: assoc-fixture-5
+    observed_commit_hash: 555aaa
+    want_status: 500
+patch:
+  - name: owner_patch_returns_complete_successor_state
+    body: '{"title":"renamed","tags":["fixture","published"],"visibility":"public"}'
+    want_status: 200
+    want_title: renamed
+    want_visibility: public
+    want_tags: [fixture, published]
+legacy_update:
+  name: legacy_update_clears_authoritative_fingerprint
+  content: '[{"role":"user","content":"legacy replacement"}]'
+  want_status: 200

@@ -1,0 +1,3 @@
+[
+  {"id": "ann-ml-1", "targetKind": "session", "targetSessionId": "880e8400-e29b-41d4-a716-446655440033", "isPrimary": true, "annotatorKind": "human", "annotatorName": "carol", "typeId": "friction", "typeName": "Friction", "value": "low", "createdAt": 1700000500}
+]

@@ -1,0 +1,52 @@
+- name: safe_manual_preserved
+  arm: preserve
+  mode: apply
+  title: "Investigate parser regression"
+  generated: "claude session"
+- name: unsafe_manual_sanitized
+  arm: sanitize
+  mode: apply
+  title: "Fix /Users/developer/confidential/notes.txt"
+  generated: "claude session"
+- name: unsafe_generated_sanitized
+  arm: sanitize-generated
+  mode: apply
+  title: "claude session"
+  generated: "Fix /Users/developer/work/sample-app/src/auth.go"
+- name: missing_title_uses_generated
+  arm: generated-candidate
+  mode: apply
+  title: null
+  generated: "Repair auth flow"
+- name: shared_project_path_parity
+  arm: derive-current
+  mode: apply
+  title: "claude session"
+  generated: null
+  first_user: "<system-reminder>ignore this</system-reminder><user_query>Fix /Users/developer/work/sample-app/src/auth.go</user_query>"
+  expected: "Fix /Users/<USER>/<PATH>/sample-app/src/auth.go"
+- name: bare_payload_derivation
+  arm: derive-bare
+  mode: dry-run
+  title: "model session"
+  generated: null
+- name: raw_jsonl_derivation
+  arm: derive-jsonl
+  mode: apply
+  title: "transcript"
+  generated: null
+- name: malformed_content_continues
+  arm: malformed
+  mode: apply
+  title: "session"
+  generated: null
+- name: concurrent_edit_skips
+  arm: concurrent-skip
+  mode: apply
+  title: "claude session"
+  generated: "Repair auth flow"
+- name: second_apply_idempotent
+  arm: idempotent
+  mode: apply
+  title: "claude session"
+  generated: "Repair auth flow"

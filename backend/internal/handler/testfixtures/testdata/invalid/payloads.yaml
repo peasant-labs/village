@@ -1,0 +1,133 @@
+# Invalid publish request payloads for error case testing
+# These should fail validation
+
+- name: "missing_session_id"
+  description: "Missing required sessionId"
+  expectedError: "missing properties: 'sessionId'"
+  identity:
+    schemaVersion: 2
+  model:
+    provider: "openai"
+    model: "gpt-4"
+  timestamp:
+    start: 1700000000000
+    end: 1700000060000
+  source:
+    filePath: "/path/to/transcript.jsonl"
+    format: "jsonl"
+  stats:
+    turnCount: 10
+
+- name: "missing_provider"
+  description: "Missing required provider"
+  expectedError: "missing properties: 'provider'"
+  identity:
+    sessionId: "550e8400-e29b-41d4-a716-446655440000"
+    schemaVersion: 2
+  model:
+    model: "gpt-4"
+  timestamp:
+    start: 1700000000000
+    end: 1700000060000
+  source:
+    filePath: "/path/to/transcript.jsonl"
+    format: "jsonl"
+  stats:
+    turnCount: 10
+
+- name: "missing_model"
+  description: "Missing required model"
+  expectedError: "missing properties: 'model'"
+  identity:
+    sessionId: "550e8400-e29b-41d4-a716-446655440000"
+    schemaVersion: 2
+  model:
+    provider: "openai"
+  timestamp:
+    start: 1700000000000
+    end: 1700000060000
+  source:
+    filePath: "/path/to/transcript.jsonl"
+    format: "jsonl"
+  stats:
+    turnCount: 10
+
+- name: "missing_timestamp_start"
+  description: "Missing required timestamp start"
+  expectedError: "missing properties: 'start'"
+  identity:
+    sessionId: "550e8400-e29b-41d4-a716-446655440000"
+    schemaVersion: 2
+  model:
+    provider: "openai"
+    model: "gpt-4"
+  timestamp:
+    end: 1700000060000
+  source:
+    filePath: "/path/to/transcript.jsonl"
+    format: "jsonl"
+  stats:
+    turnCount: 10
+
+- name: "missing_source_filepath"
+  description: "Missing required source filePath"
+  expectedError: "missing properties: 'filePath'"
+  identity:
+    sessionId: "550e8400-e29b-41d4-a716-446655440000"
+    schemaVersion: 2
+  model:
+    provider: "openai"
+    model: "gpt-4"
+  timestamp:
+    start: 1700000000000
+    end: 1700000060000
+  source:
+    format: "jsonl"
+  stats:
+    turnCount: 10
+
+- name: "invalid_session_id_format"
+  description: "Invalid sessionId format (not a UUID)"
+  expectedError: "is not valid 'uuid'"
+  identity:
+    sessionId: "not-a-valid-uuid"
+    schemaVersion: 2
+  model:
+    provider: "openai"
+    model: "gpt-4"
+  timestamp:
+    start: 1700000000000
+    end: 1700000060000
+  source:
+    filePath: "/path/to/transcript.jsonl"
+    format: "jsonl"
+  stats:
+    turnCount: 10
+
+- name: "negative_timestamp"
+  description: "Negative timestamp (before Unix epoch)"
+  expectedError: "must be >= 0"
+  identity:
+    sessionId: "550e8400-e29b-41d4-a716-446655440000"
+    schemaVersion: 2
+  model:
+    provider: "openai"
+    model: "gpt-4"
+  timestamp:
+    start: -1000
+    end: -500
+  source:
+    filePath: "/path/to/transcript.jsonl"
+    format: "jsonl"
+  stats:
+    turnCount: 10
+
+- name: "invalid_json"
+  description: "Invalid JSON structure"
+  expectedError: "invalid character"
+  _raw: "{invalid json"
+
+- name: "empty_object"
+  description: "Empty object"
+  expectedError: "missing properties: 'identity', 'model', 'timestamp', 'source'"
+  _raw: "{}"

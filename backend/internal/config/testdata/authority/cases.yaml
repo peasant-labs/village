@@ -1,0 +1,9 @@
+- {name: migrate-database-only, requirement: postgresql, valid: true, expect_jwt: false, expect_blobs: false}
+- {name: serve-all-authority, requirement: serving, valid: true, expect_jwt: true, expect_blobs: true, expect_serving_config: true}
+- {name: backfill-blob-authority, requirement: blobs, valid: true, expect_jwt: false, expect_blobs: true}
+- {name: migrate-missing-database, requirement: postgresql, omit: database, error: DATABASE_URL}
+- {name: serve-missing-jwt, requirement: serving, omit: jwt, error: JWT_SECRET}
+- {name: serve-missing-s3, requirement: serving, omit: s3, error: S3_BUCKET}
+- {name: rewrap-missing-kek, requirement: blobs, omit: kek, error: TRANSCRIPT_KEK_ACTIVE_VERSION}
+- {name: seed-missing-database, requirement: blobs, omit: database, error: DATABASE_URL}
+- {name: invalid-requirement, requirement: unknown, error: requirement value}

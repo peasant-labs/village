@@ -1,0 +1,19 @@
+# pnpm workspace root for the village frontend.
+#
+# Single member: the frontend app. Shared packages resolve from the npm registry
+# at the versions in frontend/package.json, so a plain `pnpm install` works from
+# any checkout.
+packages:
+  - "frontend"
+# pnpm's install-script approval gate (pnpm >=10): these are mainstream toolchain
+# native-binary postinstall steps pulled in transitively (esbuild via vite/storybook,
+# sharp via Next's image optimizer, unrs-resolver via eslint's import resolver) --
+# approved so their prebuilt binaries actually download instead of silently no-op'ing.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - '@peasant-labs/fairtrade'
+  - '@peasant-labs/transcript-browser'
+  - '@peasant-labs/schema'

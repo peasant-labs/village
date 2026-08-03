@@ -1,0 +1,22 @@
+cases:
+  - name: pending_identity_row_carries_descriptor_and_nullable_size
+    kind: pending_row
+  - name: rewrap_cursor_is_version_then_id_below_active
+    kind: rewrap_cursor
+  - name: handler_consumes_the_injected_store
+    kind: injected_store
+  - name: system_create_uses_the_fixed_writer_transaction
+    kind: system_create
+  - name: system_create_exposes_only_typed_completion
+    kind: system_create_api
+  - name: system_create_reports_committed
+    kind: system_create_outcome
+    completion: committed
+  - name: system_create_reports_known_rollback
+    kind: system_create_outcome
+    completion: rollback
+  - name: system_create_reports_ambiguous_commit
+    kind: system_create_outcome
+    completion: ambiguous
+  - name: transaction_cleanup_is_bounded_and_observable
+    kind: transaction_cleanup
