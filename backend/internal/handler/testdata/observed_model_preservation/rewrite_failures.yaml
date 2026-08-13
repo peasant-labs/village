@@ -1,0 +1,25 @@
+cases:
+  - name: legacy_blob_write_failure_serves
+    contentCase: legacy_without_observations
+    failure: blob_write
+    wantStatus: 200
+    wantObserved: false
+    wantLog: canonical_transcript_rewrite_retryable
+  - name: enriched_blob_write_failure_denies
+    contentCase: enriched_repeated_change_and_omission
+    failure: blob_write
+    wantStatus: 500
+    wantObserved: true
+    wantError: encrypted object storage rejected the replacement
+  - name: legacy_cas_failure_serves
+    contentCase: legacy_without_observations
+    failure: cas
+    wantStatus: 200
+    wantObserved: false
+    wantLog: canonical_transcript_rewrite_retryable
+  - name: enriched_cas_failure_denies
+    contentCase: enriched_repeated_change_and_omission
+    failure: cas
+    wantStatus: 500
+    wantObserved: true
+    wantError: encrypted database transaction did not install

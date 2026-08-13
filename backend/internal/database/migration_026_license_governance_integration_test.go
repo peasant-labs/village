@@ -352,7 +352,7 @@ func TestMigration026_AppliesLicenseGovernance(t *testing.T) {
 		 VALUES ($1, 'local-026-anon', 't', 'claude-code', 'm', 'transcripts/x/y/anon.json', '2')`, owner2)
 	// NB: the update must actually MOVE the axis — new transcripts default to
 	// visibility='private', and a private→private update is WHEN-false (no
-	// trigger, no actor needed). This confirms the fail-closed path against the live trigger.
+	// trigger, no actor needed). REVIEW-B D4's exact trap, confirmed live.
 	expectFailClosed("anonymous governance-axis UPDATE",
 		"UPDATE transcripts SET visibility = 'public' WHERE id = $1", tid4)
 	expectFailClosed("anonymous DELETE",

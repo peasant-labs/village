@@ -387,7 +387,7 @@ export const sampleSession: SessionDetailPayload & {
   toolCallCount: 5,
   project: "transcript-browser",
   model: "claude-opus-4-7",
-  workingDirectory: "/Users/developer/work/sample-app",
+  workingDirectory: "/Users/dev/transcript-browser",
   outcome: "resolved",
   turns: TURNS.map(turnToWire),
   scorecard: sampleScorecard,
@@ -395,7 +395,7 @@ export const sampleSession: SessionDetailPayload & {
     branch: "lift/transcript-canvas",
     user: "Dev",
     email: "dev@example.com",
-    workingDirectory: "/Users/developer/work/sample-app",
+    workingDirectory: "/Users/dev/transcript-browser",
     startCommit: "a1b2c3d",
     commits: checkpoint
       ? [

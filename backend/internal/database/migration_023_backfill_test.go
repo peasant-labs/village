@@ -2,7 +2,7 @@
 
 package database
 
-// Integration test for migration 023 — the storage-normalization
+// Integration test for migration 023 — the Phase-A storage-normalization
 // backfill of legacy harness VALUES (claude->claude-code, gemini->gemini-cli).
 //
 // Requires a running PostgreSQL instance. Run with:
@@ -122,7 +122,7 @@ func TestMigration023_BackfillHarnessValues(t *testing.T) {
 	canonID := insertTranscript(t, ctx, tx, ownerID, "canon-a", "claude-code", "blob/canon-a")
 	opencodeID := insertTranscript(t, ctx, tx, ownerID, "oc-a", "opencode", "blob/oc-a")
 
-	// Capture content-shape columns for a control
+	// A3 DISTINCT FLOORS witness: capture content-shape columns for a control
 	// row before the backfill, so we can prove the backfill touches only the
 	// model_provider VALUE and never the blob/shape.
 	type shape struct{ blobKey, schemaVersion, title, modelName, provider string }
@@ -164,7 +164,7 @@ func TestMigration023_BackfillHarnessValues(t *testing.T) {
 		t.Errorf("'opencode' rows after backfill: got %d, want 1", got)
 	}
 
-	// The backfill changed only model_provider, never the blob or shape.
+	// A3: the backfill changed ONLY model_provider — never the blob/shape.
 	opencodeAfter := readShape(opencodeID)
 	if opencodeAfter != opencodeBefore {
 		t.Errorf("non-legacy row mutated by backfill: before=%+v after=%+v", opencodeBefore, opencodeAfter)

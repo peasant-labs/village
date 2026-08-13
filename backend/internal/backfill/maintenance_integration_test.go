@@ -224,7 +224,7 @@ func TestTitleBackfillRealPostgres(t *testing.T) {
 	t.Run("dry-run-apply-idempotence", func(t *testing.T) {
 		id, owner, _ := insertMaintenanceRow(t, ctx, pool, false, 1)
 		defer deleteMaintenanceOwner(t, ctx, pool, owner)
-		markedExec(t, ctx, pool, "UPDATE transcripts SET title='claude session',title_generated=NULL,model_provider='claude-code',project_path='/Users/developer/work/sample-app' WHERE id=$1", id)
+		markedExec(t, ctx, pool, "UPDATE transcripts SET title='claude session',title_generated=NULL,model_provider='claude-code',project_path='/Users/alice/work/app' WHERE id=$1", id)
 		store := &titleBlobStore{raw: raw}
 		job, err := NewTitleBackfill(pool, store, pipeline, nil, 1)
 		if err != nil {
@@ -249,7 +249,7 @@ func TestTitleBackfillRealPostgres(t *testing.T) {
 	t.Run("concurrent-owner-edit-wins", func(t *testing.T) {
 		id, owner, _ := insertMaintenanceRow(t, ctx, pool, false, 1)
 		defer deleteMaintenanceOwner(t, ctx, pool, owner)
-		markedExec(t, ctx, pool, "UPDATE transcripts SET title='claude session',title_generated=NULL,model_provider='claude-code',project_path='/Users/developer/work/sample-app' WHERE id=$1", id)
+		markedExec(t, ctx, pool, "UPDATE transcripts SET title='claude session',title_generated=NULL,model_provider='claude-code',project_path='/Users/alice/work/app' WHERE id=$1", id)
 		store := &titleBlobStore{raw: raw}
 		store.beforeRead = func() {
 			markedExec(t, ctx, pool, "UPDATE transcripts SET title='Owner edit after snapshot',updated_at=clock_timestamp() WHERE id=$1", id)
@@ -269,8 +269,8 @@ func TestTitleBackfillRealPostgres(t *testing.T) {
 		badID, owner, _ := insertMaintenanceRow(t, ctx, pool, false, 1)
 		goodID, _, _ := insertMaintenanceRowForOwner(t, ctx, pool, owner, false, 1)
 		defer deleteMaintenanceOwner(t, ctx, pool, owner)
-		markedExec(t, ctx, pool, "UPDATE transcripts SET title='session',title_generated=NULL,model_provider='claude-code',project_path='/Users/developer/confidential/project' WHERE id=$1", badID)
-		markedExec(t, ctx, pool, "UPDATE transcripts SET title='Fix /Users/developer/confidential/notes.txt',title_generated='Safe generated title',model_provider='claude-code',project_path='/Users/developer/work/sample-app' WHERE id=$1", goodID)
+		markedExec(t, ctx, pool, "UPDATE transcripts SET title='session',title_generated=NULL,model_provider='claude-code',project_path='/Users/alice/secret/project' WHERE id=$1", badID)
+		markedExec(t, ctx, pool, "UPDATE transcripts SET title='Fix /Users/alice/private/notes.txt',title_generated='Safe generated title',model_provider='claude-code',project_path='/Users/alice/work/app' WHERE id=$1", goodID)
 		var logs bytes.Buffer
 		store := &titleBlobStore{raw: []byte("malformed-sensitive-content")}
 		job, err := NewTitleBackfill(pool, store, pipeline, slog.New(slog.NewTextHandler(&logs, nil)), 1)
@@ -281,7 +281,7 @@ func TestTitleBackfillRealPostgres(t *testing.T) {
 		if err == nil || result.Failed != 1 || result.Updated != 1 || result.Scanned != 2 {
 			t.Fatalf("continuation result=%+v err=%v", result, err)
 		}
-		if text := logs.String(); strings.Contains(text, "malformed-sensitive-content") || strings.Contains(text, "/Users/developer") || strings.Contains(text, "confidential") {
+		if text := logs.String(); strings.Contains(text, "malformed-sensitive-content") || strings.Contains(text, "/Users/alice") || strings.Contains(text, "private") {
 			t.Fatalf("safe log leaked controlled sensitive data: %s", text)
 		}
 	})

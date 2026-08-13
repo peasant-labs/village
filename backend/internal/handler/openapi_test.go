@@ -51,9 +51,10 @@ func keysOf(m map[string]any) []string {
 	return ks
 }
 
-// TestPublishEnforce_RejectsSchemaInvalid verifies that metadata which passes
-// the handler field checks but violates the schema module's embedded
-// PublishRequest contract is rejected with 422 by the enforcement step.
+// TestPublishEnforce_RejectsSchemaInvalid: a publish whose metadata passes the
+// The handler field checks pass (valid harness + non-empty model + sessionId), but this violates
+// the vendored PublishRequest schema (missing required timestamp/source) must be
+// rejected with 422 by the enforce step.
 func TestPublishEnforce_RejectsSchemaInvalid(t *testing.T) {
 	mq := &mockQuerier{
 		getTranscriptIDByOwnerAndLocalID: func(context.Context, sqlc.GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error) {
@@ -65,8 +66,9 @@ func TestPublishEnforce_RejectsSchemaInvalid(t *testing.T) {
 	}
 	h := newTestHandler(mq, &mockTranscriptBlobStore{})
 
-	// Valid harness + model + sessionId pass handler field checks, but the
-	// embedded PublishRequest contract must reject an out-of-menu source format.
+	// Valid harness + model + sessionId pass handler field checks, but an
+	// invalid source.format ("xml" ∉ {jsonl,json}) — an enum violation the
+	// vendored PublishRequest schema must reject.
 	metadata := map[string]any{
 		"identity":  map[string]any{"sessionId": "550e8400-e29b-41d4-a716-446655440000", "schemaVersion": 2},
 		"model":     map[string]any{"harness": "claude-code", "model": "claude-opus-4-5"},
@@ -236,15 +238,26 @@ const wellFormedPublishMetadata = `{
   "project": {"hash": "` + testProjectHash + `", "name": "repo"}
 }`
 
-// TestValidatePublish_SchemaVerdicts drives the schema module's embedded
-// PublishRequest validator, which is the handler's 422 enforcement path. A
-// well-formed body is accepted; missing required model fields, wrong types,
-// out-of-menu harnesses, source formats, and licenses are rejected by the
-// published contract.
+// TestValidatePublish_SchemaVerdicts drives the REAL vendored-schema validator
+// (payloadValidator().ValidatePublish — the 422 enforce path) directly over a
+// corpus of well-formed and malformed publish metadata bodies. It pins the
+// accept/reject contract of the newly-vendored, village-api-derived PublishRequest
+// schema (urn:peasant:publish-request:0.4.0): a well-formed body is accepted; an
+// enum violation, a wrong-type field, an out-of-enum harness, and an out-of-menu
+// license are each rejected.
+//
+// NOTE on "missing required field" (1e8tk): the vendored 0.4.0 schema now DOES
+// declare `required` — SchemaPublishRequest.required=["model"] and
+// SchemaModelInfo.required=["harness","model"] — so an absent model object, or an
+// absent harness/model KEY within model, is a SCHEMA rejection (422), not merely a
+// handler field check. The prior hand-written "model is required" 400 guard was
+// removed; the schema is the sole, documented enforcement. The omitted-harness,
+// omitted-model, wrong-type, and enum cases below are all discriminated by the
+// schema layer itself, which is the behavior this test guards.
 func TestValidatePublish_SchemaVerdicts(t *testing.T) {
 	v := payloadValidator()
 	if v == nil {
-		t.Skip("OpenAPI validator unavailable (embedded contract failed to compile)")
+		t.Skip("OpenAPI validator unavailable (vendored schema failed to compile)")
 	}
 
 	cases := []struct {
@@ -259,9 +272,9 @@ func TestValidatePublish_SchemaVerdicts(t *testing.T) {
 		// enum), so an unknown harness is now a 422 — a tightening over the retired
 		// flat `type:string` legacy schema.
 		{"unknown-harness", `{"model": {"harness": "totally-made-up", "model": "x"}}`, false},
-		// omitted harness is now REJECTED: SchemaModelInfo.required=["harness","model"]
-		// makes an omitted harness key a 422 missing-required violation. This
-		// compatibility hole is closed. Mirrors TestPublishTranscript_MissingModelHarness.
+		// omitted harness is now REJECTED (1e8tk): SchemaModelInfo.required=["harness","model"]
+		// makes an omitted harness key a 422 missing-required violation. This was the B1
+		// hole (TODO(1e8tk)); it is now closed. Mirrors TestPublishTranscript_MissingModelHarness.
 		{"omitted-harness-schema-rejects", `{"model": {"model": "x"}}`, false},
 		// omitted model KEY within model is rejected: SchemaModelInfo.required=["harness","model"]
 		// makes an absent model field a 422 (this was the old hand-written "model is required"
@@ -276,8 +289,8 @@ func TestValidatePublish_SchemaVerdicts(t *testing.T) {
 		{"wrong-type-entries", `{"entries": {"not": "an array"}}`, false},
 		// pattern violation on the constrained ProjectHash newtype.
 		{"bad-project-hash", `{"project": {"hash": "tooshort", "name": "x"}}`, false},
-		// License is optional but constrained by the Schema license menu: a
-		// published value is accepted and an out-of-menu value is rejected.
+		// license is OPTIONAL but MENU-CONSTRAINED (SchemaLicense enum, vendored
+		// 0.4.0): a value from the menu is accepted, an out-of-menu value is a 422.
 		// Mirrors peasant's publish verdict corpus (valid-license / bad-license).
 		{"valid-license", `{"model": {"harness": "claude-code", "model": "x"}, "license": "CC-BY-4.0"}`, true},
 		{"bad-license", `{"model": {"harness": "claude-code", "model": "x"}, "license": "MIT"}`, false},
@@ -287,10 +300,10 @@ func TestValidatePublish_SchemaVerdicts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := v.ValidatePublish([]byte(tc.body))
 			if tc.wantAccept && err != nil {
-				t.Errorf("well-formed body rejected by embedded contract: %v\nbody: %s", err, tc.body)
+				t.Errorf("well-formed body rejected by vendored schema: %v\nbody: %s", err, tc.body)
 			}
 			if !tc.wantAccept && err == nil {
-				t.Errorf("malformed body accepted by embedded contract (expected 422-class rejection)\nbody: %s", tc.body)
+				t.Errorf("malformed body accepted by vendored schema (expected 422-class rejection)\nbody: %s", tc.body)
 			}
 			if !tc.wantAccept && err != nil && !errors.Is(err, ErrSchemaInvalid) {
 				t.Errorf("rejection did not wrap ErrSchemaInvalid (the 422 sentinel): %v", err)
@@ -347,7 +360,7 @@ func TestServeOpenAPI_ServesModuleSpec(t *testing.T) {
 
 // wantVillageAPIVersion is the contract version the village serves + enforces. It is
 // the consumer-side pin on the module's schema.VillageAPIVersion.
-const wantVillageAPIVersion = "0.12.0"
+const wantVillageAPIVersion = "0.13.0"
 
 // TestPinnedContractVersion_MatchesExpected asserts the pinned schema module reports
 // the contract version the village expects. The schema repo's go-apidiff gate
@@ -361,7 +374,7 @@ func TestPinnedContractVersion_MatchesExpected(t *testing.T) {
 		t.Fatalf("pinned schema module reports VillageAPIVersion %q, want %q — a re-pin moved the "+
 			"contract version under the village. The module's go-apidiff gate EXEMPTS the "+
 			"VillageAPIVersion stamp, so this consumer-side test owns the drift detection. If "+
-			"intended: bump wantVillageAPIVersion, inspect the served/enforced Village API spec "+
+			"intended: bump wantVillageAPIVersion, re-review the served/enforced Village API spec "+
 			"(menu / required arrays / manifest shape may have moved), and update the version-bump "+
 			"docs. If NOT intended: pin the correct module tag.",
 			schema.VillageAPIVersion, wantVillageAPIVersion)
@@ -372,7 +385,7 @@ var errFakeNotFound = errors.New("not found")
 
 // testProjectHash is a schema-valid 64-hex ProjectHash (the real contract: a
 // SHA-256 hex digest). Publish tests that reach OpenAPI enforcement must use it
-// rather than a short placeholder, which the embedded contract rejects.
+// rather than a short placeholder, which the vendored schema rejects.
 const testProjectHash = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
 
 // guard: keep pgtype import used even if helpers change.

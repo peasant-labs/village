@@ -4,7 +4,7 @@
 
 // -- Tool Call Classification -------------------------------------------------
 
-/** Mirrors @peasant-labs/schema ToolCallKind — ACP-aligned tool classification. */
+/** Mirrors Go pkg/schema.ToolCallKind — ACP-aligned tool classification. */
 export const ToolCallKind = {
   Read:    'read',
   Edit:    'edit',
@@ -20,7 +20,7 @@ export type ToolCallKind = typeof ToolCallKind[keyof typeof ToolCallKind];
 
 // -- Entry Type Classification -----------------------------------------------
 
-/** Mirrors @peasant-labs/schema EntryType — content part classification. */
+/** Mirrors Go pkg/schema.EntryType — content part classification. */
 const EntryType = {
   Text:       'text',
   ToolUse:    'tool_use',
@@ -34,7 +34,7 @@ type EntryType = typeof EntryType[keyof typeof EntryType];
 
 // -- Stop Reason Classification -----------------------------------------------
 
-/** Mirrors @peasant-labs/schema StopReason — why a turn ended. */
+/** Mirrors Go pkg/schema.StopReason — why a turn ended. */
 const StopReason = {
   EndTurn:    'end_turn',
   MaxTokens:  'max_tokens',
@@ -53,7 +53,7 @@ type StopReason = typeof StopReason[keyof typeof StopReason];
 // values mirror the backend bestiary
 // harness wire values (claude-code, gemini-cli, codex, opencode). The wire key
 // is now `harness`; peasant emits it and village serves harness-keyed payloads,
-// so the shared viewer reads `detail.harness`.
+// so the re-vendored viewer reads `detail.harness`.
 import type { Harness } from '@peasant-labs/schema';
 export type Provider = Extract<Harness, 'claude-code' | 'gemini-cli' | 'codex' | 'opencode' | 'cursor'>;
 
@@ -125,7 +125,7 @@ export interface SessionCommit {
  * @peasant-labs/transcript-browser package (single source of truth), so the
  * village and the viewer agree on the shape — this is the type the package's
  * `<SessionDetail detail={...}>` prop expects, eliminating the previous
- * village-local vs shared-viewer mismatch. The wire key is now `harness`
+ * village-local vs vendored-viewer mismatch. The wire key is now `harness`
  * (flipped from `provider`); the village serves harness-keyed
  * payloads via migrate-on-read. The shape includes the optional `scorecard`.
  */

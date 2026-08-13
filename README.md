@@ -31,7 +31,7 @@ make backend-encrypted-test
 
 This single command starts only an isolated PostgreSQL 16 and MinIO project on
 `127.0.0.1:55460`, `:59060`, and console `:59061`; initializes the
-`village-encrypted-test` bucket; applies every registered migration; and runs every
+`village-encrypted-test` bucket; applies migration 031; and runs every
 integration-tagged package under `-race` with skip events rejected. That includes
 the writer fence and mounted encrypted publish/read/pull/ETag/delete lifecycle.
 The default project name is unique per invocation and printed before startup.

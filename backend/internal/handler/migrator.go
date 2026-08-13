@@ -27,17 +27,17 @@ import (
 //   3. legacy raw provider JSONL (a bare array / newline-delimited objects) —
 //      best-effort projection onto SessionDetailPayload turns.
 //
-// The migrate-on-read display floor below is deliberately separate from storage
-// normalization of model_provider and from the push-acceptance floor (schema.MinPushContractVersion,
+// A3 DISTINCT FLOORS: the migrate-on-read DISPLAY floor below is deliberately
+// SEPARATE from the Phase-A SQL backfill (storage normalization of
+// model_provider) and from the push-acceptance floor (schema.MinPushContractVersion,
 // which gates INCOMING uploads). This floor governs how far back a STORED blob
 // can be normalized for rendering; it is village-local and not advertised.
 
 // currentContractVersion is the contract the village normalizes stored blobs TO.
-// It mirrors the peasant defaults.PublishSchemaVersion ("0.1.1" after the
-// required-harness+model strictening — same wire shape, patch bump); the village
-// keeps its own copy because internal/defaults lives in the peasant module and
-// is not importable here. minPushContractVersion stays 0.1.0 → accept window
-// [0.1.0, 0.1.1]; the wire shape is unchanged so normalization is unaffected.
+// It remains at the existing 0.1.1 envelope because observedModel is an additive
+// optional field. Enriched emission is negotiated independently through the
+// versioned content capability, so legacy 0.1.x traffic remains compatible while
+// richer clients cannot mistake envelope compatibility for preservation support.
 const currentContractVersion schema.PushContractVersion = "0.1.1"
 
 // displayMigrateFloor is the OLDEST stored contract the village will still
@@ -47,7 +47,7 @@ const displayMigrateFloor schema.PushContractVersion = "0.1.0"
 
 // sameContractShape reports whether two push-contract versions are shape-
 // compatible — equal in MAJOR.MINOR. The wire SHAPE is versioned by MAJOR.MINOR;
-// a PATCH-only difference (e.g. 0.1.0 vs 0.1.1, the required-fields
+// a PATCH-only difference (e.g. 0.1.0 vs 0.1.1, the 1e8tk required-fields
 // strictening) carries no shape change. migrate-on-read uses this instead of
 // exact equality so a patch bump of currentContractVersion does NOT force a
 // pointless no-op rewrite of every stored blob at the prior patch version.
@@ -152,17 +152,17 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 	case ShapeEnvelope:
 		var env schema.TranscriptContent
 		if err := json.Unmarshal(trimmed, &env); err != nil {
-			return nil, false, fmt.Errorf("migrate-on-read: decode envelope: %w", err)
+			return nil, false, fmt.Errorf("transcript migrate-on-read failed because the stored envelope could not be decoded as schema.TranscriptContent in handler.blobMigrator.Migrate during typed read normalization; no body was served and no stored generation was rewritten; repair or republish the transcript with a supported envelope, then retry: %w", err)
 		}
 		if env.Kind != schema.ContentKindSessionDetail || env.SessionDetail == nil {
-			return nil, false, fmt.Errorf("migrate-on-read: envelope kind %q without a sessionDetail payload", env.Kind)
+			return nil, false, fmt.Errorf("transcript migrate-on-read failed because stored envelope kind %q does not carry a sessionDetail payload in handler.blobMigrator.Migrate during typed read normalization; no body was served and no stored generation was rewritten; republish a %q envelope with a non-null sessionDetail payload", env.Kind, schema.ContentKindSessionDetail)
 		}
 		payload := env.SessionDetail
-		// The envelope's ContractVersion is authoritative for migrate-on-read
-		// dispatch; the embedded
+		// VERSION CONFLICT-WINNER (N1/B5): the envelope's ContractVersion is
+		// authoritative for migrate-on-read dispatch (the embedded
 		// SchemaVersion is advisory). A SHAPE-COMPATIBLE envelope is already
 		// canonical — serve as-is, no rewrite. Shape is versioned by MAJOR.MINOR;
-		// a PATCH-only difference (e.g. 0.1.0 vs 0.1.1, the required-fields
+		// a PATCH-only difference (e.g. 0.1.0 vs 0.1.1, the 1e8tk required-fields
 		// strictening) carries NO wire-shape change, so a patch-compatible blob is
 		// NOT rewritten — exact equality would needlessly churn every stored 0.1.0
 		// blob the instant currentContractVersion bumped to 0.1.1.
@@ -196,8 +196,14 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 	}
 }
 
+// encodeCanonicalTranscript is the sole typed rewrite/re-emit boundary used by
+// the real migrate-on-read handler and by capability preservation evaluation.
+func encodeCanonicalTranscript(payload *schema.SessionDetailPayload) ([]byte, error) {
+	return productionContentRewriteEncoder.Encode(currentContractVersion, payload)
+}
+
 // sniffShape classifies a (whitespace-trimmed) blob by its leading byte and, for
-// objects, the presence of a "contractVersion" key is the three-way discriminator.
+// objects, the presence of a "contractVersion" key (B6 3-way discriminator).
 func sniffShape(trimmed []byte) EnvelopeShape {
 	trimmed = bytes.TrimSpace(trimmed)
 	if len(trimmed) == 0 {
@@ -241,7 +247,7 @@ func canonicalHarness(legacy string) schema.Harness {
 func decodeLegacyPayload(raw []byte) (*schema.SessionDetailPayload, error) {
 	var p schema.SessionDetailPayload
 	if err := json.Unmarshal(raw, &p); err != nil {
-		return nil, fmt.Errorf("migrate-on-read: decode bare payload: %w", err)
+		return nil, fmt.Errorf("transcript migrate-on-read failed because the stored bare payload could not be decoded as schema.SessionDetailPayload in handler.decodeLegacyPayload during typed read normalization; no body was served and no stored generation was rewritten; repair or republish the transcript with a supported payload, then retry: %w", err)
 	}
 	if p.Harness == "" {
 		var aux struct {
@@ -269,7 +275,7 @@ func decodeRawJSONL(raw []byte) (*schema.SessionDetailPayload, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) > 0 && trimmed[0] == '[' {
 		if err := json.Unmarshal(trimmed, &rows); err != nil {
-			return nil, fmt.Errorf("migrate-on-read: decode raw JSONL array: %w", err)
+			return nil, fmt.Errorf("transcript migrate-on-read failed because the stored legacy JSON array could not be decoded in handler.decodeRawJSONL during read normalization; no body was served and no stored generation was rewritten; repair or republish the source transcript, then retry: %w", err)
 		}
 	} else {
 		for _, line := range bytes.Split(trimmed, []byte("\n")) {
@@ -279,7 +285,7 @@ func decodeRawJSONL(raw []byte) (*schema.SessionDetailPayload, error) {
 			}
 			var row map[string]json.RawMessage
 			if err := json.Unmarshal(line, &row); err != nil {
-				return nil, fmt.Errorf("migrate-on-read: decode raw JSONL line: %w", err)
+				return nil, fmt.Errorf("transcript migrate-on-read failed because a stored legacy JSONL line could not be decoded in handler.decodeRawJSONL during read normalization; no body was served and no stored generation was rewritten; repair or republish the source transcript, then retry: %w", err)
 			}
 			rows = append(rows, row)
 		}
@@ -314,8 +320,8 @@ func decodeRawJSONL(raw []byte) (*schema.SessionDetailPayload, error) {
 //     gemini->gemini-cli). A body already using model.harness keeps its key but
 //     still has its VALUE canonicalized below.
 //   - entries[].harness: each session entry's harness VALUE is canonicalized
-//     in place. entries[].harness is enum-keyed by the schema module's embedded
-//     publish contract, so a body carrying a PRE-RENAME entry harness
+//     in place (FB/A unified-schema-c7lco). entries[].harness is enum-keyed by
+//     the vendored publish schema, so a body carrying a PRE-RENAME entry harness
 //     ("claude"/"gemini" — from session_entries.provider rows the V33 rename
 //     never canonicalized) would otherwise 422. The schema itself still rejects
 //     pre-rename strings by design; normalizing them here is the handler's job,

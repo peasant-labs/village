@@ -7,8 +7,9 @@ package handler
 // renders the stored content blob, and the REAL OpenAPI validator accepts valid
 // metadata / rejects the invalid (enum-violating) metadata. Nothing is mocked.
 //
-// This exercises only the display migrate-on-read floor. It does not assert the
-// push-acceptance floor or storage backfills; those are separate contracts.
+// A3 DISTINCT FLOORS: this exercises only the display migrate-on-read floor — it
+// does NOT assert anything about the push-acceptance floor (B2) or the Phase-A
+// SQL backfill (storage). Keep them separate.
 
 import (
 	"context"
@@ -100,9 +101,9 @@ func TestCorpus_InvalidContent_Errors(t *testing.T) {
 	}
 }
 
-// Valid metadata (after the handler's harness-key normalization) passes the
-// schema module's embedded contract; invalid metadata with an out-of-menu
-// source.format is rejected through the same path used by the publish handler.
+// Valid metadata (after the harness-key normalize the handler applies) passes the
+// vendored OpenAPI schema; invalid metadata (enum-violating source.format) is
+// rejected — the same enforce path the publish handler uses.
 func TestCorpus_Metadata_EnforceAcceptsValid_RejectsInvalid(t *testing.T) {
 	v := payloadValidator()
 	if v == nil {
@@ -122,7 +123,7 @@ func TestCorpus_Metadata_EnforceAcceptsValid_RejectsInvalid(t *testing.T) {
 	}
 }
 
-// TestCorpus_LegacyMetadataField_AcceptedViaNormalize drives a legacy
+// TestCorpus_LegacyMetadataField_AcceptedViaNormalize (B-IMP-1): drives a legacy
 // provider/modelHarness-keyed metadata.json through the REAL PublishTranscript
 // handler — the SECOND wire surface — and asserts the village accepts it AND
 // canonicalizes the harness via normalizeMetadataHarnessKey (observed through the

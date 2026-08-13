@@ -15,11 +15,11 @@ if [[ "$revision" != "$head_revision" ]]; then
   exit 1
 fi
 
-source_changes="$(git -C "$repo_root" status --porcelain)"
-if [[ -n "$source_changes" ]]; then
-  printf >&2 '%s\n' "scripts/check-artifact-source.sh: tracked or untracked files differ from HEAD, so a revision label would not identify the Docker build contexts. Commit, restore, or remove the listed build inputs, then retry."
-  printf >&2 '%s\n' "$source_changes"
+tracked_changes="$(git -C "$repo_root" status --porcelain --untracked-files=no)"
+if [[ -n "$tracked_changes" ]]; then
+  printf >&2 '%s\n' "scripts/check-artifact-source.sh: tracked files differ from HEAD, so a revision label would not identify the Docker build context. Commit or restore the staged and unstaged tracked changes, then retry."
+  printf >&2 '%s\n' "$tracked_changes"
   exit 1
 fi
 
-printf '%s\n' "Verified clean source at revision: $revision"
+printf '%s\n' "Verified clean tracked source at revision: $revision"

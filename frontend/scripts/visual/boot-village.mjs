@@ -11,7 +11,7 @@
    It needs the app served with a REST backend that has the session. The simplest self-contained way is
    the bundled mock (no Postgres/MinIO/auth stack needed):
      MOCK_REST_PORT=8788 node scripts/visual/mock-rest.mjs &
-     NEXT_PUBLIC_API_URL=http://localhost:8788/api/v1 pnpm dev &          # next dev on :3000
+     NEXT_PUBLIC_API_URL=http://localhost:8788/api/v1 npm run dev &        # next dev on :3000
      CHROME_PATH=/path/to/chrome VILLAGE_TRANSCRIPT=demo node scripts/visual/boot-village.mjs
    Or point it at a real village backend that serves a viewable transcript (VILLAGE_REAL_ORIGIN +
    VILLAGE_TRANSCRIPT, or VILLAGE_REAL_URL).

@@ -32,10 +32,10 @@ oracle for transcript (unlike the chrome harness, where demo-parity **is** the g
    (the structural gates `die(4)`/`die(5)` + the non-empty `SurfaceGate`, incl. md5 duplicate-detection,
    enforce "it actually rendered" — no blank/duplicate surface slips through).
 3. **No-regression vs the same-component `<SessionDetail>` reference** — `stitch-sxs.mjs` pairs the
-   committed **transcript-browser `<SessionDetail>`** reference (`baseline/tb/`, an earlier capture
-   of the same `sess_demo_0001` session recorded before theme convergence) against the
+   committed **transcript-browser `<SessionDetail>`** reference (`baseline/tb/`, the prior-epoch capture
+   of the same `sess_demo_0001` session, taken *before* this epoch's theme-convergence) against the
    current village capture. Both are `.tb-*` and the same data. The SxS is **not** expected to be
-   zero-diff; the theme-convergence delta is intentional and judged for **design-language
+   zero-diff — this epoch's theme-convergence delta is intentional; it is judged for **design-language
    cohesion + no host-integration regression**, not pixel-identity. (That frozen "before" is
    non-regenerable, so it ships **committed** — see `baseline/tb/` below.)
 
@@ -86,11 +86,11 @@ mounted into the composer's `renderTurnActions` slot exactly as the production p
 | `village-shoot.mjs` | Drive the harness route with puppeteer and screenshot every transcript surface for one theme. Each capture is run through the non-empty-surface gate before it's accepted; each surface is wrapped in try/catch so one failure records a gap and the run continues. |
 | `surface-gate.mjs` | The non-empty-surface gate (vendored, self-contained copy of the fairtrade `scripts/surface-gate.mjs`). Fails a capture that is blank / near-empty / byte-identical to another surface — closing the silent-blank hole a valid-but-empty bounding box leaves open (e.g. an empty graph). |
 | `stitch-sxs.mjs` | Compose labeled, **height-matched** side-by-side composites (`REFERENCE | SUBJECT`) per surface per theme. The shorter pane is padded (never scaled) with its own border-sampled background; a dashed hairline marks where the shorter capture ends. A surface missing a subject capture gets a labeled placeholder panel so the set stays complete. The reference side defaults to the **committed `baseline/tb/`** (the same-component `<SessionDetail>` "before"); `REF_DIR=demo` is the optional non-gating design-language sanity panel (see **Oracle**). |
-| `baseline/tb/{dark,light}/` | The **committed** same-component reference: an earlier transcript-browser `<SessionDetail>` capture of the same `sess_demo_0001` session, recorded before theme convergence. It is a **frozen, non-regenerable** snapshot, so unlike the regenerable `demo/` it is tracked in the repository. The default `stitch` reads it directly, so the oracle works on a clean checkout with no staging. |
+| `baseline/tb/{dark,light}/` | The **committed** same-component reference — the prior-epoch transcript-browser `<SessionDetail>` capture (taken *before* this epoch's theme-convergence) of the same `sess_demo_0001` session. It is a **frozen, non-regenerable** snapshot (that app state is gone post-convergence), so unlike the regenerable `demo/` it is **tracked in the repo** — the only place the no-regression "before" survives. The default `stitch` reads it directly, so the oracle works on a clean checkout with no staging. |
 
 The **subject side** (`<base>/village/<theme>/`) is the current `village-shoot.mjs` run. The optional
-`demo` reference (`<base>/demo/<theme>/`) comes from the matching Fairtrade source checkout's own
-`scripts/shootdemo.mjs`; the default `tb` reference ships **committed** with
+`demo` reference (`<base>/demo/<theme>/`) comes from the fairtrade design-system's own harness
+(`fairtrade-design-system/scripts/shootdemo.mjs`); the default `tb` reference ships **committed** with
 the harness (above), so nothing needs staging for the no-regression oracle.
 
 ## Adding a surface to the two-arm gate
@@ -212,8 +212,8 @@ session sufficient to prove the render path; point at a real backend for the can
 
 The Explore gate is a separate browse-focused harness for the shared `Explore` surface:
 
-- **Reference (left):** Fairtrade in-use demo capture `app-2-village.png` from
-  the matching source checkout's `scripts/shootdemo.mjs`.
+- **Reference (left):** fairtrade in-use demo capture `app-2-village.png` from
+  `fairtrade-design-system/scripts/shootdemo.mjs`.
 - **Subject (right):** the village home route capture `cex-explore.png` from
   `frontend/scripts/visual/explore-shoot.mjs`.
 - **Boot arm:** `frontend/scripts/visual/boot-explore.mjs` against
@@ -232,14 +232,14 @@ CHROME_PATH=$CHROME node scripts/visual/probe-explore.mjs
 MOCK_REST_PORT=8789 node scripts/visual/mock-rest-explore.mjs &
 
 # 2. Start the app against that API base.
-NEXT_PUBLIC_API_URL=http://localhost:8789/api/v1 pnpm dev &
+NEXT_PUBLIC_API_URL=http://localhost:8789/api/v1 npm run dev &
 
 # 3. Capture the subject side for both themes.
 CHROME_PATH=$CHROME node scripts/visual/explore-shoot.mjs dark  $BASE/village/dark
 CHROME_PATH=$CHROME node scripts/visual/explore-shoot.mjs light $BASE/village/light
 
-# 4. Stage the demo reference from a Fairtrade source checkout matching the
-#    version pinned in frontend/package.json. Run these from that checkout root.
+# 4. Stage the fairtrade demo reference from the fairtrade-design-system worktree root.
+#    Run these from ../../../../fairtrade-design-system/fairtrade-village-explore.
 CHROME_PATH=$CHROME node scripts/shootdemo.mjs dark  $BASE/demo/dark
 CHROME_PATH=$CHROME node scripts/shootdemo.mjs light $BASE/demo/light
 

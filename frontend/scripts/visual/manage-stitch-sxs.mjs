@@ -25,8 +25,8 @@ const DEFAULT_IMGDIFF_FAIL_PCT = 12
 const SURFACES = [
   ['manage-collectives', DEFAULT_IMGDIFF_FAIL_PCT],
   ['manage-detail', DEFAULT_IMGDIFF_FAIL_PCT],
-  // manage-settings is captured full-page so the below-the-fold DangerZone is
-  // visible, rather than viewport-cropped like the other two surfaces. A full-page diff is
+  // manage-settings is captured FULL-PAGE (M12, so the below-the-fold DangerZone is visually
+  // confirmable) rather than viewport-cropped like the other two surfaces. A full-page diff is
   // structurally more sensitive to legitimate, non-regression layout differences than a fixed
   // crop: the app's settings form has a real "link to GitHub org" field the simplified demo form
   // doesn't, and the two sidebars are different widths -- both shift every pixel below the
@@ -35,7 +35,7 @@ const SURFACES = [
   // element-by-element (verified via manual SxS inspection at 21.4%/21.3% dark/light). Threshold
   // raised from the old crop-era 13% to 25% to reflect that -- this script's imgdiff arm is a
   // fail-closed SANITY check (dimension mismatches / blank captures / gross regressions still
-  // fail), not a substitute for perceptual SxS inspection.
+  // fail), not a substitute for the reviewers' own perceptual SxS pass.
   ['manage-settings', 25],
 ]
 const IMGDIFF_TOL = 16

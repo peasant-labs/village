@@ -1,9 +1,9 @@
 # Village frontend — Data-Binding Architecture
 
 How data flows from the Go backend to the rendered UI in `village/frontend`, and
-back for mutations. Grounded in the code under `frontend/src` and the published
-`@peasant-labs/transcript-browser`, `@peasant-labs/fairtrade`, and
-`@peasant-labs/schema` package boundaries.
+back for mutations. Grounded in the code under
+`village/frontend/src` and the shared viewer under
+`transcript-browser/main/packages`.
 
 This documents **what exists and why**. It does not propose new view-models or
 refactors.
@@ -337,9 +337,10 @@ specifically to enable this branching (`api.ts:3-9`).
 - **`harness` wire key (migrate-on-read).** The provider key on the payload is
   `harness` (flipped from a former `provider`); the comment chain in
   `types/messages.ts:47-56` notes the village serves harness-keyed payloads and
-  the published viewer reads `detail.harness`. The generated
-  `@peasant-labs/schema` `Harness` type is the source of truth; Village narrows
-  its display alias from that type rather than maintaining another wire union.
+  the re-vendored viewer reads `detail.harness`. The single source of truth for
+  the `Provider` union is `@peasant-labs/transcript-browser` /
+  `@peasant-labs/types` (`enums.ts:64`), re-exported by village rather than
+  redefined.
 - **`RedactionDiffView` is defined but unmounted.** Despite being a complete,
   polished single-panel redaction reviewer, it is not rendered anywhere in
   village (grep finds only its own definition). Redaction is a **CLI-side**
@@ -387,11 +388,10 @@ specifically to enable this branching (`api.ts:3-9`).
 - `src/components/transcript/{TranscriptEditDialog,ContributePicker,ConfirmContributeDialog,TurnLabelPopover}.tsx` — write-path dialogs.
 
 **Shared viewer (the cohesive view-model lives here)**
-- `@peasant-labs/transcript-browser` — `SessionDetail` composer; calls
-  `adaptTranscript` and renders the cooked view model.
-- `@peasant-labs/fairtrade/ui` — `adaptTranscript` and `TranscriptViewModel`.
-- `@peasant-labs/schema` — generated `SessionDetailPayload`, enums, and runtime
-  validation contracts consumed by both the app and viewer.
+- `transcript-browser/main/packages/browser/src/SessionDetail.tsx` — composer; calls `adaptTranscript` (lines ~218-221).
+- `@peasant-labs/fairtrade/ui` `adaptTranscript` → `TranscriptViewModel`
+  (types: `fairtrade/dist/lib/types/transcript/{adapter,view-model}.d.ts`).
+- `transcript-browser/main/packages/types/src/transcript.ts` — `SessionDetailPayload` (REST-vs-WS note at `:84-91`).
 
 **Chrome prop-adapters**
 - `src/components/transcript/{TranscriptCard,TranscriptRow,TranscriptList}.tsx` — `isHarness` → `ProviderTag` (Card) / `ProviderName` (Row, List); `shares[]` → `sharedWith`.

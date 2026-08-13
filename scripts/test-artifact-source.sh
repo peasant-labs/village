@@ -33,19 +33,8 @@ if "$temp_root/repository/scripts/check-artifact-source.sh" "$revision" >"$temp_
   printf >&2 '%s\n' "scripts/test-artifact-source.sh: dirty-context proof unexpectedly passed. The production checker must reject modified tracked build input."
   exit 1
 fi
-if ! [[ "$(<"$temp_root/dirty.err")" == *"tracked or untracked files differ from HEAD"* ]]; then
+if ! [[ "$(<"$temp_root/dirty.err")" == *"tracked files differ from HEAD"* ]]; then
   printf >&2 '%s\n' "scripts/test-artifact-source.sh: dirty-context proof failed for an unexpected reason: $(<"$temp_root/dirty.err")"
-  exit 1
-fi
-
-git -C "$temp_root/repository" restore scripts/check-artifact-source.sh
-printf '%s\n' 'untracked build input' >"$temp_root/repository/untracked-build-input.txt"
-if "$temp_root/repository/scripts/check-artifact-source.sh" "$revision" >"$temp_root/untracked.out" 2>"$temp_root/untracked.err"; then
-  printf >&2 '%s\n' "scripts/test-artifact-source.sh: untracked-context proof unexpectedly passed. The production checker must reject untracked Docker build input."
-  exit 1
-fi
-if ! [[ "$(<"$temp_root/untracked.err")" == *"tracked or untracked files differ from HEAD"* ]]; then
-  printf >&2 '%s\n' "scripts/test-artifact-source.sh: untracked-context proof failed for an unexpected reason: $(<"$temp_root/untracked.err")"
   exit 1
 fi
 

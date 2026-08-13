@@ -5,14 +5,15 @@ canonical in [`transcript-storage-security.md`](transcript-storage-security.md).
 This document remains the governance audit and broader user-data lifecycle
 decision record.
 
-**Status: PARTIALLY DECIDED.** The
+**Status: PARTIALLY DECIDED (ratified 2026-07-02, the ratified plan UAT).** The
 governance **audit log survives deletion** - the model is **hard-delete +
 durable audit**, *not* soft-delete: transcripts and users are still physically
 deleted with FK cascades, and nothing in §4's soft-delete constraint list is
 triggered. The **broader** soft-delete / PII-erasure model for transcripts and
 users (below) remains **OPEN**.
 
-**DECIDED (migration 026):**
+**DECIDED (migration 026 - supersedes both in-branch generations of the
+never-merged 025; see the 026 header for the convergence story):**
 - **The audit log has NO application writer.** All five event types are DB
   triggers on `transcripts` - `published` (AFTER INSERT), `license_changed` /
   `visibility_changed` / `governance_changed` (AFTER UPDATE, WHEN a governance
@@ -53,8 +54,13 @@ Two needs are in tension:
 > **Must the governance/audit history SURVIVE deletion of the transcript and/or
 > the account that it references?**
 
+(Historical note: the first in-branch draft of migration 025 had
+`transcript_id ON DELETE CASCADE` - the history died with the transcript. That
+generation never merged; migration 026 is the shipped answer.)
+
 - **If NO** → keep hard-delete + cascade (status quo). Minimal work. Accept that a
-  deleted transcript/account takes its governance history with it.
+  deleted transcript/account takes its governance history with it. (The first
+  in-branch 025 draft encoded this; it was rejected and never merged.)
 - **If YES** → you need references that stay valid after the referenced row is
   gone, which forces some form of **soft-delete + erasure**. That is a large,
   security-sensitive change - see the constraints in §4, which a pressure-test
@@ -164,7 +170,7 @@ that ignores one of these is wrong:
 
 ## 6. Relationship to migration 026 - RESOLVED 2026-07-02
 
-The §2 question is answered **YES**. Migration 026
+The §2 question is answered **YES** (the ratified plan UAT). Migration 026
 makes the governance audit **survive deletion**: `transcript_id` and
 `changed_by` are retained values with **no FK**, and the `BEFORE DELETE`
 trigger appends the terminal `retracted` snapshot on every exit path, including

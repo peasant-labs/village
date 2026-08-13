@@ -8,8 +8,9 @@ package handler
 // member_count on THIS endpoint deliberately EXCLUDES role='pending' members
 // (matching ListGroupMembers, the members roster), while the sibling list
 // surfaces (ListAllGroups / SearchCollectives / ListCollectivesByGitHubOrg)
-// INCLUDE pending members. This file pins that intentional per-surface split
-// against silent drift rather than asserting cross-surface equality.
+// INCLUDE pending members. That per-surface split is intentional and
+// user-ratified (Plan UAT) — this file pins it against silent drift rather
+// than asserting cross-surface equality for member_count.
 //
 // transcript_count is approved-only (transcript_shares.status = 'approved')
 // and IS expected to stay identical across every surface.
@@ -245,7 +246,7 @@ func TestListGroups_Counts_ApprovedOnly(t *testing.T) {
 }
 
 // TestListGroups_Counts_PendingMemberExcluded is the PRIMARY drift pin for
-// the exclude-pending semantics: 1 owner + 1
+// the exclude-pending semantics (Plan UAT Component-2): 1 owner + 1
 // role='pending' member -> member_count==1, NOT 2. The realistic drift this
 // catches is accidentally dropping "AND role != 'pending'" (or reverting to
 // the sibling include-pending form), which would yield 2 here.

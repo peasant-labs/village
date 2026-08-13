@@ -24,11 +24,12 @@ type TitlePipeline interface {
 }
 
 type Handler struct {
-	cfg     *config.Config
-	pool    *pgxpool.Pool
-	queries Querier
-	blobs   storage.TranscriptBlobStore
-	titles  TitlePipeline
+	cfg                   *config.Config
+	pool                  *pgxpool.Pool
+	queries               Querier
+	blobs                 storage.TranscriptBlobStore
+	titles                TitlePipeline
+	preservationEvaluator observedModelPreservationEvaluator
 
 	// gh is the GitHub App client backing the collective-repository feature.
 	// It is nil when the App is not configured; handlers detect this via
@@ -49,11 +50,12 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 
 func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles TitlePipeline) *Handler {
 	h := &Handler{
-		cfg:     cfg,
-		pool:    pool,
-		queries: sqlc.New(pool),
-		blobs:   blobs,
-		titles:  titles,
+		cfg:                   cfg,
+		pool:                  pool,
+		queries:               sqlc.New(pool),
+		blobs:                 blobs,
+		titles:                titles,
+		preservationEvaluator: productionObservedModelPreservationEvaluator{},
 	}
 
 	// The GitHub App is optional. If credentials are absent (or invalid),

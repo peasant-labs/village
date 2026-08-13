@@ -39,7 +39,8 @@ function UserMenu({ user }: { user: { github_username: string; avatar_url: strin
       >
         {/* DS Avatar (src/ui/Avatar.jsx): photo when avatar_url is set, else its own
             styled initials fallback — replaces the bare bg-mark/text-mark-fg white
-            box, whose token pair renders near-white in dark theme. */}
+            box (that token pair renders near-white in dark theme, reading as
+            off-DS chrome; see the "white A avatar" UAT finding). */}
         <Avatar name={user.github_username} src={user.avatar_url ?? undefined} size="sm" />
       </button>
 
@@ -143,8 +144,9 @@ export default function Navbar() {
           ) : (
             // DS SignInProviders (src/ui/SignIn.jsx): amber-filled split button ("continue
             // with github" + a chevron menu for the rest) — replaces village's former
-            // dormant hand-rolled duplicate (components/auth/SignInProviders.tsx),
-            // which used an off-system token pair that renders white in dark theme.
+            // hand-rolled duplicate (components/auth/SignInProviders.tsx, soft-retired),
+            // which used the same off-DS bg-mark/text-mark-fg token pair (renders white
+            // in dark theme; see the "Sign in with GitHub is white" UAT finding).
             <SignInProviders onSignIn={(id) => { window.location.href = `${API_URL_BASE}/auth/${id}`; }} />
           )}
         </div>

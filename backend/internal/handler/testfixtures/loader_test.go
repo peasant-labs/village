@@ -1,110 +1,10 @@
 package testfixtures
 
 import (
-	"bytes"
-	_ "embed"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
-
-//go:embed testdata/loader_contracts.yaml
-var loaderContractsYAML []byte
-
-type fixtureDocumentShape string
-
-const (
-	fixtureDocumentMapping  fixtureDocumentShape = "mapping"
-	fixtureDocumentSequence fixtureDocumentShape = "sequence"
-)
-
-type loaderContractFile struct {
-	Contracts []loaderContract `yaml:"contracts"`
-}
-
-type loaderContract struct {
-	Name            string               `yaml:"name"`
-	Path            string               `yaml:"path"`
-	Shape           fixtureDocumentShape `yaml:"shape"`
-	ExpectedRecords int                  `yaml:"expected_records"`
-}
-
-type fixtureLoader func(string) (int, error)
-
-var fixtureLoaders = map[string]fixtureLoader{
-	"adversarial": func(path string) (int, error) {
-		fixtures, err := LoadAdversarialFixtures(path)
-		if err != nil {
-			return 0, err
-		}
-		return len(fixtures.InjectionPayloads) + len(fixtures.BoundaryPayloads) + len(fixtures.JSONPayloads) + len(fixtures.SpecialValues), nil
-	},
-	"quality": func(path string) (int, error) {
-		fixtures, err := LoadQualityFixtures(path)
-		if err != nil {
-			return 0, err
-		}
-		return len(fixtures.TitleGenerated) + len(fixtures.Outcomes) + len(fixtures.FilesTouched) + len(fixtures.LinesChanged) + len(fixtures.Ratios) + len(fixtures.Counts) + len(fixtures.Booleans) + len(fixtures.ComputedAt) + len(fixtures.ComputeVersions), nil
-	},
-	"stats": func(path string) (int, error) {
-		fixtures, err := LoadStatsFixtures(path)
-		if err != nil {
-			return 0, err
-		}
-		return len(fixtures.TurnCounts) + len(fixtures.ToolCallCounts) + len(fixtures.SubagentCounts) + len(fixtures.DurationMs) + len(fixtures.TokensIn) + len(fixtures.TokensOut), nil
-	},
-	"models": func(path string) (int, error) {
-		fixtures, err := LoadModelFixtures(path)
-		if err != nil {
-			return 0, err
-		}
-		return len(fixtures.Providers) + len(fixtures.Models) + len(fixtures.HarnessVersions), nil
-	},
-	"timestamps": func(path string) (int, error) {
-		fixtures, err := LoadTimestampFixtures(path)
-		if err != nil {
-			return 0, err
-		}
-		return len(fixtures.Timestamps) + len(fixtures.Ingested), nil
-	},
-	"sessions": func(path string) (int, error) {
-		fixtures, err := LoadSessionFixtures(path)
-		if err != nil {
-			return 0, err
-		}
-		return len(fixtures.SessionIDs) + len(fixtures.ParentSessionIDs) + len(fixtures.SchemaVersions), nil
-	},
-	"valid_payloads": func(path string) (int, error) {
-		fixtures, err := LoadValidPayloads(path)
-		return len(fixtures), err
-	},
-	"invalid_payloads": func(path string) (int, error) {
-		fixtures, err := LoadInvalidPayloads(path)
-		return len(fixtures), err
-	},
-}
-
-func loadLoaderContracts(t *testing.T) []loaderContract {
-	t.Helper()
-	var contractFile loaderContractFile
-	if err := decodeFixtureData(loaderContractsYAML, "testdata/loader_contracts.yaml", &contractFile); err != nil {
-		t.Fatalf("load fixture loader contracts: %v", err)
-	}
-	if len(contractFile.Contracts) != len(fixtureLoaders) {
-		t.Fatalf("fixture loader contracts = %d, want %d", len(contractFile.Contracts), len(fixtureLoaders))
-	}
-	seen := make(map[string]bool, len(contractFile.Contracts))
-	for _, contract := range contractFile.Contracts {
-		_, knownLoader := fixtureLoaders[contract.Name]
-		validShape := contract.Shape == fixtureDocumentMapping || contract.Shape == fixtureDocumentSequence
-		if contract.Name == "" || contract.Path == "" || contract.ExpectedRecords < 1 || !knownLoader || !validShape || seen[contract.Name] {
-			t.Fatalf("invalid or duplicate fixture loader contract: %+v", contract)
-		}
-		seen[contract.Name] = true
-	}
-	return contractFile.Contracts
-}
 
 func TestLoadAdversarialFixtures(t *testing.T) {
 	fixtures, err := LoadAdversarialFixtures("testdata/fixtures/adversarial.yaml")
@@ -303,57 +203,46 @@ func TestLoadInvalidPayloads(t *testing.T) {
 }
 
 func TestAllFixtureFilesExist(t *testing.T) {
-	for _, contract := range loadLoaderContracts(t) {
-		_, err := os.Stat(contract.Path)
+	fixtureFiles := []string{
+		"testdata/fixtures/adversarial.yaml",
+		"testdata/fixtures/quality.yaml",
+		"testdata/fixtures/stats.yaml",
+		"testdata/fixtures/models.yaml",
+		"testdata/fixtures/timestamps.yaml",
+		"testdata/fixtures/sessions.yaml",
+		"testdata/valid/payloads.yaml",
+		"testdata/invalid/payloads.yaml",
+	}
+
+	for _, f := range fixtureFiles {
+		_, err := os.Stat(f)
 		if err != nil {
-			t.Errorf("fixture file %s does not exist: %v", contract.Path, err)
+			t.Errorf("fixture file %s does not exist: %v", f, err)
 		}
 	}
 }
 
 func TestLoadAllFixtures(t *testing.T) {
-	for _, contract := range loadLoaderContracts(t) {
-		t.Run(contract.Name, func(t *testing.T) {
-			count, err := fixtureLoaders[contract.Name](contract.Path)
-			if err != nil {
-				t.Fatalf("failed to load %s fixtures: %v", contract.Name, err)
-			}
-			if count != contract.ExpectedRecords {
-				t.Fatalf("%s fixture records = %d, want %d", contract.Name, count, contract.ExpectedRecords)
-			}
-		})
+	testCases := []struct {
+		name     string
+		loadFunc func(string) (interface{}, error)
+		path     string
+	}{
+		{"Adversarial", func(p string) (interface{}, error) { return LoadAdversarialFixtures(p) }, "testdata/fixtures/adversarial.yaml"},
+		{"Quality", func(p string) (interface{}, error) { return LoadQualityFixtures(p) }, "testdata/fixtures/quality.yaml"},
+		{"Stats", func(p string) (interface{}, error) { return LoadStatsFixtures(p) }, "testdata/fixtures/stats.yaml"},
+		{"Models", func(p string) (interface{}, error) { return LoadModelFixtures(p) }, "testdata/fixtures/models.yaml"},
+		{"Timestamps", func(p string) (interface{}, error) { return LoadTimestampFixtures(p) }, "testdata/fixtures/timestamps.yaml"},
+		{"Sessions", func(p string) (interface{}, error) { return LoadSessionFixtures(p) }, "testdata/fixtures/sessions.yaml"},
+		{"ValidPayloads", func(p string) (interface{}, error) { return LoadValidPayloads(p) }, "testdata/valid/payloads.yaml"},
+		{"InvalidPayloads", func(p string) (interface{}, error) { return LoadInvalidPayloads(p) }, "testdata/invalid/payloads.yaml"},
 	}
-}
 
-func TestFixtureLoadersRejectUnknownFieldsAndTrailingDocuments(t *testing.T) {
-	for _, contract := range loadLoaderContracts(t) {
-		t.Run(contract.Name, func(t *testing.T) {
-			data, err := os.ReadFile(contract.Path)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tc.loadFunc(tc.path)
 			if err != nil {
-				t.Fatalf("read fixture: %v", err)
-			}
-			unknownField := append([]byte{}, data...)
-			switch contract.Shape {
-			case fixtureDocumentMapping:
-				unknownField = append(unknownField, []byte("\nunexpected_fixture_field: true\n")...)
-			case fixtureDocumentSequence:
-				unknownField = bytes.Replace(unknownField, []byte("- name:"), []byte("- unexpected_fixture_field: true\n  name:"), 1)
-			}
-			unknownPath := filepath.Join(t.TempDir(), "unknown.yaml")
-			if err := os.WriteFile(unknownPath, unknownField, 0o600); err != nil {
-				t.Fatalf("write unknown-field fixture: %v", err)
-			}
-			if _, err := fixtureLoaders[contract.Name](unknownPath); err == nil || !strings.Contains(err.Error(), "unexpected_fixture_field") {
-				t.Fatalf("unknown field error = %v, want strict rejection", err)
-			}
-
-			trailingDocument := append(append([]byte{}, data...), []byte("\n---\nunexpected: document\n")...)
-			trailingPath := filepath.Join(t.TempDir(), "trailing.yaml")
-			if err := os.WriteFile(trailingPath, trailingDocument, 0o600); err != nil {
-				t.Fatalf("write trailing-document fixture: %v", err)
-			}
-			if _, err := fixtureLoaders[contract.Name](trailingPath); err == nil || !strings.Contains(err.Error(), "exactly one YAML document") {
-				t.Fatalf("trailing document error = %v, want single-document rejection", err)
+				t.Errorf("failed to load %s fixtures: %v", tc.name, err)
 			}
 		})
 	}

@@ -168,8 +168,8 @@ func TestMetadataPatch_WritesChangeEvents_RealPostgres(t *testing.T) {
 		t.Errorf("no-op update wrote %d extra event(s); want none", after-before)
 	}
 
-	// Clearing a granted Creative Commons license is blocked because the grant
-	// is irrevocable. The patch errors, writes no event, and leaves the license.
+	// clearing a GRANTED license is BLOCKED (O1 FIX-NOW: CC grants are
+	// irrevocable) — the patch errors, writes no event, and leaves the license.
 	beforeClear := count()
 	if err := h.inTxAs(ctx, owner, func(q Querier) error {
 		_, txErr := applyMetadataPatch(ctx, q, tr.ID, metadataPatch{

@@ -70,11 +70,7 @@ if [[ "$format" == *'.Config.Cmd'* ]]; then
       printf '%s\n' '["/server"]'
     fi
   else
-    if [[ "$mode" == "frontend_command_mismatch" ]]; then
-      printf '%s\n' '["node","wrong-server.js"]'
-    else
-      printf '%s\n' '["node","frontend/server.js"]'
-    fi
+    printf '%s\n' '["node","frontend/server.js"]'
   fi
   exit 0
 fi

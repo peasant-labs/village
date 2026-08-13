@@ -42,7 +42,7 @@ make backend-encrypted-test
 ```
 
 The proof uses Nix, a unique-per-invocation disposable Compose namespace, and real PostgreSQL/MinIO,
-initializes the bucket, applies every registered migration, rejects integration skips, and
+initializes the bucket, applies migration 031, rejects integration skips, and
 cleans up only resources it created after proving the namespace had no running
 or stopped containers, volumes, or networks. Caller overrides are also checked
 and never reused. See the root README for ports, retention, recovery, and

@@ -22,7 +22,8 @@ suite under the race detector.
 | Migration + sqlc conventions | mixed | the `_integration_test.go` variants do | both of the above | [Migration & sqlc](#migration--sqlc-test-conventions) below |
 | Authoritative publication ordering | `//go:build integration` for persistence/order | PostgreSQL + S3-compatible storage | integration `-race` | Publish/PATCH/share locking, audited private-before-replacement, complete association receipts, and fingerprint currency |
 | Cross-repo contract (village ↔ schema module ↔ peasant) | none | no | unit | [Cross-repo contract](#cross-repo-contract-tests--gate-faithful-expectations) below |
-| Governance rules (fail-closed fixtures, append-only teardown, drift guards, convergence) | mixed | mostly yes | both | [Governance testing](#governance-testing-migration-026) below |
+| Observed-model preservation + capability | none, plus mounted handler coverage | no | unit `-race` | Strict YAML drives the real typed migrator, canonical rewrite encoder, web content handler, and schema-version endpoint; an executed field-drop encoder must fail the proof, withhold capability, and refuse enriched content while legacy content remains accepted |
+| Governance-era rules (fail-closed fixtures, append-only teardown, drift guards, convergence) | mixed | mostly yes | both | [Governance-era testing](#governance-era-testing-migration-026) below |
 | Test performance (measured levers, template cache) | - | - | - | [Test performance](#test-performance-measured) below |
 
 Database/data-model invariants the suites rely on (triggers, GUCs, audit table,
@@ -329,7 +330,7 @@ Two cleanup styles are in use, both hermetic:
   transcripts use the `cleanupOwners` variant instead (`pull`,
   `commit_atomicity`, `groups_counts`, `license_roundtrip`,
   `list_license_parity`, the governance suites) - see the migration-026
-  cleanup requirements below.
+  amendment below.
 - **Transaction rollback** - `migration_024_content_hash_integration_test.go`
   and `internal/database/sqlc/cli_sessions_test.go` wrap each test in a
   transaction and roll back on `t.Cleanup`, so nothing ever commits:
@@ -351,7 +352,7 @@ These suites are **not** idempotent across runs against an un-cleaned DB: the
 hardcoded identities collide on `UNIQUE` constraints (e.g. `github_id`). The
 cleanup is what keeps reruns green - don't remove it, and don't disable it.
 
-**Migration-026 cleanup requirement - deleting only the owning user is no longer enough** for
+**Migration-026 amendment - delete-owning-user alone is no longer enough** for
 tests that own transcripts, for two reasons: the `BEFORE DELETE` retract trigger
 is **fail-closed** (a bare `DELETE FROM users` whose cascade touches transcripts
 aborts without `app.actor_id`), and the audit table has **no FK** (cascades never
@@ -369,7 +370,9 @@ defer cleanupOwners(t, ctx, pool, owner)
 
 A test that deletes all its transcripts in-body must still purge the audit rows
 for the ids it captured (`defer purgeAuditRows(t, ctx, pool, ids)`) - the
-cleanup helper finds nothing left to collect and orphan audit rows accumulate.
+cleanup helper finds nothing left to collect (this exact leak shipped once:
+2N = 16 orphan rows per run, caught by review after 128 had accumulated on the
+shared DB).
 
 ## Migration & sqlc test conventions
 
@@ -386,15 +389,17 @@ transaction control. A
 `schema_migrations(version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ)` table
 tracks what has run; each migration is checked before exec, so `RunMigrations`
 is idempotent. Files are paired `NNN_name.up.sql` / `NNN_name.down.sql`. The
-latest registered version is **032** (`032_authoritative_publication_receipts`);
-the next new migration is **033**. Versions 19 and 25 are intentionally absent
-from the registry and must not be reused. See `docs/database-invariants.md` §1.
+latest registered version is **032** (`032_authoritative_publication_receipts`); the next
+new migration is **033**. (Versions 19 and 25 are absent from the registry - 19 by
+history, **25 deliberately**: its number was burned by two never-merged
+in-branch generations; the guarded, convergent 026 supersedes both. See
+`docs/database-invariants.md` §1.)
 
 **Registry-wide invariants live in ONE central test** -
 `migrations_registry_test.go` pins strictly-increasing versions and
 `highest == wantLatestMigration`; bump that const in the same commit as a new
-migration. This is deliberate: making each newest migration's test assert "I am
-the highest" forced editing the PRIOR migration's test on
+migration. This is deliberate: the old pattern (each newest migration's test
+asserting "I am the highest") forced editing the PRIOR migration's test on
 every new migration, violating the no-retrofit rule and dropping an assertion
 in transit once.
 
@@ -432,10 +437,11 @@ The generated query layer is exercised through `internal/database/sqlc`'s own
 transaction-rollback helper above and assert nullable columns via the `pgtype`
 `.Valid` field.
 
-## Governance testing (migration 026)
+## Governance-era testing (migration 026)
 
 Migration 026 made the audit **trigger-written, fail-closed, and append-only**.
-That changes how tests must be written; the rules below are load-bearing.
+That changes how tests must be written; the rules below are load-bearing (each
+one traces to a real defect a review round caught).
 
 ### Fixture writes need an actor
 
@@ -462,7 +468,9 @@ An expected error aborts the whole Postgres transaction, so wrap it:
 `sp, _ := tx.Begin(ctx); _, err = sp.Exec(ctx, …); sp.Rollback(ctx)` - then
 assert on `err`. And a fail-closed **UPDATE** test must actually change the
 axis: new transcripts default to `visibility='private'`, so a
-`SET visibility='private'` is WHEN-false and would pass for the wrong reason.
+`SET visibility='private'` is WHEN-false and would pass for the wrong reason
+(this trap was predicted in plan review and then hit verbatim in
+implementation).
 
 ### Append-only means teardown uses the escape
 
@@ -503,7 +511,8 @@ otherwise; CI's service-container superuser has it).
 
 Village's integration suite is fast (~4s wall for the whole `-race` run against
 a local container); the one structurally expensive test is the convergence
-guard, which was profiled and optimized:
+guard, which was profiled and optimized (peasant's `TESTING.md` has the sibling
+story for `cmd/peasant`, 86.9s → 19.6s):
 
 | Stage | `-race` time | Lever |
 |-------|--------------|-------|
@@ -519,8 +528,8 @@ Rules this bought us:
 2. **Parallel test goroutines must be error-returning** - collect results under
    a mutex, `wg.Wait()`, then assert on the test goroutine.
 3. **Caches must be content-addressed and self-invalidating** - never trust a
-   leftover DB without verifying what built it. The test tampers with the
-   stamped hash and requires a rebuild.
+   leftover DB without verifying what built it (the reviewer verified this by
+   tampering the stamped hash and watching the rebuild).
 4. **The zero-orphan audit invariant is a committed post-suite gate.** A
    `TestMain` in the `internal/handler` integration build runs
    `assertNoOrphanAuditRows()` after `m.Run()`, so an orphan left by a test of
@@ -528,8 +537,10 @@ Rules this bought us:
    passed - it no longer depends on running the suite twice back-to-back. The
    gate is fail-closed (only an unreachable DB returns clean; a migrate/query
    error or an actual orphan forces exit 1). `backend-tests.yml` stays at one
-   integration run. Other leftover-state failures may still surface only on a
-   second run, so a re-run remains a useful spot-check.
+   integration run. (Historically this was a "run twice, count orphans on the
+   second run" hand-ritual - see the 2N-accumulation note above; the gate
+   supersedes it. Other leftover-state failures may still surface only on a
+   second run, so a re-run remains a useful spot-check.)
 
 ## Publish-validation tests - three distinct rejection paths
 
@@ -556,9 +567,11 @@ Harness keys are normalized *before* schema validation:
 `model.modelHarness` / `model.provider` and pre-rename entry harness values
 (`claude` → `claude-code`, `gemini` → `gemini-cli`) into canonical
 `bestiary` values. So a *legacy-but-known* harness is accepted via normalization,
-while *garbage* still trips the schema enum. An omitted `model.harness` is also
-rejected by the schema module's required-field rule; the handler does not carry
-a separate required-field guard.
+while *garbage* still trips the schema enum. (Note: an **omitted** `model.harness`
+is currently accepted on this branch - there is a tripwire test,
+`TestPublishTranscript_MissingModelHarness`, holding that line until GH `1e8tk`
+lands the required-field rule **in the vendored schema**, not as an ad-hoc handler
+guard.)
 
 ### Worked example - assert the body
 
@@ -640,6 +653,32 @@ genuinely-invalid ones.
 Prefer these fixtures over inline literals: a single contract change should update
 one fixture, not N tests.
 
+### Enriched transcript preservation gate
+
+`internal/handler/testdata/observed_model_preservation/` is the strict corpus for
+the optional `TurnDetail.observedModel` evidence introduced by the released
+Schema module. The loader uses known-field decoding, one-document enforcement,
+an exact case count, an independent required-name inventory, and uniqueness
+checks. The enriched case contains repeated A, changed B, and an omission; the
+legacy case contains no observations and must never gain one.
+
+The production proof runs `NewContentMigrator` over the stored envelope, encodes
+through the same typed canonical rewrite boundary used by `GetTranscriptContent`,
+then migrates and compares the re-emitted turns. `GET /api/v1/schema/version`
+advertises the schema-owned flat `observed_model_v1` capability token only when that proof
+passes. Publish remains backward compatible for content without observations.
+Content carrying `observedModel` fails closed before scan/storage if the proof is
+unavailable, with a response explaining that nothing was written and that the
+client must retry against a Village advertising the capability.
+
+The negative is executed, not descriptive metadata: the test substitutes an
+encoder at the real typed rewrite boundary that deletes `observedModel`. It must
+make the preservation proof fail, produce an empty capability set, and make the
+enriched publish precondition refuse. The same failing evaluator must still let
+the no-observation legacy fixture through. Keep this production-point negative
+when the canonical rewrite code moves; a synthetic standalone marshal test does
+not replace it.
+
 ## Cross-repo contract tests & gate-faithful expectations
 
 The publish/pull wire format is a contract owned jointly by the
@@ -647,10 +686,10 @@ The publish/pull wire format is a contract owned jointly by the
 (producer), and village (the enforcer that validates via
 `schema.ValidatePublishRequest` and serves `schema.VillageAPISpecJSON()` - one
 module byte-source, no vendored copy). See
-[`AGENTS.md`](AGENTS.md#shared-wire-contract-and-licensing) for
+[`AGENTS.md`](AGENTS.md#cross-repo-api-contract-village--schema-module--peasant) for
 the ownership rules. Tests that cross this boundary must match the **system's real
 policy** and **couple the two repos so they can't drift**. Lessons distilled from
-these systems:
+this epoch's village-fix wave:
 
 - **Pin the error body so verdicts and behavior can't drift.** Two rejections can
   share a status (the secret-scan 422 vs a schema/enum 422 are both `422`). A

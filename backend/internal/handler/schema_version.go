@@ -7,13 +7,14 @@ import (
 )
 
 // minPushContractVersion is the village's PUSH-ACCEPTANCE floor: the oldest push
-// contract version it will still accept on the publish path. This is separate
-// from displayMigrateFloor (how far back a stored blob can be normalized for
-// rendering, which may reach further back) and from storage backfills. The
-// current contract is 0.1.1 (the required
+// contract version it will still accept on the publish path. A3 DISTINCT FLOORS:
+// this is SEPARATE from displayMigrateFloor (how far back a stored blob can be
+// normalized for rendering, which may reach further back) and from the Phase-A
+// SQL backfill. As of 1e8tk the current contract is 0.1.1 (the required
 // harness+model strictening — same wire SHAPE, a PATCH bump), and the floor
-// stays 0.1.0, so the push window is [0.1.0, 0.1.1]: a 0.1.0-emitting client is
-// still accepted (shape-identical, no migration).
+// stays 0.1.0, so the legacy push window remains [0.1.0, 0.1.1]. An explicit,
+// independently versioned content capability tells enriched clients whether
+// observed-model evidence is proven safe through Village's typed storage paths.
 const minPushContractVersion schema.PushContractVersion = "0.1.0"
 
 // pullContractVersion / minPullContractVersion advertise the PULL ENVELOPE
@@ -30,10 +31,10 @@ const (
 // GetSchemaVersion returns the annotation schema version and supported types,
 // and advertises the push-contract negotiation WINDOW [Min, Current] so the CLI
 // can preflight. Without these the CLI's classifyContract sees an
-// unadvertised window and fails open, defeating negotiation end to end.
+// unadvertised window and fails open — defeating negotiation end to end (IP1).
 // GET /api/v1/schema/version (public)
 func (h *Handler) GetSchemaVersion(w http.ResponseWriter, r *http.Request) {
-	resp := schema.SchemaVersionResponse{
+	legacy := schema.SchemaVersionResponse{
 		AnnotationSchemaVersion: "1.0",
 		SupportedTargetKinds: []string{
 			string(schema.TargetSession),
@@ -57,5 +58,10 @@ func (h *Handler) GetSchemaVersion(w http.ResponseWriter, r *http.Request) {
 		PullContractVersion:    pullContractVersion,
 		MinPullContractVersion: minPullContractVersion,
 	}
-	writeJSON(w, http.StatusOK, resp)
+	legacy.ContentCapabilities = advertisedContentCapabilitiesWithEvaluator(h.preservationProof())
+	if err := schema.ValidateContentCapabilityAdvertisements(legacy.ContentCapabilities); err != nil {
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, legacy)
 }

@@ -76,7 +76,7 @@ func TestTitleBackfillFixtureAndModeContract(t *testing.T) {
 		if tc.Name != "shared_project_path_parity" {
 			continue
 		}
-		result, err := pipeline.Generate(tc.FirstUser, redact.TitleContext{Harness: schema.HarnessClaudeCode, ProjectPath: "/Users/developer/work/sample-app"})
+		result, err := pipeline.Generate(tc.FirstUser, redact.TitleContext{Harness: schema.HarnessClaudeCode, ProjectPath: "/Users/alice/work/app"})
 		if err != nil {
 			t.Fatal(err)
 		}

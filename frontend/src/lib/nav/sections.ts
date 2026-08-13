@@ -1,6 +1,7 @@
 /**
  * App navigation sections — the single source of truth for the top nav.
- * Mirrors the published Fairtrade CommonsApp demo shell:
+ * Mirrors the fairtrade demo's CommonsApp shell
+ * (fairtrade-design-system/main/src/mockups/inuse/CommonsApp.jsx PRIMARY):
  * explore | collectives | publish | profile, lowercase, rendered through the
  * lifted GraphSectionNav primitive (@peasant-labs/fairtrade/ui) with real
  * next/link navigation instead of the demo's internal view-switcher.

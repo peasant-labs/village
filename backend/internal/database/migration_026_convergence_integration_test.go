@@ -23,7 +23,7 @@ package database
 // table, and the schema-wide index namespace made the guarded CREATE INDEX
 // silently skip on exactly the environments 026 repairs.
 //
-// To bound test cost, the 001–024 prefix is applied once to a base
+// COST CONTROLS (Impl-UAT FIX-NOW): the 001–024 prefix is applied ONCE to a base
 // database and the gen classes are CLONED from it (CREATE DATABASE … TEMPLATE —
 // a file-level copy that also carries the schema_migrations rows), and the
 // per-class work (fixture + migrate + fixpoint + publish-check + snapshot) runs

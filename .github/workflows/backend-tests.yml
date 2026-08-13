@@ -47,23 +47,17 @@ on:
       - "scripts/testdata/go-test-events/**"
       - ".github/workflows/backend-tests.yml"
 
-# Every job only reads repository contents. The workflow does not expose secrets
-# or write-capable credentials to pull requests from public forks.
-permissions:
-  contents: read
-
 jobs:
   test:
     name: Backend, PostgreSQL, and MinIO
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     # Ephemeral Postgres for the -tags=integration suite. TEST_DATABASE_URL points
     # the tests at this service; each integration test runs RunMigrations itself,
     # so no migration step is needed here.
     services:
       postgres:
-        # postgres 16.14-alpine3.24, pinned to the linux/amd64 manifest used by ubuntu-24.04.
-        image: postgres@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382
+        image: postgres:16-alpine
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
@@ -91,7 +85,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -128,7 +122,7 @@ jobs:
       # fetched over the standard module proxy; no token, GOPRIVATE, or git rewrite.
 
       - name: Set up Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        uses: actions/setup-go@v5
         with:
           # Pin the toolchain to the module's declared version.
           go-version-file: backend/go.mod
@@ -176,18 +170,18 @@ jobs:
 
   frontend:
     name: Frontend frozen build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+        uses: pnpm/action-setup@v4
         with:
           version: 11.5.3
 
       - name: Set up Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
@@ -207,10 +201,10 @@ jobs:
 
   production-artifacts:
     name: Production artifact provenance
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@v4
 
       - name: Build and verify production images
         env:

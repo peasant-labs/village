@@ -1,11 +1,13 @@
 "use client";
 
-// Deprecated compatibility component superseded by the lifted design-system
+// prior-version, deprecation candidate (V-SHELL): superseded by the lifted DS
 // SignInProviders (@peasant-labs/fairtrade/ui, src/ui/SignIn.jsx), which Navbar.tsx now
 // composes directly. This hand-rolled duplicate used the removed bg-mark/text-mark-fg token
-// pair, which renders white-on-white in dark theme. The design-system version
-// uses the canonical amber fill. This component remains dormant for compatibility
-// and has no app import sites.
+// pair (renders white-on-white in dark theme — the "Sign in with GitHub is white, should be
+// amber" UAT finding); the DS version fills amber (var(--amber-fill)) instead. Soft-retained
+// per the SOFT-RETIRE POLICY (soft-retire-not-delete policy): left in place, dormant (no
+// remaining import sites), not wired into the app. Track removal separately rather than
+// deleting outright.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";

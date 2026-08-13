@@ -8,7 +8,7 @@ import path from "path";
 //
 // A manual resolve.alias for react/react-dom is also harmful: it overrides
 // Next's 'react-server' export-condition resolution → useState null in the
-// server bundle as well. The locked dependency graph resolves one React 19 when all packages
+// server bundle as well. npm hoists a single react@19 when all packages
 // align on the same peer range — no manual dedup needed.
 //
 // The frontend is the single member of the repository-local pnpm workspace.

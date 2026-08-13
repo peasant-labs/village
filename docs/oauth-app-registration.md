@@ -77,7 +77,7 @@ choose a username, then into the app.
 
 - The `me` query doesn't expose an avatar, so `avatar_url` stays empty.
 - CLI login is still GitHub-only, and `user_github_orgs` is empty for non-GitHub
-  users, so organization filters are a no-op for those accounts.
+  users (org filters no-op) — expected, per `dev-feedback-followup.md`.
 
 ## Troubleshooting
 

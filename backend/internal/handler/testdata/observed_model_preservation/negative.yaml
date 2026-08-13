@@ -1,0 +1,25 @@
+cases:
+  - name: production_rewrite_preserves_enriched_evidence
+    operation: canonical_production_encoder
+    wantProofFailure: false
+    wantCapability: true
+    wantPublishRefusal: false
+    wantErrorContains: []
+  - name: field_drop_withholds_capability_and_refuses_enriched_publish
+    operation: drop_observed_model_at_production_rewrite
+    wantProofFailure: true
+    wantCapability: false
+    wantPublishRefusal: true
+    wantErrorContains:
+      - {name: evidence_field, value: re-emitted observedModel}
+      - {name: uploaded_evidence, value: uploaded transcript_file carries observedModel evidence}
+      - {name: no_writes, value: no transcript bytes or metadata were written}
+      - {name: no_silent_strip, value: silently stripping}
+      - {name: negotiation_endpoint, value: GET /api/v1/schema/version}
+      - {name: capability_name, value: observed_model_v1}
+  - name: field_drop_keeps_legacy_publish_compatible
+    operation: legacy_payload_under_field_drop
+    wantProofFailure: true
+    wantCapability: false
+    wantPublishRefusal: false
+    wantErrorContains: []

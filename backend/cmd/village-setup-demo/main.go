@@ -4,8 +4,8 @@
 // ██  DEV / DEMO ONLY — CANNOT TOUCH A REMOTE OR PRODUCTION DATABASE.        ██
 // ██                                                                        ██
 // ██  This tool writes a fixed demo user + a freshly-minted API key DIRECTLY ██
-// ██  into a LOCAL village database, bypassing OAuth, so the local end-to-end ██
-// ██  harness can authenticate a real `peasant village push`.                 ██
+// ██  into a LOCAL village database, bypassing OAuth, so the GH#69 skip-gate  ██
+// ██  end-to-end harness can authenticate a real `peasant village push`.      ██
 // ██                                                                        ██
 // ██  Two independent fences make a prod mistake impossible:                  ██
 // ██   1. it REFUSES unless DATABASE_URL's host is localhost / 127.0.0.1 /   ██

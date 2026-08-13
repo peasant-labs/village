@@ -84,7 +84,9 @@ export default function GroupsPage() {
 
   return (
     <div className="cmg-root max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-      {/* CollectivesView owns the breadcrumb, heading, and deck for this surface. */}
+      {/* CollectivesView (below) already renders its own "village > collectives" breadcrumb + the
+          "collectives" heading/deck (matching the fairtrade demo) -- an app-chrome breadcrumb +
+          title block here duplicated both (UAT finding: heading + description "REPEATED TWICE"). */}
 
       <CollectivesView
         data={{

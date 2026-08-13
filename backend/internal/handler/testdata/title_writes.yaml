@@ -1,9 +1,9 @@
 - name: shared_project_path_parity
   mode: fresh
   harness: claude-code
-  project_path: /Users/developer/work/sample-app
-  candidate: Fix /Users/developer/work/sample-app/src/auth.go
-  expected: Fix /Users/<USER>/<PATH>/sample-app/src/auth.go
+  project_path: /Users/alice/work/app
+  candidate: Fix /Users/alice/work/app/src/auth.go
+  expected: Fix /Users/<USER>/<PATH>/app/src/auth.go
 - name: missing_candidate_fallback
   mode: fresh
   harness: gemini-cli
@@ -16,9 +16,9 @@
 - name: republish_safe_generated
   mode: fresh
   harness: claude-code
-  project_path: /Users/developer/work/sample-app
-  candidate: Review /Users/developer/work/sample-app/src/session.go
-  expected: Review /Users/<USER>/<PATH>/sample-app/src/session.go
+  project_path: /Users/alice/work/app
+  candidate: Review /Users/alice/work/app/src/session.go
+  expected: Review /Users/<USER>/<PATH>/app/src/session.go
 - name: safe_patch_byte_preservation
   mode: patch
   harness: claude-code
@@ -28,7 +28,7 @@
 - name: sensitive_category_no_write_no_echo
   mode: patch
   harness: claude-code
-  candidate: contact contributor@example.com
+  candidate: contact alice@example.com
   status: 422
   category: PII
 - name: validation_unavailable_no_write
@@ -39,5 +39,5 @@
 - name: non_owner_denied_before_validation
   mode: non_owner
   harness: claude-code
-  candidate: contact contributor@example.com
+  candidate: contact alice@example.com
   status: 403

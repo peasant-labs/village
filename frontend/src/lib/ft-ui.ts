@@ -321,7 +321,7 @@ export const Switch = FtSwitch;
  */
 export { RoleRoster, ConfirmInline, DangerZone } from "@peasant-labs/fairtrade/ui";
 
-// ── Navigation / identity ─────────────────────────────────────────────────────
+// ── Navigation / identity (V-SHELL) ───────────────────────────────────────────
 
 /**
  * GraphSectionNav — route-agnostic subnav renderer (the primitive behind the

@@ -1,8 +1,11 @@
 'use client';
 
-// Deprecated compatibility component for a before/after redaction view. It is
-// not reachable from a route and has no remaining import sites. Fairtrade's
-// Redaction and DiffView primitives are the intended replacement.
+// prior-version, deprecation candidate (V-SHELL): a bespoke before/after
+// redaction diff view. No remaining import sites (not currently reachable from any
+// route). fairtrade ships its own Redaction/DiffView primitives (src/ui/Redaction.jsx,
+// src/ui/DiffView.jsx) that aren't yet adopted here -- soft-retained per the SOFT-RETIRE
+// POLICY (soft-retire-not-delete policy) rather than deleted, as a candidate for that
+// future adoption rather than a reimplementation from scratch.
 
 import {
   forwardRef,

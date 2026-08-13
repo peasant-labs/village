@@ -1,0 +1,10 @@
+cases:
+  - name: valid_assistant_evidence
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-assistant","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}}'
+    wantErrorPart: ''
+  - name: invalid_non_assistant_evidence
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-role","turns":[{"index":0,"role":"user","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}}'
+    wantErrorPart: 'rather than'
+  - name: malformed_enriched_input
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"turns":[{"role":"assistant","observedModel":]}}}'
+    wantErrorPart: 'could not be decoded'

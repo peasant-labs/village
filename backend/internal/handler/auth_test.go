@@ -732,10 +732,11 @@ func newTestHandler(q Querier, blobs storage.TranscriptBlobStore) *Handler {
 		panic(err)
 	}
 	return &Handler{
-		cfg:     minimalConfig(),
-		queries: q,
-		blobs:   blobs,
-		titles:  titles,
+		cfg:                   minimalConfig(),
+		queries:               q,
+		blobs:                 blobs,
+		titles:                titles,
+		preservationEvaluator: productionObservedModelPreservationEvaluator{},
 	}
 }
 

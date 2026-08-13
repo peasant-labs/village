@@ -1,7 +1,9 @@
 "use client";
 
-// Deprecated compatibility component superseded by the shared fairtrade
-// <Explore> transcript cards. It has no remaining import sites.
+// prior-version, deprecation candidate (V-SHELL): superseded by the shared
+// fairtrade <Explore> surface (V-EXPLORE, page.tsx bcb19c7), which renders its own
+// .cex-tcard transcript cards. No remaining import sites. Soft-retained per the
+// SOFT-RETIRE POLICY (soft-retire-not-delete policy) rather than deleted.
 
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";

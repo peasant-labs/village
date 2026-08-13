@@ -53,8 +53,8 @@ func TestMigration026_SQL(t *testing.T) {
 	if strings.Contains(upSQL, "license_id text not null") {
 		t.Fatal("026 transcripts.license_id must be NULLABLE")
 	}
-	// No scalar permissiveness order: collective resolution is decided and
-	// consented, not computed; second-generation environments get the column dropped.
+	// No scalar permissiveness order: collective resolution is decided+consented,
+	// not computed (Plan UAT); gen-2 envs get the column dropped.
 	if !strings.Contains(upSQL, "drop column if exists permissiveness_rank") {
 		t.Fatal("026 must DROP COLUMN IF EXISTS permissiveness_rank (gen-2 env repair)")
 	}
@@ -102,7 +102,7 @@ func TestMigration026_SQL(t *testing.T) {
 			got, strings.Count(upSQL, "create trigger"))
 	}
 
-	// Fail-closed attribution has no owner fallback; both
+	// FAIL-CLOSED attribution (Plan UAT): no owner fallback anywhere; both
 	// mutation-side functions must raise on a missing actor. And all trigger
 	// functions pin search_path.
 	if strings.Contains(upSQL, "old.owner_id") || strings.Contains(upSQL, "new.owner_id") {

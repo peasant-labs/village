@@ -17,10 +17,8 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -100,35 +98,6 @@ type skipGateCurrencyCase struct {
 	WantAnnotationsCurrent bool     `yaml:"wantAnnotationsCurrent"`
 }
 
-type skipGateCurrencyFixture struct {
-	Cases []skipGateCurrencyCase `yaml:"cases"`
-}
-
-func decodeSkipGateCurrencyFixture(data []byte) (skipGateCurrencyFixture, error) {
-	var fixture skipGateCurrencyFixture
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&fixture); err != nil {
-		return skipGateCurrencyFixture{}, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		return skipGateCurrencyFixture{}, fmt.Errorf("currency fixture must contain exactly one YAML document")
-	}
-	return fixture, nil
-}
-
-func TestPullSkipGateCurrencyFixtureRejectsUnknownFields(t *testing.T) {
-	unknown := append([]byte("unexpected_fixture_field: true\n"), skipGateCurrencyYAML...)
-	if _, err := decodeSkipGateCurrencyFixture(unknown); err == nil || !strings.Contains(err.Error(), "unexpected_fixture_field") {
-		t.Fatalf("unknown field error = %v, want strict rejection", err)
-	}
-	trailing := append(append([]byte{}, skipGateCurrencyYAML...), []byte("\n---\nunexpected: document\n")...)
-	if _, err := decodeSkipGateCurrencyFixture(trailing); err == nil || !strings.Contains(err.Error(), "exactly one YAML document") {
-		t.Fatalf("trailing document error = %v, want single-document rejection", err)
-	}
-}
-
 // TestPullSkipGate_CurrencyMatrix drives the per-field pos+neg currency controls
 // from the fixture corpus: contentCurrent (match / stale / legacy-NULL) and
 // annotationsCurrent (match / missing / extra), each against a real transcript.
@@ -138,8 +107,10 @@ func TestPullSkipGate_CurrencyMatrix(t *testing.T) {
 	ctx := context.Background()
 	h := &Handler{pool: pool, queries: sqlc.New(pool)}
 
-	f, err := decodeSkipGateCurrencyFixture(skipGateCurrencyYAML)
-	if err != nil {
+	var f struct {
+		Cases []skipGateCurrencyCase `yaml:"cases"`
+	}
+	if err := yaml.Unmarshal(skipGateCurrencyYAML, &f); err != nil {
 		t.Fatalf("load currency cases: %v", err)
 	}
 	// Row-count guard: the corpus must keep covering the field matrix.

@@ -1,7 +1,9 @@
 "use client";
 
-// Deprecated compatibility component for the former transcript list, superseded
-// by the shared fairtrade <Explore> surface. It has no remaining import sites.
+// prior-version, deprecation candidate (V-SHELL): a bespoke list-row layout
+// for the pre-lift transcript browse UI, superseded by the shared fairtrade <Explore>
+// surface (V-EXPLORE). No remaining import sites. Soft-retained per the SOFT-RETIRE
+// POLICY (soft-retire-not-delete policy) rather than deleted.
 
 import Link from "next/link";
 import { ProviderName, Tag, VisibilityEye } from "@/lib/ft-ui";

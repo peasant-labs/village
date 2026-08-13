@@ -18,7 +18,7 @@
    transcript SxS does and does NOT gate:
      - REF_DIR=tb (default) vs APP_DIR=village → the SAME-component transcript-browser <SessionDetail>
        before/after. The reference is the COMMITTED, frozen `baseline/tb/` set tracked next to these
-       scripts (the frozen pre-theme-convergence capture); a divergence is a real regression.
+       scripts (the prior-epoch, pre-theme-convergence capture); a divergence is a real regression.
        (Resolved from the committed dir unless a same-named set is staged under <base-dir>.)
      - REF_DIR=demo vs APP_DIR=village → a NON-GATING design-language sanity panel (the fairtrade demo's
        TranscriptViewer is a DIFFERENT component from the app's <SessionDetail>); stage the demo under
@@ -46,14 +46,14 @@ const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core'))
 const IMGDIFF_TOL = 16
 
 const CHROME = process.env.CHROME_PATH
-const CAPTURE_ROOT = process.argv[2]
+const UAT = process.argv[2]
 const COMMITTED_ROOT = join(dirname(fileURLToPath(import.meta.url)), 'baseline')
 const SURFACE_SET = process.env.SURFACE_SET || 'txn'
 const IMGDIFF_FAIL_PCT = SURFACE_SET === 'cex' ? 12 : 0.5
 // The LEFT (reference) pane and the RIGHT (subject) pane are both parameterized:
 //   - DEFAULT transcript oracle: REF_DIR=tb vs APP_DIR=village — the SAME-component before/after view.
-//     The reference `tb` is the committed, frozen transcript-browser <SessionDetail>
-//     capture from before theme convergence (non-regenerable; tracked at baseline/tb/ next to
+//     The reference `tb` is the COMMITTED, frozen, prior-epoch transcript-browser <SessionDetail>
+//     capture (before this epoch's theme-convergence — NON-regenerable; tracked at baseline/tb/ next to
 //     these scripts); the subject is the current village <SessionDetail>. Both are `.tb-*`, so a
 //     divergence is a real transcript regression, not a component difference. (The SxS is NOT expected to
 //     be zero-diff — the theme-convergence delta is intentional; it's judged for design cohesion + no
@@ -76,7 +76,7 @@ const THEMES = ['dark', 'light']
 // set tracked next to these scripts (scripts/visual/baseline/<REF_DIR>/<theme>/ — the frozen `tb`
 // golden). So the default no-regression oracle works on a clean checkout with nothing to stage.
 const refDirFor = (theme) => {
-  const staged = `${CAPTURE_ROOT}/${REF_DIR}/${theme}`
+  const staged = `${UAT}/${REF_DIR}/${theme}`
   return existsSync(staged) ? staged : join(COMMITTED_ROOT, REF_DIR, theme)
 }
 // The canonical surface set. Each entry names the output surface plus the
@@ -103,7 +103,7 @@ if (!CHROME) {
   console.error('ERROR [stitch-sxs.mjs] CHROME_PATH is unset — set it to your Chrome/Chromium binary.')
   process.exit(1)
 }
-if (!CAPTURE_ROOT) {
+if (!UAT) {
   console.error('ERROR [stitch-sxs.mjs] missing <base-dir> argument.\n  usage: CHROME_PATH=... node scripts/visual/stitch-sxs.mjs <base-dir>')
   process.exit(1)
 }
@@ -115,11 +115,11 @@ await page.goto('about:blank')
 let made = 0
 const diffResults = [] // { theme, surface, status:'compared'|'dim'|'no-ref'|'no-app', pct, diff, total }
 for (const theme of THEMES) {
-  const outDir = `${CAPTURE_ROOT}/sxs/${theme}`
+  const outDir = `${UAT}/sxs/${theme}`
   mkdirSync(outDir, { recursive: true })
   for (const { surface, refSurface, appSurface, gap } of SURFACES) {
     const refPath = `${refDirFor(theme)}/${refSurface}.png`
-    const appPath = `${CAPTURE_ROOT}/${APP_DIR}/${theme}/${appSurface}.png`
+    const appPath = `${UAT}/${APP_DIR}/${theme}/${appSurface}.png`
     if (!existsSync(refPath)) {
       console.error('skip (no reference):', theme, surface)
       diffResults.push({ theme, surface, status: 'no-ref', pct: Infinity, diff: 0, total: 0 })
@@ -222,7 +222,7 @@ for (const theme of THEMES) {
     }
   }
 }
-console.log(`\nbuilt ${made} height-matched side-by-side composites under ${CAPTURE_ROOT}/sxs/`)
+console.log(`\nbuilt ${made} height-matched side-by-side composites under ${UAT}/sxs/`)
 await browser.close()
 
 /* ── imgdiff summary + pass/fail gate (additive to the composites above) ──────────────────────────────
@@ -255,7 +255,7 @@ if (comparedCount === 0) {
   console.error(
     `\nFAIL [stitch-sxs.mjs] imgdiff compared ZERO surfaces — the gate would pass vacuously.\n` +
     `  Means: no [surface, theme] pair had BOTH a reference (baseline/${REF_DIR}/) and an app capture (${APP_DIR}/).\n` +
-    `  Fix: run the shoot for ${APP_DIR} in both themes so ${CAPTURE_ROOT}/${APP_DIR}/<theme>/<surface>.png exist, then re-stitch.`
+    `  Fix: run the shoot for ${APP_DIR} in both themes so ${UAT}/${APP_DIR}/<theme>/<surface>.png exist, then re-stitch.`
   )
   process.exit(1)
 }
@@ -265,7 +265,7 @@ if (failures > 0) {
     `  NO-REF/NO-APP = a surface could not be compared (missing baseline or app capture) — fail closed.\n` +
     `  DIM!          = the reference and app capture differ in size.\n` +
     `  DIFF!         = the differing-pixel share exceeds ${IMGDIFF_FAIL_PCT.toFixed(2)}%.\n` +
-    `  Fix: inspect the flagged rows + the matching composite under ${CAPTURE_ROOT}/sxs/<theme>/, and correct the visual regression (or restage the missing capture).`
+    `  Fix: inspect the flagged rows + the matching composite under ${UAT}/sxs/<theme>/, and correct the visual regression (or restage the missing capture).`
   )
   process.exit(1)
 }

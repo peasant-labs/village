@@ -10,7 +10,7 @@
    Point the village frontend at it via `NEXT_PUBLIC_API_URL` (the only env the app reads for its API
    base), then run boot-village against the real route:
      MOCK_REST_PORT=8788 node scripts/visual/mock-rest.mjs &
-     NEXT_PUBLIC_API_URL=http://localhost:8788/api/v1 pnpm dev &
+     NEXT_PUBLIC_API_URL=http://localhost:8788/api/v1 npm run dev &
      CHROME_PATH=... VILLAGE_TRANSCRIPT=demo node scripts/visual/boot-village.mjs
 
    env: MOCK_REST_PORT (default 8788), MOCK_TRANSCRIPT_ID (default `demo`). Runs until killed. */
@@ -194,23 +194,23 @@ const content = {
   tokensOut: 1600,
   turnCount: 3,
   toolCallCount: 1,
-  project: 'village',
+  project: 'transcript-browser',
   model: 'claude-opus-4-7',
-  workingDirectory: '/workspace/village',
+  workingDirectory: '/Users/dev/transcript-browser',
   outcome: 'resolved',
   turns: [
-    { index: 0, role: 'user', content: 'Review the Village transcript label popover before updating its interaction.', timestamp: ts(0), depth: 0, tokensIn: 280, tokensOut: 0 },
+    { index: 0, role: 'user', content: 'Port the transcript canvas into the shared package. Read the renderer first.', timestamp: ts(0), depth: 0, tokensIn: 280, tokensOut: 0 },
     {
       index: 1, role: 'assistant', depth: 0, timestamp: ts(1), tokensIn: 1840, tokensOut: 920,
-      content: 'Reading **TurnLabelPopover.tsx** to preserve its save and cancel behavior.',
+      content: 'Reading **TurnRow.tsx** to preserve the per-tool dispatch before extracting it.',
       toolCalls: [{
         id: 't1a', name: 'Read', toolKind: 'read',
-        filePath: 'frontend/src/components/transcript/TurnLabelPopover.tsx',
-        arguments: JSON.stringify({ file_path: 'frontend/src/components/transcript/TurnLabelPopover.tsx', offset: 1, limit: 40 }),
-        result: JSON.stringify('export function TurnLabelPopover({ onSave, onCancel }: TurnLabelPopoverProps) {\n  return <form aria-label="label turn">…</form>\n}'),
+        filePath: 'web/src/components/session-detail/v2/canvas/TurnRow.tsx',
+        arguments: JSON.stringify({ file_path: 'web/src/components/session-detail/v2/canvas/TurnRow.tsx', offset: 1, limit: 40 }),
+        result: JSON.stringify('export function TurnRow({ turn, depth }: TurnRowProps) {\n  const Glyph = roleGlyph(turn.role)\n  return <div className="turn-row" data-depth={depth}>…</div>\n}'),
       }],
     },
-    { index: 2, role: 'assistant', depth: 0, timestamp: ts(2), tokensIn: 980, tokensOut: 720, stopReason: 'end_turn', content: 'The popover behavior is preserved and the Village frontend still typechecks.' },
+    { index: 2, role: 'assistant', depth: 0, timestamp: ts(2), tokensIn: 980, tokensOut: 720, stopReason: 'end_turn', content: 'All packages typecheck and build; the canvas now lives in the shared package.' },
   ],
 }
 
@@ -219,9 +219,9 @@ const detail = {
     id: ID,
     local_id: 'sess_demo_0001',
     visibility: 'public',
-    title: 'Review the transcript label popover',
+    title: 'Port the transcript canvas into the shared package',
     description: 'Host-integration boot fixture.',
-    project_name: 'village',
+    project_name: 'transcript-browser',
   },
   owner: { id: 'owner-demo' },
   enriched_shares: [],

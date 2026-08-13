@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -209,17 +210,22 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Session identity is a handler-owned precondition with a field-level error.
+	// Validate the required identity + model fields with accurate, field-level
+	// errors (fixes A1: the prior block validated Model.Provider but reported
+	// "modelHarness", and never validated Model.Model at all).
 	if req.Identity.SessionID == "" {
 		writeError(w, http.StatusBadRequest, "sessionId is required")
 		return
 	}
-	// Enforce the schema module's embedded PublishRequest contract as the sole,
-	// fail-closed gate for required model fields: SchemaModelInfo.required
+	// Enforce the vendored OpenAPI PublishRequest schema as the SOLE, fail-closed
+	// gate for the required model fields (1e8tk): SchemaModelInfo.required now
 	// declares [harness, model] and SchemaPublishRequest.required declares [model],
 	// so an absent/empty harness or model is rejected here as a documented
-	// schema-layer 422. A nil validator means the embedded contract could not be
-	// compiled, so reject rather than accepting an unvalidated publish.
+	// schema-422. The prior hand-written "model is required" 400 guard is removed —
+	// it enforced a rule the published spec did not declare (spec drift); an absent
+	// model now unifies to 422 through the schema. FAIL-CLOSED: a nil validator
+	// means the vendored schema failed to compile (a build/asset bug); reject
+	// rather than silently accept an unvalidated publish.
 	v := payloadValidator()
 	if v == nil {
 		writeError(w, http.StatusServiceUnavailable, "publish validation unavailable")
@@ -248,6 +254,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	content, err := io.ReadAll(file)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to read file")
+		return
+	}
+	if err := requireSupportedContentCapabilityWithEvaluator(content, h.preservationProof()); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 
@@ -810,42 +820,68 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	// expects (unwrapping the TranscriptContent envelope that peasant uploads).
 	payload, rewrite, err := defaultContentMigrator.Migrate(r.Context(), raw)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to decode transcript content")
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
+	if err := validateObservedModelValues(payload); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	if rewrite {
-		canonical, marshalErr := json.Marshal(schema.TranscriptContent{ContractVersion: currentContractVersion, Kind: schema.ContentKindSessionDetail, SessionDetail: payload})
-		if marshalErr == nil {
-			h.rewriteCanonicalTranscript(r.Context(), readResult.Row, canonical)
+		canonical, marshalErr := encodeCanonicalTranscript(payload)
+		if marshalErr != nil {
+			if payloadCarriesObservedModels(payload) {
+				writeError(w, http.StatusInternalServerError, marshalErr.Error())
+				return
+			}
+			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), marshalErr)
+			writeJSON(w, http.StatusOK, payload)
+			return
+		}
+		if err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, canonical); err != nil {
+			if payloadCarriesObservedModels(payload) {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
 		}
 	}
 
 	writeJSON(w, http.StatusOK, payload)
 }
 
-func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Transcript, canonical []byte) {
+func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Transcript, canonical []byte) error {
 	oldDescriptor, err := descriptorFromTranscript(row)
-	if err != nil || h.blobs == nil {
-		return
+	if err != nil {
+		return err
+	}
+	if h.blobs == nil {
+		return fmt.Errorf("canonical transcript rewrite failed because encrypted blob storage was not composed in handler.rewriteCanonicalTranscript before migrate-on-read persistence; the old generation remains authoritative and the response was withheld to avoid claiming a durable preservation Village cannot complete; configure key custody and object storage, restart Village, then retry")
 	}
 	unlock := defaultRewriteLocks.Lock(string(oldDescriptor.ObjectKey()))
 	defer unlock()
 	current, err := h.queries.GetTranscriptByID(ctx, row.ID)
 	if err != nil {
-		return
+		return fmt.Errorf("canonical transcript rewrite failed because the current database descriptor could not be reloaded in handler.rewriteCanonicalTranscript after migration and before immutable replacement; the old generation remains authoritative and no response was served; restore PostgreSQL access, then retry: %w", err)
 	}
 	currentDescriptor, err := descriptorFromTranscript(current)
-	if err != nil || !descriptorsEqual(oldDescriptor, currentDescriptor) {
-		return
+	if err != nil {
+		return err
+	}
+	if !descriptorsEqual(oldDescriptor, currentDescriptor) {
+		// Another request already installed a canonical immutable generation. The
+		// caller's payload came from the authenticated old generation and the
+		// compare-before-write prevents it from overwriting the winner, so this is
+		// a successful no-op rather than a rewrite failure.
+		return nil
 	}
 	newDescriptor, identity, err := h.blobs.Write(ctx, uuidFromPg(row.ID), canonical)
 	if err != nil {
-		return
+		return fmt.Errorf("canonical transcript rewrite failed because encrypted object storage rejected the replacement in handler.rewriteCanonicalTranscript after typed migration; the old generation remains authoritative and no response was served; restore key custody and object storage, then retry: %w", err)
 	}
 	systemID, err := uuid.Parse(database.SystemActorID)
 	if err != nil {
-		return
+		return fmt.Errorf("canonical transcript rewrite failed because the reserved system actor could not be parsed in handler.rewriteCanonicalTranscript before database installation; the candidate ciphertext may require reconciliation and no response was served; correct database.SystemActorID and retry: %w", err)
 	}
 	result := h.inEncryptedTx(ctx, toPgUUID(systemID), func(q Querier) error {
 		_, err := q.CompareAndSwapTranscriptBlob(ctx, sqlc.CompareAndSwapTranscriptBlobParams{
@@ -863,6 +899,10 @@ func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Trans
 	} else if decision.Reconcile {
 		emitBlobReconciliation("rewrite", row.ID, newDescriptor, result.Completion)
 	}
+	if result.Err != nil {
+		return fmt.Errorf("canonical transcript rewrite failed because the encrypted database transaction did not install the migrated descriptor in handler.rewriteCanonicalTranscript after candidate upload; completion=%s determines candidate cleanup and no response was served; inspect transcript_blob_reconciliation_required when completion is ambiguous, restore PostgreSQL, then retry: %w", result.Completion, result.Err)
+	}
+	return nil
 }
 
 func (h *Handler) UpdateTranscript(w http.ResponseWriter, r *http.Request) {
@@ -922,7 +962,7 @@ func (h *Handler) UpdateTranscript(w http.ResponseWriter, r *http.Request) {
 	// Build the partial-update intent; the writer resolves omitted fields against the
 	// LOCKED pre-image inside the txn (so a concurrent edit is not reverted). License
 	// is menu-constrained: omitted ⇒ preserve, "" ⇒ clear to NULL, a menu value ⇒ set.
-	// PATCH validation is handler-owned because the publish contract does not apply.
+	// Validated here (it is not the vendored publish contract).
 	patch := metadataPatch{
 		Title:       req.Title,
 		Description: req.Description,
