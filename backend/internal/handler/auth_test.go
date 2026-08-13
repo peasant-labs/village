@@ -16,6 +16,7 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/scanner"
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
 
@@ -737,6 +738,7 @@ func newTestHandler(q Querier, blobs storage.TranscriptBlobStore) *Handler {
 		blobs:                 blobs,
 		titles:                titles,
 		preservationEvaluator: productionObservedModelPreservationEvaluator{},
+		scanContent:           scanner.ScanForSecrets,
 	}
 }
 

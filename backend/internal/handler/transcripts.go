@@ -261,7 +261,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if issues := scanner.ScanForSecrets(content); len(issues) > 0 {
+	if issues := h.scanTranscriptContent(content); len(issues) > 0 {
 		writeError(w, http.StatusUnprocessableEntity, scanner.FormatScanErrors(issues))
 		return
 	}

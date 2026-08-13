@@ -15,6 +15,7 @@ import (
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/github"
+	"github.com/peasant-labs/village/backend/internal/scanner"
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
 
@@ -30,11 +31,19 @@ type Handler struct {
 	blobs                 storage.TranscriptBlobStore
 	titles                TitlePipeline
 	preservationEvaluator observedModelPreservationEvaluator
+	scanContent           func([]byte) []string
 
 	// gh is the GitHub App client backing the collective-repository feature.
 	// It is nil when the App is not configured; handlers detect this via
 	// githubClient() and respond 501. Tests inject a client pointed at httptest.
 	gh *github.Client
+}
+
+func (h *Handler) scanTranscriptContent(content []byte) []string {
+	if h.scanContent != nil {
+		return h.scanContent(content)
+	}
+	return scanner.ScanForSecrets(content)
 }
 
 // New consumes the single transcript store composed by the runtime. Callers
@@ -56,6 +65,7 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 		blobs:                 blobs,
 		titles:                titles,
 		preservationEvaluator: productionObservedModelPreservationEvaluator{},
+		scanContent:           scanner.ScanForSecrets,
 	}
 
 	// The GitHub App is optional. If credentials are absent (or invalid),

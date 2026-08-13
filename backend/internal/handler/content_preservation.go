@@ -8,12 +8,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/peasant-labs/schema"
 	"gopkg.in/yaml.v3"
 )
+
+var observedModelJSONMemberPattern = regexp.MustCompile(`"observedModel"[[:space:]]*:`)
 
 const observedModelPreservationCaseCount = 2
 
@@ -84,11 +87,15 @@ func proveObservedModelPreservation() error {
 	return observedModelPreservationErr
 }
 
-func requireSupportedContentCapability(raw []byte) error {
-	return requireSupportedContentCapabilityWithEvaluator(raw, productionObservedModelPreservationEvaluator{})
-}
-
 func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observedModelPreservationEvaluator) error {
+	// Provider-native and legacy JSONL without enriched evidence retains the
+	// historical byte-for-byte publish path; decoding it is a read concern.
+	if !observedModelJSONMemberPattern.Match(raw) {
+		return nil
+	}
+	if err := validateObservedModelMemberPresence(raw); err != nil {
+		return err
+	}
 	payload, _, err := NewContentMigrator().Migrate(context.Background(), raw)
 	if err != nil {
 		return fmt.Errorf("uploaded transcript content could not be decoded through handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written; repair the transcript envelope and retry: %w", err)
@@ -96,7 +103,8 @@ func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observ
 	if err := validateObservedModelEvidence(payload); err != nil {
 		return err
 	}
-	if !payloadCarriesObservedModels(payload) {
+	required := schema.RequiredContentCapabilities(*payload)
+	if !containsContentCapability(required, schema.ContentCapabilityObservedModelV1) {
 		return nil
 	}
 	if err := evaluator.Evaluate(); err != nil {
@@ -105,16 +113,17 @@ func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observ
 	return nil
 }
 
-func payloadCarriesObservedModels(payload *schema.SessionDetailPayload) bool {
-	if payload == nil {
-		return false
-	}
-	for _, turn := range payload.Turns {
-		if turn.ObservedModel != "" {
+func containsContentCapability(capabilities []schema.ContentCapability, wanted schema.ContentCapability) bool {
+	for _, capability := range capabilities {
+		if capability == wanted {
 			return true
 		}
 	}
 	return false
+}
+
+func payloadCarriesObservedModels(payload *schema.SessionDetailPayload) bool {
+	return payload != nil && containsContentCapability(schema.RequiredContentCapabilities(*payload), schema.ContentCapabilityObservedModelV1)
 }
 
 func validateObservedModelEvidence(payload *schema.SessionDetailPayload) error {
@@ -122,14 +131,8 @@ func validateObservedModelEvidence(payload *schema.SessionDetailPayload) error {
 		return fmt.Errorf("observed-model evidence validation failed because the typed session payload is nil in handler.validateObservedModelEvidence after migrate-on-read and before serving or rewrite; no response or replacement was produced; repair or republish the transcript with a sessionDetail payload, then retry")
 	}
 	for index, turn := range payload.Turns {
-		if turn.ObservedModel == "" {
-			continue
-		}
-		if _, err := schema.NewObservedModelID(turn.ObservedModel.String()); err != nil {
-			return fmt.Errorf("observed-model evidence validation failed because session %q turn %d carries an invalid observedModel in handler.validateObservedModelEvidence after migrate-on-read and before serving or rewrite; no response or replacement was produced, so invalid source bytes cannot be normalized silently; re-ingest or republish the transcript with exact valid model evidence, then retry: %w", payload.ID, index, err)
-		}
-		if turn.Role != schema.RoleAssistant {
-			return fmt.Errorf("observed-model evidence validation failed because session %q turn %d has role %q rather than %q in handler.validateObservedModelEvidence after migrate-on-read and before serving or rewrite; no response or replacement was produced because models describe assistant or subagent output, not user, tool, or system turns; correct the producer attribution and republish the transcript", payload.ID, index, turn.Role, schema.RoleAssistant)
+		if err := schema.ValidateObservedModelEvidence(turn.Role, turn.ObservedModel); err != nil {
+			return fmt.Errorf("observed-model evidence validation failed because session %q turn %d violates the released Schema policy in handler.validateObservedModelEvidence after upload decoding and before secret scan or storage; no transcript bytes or metadata were written; correct the producer attribution and observedModel value, then retry: %w", payload.ID, index, err)
 		}
 	}
 	return nil
@@ -150,44 +153,87 @@ func validateObservedModelValues(payload *schema.SessionDetailPayload) error {
 	return nil
 }
 
-func contentCarriesObservedModels(raw []byte) bool {
-	payload, _, err := NewContentMigrator().Migrate(context.Background(), raw)
-	return err == nil && payloadCarriesObservedModels(payload)
+func validateObservedModelMemberPresence(raw []byte) error {
+	var envelope struct {
+		SessionDetail json.RawMessage `json:"sessionDetail"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return nil
+	}
+	var detail struct {
+		Turns []json.RawMessage `json:"turns"`
+	}
+	if err := json.Unmarshal(envelope.SessionDetail, &detail); err != nil {
+		return nil
+	}
+	for index, rawTurn := range detail.Turns {
+		var turn map[string]json.RawMessage
+		if err := json.Unmarshal(rawTurn, &turn); err != nil {
+			continue
+		}
+		value, present := turn["observedModel"]
+		if !present {
+			continue
+		}
+		var observed *string
+		if err := json.Unmarshal(value, &observed); err != nil || observed == nil || *observed == "" {
+			return fmt.Errorf("observed-model evidence validation failed because turn %d contains a present observedModel that is null, empty, or not a string in handler.validateObservedModelMemberPresence during publish decoding before secret scan or storage; no transcript bytes or metadata were written, so malformed enriched evidence cannot bypass capability negotiation; omit the member for legacy content or provide a non-empty Schema-valid model identifier, then retry", index)
+		}
+	}
+	return nil
 }
 
 func executeObservedModelPreservationProof(encoder contentRewriteEncoder) error {
-	fixtures, err := loadObservedModelPreservationFixtures(observedModelPreservationFixtureYAML)
+	outcomes, err := executeObservedModelPreservationProofOutcomes(encoder)
 	if err != nil {
 		return err
 	}
-	migrator := NewContentMigrator()
 	var failures []error
+	for _, outcome := range outcomes {
+		failures = append(failures, outcome.Err)
+	}
+	return errors.Join(failures...)
+}
+
+type observedModelPreservationOutcome struct {
+	Name string
+	Err  error
+}
+
+func executeObservedModelPreservationProofOutcomes(encoder contentRewriteEncoder) ([]observedModelPreservationOutcome, error) {
+	fixtures, err := loadObservedModelPreservationFixtures(observedModelPreservationFixtureYAML)
+	if err != nil {
+		return nil, err
+	}
+	migrator := NewContentMigrator()
+	outcomes := make([]observedModelPreservationOutcome, 0, len(fixtures))
 	for _, fixtureCase := range fixtures {
+		var outcomeErr error
 		raw, err := fixtureCase.envelopeJSON()
 		if err != nil {
-			failures = append(failures, err)
+			outcomes = append(outcomes, observedModelPreservationOutcome{Name: fixtureCase.Name, Err: err})
 			continue
 		}
 		payload, _, err := migrator.Migrate(context.Background(), raw)
 		if err != nil {
-			failures = append(failures, fmt.Errorf("observed-model preservation proof failed because fixture %q could not traverse the production typed migrator in handler.executeObservedModelPreservationProof during capability evaluation; enriched capability is withheld and enriched publishes must remain blocked; fix the migrator or fixture, then restart: %w", fixtureCase.Name, err))
+			outcomeErr = fmt.Errorf("observed-model preservation proof failed because fixture %q could not traverse the production typed migrator in handler.executeObservedModelPreservationProof during capability evaluation; enriched capability is withheld and enriched publishes must remain blocked; fix the migrator or fixture, then restart: %w", fixtureCase.Name, err)
+			outcomes = append(outcomes, observedModelPreservationOutcome{Name: fixtureCase.Name, Err: outcomeErr})
 			continue
 		}
 		canonical, err := encoder.Encode(currentContractVersion, payload)
 		if err != nil {
-			failures = append(failures, fmt.Errorf("fixture %q rewrite failed: %w", fixtureCase.Name, err))
+			outcomes = append(outcomes, observedModelPreservationOutcome{Name: fixtureCase.Name, Err: fmt.Errorf("fixture %q rewrite failed: %w", fixtureCase.Name, err)})
 			continue
 		}
 		reemitted, _, err := migrator.Migrate(context.Background(), canonical)
 		if err != nil {
-			failures = append(failures, fmt.Errorf("observed-model preservation proof failed because fixture %q could not traverse the production typed rewrite/re-emit path in handler.executeObservedModelPreservationProof during capability evaluation; enriched capability is withheld and enriched publishes must remain blocked; fix the canonical encoder or migrator, then restart: %w", fixtureCase.Name, err))
+			outcomes = append(outcomes, observedModelPreservationOutcome{Name: fixtureCase.Name, Err: fmt.Errorf("observed-model preservation proof failed because fixture %q could not traverse the production typed rewrite/re-emit path in handler.executeObservedModelPreservationProof during capability evaluation; enriched capability is withheld and enriched publishes must remain blocked; fix the canonical encoder or migrator, then restart: %w", fixtureCase.Name, err)})
 			continue
 		}
-		if err := fixtureCase.assertObservedModels(reemitted); err != nil {
-			failures = append(failures, err)
-		}
+		outcomeErr = fixtureCase.assertObservedModels(reemitted)
+		outcomes = append(outcomes, observedModelPreservationOutcome{Name: fixtureCase.Name, Err: outcomeErr})
 	}
-	return errors.Join(failures...)
+	return outcomes, nil
 }
 
 func loadObservedModelPreservationFixtures(data []byte) ([]observedModelPreservationCase, error) {

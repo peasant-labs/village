@@ -4,7 +4,22 @@ cases:
     wantErrorPart: ''
   - name: invalid_non_assistant_evidence
     content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-role","turns":[{"index":0,"role":"user","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}}'
-    wantErrorPart: 'rather than'
+    wantErrorPart: 'role "user" is not assistant'
   - name: malformed_enriched_input
     content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"turns":[{"role":"assistant","observedModel":]}}}'
     wantErrorPart: 'could not be decoded'
+  - name: present_empty_observed_model
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-empty","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":""}]}}'
+    wantErrorPart: 'present observedModel that is null, empty, or not a string'
+  - name: present_null_observed_model
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-null","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":null}]}}'
+    wantErrorPart: 'present observedModel that is null, empty, or not a string'
+  - name: legacy_provider_jsonl_trailing_blank_line
+    content: |
+      {"type":"user","message":{"role":"user","content":"hello"}}
+
+    wantErrorPart: ''
+  - name: legacy_provider_specific_jsonl_shape
+    content: |
+      {"type":"assistant","uuid":"provider-entry","message":{"role":"assistant","model":"provider/native-model","content":[{"type":"text","text":"hello"}]}}
+    wantErrorPart: ''
