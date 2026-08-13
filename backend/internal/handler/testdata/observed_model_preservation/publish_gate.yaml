@@ -5,15 +5,19 @@ cases:
   - name: invalid_non_assistant_evidence
     content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-role","turns":[{"index":0,"role":"user","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}}'
     wantErrorPart: 'role "user" is not assistant'
+    wantErrorParts: &actionable [{name: what, value: observedModel}, {name: why, value: transcript}, {name: where, value: handler.}, {name: when, value: before secret scan or storage}, {name: consequence, value: no transcript bytes or metadata were written}, {name: fix, value: retry}]
   - name: malformed_enriched_input
     content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"turns":[{"role":"assistant","observedModel":]}}}'
     wantErrorPart: 'could not be decoded'
+    wantErrorParts: *actionable
   - name: present_empty_observed_model
     content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-empty","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":""}]}}'
     wantErrorPart: 'present observedModel that is null, empty, or not a string'
+    wantErrorParts: *actionable
   - name: present_null_observed_model
     content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-null","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":null}]}}'
     wantErrorPart: 'present observedModel that is null, empty, or not a string'
+    wantErrorParts: *actionable
   - name: legacy_provider_jsonl_trailing_blank_line
     content: |
       {"type":"user","message":{"role":"user","content":"hello"}}
@@ -29,9 +33,12 @@ cases:
   - name: bare_payload_null_observed_model
     content: '{"id":"bare-null","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":null}]}'
     wantErrorPart: 'present observedModel that is null, empty, or not a string'
+    wantErrorParts: *actionable
   - name: bare_payload_empty_observed_model
     content: '{"id":"bare-empty","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":""}]}'
     wantErrorPart: 'present observedModel that is null, empty, or not a string'
+    wantErrorParts: *actionable
   - name: escaped_key_null_observed_model
     content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"escaped-null","turns":[{"index":0,"role":"assistant","content":"hello","observed\u004dodel":null}]}}'
     wantErrorPart: 'present observedModel that is null, empty, or not a string'
+    wantErrorParts: *actionable

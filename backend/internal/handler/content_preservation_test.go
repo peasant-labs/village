@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/storage"
 	"gopkg.in/yaml.v3"
 )
 
@@ -41,12 +42,13 @@ type observedModelPublishGateFixture struct {
 }
 
 type observedModelPublishGateCase struct {
-	Name          string `yaml:"name"`
-	Content       string `yaml:"content"`
-	WantErrorPart string `yaml:"wantErrorPart"`
+	Name           string                       `yaml:"name"`
+	Content        string                       `yaml:"content"`
+	WantErrorPart  string                       `yaml:"wantErrorPart"`
+	WantErrorParts []observedModelErrorFragment `yaml:"wantErrorParts"`
 }
 
-var actionablePublishErrorParts = [...]string{"observedModel", "handler.", "before secret scan or storage", "no transcript bytes or metadata were written", "transcript", "retry"}
+var actionablePublishErrorNames = [...]string{"what", "why", "where", "when", "consequence", "fix"}
 
 const observedModelPublishGateCaseCount = 11
 
@@ -104,6 +106,31 @@ func (droppingObservedModelEncoder) Encode(version schema.PushContractVersion, p
 type fixedPreservationEvaluator struct{ err error }
 
 func (e fixedPreservationEvaluator) Evaluate() error { return e.err }
+
+type descriptorCheckingStore struct {
+	delegate   *fakeBlobStore
+	id         uuid.UUID
+	descriptor storage.BlobDescriptor
+}
+
+func (s *descriptorCheckingStore) Write(ctx context.Context, id uuid.UUID, body []byte) (storage.BlobDescriptor, storage.ContentIdentity, error) {
+	d, identity, err := s.delegate.Write(ctx, id, body)
+	s.id, s.descriptor = id, d
+	return d, identity, err
+}
+func (s *descriptorCheckingStore) Read(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor, loaded storage.LoadedContentIdentity) ([]byte, storage.ContentIdentity, error) {
+	if id != s.id || !d.Equal(s.descriptor) {
+		return nil, storage.ContentIdentity{}, errors.New("published descriptor association mismatch")
+	}
+	return s.delegate.Read(ctx, id, d, loaded)
+}
+func (s *descriptorCheckingStore) Rewrap(ctx context.Context, id uuid.UUID, d storage.BlobDescriptor) (storage.BlobDescriptor, error) {
+	return s.delegate.Rewrap(ctx, id, d)
+}
+func (s *descriptorCheckingStore) Delete(ctx context.Context, d storage.BlobDescriptor) error {
+	return s.delegate.Delete(ctx, d)
+}
+func (s *descriptorCheckingStore) uploadCount() int { return s.delegate.uploadCount() }
 
 func TestObservedModelProductionPreservation(t *testing.T) {
 	fixtures := loadObservedModelNegativeFixtures(t)
@@ -224,6 +251,32 @@ func TestObservedModelRegisteredOperationsDispatch(t *testing.T) {
 	}
 }
 
+func dispatchObservedModelOperation(c observedModelNegativeCase, registry map[string]struct {
+	encoder contentRewriteEncoder
+	oracle  func([]observedModelPreservationOutcome) error
+}) error {
+	entry, ok := registry[c.Operation]
+	if !ok {
+		return fmt.Errorf("operation %q unregistered", c.Operation)
+	}
+	outcomes, err := executeObservedModelPreservationProofOutcomes(entry.encoder)
+	if err != nil {
+		return err
+	}
+	return entry.oracle(outcomes)
+}
+
+func TestObservedModelDispatcherRejectsWrongRegistryEntry(t *testing.T) {
+	c := requireObservedModelNegativeCase(t, loadObservedModelNegativeFixtures(t), "field_drop_withholds_capability_and_refuses_enriched_publish")
+	wrong := map[string]struct {
+		encoder contentRewriteEncoder
+		oracle  func([]observedModelPreservationOutcome) error
+	}{c.Operation: {canonicalContentRewriteEncoder{}, fieldDropOutcomeOracle}}
+	if err := dispatchObservedModelOperation(c, wrong); err == nil || !strings.Contains(err.Error(), "field-drop") {
+		t.Fatalf("wrong registry mapping dispatch error=%v", err)
+	}
+}
+
 func canonicalOutcomeOracle(outcomes []observedModelPreservationOutcome) error {
 	for _, outcome := range outcomes {
 		if outcome.Err != nil {
@@ -299,7 +352,7 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 			return persisted, nil
 		},
 	}
-	blobs := newFakeBlobStore()
+	blobs := &descriptorCheckingStore{delegate: newFakeBlobStore()}
 	h := newTestHandler(q, blobs)
 	h.scanContent = func(content []byte) []string { scans++; return nil }
 	response := mountedObservedModelPublish(t, h, []byte(fixtureCase.Content))
@@ -325,9 +378,9 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 		t.Fatalf("mounted rejection status=%d body=%s want=%q", response.Code, response.Body.String(), fixtureCase.WantErrorPart)
 	}
 	errorBody := decodeError(t, response.Body.Bytes())
-	for _, part := range actionablePublishErrorParts {
-		if !strings.Contains(errorBody, part) {
-			t.Fatalf("mounted error lacks actionable component %q: %s", part, errorBody)
+	for _, part := range fixtureCase.WantErrorParts {
+		if !strings.Contains(errorBody, part.Value) {
+			t.Fatalf("mounted error lacks actionable component %q=%q: %s", part.Name, part.Value, errorBody)
 		}
 	}
 	if scans != 0 || probes != 0 || creates != 0 || blobs.uploadCount() != 0 {
@@ -400,6 +453,23 @@ func decodeObservedModelPublishGateFixtures(data []byte) (observedModelPublishGa
 			return fixture, fmt.Errorf("unknown, duplicate, empty, or edge-padded publish fixture name %q", c.Name)
 		}
 		seen[c.Name] = true
+		if c.WantErrorPart != "" {
+			if len(c.WantErrorParts) != len(actionablePublishErrorNames) {
+				return fixture, fmt.Errorf("publish fixture %q actionable fragment count=%d", c.Name, len(c.WantErrorParts))
+			}
+			fragments := map[string]bool{}
+			for _, p := range c.WantErrorParts {
+				if p.Name == "" || p.Value == "" || fragments[p.Name] {
+					return fixture, fmt.Errorf("publish fixture %q invalid actionable fragment %q", c.Name, p.Name)
+				}
+				fragments[p.Name] = true
+			}
+			for _, name := range actionablePublishErrorNames {
+				if !fragments[name] {
+					return fixture, fmt.Errorf("publish fixture %q missing actionable fragment %q", c.Name, name)
+				}
+			}
+		}
 	}
 	for _, name := range observedModelPublishGateCaseNames {
 		if !seen[name] {
