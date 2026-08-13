@@ -23,3 +23,15 @@ cases:
     content: |
       {"type":"assistant","uuid":"provider-entry","message":{"role":"assistant","model":"provider/native-model","content":[{"type":"text","text":"hello"}]}}
     wantErrorPart: ''
+  - name: legacy_text_mentions_observed_model_member
+    content: '{"type":"message","text":"literal \"observedModel\": marker is only prose"}'
+    wantErrorPart: ''
+  - name: bare_payload_null_observed_model
+    content: '{"id":"bare-null","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":null}]}'
+    wantErrorPart: 'present observedModel that is null, empty, or not a string'
+  - name: bare_payload_empty_observed_model
+    content: '{"id":"bare-empty","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":""}]}'
+    wantErrorPart: 'present observedModel that is null, empty, or not a string'
+  - name: escaped_key_null_observed_model
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"escaped-null","turns":[{"index":0,"role":"assistant","content":"hello","observed\u004dodel":null}]}}'
+    wantErrorPart: 'present observedModel that is null, empty, or not a string'

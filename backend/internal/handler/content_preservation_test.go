@@ -46,9 +46,9 @@ type observedModelPublishGateCase struct {
 	WantErrorPart string `yaml:"wantErrorPart"`
 }
 
-const observedModelPublishGateCaseCount = 7
+const observedModelPublishGateCaseCount = 11
 
-var observedModelPublishGateCaseNames = [...]string{"valid_assistant_evidence", "invalid_non_assistant_evidence", "malformed_enriched_input", "present_empty_observed_model", "present_null_observed_model", "legacy_provider_jsonl_trailing_blank_line", "legacy_provider_specific_jsonl_shape"}
+var observedModelPublishGateCaseNames = [...]string{"valid_assistant_evidence", "invalid_non_assistant_evidence", "malformed_enriched_input", "present_empty_observed_model", "present_null_observed_model", "legacy_provider_jsonl_trailing_blank_line", "legacy_provider_specific_jsonl_shape", "legacy_text_mentions_observed_model_member", "bare_payload_null_observed_model", "bare_payload_empty_observed_model", "escaped_key_null_observed_model"}
 
 type observedModelNegativeFixture struct {
 	Cases []observedModelNegativeCase `yaml:"cases"`
@@ -169,6 +169,51 @@ func TestObservedModelNegativeInventoryRejectsCountPreservingOperationSubstituti
 	}
 }
 
+func TestObservedModelNegativeInventoryRejectsRegisteredOperationSwap(t *testing.T) {
+	mutated := bytes.Replace(observedModelNegativeFixtureYAML, []byte("canonical_production_encoder"), []byte("temporary_operation_token"), 1)
+	mutated = bytes.Replace(mutated, []byte("drop_observed_model_at_production_rewrite"), []byte("canonical_production_encoder"), 1)
+	mutated = bytes.Replace(mutated, []byte("temporary_operation_token"), []byte("drop_observed_model_at_production_rewrite"), 1)
+	cases, err := decodeObservedModelNegativeFixtures(mutated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateObservedModelOperationBindings(cases); err == nil {
+		t.Fatal("registered operation swap was accepted")
+	}
+}
+
+func validateObservedModelOperationBindings(cases []observedModelNegativeCase) error {
+	want := map[string]string{"production_rewrite_preserves_enriched_evidence": "canonical_production_encoder", "field_drop_withholds_capability_and_refuses_enriched_publish": "drop_observed_model_at_production_rewrite", "field_drop_keeps_legacy_publish_compatible": "legacy_payload_under_field_drop"}
+	for _, c := range cases {
+		if want[c.Name] != c.Operation {
+			return fmt.Errorf("fixture %q dispatches %q, want %q", c.Name, c.Operation, want[c.Name])
+		}
+	}
+	return nil
+}
+
+func TestObservedModelRegisteredOperationsDispatch(t *testing.T) {
+	cases := loadObservedModelNegativeFixtures(t)
+	if err := validateObservedModelOperationBindings(cases); err != nil {
+		t.Fatal(err)
+	}
+	registry := map[string]contentRewriteEncoder{"canonical_production_encoder": canonicalContentRewriteEncoder{}, "drop_observed_model_at_production_rewrite": droppingObservedModelEncoder{}, "legacy_payload_under_field_drop": droppingObservedModelEncoder{}}
+	executed := map[string]bool{}
+	for _, c := range cases {
+		encoder, ok := registry[c.Operation]
+		if !ok || executed[c.Operation] {
+			t.Fatalf("operation dispatch %q ok=%v duplicate=%v", c.Operation, ok, executed[c.Operation])
+		}
+		executed[c.Operation] = true
+		if _, err := executeObservedModelPreservationProofOutcomes(encoder); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(executed) != len(observedModelNegativeOperations) {
+		t.Fatalf("executed operations=%v", executed)
+	}
+}
+
 func TestObservedModelNegativeInventoryRejectsCountPreservingFragmentSubstitution(t *testing.T) {
 	mutated := bytes.Replace(observedModelNegativeFixtureYAML, []byte("capability_name"), []byte("substitute_name"), 1)
 	if _, err := decodeObservedModelNegativeFixtures(mutated); err == nil || !strings.Contains(err.Error(), "fragment") {
@@ -211,8 +256,11 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 			creates++
 			return sqlc.Transcript{}, nil
 		},
+		getTranscriptByID: func(_ context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
+			return sqlc.Transcript{ID: id, Visibility: "public", BlobKey: "transcripts/10000000-0000-4000-8000-000000000001.bin", WrappedDataKey: []byte("test-wrapped-key"), EncryptionAlgorithm: "aes-256-gcm-random-nonce-v1", KeyVersion: 1}, nil
+		},
 	}
-	blobs := &mockTranscriptBlobStore{}
+	blobs := newFakeBlobStore()
 	h := newTestHandler(q, blobs)
 	h.scanContent = func(content []byte) []string { scans++; return nil }
 	response := mountedObservedModelPublish(t, h, []byte(fixtureCase.Content))
@@ -220,14 +268,11 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 		if response.Code != http.StatusCreated {
 			t.Fatalf("mounted valid publish status=%d body=%s", response.Code, response.Body.String())
 		}
-		if scans != 1 || probes != 1 || creates != 1 || len(blobs.uploadedKeys) != 1 {
-			t.Fatalf("valid effects scans=%d probes=%d creates=%d blobs=%d", scans, probes, creates, len(blobs.uploadedKeys))
+		if scans != 1 || probes != 1 || creates != 1 || blobs.uploadCount() != 1 {
+			t.Fatalf("valid effects scans=%d probes=%d creates=%d blobs=%d", scans, probes, creates, blobs.uploadCount())
 		}
 		if strings.HasPrefix(fixtureCase.Name, "legacy_provider_") {
-			store := newFakeBlobStore()
-			const key = "transcripts/10000000-0000-4000-8000-000000000001.bin"
-			store.put(key, []byte(fixtureCase.Content))
-			served := getContent(t, newTestHandler(publicTranscriptQuerier(key), store), mustFixtureUUID(t))
+			served := getContent(t, h, mustFixtureUUID(t))
 			if served.Code != http.StatusOK {
 				t.Fatalf("mounted legacy read status=%d body=%s", served.Code, served.Body.String())
 			}
@@ -240,8 +285,8 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 	if response.Code != http.StatusConflict || !strings.Contains(decodeError(t, response.Body.Bytes()), fixtureCase.WantErrorPart) {
 		t.Fatalf("mounted rejection status=%d body=%s want=%q", response.Code, response.Body.String(), fixtureCase.WantErrorPart)
 	}
-	if scans != 0 || probes != 0 || creates != 0 || len(blobs.uploadedKeys) != 0 || len(blobs.deletedKeys) != 0 {
-		t.Fatalf("rejection caused effects scans=%d probes=%d creates=%d writes=%d deletes=%d", scans, probes, creates, len(blobs.uploadedKeys), len(blobs.deletedKeys))
+	if scans != 0 || probes != 0 || creates != 0 || blobs.uploadCount() != 0 {
+		t.Fatalf("rejection caused effects scans=%d probes=%d creates=%d writes=%d", scans, probes, creates, blobs.uploadCount())
 	}
 
 	corrected := observedModelFixtureContent(t, "enriched_repeated_change_and_omission")
@@ -249,10 +294,7 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 	if recovered.Code != http.StatusCreated {
 		t.Fatalf("corrected publish status=%d body=%s", recovered.Code, recovered.Body.String())
 	}
-	store := newFakeBlobStore()
-	const key = "transcripts/10000000-0000-4000-8000-000000000001.bin"
-	store.put(key, corrected)
-	served := getContent(t, newTestHandler(publicTranscriptQuerier(key), store), mustFixtureUUID(t))
+	served := getContent(t, h, mustFixtureUUID(t))
 	if served.Code != http.StatusOK {
 		t.Fatalf("corrected mounted read status=%d body=%s", served.Code, served.Body.String())
 	}
@@ -283,18 +325,26 @@ func mountedObservedModelPublish(t *testing.T, h *Handler, content []byte) *http
 
 func loadObservedModelPublishGateFixtures(t *testing.T) observedModelPublishGateFixture {
 	t.Helper()
-	decoder := yaml.NewDecoder(bytes.NewReader(observedModelPublishGateFixtureYAML))
+	fixture, err := decodeObservedModelPublishGateFixtures(observedModelPublishGateFixtureYAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fixture
+}
+
+func decodeObservedModelPublishGateFixtures(data []byte) (observedModelPublishGateFixture, error) {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	var fixture observedModelPublishGateFixture
 	if err := decoder.Decode(&fixture); err != nil {
-		t.Fatalf("decode observed-model publish fixtures: %v", err)
+		return fixture, fmt.Errorf("decode observed-model publish fixtures: %w", err)
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("observed-model publish fixtures require exactly one YAML document: %v", err)
+		return fixture, fmt.Errorf("observed-model publish fixtures require exactly one YAML document: %w", err)
 	}
 	if len(fixture.Cases) != observedModelPublishGateCaseCount {
-		t.Fatalf("observed-model publish fixture count=%d, want %d", len(fixture.Cases), observedModelPublishGateCaseCount)
+		return fixture, fmt.Errorf("observed-model publish fixture count=%d, want %d", len(fixture.Cases), observedModelPublishGateCaseCount)
 	}
 	required, seen := map[string]bool{}, map[string]bool{}
 	for _, name := range observedModelPublishGateCaseNames {
@@ -302,16 +352,27 @@ func loadObservedModelPublishGateFixtures(t *testing.T) observedModelPublishGate
 	}
 	for _, c := range fixture.Cases {
 		if c.Name == "" || c.Name != strings.TrimSpace(c.Name) || !required[c.Name] || seen[c.Name] {
-			t.Fatalf("unknown, duplicate, empty, or edge-padded publish fixture name %q", c.Name)
+			return fixture, fmt.Errorf("unknown, duplicate, empty, or edge-padded publish fixture name %q", c.Name)
 		}
 		seen[c.Name] = true
 	}
 	for _, name := range observedModelPublishGateCaseNames {
 		if !seen[name] {
-			t.Fatalf("required publish fixture %q missing", name)
+			return fixture, fmt.Errorf("required publish fixture %q missing", name)
 		}
 	}
-	return fixture
+	return fixture, nil
+}
+
+func TestObservedModelPublishInventoryMutationGuards(t *testing.T) {
+	unknown := bytes.Replace(observedModelPublishGateFixtureYAML, []byte("escaped_key_null_observed_model"), []byte("substitute_key_null_observed_model"), 1)
+	if _, err := decodeObservedModelPublishGateFixtures(unknown); err == nil {
+		t.Fatal("unknown same-count publish fixture accepted")
+	}
+	duplicate := bytes.Replace(observedModelPublishGateFixtureYAML, []byte("bare_payload_empty_observed_model"), []byte("bare_payload_null_observed_model"), 1)
+	if _, err := decodeObservedModelPublishGateFixtures(duplicate); err == nil {
+		t.Fatal("registered-name substitution accepted")
+	}
 }
 
 func TestObservedModelRealHandlerMigrateRewriteReemit(t *testing.T) {

@@ -35,8 +35,8 @@ import (
 
 // currentContractVersion is the contract the village normalizes stored blobs TO.
 // It remains at the existing 0.1.1 envelope because observedModel is an additive
-// optional field. Enriched emission is negotiated independently through the
-// versioned content capability, so legacy 0.1.x traffic remains compatible while
+// optional field. Enriched emission is negotiated through exact membership in a
+// flat, forward-open opaque-token list, so legacy 0.1.x traffic remains compatible while
 // richer clients cannot mistake envelope compatibility for preservation support.
 const currentContractVersion schema.PushContractVersion = "0.1.1"
 

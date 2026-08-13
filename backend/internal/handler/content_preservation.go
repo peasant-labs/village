@@ -8,15 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/peasant-labs/schema"
 	"gopkg.in/yaml.v3"
 )
-
-var observedModelJSONMemberPattern = regexp.MustCompile(`"observedModel"[[:space:]]*:`)
 
 const observedModelPreservationCaseCount = 2
 
@@ -90,11 +87,12 @@ func proveObservedModelPreservation() error {
 func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observedModelPreservationEvaluator) error {
 	// Provider-native and legacy JSONL without enriched evidence retains the
 	// historical byte-for-byte publish path; decoding it is a read concern.
-	if !observedModelJSONMemberPattern.Match(raw) {
-		return nil
+	presence, presenceErr := inspectObservedModelMembers(raw)
+	if presenceErr != nil {
+		return presenceErr
 	}
-	if err := validateObservedModelMemberPresence(raw); err != nil {
-		return err
+	if !presence {
+		return nil
 	}
 	payload, _, err := NewContentMigrator().Migrate(context.Background(), raw)
 	if err != nil {
@@ -153,34 +151,61 @@ func validateObservedModelValues(payload *schema.SessionDetailPayload) error {
 	return nil
 }
 
-func validateObservedModelMemberPresence(raw []byte) error {
-	var envelope struct {
-		SessionDetail json.RawMessage `json:"sessionDetail"`
+func inspectObservedModelMembers(raw []byte) (bool, error) {
+	documents := [][]byte{bytes.TrimSpace(raw)}
+	if !json.Valid(documents[0]) {
+		documents = bytes.Split(raw, []byte("\n"))
 	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return nil
-	}
-	var detail struct {
-		Turns []json.RawMessage `json:"turns"`
-	}
-	if err := json.Unmarshal(envelope.SessionDetail, &detail); err != nil {
-		return nil
-	}
-	for index, rawTurn := range detail.Turns {
-		var turn map[string]json.RawMessage
-		if err := json.Unmarshal(rawTurn, &turn); err != nil {
+	present := false
+	for _, document := range documents {
+		document = bytes.TrimSpace(document)
+		if len(document) == 0 {
 			continue
 		}
-		value, present := turn["observedModel"]
-		if !present {
+		if !json.Valid(document) {
+			decoder := json.NewDecoder(bytes.NewReader(document))
+			for {
+				token, err := decoder.Token()
+				if name, ok := token.(string); ok && name == "observedModel" {
+					return true, fmt.Errorf("uploaded transcript content could not be decoded through handler.inspectObservedModelMembers before secret scan or storage; an observedModel member began but its JSON value or containing document is malformed; no transcript bytes or metadata were written; repair the enriched transcript envelope and retry: %w", err)
+				}
+				if err != nil {
+					break
+				}
+			}
 			continue
 		}
-		var observed *string
-		if err := json.Unmarshal(value, &observed); err != nil || observed == nil || *observed == "" {
-			return fmt.Errorf("observed-model evidence validation failed because turn %d contains a present observedModel that is null, empty, or not a string in handler.validateObservedModelMemberPresence during publish decoding before secret scan or storage; no transcript bytes or metadata were written, so malformed enriched evidence cannot bypass capability negotiation; omit the member for legacy content or provide a non-empty Schema-valid model identifier, then retry", index)
+		var root map[string]json.RawMessage
+		if json.Unmarshal(document, &root) != nil {
+			continue
+		}
+		detail := root
+		if nested, ok := root["sessionDetail"]; ok {
+			if json.Unmarshal(nested, &detail) != nil {
+				continue
+			}
+		}
+		var turns []json.RawMessage
+		if json.Unmarshal(detail["turns"], &turns) != nil {
+			continue
+		}
+		for index, rawTurn := range turns {
+			var turn map[string]json.RawMessage
+			if err := json.Unmarshal(rawTurn, &turn); err != nil {
+				continue
+			}
+			value, memberPresent := turn["observedModel"]
+			if !memberPresent {
+				continue
+			}
+			present = true
+			var observed *string
+			if err := json.Unmarshal(value, &observed); err != nil || observed == nil || *observed == "" {
+				return true, fmt.Errorf("observed-model evidence validation failed because turn %d contains a present observedModel that is null, empty, or not a string in handler.inspectObservedModelMembers during publish decoding before secret scan or storage; no transcript bytes or metadata were written, so malformed enriched evidence cannot bypass capability negotiation; omit the member for legacy content or provide a non-empty Schema-valid model identifier, then retry", index)
+			}
 		}
 	}
-	return nil
+	return present, nil
 }
 
 func executeObservedModelPreservationProof(encoder contentRewriteEncoder) error {

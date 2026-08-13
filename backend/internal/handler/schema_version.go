@@ -13,7 +13,7 @@ import (
 // SQL backfill. As of 1e8tk the current contract is 0.1.1 (the required
 // harness+model strictening — same wire SHAPE, a PATCH bump), and the floor
 // stays 0.1.0, so the legacy push window remains [0.1.0, 0.1.1]. An explicit,
-// independently versioned content capability tells enriched clients whether
+// flat opaque capability token tells enriched clients whether
 // observed-model evidence is proven safe through Village's typed storage paths.
 const minPushContractVersion schema.PushContractVersion = "0.1.0"
 
