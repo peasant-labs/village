@@ -46,6 +46,8 @@ type observedModelPublishGateCase struct {
 	WantErrorPart string `yaml:"wantErrorPart"`
 }
 
+var actionablePublishErrorParts = [...]string{"observedModel", "handler.", "before secret scan or storage", "no transcript bytes or metadata were written", "transcript", "retry"}
+
 const observedModelPublishGateCaseCount = 11
 
 var observedModelPublishGateCaseNames = [...]string{"valid_assistant_evidence", "invalid_non_assistant_evidence", "malformed_enriched_input", "present_empty_observed_model", "present_null_observed_model", "legacy_provider_jsonl_trailing_blank_line", "legacy_provider_specific_jsonl_shape", "legacy_text_mentions_observed_model_member", "bare_payload_null_observed_model", "bare_payload_empty_observed_model", "escaped_key_null_observed_model"}
@@ -197,20 +199,52 @@ func TestObservedModelRegisteredOperationsDispatch(t *testing.T) {
 	if err := validateObservedModelOperationBindings(cases); err != nil {
 		t.Fatal(err)
 	}
-	registry := map[string]contentRewriteEncoder{"canonical_production_encoder": canonicalContentRewriteEncoder{}, "drop_observed_model_at_production_rewrite": droppingObservedModelEncoder{}, "legacy_payload_under_field_drop": droppingObservedModelEncoder{}}
+	type operationEntry struct {
+		encoder contentRewriteEncoder
+		oracle  func([]observedModelPreservationOutcome) error
+	}
+	registry := map[string]operationEntry{"canonical_production_encoder": {canonicalContentRewriteEncoder{}, canonicalOutcomeOracle}, "drop_observed_model_at_production_rewrite": {droppingObservedModelEncoder{}, fieldDropOutcomeOracle}, "legacy_payload_under_field_drop": {droppingObservedModelEncoder{}, fieldDropOutcomeOracle}}
 	executed := map[string]bool{}
 	for _, c := range cases {
-		encoder, ok := registry[c.Operation]
+		entry, ok := registry[c.Operation]
 		if !ok || executed[c.Operation] {
 			t.Fatalf("operation dispatch %q ok=%v duplicate=%v", c.Operation, ok, executed[c.Operation])
 		}
 		executed[c.Operation] = true
-		if _, err := executeObservedModelPreservationProofOutcomes(encoder); err != nil {
+		outcomes, err := executeObservedModelPreservationProofOutcomes(entry.encoder)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := entry.oracle(outcomes); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if len(executed) != len(observedModelNegativeOperations) {
 		t.Fatalf("executed operations=%v", executed)
+	}
+}
+
+func canonicalOutcomeOracle(outcomes []observedModelPreservationOutcome) error {
+	for _, outcome := range outcomes {
+		if outcome.Err != nil {
+			return outcome.Err
+		}
+	}
+	return nil
+}
+func fieldDropOutcomeOracle(outcomes []observedModelPreservationOutcome) error {
+	if len(outcomes) != 2 || outcomes[0].Err == nil || !strings.Contains(outcomes[0].Err.Error(), "re-emitted observedModel") || outcomes[1].Err != nil {
+		return fmt.Errorf("wrong field-drop outcomes: %+v", outcomes)
+	}
+	return nil
+}
+func TestObservedModelOperationOracleRejectsWrongImplementation(t *testing.T) {
+	outcomes, err := executeObservedModelPreservationProofOutcomes(canonicalContentRewriteEncoder{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fieldDropOutcomeOracle(outcomes) == nil {
+		t.Fatal("wrong canonical implementation passed field-drop oracle")
 	}
 }
 
@@ -247,17 +281,22 @@ func TestObservedModelPublishGateUsesTypedTurns(t *testing.T) {
 func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedModelPublishGateCase) {
 	t.Helper()
 	var probes, creates, scans int
+	var persisted sqlc.Transcript
 	q := &mockQuerier{
 		getTranscriptIDByOwnerAndLocalID: func(context.Context, sqlc.GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error) {
 			probes++
 			return pgtype.UUID{}, errors.New("not found")
 		},
-		createTranscript: func(context.Context, sqlc.CreateTranscriptParams) (sqlc.Transcript, error) {
+		createTranscript: func(_ context.Context, arg sqlc.CreateTranscriptParams) (sqlc.Transcript, error) {
 			creates++
-			return sqlc.Transcript{}, nil
+			persisted = sqlc.Transcript{ID: arg.ID, Visibility: "public", BlobKey: arg.BlobKey, WrappedDataKey: append([]byte(nil), arg.WrappedDataKey...), EncryptionAlgorithm: arg.EncryptionAlgorithm, KeyVersion: arg.KeyVersion}
+			return persisted, nil
 		},
 		getTranscriptByID: func(_ context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
-			return sqlc.Transcript{ID: id, Visibility: "public", BlobKey: "transcripts/10000000-0000-4000-8000-000000000001.bin", WrappedDataKey: []byte("test-wrapped-key"), EncryptionAlgorithm: "aes-256-gcm-random-nonce-v1", KeyVersion: 1}, nil
+			if persisted.ID != id {
+				return sqlc.Transcript{}, errors.New("persisted descriptor id mismatch")
+			}
+			return persisted, nil
 		},
 	}
 	blobs := newFakeBlobStore()
@@ -272,7 +311,7 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 			t.Fatalf("valid effects scans=%d probes=%d creates=%d blobs=%d", scans, probes, creates, blobs.uploadCount())
 		}
 		if strings.HasPrefix(fixtureCase.Name, "legacy_provider_") {
-			served := getContent(t, h, mustFixtureUUID(t))
+			served := getContent(t, h, uuidFromPg(persisted.ID))
 			if served.Code != http.StatusOK {
 				t.Fatalf("mounted legacy read status=%d body=%s", served.Code, served.Body.String())
 			}
@@ -285,6 +324,12 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 	if response.Code != http.StatusConflict || !strings.Contains(decodeError(t, response.Body.Bytes()), fixtureCase.WantErrorPart) {
 		t.Fatalf("mounted rejection status=%d body=%s want=%q", response.Code, response.Body.String(), fixtureCase.WantErrorPart)
 	}
+	errorBody := decodeError(t, response.Body.Bytes())
+	for _, part := range actionablePublishErrorParts {
+		if !strings.Contains(errorBody, part) {
+			t.Fatalf("mounted error lacks actionable component %q: %s", part, errorBody)
+		}
+	}
 	if scans != 0 || probes != 0 || creates != 0 || blobs.uploadCount() != 0 {
 		t.Fatalf("rejection caused effects scans=%d probes=%d creates=%d writes=%d", scans, probes, creates, blobs.uploadCount())
 	}
@@ -294,7 +339,7 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 	if recovered.Code != http.StatusCreated {
 		t.Fatalf("corrected publish status=%d body=%s", recovered.Code, recovered.Body.String())
 	}
-	served := getContent(t, h, mustFixtureUUID(t))
+	served := getContent(t, h, uuidFromPg(persisted.ID))
 	if served.Code != http.StatusOK {
 		t.Fatalf("corrected mounted read status=%d body=%s", served.Code, served.Body.String())
 	}
