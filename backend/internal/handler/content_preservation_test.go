@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -111,6 +112,17 @@ type descriptorCheckingStore struct {
 	delegate   *fakeBlobStore
 	id         uuid.UUID
 	descriptor storage.BlobDescriptor
+}
+type observedOperation string
+type operationEntry struct {
+	encoder contentRewriteEncoder
+	oracle  func([]observedModelPreservationOutcome) error
+}
+
+var observedOperationRegistry = map[observedOperation]operationEntry{
+	"canonical_production_encoder":              {canonicalContentRewriteEncoder{}, canonicalOutcomeOracle},
+	"drop_observed_model_at_production_rewrite": {droppingObservedModelEncoder{}, fieldDropOutcomeOracle},
+	"legacy_payload_under_field_drop":           {droppingObservedModelEncoder{}, fieldDropOutcomeOracle},
 }
 
 func (s *descriptorCheckingStore) Write(ctx context.Context, id uuid.UUID, body []byte) (storage.BlobDescriptor, storage.ContentIdentity, error) {
@@ -226,14 +238,9 @@ func TestObservedModelRegisteredOperationsDispatch(t *testing.T) {
 	if err := validateObservedModelOperationBindings(cases); err != nil {
 		t.Fatal(err)
 	}
-	type operationEntry struct {
-		encoder contentRewriteEncoder
-		oracle  func([]observedModelPreservationOutcome) error
-	}
-	registry := map[string]operationEntry{"canonical_production_encoder": {canonicalContentRewriteEncoder{}, canonicalOutcomeOracle}, "drop_observed_model_at_production_rewrite": {droppingObservedModelEncoder{}, fieldDropOutcomeOracle}, "legacy_payload_under_field_drop": {droppingObservedModelEncoder{}, fieldDropOutcomeOracle}}
 	executed := map[string]bool{}
 	for _, c := range cases {
-		entry, ok := registry[c.Operation]
+		entry, ok := observedOperationRegistry[observedOperation(c.Operation)]
 		if !ok || executed[c.Operation] {
 			t.Fatalf("operation dispatch %q ok=%v duplicate=%v", c.Operation, ok, executed[c.Operation])
 		}
@@ -251,11 +258,16 @@ func TestObservedModelRegisteredOperationsDispatch(t *testing.T) {
 	}
 }
 
-func dispatchObservedModelOperation(c observedModelNegativeCase, registry map[string]struct {
-	encoder contentRewriteEncoder
-	oracle  func([]observedModelPreservationOutcome) error
-}) error {
-	entry, ok := registry[c.Operation]
+func dispatchObservedModelInventory(cases []observedModelNegativeCase) map[string]error {
+	results := map[string]error{}
+	for _, c := range cases {
+		results[c.Name] = dispatchObservedModelOperation(c, observedOperationRegistry)
+	}
+	return results
+}
+
+func dispatchObservedModelOperation(c observedModelNegativeCase, registry map[observedOperation]operationEntry) error {
+	entry, ok := registry[observedOperation(c.Operation)]
 	if !ok {
 		return fmt.Errorf("operation %q unregistered", c.Operation)
 	}
@@ -267,13 +279,20 @@ func dispatchObservedModelOperation(c observedModelNegativeCase, registry map[st
 }
 
 func TestObservedModelDispatcherRejectsWrongRegistryEntry(t *testing.T) {
-	c := requireObservedModelNegativeCase(t, loadObservedModelNegativeFixtures(t), "field_drop_withholds_capability_and_refuses_enriched_publish")
-	wrong := map[string]struct {
-		encoder contentRewriteEncoder
-		oracle  func([]observedModelPreservationOutcome) error
-	}{c.Operation: {canonicalContentRewriteEncoder{}, fieldDropOutcomeOracle}}
-	if err := dispatchObservedModelOperation(c, wrong); err == nil || !strings.Contains(err.Error(), "field-drop") {
-		t.Fatalf("wrong registry mapping dispatch error=%v", err)
+	original := observedOperationRegistry["drop_observed_model_at_production_rewrite"]
+	observedOperationRegistry["drop_observed_model_at_production_rewrite"] = operationEntry{canonicalContentRewriteEncoder{}, fieldDropOutcomeOracle}
+	t.Cleanup(func() { observedOperationRegistry["drop_observed_model_at_production_rewrite"] = original })
+	results := dispatchObservedModelInventory(loadObservedModelNegativeFixtures(t))
+	failed := []string{}
+	for name, err := range results {
+		if err != nil {
+			failed = append(failed, name)
+		}
+	}
+	slices.Sort(failed)
+	want := []string{"field_drop_withholds_capability_and_refuses_enriched_publish"}
+	if !slices.Equal(failed, want) {
+		t.Fatalf("executed registry mutation failed cases=%v want=%v", failed, want)
 	}
 }
 
@@ -329,6 +348,43 @@ func TestObservedModelPublishGateUsesTypedTurns(t *testing.T) {
 	if err := requireSupportedContentCapabilityWithEvaluator(legacy, fixedPreservationEvaluator{err: errors.New("proof unavailable")}); err != nil {
 		t.Fatalf("legacy content rejected when preservation proof unavailable: %v", err)
 	}
+}
+
+func TestObservedModelMountedReadRejectsWrongDescriptorAssociation(t *testing.T) {
+	tc := requireObservedModelPublishCase(t, "valid_assistant_evidence")
+	var persisted sqlc.Transcript
+	q := &mockQuerier{getTranscriptIDByOwnerAndLocalID: func(context.Context, sqlc.GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error) {
+		return pgtype.UUID{}, errors.New("not found")
+	}, createTranscript: func(_ context.Context, arg sqlc.CreateTranscriptParams) (sqlc.Transcript, error) {
+		persisted = sqlc.Transcript{ID: arg.ID, Visibility: "public", BlobKey: arg.BlobKey, WrappedDataKey: arg.WrappedDataKey, EncryptionAlgorithm: arg.EncryptionAlgorithm, KeyVersion: arg.KeyVersion}
+		return persisted, nil
+	}, getTranscriptByID: func(context.Context, pgtype.UUID) (sqlc.Transcript, error) {
+		bad := persisted
+		bad.BlobKey = "transcripts/wrong.bin"
+		bad.WrappedDataKey = []byte("wrong-dek")
+		bad.KeyVersion++
+		return bad, nil
+	}}
+	store := &descriptorCheckingStore{delegate: newFakeBlobStore()}
+	h := newTestHandler(q, store)
+	if w := mountedObservedModelPublish(t, h, []byte(tc.Content)); w.Code != http.StatusCreated {
+		t.Fatalf("publish=%d %s", w.Code, w.Body.String())
+	}
+	read := getContent(t, h, uuidFromPg(persisted.ID))
+	if read.Code == http.StatusOK || !strings.Contains(read.Body.String(), "descriptor") {
+		t.Fatalf("wrong descriptor read status=%d body=%s", read.Code, read.Body.String())
+	}
+}
+
+func requireObservedModelPublishCase(t *testing.T, name string) observedModelPublishGateCase {
+	t.Helper()
+	for _, c := range loadObservedModelPublishGateFixtures(t).Cases {
+		if c.Name == name {
+			return c
+		}
+	}
+	t.Fatalf("missing publish case %q", name)
+	return observedModelPublishGateCase{}
 }
 
 func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedModelPublishGateCase) {
@@ -458,11 +514,13 @@ func decodeObservedModelPublishGateFixtures(data []byte) (observedModelPublishGa
 				return fixture, fmt.Errorf("publish fixture %q actionable fragment count=%d", c.Name, len(c.WantErrorParts))
 			}
 			fragments := map[string]bool{}
+			values := map[string]bool{}
 			for _, p := range c.WantErrorParts {
-				if p.Name == "" || p.Value == "" || fragments[p.Name] {
+				if p.Name == "" || p.Value == "" || fragments[p.Name] || values[p.Value] {
 					return fixture, fmt.Errorf("publish fixture %q invalid actionable fragment %q", c.Name, p.Name)
 				}
 				fragments[p.Name] = true
+				values[p.Value] = true
 			}
 			for _, name := range actionablePublishErrorNames {
 				if !fragments[name] {
@@ -488,6 +546,33 @@ func TestObservedModelPublishInventoryMutationGuards(t *testing.T) {
 	if _, err := decodeObservedModelPublishGateFixtures(duplicate); err == nil {
 		t.Fatal("registered-name substitution accepted")
 	}
+	nameSwap := bytes.Replace(observedModelPublishGateFixtureYAML, []byte("name: what"), []byte("name: substituted"), 1)
+	if _, err := decodeObservedModelPublishGateFixtures(nameSwap); err == nil {
+		t.Fatal("component name swap accepted")
+	}
+	valueSwap := bytes.Replace(observedModelPublishGateFixtureYAML, []byte("value: observedModel"), []byte("value: missing-component"), 1)
+	f, err := decodeObservedModelPublishGateFixtures(valueSwap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tc := f.Cases[1]
+	w := mountedPublishError(t, tc.Content)
+	failed := []string{}
+	for _, p := range tc.WantErrorParts {
+		if !strings.Contains(w, p.Value) {
+			failed = append(failed, p.Name)
+		}
+	}
+	if !slices.Equal(failed, []string{"what"}) {
+		t.Fatalf("value mutation failed components=%v", failed)
+	}
+}
+
+func mountedPublishError(t *testing.T, content string) string {
+	t.Helper()
+	h := newTestHandler(&mockQuerier{}, newFakeBlobStore())
+	w := mountedObservedModelPublish(t, h, []byte(content))
+	return decodeError(t, w.Body.Bytes())
 }
 
 func TestObservedModelRealHandlerMigrateRewriteReemit(t *testing.T) {
