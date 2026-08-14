@@ -32,7 +32,7 @@ for (const mutation of root.mutations) {
       cwd: new URL("..", import.meta.url),
       encoding: "utf8",
     });
-    if (result.status === 0) throw new Error(`${mutation.name} survived: the production-hook cache test remained green`);
+    if (result.status === 0) throw new Error(`${mutation.name} survived: the mounted mismatch-to-new-page production path remained green`);
     process.stdout.write(`mutation killed: ${mutation.name}\n`);
   } finally {
     await writeFile(sourceURL, source);
