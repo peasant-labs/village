@@ -226,6 +226,11 @@ async function performAction(user: ReturnType<typeof userEvent.setup>, schedule:
     case "clickRetry":
       await user.click(screen.getByRole("button", { name: /retry/i }));
       break;
+    case "observe":
+      // The interpreter's normal bounded drain runs before and after this
+      // no-interaction observation, proving pending state stays clean after
+      // additional queued work has had another chance to commit.
+      break;
     case "changeOrder":
       await user.click(screen.getByRole("radio", { name: action.order }));
       break;
@@ -257,6 +262,12 @@ function assertExpectations(schedule: Schedule, expectation: PaginationExpect, l
   }
   if (expectation.alert !== undefined) {
     expect(screen.queryAllByRole("alert").length > 0, `${location}: alert presence`).toBe(expectation.alert);
+  }
+  if (expectation.alertIncludes !== undefined) {
+    const alert = screen.getByRole("alert");
+    for (const fragment of expectation.alertIncludes) {
+      expect(alert.textContent, `${location}: actionable alert includes ${JSON.stringify(fragment)}`).toContain(fragment);
+    }
   }
   if (expectation.requestedPages !== undefined) {
     expect(schedule.requestedPages(), `${location}: cumulative requested pages (request bound)`).toEqual(expectation.requestedPages);

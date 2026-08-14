@@ -3,5 +3,5 @@ mutations:
     file: ../../src/lib/queries/transcripts.ts
     original: "      assertTranscriptListResponseMatchesRequest(params, response);\n      return response;"
     replacement: "      return response;"
-    testFile: src/lib/queries/transcripts.signal.test.tsx
-    testName: page-mismatch-rejected-before-cache-commit
+    testFile: src/mountedSessionListPagination.test.tsx
+    testName: rejected-mismatch-then-new-page-keeps-last-confirmed-rows

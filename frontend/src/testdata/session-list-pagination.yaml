@@ -135,6 +135,88 @@ scenarios:
           visibleIds: ["t-201", "t-202"]
           alert: false
 
+  - name: rejected-mismatch-then-new-page-keeps-last-confirmed-rows
+    steps:
+      - name: initial-page-1-confirmed
+        action: { kind: resolve, requestPage: 1, dataId: page-1 }
+        expect:
+          currentPage: 1
+          visibleIds: ["t-101", "t-102"]
+          ariaBusy: false
+          status: "page 1 of 3 loaded"
+          visibleLoading: false
+          alert: false
+          requestedPages: [1]
+          uniqueIds: true
+      - name: request-page-2
+        action: { kind: clickPage, page: 2 }
+        expect:
+          currentPage: 2
+          visibleIds: ["t-101", "t-102"]
+          ariaBusy: true
+          status: "loading page 2; showing page 1 until it arrives"
+          visibleLoading: "loading page 2; showing page 1 until it arrives"
+          alert: false
+          requestedPages: [1, 2]
+          focusPage: 2
+          uniqueIds: true
+      - name: mismatched-page-5-is-rejected
+        action: { kind: resolve, requestPage: 2, dataId: wrong-page-5 }
+        expect:
+          currentPage: 2
+          visibleIds: ["t-101", "t-102"]
+          ariaBusy: false
+          status: ""
+          visibleLoading: false
+          alert: true
+          alertIncludes:
+            - "Failed to load page 2"
+            - "requested page 2 and limit 24"
+            - "received page 5 and limit 24"
+            - "response was rejected"
+            - "previously confirmed rows are kept"
+            - "Retry the same page"
+          requestedPages: [1, 2]
+          uniqueIds: true
+      - name: navigate-to-page-3-without-retrying-page-2
+        action: { kind: clickPage, page: 3 }
+        expect:
+          currentPage: 3
+          visibleIds: ["t-101", "t-102"]
+          ariaBusy: true
+          status: "loading page 3; showing page 1 until it arrives"
+          visibleLoading: "loading page 3; showing page 1 until it arrives"
+          alert: false
+          requestedPages: [1, 2, 3]
+          focusPage: 3
+          uniqueIds: true
+          singleCurrent: true
+      - name: pending-page-3-remains-clean-after-another-drain
+        action: { kind: observe }
+        expect:
+          currentPage: 3
+          visibleIds: ["t-101", "t-102"]
+          ariaBusy: true
+          status: "loading page 3; showing page 1 until it arrives"
+          visibleLoading: "loading page 3; showing page 1 until it arrives"
+          alert: false
+          requestedPages: [1, 2, 3]
+          focusPage: 3
+          uniqueIds: true
+          singleCurrent: true
+      - name: exact-page-3-settles
+        action: { kind: resolve, requestPage: 3, dataId: page-3 }
+        expect:
+          currentPage: 3
+          visibleIds: ["t-301", "t-302"]
+          ariaBusy: false
+          status: "page 3 of 3 loaded"
+          visibleLoading: false
+          alert: false
+          requestedPages: [1, 2, 3]
+          uniqueIds: true
+          singleCurrent: true
+
   - name: terminal-failure-then-exact-key-retry
     steps:
       - name: initial-page-1-confirmed

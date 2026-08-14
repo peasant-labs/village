@@ -6,9 +6,10 @@ import { parse } from "yaml";
  * Typed loader for the mounted `/` session-pagination fixtures.
  *
  * The YAML holds every permutation (deferred pages, out-of-order/abort-ignored
- * schedules, settled mismatch, terminal failure and exact-key retry, filter
- * reset, and accessibility boundaries). This loader is the sole parser: it
- * enforces an exact scenario inventory, rejects unknown fields, and guarantees
+ * schedules, settled mismatch, navigation after a rejected mismatch, terminal
+ * failure and exact-key retry, filter reset, and accessibility boundaries).
+ * This loader is the sole parser: it enforces an exact scenario inventory,
+ * rejects unknown fields, and guarantees
  * unique names and referenced data ids so a scenario can never silently drop a
  * case or point at a missing response. The mounted test stays declarative and
  * drives the real route from the parsed structure.
@@ -26,6 +27,7 @@ export type PaginationAction =
   | { kind: "clickNext" }
   | { kind: "clickPrev" }
   | { kind: "clickRetry" }
+  | { kind: "observe" }
   | { kind: "changeOrder"; order: string };
 
 /** Observable expectations asserted after a step settles. */
@@ -38,6 +40,7 @@ export type PaginationExpect = {
   /** A substring the visible loading cue must contain, or `false` to require its absence. */
   visibleLoading?: string | false;
   alert?: boolean;
+  alertIncludes?: string[];
   requestedPages?: number[];
   abortedPages?: number[];
   focusPage?: number;
@@ -58,6 +61,7 @@ const requiredScenarioNames = [
   "deferred-second-page-keeps-intent-and-retains-rows",
   "later-page-supersedes-abort-ignoring-earlier",
   "settled-page-mismatch-keeps-prior-rows",
+  "rejected-mismatch-then-new-page-keeps-last-confirmed-rows",
   "terminal-failure-then-exact-key-retry",
   "filter-change-returns-to-first-page",
   "keyboard-boundaries-and-single-current",
@@ -71,6 +75,7 @@ const actionKinds = [
   "clickNext",
   "clickPrev",
   "clickRetry",
+  "observe",
   "changeOrder",
 ] as const;
 
@@ -165,6 +170,7 @@ function parseExpect(raw: unknown, location: string): PaginationExpect {
       "statusIncludes",
       "visibleLoading",
       "alert",
+      "alertIncludes",
       "requestedPages",
       "abortedPages",
       "focusPage",
@@ -192,6 +198,7 @@ function parseExpect(raw: unknown, location: string): PaginationExpect {
     out.visibleLoading = value;
   }
   if ("alert" in raw) out.alert = assertBoolean(raw.alert, `${location}.alert`);
+  if ("alertIncludes" in raw) out.alertIncludes = assertStringArray(raw.alertIncludes, `${location}.alertIncludes`);
   if ("requestedPages" in raw) out.requestedPages = assertIntegerArray(raw.requestedPages, `${location}.requestedPages`);
   if ("abortedPages" in raw) out.abortedPages = assertIntegerArray(raw.abortedPages, `${location}.abortedPages`);
   if ("focusPage" in raw) out.focusPage = assertInteger(raw.focusPage, `${location}.focusPage`);
