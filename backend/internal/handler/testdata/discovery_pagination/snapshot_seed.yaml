@@ -1,0 +1,27 @@
+# Seed dataset for the count/page same-snapshot integration test. Three public
+# rows with distinct ids and published_at values; a competing publish is
+# committed by the test between the count and the page read, and the read-only
+# REPEATABLE READ snapshot must keep the returned total and page describing only
+# these three rows. Loaded through the strict typed loader for the same
+# inventory/uniqueness guarantees as the rest of the discovery pagination family.
+- name: s1
+  id: "aaaaaaaa-0000-0000-0000-000000000001"
+  visibility: "public"
+  publishedAtMs: 1700000000000
+  turnCount: null
+  tokenCount: null
+  durationMs: null
+- name: s2
+  id: "aaaaaaaa-0000-0000-0000-000000000002"
+  visibility: "public"
+  publishedAtMs: 1700000001000
+  turnCount: null
+  tokenCount: null
+  durationMs: null
+- name: s3
+  id: "aaaaaaaa-0000-0000-0000-000000000003"
+  visibility: "public"
+  publishedAtMs: 1700000002000
+  turnCount: null
+  tokenCount: null
+  durationMs: null
