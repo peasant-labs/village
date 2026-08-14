@@ -41,6 +41,7 @@ scenarios:
           displayedPage: 1
           ariaBusy: true
           alert: false
+          visibleLoading: true
           status: "loading page 2; showing page 1 until it arrives"
       - name: settled-mismatch-retains-confirmed
         query: { dataId: driftPage3ForKey2, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
@@ -49,6 +50,7 @@ scenarios:
           displayedPage: 1
           ariaBusy: false
           alert: true
+          visibleLoading: false
           status: ""
       - name: retry-invokes-exact-key
         query: { dataId: driftPage3ForKey2, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
@@ -65,6 +67,7 @@ scenarios:
           displayedPage: 1
           ariaBusy: true
           alert: true
+          visibleLoading: true
       - name: retry-settles-valid-page-2
         query: { dataId: page2, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
         expect:
@@ -72,6 +75,7 @@ scenarios:
           displayedPage: 2
           ariaBusy: false
           alert: false
+          visibleLoading: false
           status: page 2 of 3 loaded
 
   - name: terminal-error-keeps-prior-rows-and-clears-busy
@@ -91,15 +95,18 @@ scenarios:
           displayedPage: 1
           ariaBusy: true
           alert: false
+          visibleLoading: true
       - name: terminal-error-with-prior-rows
         # TanStack can leave isPlaceholderData true after a failed page fetch even
-        # though isFetching has cleared; aria-busy must still report not-busy.
+        # though isFetching has cleared; aria-busy must still report not-busy and
+        # the visible loading cue must clear.
         query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: true, isError: true }
         expect:
           renders: explore
           displayedPage: 1
           ariaBusy: false
           alert: true
+          visibleLoading: false
           status: ""
 
   - name: abort-supersession-is-silent
@@ -118,6 +125,7 @@ scenarios:
           displayedPage: 1
           ariaBusy: true
           alert: false
+          visibleLoading: true
       - name: supersede-to-page-3-placeholder
         setFiltersPage: 3
         query: { dataId: page1, isLoading: false, isFetching: true, isPlaceholderData: true, isError: false }
@@ -126,6 +134,7 @@ scenarios:
           displayedPage: 1
           ariaBusy: true
           alert: false
+          visibleLoading: true
       - name: settle-page-3
         query: { dataId: page3, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
         expect:
@@ -133,6 +142,7 @@ scenarios:
           displayedPage: 3
           ariaBusy: false
           alert: false
+          visibleLoading: false
           status: page 3 of 3 loaded
 
   - name: mismatch-without-prior-data-shows-error

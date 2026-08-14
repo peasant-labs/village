@@ -95,6 +95,19 @@ function assertStep(step: OrchestrationStep): void {
     expect(screen.getByTestId("session-list-status").textContent).toBe(expectation.status);
   }
 
+  if (expectation.visibleLoading != null) {
+    const loadingCue = screen.queryByTestId("session-list-loading");
+    if (expectation.visibleLoading) {
+      expect(loadingCue).not.toBeNull();
+      // The cue must be a visible, sighted-user affordance, not a screen-reader
+      // only region, and must carry the concise loading text.
+      expect(loadingCue!.className).not.toContain("sr-only");
+      expect(loadingCue!.textContent).toContain("loading page");
+    } else {
+      expect(loadingCue).toBeNull();
+    }
+  }
+
   if (expectation.renders === "explore") {
     const results = screen.getByTestId("session-list-results");
     const explore = screen.getByTestId("explore");
