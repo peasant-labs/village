@@ -1,7 +1,9 @@
 package testfixtures
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"math/rand"
 	"os"
 	"strings"
@@ -65,8 +67,15 @@ func TestInvalidPayloads(t *testing.T) {
 	}
 
 	var rawPayloads []map[string]interface{}
-	if err := yaml.Unmarshal(yamlData, &rawPayloads); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(yamlData))
+	// These maps intentionally retain arbitrary payload keys so the JSON Schema,
+	// rather than a Go fixture struct, remains the system under test.
+	if err := decoder.Decode(&rawPayloads); err != nil {
 		t.Fatalf("failed to unmarshal yaml: %v", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		t.Fatalf("invalid payload fixture must contain exactly one YAML document")
 	}
 
 	for _, p := range rawPayloads {

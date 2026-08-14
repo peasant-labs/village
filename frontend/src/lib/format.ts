@@ -49,10 +49,10 @@ export function formatModelName(
  * Prefers git remote URL, falls back to stripping known path prefixes
  * from the project name key.
  *
- * e.g. git remote "github.com/user/Neurondle.git" → "Neurondle"
- * e.g. "-Users-pigeonzow-Documents-GitHub-Neurondle" → "Neurondle"
- * e.g. "-Users-pigeonzow-Documents-GitHub-data-leverage-village" → "data-leverage-village"
- * e.g. "/Users/pigeonzow/Documents/GitHub/Neurondle" → "Neurondle"
+ * e.g. git remote "github.com/example-org/sample-app.git" → "sample-app"
+ * e.g. "-Users-developer-Documents-GitHub-sample-app" → "sample-app"
+ * e.g. "-Users-developer-Documents-GitHub-example-service" → "example-service"
+ * e.g. "/Users/developer/Documents/GitHub/sample-app" → "sample-app"
  */
 export function extractProjectDisplayName(
   projectName: string | null | undefined,
@@ -76,7 +76,7 @@ export function extractProjectDisplayName(
     return segments[segments.length - 1] || projectName;
   }
 
-  // Dash-delimited path key (e.g. "-Users-pigeonzow-Documents-GitHub-project-name")
+  // Dash-delimited path key (e.g. "-Users-developer-Documents-GitHub-project-name")
   // Strip leading dash, split into segments, find the last known directory
   // marker (like "GitHub", "Documents", "Projects", etc.) and take everything after it
   const knownDirs = ["GitHub", "Documents", "Projects", "repos", "src", "code", "dev", "home"];

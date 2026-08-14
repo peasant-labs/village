@@ -27,17 +27,16 @@ import (
 //   3. legacy raw provider JSONL (a bare array / newline-delimited objects) —
 //      best-effort projection onto SessionDetailPayload turns.
 //
-// A3 DISTINCT FLOORS: the migrate-on-read DISPLAY floor below is deliberately
-// SEPARATE from the Phase-A SQL backfill (storage normalization of
-// model_provider) and from the push-acceptance floor (schema.MinPushContractVersion,
+// The migrate-on-read display floor below is deliberately separate from storage
+// normalization of model_provider and from the push-acceptance floor (schema.MinPushContractVersion,
 // which gates INCOMING uploads). This floor governs how far back a STORED blob
 // can be normalized for rendering; it is village-local and not advertised.
 
 // currentContractVersion is the contract the village normalizes stored blobs TO.
 // It remains at the existing 0.1.1 envelope because observedModel is an additive
 // optional field. Enriched emission is negotiated through exact membership in a
-// flat, forward-open opaque-token list, so legacy 0.1.x traffic remains compatible while
-// richer clients cannot mistake envelope compatibility for preservation support.
+// flat, forward-open opaque-token list, so legacy 0.1.x traffic remains compatible
+// while richer clients cannot mistake envelope compatibility for preservation support.
 const currentContractVersion schema.PushContractVersion = "0.1.1"
 
 // displayMigrateFloor is the OLDEST stored contract the village will still
@@ -47,7 +46,7 @@ const displayMigrateFloor schema.PushContractVersion = "0.1.0"
 
 // sameContractShape reports whether two push-contract versions are shape-
 // compatible — equal in MAJOR.MINOR. The wire SHAPE is versioned by MAJOR.MINOR;
-// a PATCH-only difference (e.g. 0.1.0 vs 0.1.1, the 1e8tk required-fields
+// a PATCH-only difference (e.g. 0.1.0 vs 0.1.1, the required-fields
 // strictening) carries no shape change. migrate-on-read uses this instead of
 // exact equality so a patch bump of currentContractVersion does NOT force a
 // pointless no-op rewrite of every stored blob at the prior patch version.
@@ -158,11 +157,11 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 			return nil, false, fmt.Errorf("transcript migrate-on-read failed because stored envelope kind %q does not carry a sessionDetail payload in handler.blobMigrator.Migrate during typed read normalization; no body was served and no stored generation was rewritten; republish a %q envelope with a non-null sessionDetail payload", env.Kind, schema.ContentKindSessionDetail)
 		}
 		payload := env.SessionDetail
-		// VERSION CONFLICT-WINNER (N1/B5): the envelope's ContractVersion is
-		// authoritative for migrate-on-read dispatch (the embedded
+		// The envelope's ContractVersion is authoritative for migrate-on-read
+		// dispatch; the embedded
 		// SchemaVersion is advisory). A SHAPE-COMPATIBLE envelope is already
 		// canonical — serve as-is, no rewrite. Shape is versioned by MAJOR.MINOR;
-		// a PATCH-only difference (e.g. 0.1.0 vs 0.1.1, the 1e8tk required-fields
+		// a PATCH-only difference (e.g. 0.1.0 vs 0.1.1, the required-fields
 		// strictening) carries NO wire-shape change, so a patch-compatible blob is
 		// NOT rewritten — exact equality would needlessly churn every stored 0.1.0
 		// blob the instant currentContractVersion bumped to 0.1.1.
@@ -203,7 +202,7 @@ func encodeCanonicalTranscript(payload *schema.SessionDetailPayload) ([]byte, er
 }
 
 // sniffShape classifies a (whitespace-trimmed) blob by its leading byte and, for
-// objects, the presence of a "contractVersion" key (B6 3-way discriminator).
+// objects, the presence of a "contractVersion" key is the three-way discriminator.
 func sniffShape(trimmed []byte) EnvelopeShape {
 	trimmed = bytes.TrimSpace(trimmed)
 	if len(trimmed) == 0 {
@@ -320,8 +319,8 @@ func decodeRawJSONL(raw []byte) (*schema.SessionDetailPayload, error) {
 //     gemini->gemini-cli). A body already using model.harness keeps its key but
 //     still has its VALUE canonicalized below.
 //   - entries[].harness: each session entry's harness VALUE is canonicalized
-//     in place (FB/A unified-schema-c7lco). entries[].harness is enum-keyed by
-//     the vendored publish schema, so a body carrying a PRE-RENAME entry harness
+//     in place. entries[].harness is enum-keyed by the schema module's embedded
+//     publish contract, so a body carrying a PRE-RENAME entry harness
 //     ("claude"/"gemini" — from session_entries.provider rows the V33 rename
 //     never canonicalized) would otherwise 422. The schema itself still rejects
 //     pre-rename strings by design; normalizing them here is the handler's job,

@@ -153,17 +153,10 @@ export default function GroupSettingsPage({
   // rows (settings page is owner-only, so the owner's own row === owner row).
   const rosterMembers = filteredMembers.map((m) => ({
     id: m.id,
-    // "@" prefix, display-only (round 9 addendum): the demo's own roster mock data stores the
-    // "@" AS PART OF the handle string itself (CommonsManage.jsx: `handle: '@alice-dev'`) --
-    // RoleRoster has no separate "@-glyph avatar" mode, its fallback avatar (no avatar_url) just
-    // takes the handle's own first character, so the demo's "@" fallback avatar is simply a
-    // side effect of its handle already including "@". Matching that here fixes BOTH the missing
-    // "@" in the visible handle text AND the fallback avatar (previously showing "A"/"B") in one
-    // change. m.github_username itself (the stored login) is untouched -- this only prefixes the
-    // DISPLAY value passed to RoleRoster.
+    // RoleRoster derives its fallback avatar from the first display-handle
+    // character, so include "@" here without changing the stored login.
     handle: `@${m.github_username}`,
-    // Display name back per explicit user feedback (round 2): RoleRoster's own .rr-who
-    // renders it as a second line beneath the handle automatically when set.
+    // RoleRoster renders the display name beneath the handle when present.
     name: m.display_name ?? undefined,
     role: m.role as "owner" | "member" | "contributor" | "guest",
     owner: m.role === "owner",
@@ -175,9 +168,7 @@ export default function GroupSettingsPage({
       {/* Breadcrumb — the shared .crumb class (fairtrade src/index.css), matching the demo's own
           CollectiveSettingsView breadcrumb (`<div className="crumb cmg-crumb">`) and this app's
           own detail page (which gets it for free via <Manage>'s internal breadcrumb): mono chrome,
-          lowercase. Was hand-rolled Tailwind (text-xs, no font-mono, Title-Case JSX text) before
-          this fix -- traced to .crumb rather than reinventing its font/case/color rules (round 5
-          UAT: "wrong font + wrong case").
+          lowercase. The shared class owns the font, case, and color rules.
           .crumb applies text-transform:lowercase to its ENTIRE contents, including .cur -- fine
           for the literal chrome segments ("collectives"/"settings"), but group.name is real
           content (e.g. "AI Research Collective") that must keep its actual case, so `normal-case`
@@ -198,9 +189,8 @@ export default function GroupSettingsPage({
         <span className="cur">settings</span>
       </nav>
 
-      {/* Header — cmg-d-hero/cmg-title/cmg-deck + a "settings" Tag, matching the fairtrade demo's
-          CollectiveSettingsView header (UAT finding: "the 'collective settings' header styling
-          does not match the demo's" — the app previously used ad hoc text-2xl/h1 markup here). */}
+      {/* Header uses the same cmg-d-hero/cmg-title/cmg-deck composition as the
+          design-system CollectiveSettingsView. */}
       <header className="cmg-d-hero">
         <div className="cmg-d-hero-row">
           <div>
@@ -233,11 +223,7 @@ export default function GroupSettingsPage({
             onSubmit={handleSave}
             className="cmg-settings-form border border-rule-strong bg-surface"
           >
-            {/* Round 8 UAT: two fixes measured against the demo's own .cmg-sub heading (not
-                guessed) -- (a) font-size was text-sm (14px), demo's computed heading is 18px
-                (fairtrade's --fs-md, .cmg-sub's own size) -- matched exactly. (b) this row had
-                border-b border-rule separating the heading from the fields below; the demo's own
-                .cmg-queue-head has NO border (computed border-bottom-width: 0px) -- removed. */}
+            {/* Match the design-system subheading size and borderless queue-header treatment. */}
             <div className="flex items-center justify-between px-5 py-3">
               <span className="text-[18px] font-bold text-ink font-mono lowercase tracking-wide">
                 general
@@ -312,8 +298,7 @@ export default function GroupSettingsPage({
                 ))}
               </Select>
 
-              {/* Display members — a real toggle (Switch), not a checkbox: "'show the members on
-                  the collective page' should be a toggle, not a checkbox" (UAT finding).
+              {/* Display members is a stateful toggle rather than a one-time checkbox.
                   .sw-stack (fairtrade src/index.css): label on its own top line, the hint
                   directly beneath it, then the switch + its on/off marker sharing a third line.
                   The label is rendered HERE, outside <Switch> (not via its `label` prop), paired
@@ -340,30 +325,9 @@ export default function GroupSettingsPage({
                 </div>
               </div>
 
-              {/* Transcript retention — RadioGroup with per-option description labels.
-                  DS-cohesion pass (a grounded reviewer spec): this form was
-                  mixing an ad-hoc 11px size (below the DS's --fs-label floor of 14px) with the
-                  DS-canonical field-label tier (.label / .muted, both --fs-label=14px, mono,
-                  --ink-3) elsewhere on the SAME form -- "Transcript retention on leave" (.label,
-                  already correct, left as the reference tier) sat right above description text at
-                  the wrong size/weight. Retention description + both radio-option descriptions
-                  now reuse .muted directly (the DS's own "small print" token) + lowercase (.muted
-                  itself doesn't force case, since it's also used for already-lowercase mono
-                  strings elsewhere) rather than reinventing the same three properties as raw
-                  Tailwind utilities. Radio option TITLES ("User's choice"/"Mandatory") move to
-                  the .is-radio tier (14px, --ink-2, mono) their own wrapping <label
-                  className="is-radio"> (Checkbox.jsx's <Radio>) already provides at the
-                  container level -- previously overridden by an inner text-sm/text-ink span that
-                  fought the wrapper's own font/color instead of inheriting it -- and lowercased
-                  to match every other setting title's case convention on this form.
-                  mt-2: this section's own wrapper is a sibling in the SAME gap-4 (16px) stack as
-                  every other field, but round 8 UAT specifically flagged the gap directly above
-                  it as too tight. Measured the demo's own established field-to-field rhythm
-                  (its cmg-settings-stack: Name/Description/Acceptance/Data access/the toggle are
-                  each exactly 24px apart, vs this form's uniform 16px gap-4) and matched THIS one
-                  transition to it: +8px on top of the existing 16px gap-4 = 24px total. Scoped to
-                  the one transition explicitly called out, not a blanket gap-4 -> gap-6 change
-                  across the whole form (which would touch spacing nobody flagged). */}
+              {/* Reuse the design-system label tiers and the form's 24px
+                  field rhythm instead of overriding radio text with smaller
+                  one-off typography. */}
               <div className="flex flex-col gap-2 mt-2">
                 <span className="label">Transcript retention on leave</span>
                 <p className="muted lowercase">
@@ -429,16 +393,8 @@ export default function GroupSettingsPage({
             </div>
           </form>
 
-          {/* Danger zone — DangerZone + ConfirmInline replaces the browser confirm() modal
-              with the fairtrade inline confirm pattern, which is the correct
-              layout-pattern for destructive actions. The delete mutation is unchanged.
-              Body copy lowercased (round 9 addendum, user decision): checked the demo's own
-              danger-zone body directly (CommonsManage.jsx) -- it's already all-lowercase
-              ("deleting this collective removes the governance settings and member roster.")
-              -- village's sentence-case copy was the outlier, not shared copy/CSS (DangerZone
-              only supplies the wrapping structure; the body text is each consumer's own
-              children). Wording unchanged, case only. Mono treatment (round 5,
-              .rr-danger-body's own font-family) is untouched. */}
+          {/* Keep destructive confirmation inline through the shared Fairtrade
+              pattern. DangerZone supplies the structure; Village owns this copy. */}
           <DangerZone title="danger zone">
             <p>
               deleting this collective permanently removes it and all of its
@@ -460,11 +416,8 @@ export default function GroupSettingsPage({
           </DangerZone>
         </main>
 
-        {/* Members roster — sidebar rail, matching the demo's cmg-d-rail. UNCONDITIONAL now (the
-            demo always shows it): it used to be gated behind `group.linked_github_org`, so a
-            collective with no linked GitHub org rendered no members list at all (UAT finding:
-            "app is MISSING the members list"). The org filter is real functionality beyond the
-            demo (kept), only shown when the viewer has visible orgs to filter by.
+        {/* Members roster is always present in the sidebar rail. The org filter is
+            shown only when the viewer has visible organizations to filter by.
             border-none: .sidebar (fairtrade src/index.css) draws its OWN 1px border around this
             whole <aside> -- fine for the demo's own settings aside, which holds just ONE box
             (the roster), so that outer border reads as that single box's own edge. Village's
@@ -482,12 +435,8 @@ export default function GroupSettingsPage({
                 structure) so it reads as a distinct, important notice the way DangerZone does,
                 without using DangerZone's own clay/red palette: this note isn't a destructive
                 warning, so amber (the DS's scarce "pay attention" emphasis color) is the
-                semantically correct tone here, not danger-red. Slimmed to just the role explainer
-                (round 2 UAT). Spacing to the roster below reverted to the round-2 baseline (round
-                3's now-removed separate filter section had introduced an extra section + its own
-                gaps between this notice and the roster; round 4 UAT: "the previous spacing...is
-                better") — this box is a direct flex-col sibling of the roster again, one gap-2
-                between them, same as before round 3. Copy verified against the actual backend
+                semantically correct tone here, not danger-red. This box is a direct flex-column
+                sibling of the roster with one gap-2 between them. Copy is verified against backend
                 behaviour (backend/internal/handler/groups.go PromoteMember): it PATCHes exactly
                 the one target member's role — there is no "default role for new members" concept
                 in the handler at all, and no bulk reassignment. */}
@@ -512,8 +461,8 @@ export default function GroupSettingsPage({
                 role-select + remove-button action column doesn't wrap, so without this the roster
                 pushed the WHOLE PAGE ~170px wider than the viewport instead of scrolling
                 internally within its own sidebar box.
-                RoleRoster is now ALWAYS rendered (round 4 UAT: the org filter moves INSIDE this
-                box, as its own row directly under the header, before the member rows) -- the
+                RoleRoster is always rendered, with the org filter inside this box directly under
+                the header and before the member rows. The
                 filter must stay reachable even when it filters the list down to zero results, so
                 swapping the whole box out for a "No members in @X" message (the prior behaviour)
                 would have made the filter itself unreachable once it filtered to empty, with no

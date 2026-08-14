@@ -1,6 +1,9 @@
 package testfixtures
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -319,99 +322,91 @@ func GenerateCombinatorialTestCases(categoryNames []string, fixturesByCategory m
 }
 
 func LoadAdversarialFixtures(path string) (*AdversarialFixtures, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
 	var fixtures AdversarialFixtures
-	if err := yaml.Unmarshal(data, &fixtures); err != nil {
+	if err := decodeFixtureFile(path, &fixtures); err != nil {
 		return nil, err
 	}
 	return &fixtures, nil
 }
 
 func LoadQualityFixtures(path string) (*QualityFixtures, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
 	var fixtures QualityFixtures
-	if err := yaml.Unmarshal(data, &fixtures); err != nil {
+	if err := decodeFixtureFile(path, &fixtures); err != nil {
 		return nil, err
 	}
 	return &fixtures, nil
 }
 
 func LoadStatsFixtures(path string) (*StatsFixtures, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
 	var fixtures StatsFixtures
-	if err := yaml.Unmarshal(data, &fixtures); err != nil {
+	if err := decodeFixtureFile(path, &fixtures); err != nil {
 		return nil, err
 	}
 	return &fixtures, nil
 }
 
 func LoadModelFixtures(path string) (*ModelFixtures, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
 	var fixtures ModelFixtures
-	if err := yaml.Unmarshal(data, &fixtures); err != nil {
+	if err := decodeFixtureFile(path, &fixtures); err != nil {
 		return nil, err
 	}
 	return &fixtures, nil
 }
 
 func LoadTimestampFixtures(path string) (*TimestampFixtures, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
 	var fixtures TimestampFixtures
-	if err := yaml.Unmarshal(data, &fixtures); err != nil {
+	if err := decodeFixtureFile(path, &fixtures); err != nil {
 		return nil, err
 	}
 	return &fixtures, nil
 }
 
 func LoadSessionFixtures(path string) (*SessionFixtures, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
 	var fixtures SessionFixtures
-	if err := yaml.Unmarshal(data, &fixtures); err != nil {
+	if err := decodeFixtureFile(path, &fixtures); err != nil {
 		return nil, err
 	}
 	return &fixtures, nil
 }
 
 func LoadValidPayloads(path string) ([]ValidPayload, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
 	var payloads []ValidPayload
-	if err := yaml.Unmarshal(data, &payloads); err != nil {
+	if err := decodeFixtureFile(path, &payloads); err != nil {
 		return nil, err
 	}
 	return payloads, nil
 }
 
 func LoadInvalidPayloads(path string) ([]InvalidPayload, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
 	var payloads []InvalidPayload
-	if err := yaml.Unmarshal(data, &payloads); err != nil {
+	if err := decodeFixtureFile(path, &payloads); err != nil {
 		return nil, err
 	}
 	return payloads, nil
+}
+
+func decodeFixtureFile(path string, target any) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read fixture %s: %w", path, err)
+	}
+	return decodeFixtureData(data, path, target)
+}
+
+func decodeFixtureData(data []byte, source string, target any) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(target); err != nil {
+		return fmt.Errorf("decode fixture %s with known fields: %w", source, err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("fixture %s must contain exactly one YAML document", source)
+		}
+		return fmt.Errorf("decode trailing fixture document %s: %w", source, err)
+	}
+	return nil
 }
 
 type Tuple8[T, U, V, W, X, Y, Z, A any] struct {

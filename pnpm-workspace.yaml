@@ -1,9 +1,8 @@
 # pnpm workspace root for the village frontend.
 #
-# Single member: the frontend app. @peasant-labs/fairtrade resolves from the
-# registry (pinned range in frontend/package.json) — the adoption-era out-of-tree link to a sibling
-# fairtrade-design-system worktree (and its isolated build:fairtrade step) is
-# gone, so a plain `pnpm install` works from any checkout.
+# Single member: the frontend app. Shared packages resolve from the npm registry
+# at the versions in frontend/package.json, so a plain `pnpm install` works from
+# any checkout.
 packages:
   - "frontend"
 # pnpm's install-script approval gate (pnpm >=10): these are mainstream toolchain

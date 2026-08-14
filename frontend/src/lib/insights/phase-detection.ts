@@ -1,5 +1,5 @@
 /**
- * Phase detection (§5.3) — rule-based transcript segmentation.
+ * Rule-based transcript phase detection.
  *
  * Segments transcript turns into phases, then merges micro-phases to
  * reduce fragmentation. Target: 4–8 merged phases for a 50-turn session.
@@ -58,7 +58,7 @@ function isTesting(turn: TurnDetail): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Retry loop detection (§5.3.1) — multi-tool sequences
+// Retry-loop detection across multi-tool sequences
 // ---------------------------------------------------------------------------
 
 interface Attempt {
@@ -263,7 +263,7 @@ export function detectPhases(turns: TurnDetail[]): Phase[] {
     const lastTurn = turns[turns.length - 1];
     const lastSegment = segments[segments.length - 1];
 
-    // Abandonment detection (§5.3)
+    // Detect abandonment at the end of the transcript.
     const hasEndError = hasError(lastTurn) && lastTurn.role === "assistant";
     const hasTaskSwitch = lastTurn.role === "user" && /\b(let'?s move on|forget it|different approach|never mind)\b/i.test(lastTurn.content);
     const lastQuarter = turns.slice(Math.floor(turns.length * 0.8));
@@ -290,7 +290,7 @@ export function detectPhases(turns: TurnDetail[]): Phase[] {
 }
 
 // ---------------------------------------------------------------------------
-// Phase merging (§5.3.2)
+// Merge adjacent or short phases
 // ---------------------------------------------------------------------------
 
 function phaseLength(p: Phase): number {

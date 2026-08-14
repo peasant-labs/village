@@ -20,7 +20,7 @@ import (
 // CLI to retrieve transcripts it OWNS or that are group-shared with it. It is
 // deliberately SEPARATE from the web read endpoints (canViewTranscript) so the
 // web viewing policy stays untouched and the pull policy can diverge (and become
-// the ABAC seam, URD R6.3). Every "not pullable" outcome is 404, never 403, so
+// a future ABAC seam). Every "not pullable" outcome is 404, never 403, so
 // the surface never leaks the existence of a transcript the caller may not pull.
 
 // pullListPageSize is the default page size for the pullable listing when the
@@ -30,45 +30,13 @@ const (
 	maxPullListPageSize = 200
 )
 
-// canPullTranscript is the pull-surface authorization policy and the future ABAC
-// seam (URD R6.3 — replace this single function with a collective/ABAC engine).
-//
-// CANONICAL DOCS: the whole peasant↔village auth model — the canViewTranscript vs
-// canPullTranscript ALLOWED/DENIED matrix, the deliberate divergences (public,
-// collective-preview, and pending-share all DENY pull), and the 404-not-403
-// anti-enumeration rule — lives in the peasant repo at docs/auth.md §4
-// (peasant-labs/peasant). The pull-surface architecture (component map, staged
-// flow, manifest) is in peasant docs/pull.md. Keep those canonical; this comment
-// is the pointer.
-//
-// It MIRRORS canViewTranscript's logic (transcripts.go) with two DELIBERATE
-// divergences, per the ratified divergence table:
-//
-//   - PUBLIC visibility is NOT pullable (canViewTranscript allows it). The MVP
-//     pull policy is "own + group-shared only"; public discovery is a web concern.
-//   - COLLECTIVE-OWNER PREVIEW is NOT pullable (canViewTranscript allows a
-//     collective owner to preview private/pending submissions). Pull excludes it.
-//
-// It is also STRICTER on shares than canViewTranscript: canViewTranscript (via
-// ListTranscriptShares) grants access for ANY share to a group the requester is
-// in, including a 'pending' share. Pull requires the share STATUS to be
-// 'approved' (the ratified divergence-table row "group-shared, acceptance
-// pending/rejected => deny"), enforced via ListApprovedTranscriptShareGroups.
-//
-// RECONCILIATION (S2 precondition comment): the supervisor's note said to mirror
-// canViewTranscript's shared branch exactly and claimed there is "no per-share
-// approved/pending state". That premise is FACTUALLY INCORRECT on develop:
-// transcript_shares.status (migration 005, default 'approved') is a real
-// per-share lifecycle column, and the share flows DO set it to 'pending' (a
-// curated/verified group's reviewer flips it to 'approved' — shares.sql
-// UpdateShareStatus / ListPendingGroupShares). Because the premise is wrong but
-// the ratified divergence table is explicit that a pending share must DENY pull,
-// this policy honors the table's substantive intent: own + APPROVED-group-shared
-// only. A member of a group whose share is still 'pending' therefore gets 404,
-// which is the divergence the table requires (and a deliberate, documented
-// divergence from canViewTranscript). Group acceptance MODES
-// (open/verified_only/curated, groups.go:16-20) gate how a share REACHES
-// 'approved'; they are orthogonal to this membership-of-an-approved-share check.
+// canPullTranscript is the pull-surface authorization policy and future ABAC
+// seam. Owners may pull their own transcripts. Other callers may pull only when
+// the transcript has an approved share to a group they belong to. Public
+// visibility, collective-owner preview, and pending or rejected shares do not
+// grant pull access even when the web viewing policy would allow a preview.
+// Group acceptance modes determine how a share reaches approved status; they do
+// not replace the approved-share membership check here.
 //
 // AuthRequired runs upstream, so user is always non-nil here; the nil guard is
 // defensive only.
@@ -101,7 +69,7 @@ func (h *Handler) canPullTranscript(ctx context.Context, user *AuthUser, t sqlc.
 
 // dbVisibility* are the transcripts.visibility CHECK values (the DB enum is
 // public/private/shared). They map to the wire schema.Visibility enum
-// (public/private/group) via mapDBVisibility — A-O1: the DB's 'shared' is the
+// (public/private/group) via mapDBVisibility; the DB's 'shared' is the
 // wire's VisibilityGroup. All three are extracted (not just 'shared') so the
 // mapping has no bare string literals.
 const (
@@ -111,7 +79,7 @@ const (
 )
 
 // mapDBVisibility maps the transcripts.visibility CHECK value (public/private/
-// shared) to the wire schema.Visibility enum (public/private/group). A-O1: the
+// shared) to the wire schema.Visibility enum (public/private/group). The
 // DB's 'shared' is the wire's VisibilityGroup. An unknown value falls back to
 // VisibilityPrivate (the most restrictive) rather than emitting an invalid enum.
 func mapDBVisibility(dbVis string) schema.Visibility {
@@ -130,7 +98,7 @@ func mapDBVisibility(dbVis string) schema.Visibility {
 // wireTranscriptID converts a trusted DB UUID into the wire schema.TranscriptID.
 // The id is a canonical UUID produced by Postgres (transcripts.id), so the
 // validating NewTranscriptID constructor cannot fail here; we still route through
-// it (rather than a raw cast) to keep the ratified typed-constructor intent
+// it (rather than a raw cast) to preserve the validating constructor boundary
 // intact, and fall back to the raw string only if validation ever rejects it
 // (impossible for a DB UUID, defensive).
 func wireTranscriptID(id pgtype.UUID) schema.TranscriptID {
@@ -349,9 +317,8 @@ func (h *Handler) GetPullTranscriptAnnotations(w http.ResponseWriter, r *http.Re
 		})
 	}
 
-	// IP1 conformance: the pull-annotations response is a BARE JSON array of
-	// PullAnnotation (the committed OpenAPI spec, pkg/schema/openapi/village.go),
-	// NOT the web endpoint's {"annotations":[...]} wrapper. Emit the bare array.
+	// The generated Village API contract defines this response as a bare
+	// PullAnnotation array, unlike the web endpoint's {"annotations":[...]} wrapper.
 	writeJSON(w, http.StatusOK, annotations)
 }
 

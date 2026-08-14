@@ -67,7 +67,7 @@ await shot('manage-detail', '.cmg-d-main')
 
 // full page: the settings route's DangerZone sits below the form as a sibling (not nested inside
 // it), and below the fold of the default 1000px viewport -- a viewport-only (fullPage:false)
-// capture never included it (M12: "danger zone is below-fold in the current capture").
+// capture would omit the danger zone entirely.
 await page.goto(`${ORIGIN}/groups/${encodeURIComponent(GROUP_ID)}/settings`, { waitUntil: 'domcontentloaded' })
 await pause(900)
 await shot('manage-settings', '.cmg-settings form', { fullPage: true })

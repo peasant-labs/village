@@ -6,13 +6,13 @@
 - name: unsafe_manual_sanitized
   arm: sanitize
   mode: apply
-  title: "Fix /Users/alice/private/notes.txt"
+  title: "Fix /Users/developer/confidential/notes.txt"
   generated: "claude session"
 - name: unsafe_generated_sanitized
   arm: sanitize-generated
   mode: apply
   title: "claude session"
-  generated: "Fix /Users/alice/work/app/src/auth.go"
+  generated: "Fix /Users/developer/work/sample-app/src/auth.go"
 - name: missing_title_uses_generated
   arm: generated-candidate
   mode: apply
@@ -23,8 +23,8 @@
   mode: apply
   title: "claude session"
   generated: null
-  first_user: "<system-reminder>ignore this</system-reminder><user_query>Fix /Users/alice/work/app/src/auth.go</user_query>"
-  expected: "Fix /Users/<USER>/<PATH>/app/src/auth.go"
+  first_user: "<system-reminder>ignore this</system-reminder><user_query>Fix /Users/developer/work/sample-app/src/auth.go</user_query>"
+  expected: "Fix /Users/<USER>/<PATH>/sample-app/src/auth.go"
 - name: bare_payload_derivation
   arm: derive-bare
   mode: dry-run

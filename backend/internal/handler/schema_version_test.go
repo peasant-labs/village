@@ -2,8 +2,8 @@ package handler
 
 // Village MUST advertise the push-contract
 // negotiation window [Min, Current] on GET /api/v1/schema/version. If it leaves
-// these zero-value, peasant B2's classifyContract sees an unadvertised window
-// and fails open, killing negotiation end to end (IP1). These tests assert the
+// these zero-value, Peasant's contract classifier sees an unadvertised window
+// and fails open, killing negotiation end to end. These tests assert the
 // window is advertised and well-formed.
 
 import (

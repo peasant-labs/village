@@ -249,9 +249,12 @@ repo: village                                         default: develop
  ──●────────●──────────●─────────────●────────────●──▶  (commits, left→right by date)
    │        │          │             │            │
   a1b2c3   d4e5f6     11aa22        88bb99        ff00cc
-   PR #42   (2 transcripts)          PR #51       (1 transcript)
-            ▲ click → transcript list
+   example PR A   (2 transcripts)    example PR B  (1 transcript)
+             ▲ click → transcript list
 ```
+
+The labels and abbreviated hashes in this sketch are synthetic examples; they
+do not refer to Village pull requests or repository history.
 
 - Horizontal axis = time; markers = commits on the default branch, with PR
   bands spanning their commit range.

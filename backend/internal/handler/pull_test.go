@@ -162,8 +162,8 @@ func TestPull_NotFound_Variants(t *testing.T) {
 			},
 		},
 		{
-			// unified-schema-g7k3k / u85oz keystone (B-F3): the requester IS a
-			// member of a group the transcript is shared with, but the share is
+			// The requester is a member of a group the transcript is shared with,
+			// but the share is
 			// PENDING. The approved-only filter (ListApprovedTranscriptShareGroups,
 			// WHERE ts.status='approved') therefore returns NO group, so
 			// canPullTranscript never reaches the membership check ⇒ 404. This is
@@ -231,7 +231,7 @@ func TestPull_InvalidID_400(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
-// Owner can pull own transcript; metadata + 'shared'->group mapping pin (A-O1).
+// Owner can pull own transcript; metadata + 'shared'->group mapping.
 // ----------------------------------------------------------------------------
 
 func TestPull_GetMeta_Owner_SharedMapsToGroup(t *testing.T) {
@@ -239,7 +239,7 @@ func TestPull_GetMeta_Owner_SharedMapsToGroup(t *testing.T) {
 	tid := uuid.New()
 
 	// Populate every field PullTranscriptInfo carries so the wire mapping is
-	// fully asserted (unified-schema-dbrgc): Harness, ProjectName, timestamps
+	// fully asserted: Harness, ProjectName, timestamps
 	// (ms), ContractVersion, AnnotationCount — not just Visibility/Owner/Hash.
 	publishedAt := time.UnixMilli(1_700_000_000_000)
 	updatedAt := time.UnixMilli(1_700_000_500_000)
@@ -280,7 +280,7 @@ func TestPull_GetMeta_Owner_SharedMapsToGroup(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	// A-O1: DB 'shared' must map to the wire VisibilityGroup — never the raw
+	// DB 'shared' must map to the wire VisibilityGroup — never the raw
 	// out-of-enum DB string.
 	if info.Visibility != schema.VisibilityGroup {
 		t.Errorf("visibility: got %q, want %q (DB 'shared' must map to group)", info.Visibility, schema.VisibilityGroup)
@@ -291,7 +291,7 @@ func TestPull_GetMeta_Owner_SharedMapsToGroup(t *testing.T) {
 	if info.ContentHash != "deadbeef" {
 		t.Errorf("contentHash: got %q, want %q", info.ContentHash, "deadbeef")
 	}
-	// Remaining field-mapping assertions (unified-schema-dbrgc).
+	// Remaining field-mapping assertions.
 	if info.Harness != schema.HarnessClaudeCode {
 		t.Errorf("harness: got %q, want %q", info.Harness, schema.HarnessClaudeCode)
 	}
@@ -401,12 +401,9 @@ func TestPull_List_OwnerScoped(t *testing.T) {
 	}
 }
 
-// TestPull_List_Pagination_OffsetAndCap (unified-schema-zqvju) asserts the
+// TestPull_List_Pagination_OffsetAndCap asserts the
 // offset arithmetic (page=2 ⇒ offset=limit) and the page-size cap (limit>200 ⇒
 // 200) by capturing the params the handler passes to the batched list query.
-// The old single test only exercised page=1 (offset=0) with a mock that ignored
-// Limit/Offset, so a regression in either the offset formula or the cap went
-// undetected.
 func TestPull_List_Pagination_OffsetAndCap(t *testing.T) {
 	owner := uuid.New()
 
@@ -497,12 +494,10 @@ func TestPull_Content_ETag_And_304(t *testing.T) {
 		}
 	})
 
-	// unified-schema-r4pnb: the server is TOLERANT on If-None-Match. It must 304
+	// The server is tolerant on If-None-Match. It must return 304
 	// for the quoted ETag (verbatim echo), the RAW served-blob hash (the
 	// documented client key), AND a weak (W/) validator prefix — all designate the
-	// same served-blob hash. Previously only the exact quoted form 304'd, so a
-	// client keying on the raw served-blob hash got 200 every time and the 304
-	// fast path never fired.
+	// same served-blob hash.
 	matchForms := []struct {
 		name        string
 		ifNoneMatch string
@@ -585,7 +580,7 @@ func TestPull_Content_NullHash_NoETag_FullBody(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
-// Annotations — BARE array (IP1 conformance), author identity via users join.
+// Annotations — bare array, author identity via users join.
 // ----------------------------------------------------------------------------
 
 func TestPull_Annotations_BareArray_AuthorFields(t *testing.T) {
@@ -629,11 +624,11 @@ func TestPull_Annotations_BareArray_AuthorFields(t *testing.T) {
 		t.Fatalf("status: got %d, want 200 (body: %s)", w.Code, w.Body.String())
 	}
 
-	// IP1 conformance: the body MUST be a bare JSON array, NOT an
+	// The generated API contract requires a bare JSON array, not an
 	// {"annotations":[...]} object wrapper.
 	trimmed := strings.TrimSpace(w.Body.String())
 	if !strings.HasPrefix(trimmed, "[") {
-		t.Fatalf("response must be a BARE JSON array (IP1), got: %s", trimmed)
+		t.Fatalf("response must be a bare JSON array, got: %s", trimmed)
 	}
 
 	var anns []schema.PullAnnotation
@@ -658,8 +653,8 @@ func TestPull_Annotations_BareArray_AuthorFields(t *testing.T) {
 	}
 }
 
-// TestPull_Annotations_Empty_SerializesBareArray (unified-schema-dbrgc) guards
-// the IP1 contract against the classic nil-slice⇒null regression: a transcript
+// TestPull_Annotations_Empty_SerializesBareArray guards the generated contract
+// against the classic nil-slice⇒null regression: a transcript
 // with ZERO annotations must serialize as the bare array "[]", NOT "null". The
 // existing bare-array test always has items, so its HasPrefix("[") check would
 // not catch a refactor to `var annotations []schema.PullAnnotation` (which emits
@@ -694,7 +689,7 @@ func TestPull_Annotations_Empty_SerializesBareArray(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
-// Schema-version window advertisement — pull window present (IP1).
+// Schema-version window advertisement — pull window present.
 // ----------------------------------------------------------------------------
 
 func TestPull_SchemaVersion_AdvertisesPullWindow(t *testing.T) {

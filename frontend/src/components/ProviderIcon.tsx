@@ -1,10 +1,8 @@
 'use client';
 
-// prior-version, deprecation candidate (V-SHELL): a bespoke provider glyph,
-// superseded by the DS's real-brand-mark ProviderTag/ProviderName (@peasant-labs/fairtrade/ui,
-// re-exported via @/lib/ft-ui and already used by the lifted Manage/Explore surfaces). No
-// remaining import sites. Soft-retained per the soft-retire-not-delete policy rather than
-// deleted.
+// Deprecated compatibility component superseded by the design system's
+// real-brand-mark ProviderTag and ProviderName components. It has no remaining
+// import sites.
 
 import { Code2 } from 'lucide-react';
 import type { Provider } from '@/types/messages';

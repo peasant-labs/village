@@ -1,6 +1,6 @@
 package handler
 
-// Unit coverage for inTxAs's fail-closed actor gate (REVIEW-C A1): a non-Valid
+// Unit coverage for inTxAs's fail-closed actor gate: a non-Valid
 // pgtype.UUID renders as 00000000-… — the SYSTEM actor — so it must be rejected
 // BEFORE any transaction work, or an uninitialized actor would silently
 // impersonate the system. The pool==nil seam makes the guard unit-testable.

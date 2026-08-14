@@ -33,8 +33,8 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 
 	h := handler.NewWithTitlePipeline(cfg, pool, blobs, titles)
 
-	// authLimiter enforces a per-IP rate limit on OAuth entry points to deter
-	// abuse. The limit is intentionally strict (UAT decision: 5 req/min/IP).
+	// authLimiter enforces a strict per-IP rate limit on OAuth entry points to
+	// deter abuse without constraining authenticated API traffic.
 	authLimiter := httprate.LimitByIP(authRateLimitRequests, authRateLimitWindow)
 
 	r.Get("/health", h.Health)

@@ -1,0 +1,4 @@
+- legacy: claude
+  canonical: claude-code
+- legacy: gemini
+  canonical: gemini-cli

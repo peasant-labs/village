@@ -153,7 +153,7 @@ func TestGetContent_LegacyBlob_MigratesAndRewrites(t *testing.T) {
 	}
 }
 
-// TestGetContent_RewriteOnRead_UpdatesContentHash (unified-schema-177be): when
+// TestGetContent_RewriteOnRead_UpdatesContentHash verifies that when
 // migrate-on-read rewrites the stored blob to canonical bytes, the recorded
 // content_hash MUST be recomputed over the freshly-stored canonical bytes and
 // persisted — otherwise the pull surface advertises a stale ETag/ContentHash for

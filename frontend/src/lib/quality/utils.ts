@@ -31,10 +31,10 @@ const ANCESTOR_DIRS = new Set([
  *
  * Handles:
  *  - Host slugs:            "~Users-acme-dev-Documents-Projects-phaze"      → "phaze"
- *  - Filesystem paths:      "/Users/vitorhugo/Documents/Projects/phaze"     → "phaze"
+ *  - Filesystem paths:      "/Users/developer/Documents/Projects/phaze"     → "phaze"
  *  - Windows paths:         "C:\\Users\\acme\\Projects\\phaze"              → "phaze"
- *  - Claude-encoded paths:  ".../-Users-vitorhugo-Desktop-w1-stc"           → "w1-stc"
- *  - Bare home dir:         "/Users/vitorhugo"                              → "vitorhugo"
+ *  - Claude-encoded paths:  ".../-Users-developer-Desktop-sample-app"       → "sample-app"
+ *  - Bare home dir:         "/Users/developer"                              → "developer"
  */
 export function displayProject(project: string): string {
   if (!project) return "";
@@ -53,8 +53,8 @@ export function displayProject(project: string): string {
   }
 
   // A Claude-encoded path is the absolute path with separators turned into
-  // dashes, e.g. "-Users-vitorhugo-Desktop-w1-stc" (from
-  // /Users/vitorhugo/.claude/projects/...). Detect it (a leading optional dash
+  // dashes, e.g. "-Users-developer-Desktop-sample-app" (from
+  // /Users/developer/.claude/projects/...). Detect it (a leading optional dash
   // followed by letters then a dash) and recover the project folder by
   // dropping the well-known home prefix + common ancestor dirs, keeping the
   // remaining tail joined (so "w1-stc" survives, not just "stc").

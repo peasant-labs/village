@@ -383,8 +383,8 @@ type ListUserGroupsRow struct {
 // the members roster (ListGroupMembers, which also filters role != 'pending').
 // The 3 sibling list queries (ListAllGroups / SearchCollectives /
 // ListCollectivesByGitHubOrg) INCLUDE pending members in their member_count.
-// This per-surface split is intentional and user-ratified (Plan UAT) — do
-// not "reconcile" the two by changing either side.
+// This per-surface split is intentional: the user-groups endpoint mirrors its
+// member roster, while discovery surfaces report all memberships.
 func (q *Queries) ListUserGroups(ctx context.Context, userID pgtype.UUID) ([]ListUserGroupsRow, error) {
 	rows, err := q.db.Query(ctx, listUserGroups, userID)
 	if err != nil {

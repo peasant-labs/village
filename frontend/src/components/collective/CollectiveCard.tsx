@@ -1,9 +1,8 @@
 "use client";
 
-// prior-version, deprecation candidate (V-SHELL): superseded by the shared
-// fairtrade <Explore> surface (V-EXPLORE, page.tsx bcb19c7), which renders its own
-// .cex-tcard/.cex-* collective + transcript cards. No remaining import sites. Soft-retained
-// per the SOFT-RETIRE POLICY (soft-retire-not-delete policy) rather than deleted.
+// Deprecated compatibility component superseded by the shared fairtrade
+// <Explore> surface, which renders its own collective and transcript cards.
+// It has no remaining import sites.
 
 import Link from "next/link";
 import { Users, Building2 } from "lucide-react";

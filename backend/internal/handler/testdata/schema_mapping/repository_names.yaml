@@ -1,0 +1,40 @@
+- name: git remote URL
+  project_name: /workspace/sample-app
+  git_remote: github.com/example-org/sample-app.git
+  expected: sample-app
+- name: git remote URL without suffix
+  project_name: ""
+  git_remote: github.com/example-user/my-project
+  expected: my-project
+- name: fallback to project name last segment
+  project_name: /workspace/sample-app
+  git_remote: ""
+  expected: sample-app
+- name: project name with slashes
+  project_name: workspace/example-service
+  git_remote: ""
+  expected: example-service
+- name: dash-delimited multi-word project
+  project_name: -workspace-repos-example-service
+  git_remote: ""
+  expected: example-service
+- name: dash-delimited with version suffix
+  project_name: -workspace-repos-sample-app-v2
+  git_remote: ""
+  expected: sample-app-v2
+- name: dash-delimited analysis toolkit
+  project_name: -workspace-repos-analysis-toolkit
+  git_remote: ""
+  expected: analysis-toolkit
+- name: simple project name
+  project_name: myproject
+  git_remote: ""
+  expected: myproject
+- name: empty inputs
+  project_name: ""
+  git_remote: ""
+  expected: ""
+- name: git remote preferred over project name
+  project_name: /workspace/other-project
+  git_remote: https://github.com/example-user/RealName.git
+  expected: RealName

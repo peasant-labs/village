@@ -7,7 +7,7 @@
 
    usage:
      MOCK_REST_PORT=8788 node scripts/visual/mock-rest.mjs &
-     NEXT_PUBLIC_API_URL=http://localhost:8788/api/v1 npm run dev &
+     NEXT_PUBLIC_API_URL=http://localhost:8788/api/v1 pnpm dev &
      CHROME_PATH=... node scripts/visual/manage-boot-village.mjs <theme>
 */
 import puppeteer from 'puppeteer-core'

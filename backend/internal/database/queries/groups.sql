@@ -27,8 +27,8 @@ DELETE FROM groups WHERE id = $1;
 -- the members roster (ListGroupMembers, which also filters role != 'pending').
 -- The 3 sibling list queries (ListAllGroups / SearchCollectives /
 -- ListCollectivesByGitHubOrg) INCLUDE pending members in their member_count.
--- This per-surface split is intentional and user-ratified (Plan UAT) — do
--- not "reconcile" the two by changing either side.
+-- This per-surface split is intentional: the user-groups endpoint mirrors its
+-- member roster, while discovery surfaces report all memberships.
 SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at,
        g.acceptance_mode, g.data_access, g.linked_github_org, g.display_members,
        g.transcript_deletion_policy,

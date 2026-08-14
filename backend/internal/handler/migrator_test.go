@@ -1,23 +1,49 @@
 package handler
 
-// Migrate-on-read unit tests for blobMigrator.
+// Migrate-on-read unit tests exercise blobMigrator through the production path.
 //
-// Exercises the 3-way envelope sniff (B6, incl. a partType-bearing CURRENT
+// Exercises the 3-way envelope sniff (including a partType-bearing current
 // envelope), key+value migration (provider/modelHarness->harness,
 // claude/gemini->claude-code/gemini-cli), and the rewrite/idempotence contract.
 // The migrator is the real SUT (NewContentMigrator) — not mocked.
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"testing"
 
 	"github.com/peasant-labs/schema"
 )
 
+//go:embed testdata/version_compatibility/different_minor.yaml
+var differentMinorFixtureYAML []byte
+
+//go:embed testdata/version_compatibility/shape_cases.yaml
+var contractShapeFixtureYAML []byte
+
+//go:embed testdata/version_compatibility/legacy_harnesses.yaml
+var legacyHarnessFixtureYAML []byte
+
+type differentMinorFixture struct {
+	Name    string                     `yaml:"name"`
+	Version schema.PushContractVersion `yaml:"version"`
+}
+
+type contractShapeFixture struct {
+	Left       schema.PushContractVersion `yaml:"left"`
+	Right      schema.PushContractVersion `yaml:"right"`
+	Compatible bool                       `yaml:"compatible"`
+}
+
+type legacyHarnessFixture struct {
+	Legacy    string         `yaml:"legacy"`
+	Canonical schema.Harness `yaml:"canonical"`
+}
+
 // currentEnvelopeJSON builds a current-contract TranscriptContent envelope whose
 // embedded sessionDetail carries a turn with an extra post-merge "partType"
-// field (B6: exercise the discriminator against CURRENT, partType-bearing
+// field (exercise the discriminator against current, partType-bearing
 // content — not only legacy).
 func currentEnvelopeJSON(t *testing.T, harness string) []byte {
 	t.Helper()
@@ -79,10 +105,10 @@ func envelopeAtVersion(contractVersion, schemaVersion, harness string) []byte {
     }`)
 }
 
-// TestMigrate_PatchTolerant_PriorPatchNoRewrite locks the user-ratified Option A
-// patch-tolerance semantics (1e8tk): a stored envelope at the PRIOR patch
+// TestMigrate_PatchTolerant_PriorPatchNoRewrite locks the patch-tolerance
+// contract: a stored envelope at the prior patch
 // (0.1.0) is shape-identical to currentContractVersion (0.1.1) — same MAJOR.MINOR
-// — so it is served NO-REWRITE. Exact-equality dispatch (the pre-1e8tk behavior)
+// — so it is served NO-REWRITE. Exact-equality dispatch (the prior behavior)
 // would churn every stored 0.1.0 blob the instant the constant bumped to 0.1.1;
 // this test would catch that regression.
 func TestMigrate_PatchTolerant_PriorPatchNoRewrite(t *testing.T) {
@@ -112,19 +138,16 @@ func TestMigrate_PatchTolerant_PriorPatchNoRewrite(t *testing.T) {
 // 0.2.0) is shape-incompatible, so it IS rewritten and re-stamped to
 // currentContractVersion.
 func TestMigrate_DifferentMinor_RewritesAndRestamps(t *testing.T) {
-	cases := []struct{ name, version string }{
-		{"older-minor-0.0.9", "0.0.9"},
-		{"newer-minor-0.2.0", "0.2.0"},
-	}
+	cases := loadFixtureRows[differentMinorFixture](t, differentMinorFixtureYAML, 2)
 	m := NewContentMigrator()
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, rewrite, err := m.Migrate(context.Background(), envelopeAtVersion(tc.version, tc.version, "claude-code"))
+		t.Run(tc.Name, func(t *testing.T) {
+			got, rewrite, err := m.Migrate(context.Background(), envelopeAtVersion(string(tc.Version), string(tc.Version), "claude-code"))
 			if err != nil {
-				t.Fatalf("Migrate %s envelope: %v", tc.version, err)
+				t.Fatalf("Migrate %s envelope: %v", tc.Version, err)
 			}
 			if !rewrite {
-				t.Errorf("different-minor (%s) envelope must rewrite under current=%q, got rewrite=false", tc.version, currentContractVersion)
+				t.Errorf("different-minor (%s) envelope must rewrite under current=%q, got rewrite=false", tc.Version, currentContractVersion)
 			}
 			if got == nil || got.SchemaVersion != currentContractVersion {
 				t.Errorf("rewrite must re-stamp schemaVersion to %q, got %+v", currentContractVersion, got)
@@ -137,20 +160,10 @@ func TestMigrate_DifferentMinor_RewritesAndRestamps(t *testing.T) {
 // in MAJOR.MINOR (patch differs) is shape-compatible; a differing MAJOR or MINOR
 // is not.
 func TestSameContractShape_MajorMinor(t *testing.T) {
-	cases := []struct {
-		a, b schema.PushContractVersion
-		want bool
-	}{
-		{"0.1.0", "0.1.1", true},
-		{"0.1.1", "0.1.0", true},
-		{"0.1.0", "0.1.0", true},
-		{"0.1.0", "0.2.0", false},
-		{"0.1.0", "0.0.9", false},
-		{"0.1.0", "1.1.0", false},
-	}
+	cases := loadFixtureRows[contractShapeFixture](t, contractShapeFixtureYAML, 6)
 	for _, tc := range cases {
-		if got := sameContractShape(tc.a, tc.b); got != tc.want {
-			t.Errorf("sameContractShape(%q, %q) = %v, want %v", tc.a, tc.b, got, tc.want)
+		if got := sameContractShape(tc.Left, tc.Right); got != tc.Compatible {
+			t.Errorf("sameContractShape(%q, %q) = %v, want %v", tc.Left, tc.Right, got, tc.Compatible)
 		}
 	}
 }
@@ -179,25 +192,19 @@ func TestMigrate_CurrentEnvelope_NoRewrite(t *testing.T) {
 }
 
 func TestMigrate_BarePayload_LegacyKeyAndValue_Rewrite(t *testing.T) {
-	cases := []struct {
-		legacy string
-		want   schema.Harness
-	}{
-		{"claude", schema.HarnessClaudeCode},
-		{"gemini", schema.HarnessGeminiCLI},
-	}
+	cases := loadFixtureRows[legacyHarnessFixture](t, legacyHarnessFixtureYAML, 2)
 	m := NewContentMigrator()
 	for _, tc := range cases {
-		t.Run(tc.legacy, func(t *testing.T) {
-			got, rewrite, err := m.Migrate(context.Background(), legacyBarePayloadJSON(tc.legacy))
+		t.Run(tc.Legacy, func(t *testing.T) {
+			got, rewrite, err := m.Migrate(context.Background(), legacyBarePayloadJSON(tc.Legacy))
 			if err != nil {
 				t.Fatalf("Migrate legacy bare payload: %v", err)
 			}
 			if !rewrite {
 				t.Errorf("legacy bare payload must rewrite (rewrite=true), got false")
 			}
-			if got.Harness != tc.want {
-				t.Errorf("harness key+value migrate: got %q, want %q", got.Harness, tc.want)
+			if got.Harness != tc.Canonical {
+				t.Errorf("harness key+value migrate: got %q, want %q", got.Harness, tc.Canonical)
 			}
 			if len(got.Turns) != 2 {
 				t.Errorf("turns preserved: got %d, want 2", len(got.Turns))

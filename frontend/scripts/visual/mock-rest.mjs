@@ -11,7 +11,7 @@
    Point the village frontend at it via `NEXT_PUBLIC_API_URL` (the only env the app reads for its API
    base), then run boot-village against the real route:
      MOCK_REST_PORT=8788 node scripts/visual/mock-rest.mjs &
-     NEXT_PUBLIC_API_URL=http://localhost:8788/api/v1 npm run dev &
+     NEXT_PUBLIC_API_URL=http://localhost:8788/api/v1 pnpm dev &
      CHROME_PATH=... VILLAGE_TRANSCRIPT=demo node scripts/visual/boot-village.mjs
 
    env: MOCK_REST_PORT (default 8788), MOCK_TRANSCRIPT_ID (default `demo`). Runs until killed. */
@@ -207,8 +207,8 @@ const groupsList = [groupDetail.group]
 
 const ts = (min) => new Date(Date.parse('2026-06-17T09:12:00Z') + min * 60_000).toISOString()
 
-// The strict observed-model fixture is served through the same REST boundary as production. The source
-// omissions remain absent from the JSON object; only Fairtrade's adapter derives sticky carry-forward.
+// Preserve source omissions at the REST boundary. Fairtrade's adapter, not
+// Village, derives effective model carry-forward for rendering.
 const observedModelTurns = observedModelFixture.turns.map((turn, fixtureIndex) => {
   const wireTurn = {
     index: fixtureIndex + 1,
@@ -222,6 +222,7 @@ const observedModelTurns = observedModelFixture.turns.map((turn, fixtureIndex) =
   if (turn.sourceObservation != null) wireTurn.observedModel = turn.sourceObservation
   return wireTurn
 })
+
 const content = {
   id: 'sess_demo_0001',
   harness: 'claude-code',
@@ -235,7 +236,7 @@ const content = {
   toolCallCount: 0,
   project: 'observed-model-contract',
   model: observedModelFixture.sessionModel,
-  workingDirectory: '/Users/dev/observed-model-contract',
+  workingDirectory: '/workspace/observed-model-contract',
   outcome: 'resolved',
   turns: [
     {
@@ -256,7 +257,7 @@ const detail = {
     id: ID,
     local_id: 'sess_demo_0001',
     visibility: 'public',
-    title: 'Port the transcript canvas into the shared package',
+    title: 'Verify sticky model attribution on the mounted Village transcript route',
     description: 'Host-integration boot fixture.',
     project_name: 'observed-model-contract',
   },

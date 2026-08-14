@@ -218,7 +218,7 @@ export default function GroupDetailPage({
       linkedGithubOrg: group.linked_github_org,
       // Humanized for display ("members_only" -> "members only") -- the GovTile
       // renders these as plain text, not a typed enum, so the wire value's
-      // underscore never belongs on screen (UAT finding: raw "members_only").
+      // underscore is a wire detail and never belongs on screen.
       acceptanceMode: humanizeEnum(group.acceptance_mode),
       dataAccess: humanizeEnum(group.data_access),
       role: yourRole || "",
@@ -439,16 +439,10 @@ export default function GroupDetailPage({
     .sort((a, b) => (roleOrder[a.role] ?? 3) - (roleOrder[b.role] ?? 3))
     .map((m) => ({
       id: m.id,
-      // "@" prefix, display-only (round 9 addendum, mirrors the settings page's own adapter):
-      // the demo's own roster mock data stores "@" AS PART OF the handle string itself
-      // (CommonsManage.jsx: `handle: '@alice-dev'`) -- RoleRoster has no separate "@-glyph
-      // avatar" mode, its fallback avatar (no avatar_url) just takes the handle's own first
-      // character, so the demo's "@" fallback avatar is simply a side effect of its handle
-      // already including "@". m.github_username itself (the stored login) is untouched -- this
-      // only prefixes the DISPLAY value passed to RoleRoster.
+      // RoleRoster derives its fallback avatar from the first display-handle
+      // character, so include "@" here without changing the stored login.
       handle: `@${m.github_username}`,
-      // Display name back per explicit user feedback (round 2): RoleRoster's own .rr-who
-      // renders it as a second line beneath the handle automatically when set.
+      // RoleRoster renders the display name beneath the handle when present.
       name: m.display_name ?? undefined,
       role: m.role as "owner" | "member" | "contributor" | "guest",
       owner: m.role === "owner",
@@ -974,8 +968,7 @@ export default function GroupDetailPage({
           {!isMember && user && group.acceptance_mode === "open" && (
             // size="sm" -- every other action button on this surface (<Manage>'s join/leave/
             // contribute/settings, RailShell's invite) is the fairtrade small (28px) button; this
-            // one was left at the default medium (36px) size, reading as visibly off the design
-            // system next to them (UAT finding: "the 'data access' buttons don't match ... DS").
+            // one uses the same small size so adjacent actions remain consistent.
             <Button
               variant="primary"
               size="sm"
@@ -1086,9 +1079,7 @@ export default function GroupDetailPage({
 
   return (
     <div className="cmg-root max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-      {/* Breadcrumb: <Manage> already renders the "village > collectives > name" crumb (matching
-          the fairtrade demo) inside its own hero -- an app-chrome breadcrumb here duplicated it
-          (UAT finding: "app shows a DOUBLE breadcrumb"). Single source of truth is <Manage>'s. */}
+      {/* Manage owns the single "village > collectives > name" breadcrumb. */}
 
       <Manage
         data={manageData}

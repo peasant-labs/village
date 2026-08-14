@@ -160,20 +160,17 @@ func TestPublishTranscript_MissingModelHarness(t *testing.T) {
 
 	h.PublishTranscript(w, r)
 
-	// 1e8tk: model.harness is now required in the schema/OpenAPI contract, so an
-	// omitted harness key is rejected as a documented schema-422 (it was accepted
-	// in rc1 — the B1 hole, now closed). The vendored publish-request schema
+	// model.harness is required in the schema/OpenAPI contract, so an
+	// omitted harness key is rejected as a documented schema-422. The embedded publish-request schema
 	// (SchemaModelInfo.required=["harness","model"]) is the sole enforcement.
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Errorf("status: got %d, want 422 (omitted harness rejected by required-harness schema) (body: %s)", w.Code, w.Body.String())
 	}
 }
 
-// TestPublishTranscript_MissingModel asserts that an absent model.model is now a
-// documented schema-422 (1e8tk), NOT the prior hand-written 400. The
-// "model is required" 400 guard was removed; SchemaModelInfo.required=["harness",
-// "model"] in the vendored schema is the sole enforcement, so an empty model key
-// unifies to 422.
+// TestPublishTranscript_MissingModel asserts that an absent model.model is a
+// documented schema-layer 422. SchemaModelInfo.required=["harness","model"] in
+// the embedded contract is the sole model-field enforcement.
 func TestPublishTranscript_MissingModel(t *testing.T) {
 	mq := &mockQuerier{
 		getTranscriptIDByOwnerAndLocalID: func(context.Context, sqlc.GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error) {
@@ -328,10 +325,10 @@ func TestPublishTranscript_ValidMinimalPayload(t *testing.T) {
 	}
 }
 
-// FB/A unified-schema-c7lco: a publish body whose entries[].harness carry a
+// A publish body whose entries[].harness carry a
 // PRE-RENAME value ("claude" — from session_entries.provider rows the V33 rename
 // never canonicalized) but whose model.harness is already canonical must be
-// ACCEPTED. The vendored schema enum-keys entries[].harness and would 422 the
+// ACCEPTED. The embedded contract enum-keys entries[].harness and would reject the
 // pre-rename value, so normalizeMetadataHarnessKey canonicalizes entries[].harness
 // (symmetric with model.harness) BEFORE schema validation. The schema itself is
 // not loosened — an UNKNOWN garbage harness still 422s (asserted by the second

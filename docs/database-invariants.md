@@ -38,9 +38,8 @@ boundary are documented in
   const in the same commit as a new migration). Per-migration test files assert
   only their own migration; prior migrations' tests are never retrofitted.
 - **Version gaps are legal** (19 and 25 are absent). **025 is deliberately
-  unregistered**: two different in-branch generations of it were applied to
-  branch-era databases under `version=25`, so the number is burned. The stale
-  `version=25` row on those databases is intentionally left as a forensic trace.
+  unregistered and must not be reused.** Migration 026 converges databases that
+  may already carry a `version=25` registry row; that row is left untouched.
 - **026 is a convergent fixpoint.** All DDL is guarded (`IF NOT EXISTS` /
   `DROP … IF EXISTS`; triggers use `DROP TRIGGER IF EXISTS` + `CREATE` since
   `CREATE TRIGGER` has no guard) and **ordered drop-first**: old-generation
@@ -110,13 +109,13 @@ boundary are documented in
   legal UX.
 - **Obligation model ceiling:** `attribution_required` / `share_alike` /
   `commercial_ok` cover the CC menu ONLY. `proprietary` / `unlicensed` / `*-ND`
-  (peasant#22) require new axes (e.g. `redistribution_ok`, `derivatives_ok`) -
+  require new axes (e.g. `redistribution_ok`, `derivatives_ok`) -
   an `ALTER`, never a reinterpretation of the existing three.
 - **No permissiveness rank / no computed "meet".** Licenses form a PARTIAL order
   on independent axes (CC-BY-NC and CC-BY-SA are incomparable); any scalar total
   order is incoherent. Collective licensing is **decided by the collective at
   creation and consented to at join time** - a human decision, never a computed
-  resolution (Plan-UAT ratified).
+  resolution.
 - **`transcripts.license_id`** is a nullable `TEXT REFERENCES licenses(id)`.
   `NULL` means *unset/legacy* - nothing was granted; default copyright applies.
   Nothing is ever retroactively licensed; owners license/re-license via the

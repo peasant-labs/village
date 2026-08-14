@@ -13,22 +13,18 @@
  * `can_read` is omitted (auth/routing concern, not a display concern inside
  * the component).
  *
- * FIXTURE GAP: pending_members is optional on the wire and absent from the
- * current mock fixture. The adapter normalizes it to [] when absent. The
- * surface slice worker must also fill the mock fixture with pending_members
- * data so the moderation UI can be developed and tested.
+ * `pending_members` is optional on the wire. The adapter normalizes an omitted
+ * value to [] so the moderation UI always receives a stable collection.
  *
  * Mutations (onCreateGroup, onUpdateGroup, onJoinGroup, onPromoteMember,
  * onRemoveMember, onAddMember, onDeleteGroup) are component-level callback
- * props wired by the surface slice — they are NOT part of ManagePayload.
+ * props supplied by the route — they are not part of ManagePayload.
  *
  * This is the village adapter seam: the route layer normalizes the hook output
  * here once, then hands the cooked payload to the manage surface shell.
  *
  * Wire types sourced from: frontend/src/lib/types.ts
- * Payload type sourced from: fairtrade-design-system src/ui/commons/types.js
- *   — will import from @peasant-labs/fairtrade/commons once the package
- *     entry point is wired. Type aliases below mirror the JSDoc typedefs.
+ * Payload shape sourced from: @peasant-labs/fairtrade/commons.
  */
 
 import type {
@@ -49,8 +45,7 @@ import type {
  * fixture happened to fall back to a pre-formatted default (`collective.dataAccess
  * || 'members only'`) rather than a real enum value; a real collective's
  * `data_access`/`acceptance_mode` is never empty, so that fallback never fires in
- * production and the raw wire value (underscore and all) reached the GovTile
- * unformatted (UAT finding: "the access tile shows raw enum 'members_only'").
+ * production and the raw wire value otherwise reaches the GovTile unformatted.
  * Applied at the adapter boundary so every Manage-surface consumer of these
  * enums gets the humanized form for free.
  */
@@ -58,9 +53,7 @@ export function humanizeEnum(value: string): string {
   return value.replace(/_/g, ' ');
 }
 
-// ── Payload type mirrors (canonical source: fairtrade src/ui/commons/types.js) ─
-// Replace with `import type { ManagePayload } from '@peasant-labs/fairtrade/commons'`
-// once the fairtrade package scaffold wires the entry point.
+// ── Payload type mirror (canonical source: @peasant-labs/fairtrade/commons) ────
 
 type TranscriptVisibility = 'public' | 'private' | 'shared';
 type AcceptanceMode = 'open' | 'verified_only' | 'curated';
@@ -163,7 +156,7 @@ export interface ManageAdapterInput {
   models: GroupModelBreakdown[];
   /** useGroup().data.contributors */
   contributors: GroupContributor[];
-  /** useGroup().data.pending_members ?? [] — normalize absent to [] (fixture gap) */
+  /** useGroup().data.pending_members ?? [] — normalize an omitted value to [] */
   pendingMembers: GroupMember[];
   /** useGroup().data.your_role — "" when the viewer is not a member */
   yourRole: ViewerRole;
@@ -172,7 +165,7 @@ export interface ManageAdapterInput {
 /**
  * Map the useGroup hook result to the cooked ManagePayload.
  * TRANSFORM (small): snake_case → camelCase; can_read omitted; pending_members
- * normalized to [] when absent (fixture gap — see module JSDoc).
+ * normalized to [] when absent.
  *
  * The caller (the Manage page/shell) runs useGroup(id) and passes its .data
  * fields as one named object. The adapter is called every time the hook result

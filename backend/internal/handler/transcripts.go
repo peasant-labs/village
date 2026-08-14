@@ -210,22 +210,17 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate the required identity + model fields with accurate, field-level
-	// errors (fixes A1: the prior block validated Model.Provider but reported
-	// "modelHarness", and never validated Model.Model at all).
+	// Session identity is a handler-owned precondition with a field-level error.
 	if req.Identity.SessionID == "" {
 		writeError(w, http.StatusBadRequest, "sessionId is required")
 		return
 	}
-	// Enforce the vendored OpenAPI PublishRequest schema as the SOLE, fail-closed
-	// gate for the required model fields (1e8tk): SchemaModelInfo.required now
+	// Enforce the schema module's embedded PublishRequest contract as the sole,
+	// fail-closed gate for required model fields: SchemaModelInfo.required
 	// declares [harness, model] and SchemaPublishRequest.required declares [model],
 	// so an absent/empty harness or model is rejected here as a documented
-	// schema-422. The prior hand-written "model is required" 400 guard is removed —
-	// it enforced a rule the published spec did not declare (spec drift); an absent
-	// model now unifies to 422 through the schema. FAIL-CLOSED: a nil validator
-	// means the vendored schema failed to compile (a build/asset bug); reject
-	// rather than silently accept an unvalidated publish.
+	// schema-layer 422. A nil validator means the embedded contract could not be
+	// compiled, so reject rather than accepting an unvalidated publish.
 	v := payloadValidator()
 	if v == nil {
 		writeError(w, http.StatusServiceUnavailable, "publish validation unavailable")
@@ -962,7 +957,7 @@ func (h *Handler) UpdateTranscript(w http.ResponseWriter, r *http.Request) {
 	// Build the partial-update intent; the writer resolves omitted fields against the
 	// LOCKED pre-image inside the txn (so a concurrent edit is not reverted). License
 	// is menu-constrained: omitted ⇒ preserve, "" ⇒ clear to NULL, a menu value ⇒ set.
-	// Validated here (it is not the vendored publish contract).
+	// PATCH validation is handler-owned because the publish contract does not apply.
 	patch := metadataPatch{
 		Title:       req.Title,
 		Description: req.Description,

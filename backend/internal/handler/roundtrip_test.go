@@ -53,8 +53,8 @@ func TestRoundTrip(t *testing.T) {
 // license stays empty (NULL ⇄ ""). The pull emit path is covered separately by
 // TestPull_LicenseRoundTrip_RealPostgres (real DB, both pull mappers).
 func TestRoundTrip_License(t *testing.T) {
-	// Derived from the contract menu so a 4th license is covered the moment the
-	// pkg/schema pin moves — never silently uncovered (panel M8).
+	// Derive cases from the published contract menu so every newly pinned license
+	// is covered without a second hand-maintained list.
 	cases := append([]schema.License{""}, schema.AllLicenses...)
 	for _, lic := range cases {
 		name := string(lic)

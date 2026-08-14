@@ -25,10 +25,10 @@ func schemaToTranscriptParams(req schema.PublishRequest, blobKey string, blobSiz
 		Description: pgtype.Text{Valid: false},
 		Visibility:  DefaultVisibility,
 		// License is captured at publish (create) from the producer-stamped
-		// req.License. The vendored 0.4.0 schema's SchemaLicense enum already
+		// req.License. The schema module's embedded SchemaLicense enum already
 		// rejected any out-of-menu value at the 422 gate, so this is either empty
 		// (→ NULL, legacy/unset) or a valid seeded licenses.id (FK-safe). Changing
-		// it after publish is governed separately (Slice B, with an audit event).
+		// it after publish is governed separately and writes an audit event.
 		LicenseID:               pgtype.Text{String: string(req.License), Valid: req.License != ""},
 		ModelProvider:           string(req.Model.Harness),
 		ModelName:               pgtype.Text{String: string(req.Model.Model), Valid: req.Model.Model != ""},
@@ -120,9 +120,9 @@ func schemaToCommitRecords(commits []schema.CommitInfo) []commitJSONRecord {
 }
 
 // extractRepoName derives a clean project display name.
-// It prefers parsing the git remote URL (e.g. "github.com/user/Neurondle.git" → "Neurondle"),
+// It prefers parsing the git remote URL (e.g. "github.com/example-org/sample-app.git" → "sample-app"),
 // falling back to stripping known directory prefixes from the dash-delimited project name key
-// (e.g. "-Users-pigeonzow-Documents-GitHub-data-leverage-village" → "data-leverage-village").
+// (e.g. "-Users-developer-Documents-GitHub-sample-app" → "sample-app").
 func extractRepoName(projectName string, gitRemote string) string {
 	// Try git remote first
 	if gitRemote != "" {
@@ -149,7 +149,7 @@ func extractRepoName(projectName string, gitRemote string) string {
 		}
 	}
 
-	// Dash-delimited path key (e.g. "-Users-pigeonzow-Documents-GitHub-project-name")
+	// Dash-delimited path key (e.g. "-Users-developer-Documents-GitHub-project-name")
 	// Strip leading dash, split into segments, find the last known directory
 	// marker and take everything after it as the project name.
 	knownDirs := []string{"github", "documents", "projects", "repos", "src", "code", "dev", "home"}
