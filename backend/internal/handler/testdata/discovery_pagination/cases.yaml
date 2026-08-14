@@ -1,0 +1,161 @@
+# Anonymous discovery reads against the shared inventory. Each case asserts the
+# EXACT ordered ids for one page plus the wire metadata the response must
+# preserve: total, the echoed page, and the normalized limit. The private row
+# (u6) is never expected and total is always 5, proving visibility filtering.
+# Adjacent pages of the same sort partition the full ordering with no duplicate,
+# omission, or leak. The limit cases pin wire normalization: the Village UI limit
+# 24 is preserved verbatim, while an out-of-bounds limit (below 1 or above 100)
+# normalizes to 20. The echoed page always equals the requested page (including
+# the positive out-of-range page).
+#
+# Full deterministic orderings (public rows only):
+#   recent   : u5, u4, u3, u2, u1
+#   turns    : u4, u3, u2, u1, u5
+#   tokens   : u5, u2, u3, u1, u4
+#   duration : u5, u4, u2, u1, u3
+- name: recent_page1
+  sort: ""
+  page: 1
+  limit: 2
+  expectedTotal: 5
+  expectedPage: 1
+  expectedLimit: 2
+  expectedIds:
+    - "55555555-5555-5555-5555-555555555555"
+    - "44444444-4444-4444-4444-444444444444"
+- name: recent_page2
+  sort: ""
+  page: 2
+  limit: 2
+  expectedTotal: 5
+  expectedPage: 2
+  expectedLimit: 2
+  expectedIds:
+    - "33333333-3333-3333-3333-333333333333"
+    - "22222222-2222-2222-2222-222222222222"
+- name: recent_page3
+  sort: ""
+  page: 3
+  limit: 2
+  expectedTotal: 5
+  expectedPage: 3
+  expectedLimit: 2
+  expectedIds:
+    - "11111111-1111-1111-1111-111111111111"
+- name: recent_page4_out_of_range_positive
+  sort: ""
+  page: 4
+  limit: 2
+  expectedTotal: 5
+  expectedPage: 4
+  expectedLimit: 2
+  expectedIds: []
+- name: recent_ui_limit_24_preserved
+  sort: ""
+  page: 1
+  limit: 24
+  expectedTotal: 5
+  expectedPage: 1
+  expectedLimit: 24
+  expectedIds:
+    - "55555555-5555-5555-5555-555555555555"
+    - "44444444-4444-4444-4444-444444444444"
+    - "33333333-3333-3333-3333-333333333333"
+    - "22222222-2222-2222-2222-222222222222"
+    - "11111111-1111-1111-1111-111111111111"
+- name: recent_invalid_limit_zero_normalizes_to_20
+  sort: ""
+  page: 1
+  limit: 0
+  expectedTotal: 5
+  expectedPage: 1
+  expectedLimit: 20
+  expectedIds:
+    - "55555555-5555-5555-5555-555555555555"
+    - "44444444-4444-4444-4444-444444444444"
+    - "33333333-3333-3333-3333-333333333333"
+    - "22222222-2222-2222-2222-222222222222"
+    - "11111111-1111-1111-1111-111111111111"
+- name: recent_invalid_limit_over_max_normalizes_to_20
+  sort: ""
+  page: 1
+  limit: 500
+  expectedTotal: 5
+  expectedPage: 1
+  expectedLimit: 20
+  expectedIds:
+    - "55555555-5555-5555-5555-555555555555"
+    - "44444444-4444-4444-4444-444444444444"
+    - "33333333-3333-3333-3333-333333333333"
+    - "22222222-2222-2222-2222-222222222222"
+    - "11111111-1111-1111-1111-111111111111"
+- name: turns_page1
+  sort: "turns"
+  page: 1
+  limit: 2
+  expectedTotal: 5
+  expectedPage: 1
+  expectedLimit: 2
+  expectedIds:
+    - "44444444-4444-4444-4444-444444444444"
+    - "33333333-3333-3333-3333-333333333333"
+- name: turns_page2
+  sort: "turns"
+  page: 2
+  limit: 2
+  expectedTotal: 5
+  expectedPage: 2
+  expectedLimit: 2
+  expectedIds:
+    - "22222222-2222-2222-2222-222222222222"
+    - "11111111-1111-1111-1111-111111111111"
+- name: turns_page3
+  sort: "turns"
+  page: 3
+  limit: 2
+  expectedTotal: 5
+  expectedPage: 3
+  expectedLimit: 2
+  expectedIds:
+    - "55555555-5555-5555-5555-555555555555"
+- name: tokens_page1
+  sort: "tokens"
+  page: 1
+  limit: 2
+  expectedTotal: 5
+  expectedPage: 1
+  expectedLimit: 2
+  expectedIds:
+    - "55555555-5555-5555-5555-555555555555"
+    - "22222222-2222-2222-2222-222222222222"
+- name: tokens_page2
+  sort: "tokens"
+  page: 2
+  limit: 2
+  expectedTotal: 5
+  expectedPage: 2
+  expectedLimit: 2
+  expectedIds:
+    - "33333333-3333-3333-3333-333333333333"
+    - "11111111-1111-1111-1111-111111111111"
+- name: duration_page1
+  sort: "duration"
+  page: 1
+  limit: 3
+  expectedTotal: 5
+  expectedPage: 1
+  expectedLimit: 3
+  expectedIds:
+    - "55555555-5555-5555-5555-555555555555"
+    - "44444444-4444-4444-4444-444444444444"
+    - "22222222-2222-2222-2222-222222222222"
+- name: duration_page2
+  sort: "duration"
+  page: 2
+  limit: 3
+  expectedTotal: 5
+  expectedPage: 2
+  expectedLimit: 3
+  expectedIds:
+    - "11111111-1111-1111-1111-111111111111"
+    - "33333333-3333-3333-3333-333333333333"
