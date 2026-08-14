@@ -35,6 +35,8 @@ export type PaginationExpect = {
   ariaBusy?: boolean;
   status?: string;
   statusIncludes?: string;
+  /** A substring the visible loading cue must contain, or `false` to require its absence. */
+  visibleLoading?: string | false;
   alert?: boolean;
   requestedPages?: number[];
   abortedPages?: number[];
@@ -161,6 +163,7 @@ function parseExpect(raw: unknown, location: string): PaginationExpect {
       "ariaBusy",
       "status",
       "statusIncludes",
+      "visibleLoading",
       "alert",
       "requestedPages",
       "abortedPages",
@@ -181,6 +184,13 @@ function parseExpect(raw: unknown, location: string): PaginationExpect {
   if ("ariaBusy" in raw) out.ariaBusy = assertBoolean(raw.ariaBusy, `${location}.ariaBusy`);
   if ("status" in raw) out.status = assertString(raw.status, `${location}.status`);
   if ("statusIncludes" in raw) out.statusIncludes = assertString(raw.statusIncludes, `${location}.statusIncludes`);
+  if ("visibleLoading" in raw) {
+    const value = raw.visibleLoading;
+    if (value !== false && typeof value !== "string") {
+      throw new Error(`${location}.visibleLoading must be a string or the literal false, got ${JSON.stringify(value)}`);
+    }
+    out.visibleLoading = value;
+  }
   if ("alert" in raw) out.alert = assertBoolean(raw.alert, `${location}.alert`);
   if ("requestedPages" in raw) out.requestedPages = assertIntegerArray(raw.requestedPages, `${location}.requestedPages`);
   if ("abortedPages" in raw) out.abortedPages = assertIntegerArray(raw.abortedPages, `${location}.abortedPages`);

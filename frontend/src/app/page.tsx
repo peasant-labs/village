@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { SearchX } from "lucide-react";
+import { Loader2, SearchX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranscripts } from "@/lib/queries/transcripts";
 import { useSearchCollectives } from "@/lib/queries/groups";
@@ -128,15 +128,21 @@ export default function ExplorePage() {
         `Retry the same page to reload it.`
       : null;
 
+  // The concise transient loading text, shared by the sr-only announcer and the
+  // visible cue so both stay identical. When prior rows remain visible during a
+  // page change it names both the requested page and the page still on screen.
+  const busyMessage =
+    confirmedPage != null && confirmedPage !== requestedPage
+      ? `loading page ${requestedPage}; showing page ${confirmedPage} until it arrives`
+      : `loading page ${requestedPage}`;
+
   // The polite live region carries only transient loading/loaded status; failure
   // is owned by the alert surface, so a failure is announced exactly once.
   let statusMessage: string;
   if (isLoading) {
     statusMessage = "loading session list";
-  } else if (busy && confirmedPage != null && confirmedPage !== requestedPage) {
-    statusMessage = `loading page ${requestedPage}; showing page ${confirmedPage} until it arrives`;
   } else if (busy) {
-    statusMessage = `loading page ${requestedPage}`;
+    statusMessage = busyMessage;
   } else if (failureMessage != null) {
     statusMessage = "";
   } else if (confirmedPage != null) {
@@ -202,6 +208,23 @@ export default function ExplorePage() {
           >
             <p className="text-[13px] text-ink-3">{failureMessage}</p>
             {retryButton}
+          </div>
+        )}
+        {busy && (
+          // A concise visible loading cue so sighted users see that the newer page
+          // is loading while the prior page stays on screen (the pager already
+          // reflects the requested page). Icon plus text carry the meaning, never
+          // colour alone; the spin is reduced-motion safe. It is aria-hidden so
+          // the single sr-only polite region above remains the sole announcer and
+          // the message is not read twice. It sits above the unchanged results, so
+          // no row is remounted and focus is not moved.
+          <div
+            aria-hidden="true"
+            data-testid="session-list-loading"
+            className="flex items-center gap-2 px-4 py-2 mb-4 border border-rule bg-surface text-[13px] text-ink-3"
+          >
+            <Loader2 size={14} className="text-ink-3 motion-safe:animate-spin" aria-hidden="true" />
+            <span className="mono tnum">{busyMessage}</span>
           </div>
         )}
         <div aria-busy={busy} data-testid="session-list-results">

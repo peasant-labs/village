@@ -139,11 +139,14 @@ class Schedule {
 }
 
 async function flush(): Promise<void> {
-  // A macrotask inside act() drains the fetch→json()→TanStack→React chain fully,
-  // so assertions (including the negative "no repaint" checks) are deterministic
-  // without any polling or fake timers.
+  // Drain the fetch→json()→TanStack→React chain fully. Several macrotasks are
+  // awaited (not one) so an erroneous repaint that hops through a deeper async
+  // chain still lands before the following assertion — the drain is bounded and
+  // deterministic, never a timing sleep used as the oracle.
   await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    for (let i = 0; i < 4; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
   });
 }
 
@@ -153,9 +156,34 @@ function visibleIds(): string[] {
   );
 }
 
+/** The pagination landmark that owns the pager controls (never the top-nav). */
+function pager(): HTMLElement {
+  return screen.getByRole("navigation", { name: "pagination" });
+}
+
 function currentPageMarker(): number | null {
-  const marker = document.querySelector('[aria-current="page"]');
+  // Scope to the pagination landmark: a full mounted layout also marks the active
+  // route with aria-current="page" on the top-nav, so a document-wide selector
+  // could read the nav rather than the pager.
+  const marker = pager().querySelector('[aria-current="page"]');
   return marker ? Number(marker.textContent) : null;
+}
+
+/**
+ * The visible (non-sr-only) transient loading cue text, or null when the cue is
+ * absent. This is the sighted-user counterpart to the polite announcer; it is a
+ * distinct element from the sr-only status region.
+ */
+function visibleLoadingText(): string | null {
+  const cue = screen.queryByTestId("session-list-loading");
+  if (cue == null) return null;
+  if (cue.classList.contains("sr-only")) {
+    throw new Error(
+      `visible loading cue "session-list-loading" is sr-only; sighted users would see no loading text. ` +
+        `The cue must be a visible strip (icon + text), separate from the sr-only polite status region.`,
+    );
+  }
+  return cue.textContent ?? "";
 }
 
 function statusText(): string {
@@ -209,7 +237,9 @@ function assertExpectations(schedule: Schedule, expectation: PaginationExpect, l
     expect(currentPageMarker(), `${location}: current page marker`).toBe(expectation.currentPage);
   }
   if (expectation.visibleIds !== undefined) {
-    expect([...visibleIds()].sort(), `${location}: visible row ids`).toEqual([...expectation.visibleIds].sort());
+    // Ordered comparison: the rows render in the response/fixture order, so an
+    // intra-page row-order regression is caught, not sorted away.
+    expect(visibleIds(), `${location}: visible row ids (in order)`).toEqual(expectation.visibleIds);
   }
   if (expectation.uniqueIds) {
     const ids = visibleIds();
@@ -242,8 +272,17 @@ function assertExpectations(schedule: Schedule, expectation: PaginationExpect, l
       `${location}: focus remains on the activated pager control`,
     ).toBe(`page ${expectation.focusPage}`);
   }
+  if (expectation.visibleLoading !== undefined) {
+    const cue = visibleLoadingText();
+    if (expectation.visibleLoading === false) {
+      expect(cue, `${location}: visible loading cue must be absent when not loading`).toBeNull();
+    } else {
+      expect(cue, `${location}: visible loading cue must be present while a page loads`).not.toBeNull();
+      expect(cue, `${location}: visible loading cue text`).toContain(expectation.visibleLoading);
+    }
+  }
   if (expectation.singleCurrent) {
-    expect(document.querySelectorAll('[aria-current="page"]').length, `${location}: exactly one current page`).toBe(1);
+    expect(pager().querySelectorAll('[aria-current="page"]').length, `${location}: exactly one current page`).toBe(1);
   }
   if (expectation.prevDisabled !== undefined) {
     expect((pagerButton("previous page") as HTMLButtonElement).disabled, `${location}: previous-page disabled`).toBe(
@@ -293,6 +332,13 @@ describe("mounted / session pagination race and accessibility evidence", () => {
         // A stale-page repaint or an extra oscillating request cannot converge and
         // fails closed here rather than being masked by a fixed sleep.
         await waitFor(() => assertExpectations(schedule, step.expect, location));
+        // Harden steady-state / negative steps (e.g. an abort-ignoring late
+        // response that must NOT repaint): once converged, drain again and
+        // re-assert. A transient erroneous repaint arriving after the first
+        // convergence would flip an observable here and fail closed, instead of
+        // slipping through because waitFor passed on its first evaluation.
+        await flush();
+        assertExpectations(schedule, step.expect, `${location} (post-settle)`);
       }
     });
   }

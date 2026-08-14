@@ -1,14 +1,17 @@
 /* Mounted `/` pagination browser evidence (one theme per run).
 
    Drives the REAL Explore route in a real browser through the REAL published
-   Explore pager: it captures page 1, activates the "page 2" control, and
-   captures the settled page 2 (and, when the mock adds latency, the busy
-   "loading page 2; showing page 1" state). It then probes the live DOM/computed
-   accessibility semantics that the pagination fix must preserve — the numbered
-   pagination landmark, exactly one aria-current, aria-busy on the results while a
-   page loads, and the page-named row titles proving the displayed page actually
-   changed. A run FAILS closed if the real route regressed (no page change, wrong
-   current marker, or a stale-page repaint), so a broken build cannot pass.
+   Explore pager: it captures page 1, activates the "page 2" control, captures the
+   busy "loading page 2; showing page 1" state, and captures the settled page 2.
+   It probes the live DOM/computed semantics the pagination fix must preserve — the
+   numbered pagination landmark (aria-current scoped to it), exactly one
+   aria-current, aria-busy on the results while a page loads, the VISIBLE loading
+   cue (present with honest text while loading, absent when settled), and the
+   page-named row titles proving the displayed page actually changed. A run FAILS
+   closed if the real route regressed (no page change, wrong current marker, a
+   stale-page repaint, or a missing/sr-only loading cue), so a broken build cannot
+   pass. Captures are element-scoped to <main> (not fullPage over the fixed navbar)
+   with captureBeyondViewport, and a framing gate rejects a fixed-header artifact.
 
    Pair with mock-rest-pagination.mjs (the data + optional latency) and a running
    `next dev` whose NEXT_PUBLIC_API_URL points at that mock.
@@ -77,6 +80,9 @@ const readState = () =>
     const marker = pager?.querySelector('[aria-current="page"]') ?? null
     const results = document.querySelector('[data-testid="session-list-results"]')
     const status = document.querySelector('[data-testid="session-list-status"]')
+    // The visible (non-sr-only) transient loading cue, distinct from the sr-only
+    // polite announcer. Sighted users must see loading text while prior rows stay.
+    const cue = document.querySelector('[data-testid="session-list-loading"]')
     const titles = [...document.querySelectorAll('.cex-title, .cex-trow-title')].map((el) => el.textContent?.trim() || '')
     const ids = [...document.querySelectorAll('a[href^="/transcripts/"]')].map((a) => a.getAttribute('href'))
     return {
@@ -85,6 +91,8 @@ const readState = () =>
       currentPage: marker ? Number(marker.textContent) : null,
       ariaBusy: results ? results.getAttribute('aria-busy') : null,
       status: status ? status.textContent : null,
+      loadingCue: cue ? (cue.textContent || '').trim() : null,
+      loadingSrOnly: cue ? cue.classList.contains('sr-only') : null,
       titles,
       ids,
       nextDisabled: document.querySelector('button[aria-label="next page"]')?.disabled ?? null,
@@ -107,12 +115,36 @@ if (actualTheme !== theme) await fail(`requested theme "${theme}" but document i
 if (!(await waitFor('.cex-tcard, .cex-trow'))) await fail(`browse rows never mounted at ${URL}.`)
 if (!(await waitFor('nav[aria-label="pagination"]'))) await fail('the numbered pagination landmark never rendered; the dataset must exceed one page.')
 
+// Element-scoped capture of the mounted <main> surface (the production route
+// body below the fixed navbar, which holds the visible loading cue, the Explore
+// surface, and the pager). This mirrors the established element-scoped pattern
+// (explore-shoot.mjs) instead of page.screenshot({ fullPage: true }), which over a
+// position:fixed header risks the header duplication/float artifact. A framing
+// gate fails closed if <main> is missing/tiny or if any position:fixed element is
+// a descendant of the capture (which would reintroduce a floating-header artifact).
 const shoot = async (name) => {
   const file = join(out, `pagination-${name}-${theme}.png`)
-  await page.screenshot({ path: file, fullPage: true })
+  const el = await page.$('main')
+  if (!el) await fail('the mounted <main> production surface was not present to capture.')
+  const box = await el.boundingBox()
+  if (!box || box.width < 320 || box.height < 320) {
+    await fail(`captured <main> box is missing or too small (${JSON.stringify(box)}); the surface did not lay out.`)
+  }
+  const fixedInside = await page.evaluate(() => {
+    const main = document.querySelector('main')
+    if (!main) return 'no-main'
+    for (const node of main.querySelectorAll('*')) {
+      if (getComputedStyle(node).position === 'fixed') return node.getAttribute('class') || node.tagName
+    }
+    return null
+  })
+  if (fixedInside) {
+    await fail(`a position:fixed element (${fixedInside}) is a descendant of <main>; an element-scoped capture would include a floating-header artifact. Capture a container that excludes the fixed navbar.`)
+  }
+  await el.screenshot({ path: file, captureBeyondViewport: true })
   // Fail a blank/near-empty or duplicate capture so a broken surface cannot pass.
-  await gate.assert(`pagination-${name}`, file, { sel: '.cex-explore, main' })
-  console.log(`  shot ${file}`)
+  await gate.assert(`pagination-${name}`, file, { sel: 'main' })
+  console.log(`  shot ${file} (${Math.round(box.width)}x${Math.round(box.height)})`)
   return file
 }
 
@@ -139,14 +171,25 @@ const clicked = await page.evaluate(() => {
 })
 if (!clicked) await fail('the "page 2" pager control was not present to activate.')
 
-// Best-effort busy capture: if the mock adds latency, the aria-busy state is
-// visible for a moment. Non-gating (timing dependent) but recorded when present.
-await pause(60)
-const mid = await readState()
-if (mid.ariaBusy === 'true' && mid.currentPage === 2) {
-  await shoot('page2-loading')
-  console.log(`  busy status: ${JSON.stringify(mid.status)}`)
+// Required: capture and assert the VISIBLE loading cue during the page-2
+// transition. The mock adds latency (PAGINATION_DELAY_MS) so the pending state is
+// observable; poll for it and fail closed if it never appears.
+let mid = null
+const midStart = Date.now()
+while (Date.now() - midStart < 6000) {
+  const s = await readState()
+  if (s.ariaBusy === 'true' && s.currentPage === 2) { mid = s; break }
+  await pause(50)
 }
+if (!mid) {
+  await fail('never observed the page-2 pending state; set PAGINATION_DELAY_MS on mock-rest-pagination so the visible loading cue can be captured.')
+}
+if (!mid.loadingCue) await fail('the visible loading cue (session-list-loading) was absent during the page-2 transition; sighted users would see no loading text.')
+if (mid.loadingSrOnly) await fail('the loading cue is sr-only; it must be a visible strip separate from the sr-only announcer.')
+if (!/loading page 2/i.test(mid.loadingCue)) await fail(`loading cue text is not honest: ${JSON.stringify(mid.loadingCue)} (expected to name the requested page 2).`)
+if (!/showing page 1/i.test(mid.loadingCue)) await fail(`loading cue must name the page still shown while loading: ${JSON.stringify(mid.loadingCue)}.`)
+console.log(`  loading cue: ${JSON.stringify(mid.loadingCue)}`)
+await shoot('page2-loading')
 
 // Wait for page 2 to settle.
 const settleStart = Date.now()
@@ -161,6 +204,7 @@ if (page2.currentCount !== 1) await fail(`expected exactly one aria-current on p
 if (!page2.titles.some((t) => /Page 2/i.test(t))) await fail(`page 2 rows do not name page 2: ${JSON.stringify(page2.titles.slice(0, 3))}`)
 if (page2.titles.some((t) => /Page 1/i.test(t))) await fail(`page 1 rows are still shown after settling on page 2 (mixed/stale repaint): ${JSON.stringify(page2.titles.slice(0, 3))}`)
 if (new Set(page2.ids).size !== page2.ids.length) await fail(`duplicate row ids on page 2: ${JSON.stringify(page2.ids)}`)
+if (page2.loadingCue) await fail(`the visible loading cue is still present after page 2 settled: ${JSON.stringify(page2.loadingCue)} (it must clear when not loading).`)
 await shoot('page2')
 
 if (errs.length) {
@@ -169,5 +213,5 @@ if (errs.length) {
   process.exit(1)
 }
 
-console.log(`OK [explore-pagination-shoot.mjs] ${theme}: page 1 -> page 2 verified on the mounted route (current marker, page-named rows, unique ids, single aria-current).`)
+console.log(`OK [explore-pagination-shoot.mjs] ${theme}: page 1 -> page 2 verified on the mounted route (current marker, page-named rows, unique ids, single aria-current, visible loading cue present-then-cleared, element-scoped framing).`)
 await browser.close()

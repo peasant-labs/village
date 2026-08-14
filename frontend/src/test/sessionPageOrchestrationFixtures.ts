@@ -23,6 +23,7 @@ export type OrchestrationExpect = {
   ariaBusy?: boolean;
   status?: string;
   refetchCalled?: boolean;
+  visibleLoading?: boolean;
 };
 
 export type OrchestrationStep = {
@@ -152,7 +153,7 @@ export function loadSessionPageOrchestrationFixtures(): SessionPageOrchestration
       assertKeys(
         rawExpect,
         ["renders", "alert"],
-        ["displayedPage", "ariaBusy", "status", "refetchCalled"],
+        ["displayedPage", "ariaBusy", "status", "refetchCalled", "visibleLoading"],
         `${location}.expect`,
       );
       const renders = assertString(rawExpect.renders, `${location}.expect.renders`) as OrchestrationRenders;
@@ -174,6 +175,14 @@ export function loadSessionPageOrchestrationFixtures(): SessionPageOrchestration
       }
       if ("refetchCalled" in rawExpect) {
         expectation.refetchCalled = assertBoolean(rawExpect.refetchCalled, `${location}.expect.refetchCalled`);
+      }
+      if ("visibleLoading" in rawExpect) {
+        expectation.visibleLoading = assertBoolean(rawExpect.visibleLoading, `${location}.expect.visibleLoading`);
+      }
+      // The visible loading cue lives only in the results branch, so a scenario
+      // may only assert it there.
+      if (expectation.visibleLoading === true && renders !== "explore") {
+        throw new Error(`${location}.expect may only set visibleLoading true when renders is "explore"`);
       }
       // The `explore` branch is the only one that renders a page; require the
       // displayedPage assertion exactly there so a scenario cannot silently skip

@@ -37,6 +37,7 @@ scenarios:
           ariaBusy: false
           alert: false
           status: "page 1 of 3 loaded"
+          visibleLoading: false
           requestedPages: [1]
           uniqueIds: true
       - name: request-page-2-deferred
@@ -47,6 +48,7 @@ scenarios:
           ariaBusy: true
           alert: false
           statusIncludes: "loading page 2"
+          visibleLoading: "loading page 2; showing page 1 until it arrives"
           requestedPages: [1, 2]
           focusPage: 2
       - name: page-2-settles
@@ -57,6 +59,7 @@ scenarios:
           ariaBusy: false
           alert: false
           status: "page 2 of 3 loaded"
+          visibleLoading: false
           requestedPages: [1, 2]
           uniqueIds: true
 
@@ -79,6 +82,7 @@ scenarios:
           currentPage: 3
           visibleIds: ["t-101", "t-102"]
           ariaBusy: true
+          visibleLoading: "loading page 3; showing page 1 until it arrives"
           requestedPages: [1, 2, 3]
           abortedPages: [2]
       - name: page-3-settles-first
@@ -87,6 +91,7 @@ scenarios:
           currentPage: 3
           visibleIds: ["t-301", "t-302"]
           ariaBusy: false
+          visibleLoading: false
           requestedPages: [1, 2, 3]
           uniqueIds: true
       - name: abort-ignoring-page-2-cannot-repaint
@@ -94,6 +99,7 @@ scenarios:
         expect:
           currentPage: 3
           visibleIds: ["t-301", "t-302"]
+          visibleLoading: false
           requestedPages: [1, 2, 3]
 
   - name: settled-page-mismatch-keeps-prior-rows
@@ -114,12 +120,14 @@ scenarios:
           currentPage: 2
           visibleIds: ["t-101", "t-102"]
           ariaBusy: false
+          visibleLoading: false
           alert: true
       - name: retry-same-page
         action: { kind: clickRetry }
         expect:
           currentPage: 2
           visibleIds: ["t-101", "t-102"]
+          visibleLoading: "loading page 2"
       - name: retry-settles-correct-page
         action: { kind: resolve, requestPage: 2, dataId: page-2 }
         expect:
@@ -145,11 +153,13 @@ scenarios:
           currentPage: 2
           visibleIds: ["t-101", "t-102"]
           ariaBusy: false
+          visibleLoading: false
           alert: true
       - name: retry-exact-page
         action: { kind: clickRetry }
         expect:
           currentPage: 2
+          visibleLoading: "loading page 2"
       - name: retry-succeeds
         action: { kind: resolve, requestPage: 2, dataId: page-2 }
         expect:
@@ -179,12 +189,14 @@ scenarios:
           currentPage: 1
           ariaBusy: true
           statusIncludes: "loading page 1"
+          visibleLoading: "loading page 1; showing page 2 until it arrives"
       - name: first-page-of-new-order-settles
         action: { kind: resolve, requestPage: 1, dataId: page-1-turns }
         expect:
           currentPage: 1
           visibleIds: ["t-131", "t-132"]
           ariaBusy: false
+          visibleLoading: false
           alert: false
 
   - name: keyboard-boundaries-and-single-current
@@ -201,6 +213,7 @@ scenarios:
         expect:
           currentPage: 3
           ariaBusy: true
+          visibleLoading: "loading page 3; showing page 1 until it arrives"
       - name: last-page-disables-next
         action: { kind: resolve, requestPage: 3, dataId: page-3 }
         expect:
@@ -209,4 +222,5 @@ scenarios:
           prevDisabled: false
           nextDisabled: true
           singleCurrent: true
+          visibleLoading: false
           uniqueIds: true
