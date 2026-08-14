@@ -10,9 +10,10 @@ import type {
  * (`sess_demo_0001` — "Port the transcript canvas into the shared package").
  * This file is a faithful port of the demo mockup's `buildWire()`: the editorial
  * fixtures below are projected into the canonical wire `SessionDetailPayload`,
- * which the visual-harness route feeds straight into the shared
- * `@peasant-labs/transcript-browser` `<SessionDetail>` composer — exactly the
- * payload village's real `/transcripts/[id]` page hands it, minus the REST fetch.
+ * which the visual-harness route feeds through Fairtrade's canonical
+ * `adaptTranscript` → `<TranscriptViewer>` composition, with transcript-browser
+ * supplying only the graph engine — exactly the payload Village's real
+ * `/transcripts/[id]` page hands it, minus the REST fetch.
  * Rendering the SAME data the demo renders lets the side-by-side capture stitch a
  * true height-matched, same-data comparison of the canonical demo vs the
  * assembled village frontend.
@@ -70,11 +71,14 @@ interface TurnFixture {
   tokens?: { in: number; out: number };
   thinking?: { words: number; text: string };
   body?: string;
+  observedModel?: string;
   tools?: ToolFixture[];
   checkpoint?: { hash: string; msg: string; files: number; adds: number; dels: number };
 }
 
 const HARNESS = "claude-code";
+const ROOT_MODEL = "anthropic/claude-fable-5";
+const CHANGED_MODEL = "anthropic/claude-opus-4-8";
 
 const TURNS: TurnFixture[] = [
   {
@@ -87,6 +91,7 @@ const TURNS: TurnFixture[] = [
   {
     id: 1,
     role: "assistant",
+    observedModel: ROOT_MODEL,
     tokens: { in: 1840, out: 920 },
     thinking: {
       words: 84,
@@ -133,6 +138,7 @@ const TURNS: TurnFixture[] = [
   {
     id: 4,
     role: "assistant",
+    observedModel: CHANGED_MODEL,
     error: true,
     tokens: { in: 2400, out: 1180 },
     body: "Running the workspace typecheck first. It surfaces a strict-mode error in the tasks helper.",
@@ -153,6 +159,7 @@ const TURNS: TurnFixture[] = [
   {
     id: 5,
     role: "assistant",
+    observedModel: CHANGED_MODEL,
     tokens: { in: 2600, out: 1320 },
     thinking: {
       words: 41,
@@ -202,6 +209,7 @@ const TURNS: TurnFixture[] = [
     id: 7,
     role: "assistant",
     depth: 1,
+    observedModel: CHANGED_MODEL,
     subagent: "docs-writer",
     tokens: { in: 1700, out: 1140 },
     body: "Spawned a subagent to document the props/callback/capability contract for the extracted package.",
@@ -328,6 +336,7 @@ function turnToWire(t: TurnFixture): NonNullable<SessionDetailPayload["turns"]>[
   if (t.thinking) wire.hasThinking = true;
   if (t.tools) wire.toolCalls = t.tools.map(toolToWire);
   if (t.subagent) wire.agentName = t.subagent;
+  if (t.observedModel) wire.observedModel = t.observedModel;
   if (t.final) wire.stopReason = "end_turn";
   if (t.tokens) {
     wire.tokensIn = t.tokens.in;
@@ -386,7 +395,7 @@ export const sampleSession: SessionDetailPayload & {
   turnCount: 8,
   toolCallCount: 5,
   project: "transcript-browser",
-  model: "claude-opus-4-7",
+  model: ROOT_MODEL,
   workingDirectory: "/Users/developer/work/sample-app",
   outcome: "resolved",
   turns: TURNS.map(turnToWire),

@@ -1,0 +1,23 @@
+mutations:
+  - name: off-contract-harness-guard
+    file: ../src/lib/adapters/explore.ts
+    original: 'if (isHarness(value)) return value;'
+    replacement: 'return value as Harness;'
+    testFile: src/finalContractCompatibility.test.tsx
+    testName: rejected-unknown-harness
+  - name: nullable-turns-fallback
+    file: ../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: 'const turns = useMemo(() => detail?.turns ?? [], [detail]);'
+    replacement: 'const turns = useMemo(() => detail!.turns!, [detail]);'
+    testFile: src/finalContractCompatibility.test.tsx
+    testName: null-turns
+  - name: observed-model-pass-through
+    file: ../src/components/session-detail/v2/SessionDetailV2.tsx
+    original: 'detail as Parameters<typeof adaptTranscript>[0],'
+    replacement: |-
+      {
+            ...detail,
+            turns: (detail.turns ?? []).map(({ observedModel: _observedModel, ...turn }) => turn),
+          } as Parameters<typeof adaptTranscript>[0],
+    testFile: src/mountedObservedModelRoute.test.tsx
+    testName: sticky-observed-model-transition

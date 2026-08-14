@@ -1,0 +1,12 @@
+cases:
+  - name: previously_stored_non_assistant_is_opaque
+    content: '{"id":"stored-role","turns":[{"index":0,"role":"user","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}'
+    wantStatus: 200
+    wantRewrite: true
+    corrected: '{"id":"stored-role","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}'
+  - name: invalid_raw_model_bytes_are_rejected
+    content: '{"id":"stored-invalid","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":" bad "}]}'
+    wantStatus: 500
+    wantError: invalid observedModel
+    wantRewrite: false
+    corrected: '{"id":"stored-invalid","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}'

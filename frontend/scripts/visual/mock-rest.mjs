@@ -3,7 +3,8 @@
    The capture harness (village-shoot.mjs) drives a backend-free dev FIXTURE route for determinism, so
    it bypasses village's REAL data path: the `/transcripts/[id]` route → React Query (`useTranscript` +
    `useTranscriptContent`) → REST `GET /transcripts/{id}` + `/transcripts/{id}/content` → the
-   SessionDetailV2 adapter → the shared `<SessionDetail>` composer. This mock serves exactly those REST
+   SessionDetailV2 adapter → Fairtrade's canonical `<TranscriptViewer>` with transcript-browser's graph
+   engine. This mock serves exactly those REST
    endpoints (a representative session) so `boot-village.mjs` can exercise that REAL route+adapter+
    React-Query path with no Postgres/MinIO/auth stack — village's analog of peasant's `--mock-data-store`.
 
@@ -15,9 +16,35 @@
 
    env: MOCK_REST_PORT (default 8788), MOCK_TRANSCRIPT_ID (default `demo`). Runs until killed. */
 import { createServer } from 'node:http'
+import { readFileSync } from 'node:fs'
+import { parse } from 'yaml'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8788)
 const ID = process.env.MOCK_TRANSCRIPT_ID || 'demo'
+const contractFixtures = parse(
+  readFileSync(new URL('../../src/testdata/final-contract-compatibility.yaml', import.meta.url), 'utf8'),
+  { strict: true },
+)
+const observedModelFixture = contractFixtures.observedModelSessions?.find(
+  ({ name }) => name === 'sticky-observed-model-transition',
+)
+if (!observedModelFixture) {
+  throw new Error(
+    'mock-rest.mjs could not load the sticky-observed-model-transition fixture from src/testdata/final-contract-compatibility.yaml; the mounted production-route evidence cannot run. Restore the strict fixture and retry.',
+  )
+}
+const expectedSourceSequence = [
+  'anthropic/claude-fable-5',
+  null,
+  'anthropic/claude-opus-4-8',
+  null,
+]
+const actualSourceSequence = observedModelFixture.turns.map(({ sourceObservation }) => sourceObservation)
+if (JSON.stringify(actualSourceSequence) !== JSON.stringify(expectedSourceSequence)) {
+  throw new Error(
+    `mock-rest.mjs loaded the wrong observed-model source sequence: got ${JSON.stringify(actualSourceSequence)}; want ${JSON.stringify(expectedSourceSequence)}. The real-route capture must prove A, omission, B, omission, so correct the strict fixture before retrying.`,
+  )
+}
 
 const user = {
   id: 'user-demo',
@@ -81,12 +108,12 @@ const groupDetail = {
       description: 'Boot fixture transcript.',
       visibility: 'public',
       model_provider: 'claude-code',
-      model_name: 'claude-opus-4-7',
+      model_name: observedModelFixture.sessionModel,
       harness_version: '1.0.0',
       session_start: '2026-06-17T09:12:00Z',
       session_end: '2026-06-17T09:20:00Z',
-      turn_count: 3,
-      token_count: 4200,
+      turn_count: 5,
+      token_count: 500,
       blob_key: 'blob-1',
       blob_size_bytes: 4096,
       schema_version: '0.2.0',
@@ -102,11 +129,11 @@ const groupDetail = {
       project_hash: null,
       project_path: null,
       project_name: 'transcript-browser',
-      tool_call_count: 1,
+      tool_call_count: 0,
       subagent_count: 0,
       duration_ms: 480000,
-      tokens_in: 2600,
-      tokens_out: 1600,
+      tokens_in: 300,
+      tokens_out: 200,
       subagents: [],
       diagnostics_warnings: [],
       diagnostics_partial: false,
@@ -180,37 +207,48 @@ const groupsList = [groupDetail.group]
 
 const ts = (min) => new Date(Date.parse('2026-06-17T09:12:00Z') + min * 60_000).toISOString()
 
-// A representative SessionDetailPayload — enough turns + a tool call for the composer to render real
-// content (this proves the REST → adapter → <SessionDetail> path; it is NOT the canonical capture
-// fixture). The viewer's only structural requirement is a `turns` array.
+// Preserve source omissions at the REST boundary. Fairtrade's adapter, not
+// Village, derives effective model carry-forward for rendering.
+const observedModelTurns = observedModelFixture.turns.map((turn, fixtureIndex) => {
+  const wireTurn = {
+    index: fixtureIndex + 1,
+    role: 'assistant',
+    content: turn.content,
+    timestamp: ts(fixtureIndex + 1),
+    depth: 0,
+    tokensIn: 60,
+    tokensOut: 40,
+  }
+  if (turn.sourceObservation != null) wireTurn.observedModel = turn.sourceObservation
+  return wireTurn
+})
+
 const content = {
   id: 'sess_demo_0001',
   harness: 'claude-code',
   startTime: ts(0),
-  endTime: ts(8),
-  durationMins: 8,
-  totalTokens: 4200,
-  tokensIn: 2600,
-  tokensOut: 1600,
-  turnCount: 3,
-  toolCallCount: 1,
-  project: 'village',
-  model: 'claude-opus-4-7',
-  workingDirectory: '/workspace/village',
+  endTime: ts(5),
+  durationMins: 5,
+  totalTokens: 500,
+  tokensIn: 300,
+  tokensOut: 200,
+  turnCount: 5,
+  toolCallCount: 0,
+  project: 'observed-model-contract',
+  model: observedModelFixture.sessionModel,
+  workingDirectory: '/workspace/observed-model-contract',
   outcome: 'resolved',
   turns: [
-    { index: 0, role: 'user', content: 'Review the Village transcript label popover before updating its interaction.', timestamp: ts(0), depth: 0, tokensIn: 280, tokensOut: 0 },
     {
-      index: 1, role: 'assistant', depth: 0, timestamp: ts(1), tokensIn: 1840, tokensOut: 920,
-      content: 'Reading **TurnLabelPopover.tsx** to preserve its save and cancel behavior.',
-      toolCalls: [{
-        id: 't1a', name: 'Read', toolKind: 'read',
-        filePath: 'frontend/src/components/transcript/TurnLabelPopover.tsx',
-        arguments: JSON.stringify({ file_path: 'frontend/src/components/transcript/TurnLabelPopover.tsx', offset: 1, limit: 40 }),
-        result: JSON.stringify('export function TurnLabelPopover({ onSave, onCancel }: TurnLabelPopoverProps) {\n  return <form aria-label="label turn">…</form>\n}'),
-      }],
+      index: 0,
+      role: 'user',
+      content: 'Verify sticky model attribution on the mounted Village transcript route.',
+      timestamp: ts(0),
+      depth: 0,
+      tokensIn: 60,
+      tokensOut: 0,
     },
-    { index: 2, role: 'assistant', depth: 0, timestamp: ts(2), tokensIn: 980, tokensOut: 720, stopReason: 'end_turn', content: 'The popover behavior is preserved and the Village frontend still typechecks.' },
+    ...observedModelTurns,
   ],
 }
 
@@ -219,9 +257,9 @@ const detail = {
     id: ID,
     local_id: 'sess_demo_0001',
     visibility: 'public',
-    title: 'Review the transcript label popover',
+    title: 'Verify sticky model attribution on the mounted Village transcript route',
     description: 'Host-integration boot fixture.',
-    project_name: 'village',
+    project_name: 'observed-model-contract',
   },
   owner: { id: 'owner-demo' },
   enriched_shares: [],

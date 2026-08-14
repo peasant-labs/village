@@ -640,6 +640,32 @@ genuinely-invalid ones.
 Prefer these fixtures over inline literals: a single contract change should update
 one fixture, not N tests.
 
+### Enriched transcript preservation gate
+
+`internal/handler/testdata/observed_model_preservation/` is the strict corpus for
+the optional `TurnDetail.observedModel` evidence introduced by the released
+Schema module. The loader uses known-field decoding, one-document enforcement,
+an exact case count, an independent required-name inventory, and uniqueness
+checks. The enriched case contains repeated A, changed B, and an omission; the
+legacy case contains no observations and must never gain one.
+
+The production proof runs `NewContentMigrator` over the stored envelope, encodes
+through the same typed canonical rewrite boundary used by `GetTranscriptContent`,
+then migrates and compares the re-emitted turns. `GET /api/v1/schema/version`
+advertises the schema-owned flat `observed_model_v1` capability token only when that proof
+passes. Publish remains backward compatible for content without observations.
+Content carrying `observedModel` fails closed before scan/storage if the proof is
+unavailable, with a response explaining that nothing was written and that the
+client must retry against a Village advertising the capability.
+
+The negative is executed, not descriptive metadata: the test substitutes an
+encoder at the real typed rewrite boundary that deletes `observedModel`. It must
+make the preservation proof fail, produce an empty capability set, and make the
+enriched publish precondition refuse. The same failing evaluator must still let
+the no-observation legacy fixture through. Keep this production-point negative
+when the canonical rewrite code moves; a synthetic standalone marshal test does
+not replace it.
+
 ## Cross-repo contract tests & gate-faithful expectations
 
 The publish/pull wire format is a contract owned jointly by the

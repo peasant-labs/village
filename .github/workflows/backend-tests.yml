@@ -195,6 +195,17 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
+      # Run the complete suite before lint/build. The mutation runner rewrites
+      # production files temporarily, so it must remain sequential with every
+      # other frontend reader in this job.
+      - name: Contract, mounted-route, and mutation tests
+        working-directory: frontend
+        run: pnpm test
+
+      - name: TypeScript
+        working-directory: frontend
+        run: pnpm exec tsc --noEmit
+
       - name: Lint
         working-directory: frontend
         run: pnpm lint

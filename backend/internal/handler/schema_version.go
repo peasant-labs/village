@@ -12,8 +12,9 @@ import (
 // rendering, which may reach further back) and from storage backfills. The
 // current contract is 0.1.1 (the required
 // harness+model strictening — same wire SHAPE, a PATCH bump), and the floor
-// stays 0.1.0, so the push window is [0.1.0, 0.1.1]: a 0.1.0-emitting client is
-// still accepted (shape-identical, no migration).
+// stays 0.1.0, so the legacy push window remains [0.1.0, 0.1.1]. An explicit,
+// flat opaque capability token tells enriched clients whether observed-model
+// evidence is proven safe through Village's typed storage paths.
 const minPushContractVersion schema.PushContractVersion = "0.1.0"
 
 // pullContractVersion / minPullContractVersion advertise the PULL ENVELOPE
@@ -56,6 +57,11 @@ func (h *Handler) GetSchemaVersion(w http.ResponseWriter, r *http.Request) {
 		// from the push window; the CLI preflights pulls against this.
 		PullContractVersion:    pullContractVersion,
 		MinPullContractVersion: minPullContractVersion,
+	}
+	resp.ContentCapabilities = advertisedContentCapabilitiesWithEvaluator(h.preservationProof())
+	if err := schema.ValidateContentCapabilityAdvertisements(resp.ContentCapabilities); err != nil {
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

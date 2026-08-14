@@ -1,0 +1,27 @@
+cases:
+  - name: enriched_repeated_change_and_omission
+    contractVersion: 0.0.9
+    schemaVersion: 0.0.9
+    sessionId: observed-model-preservation-enriched
+    harness: claude-code
+    observedModels:
+      - anthropic/Claude-Fable-5
+      - anthropic/Claude-Fable-5
+      - anthropic/Claude Opus-4-8
+      - null
+    expectedObservedJSON:
+      - '"anthropic/Claude-Fable-5"'
+      - '"anthropic/Claude-Fable-5"'
+      - '"anthropic/Claude Opus-4-8"'
+      - absent
+  - name: legacy_without_observations
+    contractVersion: 0.0.9
+    schemaVersion: 0.0.9
+    sessionId: observed-model-preservation-legacy
+    harness: claude-code
+    observedModels:
+      - null
+      - null
+    expectedObservedJSON:
+      - absent
+      - absent

@@ -33,11 +33,10 @@ import (
 // can be normalized for rendering; it is village-local and not advertised.
 
 // currentContractVersion is the contract the village normalizes stored blobs TO.
-// It mirrors the peasant defaults.PublishSchemaVersion ("0.1.1" after the
-// required-harness+model strictening — same wire shape, patch bump); the village
-// keeps its own copy because internal/defaults lives in the peasant module and
-// is not importable here. minPushContractVersion stays 0.1.0 → accept window
-// [0.1.0, 0.1.1]; the wire shape is unchanged so normalization is unaffected.
+// It remains at the existing 0.1.1 envelope because observedModel is an additive
+// optional field. Enriched emission is negotiated through exact membership in a
+// flat, forward-open opaque-token list, so legacy 0.1.x traffic remains compatible
+// while richer clients cannot mistake envelope compatibility for preservation support.
 const currentContractVersion schema.PushContractVersion = "0.1.1"
 
 // displayMigrateFloor is the OLDEST stored contract the village will still
@@ -152,10 +151,10 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 	case ShapeEnvelope:
 		var env schema.TranscriptContent
 		if err := json.Unmarshal(trimmed, &env); err != nil {
-			return nil, false, fmt.Errorf("migrate-on-read: decode envelope: %w", err)
+			return nil, false, fmt.Errorf("transcript migrate-on-read failed because the stored envelope could not be decoded as schema.TranscriptContent in handler.blobMigrator.Migrate during typed read normalization; no body was served and no stored generation was rewritten; repair or republish the transcript with a supported envelope, then retry: %w", err)
 		}
 		if env.Kind != schema.ContentKindSessionDetail || env.SessionDetail == nil {
-			return nil, false, fmt.Errorf("migrate-on-read: envelope kind %q without a sessionDetail payload", env.Kind)
+			return nil, false, fmt.Errorf("transcript migrate-on-read failed because stored envelope kind %q does not carry a sessionDetail payload in handler.blobMigrator.Migrate during typed read normalization; no body was served and no stored generation was rewritten; republish a %q envelope with a non-null sessionDetail payload", env.Kind, schema.ContentKindSessionDetail)
 		}
 		payload := env.SessionDetail
 		// The envelope's ContractVersion is authoritative for migrate-on-read
@@ -194,6 +193,12 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 	default:
 		return nil, false, ErrEmptyBlob
 	}
+}
+
+// encodeCanonicalTranscript is the sole typed rewrite/re-emit boundary used by
+// the real migrate-on-read handler and by capability preservation evaluation.
+func encodeCanonicalTranscript(payload *schema.SessionDetailPayload) ([]byte, error) {
+	return productionContentRewriteEncoder.Encode(currentContractVersion, payload)
 }
 
 // sniffShape classifies a (whitespace-trimmed) blob by its leading byte and, for
@@ -241,7 +246,7 @@ func canonicalHarness(legacy string) schema.Harness {
 func decodeLegacyPayload(raw []byte) (*schema.SessionDetailPayload, error) {
 	var p schema.SessionDetailPayload
 	if err := json.Unmarshal(raw, &p); err != nil {
-		return nil, fmt.Errorf("migrate-on-read: decode bare payload: %w", err)
+		return nil, fmt.Errorf("transcript migrate-on-read failed because the stored bare payload could not be decoded as schema.SessionDetailPayload in handler.decodeLegacyPayload during typed read normalization; no body was served and no stored generation was rewritten; repair or republish the transcript with a supported payload, then retry: %w", err)
 	}
 	if p.Harness == "" {
 		var aux struct {
@@ -269,7 +274,7 @@ func decodeRawJSONL(raw []byte) (*schema.SessionDetailPayload, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) > 0 && trimmed[0] == '[' {
 		if err := json.Unmarshal(trimmed, &rows); err != nil {
-			return nil, fmt.Errorf("migrate-on-read: decode raw JSONL array: %w", err)
+			return nil, fmt.Errorf("transcript migrate-on-read failed because the stored legacy JSON array could not be decoded in handler.decodeRawJSONL during read normalization; no body was served and no stored generation was rewritten; repair or republish the source transcript, then retry: %w", err)
 		}
 	} else {
 		for _, line := range bytes.Split(trimmed, []byte("\n")) {
@@ -279,7 +284,7 @@ func decodeRawJSONL(raw []byte) (*schema.SessionDetailPayload, error) {
 			}
 			var row map[string]json.RawMessage
 			if err := json.Unmarshal(line, &row); err != nil {
-				return nil, fmt.Errorf("migrate-on-read: decode raw JSONL line: %w", err)
+				return nil, fmt.Errorf("transcript migrate-on-read failed because a stored legacy JSONL line could not be decoded in handler.decodeRawJSONL during read normalization; no body was served and no stored generation was rewritten; repair or republish the source transcript, then retry: %w", err)
 			}
 			rows = append(rows, row)
 		}
