@@ -1,0 +1,21 @@
+# Discovery listing ORDER BY clauses, one row per sort mode accepted by
+# GET /api/v1/transcripts. Every clause keeps its user-selected primary column
+# but must end with the unique primary-key tie-breaker (t.id DESC) so tied rows
+# take a deterministic position across repeated reads and adjacent offset pages.
+# Update this fixture (and the row-count guard in the test) when a sort mode is
+# added or a clause intentionally changes.
+- name: recent_default_empty_sort
+  sort: ""
+  wantClause: " ORDER BY t.published_at DESC, t.id DESC"
+- name: turns_sort
+  sort: "turns"
+  wantClause: " ORDER BY t.turn_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
+- name: tokens_sort
+  sort: "tokens"
+  wantClause: " ORDER BY t.token_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
+- name: duration_sort
+  sort: "duration"
+  wantClause: " ORDER BY t.duration_ms DESC NULLS LAST, t.published_at DESC, t.id DESC"
+- name: unknown_sort_falls_back_to_recent
+  sort: "not-a-real-sort"
+  wantClause: " ORDER BY t.published_at DESC, t.id DESC"
