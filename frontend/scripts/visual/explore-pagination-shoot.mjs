@@ -9,9 +9,13 @@
    cue (present with honest text while loading, absent when settled), and the
    page-named row titles proving the displayed page actually changed. A run FAILS
    closed if the real route regressed (no page change, wrong current marker, a
-   stale-page repaint, or a missing/sr-only loading cue), so a broken build cannot
-   pass. Captures are element-scoped to <main> (not fullPage over the fixed navbar)
-   with captureBeyondViewport, and a framing gate rejects a fixed-header artifact.
+   stale-page repaint, or a missing/sr-only/occluded loading cue), so a broken
+   build cannot pass. Before every capture the fixed/sticky chrome is switched to
+   static and scroll/focus reset to the top, so the shell header is captured once
+   at the true top (never floated mid-image at the scroll offset) and cannot
+   occlude the cue; a framing gate fails on any surviving fixed/sticky element or a
+   shell header not at the top, and a build-provenance check proves the served
+   bundle carries the visible-loading-cue change.
 
    Pair with mock-rest-pagination.mjs (the data + optional latency) and a running
    `next dev` whose NEXT_PUBLIC_API_URL points at that mock.
@@ -70,6 +74,32 @@ const waitFor = async (sel, timeoutMs = 15000) => {
   return false
 }
 
+// Prove the SERVED Village build actually includes the visible-loading-cue change
+// (frontend commit 9246da3), not only the fixed Fairtrade bytes. The unique cue
+// string "until it arrives" is emitted by page.tsx; assert it is present in a
+// served JS chunk so a stale build cannot pass with an invisible/absent cue.
+const CUE_MARKER = 'until it arrives'
+const assertBuildProvenance = async () => {
+  const srcs = await page.evaluate(() => [...document.querySelectorAll('script[src]')].map((s) => s.src))
+  let found = false
+  for (const src of srcs) {
+    const hit = await page.evaluate(async (u, marker) => {
+      try {
+        const res = await fetch(u)
+        if (!res.ok) return false
+        return (await res.text()).includes(marker)
+      } catch {
+        return false
+      }
+    }, src, CUE_MARKER)
+    if (hit) { found = true; break }
+  }
+  if (!found) {
+    await fail(`the served JS bundle does not contain the loading-cue string ${JSON.stringify(CUE_MARKER)} from frontend commit 9246da3; the running Village build predates the visible-loading-cue change. Rebuild/serve the branch that includes 9246da3 before capturing.`)
+  }
+  console.log(`  build provenance: served bundle contains the 9246da3 loading-cue string ${JSON.stringify(CUE_MARKER)}`)
+}
+
 // The observable pagination state read straight off the live DOM.
 const readState = () =>
   page.evaluate(() => {
@@ -115,36 +145,121 @@ if (actualTheme !== theme) await fail(`requested theme "${theme}" but document i
 if (!(await waitFor('.cex-tcard, .cex-trow'))) await fail(`browse rows never mounted at ${URL}.`)
 if (!(await waitFor('nav[aria-label="pagination"]'))) await fail('the numbered pagination landmark never rendered; the dataset must exceed one page.')
 
-// Element-scoped capture of the mounted <main> surface (the production route
-// body below the fixed navbar, which holds the visible loading cue, the Explore
-// surface, and the pager). This mirrors the established element-scoped pattern
-// (explore-shoot.mjs) instead of page.screenshot({ fullPage: true }), which over a
-// position:fixed header risks the header duplication/float artifact. A framing
-// gate fails closed if <main> is missing/tiny or if any position:fixed element is
-// a descendant of the capture (which would reintroduce a floating-header artifact).
-const shoot = async (name) => {
-  const file = join(out, `pagination-${name}-${theme}.png`)
-  const el = await page.$('main')
-  if (!el) await fail('the mounted <main> production surface was not present to capture.')
-  const box = await el.boundingBox()
-  if (!box || box.width < 320 || box.height < 320) {
-    await fail(`captured <main> box is missing or too small (${JSON.stringify(box)}); the surface did not lay out.`)
-  }
-  const fixedInside = await page.evaluate(() => {
-    const main = document.querySelector('main')
-    if (!main) return 'no-main'
-    for (const node of main.querySelectorAll('*')) {
-      if (getComputedStyle(node).position === 'fixed') return node.getAttribute('class') || node.tagName
+await assertBuildProvenance()
+
+// Capture the mounted SHELL + BODY as one clean, top-framed image.
+//
+// fullPage / captureBeyondViewport composite a position:fixed element at the
+// CURRENT SCROLL OFFSET. Because activating the bottom pager scrolls the tall
+// page, that floated the Village navbar halfway down the page-2 image and let it
+// occlude the loading cue. So before every capture we reset scroll + focus to the
+// top and temporarily switch every fixed/sticky element to static (recording
+// inline styles to restore afterward): the shell header then flows once at the
+// true top, nothing composites at a scroll offset, and no fixed chrome can overlap
+// the body. The shell is PRESERVED (not cropped away) — we capture the whole
+// document (header + mounted route body).
+const neutralizeChrome = () =>
+  page.evaluate(() => {
+    window.scrollTo(0, 0)
+    const active = document.activeElement
+    if (active && typeof active.blur === 'function') active.blur()
+    const restore = []
+    for (const el of document.querySelectorAll('body *')) {
+      const pos = getComputedStyle(el).position
+      if (pos === 'fixed' || pos === 'sticky') {
+        restore.push([el, el.getAttribute('style')])
+        el.style.setProperty('position', 'static', 'important')
+        el.style.setProperty('transform', 'none', 'important')
+      }
     }
-    return null
+    // The reserved top padding for the (now static) fixed navbar would double the
+    // gap; drop it during capture so the shell sits flush above the body.
+    const main = document.querySelector('main')
+    if (main) {
+      restore.push([main, main.getAttribute('style')])
+      main.style.setProperty('padding-top', '0', 'important')
+    }
+    window.__chromeRestore = restore
   })
-  if (fixedInside) {
-    await fail(`a position:fixed element (${fixedInside}) is a descendant of <main>; an element-scoped capture would include a floating-header artifact. Capture a container that excludes the fixed navbar.`)
+
+const restoreChrome = () =>
+  page.evaluate(() => {
+    for (const [el, style] of window.__chromeRestore || []) {
+      if (style === null) el.removeAttribute('style')
+      else el.setAttribute('style', style)
+    }
+    delete window.__chromeRestore
+  })
+
+// After neutralizing, prove clean framing: no fixed/sticky chrome remains (nothing
+// can float mid-image) and the shell header sits at the true top.
+const assertFraming = async () => {
+  const frame = await page.evaluate(() => {
+    let stillFixed = null
+    for (const el of document.querySelectorAll('body *')) {
+      const pos = getComputedStyle(el).position
+      if (pos === 'fixed' || pos === 'sticky') { stillFixed = el.getAttribute('class') || el.tagName; break }
+    }
+    const shell = document.querySelector('a[aria-label="Village home"]')?.closest('header') || document.querySelector('header')
+    const shellTop = shell ? Math.round(shell.getBoundingClientRect().top) : null
+    return { stillFixed, shellPresent: !!shell, shellTop }
+  })
+  if (frame.stillFixed) {
+    await restoreChrome()
+    await fail(`a fixed/sticky element (${frame.stillFixed}) survived neutralization; it would float at the scroll offset in the capture (framing gate).`)
   }
-  await el.screenshot({ path: file, captureBeyondViewport: true })
+  if (!frame.shellPresent) {
+    await restoreChrome()
+    await fail('the mounted shell header (Village navbar) was not found; the capture must include the shell, not a cropped body.')
+  }
+  if (frame.shellTop === null || frame.shellTop > 4) {
+    await restoreChrome()
+    await fail(`the shell header is not at the true top (top=${frame.shellTop}px); it would appear mid-image (framing gate).`)
+  }
+  return frame
+}
+
+const shoot = async (name, { assertCue = false } = {}) => {
+  const file = join(out, `pagination-${name}-${theme}.png`)
+  await neutralizeChrome()
+  const frame = await assertFraming()
+  let cue = null
+  if (assertCue) {
+    // Assert the loading cue is genuinely in the visible layout at capture time
+    // (nonzero box, painted, unoccluded) — the DOM merely CONTAINING it is not
+    // enough; the pixels must show it.
+    cue = await page.evaluate(() => {
+      const el = document.querySelector('[data-testid="session-list-loading"]')
+      if (!el) return { ok: false, reason: 'cue element absent from the layout' }
+      const r = el.getBoundingClientRect()
+      const cs = getComputedStyle(el)
+      const span = el.querySelector('span') || el
+      const color = getComputedStyle(span).color
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      const top = document.elementFromPoint(cx, cy)
+      const unoccluded = !!top && (el === top || el.contains(top))
+      const painted =
+        r.width >= 40 && r.height >= 8 && cs.display !== 'none' && cs.visibility === 'visible' &&
+        parseFloat(cs.opacity) >= 0.99 && color !== 'rgba(0, 0, 0, 0)' && unoccluded
+      return {
+        ok: painted,
+        rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+        display: cs.display, visibility: cs.visibility, opacity: cs.opacity, color,
+        occludedBy: unoccluded ? null : (top ? (top.getAttribute('class') || top.tagName) : 'offscreen'),
+        text: (el.textContent || '').trim(),
+      }
+    })
+    if (!cue.ok) {
+      await restoreChrome()
+      await fail(`the visible loading cue is not paintable in the layout for capture: ${JSON.stringify(cue)}. It needs a nonzero box, display!=none, visibility:visible, opacity~1, a non-transparent color, and no occluder.`)
+    }
+  }
+  await page.screenshot({ path: file, fullPage: true })
+  await restoreChrome()
   // Fail a blank/near-empty or duplicate capture so a broken surface cannot pass.
-  await gate.assert(`pagination-${name}`, file, { sel: 'main' })
-  console.log(`  shot ${file} (${Math.round(box.width)}x${Math.round(box.height)})`)
+  await gate.assert(`pagination-${name}`, file, { sel: 'body' })
+  console.log(`  shot ${file} (shellTop=${frame.shellTop}px${assertCue ? `, cue ${JSON.stringify(cue.text)} @y${cue.rect.y} ${cue.rect.w}x${cue.rect.h} color=${cue.color}` : ''})`)
   return file
 }
 
@@ -189,7 +304,7 @@ if (mid.loadingSrOnly) await fail('the loading cue is sr-only; it must be a visi
 if (!/loading page 2/i.test(mid.loadingCue)) await fail(`loading cue text is not honest: ${JSON.stringify(mid.loadingCue)} (expected to name the requested page 2).`)
 if (!/showing page 1/i.test(mid.loadingCue)) await fail(`loading cue must name the page still shown while loading: ${JSON.stringify(mid.loadingCue)}.`)
 console.log(`  loading cue: ${JSON.stringify(mid.loadingCue)}`)
-await shoot('page2-loading')
+await shoot('page2-loading', { assertCue: true })
 
 // Wait for page 2 to settle.
 const settleStart = Date.now()
@@ -213,5 +328,5 @@ if (errs.length) {
   process.exit(1)
 }
 
-console.log(`OK [explore-pagination-shoot.mjs] ${theme}: page 1 -> page 2 verified on the mounted route (current marker, page-named rows, unique ids, single aria-current, visible loading cue present-then-cleared, element-scoped framing).`)
+console.log(`OK [explore-pagination-shoot.mjs] ${theme}: page 1 -> page 2 verified on the mounted route (build provenance, current marker, page-named rows, unique ids, single aria-current, paintable+unoccluded loading cue present-then-cleared, shell-at-top framing).`)
 await browser.close()
