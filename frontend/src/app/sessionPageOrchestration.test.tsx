@@ -10,8 +10,8 @@ import {
 // Shared mutable holders visible to the hoisted module mocks below. The page
 // consumes useTranscripts, the Explore surface, the two facet queries, the
 // router, and the explore adapter; we mock exactly those dependencies so the
-// test exercises the real page.tsx orchestration (settled gate, retained rows,
-// rejected-key retention, aria-busy, live status, exact-key retry) without the
+// test exercises the real page.tsx orchestration (retained rows, aria-busy,
+// live status, exact-key retry) without the
 // network or the released Fairtrade component. Real-Fairtrade mounted behavior is
 // owned by the separate mounted-evidence slice (village#27).
 const h = vi.hoisted(() => ({
@@ -64,8 +64,7 @@ import ExplorePage from "@/app/page";
 const fixtures = loadSessionPageOrchestrationFixtures();
 
 // One stable response object per data id, mirroring TanStack keeping a cached
-// object reference across renders. Stable identity is required so page.tsx's
-// guarded render-phase updates converge instead of looping.
+// object reference across renders.
 const dataObjects = new Map<string, TranscriptListResponse>(
   Object.entries(fixtures.data).map(([id, value]) => [
     id,

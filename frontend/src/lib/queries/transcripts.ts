@@ -5,6 +5,72 @@ import type {
   AnnotationSummary,
   ListAnnotationsResponse,
 } from "../annotations";
+import { TRANSCRIPT_LIST_ENDPOINT } from "../transcriptPageRequest";
+
+/** Stable machine-readable category for discovery response trust failures. */
+export enum TranscriptListQueryErrorCode {
+  ResponsePaginationMismatch = "response_pagination_mismatch",
+}
+
+/**
+ * The discovery endpoint described different explicit pagination values than
+ * the request asked for. This error is thrown before TanStack Query can treat
+ * the response as successful cache data.
+ */
+export class TranscriptListResponseMismatchError extends Error {
+  readonly code = TranscriptListQueryErrorCode.ResponsePaginationMismatch;
+  readonly endpoint = TRANSCRIPT_LIST_ENDPOINT;
+  readonly operation = "loading the session list";
+
+  constructor(
+    readonly requestedPage: string | undefined,
+    readonly requestedLimit: string | undefined,
+    readonly receivedPage: number,
+    readonly receivedLimit: number,
+  ) {
+    const requestedValues = [
+      requestedPage === undefined ? null : `page ${requestedPage}`,
+      requestedLimit === undefined ? null : `limit ${requestedLimit}`,
+    ].filter((value): value is string => value !== null);
+    const receivedValues = [
+      requestedPage === undefined ? null : `page ${receivedPage}`,
+      requestedLimit === undefined ? null : `limit ${receivedLimit}`,
+    ].filter((value): value is string => value !== null);
+    super(
+      `Session list response pagination mismatch while loading ${TRANSCRIPT_LIST_ENDPOINT}: ` +
+        `requested ${requestedValues.join(" and ")}, but received ${receivedValues.join(" and ")}. ` +
+        `The response was rejected before it could become successful cached data. ` +
+        `Retry the same session-list request. If the mismatch persists, verify the endpoint pagination response.`,
+    );
+    this.name = "TranscriptListResponseMismatchError";
+  }
+}
+
+function explicitPaginationMatches(requested: string | undefined, received: number): boolean {
+  if (requested === undefined) return true;
+  const normalized = Number(requested);
+  return Number.isSafeInteger(normalized) && normalized === received;
+}
+
+function assertTranscriptListResponseMatchesRequest(
+  params: Record<string, string> | undefined,
+  response: TranscriptListResponse,
+): void {
+  const requestedPage = params?.page;
+  const requestedLimit = params?.limit;
+  if (
+    explicitPaginationMatches(requestedPage, response.page) &&
+    explicitPaginationMatches(requestedLimit, response.limit)
+  ) {
+    return;
+  }
+  throw new TranscriptListResponseMismatchError(
+    requestedPage,
+    requestedLimit,
+    response.page,
+    response.limit,
+  );
+}
 
 /**
  * Discovery list query for the `/` Explore surface.
@@ -20,8 +86,14 @@ export function useTranscripts(params?: Record<string, string>) {
   const searchParams = new URLSearchParams(params);
   return useQuery({
     queryKey: ["transcripts", params],
-    queryFn: ({ signal }) =>
-      api<TranscriptListResponse>(`/transcripts?${searchParams}`, { signal }),
+    queryFn: async ({ signal }) => {
+      const response = await api<TranscriptListResponse>(
+        `/transcripts?${searchParams}`,
+        { signal },
+      );
+      assertTranscriptListResponseMatchesRequest(params, response);
+      return response;
+    },
     placeholderData: (previousData) => previousData,
   });
 }

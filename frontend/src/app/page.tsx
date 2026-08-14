@@ -11,7 +11,6 @@ import {
   TRANSCRIPT_LIST_ENDPOINT,
   TRANSCRIPT_PAGE_SIZE,
   buildTranscriptListParams,
-  validateSettledTranscriptPage,
   type ExploreFilters,
 } from "@/lib/transcriptPageRequest";
 import type { TranscriptListResponse } from "@/lib/types";
@@ -30,9 +29,6 @@ export default function ExplorePage() {
   const [filters, setFilters] = useState<ExploreFilters>(DEFAULT_FILTERS);
 
   const params = useMemo(() => buildTranscriptListParams(filters), [filters]);
-  // Stable serialization of the complete request key, used to decide whether a
-  // remembered rejection still applies to the currently-active request.
-  const activeKey = useMemo(() => JSON.stringify(params), [params]);
 
   const {
     data,
@@ -46,57 +42,21 @@ export default function ExplorePage() {
   const { data: collData } = useSearchCollectives(filters.query);
   const { data: popularTags } = usePopularTags(15);
 
-  // `filters.page` is the requested navigation intent. Intentional placeholder
-  // data is the prior confirmed page shown while a new page loads; it is exempt
-  // from settled-response validation. Only genuinely settled data (not a
-  // placeholder, no fetch in flight, not an error) is validated against the key.
+  // `filters.page` is the requested navigation intent. The query function is the
+  // response trust boundary: data reaches TanStack's successful cache only after
+  // every explicit page/limit value matches its request key. Placeholder data is
+  // therefore always previously validated successful data.
   const requestedPage = filters.page;
-  const settled = data != null && !isPlaceholderData && !isFetching && !isError;
 
-  const settledMismatch = useMemo(() => {
-    if (!settled || data == null) return null;
-    const result = validateSettledTranscriptPage({
-      requestedPage,
-      requestedLimit: TRANSCRIPT_PAGE_SIZE,
-      responsePage: data.page,
-      responseLimit: data.limit,
-    });
-    return result.ok ? null : result;
-  }, [settled, data, requestedPage]);
-
-  // Retain the last confirmed (settled + validated) response, and remember when
-  // the active key has produced a rejected (mismatched) settled response. The
-  // rejection marker persists through an in-flight retry of that exact key, so a
-  // cached rejected response never flashes while `isFetching` transiently clears
-  // the settled mismatch. Both are convergent, guarded render-phase updates — the
-  // React-recommended alternative to an effect for state derived from the latest
-  // render — so they never trigger a cascading render.
+  // Retain the last successful non-placeholder response for initial/transition
+  // failures. This guarded render-phase update converges on the latest validated
+  // object without an effect or a ref read during render.
   const [lastConfirmed, setLastConfirmed] = useState<TranscriptListResponse | null>(null);
-  const [rejectedKey, setRejectedKey] = useState<{ key: string; message: string } | null>(null);
-  if (settled && data != null) {
-    if (settledMismatch == null) {
-      if (data !== lastConfirmed) setLastConfirmed(data);
-      if (rejectedKey != null && rejectedKey.key === activeKey) setRejectedKey(null);
-    } else if (rejectedKey == null || rejectedKey.key !== activeKey) {
-      setRejectedKey({ key: activeKey, message: settledMismatch.message });
-    }
+  if (data != null && !isPlaceholderData && !isError && data !== lastConfirmed) {
+    setLastConfirmed(data);
   }
 
-  // The active key is rejected when the current settled response mismatches, or
-  // when an earlier settled response for this exact key was rejected and no valid
-  // response for it has arrived yet (including while a retry is in flight).
-  const rejectedMessage =
-    settledMismatch?.message ??
-    (rejectedKey != null && rejectedKey.key === activeKey ? rejectedKey.message : null);
-  const activeKeyRejected = rejectedMessage != null;
-
-  // A rejected active key never presents its untrustworthy rows: keep the retained
-  // confirmed rows throughout the rejection and its retry. Otherwise present the
-  // current query data (during a page-only request this is the retained
-  // placeholder page).
-  const displayData: TranscriptListResponse | null = activeKeyRejected
-    ? lastConfirmed
-    : data ?? lastConfirmed;
+  const displayData: TranscriptListResponse | null = data ?? lastConfirmed;
 
   const payload = useMemo(() => {
     if (!displayData) return null;
@@ -118,15 +78,13 @@ export default function ExplorePage() {
 
   // One surface owns failure announcement. `failureMessage` is that surface's
   // text; it is never duplicated into the polite status region below.
-  const failureMessage: string | null = activeKeyRejected
-    ? rejectedMessage
-    : isError
-      ? `Failed to load page ${requestedPage} of the session list from ` +
-        `${TRANSCRIPT_LIST_ENDPOINT}. ` +
-        `${displayData != null ? "The previously confirmed rows are kept. " : ""}` +
-        `${error instanceof Error ? error.message : "Unknown error."} ` +
-        `Retry the same page to reload it.`
-      : null;
+  const failureMessage: string | null = isError
+    ? `Failed to load page ${requestedPage} of the session list from ` +
+      `${TRANSCRIPT_LIST_ENDPOINT}. ` +
+      `${displayData != null ? "The previously confirmed rows are kept. " : ""}` +
+      `${error instanceof Error ? error.message : "Unknown error."} ` +
+      `Retry the same page to reload it.`
+    : null;
 
   // The concise transient loading text, shared by the sr-only announcer and the
   // visible cue so both stay identical. When prior rows remain visible during a

@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run && pnpm run test:mutation",
-    "test:mutation": "node scripts/test-contract-compat-mutations.mjs",
+    "test:mutation": "node scripts/test-contract-compat-mutations.mjs && node scripts/test-transcript-query-guard-mutations.mjs",
     "probe:explore": "node scripts/visual/probe-explore.mjs",
     "probe:village": "node scripts/visual/probe-village.mjs",
     "shoot:explore": "node scripts/visual/explore-shoot.mjs",

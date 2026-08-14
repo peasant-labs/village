@@ -1,0 +1,61 @@
+# Production useTranscripts trust-boundary cases. Every row drives the real hook,
+# API client, TanStack observer, and cache. The action determines whether the
+# first result is final, retried on the exact key, or followed by a new key while
+# the second response is deliberately deferred.
+cases:
+  - name: valid-settled-data-enters-cache
+    action: settle
+    params: {sort: recent, page: "2", limit: "24"}
+    responses:
+      - {page: 2, limit: 24, total: 50}
+    initialStatus: success
+    finalPage: 2
+    errorFragments: []
+
+  - name: page-mismatch-rejected-before-cache-commit
+    action: settle
+    params: {sort: recent, page: "2", limit: "24"}
+    responses:
+      - {page: 5, limit: 24, total: 50}
+    initialStatus: error
+    errorFragments: ["requested page 2 and limit 24", "received page 5 and limit 24", "/api/v1/transcripts", "successful cached data", "Retry the same session-list request"]
+
+  - name: limit-mismatch-rejected-before-cache-commit
+    action: settle
+    params: {sort: recent, page: "2", limit: "24"}
+    responses:
+      - {page: 2, limit: 20, total: 50}
+    initialStatus: error
+    errorFragments: ["requested page 2 and limit 24", "received page 2 and limit 20", "/api/v1/transcripts", "successful cached data", "Retry the same session-list request"]
+
+  - name: omitted-pagination-remains-compatible
+    action: settle
+    params: {sort: recent}
+    responses:
+      - {page: 5, limit: 20, total: 50}
+    initialStatus: success
+    finalPage: 5
+    errorFragments: []
+
+  - name: mismatch-retries-the-exact-key
+    action: retry
+    params: {sort: recent, page: "2", limit: "24"}
+    responses:
+      - {page: 5, limit: 24, total: 50}
+      - {page: 2, limit: 24, total: 50}
+    initialStatus: error
+    finalPage: 2
+    errorFragments: ["requested page 2 and limit 24", "received page 5 and limit 24"]
+
+  - name: rejected-mismatch-cannot-placeholder-a-new-key
+    action: seededNewKey
+    params: {sort: recent, page: "1", limit: "24"}
+    mismatchParams: {sort: recent, page: "2", limit: "24"}
+    nextParams: {sort: recent, page: "3", limit: "24"}
+    responses:
+      - {page: 1, limit: 24, total: 50}
+      - {page: 5, limit: 24, total: 50}
+      - {page: 3, limit: 24, total: 50}
+    initialStatus: success
+    finalPage: 3
+    errorFragments: ["requested page 2 and limit 24", "received page 5 and limit 24"]

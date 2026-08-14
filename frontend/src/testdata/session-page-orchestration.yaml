@@ -14,16 +14,9 @@ data:
   page1: { page: 1, total: 50, limit: 24 }
   page2: { page: 2, total: 50, limit: 24 }
   page3: { page: 3, total: 50, limit: 24 }
-  # A settled response for the page-2 key that dishonestly reports page 3. Its
-  # page (3) differs from the retained confirmed page (1), so a test can prove the
-  # rejected rows are never displayed.
-  driftPage3ForKey2: { page: 3, total: 50, limit: 24 }
-  # A first-load settled response for the page-1 key that dishonestly reports
-  # page 3, with no prior confirmed rows to retain.
-  driftPage3ForKey1: { page: 3, total: 50, limit: 24 }
 
 scenarios:
-  - name: page-transition-mismatch-and-exact-key-retry
+  - name: page-transition-error-and-exact-key-retry
     steps:
       - name: initial-page-1-confirmed
         query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
@@ -43,8 +36,8 @@ scenarios:
           alert: false
           visibleLoading: true
           status: "loading page 2; showing page 1 until it arrives"
-      - name: settled-mismatch-retains-confirmed
-        query: { dataId: driftPage3ForKey2, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
+      - name: trust-boundary-error-retains-confirmed
+        query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: true, isError: true }
         expect:
           renders: explore
           displayedPage: 1
@@ -53,15 +46,15 @@ scenarios:
           visibleLoading: false
           status: ""
       - name: retry-invokes-exact-key
-        query: { dataId: driftPage3ForKey2, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
+        query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: true, isError: true }
         action: clickRetry
         expect:
           renders: explore
           displayedPage: 1
           alert: true
           refetchCalled: true
-      - name: retry-in-flight-hides-rejected-rows
-        query: { dataId: driftPage3ForKey2, isLoading: false, isFetching: true, isPlaceholderData: false, isError: false }
+      - name: retry-in-flight-keeps-confirmed-rows
+        query: { dataId: page1, isLoading: false, isFetching: true, isPlaceholderData: true, isError: true }
         expect:
           renders: explore
           displayedPage: 1
@@ -145,16 +138,16 @@ scenarios:
           visibleLoading: false
           status: page 3 of 3 loaded
 
-  - name: mismatch-without-prior-data-shows-error
+  - name: trust-boundary-error-without-prior-data-shows-error
     steps:
-      - name: first-load-settled-mismatch
-        query: { dataId: driftPage3ForKey1, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
+      - name: first-load-trust-boundary-error
+        query: { dataId: null, isLoading: false, isFetching: false, isPlaceholderData: false, isError: true }
         expect:
           renders: errorSurface
           alert: true
           status: ""
       - name: retry-invokes-exact-key
-        query: { dataId: driftPage3ForKey1, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
+        query: { dataId: null, isLoading: false, isFetching: false, isPlaceholderData: false, isError: true }
         action: clickRetry
         expect:
           renders: errorSurface
