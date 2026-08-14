@@ -15,19 +15,15 @@
 
    It pairs a REFERENCE set against the SUBJECT app captures (<base-dir>/<APP_DIR>/<theme>/) — both
    produced elsewhere; this script only composites them. See the README "Oracle" section for what the
-   transcript SxS does and does NOT gate:
-     - REF_DIR=tb (default) vs APP_DIR=village → the SAME-component transcript-browser <SessionDetail>
-       before/after. The reference is the COMMITTED, frozen `baseline/tb/` set tracked next to these
-       scripts (the prior-epoch, pre-theme-convergence capture); a divergence is a real regression.
-       (Resolved from the committed dir unless a same-named set is staged under <base-dir>.)
-     - REF_DIR=demo vs APP_DIR=village → a NON-GATING design-language sanity panel (the fairtrade demo's
-       TranscriptViewer is a DIFFERENT component from the app's <SessionDetail>); stage the demo under
-       <base-dir>/demo/.
+   transcript SxS gates the app against Fairtrade's in-use demo, the canonical fidelity oracle. Both
+   sides now render the same TranscriptViewer composition. Stage the demo under <base-dir>/demo/.
+   REF_DIR=tb remains available only when deliberately comparing against the historical pre-lift
+   transcript-browser baseline.
 
    env:
      CHROME_PATH     (required) Chrome/Chromium binary puppeteer drives
-     REF_DIR         reference (left) set name                 (default `tb`, the committed baseline/tb/ <SessionDetail> reference)
-     REF_LABEL       the reference-pane caption               (default the <SessionDetail>-reference caption)
+     REF_DIR         reference (left) set name                 (default `demo`, the Fairtrade in-use demo)
+     REF_LABEL       the reference-pane caption               (default the Fairtrade demo caption)
      APP_DIR         subject (right) app capture subdir        (default `village`)
      APP_LABEL       the subject-pane caption                 (default the village frontend caption)
      PUPPETEER_CORE  explicit module path to puppeteer-core   (optional)
@@ -50,25 +46,16 @@ const UAT = process.argv[2]
 const COMMITTED_ROOT = join(dirname(fileURLToPath(import.meta.url)), 'baseline')
 const SURFACE_SET = process.env.SURFACE_SET || 'txn'
 const IMGDIFF_FAIL_PCT = SURFACE_SET === 'cex' ? 12 : 0.5
-// The LEFT (reference) pane and the RIGHT (subject) pane are both parameterized:
-//   - DEFAULT transcript oracle: REF_DIR=tb vs APP_DIR=village — the SAME-component before/after view.
-//     The reference `tb` is the COMMITTED, frozen, prior-epoch transcript-browser <SessionDetail>
-//     capture (before this epoch's theme-convergence — NON-regenerable; tracked at baseline/tb/ next to
-//     these scripts); the subject is the current village <SessionDetail>. Both are `.tb-*`, so a
-//     divergence is a real transcript regression, not a component difference. (The SxS is NOT expected to
-//     be zero-diff — the theme-convergence delta is intentional; it's judged for design cohesion + no
-//     host-integration regression, not pixel-identity.)
-//   - OPTIONAL design-language sanity: REF_DIR=demo — pairs the fairtrade demo (its TranscriptViewer,
-//     `.txn-*`) against the app's <SessionDetail> (`.tb-*`). DIFFERENT components, so this is a NON-GATING
-//     design-language sanity panel only, NOT a transcript pass/fail (see README "Oracle").
-const REF_DIR = process.env.REF_DIR || (SURFACE_SET === 'cex' ? 'demo' : 'tb')
+// The default reference is always Fairtrade's in-use demo. The historical `tb` baseline remains an
+// explicit opt-in regression target, never a substitute for the live design-system oracle.
+const REF_DIR = process.env.REF_DIR || 'demo'
 const REF_LABEL = process.env.REF_LABEL || (SURFACE_SET === 'cex'
-  ? 'REFERENCE  (fairtrade in-use demo — village app)'
-  : 'REFERENCE  (transcript-browser <SessionDetail> — before convergence)')
+  ? 'REFERENCE  (fairtrade in-use demo - village app)'
+  : 'REFERENCE  (fairtrade TranscriptViewer in-use demo)')
 const APP_DIR = process.env.APP_DIR || 'village'
 const APP_LABEL = process.env.APP_LABEL || (SURFACE_SET === 'cex'
-  ? 'VILLAGE-FRONTEND  (Explore — current)'
-  : 'VILLAGE-FRONTEND  (<SessionDetail> — current)')
+  ? 'VILLAGE-FRONTEND  (Explore - current)'
+  : 'VILLAGE-FRONTEND  (TranscriptViewer - current)')
 const THEMES = ['dark', 'light']
 
 // Resolve the reference dir for a theme: prefer a set staged under the capture base

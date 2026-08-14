@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen } from "@testing-library/react";
-import { AllHarnesses, isHarness, type Harness } from "@peasant-labs/schema";
+import { Harness as SchemaHarness, isHarness, type Harness } from "@peasant-labs/schema";
 import type { SessionDetailPayload } from "@peasant-labs/schema";
 import { afterEach, describe, expect, it } from "vitest";
 import { SessionDetailV2 } from "@/components/session-detail/v2/SessionDetailV2";
@@ -131,8 +131,8 @@ function renderSession(detail: SessionDetailPayload): void {
 afterEach(cleanup);
 
 describe("final package compatibility on production paths", () => {
-  it("accepts the complete published Schema Harness menu through the Explore boundary", () => {
-    expect(new Set(fixtures.harnesses.map(({ value }) => value))).toEqual(new Set(AllHarnesses));
+  it("accepts the complete published Schema Harness enum through the Explore boundary", () => {
+    expect(new Set(fixtures.harnesses.map(({ value }) => value))).toEqual(new Set(Object.values(SchemaHarness)));
     for (const fixture of fixtures.harnesses) {
       expect(isHarness(fixture.value)).toBe(true);
       expect(adaptExplore(transcriptList(fixture.value, `transcript-${fixture.name}`), { collectives: [] }, []).transcripts.transcripts[0]?.modelProvider)

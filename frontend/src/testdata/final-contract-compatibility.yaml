@@ -11,6 +11,8 @@ harnesses:
     value: codex
   - name: opencode
     value: opencode
+  - name: antigravity
+    value: antigravity
 offContractHarness:
   name: rejected-unknown-harness
   value: unknown-agent
@@ -32,3 +34,52 @@ sessions:
     stopReasons:
       - max_turn_requests
       - refusal
+observedModelSessions:
+  - name: sticky-observed-model-transition
+    sessionModel: anthropic/claude-fable-5
+    expectedTransitionCount: 1
+    turns:
+      - name: sticky-observed-fable
+        content: First assistant response with direct Fable evidence.
+        sourceObservation: anthropic/claude-fable-5
+        expectedEffectiveModel: anthropic/claude-fable-5
+        expectedTransition: null
+      - name: sticky-inherited-fable
+        content: Second assistant response inherits Fable.
+        sourceObservation: null
+        expectedEffectiveModel: anthropic/claude-fable-5
+        expectedTransition: null
+      - name: sticky-observed-opus
+        content: Third assistant response records the switch to Opus.
+        sourceObservation: anthropic/claude-opus-4-8
+        expectedEffectiveModel: anthropic/claude-opus-4-8
+        expectedTransition: 'model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8'
+      - name: sticky-inherited-opus
+        content: Fourth assistant response inherits Opus.
+        sourceObservation: null
+        expectedEffectiveModel: anthropic/claude-opus-4-8
+        expectedTransition: null
+  - name: legacy-session-model-fallback
+    sessionModel: anthropic/claude-fable-5
+    expectedTransitionCount: 0
+    turns:
+      - name: legacy-fallback-one
+        content: First legacy assistant response.
+        sourceObservation: null
+        expectedEffectiveModel: anthropic/claude-fable-5
+        expectedTransition: null
+      - name: legacy-fallback-two
+        content: Second legacy assistant response.
+        sourceObservation: null
+        expectedEffectiveModel: anthropic/claude-fable-5
+        expectedTransition: null
+      - name: legacy-fallback-three
+        content: Third legacy assistant response.
+        sourceObservation: null
+        expectedEffectiveModel: anthropic/claude-fable-5
+        expectedTransition: null
+      - name: legacy-fallback-four
+        content: Fourth legacy assistant response.
+        sourceObservation: null
+        expectedEffectiveModel: anthropic/claude-fable-5
+        expectedTransition: null

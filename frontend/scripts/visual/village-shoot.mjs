@@ -1,19 +1,17 @@
-/* Screenshot the REAL assembled village frontend transcript view (the dev visual-harness route):
-     wire SessionDetailPayload -> the shared @peasant-labs/transcript-browser <SessionDetail> composer,
-     with the package's @xyflow TrajectoryGraph plugged into its graph slot.
+/* Screenshot the assembled Village transcript view (the dev visual-harness route):
+     wire SessionDetailPayload -> Fairtrade adaptTranscript -> TranscriptViewer,
+     with transcript-browser's @xyflow TrajectoryGraph plugged into Fairtrade's graph slot.
 
    Mirrors the surface set of the canonical fairtrade demo (scripts/shootdemo.mjs) so the shots pair
-   1:1 with the DEMO captures (the output filenames are the canonical `txn-*` surface names, even though
-   the village composer renders them with `.tb-*` classes — the harness compares the same SURFACES, not
-   the same class strings). The harness route bundles the SAME session the demo renders (sess_demo_0001)
+   1:1 with the DEMO captures. The app and demo both render Fairtrade's canonical `.txn-*` markup, and
+   the output filenames use the same `txn-*` surface names. The harness route bundles the SAME session
+   the demo renders (sess_demo_0001)
    and mounts the composer with no backend/auth, so a plain `next dev` is enough.
 
-   Scroll model: the village `<SessionDetail>` composer scrolls the PAGE and reveals a sticky condensed
-   header (`.tb-stickyhead`) on scroll — it is NOT a height-bounded inner-scroller. The whole transcript
-   is in normal document flow, so a full-surface shot captures the target element's entire bounds with
-   captureBeyondViewport:true at the base viewport (no viewport-grow — several surfaces are
-   viewport-relative, so growing the viewport would just grow the content); the sticky scrubber is
-   captured by scrolling the window to reveal it. Theme is toggled via the harness route's own
+   Scroll model: Fairtrade's height-bounded `.txn-stream` owns transcript scrolling and reveals
+   `.txn-sticky` after the stream moves. Full-surface shots capture each mounted target's bounds with
+   captureBeyondViewport:true at the base viewport; the scrubber is captured after scrolling that
+   internal stream. Theme is toggled via the harness route's own
    .theme-btn (which sets [data-theme] on the document element, the way the real app's theme control
    does), not a URL param.
 
@@ -59,9 +57,8 @@ const gate = new SurfaceGate(page) // non-empty-surface assertion, per run (trac
    - STRUCTURAL gates (the run cannot produce valid output) → HARD non-zero exit, ABORT immediately,
      with a DISTINCT code so "harness broke" is separable from "a surface regressed":
        * code 3 — theme-didn't-flip       (every capture would be the wrong theme)
-       * code 4 — composite-not-rendered   (`.tb-detail` never mounted)
-       * code 5 — page-not-scrolling       (`document.scrollHeight <= innerHeight`; the page-scroll
-                  analog of "the internal stream never overflows" — nothing to capture)
+        * code 4 — composite-not-rendered   (`.txn-app` never mounted)
+        * code 5 — stream-not-scrolling     (`.txn-stream` does not overflow — nothing to capture)
    - PER-SURFACE issues → RECORDED + the run CONTINUES, then exits non-zero with code 1 (so CI flags it,
      distinct from the structural 3/4/5), or 0 if there are none:
        * GAP     — a surface failed (selector never mounted, a popover didn't open, a single
@@ -80,8 +77,8 @@ const die = async (code, what) => {
 {
   let ready = false
   const s = Date.now()
-  while (Date.now() - s < 12000) { if ((await page.$('.tb-detail')) && (await page.$('.theme-btn'))) { ready = true; break } await pause(150) }
-  if (!ready) await die(4, 'composite-not-rendered: ".tb-detail" / ".theme-btn" never mounted on the harness route — the <SessionDetail> composer did not render the fixture')
+  while (Date.now() - s < 12000) { if ((await page.$('.txn-app')) && (await page.$('.theme-btn'))) { ready = true; break } await pause(150) }
+  if (!ready) await die(4, 'composite-not-rendered: ".txn-app" / ".theme-btn" never mounted on the harness route — Fairtrade TranscriptViewer did not render the fixture')
   await pause(300) // let hydration settle so the theme control's handler is attached
 }
 
@@ -104,12 +101,18 @@ if (activeTheme !== theme) {
   await die(3, `theme-didn't-flip: requested theme="${theme}" but [data-theme]="${activeTheme}" after clicking .theme-btn`)
 }
 
-/* ── structural: the composer must have rendered a full, page-overflowing transcript. The village
-   <SessionDetail> composer scrolls the PAGE (no internal stream), so the analog of the reference
-   harness's "stream not scrolling internally" gate is "the document overflows the viewport". ── */
+/* ── structural: the canonical stream must own a real overflowing transcript. ── */
 {
-  const st = await page.evaluate(() => ({ scrollHeight: document.documentElement.scrollHeight, innerHeight: window.innerHeight }))
-  if (st.scrollHeight <= st.innerHeight) await die(5, `page-not-scrolling: document.scrollHeight (${st.scrollHeight}) <= innerHeight (${st.innerHeight}) — the transcript did not render a full, overflowing page (the page-scroll analog of an internal stream that never overflows)`)
+  await page.evaluate(() => {
+    const trace = [...document.querySelectorAll('.txn-tab')].find((tab) => tab.textContent.toLowerCase().includes('full trace'))
+    trace?.click()
+  })
+  await pause(300)
+  const st = await page.evaluate(() => {
+    const stream = document.querySelector('.txn-stream')
+    return stream ? { scrollHeight: stream.scrollHeight, clientHeight: stream.clientHeight } : null
+  })
+  if (!st || st.scrollHeight <= st.clientHeight) await die(5, `stream-not-scrolling: .txn-stream scrollHeight (${st?.scrollHeight ?? 'missing'}) <= clientHeight (${st?.clientHeight ?? 'missing'}) — the transcript did not render an overflowing canonical stream`)
 }
 
 /* ── nav helpers (the village composer's tab strip + segmented list/graph toggle + tool switch) ── */
@@ -120,12 +123,16 @@ const waitFor = async (sel, timeoutMs = 3000) => {
 }
 const resetView = async () => {
   await page.setViewport({ ...BASE_VP })
-  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.evaluate(() => {
+    window.scrollTo(0, 0)
+    const stream = document.querySelector('.txn-stream')
+    if (stream) stream.scrollTop = 0
+  })
   await pause(150)
 }
 const txnTab = async (label) => {
   const ok = await page.evaluate((label) => {
-    const b = [...document.querySelectorAll('.txn-tab, .tb-tabstrip-tab')].find((x) => x.textContent.toLowerCase().includes(label))
+    const b = [...document.querySelectorAll('.txn-tab')].find((x) => x.textContent.toLowerCase().includes(label))
     if (!b) return false; b.click(); return true
   }, label)
   if (!ok) throw new Error(`tab "${label}" not found`)
@@ -133,7 +140,7 @@ const txnTab = async (label) => {
 }
 const viewMode = async (mode) => {
   const ok = await page.evaluate((mode) => {
-    const b = [...document.querySelectorAll('.tb-segmented-btn')].find((x) => x.textContent.toLowerCase().includes(mode))
+    const b = [...document.querySelectorAll('.txn-viewtoggle .bs-seg-opt')].find((x) => x.textContent.toLowerCase().includes(mode))
     if (!b) return false; b.click(); return true
   }, mode)
   if (!ok) throw new Error(`view-mode "${mode}" not found`)
@@ -150,13 +157,10 @@ const expandAllTools = async () => {
   await pause(500)
 }
 
-/* capture the FULL target element. The village composer lays the whole transcript out in normal
-   document flow (page-scrolled, no virtualized inner-scroller), so every surface is fully in the DOM at
-   the base viewport — captureBeyondViewport:true rasters the element's entire bounds (incl. below the
-   fold) in one frame WITHOUT growing the viewport. (Growing the viewport is wrong here: several surfaces
-   are viewport-relative — the rail/graph fill the viewport height — so a taller viewport just grows the
-   content, never catching up.) Asserts the capture is non-empty before accepting it; warns if a surface
-   exceeds the CAP-px raster guard. */
+/* Capture the full mounted target at the base viewport. The canonical viewer keeps each tab's current
+   surface in the DOM and the transcript stream owns its own scrolling. captureBeyondViewport rasters the
+   target bounds without changing viewport-relative rail/graph dimensions. Every accepted image passes
+   the non-empty gate; over-cap targets are captured in full and flagged. */
 const shotFull = async (name, sel) => {
   await waitFor(sel)
   await resetView()
@@ -203,38 +207,37 @@ const surface = async (name, fn) => {
 /* ── deep walk: every tab + sub-surface, mirroring the demo's surface set ── */
 
 // highlights tab — carries the scorecard + the highlights outline
-await surface('txn-highlights', async () => { await resetView(); await txnTab('highlights'); await shotFull('txn-highlights', '.tb-detail') })
-await surface('txn-scorecard', async () => { await shotFull('txn-scorecard', '.tb-scorecard') })
+await surface('txn-highlights', async () => { await resetView(); await txnTab('highlights'); await shotFull('txn-highlights', '.txn-app') })
+await surface('txn-scorecard', async () => { await shotFull('txn-scorecard', '.txn-scorecard') })
 
 // full trace — list canvas: subagent nesting + thinking + per-kind tool renderers + markers.
 // shotFull grows the viewport to the whole document so the entire trace column rasters in one frame,
 // pairing with the demo's full-stream shot.
 await surface('txn-trace-canvas', async () => {
   await txnTab('full trace'); await viewMode('list'); await expandAllTools()
-  await shotFull('txn-trace-canvas', '.tb-canvas')
+  await shotFull('txn-trace-canvas', '.txn-stream')
 })
 
-// scrubber — the scrub tick bar lives in the sticky condensed header, which reveals once the page
-// scrolls past the hero/tabs. Capture the scrub bar itself (pairs 1:1 with the demo's scrubber);
-// records an actionable gap if it never reveals.
+// scrubber — the tick bar lives in the sticky context row, revealed after the internal stream scrolls.
 await surface('txn-scrubber', async () => {
   await resetView()
   await txnTab('full trace'); await pause(300)
-  await page.evaluate(() => window.scrollTo(0, 900)); await pause(600)
-  const scrub = (await page.$('.tb-scrubber')) || (await page.$('.tb-stickyhead-scrubber'))
+  await page.evaluate(() => {
+    const stream = document.querySelector('.txn-stream')
+    if (stream) stream.scrollTop = Math.min(900, stream.scrollHeight)
+  }); await pause(600)
+  const scrub = await page.$('.txn-scrub')
   if (!scrub) {
-    await page.evaluate(() => window.scrollTo(0, 0))
-    throw new Error('.tb-scrubber did not reveal after scrolling the window — the scrub bar lives in the sticky condensed header, which appears once the page scrolls past the hero/tabs; verify the page actually overflows the viewport (document.scrollHeight > innerHeight)')
+    throw new Error('.txn-scrub did not reveal after scrolling .txn-stream — verify the canonical stream overflows and .txn-sticky mounted')
   }
-  const sel = (await page.$('.tb-scrubber')) ? '.tb-scrubber' : '.tb-stickyhead-scrubber'
-  await shotFold('txn-scrubber', sel)
-  await page.evaluate(() => window.scrollTo(0, 0)); await pause(200)
+  await shotFold('txn-scrubber', '.txn-scrub')
+  await page.evaluate(() => { const stream = document.querySelector('.txn-stream'); if (stream) stream.scrollTop = 0 }); await pause(200)
 })
 
 // rails — the right filters/outline rail alongside the trace
 await surface('txn-rails', async () => {
   await txnTab('full trace'); await resetView()
-  await shotFull('txn-rails', '.tb-detail-railwrap')
+  await shotFull('txn-rails', '.txn-body-grid')
 })
 
 // per-turn label popover overlay — village mounts its own label control into the composer's
@@ -265,14 +268,14 @@ await surface('txn-label-popover', async () => {
 await surface('txn-graph', async () => {
   await txnTab('full trace'); await resetView()
   await viewMode('graph'); await pause(600)
-  await shotFull('txn-graph', '.tb-detail-graphwrap')
+  await shotFull('txn-graph', '.txn-graphslot')
   await viewMode('list')
 })
 
 // remaining tabs
-await surface('txn-diffs', async () => { await resetView(); await txnTab('diffs'); await shotFull('txn-diffs', '.tb-detail') })
-await surface('txn-files', async () => { await resetView(); await txnTab('files'); await shotFull('txn-files', '.tb-detail') })
-await surface('txn-annotations', async () => { await resetView(); await txnTab('annotations'); await shotFull('txn-annotations', '.tb-detail') })
+await surface('txn-diffs', async () => { await resetView(); await txnTab('diffs'); await shotFull('txn-diffs', '.txn-app') })
+await surface('txn-files', async () => { await resetView(); await txnTab('files'); await shotFull('txn-files', '.txn-app') })
+await surface('txn-annotations', async () => { await resetView(); await txnTab('annotations'); await shotFull('txn-annotations', '.txn-app') })
 
 const okCount = results.filter((r) => r.status === 'ok').length
 const partialCount = results.filter((r) => r.status === 'partial').length

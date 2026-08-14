@@ -33,15 +33,12 @@ type Theme = "dark" | "light";
  * canonical fairtrade demo (which renders the same `sess_demo_0001`) for a true
  * height-matched, same-data side-by-side.
  *
- * It mounts the composer exactly as the real page does (same `<SessionDetail>`
- * props: detected phases, derived annotations, the @xyflow graph in the graph
- * slot) but with all capabilities on and host callbacks stubbed, so every action
- * affordance renders for capture. The composer manages its OWN page scroll + a
- * sticky condensed header (it is not a height-bounded inner-scroller), so the
- * host here is plain document flow — the capture script grows the viewport to the
- * full document height for full-surface shots and scrolls the window to reveal
- * the sticky header. It 404s in a production build, so it never ships as a public
- * route.
+ * It mounts the canonical viewer exactly as the real page does: detected phases,
+ * derived annotations, and the @xyflow graph engine in Fairtrade's graph slot.
+ * The host is height-bounded so the viewer's transcript stream owns scrolling and
+ * can reveal its sticky scrubber. All capabilities are enabled with inert host
+ * callbacks so every action affordance is available for capture. It 404s in a
+ * production build, so it never ships as a public route.
  */
 export default function VisualHarnessPage() {
   // Not a product surface — only reachable under `next dev`. In a production
@@ -139,7 +136,7 @@ export default function VisualHarnessPage() {
         </button>
       </header>
 
-      {/* Bounded host: the composite scrolls internally (sticky scrubber). */}
+      {/* Bounded host: Fairtrade's canonical stream scrolls internally. */}
       <div style={{ height: "calc(100vh - 45px)" }}>
         <TranscriptViewer
           viewModel={vm}
