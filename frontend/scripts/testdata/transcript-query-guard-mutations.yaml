@@ -1,0 +1,7 @@
+mutations:
+  - name: response-pagination-guard-bypass
+    file: ../../src/lib/queries/transcripts.ts
+    original: "      assertTranscriptListResponseMatchesRequest(params, response);\n      return response;"
+    replacement: "      return response;"
+    testFile: src/lib/queries/transcripts.signal.test.tsx
+    testName: page-mismatch-rejected-before-cache-commit

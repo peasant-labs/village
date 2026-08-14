@@ -21,10 +21,19 @@ export function transcriptListResponse(
  * tests. Each call builds a fresh client so tests never share cache state.
  */
 export function makeQueryClientWrapper(): (props: { children: ReactNode }) => ReactNode {
+  return makeQueryClientHarness().wrapper;
+}
+
+/** Fresh client plus provider wrapper for tests that must inspect cache state. */
+export function makeQueryClientHarness(): {
+  client: QueryClient;
+  wrapper: (props: { children: ReactNode }) => ReactNode;
+} {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return function QueryClientWrapper({ children }: { children: ReactNode }) {
+  const wrapper = function QueryClientWrapper({ children }: { children: ReactNode }) {
     return createElement(QueryClientProvider, { client }, children);
   };
+  return { client, wrapper };
 }

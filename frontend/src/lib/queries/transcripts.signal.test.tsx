@@ -1,10 +1,16 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useTranscripts } from "@/lib/queries/transcripts";
 import {
+  TranscriptListQueryErrorCode,
+  TranscriptListResponseMismatchError,
+  useTranscripts,
+} from "@/lib/queries/transcripts";
+import {
+  makeQueryClientHarness,
   makeQueryClientWrapper,
   transcriptListResponse as response,
 } from "@/test/queryHookHelpers";
+import { loadTranscriptQueryValidationFixtures } from "@/test/transcriptQueryValidationFixtures";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -65,4 +71,87 @@ describe("useTranscripts request wiring", () => {
       .map((url) => (url.includes("page=2") ? 2 : 1));
     expect(new Set(requestedPages)).toEqual(new Set([1, 2]));
   });
+});
+
+const validationFixtures = loadTranscriptQueryValidationFixtures();
+
+describe("useTranscripts response trust boundary", () => {
+  for (const fixture of validationFixtures) {
+    it(fixture.name, async () => {
+      let responseIndex = 0;
+      let releaseDeferred: (() => void) | null = null;
+      const requestedURLs: string[] = [];
+      const fetchMock = vi.fn((input: RequestInfo | URL) => {
+        requestedURLs.push(String(input));
+        const responseFixture = fixture.responses[responseIndex++];
+        const makeResponse = () => new Response(
+          JSON.stringify(response(responseFixture.page, {
+            limit: responseFixture.limit,
+            total: responseFixture.total,
+          })),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+        if (fixture.action === "seededNewKey" && responseIndex === 3) {
+          return new Promise<Response>((resolve) => {
+            releaseDeferred = () => resolve(makeResponse());
+          });
+        }
+        return Promise.resolve(makeResponse());
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const { client, wrapper } = makeQueryClientHarness();
+      const view = renderHook(
+        ({ params }) => useTranscripts(params),
+        { initialProps: { params: fixture.params }, wrapper },
+      );
+
+      await waitFor(() => expect(view.result.current.status).toBe(fixture.initialStatus));
+      const initialKey = ["transcripts", fixture.params];
+      if (fixture.initialStatus === "error") {
+        const error = view.result.current.error;
+        expect(error).toBeInstanceOf(TranscriptListResponseMismatchError);
+        expect((error as TranscriptListResponseMismatchError).code).toBe(
+          TranscriptListQueryErrorCode.ResponsePaginationMismatch,
+        );
+        for (const fragment of fixture.errorFragments) {
+          expect((error as Error).message).toContain(fragment);
+        }
+        expect((error as Error).message.toLowerCase()).not.toContain("previously confirmed");
+        expect(client.getQueryData(initialKey)).toBeUndefined();
+        expect(client.getQueryState(initialKey)?.status).toBe("error");
+      } else {
+        expect(view.result.current.data?.page).toBe(fixture.responses[0].page);
+        expect(client.getQueryData(initialKey)).toEqual(view.result.current.data);
+      }
+
+      if (fixture.action === "retry") {
+        await act(async () => {
+          await view.result.current.refetch();
+        });
+        await waitFor(() => expect(view.result.current.isSuccess).toBe(true));
+        expect(view.result.current.data?.page).toBe(fixture.finalPage);
+        expect(client.getQueryData(initialKey)).toEqual(view.result.current.data);
+        expect(requestedURLs).toHaveLength(2);
+        expect(requestedURLs.every((url) => url.includes("page=2"))).toBe(true);
+      }
+
+      if (fixture.action === "seededNewKey") {
+        view.rerender({ params: fixture.mismatchParams! });
+        await waitFor(() => expect(view.result.current.isError).toBe(true));
+        const mismatchError = view.result.current.error as TranscriptListResponseMismatchError;
+        expect(mismatchError).toBeInstanceOf(TranscriptListResponseMismatchError);
+        for (const fragment of fixture.errorFragments) expect(mismatchError.message).toContain(fragment);
+        expect(client.getQueryData(["transcripts", fixture.mismatchParams])).toBeUndefined();
+
+        view.rerender({ params: fixture.nextParams! });
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+        // The only possible placeholder is the previously validated page 1. The
+        // rejected page 5 never appears while page 3 is pending.
+        expect(view.result.current.data?.page).not.toBe(5);
+        if (view.result.current.data != null) expect(view.result.current.data.page).toBe(1);
+        act(() => releaseDeferred?.());
+        await waitFor(() => expect(view.result.current.data?.page).toBe(fixture.finalPage));
+      }
+    });
+  }
 });

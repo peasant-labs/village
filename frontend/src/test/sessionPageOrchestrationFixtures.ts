@@ -42,10 +42,10 @@ export type SessionPageOrchestrationFixtures = {
 };
 
 const requiredScenarioNames = [
-  "page-transition-mismatch-and-exact-key-retry",
+  "page-transition-error-and-exact-key-retry",
   "terminal-error-keeps-prior-rows-and-clears-busy",
   "abort-supersession-is-silent",
-  "mismatch-without-prior-data-shows-error",
+  "trust-boundary-error-without-prior-data-shows-error",
   "persistent-live-status-across-branches",
   "initial-load-error-shows-error-surface",
 ] as const;

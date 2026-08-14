@@ -1,8 +1,6 @@
-# Fixtures for the session-list page request helpers (buildTranscriptListParams
-# and validateSettledTranscriptPage). Combinatorial cases live here, never inline
-# in the test file. The loader enforces exact inventory, unique names, exact
-# per-row keys, and that each settled-validation row's expectedOk agrees with the
-# page/limit equality it encodes (non-vacuity guard).
+# Fixtures for buildTranscriptListParams. Response trust-boundary permutations
+# live in transcript-query-validation.yaml because they exercise the production
+# TanStack hook and cache rather than a duplicate presentation helper.
 
 paramBuilds:
   - name: defaults-page-one
@@ -69,46 +67,3 @@ paramBuilds:
       limit: "24"
       provider: claude-code
       tags: debugging,greenfield
-
-settledValidation:
-  - name: page-one-matches
-    requestedPage: 1
-    requestedLimit: 24
-    responsePage: 1
-    responseLimit: 24
-    expectedOk: true
-
-  - name: deeper-page-matches
-    requestedPage: 3
-    requestedLimit: 24
-    responsePage: 3
-    responseLimit: 24
-    expectedOk: true
-
-  - name: stale-lower-page-rejected
-    requestedPage: 2
-    requestedLimit: 24
-    responsePage: 1
-    responseLimit: 24
-    expectedOk: false
-
-  - name: ahead-page-rejected
-    requestedPage: 2
-    requestedLimit: 24
-    responsePage: 3
-    responseLimit: 24
-    expectedOk: false
-
-  - name: limit-drift-rejected
-    requestedPage: 2
-    requestedLimit: 24
-    responsePage: 2
-    responseLimit: 20
-    expectedOk: false
-
-  - name: page-and-limit-drift-rejected
-    requestedPage: 4
-    requestedLimit: 24
-    responsePage: 1
-    responseLimit: 20
-    expectedOk: false
