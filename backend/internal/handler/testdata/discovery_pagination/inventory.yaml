@@ -1,0 +1,51 @@
+# Shared discovery dataset for the deterministic-pagination integration test.
+# Rows are crafted so each sort mode exercises three tie-break shapes:
+#   * a pure primary-key tie   (equal primary sort AND equal published_at),
+#   * a published_at tie-break (equal primary sort, different published_at),
+#   * NULLS LAST                (a null optional metric sorts last).
+# published_at values collide deliberately (T+0, T+1000, T+2000) so the id
+# tie-breaker is the only thing that makes membership deterministic. The private
+# row (u6) must never appear in an anonymous listing, proving visibility
+# filtering still applies through the new snapshot/order path.
+- name: u1
+  id: "11111111-1111-1111-1111-111111111111"
+  visibility: "public"
+  publishedAtMs: 1700000000000
+  turnCount: 10
+  tokenCount: 100
+  durationMs: 5000
+- name: u2
+  id: "22222222-2222-2222-2222-222222222222"
+  visibility: "public"
+  publishedAtMs: 1700000000000
+  turnCount: 10
+  tokenCount: 200
+  durationMs: 5000
+- name: u3
+  id: "33333333-3333-3333-3333-333333333333"
+  visibility: "public"
+  publishedAtMs: 1700000001000
+  turnCount: 20
+  tokenCount: 100
+  durationMs: null
+- name: u4
+  id: "44444444-4444-4444-4444-444444444444"
+  visibility: "public"
+  publishedAtMs: 1700000001000
+  turnCount: 20
+  tokenCount: null
+  durationMs: 9000
+- name: u5
+  id: "55555555-5555-5555-5555-555555555555"
+  visibility: "public"
+  publishedAtMs: 1700000002000
+  turnCount: null
+  tokenCount: 200
+  durationMs: 9000
+- name: u6
+  id: "66666666-6666-6666-6666-666666666666"
+  visibility: "private"
+  publishedAtMs: 1700000003000
+  turnCount: 99
+  tokenCount: 999
+  durationMs: 99000

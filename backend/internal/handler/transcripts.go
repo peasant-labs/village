@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -1395,23 +1396,9 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		where = " WHERE " + strings.Join(conditions, " AND ")
 	}
 
-	orderBy := " ORDER BY t.published_at DESC"
-	switch q.Get("sort") {
-	case "turns":
-		orderBy = " ORDER BY t.turn_count DESC NULLS LAST"
-	case "tokens":
-		orderBy = " ORDER BY t.token_count DESC NULLS LAST"
-	case "duration":
-		orderBy = " ORDER BY t.duration_ms DESC NULLS LAST"
-	}
+	orderBy := discoveryOrderClause(q.Get("sort"))
 
-	var total int64
 	countQuery := "SELECT count(DISTINCT t.id) " + baseFrom + where
-	err := h.pool.QueryRow(r.Context(), countQuery, args...).Scan(&total)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to count transcripts")
-		return
-	}
 
 	// Name-addressed scanning (db tags + RowToStructByName): the SELECT and the
 	// struct can't drift apart, so a migration's new column can never again
@@ -1420,14 +1407,28 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	selectQuery := "SELECT DISTINCT " + transcriptSelectColumns + " " +
 		baseFrom + where + orderBy + fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
 
-	rows, err := h.pool.Query(r.Context(), selectQuery, append(args, limit, offset)...)
+	// The count and the page read describe one database snapshot: they run in a
+	// single read-only REPEATABLE READ transaction, so a publish or delete
+	// committed after the snapshot is taken can never make `total` disagree with
+	// the rows on the returned page. selectArgs is built without aliasing the
+	// shared args backing array so the count read is unaffected by the appended
+	// LIMIT/OFFSET.
+	selectArgs := append(append([]any{}, args...), limit, offset)
+	total, listed, err := h.listDiscoverySnapshot(r.Context(), countQuery, args, selectQuery, selectArgs)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to list transcripts")
-		return
-	}
-	listed, err := pgx.CollectRows(rows, pgx.RowToStructByName[sqlc.Transcript])
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to list transcripts")
+		// Preserve the stage-tagged snapshot error (open / count / page / scan /
+		// commit) for operators before the caller receives the generic 500. The
+		// wrapped error carries only the failing stage and the database error, not
+		// the request's filter values, transcript content, or identity data, so
+		// this stays inside the no-sensitive-logging boundary. Mirrors the
+		// structured-field shape used by rollbackTxBestEffort in tx.go.
+		slog.Error("discovery listing failed",
+			"operation", "list_transcripts",
+			"stage", "read_only_discovery_snapshot",
+			"consequence", "no transcript page was returned to the caller",
+			"remediation", "retry the request; if it persists verify PostgreSQL availability and connection-pool health",
+			"error", err)
+		writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the read-only discovery snapshot could not be completed, so no transcript page was returned; retry the request, and if it persists verify PostgreSQL availability")
 		return
 	}
 
@@ -1500,6 +1501,74 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		"page":        page,
 		"limit":       limit,
 	})
+}
+
+// discoveryOrderClause returns the ORDER BY clause for the GET /api/v1/transcripts
+// discovery listing. Each sort mode keeps its user-selected primary column but
+// ends with two deterministic tie-breakers: published_at DESC then the primary
+// key t.id DESC. Because t.id is unique and NOT NULL it is a total order, so rows
+// that tie on the primary sort column (equal published_at, turn_count,
+// token_count, or duration_ms) always take the same position across repeated
+// reads and adjacent offset pages — offset pagination can no longer duplicate,
+// omit, or reorder a tied row the way an ambiguous ORDER BY silently did. The
+// primary key tie-break mirrors the pull surface (transcripts_pull.sql), which
+// already orders published_at DESC, id. The NULLS LAST handling on the optional
+// metric columns and the published_at-first primary ordering are unchanged.
+func discoveryOrderClause(sort string) string {
+	switch sort {
+	case "turns":
+		return " ORDER BY t.turn_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
+	case "tokens":
+		return " ORDER BY t.token_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
+	case "duration":
+		return " ORDER BY t.duration_ms DESC NULLS LAST, t.published_at DESC, t.id DESC"
+	default:
+		return " ORDER BY t.published_at DESC, t.id DESC"
+	}
+}
+
+// listDiscoverySnapshot runs the discovery total-count and the page read inside
+// ONE read-only REPEATABLE READ transaction so the returned total and rows
+// describe a single PostgreSQL snapshot. PostgreSQL fixes the transaction
+// snapshot at its first statement, so a publish or delete committed by another
+// connection after the count is taken is invisible to the subsequent page read,
+// and the count can never disagree with the page contents within one response.
+//
+// This does NOT make offset pages fetched across SEPARATE HTTP requests stable
+// under concurrent writes — that is the documented limitation of offset
+// pagination and is deferred to a future cursor contract — but it removes the
+// within-response count/page skew. The transaction is read-only, so it performs
+// no writes and needs no governance actor GUC.
+func (h *Handler) listDiscoverySnapshot(ctx context.Context, countQuery string, countArgs []any, selectQuery string, selectArgs []any) (int64, []sqlc.Transcript, error) {
+	tx, err := h.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return 0, nil, fmt.Errorf("open read-only discovery snapshot transaction: %w", err)
+	}
+	defer rollbackTxBestEffort("discovery_snapshot", tx)
+
+	var total int64
+	if err := tx.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+		return 0, nil, fmt.Errorf("read discovery total count within snapshot: %w", err)
+	}
+
+	// Deterministic-concurrency test synchronization point (nil in production).
+	if h.discoveryReadBarrier != nil {
+		h.discoveryReadBarrier()
+	}
+
+	rows, err := tx.Query(ctx, selectQuery, selectArgs...)
+	if err != nil {
+		return 0, nil, fmt.Errorf("read discovery page within snapshot: %w", err)
+	}
+	listed, err := pgx.CollectRows(rows, pgx.RowToStructByName[sqlc.Transcript])
+	if err != nil {
+		return 0, nil, fmt.Errorf("scan discovery page within snapshot: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, nil, fmt.Errorf("commit read-only discovery snapshot transaction: %w", err)
+	}
+	return total, listed, nil
 }
 
 func (h *Handler) canViewTranscript(ctx context.Context, user *AuthUser, t sqlc.Transcript) bool {

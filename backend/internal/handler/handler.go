@@ -33,6 +33,16 @@ type Handler struct {
 	preservationEvaluator observedModelPreservationEvaluator
 	scanContent           func([]byte) []string
 
+	// discoveryReadBarrier, when non-nil, is invoked exactly once inside the
+	// discovery snapshot transaction after the total-count read and before the
+	// page read. Production leaves it nil, so the two reads run back-to-back with
+	// no behavioral change. Deterministic concurrency tests set it to commit a
+	// competing publish between the two reads and prove the read-only REPEATABLE
+	// READ snapshot keeps the count and the returned page describing one database
+	// snapshot. It is a synchronization observation point, not an alternate code
+	// path: the same count/page/commit statements run whether or not it is set.
+	discoveryReadBarrier func()
+
 	// gh is the GitHub App client backing the collective-repository feature.
 	// It is nil when the App is not configured; handlers detect this via
 	// githubClient() and respond 501. Tests inject a client pointed at httptest.
