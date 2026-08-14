@@ -22,7 +22,9 @@
     "boot:manage": "node scripts/visual/manage-boot-village.mjs",
     "boot:explore": "node scripts/visual/boot-explore.mjs",
     "mock:rest:explore": "node scripts/visual/mock-rest-explore.mjs",
-    "mock:rest": "node scripts/visual/mock-rest.mjs"
+    "mock:rest:pagination": "node scripts/visual/mock-rest-pagination.mjs",
+    "mock:rest": "node scripts/visual/mock-rest.mjs",
+    "shoot:explore:pagination": "node scripts/visual/explore-pagination-shoot.mjs"
   },
   "dependencies": {
     "@peasant-labs/fairtrade": "0.0.12",

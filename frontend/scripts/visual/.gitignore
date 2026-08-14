@@ -23,6 +23,8 @@
 !boot-explore.mjs
 !mock-rest.mjs
 !mock-rest-explore.mjs
+!mock-rest-pagination.mjs
+!explore-pagination-shoot.mjs
 !png-diff.mjs
 !determinism.mjs
 !manage-README.md

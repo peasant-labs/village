@@ -1,0 +1,212 @@
+# Deterministic mounted `/` session-pagination race, retry, mismatch, filter, and
+# accessibility permutations. Each `data` entry is a discovery list response
+# (its confirmed `page` and the transcript IDs it carries). Each scenario drives
+# the REAL mounted route through actual pager/order controls while only the HTTP
+# schedule is controlled by the test (deferred promises, never sleeps).
+#
+# A response `page` may deliberately differ from the requested page (see the
+# mismatch set) so the settled-response validation can be exercised. IDs are
+# unique per page so the visible set proves which page's rows are presented.
+data:
+  page-1:
+    page: 1
+    ids: ["t-101", "t-102"]
+  page-2:
+    page: 2
+    ids: ["t-201", "t-202"]
+  page-3:
+    page: 3
+    ids: ["t-301", "t-302"]
+  page-1-turns:
+    page: 1
+    ids: ["t-131", "t-132"]
+  # A response describing page 5 returned for a page-2 request: a settled
+  # mismatch that must never overwrite the confirmed rows.
+  wrong-page-5:
+    page: 5
+    ids: ["t-501", "t-502"]
+
+scenarios:
+  - name: deferred-second-page-keeps-intent-and-retains-rows
+    steps:
+      - name: initial-page-1-confirmed
+        action: { kind: resolve, requestPage: 1, dataId: page-1 }
+        expect:
+          currentPage: 1
+          visibleIds: ["t-101", "t-102"]
+          ariaBusy: false
+          alert: false
+          status: "page 1 of 3 loaded"
+          requestedPages: [1]
+          uniqueIds: true
+      - name: request-page-2-deferred
+        action: { kind: clickPage, page: 2 }
+        expect:
+          currentPage: 2
+          visibleIds: ["t-101", "t-102"]
+          ariaBusy: true
+          alert: false
+          statusIncludes: "loading page 2"
+          requestedPages: [1, 2]
+          focusPage: 2
+      - name: page-2-settles
+        action: { kind: resolve, requestPage: 2, dataId: page-2 }
+        expect:
+          currentPage: 2
+          visibleIds: ["t-201", "t-202"]
+          ariaBusy: false
+          alert: false
+          status: "page 2 of 3 loaded"
+          requestedPages: [1, 2]
+          uniqueIds: true
+
+  - name: later-page-supersedes-abort-ignoring-earlier
+    steps:
+      - name: initial-page-1-confirmed
+        action: { kind: resolve, requestPage: 1, dataId: page-1 }
+        expect:
+          currentPage: 1
+          visibleIds: ["t-101", "t-102"]
+          requestedPages: [1]
+      - name: request-page-2
+        action: { kind: clickPage, page: 2 }
+        expect:
+          currentPage: 2
+          requestedPages: [1, 2]
+      - name: request-page-3-supersedes-page-2
+        action: { kind: clickPage, page: 3 }
+        expect:
+          currentPage: 3
+          visibleIds: ["t-101", "t-102"]
+          ariaBusy: true
+          requestedPages: [1, 2, 3]
+          abortedPages: [2]
+      - name: page-3-settles-first
+        action: { kind: resolve, requestPage: 3, dataId: page-3 }
+        expect:
+          currentPage: 3
+          visibleIds: ["t-301", "t-302"]
+          ariaBusy: false
+          requestedPages: [1, 2, 3]
+          uniqueIds: true
+      - name: abort-ignoring-page-2-cannot-repaint
+        action: { kind: resolveIgnoringAbort, requestPage: 2, dataId: page-2 }
+        expect:
+          currentPage: 3
+          visibleIds: ["t-301", "t-302"]
+          requestedPages: [1, 2, 3]
+
+  - name: settled-page-mismatch-keeps-prior-rows
+    steps:
+      - name: initial-page-1-confirmed
+        action: { kind: resolve, requestPage: 1, dataId: page-1 }
+        expect:
+          currentPage: 1
+          visibleIds: ["t-101", "t-102"]
+      - name: request-page-2
+        action: { kind: clickPage, page: 2 }
+        expect:
+          currentPage: 2
+          ariaBusy: true
+      - name: settled-response-describes-wrong-page
+        action: { kind: resolve, requestPage: 2, dataId: wrong-page-5 }
+        expect:
+          currentPage: 2
+          visibleIds: ["t-101", "t-102"]
+          ariaBusy: false
+          alert: true
+      - name: retry-same-page
+        action: { kind: clickRetry }
+        expect:
+          currentPage: 2
+          visibleIds: ["t-101", "t-102"]
+      - name: retry-settles-correct-page
+        action: { kind: resolve, requestPage: 2, dataId: page-2 }
+        expect:
+          currentPage: 2
+          visibleIds: ["t-201", "t-202"]
+          alert: false
+
+  - name: terminal-failure-then-exact-key-retry
+    steps:
+      - name: initial-page-1-confirmed
+        action: { kind: resolve, requestPage: 1, dataId: page-1 }
+        expect:
+          currentPage: 1
+          visibleIds: ["t-101", "t-102"]
+      - name: request-page-2
+        action: { kind: clickPage, page: 2 }
+        expect:
+          currentPage: 2
+          ariaBusy: true
+      - name: page-2-request-fails
+        action: { kind: reject, requestPage: 2 }
+        expect:
+          currentPage: 2
+          visibleIds: ["t-101", "t-102"]
+          ariaBusy: false
+          alert: true
+      - name: retry-exact-page
+        action: { kind: clickRetry }
+        expect:
+          currentPage: 2
+      - name: retry-succeeds
+        action: { kind: resolve, requestPage: 2, dataId: page-2 }
+        expect:
+          currentPage: 2
+          visibleIds: ["t-201", "t-202"]
+          alert: false
+
+  - name: filter-change-returns-to-first-page
+    steps:
+      - name: initial-page-1-confirmed
+        action: { kind: resolve, requestPage: 1, dataId: page-1 }
+        expect:
+          currentPage: 1
+          visibleIds: ["t-101", "t-102"]
+      - name: navigate-to-page-2
+        action: { kind: clickPage, page: 2 }
+        expect:
+          currentPage: 2
+      - name: page-2-settles
+        action: { kind: resolve, requestPage: 2, dataId: page-2 }
+        expect:
+          currentPage: 2
+          visibleIds: ["t-201", "t-202"]
+      - name: change-order-resets-to-first-page
+        action: { kind: changeOrder, order: "most turns" }
+        expect:
+          currentPage: 1
+          ariaBusy: true
+          statusIncludes: "loading page 1"
+      - name: first-page-of-new-order-settles
+        action: { kind: resolve, requestPage: 1, dataId: page-1-turns }
+        expect:
+          currentPage: 1
+          visibleIds: ["t-131", "t-132"]
+          ariaBusy: false
+          alert: false
+
+  - name: keyboard-boundaries-and-single-current
+    steps:
+      - name: first-page-disables-previous
+        action: { kind: resolve, requestPage: 1, dataId: page-1 }
+        expect:
+          currentPage: 1
+          prevDisabled: true
+          nextDisabled: false
+          singleCurrent: true
+      - name: jump-to-last-page
+        action: { kind: clickPage, page: 3 }
+        expect:
+          currentPage: 3
+          ariaBusy: true
+      - name: last-page-disables-next
+        action: { kind: resolve, requestPage: 3, dataId: page-3 }
+        expect:
+          currentPage: 3
+          visibleIds: ["t-301", "t-302"]
+          prevDisabled: false
+          nextDisabled: true
+          singleCurrent: true
+          uniqueIds: true
