@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -1415,6 +1416,18 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	selectArgs := append(append([]any{}, args...), limit, offset)
 	total, listed, err := h.listDiscoverySnapshot(r.Context(), countQuery, args, selectQuery, selectArgs)
 	if err != nil {
+		// Preserve the stage-tagged snapshot error (open / count / page / scan /
+		// commit) for operators before the caller receives the generic 500. The
+		// wrapped error carries only the failing stage and the database error, not
+		// the request's filter values, transcript content, or identity data, so
+		// this stays inside the no-sensitive-logging boundary. Mirrors the
+		// structured-field shape used by rollbackTxBestEffort in tx.go.
+		slog.Error("discovery listing failed",
+			"operation", "list_transcripts",
+			"stage", "read_only_discovery_snapshot",
+			"consequence", "no transcript page was returned to the caller",
+			"remediation", "retry the request; if it persists verify PostgreSQL availability and connection-pool health",
+			"error", err)
 		writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the read-only discovery snapshot could not be completed, so no transcript page was returned; retry the request, and if it persists verify PostgreSQL availability")
 		return
 	}

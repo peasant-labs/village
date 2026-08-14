@@ -51,14 +51,26 @@ type discoveryRow struct {
 }
 
 // discoveryCase is one anonymous read of the shared dataset with an exact
-// expectation: the ordered ids for the requested page and the total.
+// expectation: the ordered ids for the requested page plus the wire metadata the
+// response must preserve — total, the echoed page, and the normalized limit.
 type discoveryCase struct {
 	Name          string   `yaml:"name"`
 	Sort          string   `yaml:"sort"`
 	Page          int      `yaml:"page"`
 	Limit         int      `yaml:"limit"`
 	ExpectedTotal int64    `yaml:"expectedTotal"`
+	ExpectedPage  int      `yaml:"expectedPage"`
+	ExpectedLimit int      `yaml:"expectedLimit"`
 	ExpectedIDs   []string `yaml:"expectedIds"`
+}
+
+// discoveryResponse is the decoded discovery wire under assertion: the ordered
+// ids plus the total/page/limit metadata the endpoint must preserve.
+type discoveryResponse struct {
+	IDs   []string
+	Total int64
+	Page  int
+	Limit int
 }
 
 //go:embed testdata/discovery_pagination/inventory.yaml
@@ -66,6 +78,9 @@ var discoveryInventoryYAML []byte
 
 //go:embed testdata/discovery_pagination/cases.yaml
 var discoveryCasesYAML []byte
+
+//go:embed testdata/discovery_pagination/snapshot_seed.yaml
+var discoverySnapshotSeedYAML []byte
 
 // discoveryInsertRow inserts one fully-controlled transcript (explicit id,
 // published_at, and optional metrics) attributed to the SYSTEM actor, satisfying
@@ -105,8 +120,9 @@ func discoveryInsertRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, o
 }
 
 // discoveryList runs the REAL ListTranscripts handler as an anonymous caller
-// scoped to one owner, returning the ordered transcript ids and the total.
-func discoveryList(t *testing.T, h *Handler, ownerUsername, sort string, page, limit int) ([]string, int64) {
+// scoped to one owner, returning the ordered transcript ids and the wire
+// total/page/limit metadata the endpoint reports.
+func discoveryList(t *testing.T, h *Handler, ownerUsername, sort string, page, limit int) discoveryResponse {
 	t.Helper()
 	target := fmt.Sprintf("/api/v1/transcripts?owner=%s&page=%d&limit=%d", ownerUsername, page, limit)
 	if sort != "" {
@@ -125,6 +141,8 @@ func discoveryList(t *testing.T, h *Handler, ownerUsername, sort string, page, l
 			} `json:"transcript"`
 		} `json:"transcripts"`
 		Total int64 `json:"total"`
+		Page  int   `json:"page"`
+		Limit int   `json:"limit"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode list response for %s: %v\nbody: %s", target, err, w.Body.String())
@@ -133,7 +151,7 @@ func discoveryList(t *testing.T, h *Handler, ownerUsername, sort string, page, l
 	for _, row := range resp.Transcripts {
 		ids = append(ids, row.Transcript.ID)
 	}
-	return ids, resp.Total
+	return discoveryResponse{IDs: ids, Total: resp.Total, Page: resp.Page, Limit: resp.Limit}
 }
 
 func equalIDs(got, want []string) bool {
@@ -192,7 +210,7 @@ func TestListTranscripts_DeterministicPagination_RealPostgres(t *testing.T) {
 
 	h := &Handler{pool: pool, queries: sqlc.New(pool)}
 
-	cases := loadFixtureRows[discoveryCase](t, discoveryCasesYAML, 11)
+	cases := loadFixtureRows[discoveryCase](t, discoveryCasesYAML, 14)
 	caseNames := make(map[string]bool, len(cases))
 	for _, c := range cases {
 		if c.Name == "" {
@@ -203,14 +221,20 @@ func TestListTranscripts_DeterministicPagination_RealPostgres(t *testing.T) {
 		}
 		caseNames[c.Name] = true
 
-		gotIDs, gotTotal := discoveryList(t, h, "discovery-order-owner", c.Sort, c.Page, c.Limit)
-		if gotTotal != c.ExpectedTotal {
-			t.Errorf("case %q: total = %d, want %d", c.Name, gotTotal, c.ExpectedTotal)
+		got := discoveryList(t, h, "discovery-order-owner", c.Sort, c.Page, c.Limit)
+		if got.Total != c.ExpectedTotal {
+			t.Errorf("case %q: total = %d, want %d", c.Name, got.Total, c.ExpectedTotal)
 		}
-		if !equalIDs(gotIDs, c.ExpectedIDs) {
-			t.Errorf("case %q: ordered ids = %v, want %v", c.Name, gotIDs, c.ExpectedIDs)
+		if got.Page != c.ExpectedPage {
+			t.Errorf("case %q: wire page = %d, want %d (the response must echo the requested page)", c.Name, got.Page, c.ExpectedPage)
 		}
-		for _, id := range gotIDs {
+		if got.Limit != c.ExpectedLimit {
+			t.Errorf("case %q: wire limit = %d, want %d (the response must preserve/normalize the requested limit)", c.Name, got.Limit, c.ExpectedLimit)
+		}
+		if !equalIDs(got.IDs, c.ExpectedIDs) {
+			t.Errorf("case %q: ordered ids = %v, want %v", c.Name, got.IDs, c.ExpectedIDs)
+		}
+		for _, id := range got.IDs {
 			if id == "66666666-6666-6666-6666-666666666666" {
 				t.Errorf("case %q: private row leaked into anonymous listing", c.Name)
 			}
@@ -222,8 +246,8 @@ func TestListTranscripts_DeterministicPagination_RealPostgres(t *testing.T) {
 	// assert the union is exactly the five public ids with no repeat.
 	union := make(map[string]int)
 	for page := 1; page <= 3; page++ {
-		pageIDs, _ := discoveryList(t, h, "discovery-order-owner", "", page, 2)
-		for _, id := range pageIDs {
+		got := discoveryList(t, h, "discovery-order-owner", "", page, 2)
+		for _, id := range got.IDs {
 			union[id]++
 		}
 	}
@@ -268,12 +292,21 @@ func TestListTranscripts_CountPageSnapshot_RealPostgres(t *testing.T) {
 	owner := pullInsertUser(t, ctx, pool, 981001, "discovery-snapshot-owner")
 	defer cleanupOwners(t, ctx, pool, owner)
 
-	seed := []discoveryRow{
-		{Name: "s1", ID: "aaaaaaaa-0000-0000-0000-000000000001", Visibility: "public", PublishedAtMs: 1700000000000},
-		{Name: "s2", ID: "aaaaaaaa-0000-0000-0000-000000000002", Visibility: "public", PublishedAtMs: 1700000001000},
-		{Name: "s3", ID: "aaaaaaaa-0000-0000-0000-000000000003", Visibility: "public", PublishedAtMs: 1700000002000},
-	}
+	seed := loadFixtureRows[discoveryRow](t, discoverySnapshotSeedYAML, 3)
+	seedNames := make(map[string]bool, len(seed))
+	seedIDs := make(map[string]bool, len(seed))
 	for _, row := range seed {
+		if row.Name == "" || row.ID == "" {
+			t.Fatalf("snapshot seed row missing name/id: %+v", row)
+		}
+		if seedNames[row.Name] {
+			t.Fatalf("duplicate snapshot seed row name %q", row.Name)
+		}
+		if seedIDs[row.ID] {
+			t.Fatalf("duplicate snapshot seed row id %q", row.ID)
+		}
+		seedNames[row.Name] = true
+		seedIDs[row.ID] = true
 		discoveryInsertRow(t, ctx, pool, owner, row)
 	}
 
@@ -289,15 +322,15 @@ func TestListTranscripts_CountPageSnapshot_RealPostgres(t *testing.T) {
 		})
 	}
 
-	gotIDs, gotTotal := discoveryList(t, h, "discovery-snapshot-owner", "", 1, 50)
+	got := discoveryList(t, h, "discovery-snapshot-owner", "", 1, 50)
 
-	if int64(len(gotIDs)) != gotTotal {
-		t.Errorf("returned %d rows but total = %d; count and page are not one snapshot", len(gotIDs), gotTotal)
+	if int64(len(got.IDs)) != got.Total {
+		t.Errorf("returned %d rows but total = %d; count and page are not one snapshot", len(got.IDs), got.Total)
 	}
-	if gotTotal != 3 {
-		t.Errorf("total = %d, want 3 (the count was taken before the competing publish committed)", gotTotal)
+	if got.Total != 3 {
+		t.Errorf("total = %d, want 3 (the count was taken before the competing publish committed)", got.Total)
 	}
-	for _, id := range gotIDs {
+	for _, id := range got.IDs {
 		if id == lateID {
 			t.Errorf("late row committed mid-transaction leaked into the REPEATABLE READ page snapshot")
 		}
