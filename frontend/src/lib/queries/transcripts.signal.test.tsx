@@ -1,22 +1,10 @@
-import { createElement, type ReactNode } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTranscripts } from "@/lib/queries/transcripts";
-import type { TranscriptListResponse } from "@/lib/types";
-
-function response(page: number): TranscriptListResponse {
-  return { transcripts: [], total: 0, page, limit: 24 };
-}
-
-function makeWrapper() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return createElement(QueryClientProvider, { client }, children);
-  };
-}
+import {
+  makeQueryClientWrapper,
+  transcriptListResponse as response,
+} from "@/test/queryHookHelpers";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -36,7 +24,7 @@ describe("useTranscripts request wiring", () => {
 
     const { result } = renderHook(
       () => useTranscripts({ sort: "recent", page: "1", limit: "24" }),
-      { wrapper: makeWrapper() },
+      { wrapper: makeQueryClientWrapper() },
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -56,7 +44,7 @@ describe("useTranscripts request wiring", () => {
       });
     });
     vi.stubGlobal("fetch", fetchMock);
-    const wrapper = makeWrapper();
+    const wrapper = makeQueryClientWrapper();
 
     const first = renderHook(
       () => useTranscripts({ sort: "recent", page: "1", limit: "24" }),

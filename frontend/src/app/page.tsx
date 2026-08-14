@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { SearchX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranscripts } from "@/lib/queries/transcripts";
@@ -30,6 +30,9 @@ export default function ExplorePage() {
   const [filters, setFilters] = useState<ExploreFilters>(DEFAULT_FILTERS);
 
   const params = useMemo(() => buildTranscriptListParams(filters), [filters]);
+  // Stable serialization of the complete request key, used to decide whether a
+  // remembered rejection still applies to the currently-active request.
+  const activeKey = useMemo(() => JSON.stringify(params), [params]);
 
   const {
     data,
@@ -46,11 +49,11 @@ export default function ExplorePage() {
   // `filters.page` is the requested navigation intent. Intentional placeholder
   // data is the prior confirmed page shown while a new page loads; it is exempt
   // from settled-response validation. Only genuinely settled data (not a
-  // placeholder, no fetch in flight) is validated against the requested key.
+  // placeholder, no fetch in flight, not an error) is validated against the key.
   const requestedPage = filters.page;
   const settled = data != null && !isPlaceholderData && !isFetching && !isError;
 
-  const mismatch = useMemo(() => {
+  const settledMismatch = useMemo(() => {
     if (!settled || data == null) return null;
     const result = validateSettledTranscriptPage({
       requestedPage,
@@ -61,23 +64,39 @@ export default function ExplorePage() {
     return result.ok ? null : result;
   }, [settled, data, requestedPage]);
 
-  // Remember the last confirmed (settled + validated) response so a dishonest
-  // settled response can retain honest prior rows instead of showing mismatched
-  // content or silently falling back to page 1. Storing derived state during
-  // render (guarded so it converges) is the React-recommended alternative to an
-  // effect here: it keeps the retained rows in sync without a cascading render.
+  // Retain the last confirmed (settled + validated) response, and remember when
+  // the active key has produced a rejected (mismatched) settled response. The
+  // rejection marker persists through an in-flight retry of that exact key, so a
+  // cached rejected response never flashes while `isFetching` transiently clears
+  // the settled mismatch. Both are convergent, guarded render-phase updates — the
+  // React-recommended alternative to an effect for state derived from the latest
+  // render — so they never trigger a cascading render.
   const [lastConfirmed, setLastConfirmed] = useState<TranscriptListResponse | null>(null);
-  if (settled && data != null && mismatch == null && data !== lastConfirmed) {
-    setLastConfirmed(data);
+  const [rejectedKey, setRejectedKey] = useState<{ key: string; message: string } | null>(null);
+  if (settled && data != null) {
+    if (settledMismatch == null) {
+      if (data !== lastConfirmed) setLastConfirmed(data);
+      if (rejectedKey != null && rejectedKey.key === activeKey) setRejectedKey(null);
+    } else if (rejectedKey == null || rejectedKey.key !== activeKey) {
+      setRejectedKey({ key: activeKey, message: settledMismatch.message });
+    }
   }
 
-  // On a validation mismatch, present the retained confirmed rows rather than the
-  // untrustworthy settled response. Otherwise present the current query data
-  // (which, during a page-only request, is the retained placeholder page).
-  const displayData: TranscriptListResponse | null =
-    mismatch != null
-      ? lastConfirmed
-      : data ?? lastConfirmed;
+  // The active key is rejected when the current settled response mismatches, or
+  // when an earlier settled response for this exact key was rejected and no valid
+  // response for it has arrived yet (including while a retry is in flight).
+  const rejectedMessage =
+    settledMismatch?.message ??
+    (rejectedKey != null && rejectedKey.key === activeKey ? rejectedKey.message : null);
+  const activeKeyRejected = rejectedMessage != null;
+
+  // A rejected active key never presents its untrustworthy rows: keep the retained
+  // confirmed rows throughout the rejection and its retry. Otherwise present the
+  // current query data (during a page-only request this is the retained
+  // placeholder page).
+  const displayData: TranscriptListResponse | null = activeKeyRejected
+    ? lastConfirmed
+    : data ?? lastConfirmed;
 
   const payload = useMemo(() => {
     if (!displayData) return null;
@@ -91,62 +110,72 @@ export default function ExplorePage() {
   const confirmedPage = displayData?.page ?? null;
   const total = displayData?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / TRANSCRIPT_PAGE_SIZE));
-  // Results are busy whenever a superseding request is in flight (including while
-  // prior rows are shown as placeholder data).
-  const busy = isFetching || isPlaceholderData;
 
-  // A page transition that fails (exhausted retry) or returns a dishonest page is
-  // reported without discarding prior rows; abort/supersession is never an error.
-  const pageTransitionError: string | null =
-    mismatch != null
-      ? mismatch.message
-      : isError && displayData != null
-        ? `Failed to load page ${requestedPage} of the session list from ` +
-          `${TRANSCRIPT_LIST_ENDPOINT}. The previously confirmed rows are kept. ` +
-          `${error instanceof Error ? error.message : "Unknown error."} ` +
-          `Retry the same page to reload it.`
-        : null;
+  // aria-busy reflects active work only. On a terminal error, or on a settled
+  // rejection that is now awaiting a user retry, no request is in flight, so this
+  // is false and the region is not announced as loading forever.
+  const busy = isFetching;
 
+  // One surface owns failure announcement. `failureMessage` is that surface's
+  // text; it is never duplicated into the polite status region below.
+  const failureMessage: string | null = activeKeyRejected
+    ? rejectedMessage
+    : isError
+      ? `Failed to load page ${requestedPage} of the session list from ` +
+        `${TRANSCRIPT_LIST_ENDPOINT}. ` +
+        `${displayData != null ? "The previously confirmed rows are kept. " : ""}` +
+        `${error instanceof Error ? error.message : "Unknown error."} ` +
+        `Retry the same page to reload it.`
+      : null;
+
+  // The polite live region carries only transient loading/loaded status; failure
+  // is owned by the alert surface, so a failure is announced exactly once.
   let statusMessage: string;
   if (isLoading) {
     statusMessage = "loading session list";
-  } else if (pageTransitionError != null) {
-    statusMessage = pageTransitionError;
   } else if (busy && confirmedPage != null && confirmedPage !== requestedPage) {
     statusMessage = `loading page ${requestedPage}; showing page ${confirmedPage} until it arrives`;
   } else if (busy) {
     statusMessage = `loading page ${requestedPage}`;
+  } else if (failureMessage != null) {
+    statusMessage = "";
   } else if (confirmedPage != null) {
     statusMessage = `page ${confirmedPage} of ${totalPages} loaded`;
   } else {
     statusMessage = "";
   }
 
-  // Initial load failure with no prior rows to retain: full error surface.
-  if (isError && displayData == null && !isLoading) {
-    return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        <div className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center">
+  const retryButton = (
+    <button
+      type="button"
+      className="btn btn-secondary btn-sm shrink-0"
+      onClick={() => refetch()}
+    >
+      retry page {requestedPage}
+    </button>
+  );
+
+  let content: ReactNode;
+  if (failureMessage != null && payload == null) {
+    // A failure with no rows to retain (initial-load error, or a first-response
+    // mismatch): the full error surface owns the announcement and offers an
+    // exact-key retry instead of stalling on an endless skeleton.
+    content = (
+      <div className="flex flex-col gap-6 animate-fade-up">
+        <div
+          role="alert"
+          className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center"
+        >
           <SearchX size={28} className="text-ink-4" />
           <p className="text-sm font-medium text-ink">Failed to load transcripts</p>
-          <p className="text-[13px] text-ink-3 max-w-sm">
-            {error instanceof Error ? error.message : "The commons browse surface could not load."}
-          </p>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => refetch()}
-          >
-            retry
-          </button>
+          <p className="text-[13px] text-ink-3 max-w-sm">{failureMessage}</p>
+          {retryButton}
         </div>
       </div>
     );
-  }
-
-  if (isLoading || !payload) {
-    return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
+  } else if (isLoading || !payload) {
+    content = (
+      <div className="flex flex-col gap-6 animate-fade-up">
         <div className="flex flex-col gap-1">
           <div className="h-8 w-72 animate-shimmer" />
           <div className="h-4 w-96 animate-shimmer" />
@@ -163,40 +192,48 @@ export default function ExplorePage() {
         </div>
       </div>
     );
+  } else {
+    content = (
+      <>
+        {failureMessage != null && (
+          <div
+            role="alert"
+            className="border border-rule bg-surface px-4 py-3 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+          >
+            <p className="text-[13px] text-ink-3">{failureMessage}</p>
+            {retryButton}
+          </div>
+        )}
+        <div aria-busy={busy} data-testid="session-list-results">
+          <Explore
+            data={payload}
+            onFiltersChange={setFilters}
+            transcriptHref={(transcript) => `/transcripts/${transcript.id}`}
+            profileHref={(owner) => `/users/${owner.githubUsername}`}
+            collectiveHref={(collective) => `/groups/${collective.id}`}
+            onOpenTranscript={(transcript) => router.push(`/transcripts/${transcript.id}`)}
+            onOpenProfile={(owner) => router.push(`/users/${owner.githubUsername}`)}
+            onOpenCollective={(collective) => router.push(`/groups/${collective.id}`)}
+          />
+        </div>
+      </>
+    );
   }
 
+  // The polite status region is mounted persistently across every render branch
+  // (loading, error, and results) so a live region always exists before its
+  // content changes, which reliable announcement requires.
   return (
     <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12">
-      <p role="status" aria-live="polite" className="sr-only">
+      <p
+        role="status"
+        aria-live="polite"
+        className="sr-only"
+        data-testid="session-list-status"
+      >
         {statusMessage}
       </p>
-      {pageTransitionError != null && (
-        <div
-          role="alert"
-          className="border border-rule bg-surface px-4 py-3 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-        >
-          <p className="text-[13px] text-ink-3">{pageTransitionError}</p>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm shrink-0"
-            onClick={() => refetch()}
-          >
-            retry page {requestedPage}
-          </button>
-        </div>
-      )}
-      <div aria-busy={busy}>
-        <Explore
-          data={payload}
-          onFiltersChange={setFilters}
-          transcriptHref={(transcript) => `/transcripts/${transcript.id}`}
-          profileHref={(owner) => `/users/${owner.githubUsername}`}
-          collectiveHref={(collective) => `/groups/${collective.id}`}
-          onOpenTranscript={(transcript) => router.push(`/transcripts/${transcript.id}`)}
-          onOpenProfile={(owner) => router.push(`/users/${owner.githubUsername}`)}
-          onOpenCollective={(collective) => router.push(`/groups/${collective.id}`)}
-        />
-      </div>
+      {content}
     </div>
   );
 }
