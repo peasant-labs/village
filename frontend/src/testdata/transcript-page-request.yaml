@@ -1,0 +1,69 @@
+# Fixtures for buildTranscriptListParams. Response trust-boundary permutations
+# live in transcript-query-validation.yaml because they exercise the production
+# TanStack hook and cache rather than a duplicate presentation helper.
+
+paramBuilds:
+  - name: defaults-page-one
+    filters:
+      query: ""
+      provider: all
+      topics: []
+      order: recent
+      page: 1
+    expectedParams:
+      sort: recent
+      page: "1"
+      limit: "24"
+
+  - name: deeper-page-keeps-size
+    filters:
+      query: ""
+      provider: all
+      topics: []
+      order: recent
+      page: 3
+    expectedParams:
+      sort: recent
+      page: "3"
+      limit: "24"
+
+  - name: query-is-trimmed
+    filters:
+      query: "  auth middleware  "
+      provider: all
+      topics: []
+      order: recent
+      page: 1
+    expectedParams:
+      sort: recent
+      page: "1"
+      limit: "24"
+      q: auth middleware
+
+  - name: whitespace-query-and-all-provider-omitted
+    filters:
+      query: "   "
+      provider: all
+      topics: []
+      order: recent
+      page: 2
+    expectedParams:
+      sort: recent
+      page: "2"
+      limit: "24"
+
+  - name: provider-tags-and-order
+    filters:
+      query: ""
+      provider: claude-code
+      topics:
+        - debugging
+        - greenfield
+      order: turns
+      page: 2
+    expectedParams:
+      sort: turns
+      page: "2"
+      limit: "24"
+      provider: claude-code
+      tags: debugging,greenfield

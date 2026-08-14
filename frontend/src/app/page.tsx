@@ -1,21 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { SearchX } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { Loader2, SearchX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranscripts } from "@/lib/queries/transcripts";
 import { useSearchCollectives } from "@/lib/queries/groups";
 import { usePopularTags } from "@/lib/queries/tags";
 import { adaptExplore } from "@/lib/adapters/explore";
+import {
+  TRANSCRIPT_LIST_ENDPOINT,
+  TRANSCRIPT_PAGE_SIZE,
+  buildTranscriptListParams,
+  type ExploreFilters,
+} from "@/lib/transcriptPageRequest";
+import type { TranscriptListResponse } from "@/lib/types";
 import { Explore } from "@peasant-labs/fairtrade/commons";
-
-type ExploreFilters = {
-  query: string;
-  provider: string;
-  topics: string[];
-  order: string;
-  page: number;
-};
 
 const DEFAULT_FILTERS: ExploreFilters = {
   query: "",
@@ -29,48 +28,118 @@ export default function ExplorePage() {
   const router = useRouter();
   const [filters, setFilters] = useState<ExploreFilters>(DEFAULT_FILTERS);
 
-  const params = useMemo(() => {
-    const next: Record<string, string> = {
-      sort: filters.order,
-      page: String(filters.page),
-      limit: String(24),
-    };
-    if (filters.query.trim()) next.q = filters.query.trim();
-    if (filters.provider && filters.provider !== "all") next.provider = filters.provider;
-    if (filters.topics.length > 0) next.tags = filters.topics.join(",");
-    return next;
-  }, [filters]);
+  const params = useMemo(() => buildTranscriptListParams(filters), [filters]);
 
-  const { data, isLoading, error } = useTranscripts(params);
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    isPlaceholderData,
+    isFetching,
+    refetch,
+  } = useTranscripts(params);
   const { data: collData } = useSearchCollectives(filters.query);
   const { data: popularTags } = usePopularTags(15);
 
+  // `filters.page` is the requested navigation intent. The query function is the
+  // response trust boundary: data reaches TanStack's successful cache only after
+  // every explicit page/limit value matches its request key. Placeholder data is
+  // therefore always previously validated successful data.
+  const requestedPage = filters.page;
+
+  // Retain the last successful non-placeholder response for initial/transition
+  // failures. This guarded render-phase update converges on the latest validated
+  // object without an effect or a ref read during render.
+  const [lastConfirmed, setLastConfirmed] = useState<TranscriptListResponse | null>(null);
+  if (data != null && !isPlaceholderData && !isError && data !== lastConfirmed) {
+    setLastConfirmed(data);
+  }
+
+  const displayData: TranscriptListResponse | null = data ?? lastConfirmed;
+
   const payload = useMemo(() => {
-    if (!data) return null;
+    if (!displayData) return null;
     return adaptExplore(
-      data,
+      displayData,
       collData ?? { collectives: [] },
       popularTags ?? []
     );
-  }, [collData, data, popularTags]);
+  }, [collData, displayData, popularTags]);
 
-  if (error) {
-    return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        <div className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center">
+  const confirmedPage = displayData?.page ?? null;
+  const total = displayData?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / TRANSCRIPT_PAGE_SIZE));
+
+  // aria-busy reflects active work only. On a terminal error, or on a settled
+  // rejection that is now awaiting a user retry, no request is in flight, so this
+  // is false and the region is not announced as loading forever.
+  const busy = isFetching;
+
+  // One surface owns failure announcement. `failureMessage` is that surface's
+  // text; it is never duplicated into the polite status region below.
+  const failureMessage: string | null = isError
+    ? `Failed to load page ${requestedPage} of the session list from ` +
+      `${TRANSCRIPT_LIST_ENDPOINT}. ` +
+      `${displayData != null ? "The previously confirmed rows are kept. " : ""}` +
+      `${error instanceof Error ? error.message : "Unknown error."} ` +
+      `Retry the same page to reload it.`
+    : null;
+
+  // The concise transient loading text, shared by the sr-only announcer and the
+  // visible cue so both stay identical. When prior rows remain visible during a
+  // page change it names both the requested page and the page still on screen.
+  const busyMessage =
+    confirmedPage != null && confirmedPage !== requestedPage
+      ? `loading page ${requestedPage}; showing page ${confirmedPage} until it arrives`
+      : `loading page ${requestedPage}`;
+
+  // The polite live region carries only transient loading/loaded status; failure
+  // is owned by the alert surface, so a failure is announced exactly once.
+  let statusMessage: string;
+  if (isLoading) {
+    statusMessage = "loading session list";
+  } else if (busy) {
+    statusMessage = busyMessage;
+  } else if (failureMessage != null) {
+    statusMessage = "";
+  } else if (confirmedPage != null) {
+    statusMessage = `page ${confirmedPage} of ${totalPages} loaded`;
+  } else {
+    statusMessage = "";
+  }
+
+  const retryButton = (
+    <button
+      type="button"
+      className="btn btn-secondary btn-sm shrink-0"
+      onClick={() => refetch()}
+    >
+      retry page {requestedPage}
+    </button>
+  );
+
+  let content: ReactNode;
+  if (failureMessage != null && payload == null) {
+    // A failure with no rows to retain (initial-load error, or a first-response
+    // mismatch): the full error surface owns the announcement and offers an
+    // exact-key retry instead of stalling on an endless skeleton.
+    content = (
+      <div className="flex flex-col gap-6 animate-fade-up">
+        <div
+          role="alert"
+          className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center"
+        >
           <SearchX size={28} className="text-ink-4" />
           <p className="text-sm font-medium text-ink">Failed to load transcripts</p>
-          <p className="text-[13px] text-ink-3 max-w-sm">
-            {error instanceof Error ? error.message : "The commons browse surface could not load."}
-          </p>
+          <p className="text-[13px] text-ink-3 max-w-sm">{failureMessage}</p>
+          {retryButton}
         </div>
       </div>
     );
-  }
-
-  if (isLoading || !payload) {
-    return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
+  } else if (isLoading || !payload) {
+    content = (
+      <div className="flex flex-col gap-6 animate-fade-up">
         <div className="flex flex-col gap-1">
           <div className="h-8 w-72 animate-shimmer" />
           <div className="h-4 w-96 animate-shimmer" />
@@ -87,20 +156,65 @@ export default function ExplorePage() {
         </div>
       </div>
     );
+  } else {
+    content = (
+      <>
+        {failureMessage != null && (
+          <div
+            role="alert"
+            className="border border-rule bg-surface px-4 py-3 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+          >
+            <p className="text-[13px] text-ink-3">{failureMessage}</p>
+            {retryButton}
+          </div>
+        )}
+        {busy && (
+          // A concise visible loading cue so sighted users see that the newer page
+          // is loading while the prior page stays on screen (the pager already
+          // reflects the requested page). Icon plus text carry the meaning, never
+          // colour alone; the spin is reduced-motion safe. It is aria-hidden so
+          // the single sr-only polite region above remains the sole announcer and
+          // the message is not read twice. It sits above the unchanged results, so
+          // no row is remounted and focus is not moved.
+          <div
+            aria-hidden="true"
+            data-testid="session-list-loading"
+            className="flex items-center gap-2 px-4 py-2 mb-4 border border-rule bg-surface text-[13px] text-ink-3"
+          >
+            <Loader2 size={14} className="text-ink-3 motion-safe:animate-spin" aria-hidden="true" />
+            <span className="mono tnum">{busyMessage}</span>
+          </div>
+        )}
+        <div aria-busy={busy} data-testid="session-list-results">
+          <Explore
+            data={payload}
+            onFiltersChange={setFilters}
+            transcriptHref={(transcript) => `/transcripts/${transcript.id}`}
+            profileHref={(owner) => `/users/${owner.githubUsername}`}
+            collectiveHref={(collective) => `/groups/${collective.id}`}
+            onOpenTranscript={(transcript) => router.push(`/transcripts/${transcript.id}`)}
+            onOpenProfile={(owner) => router.push(`/users/${owner.githubUsername}`)}
+            onOpenCollective={(collective) => router.push(`/groups/${collective.id}`)}
+          />
+        </div>
+      </>
+    );
   }
 
+  // The polite status region is mounted persistently across every render branch
+  // (loading, error, and results) so a live region always exists before its
+  // content changes, which reliable announcement requires.
   return (
     <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12">
-      <Explore
-        data={payload}
-        onFiltersChange={setFilters}
-        transcriptHref={(transcript) => `/transcripts/${transcript.id}`}
-        profileHref={(owner) => `/users/${owner.githubUsername}`}
-        collectiveHref={(collective) => `/groups/${collective.id}`}
-        onOpenTranscript={(transcript) => router.push(`/transcripts/${transcript.id}`)}
-        onOpenProfile={(owner) => router.push(`/users/${owner.githubUsername}`)}
-        onOpenCollective={(collective) => router.push(`/groups/${collective.id}`)}
-      />
+      <p
+        role="status"
+        aria-live="polite"
+        className="sr-only"
+        data-testid="session-list-status"
+      >
+        {statusMessage}
+      </p>
+      {content}
     </div>
   );
 }

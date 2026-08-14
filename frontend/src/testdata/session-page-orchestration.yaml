@@ -1,0 +1,186 @@
+# Scenario permutations for the mounted `/` page orchestration test
+# (page.tsx). Each scenario is a sequence of steps; every step drives the mocked
+# useTranscripts return (by data id + status flags), optionally changes the
+# requested page via the Explore onFiltersChange prop, optionally clicks the
+# exact-key retry control, and asserts the rendered branch/page/busy/alert/status.
+#
+# Combinatorial cases live here, never inline in the test. The loader enforces
+# strict typing, exact keys, unique names, referential integrity of every dataId,
+# and that displayedPage is present exactly for the `explore` branch.
+#
+# total 50 at limit 24 => 3 pages, so "of 3" in the loaded status text.
+
+data:
+  page1: { page: 1, total: 50, limit: 24 }
+  page2: { page: 2, total: 50, limit: 24 }
+  page3: { page: 3, total: 50, limit: 24 }
+
+scenarios:
+  - name: page-transition-error-and-exact-key-retry
+    steps:
+      - name: initial-page-1-confirmed
+        query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 1
+          ariaBusy: false
+          alert: false
+          status: page 1 of 3 loaded
+      - name: request-page-2-placeholder-exempt
+        setFiltersPage: 2
+        query: { dataId: page1, isLoading: false, isFetching: true, isPlaceholderData: true, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 1
+          ariaBusy: true
+          alert: false
+          visibleLoading: true
+          status: "loading page 2; showing page 1 until it arrives"
+      - name: trust-boundary-error-retains-confirmed
+        query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: true, isError: true }
+        expect:
+          renders: explore
+          displayedPage: 1
+          ariaBusy: false
+          alert: true
+          visibleLoading: false
+          status: ""
+      - name: retry-invokes-exact-key
+        query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: true, isError: true }
+        action: clickRetry
+        expect:
+          renders: explore
+          displayedPage: 1
+          alert: true
+          refetchCalled: true
+      - name: retry-in-flight-keeps-confirmed-rows
+        query: { dataId: page1, isLoading: false, isFetching: true, isPlaceholderData: true, isError: true }
+        expect:
+          renders: explore
+          displayedPage: 1
+          ariaBusy: true
+          alert: true
+          visibleLoading: true
+      - name: retry-settles-valid-page-2
+        query: { dataId: page2, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 2
+          ariaBusy: false
+          alert: false
+          visibleLoading: false
+          status: page 2 of 3 loaded
+
+  - name: terminal-error-keeps-prior-rows-and-clears-busy
+    steps:
+      - name: initial-page-1-confirmed
+        query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 1
+          ariaBusy: false
+          alert: false
+      - name: request-page-2-placeholder
+        setFiltersPage: 2
+        query: { dataId: page1, isLoading: false, isFetching: true, isPlaceholderData: true, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 1
+          ariaBusy: true
+          alert: false
+          visibleLoading: true
+      - name: terminal-error-with-prior-rows
+        # TanStack can leave isPlaceholderData true after a failed page fetch even
+        # though isFetching has cleared; aria-busy must still report not-busy and
+        # the visible loading cue must clear.
+        query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: true, isError: true }
+        expect:
+          renders: explore
+          displayedPage: 1
+          ariaBusy: false
+          alert: true
+          visibleLoading: false
+          status: ""
+
+  - name: abort-supersession-is-silent
+    steps:
+      - name: initial-page-1-confirmed
+        query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 1
+          alert: false
+      - name: request-page-2-placeholder
+        setFiltersPage: 2
+        query: { dataId: page1, isLoading: false, isFetching: true, isPlaceholderData: true, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 1
+          ariaBusy: true
+          alert: false
+          visibleLoading: true
+      - name: supersede-to-page-3-placeholder
+        setFiltersPage: 3
+        query: { dataId: page1, isLoading: false, isFetching: true, isPlaceholderData: true, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 1
+          ariaBusy: true
+          alert: false
+          visibleLoading: true
+      - name: settle-page-3
+        query: { dataId: page3, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 3
+          ariaBusy: false
+          alert: false
+          visibleLoading: false
+          status: page 3 of 3 loaded
+
+  - name: trust-boundary-error-without-prior-data-shows-error
+    steps:
+      - name: first-load-trust-boundary-error
+        query: { dataId: null, isLoading: false, isFetching: false, isPlaceholderData: false, isError: true }
+        expect:
+          renders: errorSurface
+          alert: true
+          status: ""
+      - name: retry-invokes-exact-key
+        query: { dataId: null, isLoading: false, isFetching: false, isPlaceholderData: false, isError: true }
+        action: clickRetry
+        expect:
+          renders: errorSurface
+          alert: true
+          refetchCalled: true
+
+  - name: persistent-live-status-across-branches
+    steps:
+      - name: initial-loading
+        query: { dataId: null, isLoading: true, isFetching: true, isPlaceholderData: false, isError: false }
+        expect:
+          renders: skeleton
+          alert: false
+          status: loading session list
+      - name: settle-page-1
+        query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 1
+          alert: false
+          status: page 1 of 3 loaded
+
+  - name: initial-load-error-shows-error-surface
+    steps:
+      - name: initial-loading
+        query: { dataId: null, isLoading: true, isFetching: true, isPlaceholderData: false, isError: false }
+        expect:
+          renders: skeleton
+          alert: false
+          status: loading session list
+      - name: initial-terminal-error
+        query: { dataId: null, isLoading: false, isFetching: false, isPlaceholderData: false, isError: true }
+        expect:
+          renders: errorSurface
+          alert: true
+          status: ""

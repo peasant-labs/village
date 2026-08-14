@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run && pnpm run test:mutation",
-    "test:mutation": "node scripts/test-contract-compat-mutations.mjs",
+    "test:mutation": "node scripts/test-contract-compat-mutations.mjs && node scripts/test-transcript-query-guard-mutations.mjs",
     "probe:explore": "node scripts/visual/probe-explore.mjs",
     "probe:village": "node scripts/visual/probe-village.mjs",
     "shoot:explore": "node scripts/visual/explore-shoot.mjs",
@@ -25,7 +25,7 @@
     "mock:rest": "node scripts/visual/mock-rest.mjs"
   },
   "dependencies": {
-    "@peasant-labs/fairtrade": "0.0.12",
+    "@peasant-labs/fairtrade": "0.0.14",
     "@peasant-labs/schema": "0.1.1",
     "@peasant-labs/transcript-browser": "0.0.7",
     "@tanstack/react-query": "^5.90.21",
