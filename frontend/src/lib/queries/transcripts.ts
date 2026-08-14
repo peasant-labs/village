@@ -6,11 +6,22 @@ import type {
   ListAnnotationsResponse,
 } from "../annotations";
 
+/**
+ * Discovery list query for the `/` Explore surface.
+ *
+ * `params` already carries every server-affecting value (page, limit, sort,
+ * search, provider, tags — see {@link buildTranscriptListParams}), so the whole
+ * record is the query key: distinct page/filter intents never collide on one
+ * cache entry. The fetch receives TanStack's per-request {@link AbortSignal} so a
+ * superseded page request is cancelled instead of racing to commit. Previous
+ * confirmed rows are retained via `placeholderData` while a new page loads.
+ */
 export function useTranscripts(params?: Record<string, string>) {
   const searchParams = new URLSearchParams(params);
   return useQuery({
     queryKey: ["transcripts", params],
-    queryFn: () => api<TranscriptListResponse>(`/transcripts?${searchParams}`),
+    queryFn: ({ signal }) =>
+      api<TranscriptListResponse>(`/transcripts?${searchParams}`, { signal }),
     placeholderData: (previousData) => previousData,
   });
 }
