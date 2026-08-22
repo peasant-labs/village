@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
+import { assertExactKeys } from "@/test/fixtureAssertions";
 
 export type HarnessFixture = { name: string; value: string };
 export type OffContractHarnessFixture = HarnessFixture & { transcriptId: string; expectedError: string };
@@ -59,14 +60,6 @@ const requiredObservedModelTurnNames = {
     "legacy-fallback-four",
   ],
 } as const;
-
-function assertExactKeys(value: object, expected: string[], location: string): void {
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
-    throw new Error(`${location} has unknown or missing fields: got ${actual.join(", ")}; want ${wanted.join(", ")}`);
-  }
-}
 
 function assertExactNameInventory(actual: string[], expected: readonly string[], location: string): void {
   const got = [...actual].sort();

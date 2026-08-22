@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
+import { assertExactKeys } from "@/test/fixtureAssertions";
 
 export type TitleHeroAndBreadcrumbCase = {
   name: string;
@@ -33,14 +34,6 @@ const caseKeys = [
   "expectedCrumbUsesShortId",
   "expectedCrumbLastLabel",
 ];
-
-function assertExactKeys(value: object, expected: string[], location: string): void {
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
-    throw new Error(`${location} has unknown or missing fields: got ${actual.join(", ")}; want ${wanted.join(", ")}`);
-  }
-}
 
 export function loadTitleHeroAndBreadcrumbFixtures(): TitleHeroAndBreadcrumbFixtures {
   const fixturePath = resolve(process.cwd(), "src/testdata/title-hero-and-breadcrumb.yaml");

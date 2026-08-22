@@ -1,9 +1,12 @@
-import { Suspense } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import type { SessionDetailPayload } from "@peasant-labs/schema";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import TranscriptDetailPage from "@/app/transcripts/[id]/page";
+import { describe, expect, it } from "vitest";
+import {
+  installMountedRouteTeardown,
+  installRESTFixture,
+  renderProductionRoute,
+  type MountedRouteTranscriptMetadata,
+} from "@/test/mountedProductionRoute";
 import {
   loadFinalContractCompatibilityFixtures,
   type ObservedModelSessionFixture,
@@ -40,67 +43,30 @@ function buildSessionDetail(fixture: ObservedModelSessionFixture): SessionDetail
   };
 }
 
-function installRESTFixture(transcriptID: string, detail: SessionDetailPayload) {
-  const metadata = {
+function installFixture(transcriptID: string, detail: SessionDetailPayload) {
+  const metadata: MountedRouteTranscriptMetadata = {
     transcript: {
       id: transcriptID,
       local_id: detail.id,
       visibility: "public",
       title: "Observed model contract",
       description: "Mounted production-route compatibility fixture.",
-      project_name: detail.project,
+      project_name: detail.project ?? "observed-model-contract",
     },
     owner: { id: "fixture-owner" },
     enriched_shares: [],
   };
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-    const url = String(input);
-    if (url.endsWith(`/transcripts/${transcriptID}/content`)) {
-      return new Response(JSON.stringify(detail), { status: 200, headers: { "content-type": "application/json" } });
-    }
-    if (url.endsWith(`/transcripts/${transcriptID}/annotations`)) {
-      return new Response(JSON.stringify({ annotations: [] }), { status: 200, headers: { "content-type": "application/json" } });
-    }
-    if (url.endsWith(`/transcripts/${transcriptID}`)) {
-      return new Response(JSON.stringify(metadata), { status: 200, headers: { "content-type": "application/json" } });
-    }
-    if (url.endsWith("/groups")) {
-      return new Response(JSON.stringify([]), { status: 200, headers: { "content-type": "application/json" } });
-    }
-    throw new Error(`mounted observed-model route fixture received an unexpected request to ${url}`);
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
+  return installRESTFixture(transcriptID, metadata, detail, "mounted observed-model route");
 }
 
-async function renderProductionRoute(transcriptID: string): Promise<void> {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  await act(async () => {
-    render(
-      <QueryClientProvider client={client}>
-        <Suspense fallback={<div>loading mounted transcript</div>}>
-          <TranscriptDetailPage params={Promise.resolve({ id: transcriptID })} />
-        </Suspense>
-      </QueryClientProvider>,
-    );
-  });
-}
-
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-  localStorage.clear();
-  document.documentElement.setAttribute("data-theme", "dark");
-});
+installMountedRouteTeardown();
 
 describe("mounted production transcript route observed-model compatibility", () => {
   for (const fixture of fixtures.observedModelSessions) {
     it(fixture.name, async () => {
       const transcriptID = `transcript-${fixture.name}`;
       const detail = buildSessionDetail(fixture);
-      const fetchMock = installRESTFixture(transcriptID, detail);
+      const fetchMock = installFixture(transcriptID, detail);
 
       await renderProductionRoute(transcriptID);
 

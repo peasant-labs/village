@@ -14,7 +14,8 @@
      NEXT_PUBLIC_API_URL=http://localhost:8788/api/v1 pnpm dev &
      CHROME_PATH=... VILLAGE_TRANSCRIPT=demo node scripts/visual/boot-village.mjs
 
-   env: MOCK_REST_PORT (default 8788), MOCK_TRANSCRIPT_ID (default `demo`). Runs until killed. */
+   env: MOCK_REST_PORT (default 8788), MOCK_TRANSCRIPT_ID (default `demo`), MOCK_TITLE_HERO_DIAGNOSTIC
+   (default off; set `1` for the title-hero + breadcrumb evidence case — see below). Runs until killed. */
 import { createServer } from 'node:http'
 import { readFileSync } from 'node:fs'
 import { parse } from 'yaml'

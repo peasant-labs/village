@@ -37,18 +37,20 @@ type TranscriptVisibility = 'public' | 'private' | 'shared';
 /** Same label the explore card (`TranscriptCard.tsx`) shows for a transcript
  *  with no stored title. The hero must show this — never the composite's own
  *  fallback chain, which derives a heading from the first `role: user` turn
- *  and can surface raw harness preamble (village#32). */
-const UNTITLED_TRANSCRIPT_LABEL = 'Untitled transcript';
+ *  and can surface raw harness preamble (village#32). Exported so the
+ *  dev-only visual harness (`app/dev/visual-harness/page.tsx`) mirrors the
+ *  same literal instead of a second hardcoded copy. */
+export const UNTITLED_TRANSCRIPT_LABEL = 'Untitled transcript';
 
-/** The home section of the top nav (`frontend/src/lib/nav/sections.ts`) is
+/** Resolves the home section of the top nav (`frontend/src/lib/nav/sections.ts`) —
  *  the single source of truth for its label/href; the breadcrumb's root
  *  crumb reads from there instead of a second hardcoded copy. `explore` does
  *  not vary with auth state, so any `opts` value resolves the same section.
- *  Fail loudly (module load) rather than silently re-hardcoding a duplicate
- *  literal: if the `explore` section id is ever renamed or removed from the
- *  registry, this must surface as a build/runtime error, not a silent
- *  fallback to a stale copy of the label/href it exists to avoid duplicating. */
-const EXPLORE_SECTION: ReturnType<typeof navSections>[number] = (() => {
+ *  Fails loudly rather than silently re-hardcoding a duplicate literal: if
+ *  the `explore` section id is ever renamed or removed from the registry,
+ *  this must surface as an actionable error, not a silent fallback to a
+ *  stale copy of the label/href it exists to avoid duplicating. */
+function findExploreSection(): ReturnType<typeof navSections>[number] {
   const found = navSections({ isLoggedIn: false }).find((s) => s.id === 'explore');
   if (!found) {
     throw new Error(
@@ -58,15 +60,20 @@ const EXPLORE_SECTION: ReturnType<typeof navSections>[number] = (() => {
     );
   }
   return found;
-})();
+}
+
+/** The breadcrumb's root crumb, resolved once at module load. Exported so
+ *  the dev-only visual harness renders the SAME crumb instead of a second
+ *  registry lookup. */
+export const EXPLORE_SECTION: ReturnType<typeof navSections>[number] = findExploreSection();
 
 /** Breadcrumb crumbs share one line in a fixed-height trail. A stored title
  *  is frequently a whole sentence, so bound it the way fairtrade bounds the
  *  hero title (`TranscriptViewer.jsx`'s `rawTitle`/`cut` guard), at a
  *  shorter, breadcrumb-appropriate length. The `codePointAt` check keeps the
  *  cut from landing inside a surrogate pair (no mojibake before the
- *  ellipsis). */
-function truncateCrumbLabel(raw: string): string {
+ *  ellipsis). Exported so the dev-only visual harness truncates the same way. */
+export function truncateCrumbLabel(raw: string): string {
   const MAX = 60;
   if (raw.length <= MAX) return raw;
   const cut = (raw.codePointAt(MAX - 2) ?? 0) > 0xffff ? MAX - 2 : MAX - 1;
@@ -75,8 +82,13 @@ function truncateCrumbLabel(raw: string): string {
 
 interface SessionDetailV2Props {
   sessionId: string;
-  /** Backend transcript record id — used to persist visibility changes. */
-  transcriptId?: string;
+  /** Backend transcript record id — the village identity of this page's own
+   *  `/transcripts/<id>` route. Required: the one production caller
+   *  (`app/transcripts/[id]/page.tsx`) always has it by the time this
+   *  component renders past its loading/error states, and the breadcrumb's
+   *  short-id fallback depends on it being the real village id, never
+   *  Peasant's local `sessionId`. */
+  transcriptId: string;
   /** The transcript's real, stored visibility. */
   transcriptVisibility?: TranscriptVisibility;
   /** The transcript's stored title — drives the edit form's initial value. */
@@ -228,11 +240,12 @@ export function SessionDetailV2({
 
   const project = detail.project ?? projectName;
   const visibility = transcriptVisibility ?? 'private';
-  // detail.id is Peasant's LOCAL session id, not a village identity — the
-  // breadcrumb's own id fallback must use the village transcript id
-  // (transcriptId, the id in this page's own /transcripts/<id> URL).
+  // Neither detail.id nor sessionId is a village identity — both are
+  // Peasant's LOCAL session id. The breadcrumb's id fallback must use the
+  // real village transcript id (transcriptId, the id in this page's own
+  // /transcripts/<id> URL), never fall back to the Peasant-side id.
   const trimmedTitle = transcriptTitle?.trim() ?? '';
-  const shortVillageId = (transcriptId ?? sessionId).slice(0, 8);
+  const shortVillageId = transcriptId.slice(0, 8);
   const crumbTitle = trimmedTitle ? truncateCrumbLabel(trimmedTitle) : shortVillageId;
 
   return (

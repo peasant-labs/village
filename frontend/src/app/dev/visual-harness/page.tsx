@@ -19,9 +19,28 @@ import { Moon, Sun } from "lucide-react";
 import { detectPhases } from "@/lib/insights";
 import { displayProject } from "@/lib/quality/utils";
 import TurnLabelPopover from "@/components/transcript/TurnLabelPopover";
+import {
+  EXPLORE_SECTION,
+  UNTITLED_TRANSCRIPT_LABEL,
+  truncateCrumbLabel,
+} from "@/components/session-detail/v2/SessionDetailV2";
 import { sampleSession } from "./sample-session";
 
 type Theme = "dark" | "light";
+
+/**
+ * The harness fixture is a bare `SessionDetailPayload` with no backing
+ * transcript metadata row, so it has no real `transcriptTitle`/`transcriptId`
+ * the way the production route's REST fetch does. These two constants stand
+ * in for that missing metadata — the SAME two inputs `SessionDetailV2` reads
+ * to overlay the hero title and build the breadcrumb's last crumb — so the
+ * harness capture proves the same production behavior instead of drifting
+ * back to a re-derived title or a hardcoded id.
+ */
+const SAMPLE_TRANSCRIPT_TITLE = "Port the transcript canvas into the shared package";
+/** Stands in for the village transcript id (never Peasant's local
+ *  `sampleSession.id`) — mirrors `transcriptId` in `SessionDetailV2`. */
+const SAMPLE_TRANSCRIPT_ID = "transcript-sess-demo-0001";
 
 /**
  * Visual-regression harness host — a DEV-ONLY fixture mount of the SAME
@@ -59,17 +78,29 @@ export default function VisualHarnessPage() {
   const phases = useMemo(() => detectPhases(turns), [turns]);
   const annotations = useMemo(() => annotateTranscript(turns), [turns]);
 
-  // The ONE wire→view projection, exactly as the real page cooks it.
+  // The ONE wire→view projection, exactly as the real page cooks it — including
+  // the stored-title overlay `SessionDetailV2` applies (village#32): the
+  // composite's own fallback chain derives a heading from the first
+  // `role: user` turn, which can surface raw harness preamble, so the hero
+  // must always show the stored title (or the explore card's own empty-title
+  // label) instead.
   const vm = useMemo(() => {
     const analytics = computeAnalytics(
       turns as Parameters<typeof computeAnalytics>[0],
       { scorecard: sampleSession.scorecard ?? undefined } as Parameters<typeof computeAnalytics>[1],
     );
-    return adaptTranscript(
+    const adapted = adaptTranscript(
       sampleSession as Parameters<typeof adaptTranscript>[0],
       undefined,
       analytics,
     );
+    return {
+      ...adapted,
+      session: {
+        ...adapted.session,
+        title: SAMPLE_TRANSCRIPT_TITLE.trim() || UNTITLED_TRANSCRIPT_LABEL,
+      },
+    };
   }, [turns]);
   const toolVMsByTurn = useMemo(
     () => new Map(vm.turns.map((turn) => [turn.index, turn.toolCalls])),
@@ -156,14 +187,20 @@ export default function VisualHarnessPage() {
             onChangeVisibility: () => {},
             onCopyLink: () => {},
           }}
+          // Mirrors SessionDetailV2's real trail exactly (village#32/#33):
+          // the nav-registry home crumb, the project label with no href
+          // (village has no /projects route), and the last crumb reading the
+          // RAW stored title (trimmed, truncated) — falling back to the
+          // short VILLAGE transcript id, never Peasant's local session id,
+          // when a stored title is empty.
           breadcrumb={[
-            { label: "dashboard", href: "/" },
-            { label: "projects", href: "/projects" },
+            { label: EXPLORE_SECTION.label, href: EXPLORE_SECTION.href },
+            { label: displayProject(project) },
             {
-              label: displayProject(project),
-              href: `/projects/${encodeURIComponent(project)}`,
+              label: SAMPLE_TRANSCRIPT_TITLE.trim()
+                ? truncateCrumbLabel(SAMPLE_TRANSCRIPT_TITLE.trim())
+                : SAMPLE_TRANSCRIPT_ID.slice(0, 8),
             },
-            { label: sampleSession.id.slice(0, 8) },
           ]}
           graphSlot={() => (
             <TrajectoryGraph
