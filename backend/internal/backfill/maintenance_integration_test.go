@@ -220,7 +220,7 @@ func TestTitleBackfillRealPostgres(t *testing.T) {
 			parity = fixture
 		}
 	}
-	raw := buildTitleBackfillRawPayload(t, parity.FirstUserTurns)
+	raw := buildTitleBackfillRawPayload(t, parity.LeadingNonUserTurns, parity.FirstUserTurns)
 
 	t.Run("dry-run-apply-idempotence", func(t *testing.T) {
 		id, owner, _ := insertMaintenanceRow(t, ctx, pool, false, 1)
@@ -272,16 +272,18 @@ func TestTitleBackfillRealPostgres(t *testing.T) {
 	// turn selection (and the only-injected error path) end to end rather than
 	// only through the pure unit-level function.
 	t.Run("derive-multi-turn-selection", func(t *testing.T) {
+		ran := 0
 		for _, fixture := range fixtures {
 			if len(fixture.FirstUserTurns) < 2 {
 				continue
 			}
+			ran++
 			fixture := fixture
 			t.Run(fixture.Name, func(t *testing.T) {
 				id, owner, _ := insertMaintenanceRow(t, ctx, pool, false, 1)
 				defer deleteMaintenanceOwner(t, ctx, pool, owner)
 				markedExec(t, ctx, pool, "UPDATE transcripts SET title='claude session',title_generated=NULL,model_provider='claude-code',project_path='/Users/developer/work/sample-app' WHERE id=$1", id)
-				store := &titleBlobStore{raw: buildTitleBackfillRawPayload(t, fixture.FirstUserTurns)}
+				store := &titleBlobStore{raw: buildTitleBackfillRawPayload(t, fixture.LeadingNonUserTurns, fixture.FirstUserTurns)}
 				job, err := NewTitleBackfill(pool, store, pipeline, nil, 1)
 				if err != nil {
 					t.Fatal(err)
@@ -306,6 +308,9 @@ func TestTitleBackfillRealPostgres(t *testing.T) {
 				}
 				assertStoredTitles(t, ctx, pool, id, fixture.Expected, fixture.Expected)
 			})
+		}
+		if ran == 0 {
+			t.Fatal("no fixture row carried two or more first_user_turns; derive-multi-turn-selection did not exercise the Run path")
 		}
 	})
 
@@ -416,21 +421,27 @@ func deleteMaintenanceOwner(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	}
 }
 
-// buildTitleBackfillRawPayload builds a stored-content envelope carrying the
+// buildTitleBackfillRawPayload builds a stored-content envelope carrying
+// `leading` role="assistant" turns (content "not selected") followed by the
 // supplied ordered strings as RoleUser turns, matching what a fixture row's
-// first_user_turns describes. It is the single place that shapes the raw blob
-// bytes for title-backfill integration tests, so multi-turn cases and the
-// single-turn parity case share the same envelope construction.
-func buildTitleBackfillRawPayload(t *testing.T, turns []string) []byte {
+// leading_non_user_turns and first_user_turns describe together. It is the
+// single place that shapes the raw blob bytes for title-backfill integration
+// tests, so multi-turn cases and the single-turn parity case share the same
+// envelope construction, and the leading non-user turn stays on the mounted
+// Run path proving the role filter is not selected as a title.
+func buildTitleBackfillRawPayload(t *testing.T, leading int, turns []string) []byte {
 	t.Helper()
 	type turnJSON struct {
 		Index   int    `json:"index"`
 		Role    string `json:"role"`
 		Content string `json:"content"`
 	}
-	details := make([]turnJSON, 0, len(turns))
+	details := make([]turnJSON, 0, leading+len(turns))
+	for i := 0; i < leading; i++ {
+		details = append(details, turnJSON{Index: i, Role: "assistant", Content: "not selected"})
+	}
 	for i, content := range turns {
-		details = append(details, turnJSON{Index: i, Role: "user", Content: content})
+		details = append(details, turnJSON{Index: leading + i, Role: "user", Content: content})
 	}
 	turnsJSON, err := json.Marshal(details)
 	if err != nil {

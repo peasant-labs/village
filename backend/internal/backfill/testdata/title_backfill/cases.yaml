@@ -23,6 +23,7 @@
   mode: apply
   title: "claude session"
   generated: null
+  leading_non_user_turns: 1
   first_user_turns:
     - "<system-reminder>ignore this</system-reminder><user_query>Fix /Users/developer/work/sample-app/src/auth.go</user_query>"
   expected: "Fix /Users/<USER>/<PATH>/sample-app/src/auth.go"

@@ -103,13 +103,15 @@ writes. To run a title backfill after a `github.com/peasant-labs/redact`
 version bump:
 
 1. Deploy the server build that carries the new `redact` module version.
-2. Run `server -backfill-titles=dry-run`. Read the reported `Scanned`,
-   `WouldUpdate`, `Derived`, `Sanitized`, and `Failed` counts. No row changes.
+2. Run `server -backfill-titles=dry-run`. Read the `title_backfill_complete`
+   log line's `scanned`, `unchanged`, `would_update`, `derived`, `sanitized`,
+   and `failed` keys. No row changes.
 3. If the counts look right, run `server -backfill-titles=apply` with the same
-   deployed build. `Updated` rows and `Failed` rows are reported; a failed row
-   is left unchanged and safe to retry after the underlying dependency or
-   content is repaired (see the row-level warn/error log for the failing
-   stage; it never logs raw transcript content).
+   deployed build. Read the same `title_backfill_complete` log line's
+   `updated` and `failed` keys; a failed row is left unchanged and safe to
+   retry after the underlying dependency or content is repaired (see the
+   row-level warn/error log for the failing stage; it never logs raw
+   transcript content).
 
 ## Key Directories
 

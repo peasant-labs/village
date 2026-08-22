@@ -68,6 +68,25 @@ func loadTitleBackfillFixtures(data []byte) ([]titleBackfillFixture, error) {
 	if !names["shared_project_path_parity"] {
 		return nil, fmt.Errorf("strict title backfill fixture omits shared_project_path_parity")
 	}
+	// multiCandidateArms are the arms whose entire point is proving the
+	// selection loop visits a later candidate turn (injected-then-prose,
+	// only-injected, interleaved-turn-index). A row filed under one of these
+	// arms with fewer than two first_user_turns can no longer exercise that
+	// behavior, so a future edit that shrinks a row to one turn must fail
+	// the fixture loader instead of silently degrading every guard that
+	// depends on multi-turn coverage to a vacuous pass.
+	multiCandidateArms := map[string]bool{
+		"derive-caveat-then-prose":       true,
+		"derive-bare-command-then-prose": true,
+		"derive-malformed-then-prose":    true,
+		"derive-only-injected":           true,
+		"derive-interleaved-turn-index":  true,
+	}
+	for _, c := range cases {
+		if multiCandidateArms[c.Arm] && len(c.FirstUserTurns) < 2 {
+			return nil, fmt.Errorf("strict title backfill fixture row %q (arm %q) carries %d first_user_turns, want at least 2: this arm proves the selection loop visits a later candidate turn and a single-turn row cannot exercise that", c.Name, c.Arm, len(c.FirstUserTurns))
+		}
+	}
 	return cases, nil
 }
 
@@ -257,7 +276,9 @@ func TestDeriveTitleFromPayloadVisitsEveryCandidateTurn(t *testing.T) {
 		}
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
-			ran++
+			if len(tc.FirstUserTurns) >= 2 {
+				ran++
+			}
 			recorder := &callRecordingPipeline{TitlePipeline: real}
 			payload := buildUserTurnsPayload(tc.LeadingNonUserTurns, tc.FirstUserTurns)
 			title, err := deriveTitleFromPayload(payload, recorder, ctx, nil)
