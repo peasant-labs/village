@@ -16,6 +16,7 @@ import '@xyflow/react/dist/style.css';
 import type { SessionDetailPayload } from '@/types/messages';
 import { detectPhases } from '@/lib/insights';
 import { displayProject } from '@/lib/quality/utils';
+import { navSections } from '@/lib/nav/sections';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/hooks/useTheme';
 import {
@@ -32,6 +33,45 @@ import AttestButton from '@/components/transcript/AttestButton';
 /** A transcript's stored visibility. `shared` is set server-side when the
  *  transcript is shared to a collective; it is not directly selectable. */
 type TranscriptVisibility = 'public' | 'private' | 'shared';
+
+/** Same label the explore card (`TranscriptCard.tsx`) shows for a transcript
+ *  with no stored title. The hero must show this — never the composite's own
+ *  fallback chain, which derives a heading from the first `role: user` turn
+ *  and can surface raw harness preamble (village#32). */
+const UNTITLED_TRANSCRIPT_LABEL = 'Untitled transcript';
+
+/** The home section of the top nav (`frontend/src/lib/nav/sections.ts`) is
+ *  the single source of truth for its label/href; the breadcrumb's root
+ *  crumb reads from there instead of a second hardcoded copy. `explore` does
+ *  not vary with auth state, so any `opts` value resolves the same section.
+ *  Fail loudly (module load) rather than silently re-hardcoding a duplicate
+ *  literal: if the `explore` section id is ever renamed or removed from the
+ *  registry, this must surface as a build/runtime error, not a silent
+ *  fallback to a stale copy of the label/href it exists to avoid duplicating. */
+const EXPLORE_SECTION: ReturnType<typeof navSections>[number] = (() => {
+  const found = navSections({ isLoggedIn: false }).find((s) => s.id === 'explore');
+  if (!found) {
+    throw new Error(
+      "SessionDetailV2: nav/sections.ts has no 'explore' section — the breadcrumb's " +
+        'root crumb has nothing to read its label/href from. Fix: keep an `explore` ' +
+        'entry in navSections(), or update this reference if it was intentionally renamed.',
+    );
+  }
+  return found;
+})();
+
+/** Breadcrumb crumbs share one line in a fixed-height trail. A stored title
+ *  is frequently a whole sentence, so bound it the way fairtrade bounds the
+ *  hero title (`TranscriptViewer.jsx`'s `rawTitle`/`cut` guard), at a
+ *  shorter, breadcrumb-appropriate length. The `codePointAt` check keeps the
+ *  cut from landing inside a surrogate pair (no mojibake before the
+ *  ellipsis). */
+function truncateCrumbLabel(raw: string): string {
+  const MAX = 60;
+  if (raw.length <= MAX) return raw;
+  const cut = (raw.codePointAt(MAX - 2) ?? 0) > 0xffff ? MAX - 2 : MAX - 1;
+  return raw.slice(0, cut).trimEnd() + '…';
+}
 
 interface SessionDetailV2Props {
   sessionId: string;
@@ -70,7 +110,6 @@ export function SessionDetailV2({
   detail,
   error,
 }: SessionDetailV2Props) {
-  void sessionId; // retained in the prop contract for callers / deep links
   const { user } = useAuth();
   const { theme } = useTheme();
   const isOwner = !!user && !!transcriptOwnerId && user.id === transcriptOwnerId;
@@ -104,12 +143,29 @@ export function SessionDetailV2({
     const analytics = computeAnalytics(turns as Parameters<typeof computeAnalytics>[0], {
       scorecard: detail.scorecard ?? undefined,
     } as Parameters<typeof computeAnalytics>[1]);
-    return adaptTranscript(
+    const adapted = adaptTranscript(
       detail as Parameters<typeof adaptTranscript>[0],
       undefined,
       analytics,
     );
-  }, [detail, turns]);
+    // `SessionVM.title` is documented as "render-when-present; else the
+    // consumer derives one from the first prompt". `adaptTranscript` never
+    // sets it, so with nothing supplied here the hero fell back to the
+    // composite's own derivation — the first `role: user` turn — which
+    // surfaces raw harness preamble (e.g. `<local-command-caveat>Caveat: ...`)
+    // as the headline whenever a session opens with tooling setup
+    // (village#32). The explore card already shows the stored title, so the
+    // hero must show the SAME title, not a re-derived one: always overlay
+    // it, falling back to the explore card's own empty-title label rather
+    // than letting the composite reach past it to the raw turn.
+    return {
+      ...adapted,
+      session: {
+        ...adapted.session,
+        title: transcriptTitle?.trim() || UNTITLED_TRANSCRIPT_LABEL,
+      },
+    };
+  }, [detail, turns, transcriptTitle]);
 
   // Cooked tool calls by turn index, fed into the graph engine's tool nodes.
   const toolVMsByTurn = useMemo(
@@ -172,6 +228,12 @@ export function SessionDetailV2({
 
   const project = detail.project ?? projectName;
   const visibility = transcriptVisibility ?? 'private';
+  // detail.id is Peasant's LOCAL session id, not a village identity — the
+  // breadcrumb's own id fallback must use the village transcript id
+  // (transcriptId, the id in this page's own /transcripts/<id> URL).
+  const trimmedTitle = transcriptTitle?.trim() ?? '';
+  const shortVillageId = (transcriptId ?? sessionId).slice(0, 8);
+  const crumbTitle = trimmedTitle ? truncateCrumbLabel(trimmedTitle) : shortVillageId;
 
   return (
     // Bounded host: the composite's .txn-app is height:100%, so a bounded
@@ -225,14 +287,20 @@ export function SessionDetailV2({
             },
           }}
           // Village's host trail through the app router (lowercase chrome).
+          // Village has no /projects route: the hardcoded `/projects` and
+          // `/projects/<project>` hrefs 404'd (village#33). Every crumb href
+          // below must resolve to a route that actually exists. The project
+          // label still carries meaning (Peasant's privacy-safe project
+          // label) even with no village route to link it to, so it stays as
+          // a label-only crumb rather than being dropped. The last crumb
+          // reads the RAW stored title (trimmed, truncated) — not the
+          // overlaid hero fallback above — so an untitled transcript shows
+          // the short VILLAGE transcript id instead of repeating
+          // "Untitled transcript" three words wide in a breadcrumb.
           breadcrumb={[
-            { label: 'dashboard', href: '/' },
-            { label: 'projects', href: '/projects' },
-            {
-              label: displayProject(project),
-              href: `/projects/${encodeURIComponent(project)}`,
-            },
-            { label: detail.id.slice(0, 8) },
+            { label: EXPLORE_SECTION.label, href: EXPLORE_SECTION.href },
+            { label: displayProject(project) },
+            { label: crumbTitle },
           ]}
           LinkComponent={Link}
           activeTurn={activeTurn}
