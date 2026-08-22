@@ -227,6 +227,16 @@ func (b *TitleBackfill) derive(ctx context.Context, row sqlc.ListTranscriptTitle
 // exactly once per candidate turn. GenerateFromTurns's own aggregate skipped
 // list carries no per-error index, so recovering the index without this local
 // walk would require calling Generate a second time per turn.
+//
+// Tradeoff to keep in sync: this walk re-implements
+// GenerateFromTurns's skip-empty/skip-error selection contract rather than
+// calling it, so a future change to that contract in redact (which turn
+// counts as empty, which errors are skippable) does not automatically apply
+// here and must be ported by hand. If redact grows a selection variant that
+// also returns a per-skip original turn index (for example
+// GenerateFromTurns returning skipped errors paired with their source
+// index), switch this walk to call that variant instead of hand-rolling the
+// selection loop.
 func deriveTitleFromPayload(payload *schema.SessionDetailPayload, pipeline titlePipeline, titleContext redact.TitleContext, logger *slog.Logger) (string, error) {
 	if logger == nil {
 		logger = slog.Default()
