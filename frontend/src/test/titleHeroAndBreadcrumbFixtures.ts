@@ -62,8 +62,10 @@ export function loadTitleHeroAndBreadcrumbFixtures(): TitleHeroAndBreadcrumbFixt
         `case ${c.name}: expectedCrumbUsesShortId and expectedCrumbLastLabel must disagree — exactly one of "falls back to the short id" or "shows a literal label" applies per case`,
       );
     }
-    if (c.storedTitle == null && !c.expectedCrumbUsesShortId) {
-      throw new Error(`case ${c.name}: a null storedTitle must fall back to the short id in the breadcrumb`);
+    if ((c.storedTitle ?? "").trim() === "" && !c.expectedCrumbUsesShortId) {
+      throw new Error(
+        `case ${c.name}: a null or whitespace-only storedTitle must fall back to the short id in the breadcrumb`,
+      );
     }
   }
   return fixtures;
