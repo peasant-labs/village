@@ -21,16 +21,21 @@ export interface NavSection {
   title?: string;
 }
 
+/** The always-present home section. Exported as the single source of truth
+ *  for its label/href so callers that need only this one entry (the
+ *  detail-page breadcrumb's root crumb, and the dev-only visual harness
+ *  that mirrors it) can import the constant directly instead of scanning
+ *  `navSections()`'s result for it. */
+export const EXPLORE_SECTION: NavSection = {
+  id: "explore",
+  href: "/",
+  label: "explore",
+  activePrefixes: ["/transcripts"],
+  title: "Search redacted AI agent transcripts shared by the community.",
+};
+
 export function navSections(opts: { isLoggedIn: boolean; githubUsername?: string }): NavSection[] {
-  const sections: NavSection[] = [
-    {
-      id: "explore",
-      href: "/",
-      label: "explore",
-      activePrefixes: ["/transcripts"],
-      title: "Search redacted AI agent transcripts shared by the community.",
-    },
-  ];
+  const sections: NavSection[] = [EXPLORE_SECTION];
 
   if (opts.isLoggedIn) {
     sections.push({
