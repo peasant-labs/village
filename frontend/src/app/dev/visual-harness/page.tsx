@@ -17,13 +17,11 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Moon, Sun } from "lucide-react";
 import { detectPhases } from "@/lib/insights";
-import { displayProject } from "@/lib/quality/utils";
 import TurnLabelPopover from "@/components/transcript/TurnLabelPopover";
 import {
-  EXPLORE_SECTION,
-  UNTITLED_TRANSCRIPT_LABEL,
-  truncateCrumbLabel,
-} from "@/components/session-detail/v2/SessionDetailV2";
+  buildTranscriptBreadcrumb,
+  overlayStoredTitle,
+} from "@/components/session-detail/v2/transcriptChrome";
 import { sampleSession } from "./sample-session";
 
 type Theme = "dark" | "light";
@@ -31,15 +29,16 @@ type Theme = "dark" | "light";
 /**
  * The harness fixture is a bare `SessionDetailPayload` with no backing
  * transcript metadata row, so it has no real `transcriptTitle`/`transcriptId`
- * the way the production route's REST fetch does. These two constants stand
- * in for that missing metadata — the SAME two inputs `SessionDetailV2` reads
- * to overlay the hero title and build the breadcrumb's last crumb — so the
- * harness capture proves the same production behavior instead of drifting
- * back to a re-derived title or a hardcoded id.
+ * the way the production route's REST fetch does. This constant stands in
+ * for that missing metadata — the SAME input `SessionDetailV2` reads to
+ * overlay the hero title and build the breadcrumb's last crumb — so the
+ * harness capture proves the same production behavior via the shared
+ * `transcriptChrome` builders instead of a hand-copied second rule.
  */
 const SAMPLE_TRANSCRIPT_TITLE = "Port the transcript canvas into the shared package";
 /** Stands in for the village transcript id (never Peasant's local
- *  `sampleSession.id`) — mirrors `transcriptId` in `SessionDetailV2`. */
+ *  `sampleSession.id`) — mirrors `transcriptId` in `SessionDetailV2`, fed
+ *  into `buildTranscriptBreadcrumb`'s short-id fallback parameter below. */
 const SAMPLE_TRANSCRIPT_ID = "transcript-sess-demo-0001";
 
 /**
@@ -94,13 +93,7 @@ export default function VisualHarnessPage() {
       undefined,
       analytics,
     );
-    return {
-      ...adapted,
-      session: {
-        ...adapted.session,
-        title: SAMPLE_TRANSCRIPT_TITLE.trim() || UNTITLED_TRANSCRIPT_LABEL,
-      },
-    };
+    return overlayStoredTitle(adapted, SAMPLE_TRANSCRIPT_TITLE);
   }, [turns]);
   const toolVMsByTurn = useMemo(
     () => new Map(vm.turns.map((turn) => [turn.index, turn.toolCalls])),
@@ -187,21 +180,14 @@ export default function VisualHarnessPage() {
             onChangeVisibility: () => {},
             onCopyLink: () => {},
           }}
-          // Mirrors SessionDetailV2's real trail exactly (village#32/#33):
-          // the nav-registry home crumb, the project label with no href
-          // (village has no /projects route), and the last crumb reading the
-          // RAW stored title (trimmed, truncated) — falling back to the
-          // short VILLAGE transcript id, never Peasant's local session id,
-          // when a stored title is empty.
-          breadcrumb={[
-            { label: EXPLORE_SECTION.label, href: EXPLORE_SECTION.href },
-            { label: displayProject(project) },
-            {
-              label: SAMPLE_TRANSCRIPT_TITLE.trim()
-                ? truncateCrumbLabel(SAMPLE_TRANSCRIPT_TITLE.trim())
-                : SAMPLE_TRANSCRIPT_ID.slice(0, 8),
-            },
-          ]}
+          // Built through the SAME shared builder SessionDetailV2 calls
+          // (village#32/#33), so this harness cannot drift onto a
+          // hand-copied second rule.
+          breadcrumb={buildTranscriptBreadcrumb({
+            project,
+            storedTitle: SAMPLE_TRANSCRIPT_TITLE,
+            transcriptId: SAMPLE_TRANSCRIPT_ID,
+          })}
           graphSlot={() => (
             <TrajectoryGraph
               turns={turns}
