@@ -96,6 +96,21 @@ with operator procedure in
 For production provisioning and secret mapping, use the
 [`Railway PostgreSQL and Cloudflare R2 activation runbook`](../docs/railway-cloudflare-r2-activation.md).
 
+Historical transcript titles are repaired explicitly with
+`server -backfill-titles=dry-run` or `server -backfill-titles=apply`. Both
+process every stored transcript row and exit without a listener; only `apply`
+writes. To run a title backfill after a `github.com/peasant-labs/redact`
+version bump:
+
+1. Deploy the server build that carries the new `redact` module version.
+2. Run `server -backfill-titles=dry-run`. Read the reported `Scanned`,
+   `WouldUpdate`, `Derived`, `Sanitized`, and `Failed` counts. No row changes.
+3. If the counts look right, run `server -backfill-titles=apply` with the same
+   deployed build. `Updated` rows and `Failed` rows are reported; a failed row
+   is left unchanged and safe to retry after the underlying dependency or
+   content is repaired (see the row-level warn/error log for the failing
+   stage; it never logs raw transcript content).
+
 ## Key Directories
 
 ```
