@@ -23,8 +23,45 @@
   mode: apply
   title: "claude session"
   generated: null
-  first_user: "<system-reminder>ignore this</system-reminder><user_query>Fix /Users/developer/work/sample-app/src/auth.go</user_query>"
+  first_user_turns:
+    - "<system-reminder>ignore this</system-reminder><user_query>Fix /Users/developer/work/sample-app/src/auth.go</user_query>"
   expected: "Fix /Users/<USER>/<PATH>/sample-app/src/auth.go"
+- name: caveat_then_prose
+  arm: derive-caveat-then-prose
+  mode: apply
+  title: "claude session"
+  generated: null
+  first_user_turns:
+    - "<local-command-caveat>Do not run destructive commands</local-command-caveat>"
+    - "Investigate the flaky auth test"
+  expected: "Investigate the flaky auth test"
+- name: bare_command_then_prose
+  arm: derive-bare-command-then-prose
+  mode: apply
+  title: "claude session"
+  generated: null
+  first_user_turns:
+    - "<command-name>/effort</command-name>"
+    - "Refactor the redaction pipeline title cleanup"
+  expected: "Refactor the redaction pipeline title cleanup"
+- name: malformed_then_prose
+  arm: derive-malformed-then-prose
+  mode: apply
+  title: "claude session"
+  generated: null
+  first_user_turns:
+    - "<user_query>Broken start with no closing tag"
+    - "Ship the release notes draft"
+  expected: "Ship the release notes draft"
+- name: only_injected
+  arm: derive-only-injected
+  mode: apply
+  title: "claude session"
+  generated: null
+  first_user_turns:
+    - "<system-reminder>context only</system-reminder>"
+    - "<local-command-caveat>Do not run destructive commands</local-command-caveat>"
+  expected_error_contains: "no usable user turn remained"
 - name: bare_payload_derivation
   arm: derive-bare
   mode: dry-run

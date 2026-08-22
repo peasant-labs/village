@@ -64,6 +64,7 @@ func (r TitleBackfillResult) Err() error {
 type titlePipeline interface {
 	Generate(string, redact.TitleContext) (redact.TitleResult, error)
 	Sanitize(string, redact.TitleContext) (redact.TitleResult, error)
+	GenerateFromTurns(turns []string, context redact.TitleContext) (redact.TitleResult, int, []error)
 }
 
 type contentMigrator interface {
@@ -205,20 +206,66 @@ func (b *TitleBackfill) derive(ctx context.Context, row sqlc.ListTranscriptTitle
 	if err != nil {
 		return "", fmt.Errorf("stored content normalization failed; repair the current or legacy content and retry: %w", err)
 	}
-	for _, turn := range payload.Turns {
+	return deriveTitleFromPayload(payload, b.pipeline, titleContext, b.logger)
+}
+
+// deriveTitleFromPayload selects a title from the ordered RoleUser turns of an
+// already-loaded and already-migrated payload. It has no pool or blob
+// dependency, so it is directly unit-testable against fixture payloads.
+//
+// It collects the non-empty RoleUser turn contents in payload order and hands
+// them to redact.GenerateFromTurns, the single canonical implementation of the
+// skip-empty/skip-error turn-selection contract: a turn that cleans to empty
+// text carries no user prose (for example a whole turn injected by the harness
+// as a caveat or command-scaffolding block) and a turn whose recognized markup
+// cannot be cleaned deterministically is unusable. Both are skipped in favor of
+// the next candidate turn.
+//
+// Every skipped-with-error turn is logged at warn with its original payload
+// turn index so an operator can locate the offending recorded turn. Because
+// GenerateFromTurns reports only the aggregate list of per-turn errors (not
+// which original turn produced each one), logSkippedTitleTurns re-walks the
+// same candidate turns through the same pure Generate call to attribute each
+// error back to its original index; this re-walk never changes which title
+// wins, since the winning title and its index still come only from the single
+// GenerateFromTurns call.
+func deriveTitleFromPayload(payload *schema.SessionDetailPayload, pipeline titlePipeline, titleContext redact.TitleContext, logger *slog.Logger) (string, error) {
+	var turns []string
+	var indices []int
+	for i, turn := range payload.Turns {
 		if turn.Role != schema.RoleUser || strings.TrimSpace(turn.Content) == "" {
 			continue
 		}
-		result, err := b.pipeline.Generate(turn.Content, titleContext)
-		if err != nil {
-			return "", fmt.Errorf("first-user title generation failed; repair the normalized first user turn and retry: %w", err)
-		}
-		if result.Text == "" {
-			break
-		}
-		return result.Text, nil
+		turns = append(turns, turn.Content)
+		indices = append(indices, i)
 	}
-	return "", errors.New("first-user title generation failed because normalized content has no non-empty user turn; the row remains unchanged; restore a usable user turn or set a safe manual title and retry")
+	result, winIndex, skipped := pipeline.GenerateFromTurns(turns, titleContext)
+	if len(skipped) > 0 {
+		logSkippedTitleTurns(pipeline, turns, indices, winIndex, titleContext, logger)
+	}
+	if winIndex == -1 {
+		return "", errors.New("title derivation failed because no usable user turn remained after cleaning; every recorded user turn was either empty once harness-injected markup (system reminders, command scaffolding, tool output) was removed, or its markup could not be cleaned deterministically; the row remains unchanged; restore a usable user turn or set a safe manual title and retry")
+	}
+	return result.Text, nil
+}
+
+// logSkippedTitleTurns logs one warn line per turn that GenerateFromTurns
+// could not clean deterministically, naming the original payload turn index.
+// It never logs raw turn content; the underlying redact error text does not
+// carry the raw turn text either.
+func logSkippedTitleTurns(pipeline titlePipeline, turns []string, indices []int, winIndex int, titleContext redact.TitleContext, logger *slog.Logger) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	end := len(turns)
+	if winIndex >= 0 {
+		end = winIndex
+	}
+	for i := 0; i < end; i++ {
+		if _, err := pipeline.Generate(turns[i], titleContext); err != nil {
+			logger.Warn("title backfill skipped a candidate user turn because its recognized harness markup could not be cleaned deterministically; the pipeline tried the next user turn", "turn_index", indices[i], "cause_type", fmt.Sprintf("%T", err))
+		}
+	}
 }
 
 func (b *TitleBackfill) update(ctx context.Context, row sqlc.ListTranscriptTitleBackfillBatchRow, decision titleDecision) (bool, error) {
