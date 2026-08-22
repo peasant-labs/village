@@ -62,6 +62,17 @@
     - "<system-reminder>context only</system-reminder>"
     - "<local-command-caveat>Do not run destructive commands</local-command-caveat>"
   expected_error_contains: "no usable user turn remained"
+- name: assistant_turn_then_malformed_then_prose
+  arm: derive-interleaved-turn-index
+  mode: apply
+  title: "claude session"
+  generated: null
+  leading_non_user_turns: 1
+  first_user_turns:
+    - "<user_query>Broken start with no closing tag"
+    - "Ship the release notes draft"
+  expected: "Ship the release notes draft"
+  expected_warn_turn_index: 1
 - name: bare_payload_derivation
   arm: derive-bare
   mode: dry-run
