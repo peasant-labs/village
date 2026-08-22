@@ -21,6 +21,7 @@ export type TitleHeroAndBreadcrumbFixtures = {
 const requiredCaseNames = [
   "stored-title-present",
   "stored-title-null-harness-markup",
+  "stored-title-whitespace-only",
   "stored-title-long-truncates-crumb-not-hero",
 ] as const;
 
@@ -43,8 +44,8 @@ export function loadTitleHeroAndBreadcrumbFixtures(): TitleHeroAndBreadcrumbFixt
   }
   assertExactKeys(parsed, ["cases"], "fixture root");
   const fixtures = parsed as TitleHeroAndBreadcrumbFixtures;
-  if (fixtures.cases.length !== 3) {
-    throw new Error(`title-hero-and-breadcrumb fixtures must contain exactly three cases, got ${fixtures.cases.length}`);
+  if (fixtures.cases.length !== 4) {
+    throw new Error(`title-hero-and-breadcrumb fixtures must contain exactly four cases, got ${fixtures.cases.length}`);
   }
   const names = fixtures.cases.map(({ name }) => name).sort();
   const wanted = [...requiredCaseNames].sort();
