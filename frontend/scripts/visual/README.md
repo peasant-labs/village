@@ -208,6 +208,14 @@ Or point it at a real village backend that serves a viewable transcript (`VILLAG
 **1** = the rendered surface failed the non-empty `SurfaceGate`. (The mock serves a representative
 session sufficient to prove the render path; point at a real backend for the canonical data.)
 
+`MOCK_TITLE_HERO_DIAGNOSTIC=1` swaps the mock's fixture to a null stored title against a first user turn
+of raw harness markup, for capturing the detail-hero title/breadcrumb evidence (village#32/#33). It is
+off by default so the observed-model boot assertions above are unaffected:
+
+```sh
+MOCK_TITLE_HERO_DIAGNOSTIC=1 MOCK_REST_PORT=8788 node scripts/visual/mock-rest.mjs &
+```
+
 ## Explore surface gate (`cex-explore`)
 
 The Explore gate is a separate browse-focused harness for the shared `Explore` surface:
