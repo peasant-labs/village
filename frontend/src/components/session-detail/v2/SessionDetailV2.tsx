@@ -122,6 +122,7 @@ export function SessionDetailV2({
   detail,
   error,
 }: SessionDetailV2Props) {
+  void sessionId; // retained in the prop contract for callers / deep links
   const { user } = useAuth();
   const { theme } = useTheme();
   const isOwner = !!user && !!transcriptOwnerId && user.id === transcriptOwnerId;
