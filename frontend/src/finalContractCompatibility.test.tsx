@@ -123,7 +123,12 @@ function renderSession(detail: SessionDetailPayload): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <SessionDetailV2 sessionId={detail.id} projectName="fixture-project" detail={detail} />
+      <SessionDetailV2
+        sessionId={detail.id}
+        transcriptId={`transcript-${detail.id}`}
+        projectName="fixture-project"
+        detail={detail}
+      />
     </QueryClientProvider>,
   );
 }

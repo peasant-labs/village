@@ -15,7 +15,6 @@ import {
 import '@xyflow/react/dist/style.css';
 import type { SessionDetailPayload } from '@/types/messages';
 import { detectPhases } from '@/lib/insights';
-import { displayProject } from '@/lib/quality/utils';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/hooks/useTheme';
 import {
@@ -28,6 +27,7 @@ import TranscriptEditDialog from '@/components/transcript/TranscriptEditDialog';
 import ContributePicker from '@/components/transcript/ContributePicker';
 import TurnLabelPopover from '@/components/transcript/TurnLabelPopover';
 import AttestButton from '@/components/transcript/AttestButton';
+import { buildTranscriptBreadcrumb, overlayStoredTitle } from './transcriptChrome';
 
 /** A transcript's stored visibility. `shared` is set server-side when the
  *  transcript is shared to a collective; it is not directly selectable. */
@@ -35,8 +35,13 @@ type TranscriptVisibility = 'public' | 'private' | 'shared';
 
 interface SessionDetailV2Props {
   sessionId: string;
-  /** Backend transcript record id — used to persist visibility changes. */
-  transcriptId?: string;
+  /** Backend transcript record id — the village identity of this page's own
+   *  `/transcripts/<id>` route. Required: the one production caller
+   *  (`app/transcripts/[id]/page.tsx`) always has it by the time this
+   *  component renders past its loading/error states, and the breadcrumb's
+   *  short-id fallback depends on it being the real village id, never
+   *  Peasant's local `sessionId`. */
+  transcriptId: string;
   /** The transcript's real, stored visibility. */
   transcriptVisibility?: TranscriptVisibility;
   /** The transcript's stored title — drives the edit form's initial value. */
@@ -104,12 +109,16 @@ export function SessionDetailV2({
     const analytics = computeAnalytics(turns as Parameters<typeof computeAnalytics>[0], {
       scorecard: detail.scorecard ?? undefined,
     } as Parameters<typeof computeAnalytics>[1]);
-    return adaptTranscript(
+    const adapted = adaptTranscript(
       detail as Parameters<typeof adaptTranscript>[0],
       undefined,
       analytics,
     );
-  }, [detail, turns]);
+    // Overlay the stored title onto the hero — see `overlayStoredTitle` for
+    // why the composite's own derivation (falling through to the first
+    // `role: user` turn) is not safe to let through unmodified (village#32).
+    return overlayStoredTitle(adapted, transcriptTitle);
+  }, [detail, turns, transcriptTitle]);
 
   // Cooked tool calls by turn index, fed into the graph engine's tool nodes.
   const toolVMsByTurn = useMemo(
@@ -225,15 +234,21 @@ export function SessionDetailV2({
             },
           }}
           // Village's host trail through the app router (lowercase chrome).
-          breadcrumb={[
-            { label: 'dashboard', href: '/' },
-            { label: 'projects', href: '/projects' },
-            {
-              label: displayProject(project),
-              href: `/projects/${encodeURIComponent(project)}`,
-            },
-            { label: detail.id.slice(0, 8) },
-          ]}
+          // Village has no /projects route: the hardcoded `/projects` and
+          // `/projects/<project>` hrefs 404'd (village#33). Every crumb href
+          // below must resolve to a route that actually exists. The project
+          // label still carries meaning (Peasant's privacy-safe project
+          // label) even with no village route to link it to, so it stays as
+          // a label-only crumb rather than being dropped. The last crumb
+          // reads the RAW stored title (trimmed, truncated) — not the
+          // overlaid hero fallback above — so an untitled transcript shows
+          // the short VILLAGE transcript id instead of repeating
+          // "Untitled transcript" three words wide in a breadcrumb.
+          breadcrumb={buildTranscriptBreadcrumb({
+            project,
+            storedTitle: transcriptTitle,
+            transcriptId,
+          })}
           LinkComponent={Link}
           activeTurn={activeTurn}
           onActiveTurnChange={setActiveTurn}

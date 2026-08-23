@@ -17,11 +17,29 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Moon, Sun } from "lucide-react";
 import { detectPhases } from "@/lib/insights";
-import { displayProject } from "@/lib/quality/utils";
 import TurnLabelPopover from "@/components/transcript/TurnLabelPopover";
+import {
+  buildTranscriptBreadcrumb,
+  overlayStoredTitle,
+} from "@/components/session-detail/v2/transcriptChrome";
 import { sampleSession } from "./sample-session";
 
 type Theme = "dark" | "light";
+
+/**
+ * The harness fixture is a bare `SessionDetailPayload` with no backing
+ * transcript metadata row, so it has no real `transcriptTitle`/`transcriptId`
+ * the way the production route's REST fetch does. This constant stands in
+ * for that missing metadata — the SAME input `SessionDetailV2` reads to
+ * overlay the hero title and build the breadcrumb's last crumb — so the
+ * harness capture proves the same production behavior via the shared
+ * `transcriptChrome` builders instead of a hand-copied second rule.
+ */
+const SAMPLE_TRANSCRIPT_TITLE = "Port the transcript canvas into the shared package";
+/** Stands in for the village transcript id (never Peasant's local
+ *  `sampleSession.id`) — mirrors `transcriptId` in `SessionDetailV2`, fed
+ *  into `buildTranscriptBreadcrumb`'s short-id fallback parameter below. */
+const SAMPLE_TRANSCRIPT_ID = "transcript-sess-demo-0001";
 
 /**
  * Visual-regression harness host — a DEV-ONLY fixture mount of the SAME
@@ -59,17 +77,23 @@ export default function VisualHarnessPage() {
   const phases = useMemo(() => detectPhases(turns), [turns]);
   const annotations = useMemo(() => annotateTranscript(turns), [turns]);
 
-  // The ONE wire→view projection, exactly as the real page cooks it.
+  // The ONE wire→view projection, exactly as the real page cooks it — including
+  // the stored-title overlay `SessionDetailV2` applies (village#32): the
+  // composite's own fallback chain derives a heading from the first
+  // `role: user` turn, which can surface raw harness preamble, so the hero
+  // must always show the stored title (or the explore card's own empty-title
+  // label) instead.
   const vm = useMemo(() => {
     const analytics = computeAnalytics(
       turns as Parameters<typeof computeAnalytics>[0],
       { scorecard: sampleSession.scorecard ?? undefined } as Parameters<typeof computeAnalytics>[1],
     );
-    return adaptTranscript(
+    const adapted = adaptTranscript(
       sampleSession as Parameters<typeof adaptTranscript>[0],
       undefined,
       analytics,
     );
+    return overlayStoredTitle(adapted, SAMPLE_TRANSCRIPT_TITLE);
   }, [turns]);
   const toolVMsByTurn = useMemo(
     () => new Map(vm.turns.map((turn) => [turn.index, turn.toolCalls])),
@@ -156,15 +180,14 @@ export default function VisualHarnessPage() {
             onChangeVisibility: () => {},
             onCopyLink: () => {},
           }}
-          breadcrumb={[
-            { label: "dashboard", href: "/" },
-            { label: "projects", href: "/projects" },
-            {
-              label: displayProject(project),
-              href: `/projects/${encodeURIComponent(project)}`,
-            },
-            { label: sampleSession.id.slice(0, 8) },
-          ]}
+          // Built through the SAME shared builder SessionDetailV2 calls
+          // (village#32/#33), so this harness cannot drift onto a
+          // hand-copied second rule.
+          breadcrumb={buildTranscriptBreadcrumb({
+            project,
+            storedTitle: SAMPLE_TRANSCRIPT_TITLE,
+            transcriptId: SAMPLE_TRANSCRIPT_ID,
+          })}
           graphSlot={() => (
             <TrajectoryGraph
               turns={turns}
