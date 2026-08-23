@@ -19,6 +19,11 @@
   project_path: /Users/developer/work/sample-app
   candidate: Review /Users/developer/work/sample-app/src/session.go
   expected: Review /Users/<USER>/<PATH>/sample-app/src/session.go
+- name: raw_tag_generated_title_preserved_by_sanitize
+  mode: fresh
+  harness: claude-code
+  candidate: "<user_query>Fix the login parsing bug</user_query>"
+  expected: "<user_query>Fix the login parsing bug</user_query>"
 - name: safe_patch_byte_preservation
   mode: patch
   harness: claude-code

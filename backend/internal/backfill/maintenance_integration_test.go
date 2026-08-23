@@ -5,6 +5,7 @@ package backfill
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -219,7 +220,7 @@ func TestTitleBackfillRealPostgres(t *testing.T) {
 			parity = fixture
 		}
 	}
-	raw := []byte(`{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"fixture","harness":"claude-code","turns":[{"index":0,"role":"assistant","content":"not selected"},{"index":1,"role":"user","content":` + fmt.Sprintf("%q", parity.FirstUser) + `}]}}`)
+	raw := buildTitleBackfillRawPayload(t, parity.LeadingNonUserTurns, parity.FirstUserTurns)
 
 	t.Run("dry-run-apply-idempotence", func(t *testing.T) {
 		id, owner, _ := insertMaintenanceRow(t, ctx, pool, false, 1)
@@ -263,6 +264,54 @@ func TestTitleBackfillRealPostgres(t *testing.T) {
 			t.Fatalf("concurrent result=%+v err=%v", result, err)
 		}
 		assertStoredTitles(t, ctx, pool, id, "Owner edit after snapshot", "")
+	})
+
+	// derive-multi-turn-selection runs every fixture row that carries two or
+	// more first_user_turns through the full Run path against real
+	// PostgreSQL and a stubbed encrypted blob, proving the injected-then-prose
+	// turn selection (and the only-injected error path) end to end rather than
+	// only through the pure unit-level function.
+	t.Run("derive-multi-turn-selection", func(t *testing.T) {
+		ran := 0
+		for _, fixture := range fixtures {
+			if len(fixture.FirstUserTurns) < 2 {
+				continue
+			}
+			ran++
+			fixture := fixture
+			t.Run(fixture.Name, func(t *testing.T) {
+				id, owner, _ := insertMaintenanceRow(t, ctx, pool, false, 1)
+				defer deleteMaintenanceOwner(t, ctx, pool, owner)
+				markedExec(t, ctx, pool, "UPDATE transcripts SET title='claude session',title_generated=NULL,model_provider='claude-code',project_path='/Users/developer/work/sample-app' WHERE id=$1", id)
+				store := &titleBlobStore{raw: buildTitleBackfillRawPayload(t, fixture.LeadingNonUserTurns, fixture.FirstUserTurns)}
+				job, err := NewTitleBackfill(pool, store, pipeline, nil, 1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				result, err := job.Run(ctx, TitleBackfillModeApply)
+				if fixture.ExpectedErrorContains != "" {
+					// Run's aggregate error only summarizes counts (see
+					// TitleBackfillResult.Err); the per-row actionable
+					// message asserted by fixture.ExpectedErrorContains is
+					// proven directly against deriveTitleFromPayload in
+					// TestDeriveTitleFromPayloadFixtures. Here the
+					// observable end-to-end contract is: the row fails
+					// closed, stays unchanged, and the batch reports it.
+					if err == nil || result.Failed != 1 || result.Updated != 0 {
+						t.Fatalf("result=%+v err=%v, want Failed=1, Updated=0, and a non-nil aggregate error", result, err)
+					}
+					assertStoredTitles(t, ctx, pool, id, "claude session", "")
+					return
+				}
+				if err != nil || result.Updated != 1 || result.Derived != 1 {
+					t.Fatalf("result=%+v err=%v", result, err)
+				}
+				assertStoredTitles(t, ctx, pool, id, fixture.Expected, fixture.Expected)
+			})
+		}
+		if ran == 0 {
+			t.Fatal("no fixture row carried two or more first_user_turns; derive-multi-turn-selection did not exercise the Run path")
+		}
 	})
 
 	t.Run("failure-continues-with-safe-log", func(t *testing.T) {
@@ -370,4 +419,33 @@ func deleteMaintenanceOwner(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	if err = tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// buildTitleBackfillRawPayload builds a stored-content envelope carrying
+// `leading` role="assistant" turns (content "not selected") followed by the
+// supplied ordered strings as RoleUser turns, matching what a fixture row's
+// leading_non_user_turns and first_user_turns describe together. It is the
+// single place that shapes the raw blob bytes for title-backfill integration
+// tests, so multi-turn cases and the single-turn parity case share the same
+// envelope construction, and the leading non-user turn stays on the mounted
+// Run path proving the role filter is not selected as a title.
+func buildTitleBackfillRawPayload(t *testing.T, leading int, turns []string) []byte {
+	t.Helper()
+	type turnJSON struct {
+		Index   int    `json:"index"`
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+	details := make([]turnJSON, 0, leading+len(turns))
+	for i := 0; i < leading; i++ {
+		details = append(details, turnJSON{Index: i, Role: "assistant", Content: "not selected"})
+	}
+	for i, content := range turns {
+		details = append(details, turnJSON{Index: leading + i, Role: "user", Content: content})
+	}
+	turnsJSON, err := json.Marshal(details)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return []byte(fmt.Sprintf(`{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"fixture","harness":"claude-code","turns":%s}}`, turnsJSON))
 }

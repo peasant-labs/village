@@ -205,20 +205,57 @@ func (b *TitleBackfill) derive(ctx context.Context, row sqlc.ListTranscriptTitle
 	if err != nil {
 		return "", fmt.Errorf("stored content normalization failed; repair the current or legacy content and retry: %w", err)
 	}
-	for _, turn := range payload.Turns {
+	return deriveTitleFromPayload(payload, b.pipeline, titleContext, b.logger)
+}
+
+// deriveTitleFromPayload selects a title from the ordered RoleUser turns of an
+// already-loaded and already-migrated payload. It has no pool or blob
+// dependency, so it is directly unit-testable against fixture payloads.
+//
+// It collects the non-empty RoleUser turn contents in payload order, then
+// walks them through pipeline.Generate one turn at a time, implementing the
+// same skip-empty/skip-error turn-selection contract redact.GenerateFromTurns
+// defines: a turn that cleans to empty text carries no user prose (for
+// example a whole turn injected by the harness as a caveat or
+// command-scaffolding block) and a turn whose recognized markup cannot be
+// cleaned deterministically is unusable. Both are skipped in favor of the
+// next candidate turn.
+//
+// The walk is local (rather than delegating to GenerateFromTurns) so each
+// skipped-with-error turn can be logged at warn with its own original payload
+// turn index in the same pass that selects the winner, calling Generate
+// exactly once per candidate turn. GenerateFromTurns's own aggregate skipped
+// list carries no per-error index, so recovering the index without this local
+// walk would require calling Generate a second time per turn.
+//
+// Tradeoff to keep in sync: this walk re-implements
+// GenerateFromTurns's skip-empty/skip-error selection contract rather than
+// calling it, so a future change to that contract in redact (which turn
+// counts as empty, which errors are skippable) does not automatically apply
+// here and must be ported by hand. If redact grows a selection variant that
+// also returns a per-skip original turn index (for example
+// GenerateFromTurns returning skipped errors paired with their source
+// index), switch this walk to call that variant instead of hand-rolling the
+// selection loop.
+func deriveTitleFromPayload(payload *schema.SessionDetailPayload, pipeline titlePipeline, titleContext redact.TitleContext, logger *slog.Logger) (string, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	for i, turn := range payload.Turns {
 		if turn.Role != schema.RoleUser || strings.TrimSpace(turn.Content) == "" {
 			continue
 		}
-		result, err := b.pipeline.Generate(turn.Content, titleContext)
+		result, err := pipeline.Generate(turn.Content, titleContext)
 		if err != nil {
-			return "", fmt.Errorf("first-user title generation failed; repair the normalized first user turn and retry: %w", err)
+			logger.Warn("title backfill skipped a candidate user turn because its recognized harness markup could not be cleaned deterministically; the pipeline tried the next user turn", "turn_index", i, "cause_type", fmt.Sprintf("%T", err))
+			continue
 		}
 		if result.Text == "" {
-			break
+			continue
 		}
 		return result.Text, nil
 	}
-	return "", errors.New("first-user title generation failed because normalized content has no non-empty user turn; the row remains unchanged; restore a usable user turn or set a safe manual title and retry")
+	return "", errors.New("title derivation failed because no usable user turn remained after cleaning; every recorded user turn was either empty once harness-injected markup (system reminders, command scaffolding, tool output) was removed, or its markup could not be cleaned deterministically; the row remains unchanged; restore a usable user turn or set a safe manual title and retry")
 }
 
 func (b *TitleBackfill) update(ctx context.Context, row sqlc.ListTranscriptTitleBackfillBatchRow, decision titleDecision) (bool, error) {

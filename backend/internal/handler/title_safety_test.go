@@ -48,8 +48,8 @@ func loadTitleWriteFixtures(t *testing.T) []titleWriteFixture {
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		t.Fatalf("title-write fixtures contain a trailing document: %v", err)
 	}
-	if len(fixtures) != 8 {
-		t.Fatalf("title-write fixture count = %d, want 8", len(fixtures))
+	if len(fixtures) != 9 {
+		t.Fatalf("title-write fixture count = %d, want 9", len(fixtures))
 	}
 	seen := make(map[string]struct{}, len(fixtures))
 	for _, fixture := range fixtures {
