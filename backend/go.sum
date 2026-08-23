@@ -81,8 +81,8 @@ github.com/mattn/go-pointer v0.0.1 h1:n+XhsuGeVO6MEAp7xyEukFINEa+Quek5psIR/ylA6o
 github.com/mattn/go-pointer v0.0.1/go.mod h1:2zXcozF6qYGgmsG+SeTZz3oAbFLdD3OWqnUbNvJZAlc=
 github.com/ncruces/go-strftime v0.1.9 h1:bY0MQC28UADQmHmaF5dgpLmImcShSi2kHU9XLdhx/f4=
 github.com/ncruces/go-strftime v0.1.9/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
-github.com/peasant-labs/redact v0.1.2-0.20260822015537-7879d7ab328d h1:+4K9yfF6P5BtvSxGrjihk3jzaqnX6NQZd06eioV8npg=
-github.com/peasant-labs/redact v0.1.2-0.20260822015537-7879d7ab328d/go.mod h1:X3C7ssZnus4U/t4+HnbbQ4IE9e7txyPIlZYSftvp3Cs=
+github.com/peasant-labs/redact v0.1.2 h1:QLLYZH760Qo+Mj1WfQ8j2IxGS+EgaTFo2bKTiu0dEuw=
+github.com/peasant-labs/redact v0.1.2/go.mod h1:X3C7ssZnus4U/t4+HnbbQ4IE9e7txyPIlZYSftvp3Cs=
 github.com/peasant-labs/schema v0.1.1 h1:gMW3ZbYWpFkVFl4aV0LpXULpYyBRAZq13rr7wDe3mwc=
 github.com/peasant-labs/schema v0.1.1/go.mod h1:zuSUP1kUd6Bn3QcNPFfjJbMqZHV6HLpsKPSihU+Q1qo=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
