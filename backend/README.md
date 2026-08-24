@@ -65,7 +65,7 @@ The server starts at `http://localhost:8080`. Database migrations are applied au
 
 ## Configuration
 
-The server reads `.env` from the project root (`../.env` relative to `backend/`). See `.env.example` for all variables.
+The server reads `.env` from the project root (`../.env` relative to `backend/`). See `.env.example` for all variables, and [`../docs/environment.md`](../docs/environment.md) for the required/optional breakdown and how to obtain each value.
 
 Key environment variables:
 

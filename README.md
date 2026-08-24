@@ -62,7 +62,9 @@ For the full application, copy the environment template:
 
 1. Copy the env template and fill in the secrets (GitHub OAuth App credentials,
    `JWT_SECRET`, and a real KEK replacing the non-runnable placeholder). Generate
-   a manual local KEK with `openssl rand -base64 32` and place it in the keyring JSON:
+   a manual local KEK with `openssl rand -base64 32` and place it in the keyring JSON.
+   [`docs/environment.md`](docs/environment.md) lists every variable, what is
+   required versus optional, and how to obtain each value:
 
    ```sh
    cp .env.example .env
