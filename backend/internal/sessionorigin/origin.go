@@ -9,8 +9,10 @@ package sessionorigin
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
+	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/schema"
 )
 
@@ -20,19 +22,21 @@ import (
 type Origin string
 
 const (
-	// User marks a session with at least one real user turn: a human prompted
-	// it in-band. This is the ordinary case and is never demoted.
+	// User marks a session a person drove in-band: it carries a real user turn
+	// with content, a slash-command invocation, or both. This is the ordinary
+	// case and is never demoted.
 	User Origin = "user"
 
-	// Agent marks a session with no user turn at all in which assistant or
-	// tool work still happened, so something drove it without a human prompt
-	// in the transcript. Only this value is collapsed out of root-level lists.
+	// Agent marks a session with no user prompt and no command invocation
+	// anywhere in which assistant or tool work still happened, so something
+	// other than a person in-band drove it. Only this value is collapsed out of
+	// root-level lists.
 	Agent Origin = "agent"
 
 	// Unknown marks a session whose origin could not be established: content
-	// that carries no user turn AND no assistant or tool work (a few slash
-	// commands and then a closed session), or content that could not be read
-	// at all. Unknown is the fail-safe value and behaves exactly like User.
+	// with no user prompt, no command invocation, and no assistant or tool work
+	// at all, or content that could not be read. Unknown is the fail-safe value
+	// and behaves exactly like User.
 	Unknown Origin = "unknown"
 )
 
@@ -82,34 +86,54 @@ func Menu() string {
 	return strings.Join(names, ", ")
 }
 
+// commandInvocationPrefix matches the opening tag of a harness command wrapper
+// at the very start of a turn. The wrapper names come from redact, the one
+// package that owns harness markup names, so this file never spells a tag
+// literal of its own. Attributes are tolerated but must be preceded by
+// whitespace, so a longer unlisted tag name can never match a listed one.
+var commandInvocationPrefix = regexp.MustCompile(
+	`^<(?:` + regexp.QuoteMeta(redact.WrapperCommandName) + `|` + regexp.QuoteMeta(redact.WrapperCommandMessage) + `)(?:\s[^>]*)?>`)
+
+// isCommandInvocation reports whether a turn opens with a command wrapper, in
+// which case a person typed a slash command. The turn's wire role is
+// deliberately ignored: Peasant projects command turns to the system role on
+// newer payloads and recorded them as user turns on older ones, and both shapes
+// describe the same human action.
+func isCommandInvocation(content string) bool {
+	return commandInvocationPrefix.MatchString(strings.TrimSpace(content))
+}
+
 // Classify is the single classification rule, shared by the publish path and
 // the maintenance backfill so a stored value and a freshly published one can
 // never disagree.
 //
-// The rule reads only roles and prompt content:
+// The rule reads turn roles and the opening markup of turn content:
 //
-//   - At least one user turn carrying non-whitespace content: User. A person
-//     prompted the session in-band.
-//   - No such user turn, but at least one assistant or tool turn: Agent.
-//     Real work happened with no human prompt in the transcript.
-//   - Neither: Unknown. A payload made only of system turns is the shape of a
-//     person who ran a few slash commands and then closed the session, so it
-//     stays fully visible rather than being demoted on thin evidence. A nil
-//     payload is Unknown for the same fail-safe reason.
+//   - At least one user turn carrying non-whitespace content, OR at least one
+//     command invocation in any role: User. A person drove the session, either
+//     by typing a prompt or by running a slash command.
+//   - Neither of those, but at least one assistant or tool turn: Agent. Real
+//     work happened with nothing a person typed anywhere in the transcript, the
+//     shape of a worker driven by another agent's message.
+//   - Neither: Unknown. A payload of system turns with no command invocation
+//     carries no evidence either way, so it stays fully visible rather than
+//     being demoted on thin evidence. A nil payload is Unknown for the same
+//     fail-safe reason.
 //
-// Known residual edge, not solved here: a human session driven purely by
-// slash-skill commands puts its whole prompt inside harness-injected blocks,
-// so on the wire it is indistinguishable from an agent-spawned session and
-// classifies Agent. Such a session stays deep-linkable and is labelled rather
-// than hidden. The real disambiguation is an origin signal produced by the
-// recording client and carried on the wire; until that exists, no heuristic
-// over turn roles can separate the two shapes.
+// A command invocation counts wherever it appears because the wire role of that
+// turn is a harness detail that changed over time: Peasant has projected
+// command blocks to the system role since 2026-08-12, and payloads recorded
+// before that carry them as user turns. Reading only the role would classify
+// the same human session two different ways depending on when it was recorded.
 func Classify(payload *schema.SessionDetailPayload) Origin {
 	if payload == nil {
 		return Unknown
 	}
 	work := false
 	for _, turn := range payload.Turns {
+		if isCommandInvocation(turn.Content) {
+			return User
+		}
 		switch turn.Role {
 		case schema.RoleUser:
 			if strings.TrimSpace(turn.Content) != "" {

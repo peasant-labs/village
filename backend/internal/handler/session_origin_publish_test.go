@@ -38,9 +38,9 @@ type publishOriginFixture struct {
 	Undecodable    bool                   `yaml:"undecodable"`
 }
 
-const wantPublishOriginRows = 4
+const wantPublishOriginRows = 5
 
-var requiredPublishOriginArms = []string{"user", "agent", "unknown-system-only", "unknown-unreadable"}
+var requiredPublishOriginArms = []string{"user", "user-command-invocation", "agent", "unknown-system-only", "unknown-unreadable"}
 
 func loadPublishOriginFixtures(t *testing.T) []publishOriginFixture {
 	t.Helper()

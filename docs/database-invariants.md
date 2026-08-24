@@ -101,6 +101,13 @@ boundary are documented in
   is mirrored in Go by `internal/sessionorigin.All`, and a value read out of the
   column passes `Origin.Validate()` before any caller uses it, so an
   out-of-menu value fails closed instead of being guessed in either direction.
+  The classification is one shared pure function: a payload with a real user
+  turn carrying content, or with any turn that opens with a command wrapper
+  whatever its wire role, is `'user'`; a payload with neither of those in which
+  assistant or tool work still happened is `'agent'`; anything else is
+  `'unknown'`. The command wrapper names come from the shared redaction
+  package, not from local literals, because the role a recorder assigns a
+  command turn has changed over time and both shapes describe the same person.
   Publish and republish classify the validated payload and write the column in
   the same audited transaction as the rest of the metadata. Historical rows keep
   the `'unknown'` default until an operator runs the origin backfill, which

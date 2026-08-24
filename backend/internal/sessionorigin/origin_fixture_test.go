@@ -37,18 +37,24 @@ type classificationFixture struct {
 // wantClassificationRows is the exact fixture row count. A row deleted or
 // added without updating this number fails the loader, so coverage cannot
 // silently shrink.
-const wantClassificationRows = 8
+const wantClassificationRows = 14
 
 // requiredClassificationArms is every behaviour the rule must keep proving.
 var requiredClassificationArms = []string{
 	"real-user-prompt",
+	"command-invocation-as-system-turn",
+	"command-invocation-as-user-turn",
+	"command-invocation-with-attributes",
 	"agent-work-without-prompt",
 	"system-only-stays-visible",
+	"command-only-is-a-person",
 	"no-turns-at-all",
 	"nil-payload",
 	"blank-user-turn-is-not-a-prompt",
 	"prompt-found-late-in-order",
 	"tool-work-alone-counts",
+	"command-must-open-the-turn",
+	"unlisted-wrapper-is-not-a-command",
 }
 
 func loadClassificationFixtures(data []byte) ([]classificationFixture, error) {
@@ -94,10 +100,13 @@ func loadClassificationFixtures(data []byte) ([]classificationFixture, error) {
 			return nil, fmt.Errorf("strict session-origin classification fixture omits required arm %q", arm)
 		}
 	}
-	// The agent production-shape row exists to prove the rule survives a long,
-	// realistic session, so it must keep both kinds of work in quantity.
+	// The two production-shape rows exist to prove the rule survives a long,
+	// realistic session, so each must keep both kinds of work in quantity. They
+	// are the same session length and differ only in the one turn that says who
+	// started it, so the row that classifies user cannot be passing for some
+	// other reason than the command invocation.
 	for _, c := range cases {
-		if c.Arm != "agent-work-without-prompt" {
+		if c.Arm != "agent-work-without-prompt" && c.Arm != "command-invocation-as-system-turn" {
 			continue
 		}
 		assistant, tool := 0, 0

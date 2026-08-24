@@ -9,9 +9,6 @@
 - name: user_prompt_publishes_as_user
   arm: user
   turns:
-    - role: system
-      content: "<command-message>plan</command-message>"
-      count: 1
     - role: user
       content: "Group the agent sessions out of the root list."
       count: 1
@@ -34,11 +31,27 @@
       count: 3
   expected_origin: agent
 
-- name: slash_commands_then_closed_publishes_as_unknown
+- name: command_driven_session_publishes_as_user
+  arm: user-command-invocation
+  # The only thing the person typed is the slash command, and the command turn
+  # reaches Village on the system role. It is still a person's session.
+  turns:
+    - role: system
+      content: "<command-name>/research</command-name>"
+      count: 1
+    - role: assistant
+      content: "Reading the exploration protocol."
+      count: 4
+    - role: tool
+      content: "grep -rn discovery"
+      count: 2
+  expected_origin: user
+
+- name: system_context_only_publishes_as_unknown
   arm: unknown-system-only
   turns:
     - role: system
-      content: "<command-name>/status</command-name>"
+      content: "<system-reminder>The workspace has uncommitted changes.</system-reminder>"
       count: 2
   expected_origin: unknown
 

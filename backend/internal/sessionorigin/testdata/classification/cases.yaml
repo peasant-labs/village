@@ -8,12 +8,15 @@
 # `arm` names the behaviour the row exists to pin, so a future edit cannot
 # quietly delete the only row covering one branch: the loader requires every
 # arm below to be present.
+#
+# Two kinds of evidence make a session user-driven: a real user turn with
+# content, and a command invocation. A command invocation is a turn whose
+# trimmed content opens with a command wrapper, whatever role the wire gave
+# that turn, because a slash command is something a person typed and the role
+# the recorder assigns it changed over time.
 - name: user_prompt_present
   arm: real-user-prompt
   turns:
-    - role: system
-      content: "<command-message>research is running…</command-message>"
-      count: 1
     - role: user
       content: "Please find why the discovery list drops tied rows."
       count: 1
@@ -22,31 +25,82 @@
       count: 2
   expected: user
 
-- name: agent_worker_session_production_shape
-  arm: agent-work-without-prompt
-  # The shape observed on the public list: every user-role entry was
-  # harness-injected (a slash-command block and a skill body, both recorded as
-  # system turns), and the session then did real work on its own.
+- name: command_block_as_system_turn_with_work
+  arm: command-invocation-as-system-turn
+  # The shape recorded since the command block moved to the system role: the
+  # only thing the person typed is the slash command, and the session then did
+  # a long run of work. This is a person's session and stays in the root list.
   turns:
     - role: system
-      content: "<command-message>research</command-message>"
-      count: 1
-    - role: system
-      content: "SKILL BODY: run the exploration protocol and report findings."
+      content: "<command-name>/research</command-name>"
       count: 1
     - role: assistant
       content: "Scanning the repository for the integration point."
       count: 19
     - role: tool
-      content: "grep -rn classifySessionOrigin"
+      content: "grep -rn discovery"
+      count: 14
+  expected: user
+
+- name: command_block_as_user_turn_with_work
+  arm: command-invocation-as-user-turn
+  # The same human action recorded by an older client, which kept the command
+  # block on the user turn. Both shapes must classify the same way.
+  turns:
+    - role: user
+      content: "<command-message>research is running…</command-message>"
+      count: 1
+    - role: assistant
+      content: "Reading the exploration protocol."
+      count: 3
+  expected: user
+
+- name: attributed_command_wrapper
+  arm: command-invocation-with-attributes
+  # Real payloads carry attributes on the wrapper tag. The opening tag must
+  # still be recognized.
+  turns:
+    - role: system
+      content: "<command-message source=\"skill\">/plan is running</command-message>"
+      count: 1
+    - role: assistant
+      content: "Drafting the plan."
+      count: 4
+    - role: tool
+      content: "cat AGENTS.md"
+      count: 2
+  expected: user
+
+- name: teammate_driven_worker_session
+  arm: agent-work-without-prompt
+  # A worker started by another agent's message: nothing in the transcript was
+  # typed by a person, and the session still did real work on its own.
+  turns:
+    - role: system
+      content: "<teammate-message>Take the discovery slice and report back.</teammate-message>"
+      count: 1
+    - role: assistant
+      content: "Scanning the repository for the integration point."
+      count: 19
+    - role: tool
+      content: "grep -rn session_origin"
       count: 14
   expected: agent
 
-- name: slash_commands_then_closed
+- name: system_only_without_command
   arm: system-only-stays-visible
+  # System context and nothing else: no prompt, no command, no work. There is
+  # no evidence either way, so the session stays fully visible.
+  turns:
+    - role: system
+      content: "<system-reminder>The workspace has uncommitted changes.</system-reminder>"
+      count: 2
+  expected: unknown
+
+- name: system_only_command_then_closed
+  arm: command-only-is-a-person
   # A person opened a session, ran a few slash commands, and closed it before
-  # anything answered. Zero user turns, but also zero assistant or tool work,
-  # so demoting it would hide a real person's session on thin evidence.
+  # anything answered. The commands are the evidence a person was there.
   turns:
     - role: system
       content: "<command-name>/status</command-name>"
@@ -54,10 +108,7 @@
     - role: system
       content: "<command-name>/cost</command-name>"
       count: 1
-    - role: system
-      content: "<local-command-stdout>session closed</local-command-stdout>"
-      count: 1
-  expected: unknown
+  expected: user
 
 - name: empty_payload
   arm: no-turns-at-all
@@ -104,12 +155,41 @@
 
 - name: tool_work_only_no_assistant_turns
   arm: tool-work-alone-counts
-  # Tool turns alone are still real work done with no human prompt in-band.
+  # Tool turns alone are still real work done with nothing a person typed.
   turns:
     - role: system
-      content: "<command-name>/deploy</command-name>"
+      content: "<task-notification>The queued task started.</task-notification>"
       count: 1
     - role: tool
       content: "kubectl rollout status"
       count: 5
+  expected: agent
+
+- name: command_wrapper_quoted_inside_a_turn
+  arm: command-must-open-the-turn
+  # An agent quoting a command wrapper in the middle of its own output is not
+  # a person running a command. Only a turn that OPENS with the wrapper counts.
+  turns:
+    - role: assistant
+      content: "The failing session began with <command-name>/research</command-name> and then stopped."
+      count: 3
+    - role: tool
+      content: "sed -n 1,40p transcript.json"
+      count: 2
+  expected: agent
+
+- name: unlisted_wrapper_with_a_command_prefix
+  arm: unlisted-wrapper-is-not-a-command
+  # A longer tag name that merely starts with a recognized one is a different
+  # wrapper and carries no command evidence.
+  turns:
+    - role: system
+      content: "<command-names>/research /plan</command-names>"
+      count: 1
+    - role: assistant
+      content: "Listing the available commands."
+      count: 2
+    - role: tool
+      content: "ls .claude/commands"
+      count: 2
   expected: agent

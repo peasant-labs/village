@@ -34,12 +34,14 @@ type originBackfillFixture struct {
 
 // wantOriginBackfillRows is the exact fixture row count; a deleted row fails
 // the loader instead of silently shrinking coverage.
-const wantOriginBackfillRows = 6
+const wantOriginBackfillRows = 8
 
 var requiredOriginBackfillArms = []string{
 	"reclassify-to-agent",
 	"reclassify-to-user",
 	"system-only-is-a-no-op",
+	"command-invocation-is-a-person",
+	"undoes-a-wrong-demotion",
 	"idempotent-agent",
 	"corrects-a-wrong-stored-value",
 	"read-failure-leaves-the-row-alone",
