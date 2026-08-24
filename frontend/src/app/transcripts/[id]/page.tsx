@@ -111,6 +111,7 @@ export default function TranscriptDetailPage({
         transcriptTitle={t.title}
         transcriptDescription={t.description}
         transcriptOwnerId={data.owner?.id}
+        sessionOrigin={t.session_origin}
         projectName={projectName}
         detail={detail}
         error={contentError ? String((contentError as Error).message ?? contentError) : null}

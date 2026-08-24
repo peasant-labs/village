@@ -5,6 +5,7 @@ import { useTranscripts, useRenameUserProject } from "@/lib/queries/transcripts"
 import { useDeleteAccount, usePublicProfile, useUpdateMySettings } from "@/lib/queries/auth";
 import { useAuth } from "@/providers/AuthProvider";
 import TranscriptList from "@/components/transcript/TranscriptList";
+import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
 import {
   Button,
   DataState,
@@ -50,6 +51,7 @@ export default function UserProfilePage({
   const isOwnProfile =
     !!user && user.github_username.toLowerCase() === username.toLowerCase();
   const groups = data?.transcripts ? groupByProject(data.transcripts) : [];
+  const agentTotal = data?.agent_total ?? 0;
 
   // Fall back to the session user for one's own profile so the owner is never
   // locked out of their settings even if the public profile fetch fails.
@@ -197,7 +199,10 @@ export default function UserProfilePage({
         </div>
       ) : (
         <DataState
-          empty={groups.length === 0}
+          // A library made only of agent-driven sessions is not empty: the
+          // collapsed group below is its whole content, so the teaching empty
+          // state would be wrong and would hide it.
+          empty={groups.length === 0 && agentTotal === 0}
           emptyState={libraryEmptyState}
         >
           <div className="divide-y divide-rule">
@@ -257,6 +262,16 @@ export default function UserProfilePage({
                 />
               </div>
             ))}
+            {/* Agent-driven sessions are never mixed into the project groups:
+                they are not the work this person wrote, and grouping them by
+                project would bury the sessions that are. They sit after every
+                project as one collapsed, labelled group. */}
+            <AgentSessionGroup
+              agentTotal={agentTotal}
+              baseParams={{ owner: username }}
+              showOwnerActions={isOwnProfile}
+              bare
+            />
           </div>
         </DataState>
       )}

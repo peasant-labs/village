@@ -1,0 +1,54 @@
+# Cases for the collapsed group of agent-driven sessions, mounted on the REAL
+# Explore route (src/app/page.tsx) and the REAL profile route
+# (src/app/users/[username]/page.tsx) with REST mocked. Loaded by
+# src/test/agentSessionGroupingFixtures.ts.
+#
+# `listedSessions` are the ids the default list returns — the server has
+# already left agent-driven sessions out of it. `agentSessions` are the ids the
+# same endpoint returns when asked for `origin=agent`, and `agentTotal` is the
+# count the default response reports for the same filters.
+#
+# `expectedToggleLabel` is the literal text of the collapsed group's control.
+# A null label means no group must render at all.
+cases:
+  - name: explore-collapses-agent-sessions-out-of-the-browse-list
+    surface: explore
+    listedSessions: [aaaaaaa1, aaaaaaa2]
+    agentSessions: [bbbbbbb1, bbbbbbb2, bbbbbbb3]
+    agentTotal: 3
+    expectedToggleLabel: "+ 3 agent sessions"
+
+  - name: explore-without-agent-sessions-renders-no-group
+    surface: explore
+    listedSessions: [aaaaaaa1, aaaaaaa2]
+    agentSessions: []
+    agentTotal: 0
+    expectedToggleLabel: null
+
+  - name: profile-places-the-group-after-the-project-groups
+    surface: profile
+    listedSessions: [ccccccc1, ccccccc2]
+    agentSessions: [ddddddd1, ddddddd2]
+    agentTotal: 2
+    expectedToggleLabel: "+ 2 agent sessions"
+
+  - name: profile-library-made-only-of-agent-sessions-is-not-empty
+    surface: profile
+    listedSessions: []
+    agentSessions: [ddddddd9]
+    agentTotal: 1
+    expectedToggleLabel: "+ 1 agent session"
+
+# Cases for the mounted transcript detail route. A direct link opens every
+# transcript whatever its origin; an agent-driven one is labelled rather than
+# hidden, so a viewer who arrived by link sees what the list group told them.
+detailCases:
+  - name: agent-session-detail-opens-and-is-labelled
+    sessionOrigin: agent
+    expectChip: true
+  - name: user-session-detail-carries-no-label
+    sessionOrigin: user
+    expectChip: false
+  - name: unclassified-session-detail-carries-no-label
+    sessionOrigin: unknown
+    expectChip: false

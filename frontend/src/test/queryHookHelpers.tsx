@@ -13,7 +13,7 @@ export function transcriptListResponse(
   page: number,
   overrides: Partial<TranscriptListResponse> = {},
 ): TranscriptListResponse {
-  return { transcripts: [], total: 0, page, limit: 24, ...overrides };
+  return { transcripts: [], total: 0, agent_total: 0, page, limit: 24, ...overrides };
 }
 
 /**
