@@ -41,6 +41,10 @@
    ============================================ */
 
 :root {
+  /* One responsive shell header height: the Navbar, the main offset, and the
+     transcript mount's bounded column all derive from this single value. */
+  --app-header-height: 4rem;
+
   /* app-unique semantic tokens (light values; dark overridden below) */
   --rail:    30 6% 84%;
   --mark:    24 10% 6%;
