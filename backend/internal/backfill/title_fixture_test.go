@@ -44,8 +44,8 @@ func loadTitleBackfillFixtures(data []byte) ([]titleBackfillFixture, error) {
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return nil, fmt.Errorf("strict title backfill fixture must contain exactly one YAML document")
 	}
-	if len(cases) != 15 {
-		return nil, fmt.Errorf("strict title backfill fixture has %d rows, want 15", len(cases))
+	if len(cases) != 17 {
+		return nil, fmt.Errorf("strict title backfill fixture has %d rows, want 17", len(cases))
 	}
 	names, arms := map[string]bool{}, map[string]bool{}
 	for _, c := range cases {
@@ -60,7 +60,7 @@ func loadTitleBackfillFixtures(data []byte) ([]titleBackfillFixture, error) {
 			return nil, err
 		}
 	}
-	for _, arm := range []string{"preserve", "sanitize", "sanitize-generated", "generated-candidate", "derive-current", "derive-bare", "derive-jsonl", "malformed", "concurrent-skip", "idempotent", "derive-caveat-then-prose", "derive-bare-command-then-prose", "derive-malformed-then-prose", "derive-only-injected", "derive-interleaved-turn-index"} {
+	for _, arm := range []string{"preserve", "sanitize", "sanitize-generated", "generated-candidate", "derive-current", "derive-bare", "derive-jsonl", "malformed", "concurrent-skip", "idempotent", "derive-caveat-then-prose", "derive-bare-command-then-prose", "derive-malformed-then-prose", "derive-only-injected", "derive-interleaved-turn-index", "derive-markup-title"} {
 		if !arms[arm] {
 			return nil, fmt.Errorf("strict title backfill fixture omits required arm %q", arm)
 		}
@@ -76,6 +76,7 @@ func loadTitleBackfillFixtures(data []byte) ([]titleBackfillFixture, error) {
 	// the fixture loader instead of silently degrading every guard that
 	// depends on multi-turn coverage to a vacuous pass.
 	multiCandidateArms := map[string]bool{
+		"derive-markup-title":            true,
 		"derive-caveat-then-prose":       true,
 		"derive-bare-command-then-prose": true,
 		"derive-malformed-then-prose":    true,
@@ -110,6 +111,34 @@ func TestTitleBackfillFixtureAndModeContract(t *testing.T) {
 		if result.Text != tc.Expected {
 			t.Fatalf("parity title = %q, want %q", result.Text, tc.Expected)
 		}
+	}
+	// The keep/re-derive gate: a preserve-arm stored title is owner prose and
+	// must never trigger re-derivation; a derive-markup-title-arm stored title
+	// or stored generated title carries recognized harness markup and must.
+	gateChecked := 0
+	for _, tc := range cases {
+		switch tc.Arm {
+		case "preserve":
+			if tc.Title != "" && titleNeedsRederivation(tc.Title, schema.HarnessClaudeCode) {
+				t.Fatalf("preserve row %q: owner prose title %q classified as needing re-derivation", tc.Name, tc.Title)
+			}
+			gateChecked++
+		case "derive-markup-title":
+			stored := tc.Title
+			if stored == "" {
+				stored = tc.Generated
+			}
+			if stored == "" {
+				t.Fatalf("derive-markup-title row %q carries neither a stored title nor a stored generated title; the row cannot exercise the markup gate", tc.Name)
+			}
+			if !titleNeedsRederivation(stored, schema.HarnessClaudeCode) {
+				t.Fatalf("derive-markup-title row %q: markup title %q not classified as needing re-derivation", tc.Name, stored)
+			}
+			gateChecked++
+		}
+	}
+	if gateChecked < 3 {
+		t.Fatalf("keep/re-derive gate exercised by %d rows, want at least 3 (one preserve and two derive-markup-title)", gateChecked)
 	}
 	mutated := bytes.Replace(titleBackfillCasesYAML, []byte("mode: apply"), []byte("mode: unexpected"), 1)
 	if _, err := loadTitleBackfillFixtures(mutated); err == nil {

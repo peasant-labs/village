@@ -160,10 +160,10 @@ func (b *TitleBackfill) decide(ctx context.Context, row sqlc.ListTranscriptTitle
 		return titleDecision{}, fmt.Errorf("generated title sanitation failed: %w", err)
 	}
 	decision := titleDecision{title: title, generated: generated, sanitized: titleChanged || generatedChanged}
-	if title.Valid && !isGenericTitle(title.String, context.Harness) {
+	if title.Valid && !titleNeedsRederivation(title.String, context.Harness) {
 		return decision, nil
 	}
-	if generated.Valid && generated.String != "" && !isGenericTitle(generated.String, context.Harness) {
+	if generated.Valid && generated.String != "" && !titleNeedsRederivation(generated.String, context.Harness) {
 		decision.title = generated
 		return decision, nil
 	}
@@ -290,6 +290,53 @@ func canonicalBackfillHarness(value string) schema.Harness {
 	default:
 		return schema.Harness(value)
 	}
+}
+
+// recognizedWrapperNames is the closed catalog of harness-injected wrapper
+// tag names, taken from the redact module's exported constants so this file
+// never maintains its own copy. A stored title that BEGINS with one of these
+// tags is machine-derived markup, not owner prose.
+var recognizedWrapperNames = [...]string{
+	redact.WrapperSystemReminder,
+	redact.WrapperUserQuery,
+	redact.WrapperCommandName,
+	redact.WrapperCommandMessage,
+	redact.WrapperCommandArgs,
+	redact.WrapperLocalCommandCaveat,
+	redact.WrapperLocalCommandStdout,
+	redact.WrapperLocalCommandStderr,
+	redact.WrapperTaskNotification,
+	redact.WrapperTeammateMessage,
+	redact.WrapperEnvironmentContext,
+	redact.WrapperSystemContext,
+}
+
+// carriesHarnessMarkup reports whether a stored title begins with a
+// recognized harness wrapper tag (with or without attributes) or with the
+// skill-body injection prefix. The check matches only the closed redact
+// catalog, never free text, so an owner-authored prose title can never
+// satisfy it.
+func carriesHarnessMarkup(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if strings.HasPrefix(trimmed, redact.SkillBodyPrefix) {
+		return true
+	}
+	for _, name := range recognizedWrapperNames {
+		open := "<" + name
+		if strings.HasPrefix(trimmed, open+">") || strings.HasPrefix(trimmed, open+" ") {
+			return true
+		}
+	}
+	return false
+}
+
+// titleNeedsRederivation reports whether a stored title must be replaced by a
+// freshly derived one: it is either a generic placeholder or it carries
+// recognized harness markup (a shape the publish path stored before the
+// shared cleaning rule existed). Owner prose titles satisfy neither branch
+// and are always kept.
+func titleNeedsRederivation(value string, harness schema.Harness) bool {
+	return isGenericTitle(value, harness) || carriesHarnessMarkup(value)
 }
 
 func isGenericTitle(value string, harness schema.Harness) bool {
