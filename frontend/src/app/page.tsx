@@ -202,8 +202,15 @@ export default function ExplorePage() {
               server, which reports how many the same filters matched. The
               group sits at the end of the list so the browse results stay the
               sessions people wrote, with the rest one click away. */}
-          <div className="mt-4">
-            <AgentSessionGroup agentTotal={agentTotal} baseParams={params} />
+          {/* The group reuses the Explore surface's own body grid and results
+              column rather than a copied width, so it lines up with the cards
+              above it at every breakpoint and follows that layout if it ever
+              changes. The first cell is the empty facet rail. */}
+          <div className="cex-explore-body mt-4">
+            <div aria-hidden="true" />
+            <div className="cex-results">
+              <AgentSessionGroup agentTotal={agentTotal} baseParams={params} />
+            </div>
           </div>
         </div>
       </>

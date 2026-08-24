@@ -49,8 +49,12 @@ export default function AgentSessionGroup({
 
   const label = agentSessionGroupLabel(agentTotal);
 
+  // A div, not a section element: the design system styles a bare section as a
+  // page band, centred inside its own max-width and gutters. That is right for
+  // a top-level page region and wrong for a row at the end of a list, which
+  // must take the width of the list it belongs to.
   return (
-    <section
+    <div
       className={bare ? "" : "border border-rule bg-surface"}
       data-testid="agent-session-group"
     >
@@ -84,7 +88,7 @@ export default function AgentSessionGroup({
           showOwnerActions={showOwnerActions}
         />
       )}
-    </section>
+    </div>
   );
 }
 

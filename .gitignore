@@ -23,6 +23,10 @@ frontend/node_modules/
 frontend/.next/
 frontend/out/
 
+# Local visual-capture output. Per-round proof screenshots are evidence for one
+# review and are never committed; only a deliberate regression baseline is.
+review-capture/
+
 # IDE
 .vscode/
 .idea/

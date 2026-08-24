@@ -203,7 +203,7 @@ const send = (res, code, body) => {
   res.end(body == null ? '' : JSON.stringify(body))
 }
 
-const transcriptListItems = transcripts.map((row) => ({
+const toListItem = (row, sessionOrigin) => ({
   transcript: {
     id: row.id,
     owner_id: `owner-${row.owner.github_username || 'anon'}`,
@@ -241,10 +241,92 @@ const transcriptListItems = transcripts.map((row) => ({
     subagents: null,
     diagnostics_warnings: null,
     diagnostics_partial: null,
+    session_origin: sessionOrigin,
   },
   tags: row.tags.map((name) => ({ id: name, name })),
   owner: row.owner,
-}))
+})
+
+// Agent-driven sessions: no person prompted them in-band. The server keeps them
+// out of the default list and reports how many it kept out, so the page can
+// render the collapsed group. This mock serves the same two scopes.
+const agentTranscripts = [
+  {
+    id: 'a91f30',
+    title: 'Sweep the discovery handlers for unbounded queries',
+    visibility: 'public',
+    model_provider: 'claude-code',
+    model_name: 'Claude Opus 4.5',
+    harness_version: '2026.08',
+    session_start: '2026-08-18T09:00:00Z',
+    session_end: '2026-08-18T09:41:00Z',
+    turn_count: 64,
+    token_count: 188400,
+    tool_call_count: 22,
+    duration_ms: 2_460_000,
+    git_branch: 'develop',
+    project_name: 'village',
+    tags: ['claude-code'],
+    owner: owners['alice-dev'],
+  },
+  {
+    id: 'b7c214',
+    title: 'Port the fixture loaders onto the shared row-count guard',
+    visibility: 'public',
+    model_provider: 'claude-code',
+    model_name: 'Claude Opus 4.5',
+    harness_version: '2026.08',
+    session_start: '2026-08-17T14:10:00Z',
+    session_end: '2026-08-17T14:52:00Z',
+    turn_count: 51,
+    token_count: 142900,
+    tool_call_count: 18,
+    duration_ms: 2_520_000,
+    git_branch: 'develop',
+    project_name: 'village',
+    tags: ['refactoring'],
+    owner: owners['bob-ai'],
+  },
+  {
+    id: 'c30d55',
+    title: 'Reproduce the tied-row reordering across discovery pages',
+    visibility: 'public',
+    model_provider: 'gemini-cli',
+    model_name: 'Gemini 3 Pro',
+    harness_version: '2026.07',
+    session_start: '2026-08-16T11:05:00Z',
+    session_end: '2026-08-16T11:29:00Z',
+    turn_count: 33,
+    token_count: 96200,
+    tool_call_count: 11,
+    duration_ms: 1_440_000,
+    git_branch: 'develop',
+    project_name: 'village',
+    tags: ['debugging'],
+    owner: owners['charlie-ml'],
+  },
+  {
+    id: 'd0e918',
+    title: 'Collect the redaction rule versions used by stored transcripts',
+    visibility: 'public',
+    model_provider: 'claude-code',
+    model_name: 'Claude Sonnet 4.5',
+    harness_version: '2026.08',
+    session_start: '2026-08-15T16:40:00Z',
+    session_end: '2026-08-15T16:58:00Z',
+    turn_count: 27,
+    token_count: 71300,
+    tool_call_count: 9,
+    duration_ms: 1_080_000,
+    git_branch: 'develop',
+    project_name: 'village',
+    tags: ['claude-code'],
+    owner: owners['dana-ops'],
+  },
+]
+
+const transcriptListItems = transcripts.map((row) => toListItem(row, 'user'))
+const agentListItems = agentTranscripts.map((row) => toListItem(row, 'agent'))
 
 const filterTranscripts = (url) => {
   const q = url.searchParams.get('q')?.trim().toLowerCase() || ''
@@ -256,8 +338,11 @@ const filterTranscripts = (url) => {
   const sort = url.searchParams.get('sort') || 'recent'
   const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
   const limit = Math.max(1, Number(url.searchParams.get('limit') || '24'))
+  // Discovery scope, matching the server: absent, the list carries everything
+  // EXCEPT agent-driven sessions; origin=agent carries only them.
+  const origin = url.searchParams.get('origin') || ''
 
-  let rows = transcriptListItems.filter((row) => {
+  const matches = (row) => {
     if (provider !== 'all' && row.transcript.model_provider !== provider) return false
     if (tags.length > 0 && !row.tags.some((tag) => tags.includes(tag.name))) return false
     if (q) {
@@ -274,7 +359,10 @@ const filterTranscripts = (url) => {
       if (!hay.includes(q)) return false
     }
     return true
-  })
+  }
+
+  let rows = (origin === 'agent' ? agentListItems : transcriptListItems).filter(matches)
+  const agentTotal = agentListItems.filter(matches).length
 
   rows = rows.slice().sort((a, b) => {
     if (sort === 'turns') return (b.transcript.turn_count || 0) - (a.transcript.turn_count || 0)
@@ -284,7 +372,7 @@ const filterTranscripts = (url) => {
 
   const start = (page - 1) * limit
   const items = rows.slice(start, start + limit)
-  return { transcripts: items, total: rows.length, page, limit }
+  return { transcripts: items, total: rows.length, agent_total: agentTotal, page, limit }
 }
 
 const filterCollectives = (url) => {
