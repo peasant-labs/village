@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ExplorePage from "@/app/page";
 import UserProfilePage from "@/app/users/[username]/page";
+import { AGENT_ORIGIN, type SessionOrigin } from "@/lib/sessionOrigin";
 import type { TranscriptListItem, TranscriptListResponse } from "@/lib/types";
 import {
   loadAgentSessionGroupingFixtures,
@@ -30,7 +31,7 @@ const PROFILE_USERNAME = "octocat";
 
 const fixtures = loadAgentSessionGroupingFixtures();
 
-function wireItem(id: string, sessionOrigin: "user" | "agent" | "unknown"): TranscriptListItem {
+function wireItem(id: string, sessionOrigin: SessionOrigin): TranscriptListItem {
   return {
     transcript: {
       id,
@@ -67,7 +68,7 @@ function wireItem(id: string, sessionOrigin: "user" | "agent" | "unknown"): Tran
   };
 }
 
-function listResponse(ids: string[], origin: "user" | "agent", agentTotal: number): TranscriptListResponse {
+function listResponse(ids: string[], origin: SessionOrigin, agentTotal: number): TranscriptListResponse {
   return {
     transcripts: ids.map((id) => wireItem(id, origin)),
     total: ids.length,
@@ -99,7 +100,7 @@ function installREST(testCase: AgentSessionGroupingCase): ReturnType<typeof vi.f
     }
     if (url.includes("/transcripts")) {
       if (url.includes("origin=agent")) {
-        return jsonResponse(listResponse(testCase.agentSessions, "agent", testCase.agentTotal));
+        return jsonResponse(listResponse(testCase.agentSessions, AGENT_ORIGIN, testCase.agentTotal));
       }
       return jsonResponse(listResponse(testCase.listedSessions, "user", testCase.agentTotal));
     }

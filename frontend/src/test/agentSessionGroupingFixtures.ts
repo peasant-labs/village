@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { assertExactKeys } from "@/test/fixtureAssertions";
+import { AGENT_ORIGIN, SESSION_ORIGINS, type SessionOrigin } from "@/lib/sessionOrigin";
 
 export type AgentSessionGroupingSurface = "explore" | "profile";
 
@@ -16,7 +17,7 @@ export type AgentSessionGroupingCase = {
 
 export type AgentSessionDetailCase = {
   name: string;
-  sessionOrigin: "user" | "agent" | "unknown";
+  sessionOrigin: SessionOrigin;
   expectChip: boolean;
 };
 
@@ -29,8 +30,22 @@ export type AgentSessionGroupingFixtures = {
  *  shrinking what the mounted surfaces prove. */
 const EXPECTED_CASE_COUNT = 4;
 
-/** Exact detail-route row count, one per session-origin menu value. */
+/** Exact detail-route row count, one per session-origin menu value. Held as a
+ *  literal so a deleted fixture row fails, and checked against the shared menu
+ *  so widening the menu fails here until a case covers the new value. */
 const EXPECTED_DETAIL_CASE_COUNT = 3;
+
+/** Widened on purpose: comparing the tuple's literal length against the literal
+ *  above is a type error, and the point of the check is the runtime coupling. */
+const SESSION_ORIGIN_COUNT: number = SESSION_ORIGINS.length;
+
+if (SESSION_ORIGIN_COUNT !== EXPECTED_DETAIL_CASE_COUNT) {
+  throw new Error(
+    `the session-origin menu now holds ${SESSION_ORIGIN_COUNT} values but the detail fixtures expect ` +
+      `${EXPECTED_DETAIL_CASE_COUNT}: add a detail case for the new value in ` +
+      `src/testdata/agent-session-grouping.yaml and raise EXPECTED_DETAIL_CASE_COUNT to match`,
+  );
+}
 
 const requiredCaseNames = [
   "explore-collapses-agent-sessions-out-of-the-browse-list",
@@ -111,18 +126,24 @@ export function loadAgentSessionGroupingFixtures(): AgentSessionGroupingFixtures
   const detailOrigins = new Set<string>();
   for (const c of fixtures.detailCases) {
     assertExactKeys(c, ["name", "sessionOrigin", "expectChip"], `detail case ${c.name}`);
+    if (!SESSION_ORIGINS.includes(c.sessionOrigin)) {
+      throw new Error(
+        `detail case ${c.name}: sessionOrigin ${c.sessionOrigin} is not in the session-origin menu ` +
+          `(${SESSION_ORIGINS.join(", ")}); fix the value in src/testdata/agent-session-grouping.yaml`,
+      );
+    }
     if (detailOrigins.has(c.sessionOrigin)) {
       throw new Error(`detail case ${c.name}: origin ${c.sessionOrigin} is covered twice`);
     }
     detailOrigins.add(c.sessionOrigin);
-    if (c.expectChip !== (c.sessionOrigin === "agent")) {
+    if (c.expectChip !== (c.sessionOrigin === AGENT_ORIGIN)) {
       throw new Error(
         `detail case ${c.name}: only an agent-driven session is labelled; unclassified sessions are presented like ` +
           `user sessions, so expectChip must be true for agent and false otherwise`,
       );
     }
   }
-  for (const origin of ["user", "agent", "unknown"]) {
+  for (const origin of SESSION_ORIGINS) {
     if (!detailOrigins.has(origin)) {
       throw new Error(`agent-session-grouping detail cases cover no ${origin} session`);
     }
