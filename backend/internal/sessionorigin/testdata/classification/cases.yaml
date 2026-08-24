@@ -1,0 +1,115 @@
+# Cases for sessionorigin.Classify. Loaded by origin_fixture_test.go.
+#
+# Each row describes one session payload as an ordered list of turn runs
+# (`role` repeated `count` times with `content`) plus the origin the rule must
+# return. `nil_payload: true` describes the separate "no readable content at
+# all" input and carries no turns.
+#
+# `arm` names the behaviour the row exists to pin, so a future edit cannot
+# quietly delete the only row covering one branch: the loader requires every
+# arm below to be present.
+- name: user_prompt_present
+  arm: real-user-prompt
+  turns:
+    - role: system
+      content: "<command-message>research is running…</command-message>"
+      count: 1
+    - role: user
+      content: "Please find why the discovery list drops tied rows."
+      count: 1
+    - role: assistant
+      content: "Reading the ORDER BY clause."
+      count: 2
+  expected: user
+
+- name: agent_worker_session_production_shape
+  arm: agent-work-without-prompt
+  # The shape observed on the public list: every user-role entry was
+  # harness-injected (a slash-command block and a skill body, both recorded as
+  # system turns), and the session then did real work on its own.
+  turns:
+    - role: system
+      content: "<command-message>research</command-message>"
+      count: 1
+    - role: system
+      content: "SKILL BODY: run the exploration protocol and report findings."
+      count: 1
+    - role: assistant
+      content: "Scanning the repository for the integration point."
+      count: 19
+    - role: tool
+      content: "grep -rn classifySessionOrigin"
+      count: 14
+  expected: agent
+
+- name: slash_commands_then_closed
+  arm: system-only-stays-visible
+  # A person opened a session, ran a few slash commands, and closed it before
+  # anything answered. Zero user turns, but also zero assistant or tool work,
+  # so demoting it would hide a real person's session on thin evidence.
+  turns:
+    - role: system
+      content: "<command-name>/status</command-name>"
+      count: 1
+    - role: system
+      content: "<command-name>/cost</command-name>"
+      count: 1
+    - role: system
+      content: "<local-command-stdout>session closed</local-command-stdout>"
+      count: 1
+  expected: unknown
+
+- name: empty_payload
+  arm: no-turns-at-all
+  turns: []
+  expected: unknown
+
+- name: unreadable_content
+  arm: nil-payload
+  nil_payload: true
+  turns: []
+  expected: unknown
+
+- name: whitespace_only_user_turn_with_work
+  arm: blank-user-turn-is-not-a-prompt
+  # A user-role turn whose content is only whitespace carries no prompt, so it
+  # does not make the session user-driven while real work happened around it.
+  turns:
+    - role: user
+      content: "   \n\t "
+      count: 1
+    - role: assistant
+      content: "Continuing from the previous context."
+      count: 3
+    - role: tool
+      content: "go test ./..."
+      count: 1
+  expected: agent
+
+- name: user_prompt_after_assistant_work
+  arm: prompt-found-late-in-order
+  # The rule must scan the whole turn list: a session that opens with agent
+  # work and is later steered by a person is still user-driven.
+  turns:
+    - role: assistant
+      content: "Resuming the queued task."
+      count: 4
+    - role: tool
+      content: "git status"
+      count: 2
+    - role: user
+      content: "Stop there and summarise what you changed."
+      count: 1
+  expected: user
+
+- name: tool_work_only_no_assistant_turns
+  arm: tool-work-alone-counts
+  # Tool turns alone are still real work done with no human prompt in-band.
+  turns:
+    - role: system
+      content: "<command-name>/deploy</command-name>"
+      count: 1
+    - role: tool
+      content: "kubectl rollout status"
+      count: 5
+  expected: agent

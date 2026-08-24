@@ -95,6 +95,20 @@ boundary are documented in
   operation fingerprint. Publish writes it atomically with metadata, content
   hash, commits, and association appends, then rereads the complete association
   ledger in canonical order for the response.
+- **033 records who drove a session.** `transcripts.session_origin` is
+  `TEXT NOT NULL DEFAULT 'unknown'` under the closed menu check
+  `transcripts_session_origin_menu` (`'user'`, `'agent'`, `'unknown'`). The menu
+  is mirrored in Go by `internal/sessionorigin.All`, and a value read out of the
+  column passes `Origin.Validate()` before any caller uses it, so an
+  out-of-menu value fails closed instead of being guessed in either direction.
+  Publish and republish classify the validated payload and write the column in
+  the same audited transaction as the rest of the metadata. Historical rows keep
+  the `'unknown'` default until an operator runs the origin backfill, which
+  updates them one row at a time as the system actor. `'unknown'` is the
+  fail-safe value: only `'agent'` is collapsed out of root-level discovery
+  lists, and `'unknown'` is listed exactly like `'user'`. The column scopes
+  DISCOVERY only - it is not an access control, and a direct link to an
+  `'agent'` transcript still resolves normally.
 
 ## 2. Licensing data model
 
@@ -193,6 +207,13 @@ boundary are documented in
 | `trg_governance_audit_immutable` | BEFORE UPDATE OR DELETE ON the audit table | - (RAISE) | §5 tamper resistance |
 
 - All three functions are `SET search_path = pg_catalog, public`.
+- **`session_origin` is not a governance axis.** It is discovery metadata, so a
+  `session_origin`-only UPDATE does not satisfy the governance trigger's WHEN
+  clause and appends no audit row. Publish still writes it inside the audited
+  INSERT/UPDATE transaction as the publisher, and the maintenance origin
+  backfill still opens its per-row transaction as the system actor, so every
+  writer of the column is attributed even though the column itself records no
+  event.
 - **Fail-closed attribution:** both mutation-side functions read
   `NULLIF(current_setting('app.actor_id', true), '')::uuid` and **RAISE if
   NULL** - there is NO owner fallback (a guessed attribution is fabricated

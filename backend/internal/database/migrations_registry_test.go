@@ -11,7 +11,7 @@ import "testing"
 // "do not retrofit prior migration tests" rule (AGENTS.md), and the 024→025 move
 // dropped an assertion in transit. Per-migration test files assert only their own
 // migration's registration and shape.
-const wantLatestMigration = 32
+const wantLatestMigration = 33
 
 func TestMigrationsRegistry(t *testing.T) {
 	prev := 0

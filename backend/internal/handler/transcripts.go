@@ -23,6 +23,7 @@ import (
 	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/scanner"
+	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 	"github.com/peasant-labs/village/backend/internal/storage"
 
 	"github.com/peasant-labs/redact"
@@ -44,7 +45,7 @@ const transcriptSelectColumns = `t.id, t.owner_id, t.local_id, t.title, t.descri
 	t.m6_output_survival_pct, t.m6_lines_survived, t.m6_lines_total, t.m7_spec_word_count,
 	t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at, t.compute_version,
 	t.content_hash, t.license_id, t.wrapped_data_key, t.encryption_algorithm, t.key_version,
-	t.accepted_request_operation_fingerprint`
+	t.accepted_request_operation_fingerprint, t.session_origin`
 
 // publishRequest is the v2 nested metadata schema from the local transcript store.
 type publishRequest struct {
@@ -262,6 +263,11 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	servedHash := schema.ComputeTranscriptContentHash(content)
+
+	// Who drove this session, decided from the accepted bytes by the one shared
+	// classifier. Discovery collapses agent-driven sessions out of root-level
+	// lists; every other value is listed normally.
+	publishedOrigin := classifyPublishedSessionOrigin(r.Context(), content)
 	var fingerprint schema.PublishRequestFingerprint
 	if authoritative {
 		if servedHash != authoritativeReq.ContentHash {
@@ -392,6 +398,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		params.ID = transcriptID
 		params.OwnerID = ownerPgID
 		params.LocalID = string(req.Identity.SessionID)
+		params.SessionOrigin = publishedOrigin.String()
 
 		// Normalize nil JSONB to null
 		if len(params.Subagents) == 0 {
@@ -468,6 +475,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				WrappedDataKey:          descriptor.WrappedDEK(),
 				EncryptionAlgorithm:     string(descriptor.Algorithm()),
 				KeyVersion:              int32(descriptor.KeyVersion()),
+				SessionOrigin:           params.SessionOrigin,
 			}
 			// One txn, actor = the publisher: pin the governance axes from the LOCKED
 			// narrow pre-image (visibility never changes on re-publish; an absent CLI
@@ -565,6 +573,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				WrappedDataKey:          descriptor.WrappedDEK(),
 				EncryptionAlgorithm:     string(descriptor.Algorithm()),
 				KeyVersion:              int32(descriptor.KeyVersion()),
+				SessionOrigin:           params.SessionOrigin,
 			}
 			// One txn, actor = the publisher; the migration-026 AFTER INSERT trigger
 			// appends the 'published' snapshot — there is no application audit writer.
@@ -1391,10 +1400,45 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		conditions = append(conditions, fmt.Sprintf(`tg.name IN (%s)`, strings.Join(placeholders, ",")))
 	}
 
+	// Everything above narrows WHO may see WHAT and WHICH sessions match the
+	// caller's filters. The origin scope below is a separate axis layered on top,
+	// and the agent tally must answer "how many agent sessions do these same
+	// filters match", so the shared filter clause and its arguments are frozen
+	// here before either scope appends to them.
+	filterConditions := conditions
+	filterArgs := args
+	filterArgIdx := argIdx
+
+	// Discovery scope, not access control. Absent, the listing hides
+	// agent-driven sessions so they do not occupy a publisher's root-level list;
+	// 'unknown' and 'user' rows are both listed normally, so a session Village
+	// could not classify is never hidden. An explicit origin returns exactly
+	// that one class, which is how the collapsed group fetches its rows. Either
+	// way GET /api/v1/transcripts/{id} still resolves every transcript.
+	requestedOrigin, originScoped, err := parseListOriginScope(q.Get("origin"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if originScoped {
+		conditions = append(conditions, fmt.Sprintf(`t.session_origin = $%d`, argIdx))
+		args = append(args, requestedOrigin.String())
+		argIdx++
+	} else {
+		conditions = append(conditions, fmt.Sprintf(`t.session_origin <> $%d`, argIdx))
+		args = append(args, sessionorigin.Agent.String())
+		argIdx++
+	}
+
 	where := ""
 	if len(conditions) > 0 {
 		where = " WHERE " + strings.Join(conditions, " AND ")
 	}
+
+	agentConditions := append(append([]string{}, filterConditions...), fmt.Sprintf(`t.session_origin = $%d`, filterArgIdx))
+	agentCountArgs := append(append([]any{}, filterArgs...), sessionorigin.Agent.String())
+	agentCountQuery := "SELECT count(DISTINCT t.id) " + baseFrom +
+		" WHERE " + strings.Join(agentConditions, " AND ")
 
 	orderBy := discoveryOrderClause(q.Get("sort"))
 
@@ -1407,14 +1451,22 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	selectQuery := "SELECT DISTINCT " + transcriptSelectColumns + " " +
 		baseFrom + where + orderBy + fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
 
-	// The count and the page read describe one database snapshot: they run in a
+	// The counts and the page read describe one database snapshot: they run in a
 	// single read-only REPEATABLE READ transaction, so a publish or delete
-	// committed after the snapshot is taken can never make `total` disagree with
-	// the rows on the returned page. selectArgs is built without aliasing the
-	// shared args backing array so the count read is unaffected by the appended
-	// LIMIT/OFFSET.
+	// committed after the snapshot is taken can never make `total` or
+	// `agent_total` disagree with the rows on the returned page. selectArgs is
+	// built without aliasing the shared args backing array so the count reads are
+	// unaffected by the appended LIMIT/OFFSET.
 	selectArgs := append(append([]any{}, args...), limit, offset)
-	total, listed, err := h.listDiscoverySnapshot(r.Context(), countQuery, args, selectQuery, selectArgs)
+	snapshot, err := h.listDiscoverySnapshot(r.Context(), discoverySnapshotRequest{
+		countQuery:      countQuery,
+		countArgs:       args,
+		agentCountQuery: agentCountQuery,
+		agentCountArgs:  agentCountArgs,
+		selectQuery:     selectQuery,
+		selectArgs:      selectArgs,
+	})
+	total, listed := snapshot.total, snapshot.rows
 	if err != nil {
 		// Preserve the stage-tagged snapshot error (open / count / page / scan /
 		// commit) for operators before the caller receives the generic 500. The
@@ -1498,6 +1550,10 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"transcripts": transcripts,
 		"total":       total,
+		// How many agent-driven sessions the SAME filters match, so a client can
+		// render the collapsed "+ N agent sessions" group without guessing or
+		// issuing a second speculative request.
+		"agent_total": snapshot.agentTotal,
 		"page":        page,
 		"limit":       limit,
 	})
@@ -1539,16 +1595,39 @@ func discoveryOrderClause(sort string) string {
 // pagination and is deferred to a future cursor contract — but it removes the
 // within-response count/page skew. The transaction is read-only, so it performs
 // no writes and needs no governance actor GUC.
-func (h *Handler) listDiscoverySnapshot(ctx context.Context, countQuery string, countArgs []any, selectQuery string, selectArgs []any) (int64, []sqlc.Transcript, error) {
+// discoverySnapshotRequest is the complete set of reads one discovery response
+// is built from. They are grouped so a future read joins the same snapshot by
+// construction instead of being issued on its own connection.
+type discoverySnapshotRequest struct {
+	countQuery      string
+	countArgs       []any
+	agentCountQuery string
+	agentCountArgs  []any
+	selectQuery     string
+	selectArgs      []any
+}
+
+// discoverySnapshot is one consistent answer: the page, the matching total, and
+// the agent tally for the same filters.
+type discoverySnapshot struct {
+	total      int64
+	agentTotal int64
+	rows       []sqlc.Transcript
+}
+
+func (h *Handler) listDiscoverySnapshot(ctx context.Context, request discoverySnapshotRequest) (discoverySnapshot, error) {
 	tx, err := h.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return 0, nil, fmt.Errorf("open read-only discovery snapshot transaction: %w", err)
+		return discoverySnapshot{}, fmt.Errorf("open read-only discovery snapshot transaction: %w", err)
 	}
 	defer rollbackTxBestEffort("discovery_snapshot", tx)
 
-	var total int64
-	if err := tx.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
-		return 0, nil, fmt.Errorf("read discovery total count within snapshot: %w", err)
+	var snapshot discoverySnapshot
+	if err := tx.QueryRow(ctx, request.countQuery, request.countArgs...).Scan(&snapshot.total); err != nil {
+		return discoverySnapshot{}, fmt.Errorf("read discovery total count within snapshot: %w", err)
+	}
+	if err := tx.QueryRow(ctx, request.agentCountQuery, request.agentCountArgs...).Scan(&snapshot.agentTotal); err != nil {
+		return discoverySnapshot{}, fmt.Errorf("read discovery agent-session count within snapshot: %w", err)
 	}
 
 	// Deterministic-concurrency test synchronization point (nil in production).
@@ -1556,19 +1635,36 @@ func (h *Handler) listDiscoverySnapshot(ctx context.Context, countQuery string, 
 		h.discoveryReadBarrier()
 	}
 
-	rows, err := tx.Query(ctx, selectQuery, selectArgs...)
+	rows, err := tx.Query(ctx, request.selectQuery, request.selectArgs...)
 	if err != nil {
-		return 0, nil, fmt.Errorf("read discovery page within snapshot: %w", err)
+		return discoverySnapshot{}, fmt.Errorf("read discovery page within snapshot: %w", err)
 	}
-	listed, err := pgx.CollectRows(rows, pgx.RowToStructByName[sqlc.Transcript])
+	snapshot.rows, err = pgx.CollectRows(rows, pgx.RowToStructByName[sqlc.Transcript])
 	if err != nil {
-		return 0, nil, fmt.Errorf("scan discovery page within snapshot: %w", err)
+		return discoverySnapshot{}, fmt.Errorf("scan discovery page within snapshot: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return 0, nil, fmt.Errorf("commit read-only discovery snapshot transaction: %w", err)
+		return discoverySnapshot{}, fmt.Errorf("commit read-only discovery snapshot transaction: %w", err)
 	}
-	return total, listed, nil
+	return snapshot, nil
+}
+
+// parseListOriginScope validates the optional `origin` discovery parameter.
+// An absent or empty value is the default scope (everything except agent-driven
+// sessions). Any other value must name one member of the session-origin menu;
+// an unrecognized value is refused rather than silently ignored, because
+// silently ignoring it would return the default list while the caller believed
+// it had asked for a narrower one.
+func parseListOriginScope(value string) (sessionorigin.Origin, bool, error) {
+	if value == "" {
+		return "", false, nil
+	}
+	origin, err := sessionorigin.Parse(value)
+	if err != nil {
+		return "", false, fmt.Errorf("The origin filter on GET /api/v1/transcripts must be one of %s, or omitted to list every session except agent-driven ones. No transcripts were listed because returning the default list would answer a question you did not ask. Retry with a supported origin value or without the parameter.", sessionorigin.Menu())
+	}
+	return origin, true, nil
 }
 
 func (h *Handler) canViewTranscript(ctx context.Context, user *AuthUser, t sqlc.Transcript) bool {
