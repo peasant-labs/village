@@ -100,3 +100,35 @@
   authority: ""
   rewrap_limit: 0
   error_contains: outside the bounded range
+- name: origin backfill dry run
+  args: ["-backfill-origins=dry-run"]
+  valid: true
+  mode: origin-backfill
+  authority: blob-processing
+  rewrap_limit: 0
+  origin_mode: dry-run
+  error_contains: ""
+- name: origin backfill apply
+  args: ["-backfill-origins=apply"]
+  valid: true
+  mode: origin-backfill
+  authority: blob-processing
+  rewrap_limit: 0
+  origin_mode: apply
+  error_contains: ""
+- name: origin backfill invalid value
+  args: ["-backfill-origins=reclassify-everything"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  origin_mode: ""
+  error_contains: before authority loading
+- name: origin backfill conflicts with title backfill
+  args: ["-backfill-origins=apply", "-backfill-titles=apply"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  origin_mode: ""
+  error_contains: mutually exclusive

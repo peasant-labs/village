@@ -260,6 +260,7 @@ func TestRepublish_LicenseChangeAndVisibilityPreserved_RealPostgres(t *testing.T
 			ModelProvider: "claude-code", BlobKey: "blob/republish-1", SchemaVersion: "2",
 			LicenseID: lic, BlobSizeBytes: tr.BlobSizeBytes, ContentHash: tr.ContentHash,
 			WrappedDataKey: tr.WrappedDataKey, EncryptionAlgorithm: tr.EncryptionAlgorithm, KeyVersion: tr.KeyVersion,
+			SessionOrigin: tr.SessionOrigin,
 		}
 		if err := h.inTxAs(ctx, owner, func(q Querier) error {
 			if err := pinRepublishGovernance(ctx, q, tr.ID, &params); err != nil {

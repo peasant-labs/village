@@ -28,6 +28,7 @@ type runtimeModeCase struct {
 	Authority     string   `yaml:"authority"`
 	RewrapLimit   int      `yaml:"rewrap_limit"`
 	TitleMode     string   `yaml:"title_mode"`
+	OriginMode    string   `yaml:"origin_mode"`
 	ErrorContains string   `yaml:"error_contains"`
 }
 
@@ -43,8 +44,8 @@ func loadRuntimeModeCases(t *testing.T) []runtimeModeCase {
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		t.Fatalf("runtime mode fixture has a trailing document: %v", err)
 	}
-	if len(cases) != 14 {
-		t.Fatalf("runtime mode fixture rows=%d, want 14", len(cases))
+	if len(cases) != 18 {
+		t.Fatalf("runtime mode fixture rows=%d, want 18", len(cases))
 	}
 	return cases
 }
@@ -59,6 +60,9 @@ func TestParseRuntimeSelection(t *testing.T) {
 				}
 				if tc.Name == "title backfill invalid value" && strings.Contains(err.Error(), "repair-everything") {
 					t.Fatalf("invalid title mode was echoed: %v", err)
+				}
+				if tc.Name == "origin backfill invalid value" && strings.Contains(err.Error(), "reclassify-everything") {
+					t.Fatalf("invalid origin mode was echoed: %v", err)
 				}
 				return
 			}
@@ -77,6 +81,9 @@ func TestParseRuntimeSelection(t *testing.T) {
 			if tc.TitleMode != "" && selection.TitleBackfillMode().String() != tc.TitleMode {
 				t.Fatalf("title mode=%q, want %q", selection.TitleBackfillMode(), tc.TitleMode)
 			}
+			if tc.OriginMode != "" && selection.OriginBackfillMode().String() != tc.OriginMode {
+				t.Fatalf("origin mode=%q, want %q", selection.OriginBackfillMode(), tc.OriginMode)
+			}
 		})
 	}
 }
@@ -91,6 +98,8 @@ func runtimeModeName(mode runtimeMode) string {
 		return "content-identity-backfill"
 	case runtimeModeTitleBackfill:
 		return "title-backfill"
+	case runtimeModeOriginBackfill:
+		return "origin-backfill"
 	case runtimeModeRewrap:
 		return "rewrap"
 	case runtimeModeSeedCore:
@@ -122,6 +131,27 @@ func TestDispatchRuntimeTitleBackfillUsesStartupPipeline(t *testing.T) {
 	}
 	err = dispatchRuntime(context.Background(), runtimeSelection{mode: runtimeModeTitleBackfill, titleMode: backfill.TitleBackfillModeApply}, nil, nil, nil, nil, titles)
 	if !called || err == nil || !strings.Contains(err.Error(), "fixture aggregate failure") {
+		t.Fatalf("called=%v error=%v", called, err)
+	}
+}
+
+func TestDispatchRuntimeOriginBackfillReportsAggregateFailure(t *testing.T) {
+	titles, err := redact.NewTitlePipeline()
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := executeOriginBackfill
+	t.Cleanup(func() { executeOriginBackfill = original })
+	called := false
+	executeOriginBackfill = func(_ context.Context, _ *pgxpool.Pool, _ storage.TranscriptBlobStore, mode backfill.OriginBackfillMode) (backfill.OriginBackfillResult, error) {
+		called = true
+		if mode != backfill.OriginBackfillModeApply {
+			t.Fatalf("mode=%s, want apply", mode)
+		}
+		return backfill.OriginBackfillResult{Scanned: 9, Unchanged: 4, WouldUpdate: 5, Updated: 3, Failed: 2}, errors.New("fixture origin aggregate failure")
+	}
+	err = dispatchRuntime(context.Background(), runtimeSelection{mode: runtimeModeOriginBackfill, originMode: backfill.OriginBackfillModeApply}, nil, nil, nil, nil, titles)
+	if !called || err == nil || !strings.Contains(err.Error(), "fixture origin aggregate failure") {
 		t.Fatalf("called=%v error=%v", called, err)
 	}
 }

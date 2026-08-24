@@ -34,6 +34,14 @@ var executeTitleBackfill = func(ctx context.Context, pool *pgxpool.Pool, blobs s
 	return job.Run(ctx, mode)
 }
 
+var executeOriginBackfill = func(ctx context.Context, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, mode backfill.OriginBackfillMode) (backfill.OriginBackfillResult, error) {
+	job, err := backfill.NewOriginBackfill(pool, blobs, slog.Default(), backfill.DefaultOriginBackfillBatchSize)
+	if err != nil {
+		return backfill.OriginBackfillResult{}, err
+	}
+	return job.Run(ctx, mode)
+}
+
 func main() {
 	godotenv.Load("../.env")
 	if err := run(context.Background(), os.Args[1:]); err != nil {
@@ -100,6 +108,16 @@ func dispatchRuntime(ctx context.Context, selection runtimeSelection, cfg *confi
 			"updated", result.Updated,
 			"derived", result.Derived,
 			"sanitized", result.Sanitized,
+			"failed", result.Failed)
+		return err
+	case runtimeModeOriginBackfill:
+		result, err := executeOriginBackfill(ctx, pool, blobs, selection.OriginBackfillMode())
+		slog.Info("origin_backfill_complete",
+			"mode", selection.OriginBackfillMode().String(),
+			"scanned", result.Scanned,
+			"unchanged", result.Unchanged,
+			"would_update", result.WouldUpdate,
+			"updated", result.Updated,
 			"failed", result.Failed)
 		return err
 	case runtimeModeRewrap:

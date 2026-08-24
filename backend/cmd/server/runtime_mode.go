@@ -22,6 +22,7 @@ const (
 	runtimeModeMigrateOnly
 	runtimeModeContentIdentityBackfill
 	runtimeModeTitleBackfill
+	runtimeModeOriginBackfill
 	runtimeModeRewrap
 	runtimeModeSeedCore
 	runtimeModeSeedPrivacy
@@ -34,6 +35,7 @@ type runtimeSelection struct {
 	authority   config.AuthorityRequirements
 	rewrapLimit int
 	titleMode   backfill.TitleBackfillMode
+	originMode  backfill.OriginBackfillMode
 }
 
 func (s runtimeSelection) Mode() runtimeMode { return s.mode }
@@ -46,6 +48,8 @@ func (s runtimeSelection) RewrapLimit() int { return s.rewrapLimit }
 
 func (s runtimeSelection) TitleBackfillMode() backfill.TitleBackfillMode { return s.titleMode }
 
+func (s runtimeSelection) OriginBackfillMode() backfill.OriginBackfillMode { return s.originMode }
+
 // parseRuntimeSelection performs no I/O other than parsing the supplied
 // arguments. In particular, it does not read authority, construct a job, or
 // start a listener.
@@ -55,6 +59,7 @@ func parseRuntimeSelection(args []string) (runtimeSelection, error) {
 	migrateOnly := flags.Bool("migrate-only", false, "apply database migrations and exit")
 	contentBackfill := flags.Bool("backfill-content-identity", false, "repair pending transcript content identities and exit")
 	titleBackfill := flags.String("backfill-titles", "", "repair historical transcript titles in dry-run or apply mode and exit")
+	originBackfill := flags.String("backfill-origins", "", "reclassify historical transcript session origins in dry-run or apply mode and exit")
 	rewrap := flags.Bool("rewrap-transcript-keys", false, "rewrap a bounded batch of transcript data keys and exit")
 	seedCore := flags.Bool("seed-core", false, "load the encrypted core development profile and exit")
 	seedPrivacy := flags.Bool("seed-privacy", false, "load the encrypted privacy development profile and exit")
@@ -68,13 +73,13 @@ func parseRuntimeSelection(args []string) (runtimeSelection, error) {
 	}
 
 	selected := 0
-	for _, enabled := range []bool{*migrateOnly, *contentBackfill, *titleBackfill != "", *rewrap, *seedCore, *seedPrivacy} {
+	for _, enabled := range []bool{*migrateOnly, *contentBackfill, *titleBackfill != "", *originBackfill != "", *rewrap, *seedCore, *seedPrivacy} {
 		if enabled {
 			selected++
 		}
 	}
 	if selected > 1 {
-		return runtimeSelection{}, fmt.Errorf("runtime mode parsing failed because %d mutually exclusive operations were selected in parseRuntimeSelection before authority loading; no job or listener was started; choose only one of serve, migrate-only, content-identity backfill, title backfill, rewrap, core seed, or privacy seed", selected)
+		return runtimeSelection{}, fmt.Errorf("runtime mode parsing failed because %d mutually exclusive operations were selected in parseRuntimeSelection before authority loading; no job or listener was started; choose only one of serve, migrate-only, content-identity backfill, title backfill, origin backfill, rewrap, core seed, or privacy seed", selected)
 	}
 	rewrapLimitSupplied := false
 	flags.Visit(func(parsed *flag.Flag) {
@@ -97,6 +102,15 @@ func parseRuntimeSelection(args []string) (runtimeSelection, error) {
 		}
 	}
 
+	var parsedOriginMode backfill.OriginBackfillMode
+	if *originBackfill != "" {
+		var parseErr error
+		parsedOriginMode, parseErr = backfill.ParseOriginBackfillMode(*originBackfill)
+		if parseErr != nil {
+			return runtimeSelection{}, fmt.Errorf("runtime mode parsing failed before authority loading; no database, object storage, or key authority was accessed and no job or listener started; select -backfill-origins=dry-run or -backfill-origins=apply: %w", parseErr)
+		}
+	}
+
 	switch {
 	case *migrateOnly:
 		return runtimeSelection{mode: runtimeModeMigrateOnly, authority: config.PostgreSQLAuthority}, nil
@@ -104,6 +118,8 @@ func parseRuntimeSelection(args []string) (runtimeSelection, error) {
 		return runtimeSelection{mode: runtimeModeContentIdentityBackfill, authority: config.BlobProcessingAuthority}, nil
 	case *titleBackfill != "":
 		return runtimeSelection{mode: runtimeModeTitleBackfill, authority: config.BlobProcessingAuthority, titleMode: parsedTitleMode}, nil
+	case *originBackfill != "":
+		return runtimeSelection{mode: runtimeModeOriginBackfill, authority: config.BlobProcessingAuthority, originMode: parsedOriginMode}, nil
 	case *rewrap:
 		return runtimeSelection{mode: runtimeModeRewrap, authority: config.BlobProcessingAuthority, rewrapLimit: *rewrapLimit}, nil
 	case *seedCore:
