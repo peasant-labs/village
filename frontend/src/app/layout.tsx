@@ -47,7 +47,7 @@ export default function RootLayout({
     >
       <body className="min-h-screen bg-surface text-ink antialiased">
         <LayoutShell>
-          <main className="min-h-screen pt-16">{children}</main>
+          <main className="min-h-screen pt-[var(--app-header-height)]">{children}</main>
         </LayoutShell>
       </body>
     </html>

@@ -186,7 +186,7 @@ export function SessionDetailV2({
     // Bounded host: the composite's .txn-app is height:100%, so a bounded
     // column is what lets its stream scroll internally — which is what
     // reveals the sticky scrubber timeline and anchors the keybind hint.
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="flex flex-col h-[calc(100dvh-var(--app-header-height))]">
       {/* A fetch error after data loaded: the transcript on screen is the
           last good snapshot — say so instead of pretending it is live. */}
       {error != null && (

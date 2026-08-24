@@ -91,7 +91,7 @@ export default function Navbar() {
     // dark" finding: bg-canvas is inherited from the previous hand-rolled Navbar and was never
     // updated when the shell chrome was adopted. Verified via computed style: village and
     // demo now render the IDENTICAL rgb in both themes (see this fix's commit message).
-    <header className="fixed top-0 left-0 right-0 z-50 h-16 border-b border-rule bg-surface">
+    <header className="fixed top-0 left-0 right-0 z-50 h-[var(--app-header-height)] border-b border-rule bg-surface">
       <div className="flex h-full items-center justify-between px-8">
         <div className="flex items-center gap-6">
           <Link href="/" className="focus-mono cursor-pointer" aria-label="Village home">
