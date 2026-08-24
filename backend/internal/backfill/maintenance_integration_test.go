@@ -282,7 +282,19 @@ func TestTitleBackfillRealPostgres(t *testing.T) {
 			t.Run(fixture.Name, func(t *testing.T) {
 				id, owner, _ := insertMaintenanceRow(t, ctx, pool, false, 1)
 				defer deleteMaintenanceOwner(t, ctx, pool, owner)
-				markedExec(t, ctx, pool, "UPDATE transcripts SET title='claude session',title_generated=NULL,model_provider='claude-code',project_path='/Users/developer/work/sample-app' WHERE id=$1", id)
+				// Seed the stored titles from the fixture row so a row whose
+				// stored title carries harness markup proves the keep/re-derive
+				// gate end to end, not only the derive selection. Rows without
+				// a fixture title keep the generic placeholder.
+				seedTitle := fixture.Title
+				if seedTitle == "" {
+					seedTitle = "claude session"
+				}
+				var seedGenerated any
+				if fixture.Generated != "" {
+					seedGenerated = fixture.Generated
+				}
+				markedExec(t, ctx, pool, "UPDATE transcripts SET title=$2,title_generated=$3,model_provider='claude-code',project_path='/Users/developer/work/sample-app' WHERE id=$1", id, seedTitle, seedGenerated)
 				store := &titleBlobStore{raw: buildTitleBackfillRawPayload(t, fixture.LeadingNonUserTurns, fixture.FirstUserTurns)}
 				job, err := NewTitleBackfill(pool, store, pipeline, nil, 1)
 				if err != nil {

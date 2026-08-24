@@ -99,3 +99,21 @@
   mode: apply
   title: "claude session"
   generated: "Repair auth flow"
+- name: markup_title_rederived
+  arm: derive-markup-title
+  mode: apply
+  title: "<command-message>aura:research</command-message>"
+  generated: null
+  first_user_turns:
+    - "<command-message>aura:research</command-message>\n<command-name>/aura:research</command-name>"
+    - "Find a good tool for package versions"
+  expected: "Find a good tool for package versions"
+- name: markup_generated_not_promoted
+  arm: derive-markup-title
+  mode: apply
+  title: null
+  generated: "<environment_context source=\"session\">cwd data</environment_context>"
+  first_user_turns:
+    - "<local-command-caveat>Caveat: the messages below were generated during local commands</local-command-caveat>"
+    - "Investigate the flaky login test"
+  expected: "Investigate the flaky login test"
