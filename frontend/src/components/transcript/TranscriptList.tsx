@@ -8,6 +8,7 @@ import { isHarness } from "@/lib/harness";
 import TranscriptEditDialog from "./TranscriptEditDialog";
 import type { TranscriptListItem } from "@/lib/types";
 import { resolveAttribution } from "@/lib/format";
+import { isAgentSession } from "@/lib/sessionOrigin";
 import { useDeleteTranscript } from "@/lib/queries/transcripts";
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
@@ -131,6 +132,20 @@ function Row({
               <span className="text-rule">&middot;</span>
               <span className="font-mono tabular-nums">
                 {t.turn_count} turns
+              </span>
+            </>
+          )}
+          {/* The row says what it is wherever it appears, so a session that
+              reached the page through a direct link or a collective list is
+              labelled the same way it is inside the collapsed group. */}
+          {isAgentSession(t.session_origin) && (
+            <>
+              <span className="text-rule">&middot;</span>
+              <span
+                data-testid="agent-session-badge"
+                className="font-mono text-[11px] text-ink-3 border border-rule px-1"
+              >
+                agent session
               </span>
             </>
           )}

@@ -113,6 +113,27 @@ version bump:
    row-level warn/error log for the failing stage; it never logs raw
    transcript content).
 
+Historical transcript session origins are reclassified explicitly with
+`server -backfill-origins=dry-run` or `server -backfill-origins=apply`. Both
+process every stored transcript row and exit without a listener; only `apply`
+writes. Rows published before the origin column existed carry the fail-safe
+`unknown` value, which is listed exactly like a user session, so running this
+is what moves agent-driven sessions into the collapsed discovery group:
+
+1. Deploy the server build that carries the session-origin column.
+2. Run `server -backfill-origins=dry-run`. Read the `origin_backfill_complete`
+   log line's `scanned`, `unchanged`, `would_update`, and `failed` keys. No row
+   changes.
+3. If the counts look right, run `server -backfill-origins=apply` with the same
+   deployed build. Read the same `origin_backfill_complete` log line's
+   `updated` and `failed` keys. A failed row is left unchanged, stays fully
+   visible, and is safe to retry after the underlying dependency or content is
+   repaired (see the row-level error log for the failing stage; it never logs
+   raw transcript content).
+
+Rerunning `apply` is idempotent: a row whose stored origin already equals the
+freshly classified one is counted as `unchanged` and not written.
+
 ## Key Directories
 
 ```

@@ -31,13 +31,14 @@ INSERT INTO transcripts (
     m6_output_survival_pct, m6_lines_survived, m6_lines_total,
     m7_spec_word_count, m7_spec_has_examples, m7_spec_has_constraints,
     computed_at, compute_version, license_id,
-    content_hash, wrapped_data_key, encryption_algorithm, key_version
+    content_hash, wrapped_data_key, encryption_algorithm, key_version,
+    session_origin
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
     $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31,
     $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46,
     $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61,
-    $62, $63, $64, $65, $66
+    $62, $63, $64, $65, $66, $67
 ) RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
     model_name, harness_version, session_start, session_end, turn_count, token_count,
     blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id,
@@ -51,7 +52,7 @@ INSERT INTO transcripts (
     m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct,
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
-    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint
+    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin
 `
 
 type CreateTranscriptParams struct {
@@ -121,6 +122,7 @@ type CreateTranscriptParams struct {
 	WrappedDataKey          []byte             `db:"wrapped_data_key" json:"wrapped_data_key"`
 	EncryptionAlgorithm     string             `db:"encryption_algorithm" json:"encryption_algorithm"`
 	KeyVersion              int32              `db:"key_version" json:"key_version"`
+	SessionOrigin           string             `db:"session_origin" json:"session_origin"`
 }
 
 func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptParams) (Transcript, error) {
@@ -191,6 +193,7 @@ func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptPara
 		arg.WrappedDataKey,
 		arg.EncryptionAlgorithm,
 		arg.KeyVersion,
+		arg.SessionOrigin,
 	)
 	var i Transcript
 	err := row.Scan(
@@ -263,6 +266,7 @@ func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptPara
 		&i.EncryptionAlgorithm,
 		&i.KeyVersion,
 		&i.AcceptedRequestOperationFingerprint,
+		&i.SessionOrigin,
 	)
 	return i, err
 }
@@ -290,7 +294,7 @@ SELECT id, owner_id, local_id, title, description, visibility, model_provider,
     m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct,
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
-    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint
+    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin
 FROM transcripts WHERE id = $1
 `
 
@@ -367,6 +371,7 @@ func (q *Queries) GetTranscriptByID(ctx context.Context, id pgtype.UUID) (Transc
 		&i.EncryptionAlgorithm,
 		&i.KeyVersion,
 		&i.AcceptedRequestOperationFingerprint,
+		&i.SessionOrigin,
 	)
 	return i, err
 }
@@ -524,6 +529,7 @@ UPDATE transcripts SET
     wrapped_data_key = $63,
     encryption_algorithm = $64,
     key_version = $65,
+    session_origin = $66,
     updated_at = now()
 WHERE owner_id = $1 AND local_id = $2
 RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
@@ -539,7 +545,7 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct,
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
-    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint
+    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin
 `
 
 type UpdateTranscriptByOwnerAndLocalIDParams struct {
@@ -608,6 +614,7 @@ type UpdateTranscriptByOwnerAndLocalIDParams struct {
 	WrappedDataKey          []byte             `db:"wrapped_data_key" json:"wrapped_data_key"`
 	EncryptionAlgorithm     string             `db:"encryption_algorithm" json:"encryption_algorithm"`
 	KeyVersion              int32              `db:"key_version" json:"key_version"`
+	SessionOrigin           string             `db:"session_origin" json:"session_origin"`
 }
 
 func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg UpdateTranscriptByOwnerAndLocalIDParams) (Transcript, error) {
@@ -677,6 +684,7 @@ func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg Upd
 		arg.WrappedDataKey,
 		arg.EncryptionAlgorithm,
 		arg.KeyVersion,
+		arg.SessionOrigin,
 	)
 	var i Transcript
 	err := row.Scan(
@@ -749,6 +757,7 @@ func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg Upd
 		&i.EncryptionAlgorithm,
 		&i.KeyVersion,
 		&i.AcceptedRequestOperationFingerprint,
+		&i.SessionOrigin,
 	)
 	return i, err
 }
@@ -774,7 +783,7 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct,
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
-    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint
+    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin
 `
 
 type UpdateTranscriptMetadataParams struct {
@@ -864,6 +873,7 @@ func (q *Queries) UpdateTranscriptMetadata(ctx context.Context, arg UpdateTransc
 		&i.EncryptionAlgorithm,
 		&i.KeyVersion,
 		&i.AcceptedRequestOperationFingerprint,
+		&i.SessionOrigin,
 	)
 	return i, err
 }

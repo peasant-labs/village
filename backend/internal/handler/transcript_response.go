@@ -69,6 +69,11 @@ type transcriptResponse struct {
 	ComputeVersion          pgtype.Int4        `json:"compute_version"`
 	ContentHash             pgtype.Text        `json:"content_hash"`
 	LicenseID               pgtype.Text        `json:"license_id"`
+	// SessionOrigin says who drove the session: `user`, `agent`, or `unknown`.
+	// It scopes DISCOVERY only. Clients collapse `agent` rows into a labelled
+	// group instead of listing them at root level; every value still opens
+	// normally from a direct link.
+	SessionOrigin string `json:"session_origin"`
 }
 
 func toTranscriptResponse(r sqlc.Transcript) transcriptResponse {
@@ -83,6 +88,7 @@ func toTranscriptResponse(r sqlc.Transcript) transcriptResponse {
 		M5ContextUtilizationPct: r.M5ContextUtilizationPct, M5PeakContextTokens: r.M5PeakContextTokens, M5AvgMessageTokens: r.M5AvgMessageTokens, M6OutputSurvivalPct: r.M6OutputSurvivalPct,
 		M6LinesSurvived: r.M6LinesSurvived, M6LinesTotal: r.M6LinesTotal, M7SpecWordCount: r.M7SpecWordCount, M7SpecHasExamples: r.M7SpecHasExamples, M7SpecHasConstraints: r.M7SpecHasConstraints,
 		ComputedAt: r.ComputedAt, ComputeVersion: r.ComputeVersion, ContentHash: r.ContentHash, LicenseID: r.LicenseID,
+		SessionOrigin: r.SessionOrigin,
 	}
 }
 
@@ -128,7 +134,7 @@ func groupTranscriptFromRow(row sqlc.ListGroupTranscriptsRow) groupTranscriptRes
 		M5PeakContextTokens: row.M5PeakContextTokens, M5AvgMessageTokens: row.M5AvgMessageTokens, M6OutputSurvivalPct: row.M6OutputSurvivalPct,
 		M6LinesSurvived: row.M6LinesSurvived, M6LinesTotal: row.M6LinesTotal, M7SpecWordCount: row.M7SpecWordCount,
 		M7SpecHasExamples: row.M7SpecHasExamples, M7SpecHasConstraints: row.M7SpecHasConstraints, ComputedAt: row.ComputedAt,
-		ComputeVersion: row.ComputeVersion, ContentHash: row.ContentHash, LicenseID: row.LicenseID,
+		ComputeVersion: row.ComputeVersion, ContentHash: row.ContentHash, LicenseID: row.LicenseID, SessionOrigin: row.SessionOrigin,
 		WrappedDataKey: row.WrappedDataKey, EncryptionAlgorithm: row.EncryptionAlgorithm, KeyVersion: row.KeyVersion,
 	}
 	return groupTranscriptResponse{

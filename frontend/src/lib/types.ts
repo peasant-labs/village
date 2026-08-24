@@ -1,3 +1,5 @@
+import type { SessionOrigin } from "@/lib/sessionOrigin";
+
 export interface User {
   id: string;
   github_id: number;
@@ -76,6 +78,12 @@ export interface Transcript {
   compute_version: number | null;
   content_hash: string | null;
   license_id: string | null;
+  /**
+   * Who drove the session. Discovery metadata only: an `agent` row is
+   * collapsed into a labelled group instead of occupying a root-level list,
+   * and every value still opens normally from a direct link.
+   */
+  session_origin: SessionOrigin;
 }
 
 interface Tag {
@@ -291,6 +299,11 @@ export interface TranscriptListItem {
 export interface TranscriptListResponse {
   transcripts: TranscriptListItem[];
   total: number;
+  /**
+   * How many agent-driven sessions the SAME filters match. The listed rows
+   * never include them, so this is what the collapsed group counts.
+   */
+  agent_total: number;
   page: number;
   limit: number;
 }

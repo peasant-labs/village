@@ -73,6 +73,7 @@ function transcriptList(modelProvider: string, transcriptID: string): Transcript
     compute_version: null,
     content_hash: null,
     license_id: null,
+    session_origin: "user",
   };
   const owner: User = {
     id: "owner-1",
@@ -86,7 +87,7 @@ function transcriptList(modelProvider: string, transcriptID: string): Transcript
     username_chosen: true,
     provider_username: "fixture-owner",
   };
-  return { transcripts: [{ transcript, tags: [], owner }], total: 1, page: 1, limit: 20 };
+  return { transcripts: [{ transcript, tags: [], owner }], total: 1, agent_total: 0, page: 1, limit: 20 };
 }
 
 function sessionDetail(turnsState: "omitted" | "null" | "nullable-fields", stopReasons?: ["max_turn_requests", "refusal"]): SessionDetailPayload {

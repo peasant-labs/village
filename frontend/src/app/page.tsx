@@ -15,6 +15,7 @@ import {
 } from "@/lib/transcriptPageRequest";
 import type { TranscriptListResponse } from "@/lib/types";
 import { Explore } from "@peasant-labs/fairtrade/commons";
+import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
 
 const DEFAULT_FILTERS: ExploreFilters = {
   query: "",
@@ -69,6 +70,7 @@ export default function ExplorePage() {
 
   const confirmedPage = displayData?.page ?? null;
   const total = displayData?.total ?? 0;
+  const agentTotal = displayData?.agent_total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / TRANSCRIPT_PAGE_SIZE));
 
   // aria-busy reflects active work only. On a terminal error, or on a settled
@@ -196,6 +198,20 @@ export default function ExplorePage() {
             onOpenProfile={(owner) => router.push(`/users/${owner.githubUsername}`)}
             onOpenCollective={(collective) => router.push(`/groups/${collective.id}`)}
           />
+          {/* Agent-driven sessions are excluded from the rows above by the
+              server, which reports how many the same filters matched. The
+              group sits at the end of the list so the browse results stay the
+              sessions people wrote, with the rest one click away. */}
+          {/* The group reuses the Explore surface's own body grid and results
+              column rather than a copied width, so it lines up with the cards
+              above it at every breakpoint and follows that layout if it ever
+              changes. The first cell is the empty facet rail. */}
+          <div className="cex-explore-body mt-4">
+            <div aria-hidden="true" />
+            <div className="cex-results">
+              <AgentSessionGroup agentTotal={agentTotal} baseParams={params} />
+            </div>
+          </div>
         </div>
       </>
     );

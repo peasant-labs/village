@@ -211,6 +211,7 @@ type Transcript struct {
 	EncryptionAlgorithm                 string             `db:"encryption_algorithm" json:"encryption_algorithm"`
 	KeyVersion                          int32              `db:"key_version" json:"key_version"`
 	AcceptedRequestOperationFingerprint pgtype.Text        `db:"accepted_request_operation_fingerprint" json:"accepted_request_operation_fingerprint"`
+	SessionOrigin                       string             `db:"session_origin" json:"session_origin"`
 }
 
 type TranscriptAssociation struct {

@@ -15,6 +15,7 @@ import (
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/handler"
+	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 	"github.com/peasant-labs/village/backend/internal/storage"
 	"gopkg.in/yaml.v3"
 )
@@ -93,7 +94,12 @@ func runSeedWithCreator(ctx context.Context, mode runtimeMode, pool *pgxpool.Poo
 		if err != nil {
 			return err
 		}
-		params := sqlc.CreateTranscriptParams{ID: pgtype.UUID{Bytes: id, Valid: true}, OwnerID: pgtype.UUID{Bytes: owner, Valid: true}, LocalID: item.LocalID, Title: pgtype.Text{String: item.Title, Valid: true}, Visibility: item.Visibility, ModelProvider: item.Provider, BlobKey: string(descriptor.ObjectKey()), BlobSizeBytes: pgtype.Int8{Int64: identity.PlaintextSize(), Valid: true}, SchemaVersion: "2", ContentHash: pgtype.Text{String: string(identity.Hash()), Valid: true}, WrappedDataKey: descriptor.WrappedDEK(), EncryptionAlgorithm: string(descriptor.Algorithm()), KeyVersion: int32(descriptor.KeyVersion())}
+		// The seed body carries no turns, so there is no evidence of who drove
+		// these sessions. They take the fail-safe menu value, which lists exactly
+		// like a person's session. Every writer of this row must name a menu
+		// member: the column's CHECK rejects the Go zero value outright, so a
+		// caller cannot leave the question unanswered by accident.
+		params := sqlc.CreateTranscriptParams{ID: pgtype.UUID{Bytes: id, Valid: true}, OwnerID: pgtype.UUID{Bytes: owner, Valid: true}, LocalID: item.LocalID, Title: pgtype.Text{String: item.Title, Valid: true}, Visibility: item.Visibility, ModelProvider: item.Provider, BlobKey: string(descriptor.ObjectKey()), BlobSizeBytes: pgtype.Int8{Int64: identity.PlaintextSize(), Valid: true}, SchemaVersion: "2", ContentHash: pgtype.Text{String: string(identity.Hash()), Valid: true}, WrappedDataKey: descriptor.WrappedDEK(), EncryptionAlgorithm: string(descriptor.Algorithm()), KeyVersion: int32(descriptor.KeyVersion()), SessionOrigin: sessionorigin.Unknown.String()}
 		result := creator.CreateTranscriptAsSystemResult(ctx, params)
 		if result.Completion != handler.TransactionCommitted && result.Err == nil {
 			result.Err = errors.New("system transcript persistence returned a non-committed completion without a cause; inspect the persistence implementation")

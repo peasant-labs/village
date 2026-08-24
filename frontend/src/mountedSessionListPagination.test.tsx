@@ -74,7 +74,7 @@ function wireItem(id: string): TranscriptListItem {
 }
 
 function buildResponse(data: PaginationData): TranscriptListResponse {
-  return { transcripts: data.ids.map(wireItem), total: TOTAL_ITEMS, page: data.page, limit: PAGE_SIZE };
+  return { transcripts: data.ids.map(wireItem), total: TOTAL_ITEMS, agent_total: 0, page: data.page, limit: PAGE_SIZE };
 }
 
 function makeRouter(): AppRouterInstance {

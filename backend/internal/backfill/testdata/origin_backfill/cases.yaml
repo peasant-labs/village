@@ -1,0 +1,116 @@
+# Cases for the session-origin maintenance backfill, run end to end through
+# OriginBackfill.Run against real PostgreSQL and a stubbed encrypted blob.
+#
+# `stored_origin` is the value the row carries before the run. `turns` is the
+# stored payload, written as runs of consecutive same-role turns.
+# `expected_origin` is the value the row must carry after an apply run, and
+# `outcome` is what the run must report for it.
+#
+# `read_fails: true` injects an authenticated blob-read failure instead of
+# content, which must leave the row exactly as it was.
+- name: agent_worker_reclassified
+  arm: reclassify-to-agent
+  stored_origin: unknown
+  turns:
+    - role: system
+      content: "<teammate-message>Take the discovery slice.</teammate-message>"
+      count: 1
+    - role: assistant
+      content: "Scanning the repository."
+      count: 6
+    - role: tool
+      content: "grep -rn discovery"
+      count: 4
+  expected_origin: agent
+  outcome: updated
+
+- name: user_session_reclassified
+  arm: reclassify-to-user
+  stored_origin: unknown
+  turns:
+    - role: user
+      content: "Explain why the tied rows reorder between pages."
+      count: 1
+    - role: assistant
+      content: "The ORDER BY lacks a total order."
+      count: 2
+  expected_origin: user
+  outcome: updated
+
+- name: system_context_only_stays_unknown
+  arm: system-only-is-a-no-op
+  stored_origin: unknown
+  turns:
+    - role: system
+      content: "<system-reminder>The workspace has uncommitted changes.</system-reminder>"
+      count: 2
+  expected_origin: unknown
+  outcome: unchanged
+
+- name: slash_commands_then_closed_reclassified_to_user
+  arm: command-invocation-is-a-person
+  # A session whose only content is slash commands was driven by a person, so
+  # the backfill promotes it out of the fail-safe default.
+  stored_origin: unknown
+  turns:
+    - role: system
+      content: "<command-name>/status</command-name>"
+      count: 2
+  expected_origin: user
+  outcome: updated
+
+- name: mislabelled_agent_row_restored_to_user
+  arm: undoes-a-wrong-demotion
+  # A row demoted under the earlier rule, which read only turn roles and so
+  # hid a person who worked through a slash command. The backfill returns it
+  # to the root-level list.
+  stored_origin: agent
+  turns:
+    - role: system
+      content: "<command-message source=\"skill\">/research is running</command-message>"
+      count: 1
+    - role: assistant
+      content: "Scanning the repository."
+      count: 4
+    - role: tool
+      content: "grep -rn discovery"
+      count: 3
+  expected_origin: user
+  outcome: updated
+
+- name: already_classified_agent_is_a_no_op
+  arm: idempotent-agent
+  stored_origin: agent
+  turns:
+    - role: assistant
+      content: "Continuing the queued task."
+      count: 3
+    - role: tool
+      content: "go build ./..."
+      count: 1
+  expected_origin: agent
+  outcome: unchanged
+
+- name: stale_user_label_corrected
+  arm: corrects-a-wrong-stored-value
+  stored_origin: user
+  turns:
+    - role: system
+      content: "SKILL BODY: run the protocol."
+      count: 1
+    - role: assistant
+      content: "Working."
+      count: 2
+    - role: tool
+      content: "ls"
+      count: 2
+  expected_origin: agent
+  outcome: updated
+
+- name: unreadable_content_fails_closed
+  arm: read-failure-leaves-the-row-alone
+  stored_origin: unknown
+  read_fails: true
+  turns: []
+  expected_origin: unknown
+  outcome: failed

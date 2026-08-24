@@ -79,7 +79,7 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct,
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
-    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint
+    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin
 `
 
 type CompareAndSwapTranscriptBlobParams struct {
@@ -181,6 +181,7 @@ func (q *Queries) CompareAndSwapTranscriptBlob(ctx context.Context, arg CompareA
 		&i.EncryptionAlgorithm,
 		&i.KeyVersion,
 		&i.AcceptedRequestOperationFingerprint,
+		&i.SessionOrigin,
 	)
 	return i, err
 }

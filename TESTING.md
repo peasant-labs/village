@@ -254,6 +254,47 @@ Newer real-Postgres families worth knowing when touching those paths:
   both require the normal PostgreSQL, encrypted-blob, and KEK authority needed to
   authenticate historical content.
 
+- **Session-origin classification and scope** (`internal/sessionorigin`,
+  `internal/backfill`, `internal/handler`): one classifier decides who drove a
+  session, and every surface derives from it.
+  - `internal/sessionorigin/testdata/classification/cases.yaml` is the rule
+    itself: a real user prompt; a command invocation on the system role, on the
+    user role, and carrying attributes; the teammate-driven worker shape; a
+    system-only session; a command-only session; an empty payload; unreadable
+    content; a whitespace-only user turn; a prompt found late in the turn order;
+    tool work with no assistant turns; a command wrapper quoted mid-turn; and an
+    unlisted wrapper whose name merely starts with a recognized one. The loader
+    pins the row count and requires every named arm. The two long production
+    shapes differ only in the one turn that says who started the session, so the
+    row that classifies `user` cannot pass for another reason.
+  - `internal/handler/testdata/session_origin_publish/cases.yaml` pins what
+    publish stores, including the fail-safe value for content that cannot be
+    decoded, plus a re-publish that replaces the class when the content changes.
+    These run against the real handler with a mocked querier, so the assertion
+    is the exact value passed to `CreateTranscript` / `UpdateTranscriptByOwnerAndLocalID`.
+  - `internal/handler/testdata/session_origin_discovery/cases.yaml` pins the
+    discovery scope over real PostgreSQL: the default list hides agent-driven
+    sessions for anonymous and owner callers, an explicit `origin` returns
+    exactly that class, unclassified rows list like user rows, `agent_total`
+    follows the same filters, and an unsupported value is a 400. A companion
+    test opens a hidden agent transcript by direct link and requires 200 — the
+    scope is discovery, never access control.
+  - `internal/backfill/testdata/origin_backfill/cases.yaml` runs
+    `-backfill-origins` end to end: dry-run writes nothing, apply installs the
+    decision, a rerun is a no-op, a read failure leaves the row untouched, and a
+    concurrent write wins the compare-and-set.
+
+  ```bash
+  cd backend
+  go run ./cmd/server -backfill-origins=dry-run
+  go run ./cmd/server -backfill-origins=apply
+  ```
+
+  Inspect the five safe summary counters: `scanned`, `unchanged`,
+  `would_update`, `updated`, and `failed`. A failed row remains unchanged and
+  stays fully visible, later rows still run, and the process exits nonzero only
+  after the full scan.
+
 ### Migrate first, then run
 
 Each integration test calls `database.RunMigrations(pool)` itself and migrations

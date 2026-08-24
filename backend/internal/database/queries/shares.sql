@@ -29,7 +29,7 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
        t.m6_lines_survived, t.m6_lines_total, t.m7_spec_word_count,
        t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at,
        t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key,
-       t.encryption_algorithm, t.key_version,
+       t.encryption_algorithm, t.key_version, t.session_origin,
        u.github_username   AS owner_username,
        u.avatar_url        AS owner_avatar_url,
        u.is_discoverable   AS owner_is_discoverable

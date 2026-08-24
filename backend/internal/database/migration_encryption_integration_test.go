@@ -227,6 +227,12 @@ func removeRegistryFailureAndRetry(t *testing.T, pool *pgxpool.Pool) {
 	if err := runMigration(pool, requireMigrationVersion(t, 32)); err != nil {
 		t.Fatalf("retry after known rollback: %v", err)
 	}
+	// The rolled-back migration is the LAST one this scenario applies by hand.
+	// Everything registered after it is applied through the production runner so
+	// the registry assertion below converges on the whole registry no matter how
+	// many migrations ship later; without this the scenario would have to be
+	// rewritten on every new migration.
+	mustRunMigrations(t, pool)
 	assertMigrationRegistry(t, pool)
 }
 

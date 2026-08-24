@@ -1,0 +1,62 @@
+# Cases for the session origin the publish path stores.
+#
+# Each row is published through the real PublishTranscript handler; the value
+# the handler passes to CreateTranscript must equal `expected_origin`.
+#
+# `undecodable: true` uploads bytes that are not a transcript envelope at all.
+# Publish must still succeed and store the fail-safe value, because a
+# transcript is never hidden merely because Village could not read it.
+- name: user_prompt_publishes_as_user
+  arm: user
+  turns:
+    - role: user
+      content: "Group the agent sessions out of the root list."
+      count: 1
+    - role: assistant
+      content: "Reading the discovery handler."
+      count: 2
+  expected_origin: user
+
+- name: agent_work_publishes_as_agent
+  arm: agent
+  turns:
+    - role: system
+      content: "SKILL BODY: run the exploration protocol."
+      count: 1
+    - role: assistant
+      content: "Scanning the repository."
+      count: 5
+    - role: tool
+      content: "grep -rn session_origin"
+      count: 3
+  expected_origin: agent
+
+- name: command_driven_session_publishes_as_user
+  arm: user-command-invocation
+  # The only thing the person typed is the slash command, and the command turn
+  # reaches Village on the system role. It is still a person's session.
+  turns:
+    - role: system
+      content: "<command-name>/research</command-name>"
+      count: 1
+    - role: assistant
+      content: "Reading the exploration protocol."
+      count: 4
+    - role: tool
+      content: "grep -rn discovery"
+      count: 2
+  expected_origin: user
+
+- name: system_context_only_publishes_as_unknown
+  arm: unknown-system-only
+  turns:
+    - role: system
+      content: "<system-reminder>The workspace has uncommitted changes.</system-reminder>"
+      count: 2
+  expected_origin: unknown
+
+- name: undecodable_content_publishes_as_unknown
+  arm: unknown-unreadable
+  undecodable: true
+  turns: []
+  expected_origin: unknown

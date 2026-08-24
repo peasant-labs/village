@@ -84,6 +84,7 @@ mounted into the composer's `renderTurnActions` slot exactly as the production p
 |---|---|
 | `probe-village.mjs` | Print the harness route's DOM shape — tab/view-toggle labels, `.tb-*` box sizes, and the page scroll metrics. Run first whenever the harness route or the shared composite changes, to confirm the capture selectors still resolve and the page overflows the viewport (`document.scrollHeight > innerHeight`). |
 | `village-shoot.mjs` | Drive the harness route with puppeteer and screenshot every transcript surface for one theme. Each capture is run through the non-empty-surface gate before it's accepted; each surface is wrapped in try/catch so one failure records a gap and the run continues. |
+| `explore-agent-group-shoot.mjs` | Capture the collapsed and expanded group of agent-driven sessions on the real Explore route, in one theme, from one live page. Asserts build provenance (the group's control, its counted label, and the expanded rows' labels) before writing any PNG, so a stale or wrong-worktree server fails instead of producing a misleading capture. |
 | `surface-gate.mjs` | The non-empty-surface gate (vendored, self-contained copy of the fairtrade `scripts/surface-gate.mjs`). Fails a capture that is blank / near-empty / byte-identical to another surface — closing the silent-blank hole a valid-but-empty bounding box leaves open (e.g. an empty graph). |
 | `stitch-sxs.mjs` | Compose labeled, **height-matched** side-by-side composites (`REFERENCE | SUBJECT`) per surface per theme. The shorter pane is padded (never scaled) with its own border-sampled background; a dashed hairline marks where the shorter capture ends. A surface missing a subject capture gets a labeled placeholder panel so the set stays complete. The reference side defaults to the **committed `baseline/tb/`** (the same-component `<SessionDetail>` "before"); `REF_DIR=demo` is the optional non-gating design-language sanity panel (see **Oracle**). |
 | `baseline/tb/{dark,light}/` | The **committed** same-component reference: an earlier transcript-browser `<SessionDetail>` capture of the same `sess_demo_0001` session, recorded before theme convergence. It is a **frozen, non-regenerable** snapshot, so unlike the regenerable `demo/` it is tracked in the repository. The default `stitch` reads it directly, so the oracle works on a clean checkout with no staging. |
@@ -257,6 +258,32 @@ CHROME_PATH=$CHROME SURFACE_SET=cex node scripts/visual/stitch-sxs.mjs $BASE
 # 6. Boot-arm the real route.
 CHROME_PATH=$CHROME node scripts/visual/boot-explore.mjs
 ```
+
+### Collapsed group of agent-driven sessions
+
+`explore-agent-group-shoot.mjs` captures the group of sessions no person prompted:
+the browse list ending in `+ N agent sessions`, and the same list with the group
+open and its rows badged. Both captures come from one live page, so the pair
+cannot mix two builds.
+
+It asserts build provenance BEFORE it captures anything: the served page must
+carry the collapsed group's control and a counted label, and the expanded rows
+must carry the label the group promises. A stale server, or one serving another
+worktree, fails with a nonzero exit instead of producing a misleading PNG. The
+explore mock (`mock-rest-explore.mjs`) serves both discovery scopes — the default
+list plus `agent_total`, and `origin=agent` — the way the server does.
+
+```sh
+MOCK_REST_PORT=8789 node scripts/visual/mock-rest-explore.mjs &
+NEXT_PUBLIC_API_URL=http://localhost:8789/api/v1 pnpm build
+NEXT_PUBLIC_API_URL=http://localhost:8789/api/v1 pnpm start &
+
+CHROME_PATH=$CHROME node scripts/visual/explore-agent-group-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME node scripts/visual/explore-agent-group-shoot.mjs light $BASE/light
+```
+
+Capture into `review-capture/` (gitignored). Per-round proof PNGs are never
+committed.
 
 Manual click-through checklist for the non-automated part of the gate:
 

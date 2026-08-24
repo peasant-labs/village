@@ -19,6 +19,7 @@ const (
 	migrationBoundary027 migrationTestBoundary = 27
 	migrationBoundary029 migrationTestBoundary = 29
 	migrationBoundary030 migrationTestBoundary = 30
+	migrationBoundary032 migrationTestBoundary = 32
 )
 
 func migrateTestDatabaseThrough(t *testing.T, pool *pgxpool.Pool, boundary migrationTestBoundary) {

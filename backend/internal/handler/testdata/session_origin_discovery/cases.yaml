@@ -1,0 +1,108 @@
+# Cases for the session-origin scope of GET /api/v1/transcripts.
+#
+# `transcripts` are seeded through the real publish-create path under one of
+# two owners. `requests` are then served by the real ListTranscripts handler.
+#
+# `caller` selects who asks: `anonymous` (public rows only) or `owner` (the
+# first owner, who also sees their own private rows). `owner_filter` names
+# which owner's rows the request asks for. `expect_visible` lists the seeded
+# transcript names the response must contain, exactly; `expect_total` is the
+# response total and `expect_agent_total` the agent tally for the same filters.
+transcripts:
+  - name: user_public
+    origin: user
+    visibility: public
+    owner: first
+  - name: agent_public
+    origin: agent
+    visibility: public
+    owner: first
+  - name: unknown_public
+    origin: unknown
+    visibility: public
+    owner: first
+  - name: user_private
+    origin: user
+    visibility: private
+    owner: first
+  - name: agent_private
+    origin: agent
+    visibility: private
+    owner: first
+  - name: other_owner_agent_public
+    origin: agent
+    visibility: public
+    owner: second
+
+requests:
+  - name: anonymous_default_hides_agent_sessions
+    caller: anonymous
+    owner_filter: first
+    origin: ""
+    expect_status: 200
+    expect_visible: [user_public, unknown_public]
+    expect_total: 2
+    expect_agent_total: 1
+
+  - name: anonymous_agent_scope_returns_only_agent_sessions
+    caller: anonymous
+    owner_filter: first
+    origin: agent
+    expect_status: 200
+    expect_visible: [agent_public]
+    expect_total: 1
+    expect_agent_total: 1
+
+  - name: owner_default_hides_agent_sessions_including_private
+    caller: owner
+    owner_filter: first
+    origin: ""
+    expect_status: 200
+    expect_visible: [user_public, unknown_public, user_private]
+    expect_total: 3
+    expect_agent_total: 2
+
+  - name: owner_agent_scope_returns_public_and_private_agent_sessions
+    caller: owner
+    owner_filter: first
+    origin: agent
+    expect_status: 200
+    expect_visible: [agent_public, agent_private]
+    expect_total: 2
+    expect_agent_total: 2
+
+  - name: unknown_scope_returns_only_unclassified_sessions
+    caller: anonymous
+    owner_filter: first
+    origin: unknown
+    expect_status: 200
+    expect_visible: [unknown_public]
+    expect_total: 1
+    expect_agent_total: 1
+
+  - name: agent_tally_follows_the_owner_filter
+    caller: anonymous
+    owner_filter: second
+    origin: ""
+    expect_status: 200
+    expect_visible: []
+    expect_total: 0
+    expect_agent_total: 1
+
+  - name: owner_sees_no_other_owners_private_rows_under_agent_scope
+    caller: owner
+    owner_filter: second
+    origin: agent
+    expect_status: 200
+    expect_visible: [other_owner_agent_public]
+    expect_total: 1
+    expect_agent_total: 1
+
+  - name: unsupported_origin_value_is_refused
+    caller: anonymous
+    owner_filter: first
+    origin: subagent
+    expect_status: 400
+    expect_visible: []
+    expect_total: 0
+    expect_agent_total: 0

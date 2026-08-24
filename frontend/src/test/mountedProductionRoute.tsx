@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import type { SessionDetailPayload } from "@peasant-labs/schema";
+import type { SessionOrigin } from "@/lib/sessionOrigin";
 import TranscriptDetailPage from "@/app/transcripts/[id]/page";
 
 /**
@@ -25,6 +26,8 @@ export interface MountedRouteTranscriptMetadata {
     title: string | null;
     description: string | null;
     project_name: string;
+    /** Who drove the session; omitted by fixtures that do not exercise it. */
+    session_origin?: SessionOrigin;
   };
   owner: { id: string };
   enriched_shares: unknown[];

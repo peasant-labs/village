@@ -60,6 +60,7 @@ allowed_fields:
   - compute_version
   - content_hash
   - license_id
+  - session_origin
 denied_fields:
   - blob_key
   - source_file_path
@@ -154,6 +155,7 @@ source_row:
   compute_version: 63
   content_hash: source-content-hash-64
   license_id: CC-BY-4.0
+  session_origin: agent
   wrapped_data_key: AQIDBA==
   encryption_algorithm: aes-256-gcm-random-nonce-v1
   key_version: 7

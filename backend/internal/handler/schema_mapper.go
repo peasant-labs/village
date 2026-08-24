@@ -12,6 +12,7 @@ import (
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 )
 
 const DefaultVisibility = "private"
@@ -24,6 +25,12 @@ func schemaToTranscriptParams(req schema.PublishRequest, blobKey string, blobSiz
 		Title:       deriveTitle(req),
 		Description: pgtype.Text{Valid: false},
 		Visibility:  DefaultVisibility,
+		// Metadata alone cannot say who drove the session: that answer lives in
+		// the uploaded content. The mapper therefore starts at the fail-safe
+		// menu value, and the publish path overwrites it with the classified
+		// one once the accepted bytes are decoded. Starting here rather than at
+		// the zero value keeps every caller of this mapper CHECK-valid.
+		SessionOrigin: sessionorigin.Unknown.String(),
 		// License is captured at publish (create) from the producer-stamped
 		// req.License. The schema module's embedded SchemaLicense enum already
 		// rejected any out-of-menu value at the 422 gate, so this is either empty

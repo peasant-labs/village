@@ -23,6 +23,7 @@ import {
   useCreateTranscriptAnnotation,
 } from '@/lib/queries/transcripts';
 import { buildSavedLabelsByEntry } from '@/lib/annotations';
+import { isAgentSession, type SessionOrigin } from '@/lib/sessionOrigin';
 import TranscriptEditDialog from '@/components/transcript/TranscriptEditDialog';
 import ContributePicker from '@/components/transcript/ContributePicker';
 import TurnLabelPopover from '@/components/transcript/TurnLabelPopover';
@@ -50,6 +51,10 @@ interface SessionDetailV2Props {
   transcriptDescription?: string | null;
   /** Owner user id — gates owner-only actions. */
   transcriptOwnerId?: string;
+  /** Who drove the session, as served by the API. An agent-driven session is
+   *  labelled here so a viewer who arrived by direct link sees the same thing
+   *  the collapsed list group told them. */
+  sessionOrigin?: SessionOrigin;
   projectName: string;
   detail: SessionDetailPayload | undefined;
   error?: string | null;
@@ -71,6 +76,7 @@ export function SessionDetailV2({
   transcriptTitle,
   transcriptDescription,
   transcriptOwnerId,
+  sessionOrigin,
   projectName,
   detail,
   error,
@@ -203,7 +209,16 @@ export function SessionDetailV2({
           // awkward band with no demo equivalent. AttestButton self-gates on
           // having visible orgs; its popover floats from its own trigger.
           headerActions={
-            user && transcriptId ? <AttestButton transcriptId={transcriptId} /> : undefined
+            isAgentSession(sessionOrigin) || (user && transcriptId) ? (
+              <span className="inline-flex items-center gap-2">
+                {isAgentSession(sessionOrigin) && (
+                  <span className="chip" data-testid="agent-session-chip">
+                    agent session
+                  </span>
+                )}
+                {user && transcriptId && <AttestButton transcriptId={transcriptId} />}
+              </span>
+            ) : undefined
           }
           // Capabilities gated by village auth/ownership; the composite's
           // canExport covers the download serializers (the old canDownload).
