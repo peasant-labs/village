@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -83,12 +84,22 @@ func (h *Handler) ListShareEventHistory(w http.ResponseWriter, r *http.Request) 
 
 	groupID, err := uuid.Parse(chi.URLParam(r, "groupId"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid collective ID")
+		writeError(w, http.StatusBadRequest, fmt.Sprintf(
+			"Invalid collective ID %q in the URL path: %v. The {groupId} segment of "+
+				"GET /api/v1/users/me/collectives/{groupId}/transcripts/{transcriptId}/events must be a "+
+				"36-character UUID (e.g. 123e4567-e89b-12d3-a456-426614174000), matching the collective's own "+
+				"id field. This request cannot be resolved until that segment is corrected.",
+			chi.URLParam(r, "groupId"), err))
 		return
 	}
 	transcriptID, err := uuid.Parse(chi.URLParam(r, "transcriptId"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid transcript ID")
+		writeError(w, http.StatusBadRequest, fmt.Sprintf(
+			"Invalid transcript ID %q in the URL path: %v. The {transcriptId} segment of "+
+				"GET /api/v1/users/me/collectives/{groupId}/transcripts/{transcriptId}/events must be a "+
+				"36-character UUID (e.g. 123e4567-e89b-12d3-a456-426614174000), matching the transcript's own "+
+				"id field. This request cannot be resolved until that segment is corrected.",
+			chi.URLParam(r, "transcriptId"), err))
 		return
 	}
 
@@ -110,7 +121,13 @@ func (h *Handler) ListShareEventHistory(w http.ResponseWriter, r *http.Request) 
 		GroupID:      toPgUUID(groupID),
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to load the share-event history")
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf(
+			"Failed to load the share-event history for transcript %s in collective %s: %v. This happened "+
+				"while querying transcript_share_attempts in ListShareEventHistory (share_events.go), after "+
+				"ownership had already been confirmed, so it reflects a database or connection problem rather "+
+				"than a bad request. Retry the request; if it keeps failing, check the backend's database "+
+				"connectivity and logs for the underlying query error.",
+			transcriptID, groupID, err))
 		return
 	}
 
