@@ -8,39 +8,32 @@ import { useMyCollectiveContributions } from "@/lib/queries/collectives";
 import {
   CONTRIBUTION_COUNTER_EXPLANATION,
   CONTRIBUTION_COUNTER_LABELS,
-  CONTRIBUTION_COUNTER_UNITS,
 } from "@/lib/shareEvents";
 import { cn } from "@/lib/utils";
 import type { ContributedCollective } from "@/lib/types";
 import CollectiveSubmissions from "./CollectiveSubmissions";
 
 /**
- * One counter, printed with the UNIT it measures.
+ * One counter: its label and its value.
  *
- * The unit is not decoration. Two of these four count transcripts and two
- * count submission attempts, so a bare "3" beside a bare "2" would invite a
- * comparison that is not meaningful. The unit line is what makes the numbers
- * readable, and it is rendered for every counter so none of them looks like
- * the special case.
+ * The four counters do not all measure the same unit — two count transcripts,
+ * two count submission attempts — but that distinction is stated once, in the
+ * units sentence above the counters ({@link CONTRIBUTION_COUNTER_EXPLANATION}),
+ * not repeated per counter. See that constant for why the distinction matters.
  */
 function ContributionCounter({
   testId,
   label,
   value,
-  unit,
 }: {
   testId: string;
   label: string;
   value: number;
-  unit: string;
 }) {
   return (
     <div data-testid={testId} className="flex min-w-0 flex-col gap-0.5">
       <span className="font-mono text-xs text-ink-3">{label}</span>
       <span className="font-mono text-sm text-ink tabular-nums">{value.toLocaleString()}</span>
-      <span data-testid={`${testId}-unit`} className="font-mono text-xs text-ink-4">
-        {unit}
-      </span>
     </div>
   );
 }
@@ -83,36 +76,43 @@ function ContributedCollectiveRow({
             </p>
           )}
         </div>
-        {/* shrink-0: this cluster never gets crushed to make room for the
-            name column above. When it cannot sit beside the name at the
-            name's guaranteed minimum width, flex-wrap moves the WHOLE
-            cluster to its own line instead — the name is never the one that
-            gives. */}
-        <div className="flex flex-wrap items-start gap-x-8 gap-y-4 shrink-0">
-          <div className="flex items-start gap-8">
+        {/* sm:shrink-0: at sm and above, this cluster never gets crushed to
+            make room for the name column above. When it cannot sit beside
+            the name at the name's guaranteed minimum width, flex-wrap moves
+            the WHOLE cluster to its own line instead — the name is never the
+            one that gives.
+
+            Below sm (added at a ~390px narrow-viewport pass): shrink-0 with
+            no width constraint sizes the cluster to its UNWRAPPED
+            max-content width even once it is alone on its own line, which
+            left no room for the nested counters' own flex-wrap (below) to
+            ever engage — the cluster simply overflowed the card instead,
+            clipping the last counter and the toggle button entirely off
+            screen. w-full at this width caps the cluster at the row's
+            actual width so the counters wrap onto their own lines within
+            it, the same fix shape as the name-crushing defect above, one
+            level down. */}
+        <div className="flex flex-wrap items-start gap-x-8 gap-y-4 w-full sm:w-auto sm:shrink-0">
+          <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
             <ContributionCounter
               testId="counter-approved"
               label={CONTRIBUTION_COUNTER_LABELS.approved}
               value={collective.approved_count}
-              unit={CONTRIBUTION_COUNTER_UNITS.approved}
             />
             <ContributionCounter
               testId="counter-pending"
               label={CONTRIBUTION_COUNTER_LABELS.pending}
               value={collective.pending_count}
-              unit={CONTRIBUTION_COUNTER_UNITS.pending}
             />
             <ContributionCounter
               testId="counter-rejected-attempts"
               label={CONTRIBUTION_COUNTER_LABELS.rejectedAttempts}
               value={collective.rejected_attempt_count}
-              unit={CONTRIBUTION_COUNTER_UNITS.rejectedAttempts}
             />
             <ContributionCounter
               testId="counter-withdrawn"
               label={CONTRIBUTION_COUNTER_LABELS.withdrawnAttempts}
               value={collective.withdrawn_attempt_count}
-              unit={CONTRIBUTION_COUNTER_UNITS.withdrawnAttempts}
             />
           </div>
           <button
@@ -162,7 +162,22 @@ export default function ProfileCollectives({ isOwnProfile }: { isOwnProfile: boo
   const collectives = data ?? [];
 
   return (
-    <section data-testid="profile-collectives" className="border border-rule bg-surface">
+    // w-full sm:w-auto (added at a ~390px narrow-viewport pass): the design
+    // system sizes a bare <section> to its own content and centres it (a
+    // deliberate "collapse to content width" panel style, capped by
+    // max-width) rather than stretching it to fill its flex-column parent.
+    // At sm and above this is what the section is meant to look like and is
+    // left unchanged. Below sm, once a collective's opened submissions panel
+    // needed more width than the ~390px viewport, that same content-width
+    // sizing let the section grow PAST the viewport instead of wrapping its
+    // content to fit, pushing the whole page into horizontal overflow.
+    // w-full pins the section to its actual available width below sm, the
+    // same shape of fix as the counters cluster above and the toggle-visible
+    // wrap it depends on.
+    <section
+      data-testid="profile-collectives"
+      className="w-full sm:w-auto border border-rule bg-surface"
+    >
       <div className="flex flex-col gap-1 border-b border-rule px-5 py-3">
         {/* Lowercase because this is UI chrome, not user content. The
             neighbouring library card's title-case header predates this

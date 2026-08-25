@@ -238,8 +238,9 @@ export function groupByRepo<
     project_name: string | null;
     // The remote-derived label ("host:owner/repo"), NOT the resolved
     // project identity — see the label-selection comment below for why
-    // this axis must not read project_display_name.
-    project_remote_label: string | null;
+    // this axis must not read project_display_name. "" (never null) when
+    // no remote is known — see the field's doc comment in @/lib/types.
+    project_remote_label: string;
     published_at: string;
     token_count: number | null;
     tokens_in: number | null;

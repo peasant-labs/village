@@ -37,7 +37,8 @@ export interface MountedRouteTranscriptMetadata {
     project_hash?: string;
     project_display_name?: string;
     project_name_source?: NameSource;
-    project_remote_label?: string | null;
+    /** `""` when the project has no known git remote — the wire never sends `null` here. */
+    project_remote_label?: string;
     /** Who drove the session; omitted by fixtures that do not exercise it. */
     session_origin?: SessionOrigin;
   };
@@ -75,7 +76,7 @@ function withProjectIdentityDefaults(
       project_display_name:
         metadata.transcript.project_display_name ?? metadata.transcript.project_name,
       project_name_source: metadata.transcript.project_name_source ?? "consented",
-      project_remote_label: metadata.transcript.project_remote_label ?? null,
+      project_remote_label: metadata.transcript.project_remote_label ?? "",
     },
     owner: {
       ...metadata.owner,

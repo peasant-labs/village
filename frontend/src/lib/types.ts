@@ -143,8 +143,14 @@ export interface Transcript {
   project_display_name: string;
   /** Which resolution tier produced {@link project_display_name}. */
   project_name_source: NameSource;
-  /** `host:owner/repo` when a git remote is known, else null. */
-  project_remote_label: string | null;
+  /**
+   * `host:owner/repo` when a git remote is known, else `""`. A Go `string` on
+   * the wire (`project_identity.go`'s `resolvedProject.RemoteLabel` and
+   * `transcript_response.go`'s `transcriptResponse.ProjectRemoteLabel`), so
+   * an unknown remote arrives as the empty string, never `null` — the two are
+   * different absences and only the empty string is one this field can carry.
+   */
+  project_remote_label: string;
   tool_call_count: number | null;
   subagent_count: number | null;
   duration_ms: number | null;
@@ -434,8 +440,8 @@ export interface TranscriptDetailResponse {
  *    one transcript withdrawn and resubmitted twice is two withdrawals.
  * Any surface rendering these numbers side by side has to say which unit each
  * one measures, or they read as comparable when they are not. See
- * {@link CONTRIBUTION_COUNTER_UNITS} in `@/lib/shareEvents` for the one place
- * that wording is declared.
+ * {@link CONTRIBUTION_COUNTER_EXPLANATION} in `@/lib/shareEvents` for the one
+ * place that wording is declared.
  *
  * `withdrawn_attempt_count` groups the two withdrawal outcomes (`retracted`,
  * the owner's own act; `revoked`, the collective's) into ONE counter. That

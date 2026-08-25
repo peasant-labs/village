@@ -111,12 +111,15 @@ repoGroupLabelCases:
 
   - name: missing-remote-label-falls-back-to-the-raw-remote
     gitRemote: "ssh://git@legacy.example.corp/team/repo"
-    projectRemoteLabel: null
+    # "" (never null) — the wire's project_remote_label is a plain Go
+    # string; a remote that fails to parse to "host:owner/repo" arrives
+    # here as the empty string, standing in for "no label", not absence.
+    projectRemoteLabel: ""
     projectDisplayName: "some resolved project name"
     expectedName: "ssh://git@legacy.example.corp/team/repo"
 
   - name: no-remote-at-all-stays-unattributed-regardless-of-labels
     gitRemote: null
-    projectRemoteLabel: null
+    projectRemoteLabel: ""
     projectDisplayName: "should never be shown here"
     expectedName: "Unattributed"

@@ -41,7 +41,11 @@
                      profile route /users/{username} in profile mode)
      CHROME_PATH     Chrome/Chromium binary (required)
      PUPPETEER_CORE  explicit module path to puppeteer-core (optional)
+     NARROW          when "1", captures at a ~390px mobile viewport instead of
+                      the default desktop one — nobody had looked at this page
+                      below ~1040px before this flag existed.
    usage: VILLAGE_URL=... CHROME_PATH=... node project-page-shoot.mjs <theme> <outdir>
+          VILLAGE_URL=... CHROME_PATH=... NARROW=1 node project-page-shoot.mjs <theme> <outdir>
 */
 import { mkdirSync, statSync } from 'node:fs'
 import { SurfaceGate, MIN_NONBG_RATIO, MIN_DISTINCT_COLORS } from './surface-gate.mjs'
@@ -55,7 +59,10 @@ const MODE = process.env.PROJECT_SHOOT_MODE || 'owner'
 const out = process.argv[3] || `/tmp/project-page-${theme}`
 mkdirSync(out, { recursive: true })
 
-const BASE_VP = { width: 1396, height: 1200, deviceScaleFactor: 1 }
+const NARROW = process.env.NARROW === '1'
+const BASE_VP = NARROW
+  ? { width: 390, height: 1600, deviceScaleFactor: 1 }
+  : { width: 1396, height: 1200, deviceScaleFactor: 1 }
 
 const die = (code, what, why, means, fix) => {
   console.error(
@@ -124,6 +131,25 @@ const waitFor = async (sel, timeoutMs = 12000) => {
   }
   return null
 }
+// RailShell renders its `rail` content TWICE — once into the desktop aside
+// (display:none below 880px) and once into the mobile bottom sheet — so a
+// selector inside the rail (only `project-rename-control` here) can match a
+// hidden copy first. This picks the one actually laid out, needed only in
+// NARROW mode; the plain single-copy `waitFor`/`page.$` above stay correct
+// everywhere else (including `project-collectives`, which is NOT rail
+// content and is never duplicated).
+const waitForVisible = async (sel, timeoutMs = 12000) => {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const handles = await page.$$(sel)
+    for (const h of handles) {
+      const box = await h.boundingBox()
+      if (box && box.width > 0 && box.height > 0) return h
+    }
+    await pause(100)
+  }
+  return null
+}
 
 // ── Build provenance ────────────────────────────────────────────────────────
 // Each marker below exists ONLY in this change. A served build that lacks any
@@ -158,7 +184,26 @@ if (subtitleEl && !/^[^\s:]+:[^\s/]+\/[^\s]+$/.test(subtitleText)) {
     'rebuild from this worktree and retry.')
 }
 
-const control = MODE === 'owner' ? await waitFor('[data-testid="project-rename-control"]') : await page.$('[data-testid="project-rename-control"]')
+// Fairtrade's RailShell collapses the rail (the correction control, project
+// settings) into a fixed bottom sheet below 880px — a deliberate, working
+// responsive behavior, not a defect (see RailShell's own doc comment). Below
+// that breakpoint the rail's content is not in the accessibility tree or the
+// layout until its toggle (aria-expanded, labelled by `sheetTitle`) is
+// opened, so a narrow capture has to drive that interaction itself before
+// any rail-only selector (the rename control, the collectives roll-up) can
+// resolve — otherwise every narrow owner/viewer capture would spuriously
+// report the control missing.
+if (NARROW && isProjectSurface) {
+  const sheetToggle = await page.$('button[aria-expanded="false"][aria-controls^="rs-sheet-"]')
+  if (sheetToggle) {
+    await sheetToggle.click()
+    await pause(300)
+  }
+}
+
+const control = NARROW
+  ? await waitForVisible('[data-testid="project-rename-control"]')
+  : (MODE === 'owner' ? await waitFor('[data-testid="project-rename-control"]') : await page.$('[data-testid="project-rename-control"]'))
 if (MODE === 'owner' && !control) {
   await browser.close()
   die(2, 'the owner-only correction control never rendered.',
@@ -186,9 +231,15 @@ if (isProjectSurface && !rollup) {
 // ── Computed-style probe ────────────────────────────────────────────────────
 // Close token pairs cannot be told apart in a scaled PNG, so they are asserted
 // on the live DOM instead of judged by eye.
-const probe = await page.evaluate(() => {
+const probe = await page.evaluate((narrow) => {
+  // RailShell renders `rail` content twice (a hidden desktop aside + the
+  // mobile sheet) below 880px, so a bare querySelector on rename-control
+  // content can hit the hidden copy in narrow mode — pick the laid-out one.
   const cs = (sel) => {
-    const el = document.querySelector(sel)
+    const candidates = narrow ? [...document.querySelectorAll(sel)] : [document.querySelector(sel)]
+    const el = narrow
+      ? candidates.find((c) => c && c.getClientRects().length > 0)
+      : candidates[0]
     if (!el) return null
     const s = getComputedStyle(el)
     return {
@@ -221,12 +272,15 @@ const probe = await page.evaluate(() => {
     renameInput: cs('[data-testid="project-rename-control"] input'),
     countCell: counts.length ? cs('[data-testid="collective-transcript-count"]') : null,
     saveButtonHeight: (() => {
-      const btns = [...document.querySelectorAll('[data-testid="project-rename-control"] button')]
+      const controls = narrow
+        ? [...document.querySelectorAll('[data-testid="project-rename-control"]')].filter((c) => c.getClientRects().length > 0)
+        : [...document.querySelectorAll('[data-testid="project-rename-control"]')].slice(0, 1)
+      const btns = controls.flatMap((c) => [...c.querySelectorAll('button')])
       return btns.map((b) => Math.round(b.getBoundingClientRect().height))
     })(),
     rollupRows: document.querySelectorAll('[data-testid="project-collectives"] li').length,
   }
-})
+}, NARROW)
 
 /* Capture one surface.
 
@@ -238,8 +292,15 @@ const probe = await page.evaluate(() => {
    colour count, asserted here at the same thresholds the gate uses. The vendored
    gate file is left byte-faithful to upstream rather than gaining a local floor
    table. */
-const shoot = async (name, sel, { sparse = false } = {}) => {
-  const el = await page.$(sel)
+const shoot = async (rawName, selOrHandle, { sparse = false } = {}) => {
+  // Auto-suffixed rather than left to the caller so a narrow run can never
+  // silently overwrite the desktop capture it shares an outdir with.
+  const name = NARROW ? `${rawName}-narrow` : rawName
+  // Accepts an already-resolved element handle (used for rail content in
+  // NARROW mode, where a bare selector could resolve RailShell's hidden
+  // desktop copy — see waitForVisible above) as well as a plain selector.
+  const sel = typeof selOrHandle === 'string' ? selOrHandle : '(resolved element)'
+  const el = typeof selOrHandle === 'string' ? await page.$(selOrHandle) : selOrHandle
   if (!el) {
     await browser.close()
     die(1, `selector ${sel} did not resolve for surface ${name}.`,
@@ -387,20 +448,26 @@ if (MODE === 'viewer') {
 }
 
 await shoot('vpp-project-page', 'body')
-await shoot('vpp-project-rename', '[data-testid="project-rename-control"]', { sparse: true })
+// `control` was already resolved to the LAID-OUT copy above (waitForVisible
+// in NARROW mode); reuse the handle instead of re-querying by selector so
+// this capture cannot silently grab RailShell's hidden desktop copy.
+await shoot('vpp-project-rename', control, { sparse: true })
 await shoot('vpp-project-collectives', '[data-testid="project-collectives"]', { sparse: true })
 
 // ── The clear, exercised ────────────────────────────────────────────────────
 // The control reflects the SOURCE it now reads from, so the reset capture is
 // taken after a real round-trip rather than from a second frozen fixture.
 const nameBefore = headingText
-const resetClicked = await page.evaluate(() => {
-  const btns = [...document.querySelectorAll('[data-testid="project-rename-control"] button')]
+const resetClicked = await page.evaluate((narrow) => {
+  const controls = narrow
+    ? [...document.querySelectorAll('[data-testid="project-rename-control"]')].filter((c) => c.getClientRects().length > 0)
+    : [...document.querySelectorAll('[data-testid="project-rename-control"]')].slice(0, 1)
+  const btns = controls.flatMap((c) => [...c.querySelectorAll('button')])
   const reset = btns.find((b) => b.textContent.trim() === 'reset to default')
   if (!reset || reset.disabled) return false
   reset.click()
   return true
-})
+}, NARROW)
 if (!resetClicked) {
   await browser.close()
   die(1, 'the reset control was absent or disabled.',

@@ -31,7 +31,13 @@
      VILLAGE_URL     app URL (default http://localhost:3000/users/alice-dev)
      CHROME_PATH     Chrome/Chromium binary (required)
      PUPPETEER_CORE  explicit module path to puppeteer-core (optional)
+     NARROW          when "1", captures at a ~390px mobile viewport instead of
+                      the default desktop one — nobody had looked at this
+                      section below ~1040px before this flag existed, and the
+                      four counters + toggle + name + description compete hard
+                      for space at 390px.
    usage: VILLAGE_URL=... CHROME_PATH=... node profile-collectives-shoot.mjs <theme> <outdir>
+          VILLAGE_URL=... CHROME_PATH=... NARROW=1 node profile-collectives-shoot.mjs <theme> <outdir>
 */
 import { mkdirSync, statSync } from 'node:fs'
 import { SurfaceGate } from './surface-gate.mjs'
@@ -44,7 +50,10 @@ const theme = process.argv[2] || 'dark'
 const out = process.argv[3] || `/tmp/profile-collectives-${theme}`
 mkdirSync(out, { recursive: true })
 
-const BASE_VP = { width: 1396, height: 939, deviceScaleFactor: 1 }
+const NARROW = process.env.NARROW === '1'
+const BASE_VP = NARROW
+  ? { width: 390, height: 1400, deviceScaleFactor: 1 }
+  : { width: 1396, height: 939, deviceScaleFactor: 1 }
 
 if (!CHROME) {
   console.error('ERROR [profile-collectives-shoot.mjs] CHROME_PATH is unset — set it to your Chrome/Chromium binary.')
@@ -145,18 +154,16 @@ if (truncatedNames.length > 0) {
     'confirm ProfileCollectives.tsx keeps the name column\'s min-width and the counters+button cluster\'s shrink-0 (see the comments at that JSX), rebuild from this worktree, and retry.')
 }
 
-const unitText = await page.$eval('[data-testid="counter-rejected-attempts-unit"]', (el) => el.textContent.trim())
-if (unitText !== 'submission attempts') {
-  await browser.close()
-  die(2, `the rejected counter's unit reads ${JSON.stringify(unitText)}.`,
-    'the served bytes do not carry the wording that states what this counter measures.',
-    'the capture would show two numbers that count different things with nothing saying so.',
-    'rebuild from this worktree and retry.')
-}
-
 // The fourth counter: withdrawn events, grouping retracted + revoked. Its
-// presence and unit are asserted the same way the rejected counter's is
-// above — this is the counter a real user acceptance test found missing.
+// presence is asserted here — this is the counter a real user acceptance
+// test found missing. The per-counter unit FOOTER this gate used to assert
+// here was removed at the user's explicit instruction (UAT impl-adjustment):
+// each number no longer carries its own "transcripts"/"submission attempts"
+// line. The distinction those units stated is still load-bearing copy, so it
+// still has exactly one home — the units SENTENCE above the counters — and
+// the mutation this block used to prove RED (the withdrawn counter's own
+// footer mislabeling it as counting transcripts) no longer has a footer to
+// target; it is retargeted below at that sentence instead.
 const withdrawnCounter = await page.$('[data-testid="counter-withdrawn"]')
 if (!withdrawnCounter) {
   await browser.close()
@@ -164,14 +171,6 @@ if (!withdrawnCounter) {
     'the served build predates the fourth counter, or the collective row filters it out.',
     'the capture would not show the counter this change adds.',
     'rebuild from this worktree, confirm the mock serves withdrawn_attempt_count, and retry.')
-}
-const withdrawnUnitText = await page.$eval('[data-testid="counter-withdrawn-unit"]', (el) => el.textContent.trim())
-if (withdrawnUnitText !== 'submission attempts') {
-  await browser.close()
-  die(2, `the withdrawn counter's unit reads ${JSON.stringify(withdrawnUnitText)}.`,
-    'the served bytes label the withdrawn counter as counting transcripts rather than events.',
-    'the capture would show a unit that contradicts the counter it labels — exactly the mutation this slice proves RED.',
-    'rebuild from this worktree and retry.')
 }
 const withdrawnCounterValue = await page.evaluate(() =>
   [...document.querySelectorAll('[data-testid="contributed-collective"]')]
@@ -189,15 +188,22 @@ if (withdrawnCounterValue !== '1') {
 // The units sentence above the counters must still describe the row now that
 // FOUR counters render, two counting transcripts and two counting events. A
 // sentence that stops matching its own numbers is the defect class this
-// change exists to fix.
+// change exists to fix. This is also where the withdrawn-counter mutation
+// this gate used to prove RED via the (now-removed) per-counter unit footer
+// is retargeted: the sentence, not a footer, is now the only place that
+// states withdrawn counts submission attempts rather than transcripts, so a
+// regression mislabeling it must show up here.
 const explanationText = await page.$eval(
   '[data-testid="profile-collectives"] > div > p',
   (el) => el.textContent.trim(),
 )
-if (!/rejected and withdrawn count submission/.test(explanationText)) {
+if (
+  !/rejected and withdrawn count submission/.test(explanationText) ||
+  /withdrawn count transcripts/.test(explanationText)
+) {
   await browser.close()
   die(2, `the units sentence reads ${JSON.stringify(explanationText)}.`,
-    'the served bytes still describe only three counters, or describe the withdrawn counter incorrectly.',
+    'the served bytes still describe only three counters, or describe the withdrawn counter incorrectly — including labeling it as counting transcripts rather than submission attempts.',
     'the capture would show a copy line that no longer matches the four numbers beneath it — the exact contradiction UAT caught.',
     'rebuild from this worktree and retry.')
 }
@@ -242,7 +248,10 @@ const probe = await page.evaluate(() => {
   }
 })
 
-const shoot = async (name, sel) => {
+const shoot = async (rawName, sel) => {
+  // Auto-suffixed rather than left to the caller so a narrow run can never
+  // silently overwrite the desktop capture it shares an outdir with.
+  const name = NARROW ? `${rawName}-narrow` : rawName
   const el = await page.$(sel)
   if (!el) {
     await browser.close()
@@ -359,8 +368,7 @@ await pause(300)
 await shoot('profile-collectives-history', '[data-testid="profile-collectives"]')
 
 console.log('provenance collapsed-name-legibility =', JSON.stringify(nameLegibility))
-console.log('provenance rejected-unit =', JSON.stringify(unitText))
-console.log('provenance withdrawn-unit =', JSON.stringify(withdrawnUnitText), '| withdrawn-value =', JSON.stringify(withdrawnCounterValue))
+console.log('provenance withdrawn-value =', JSON.stringify(withdrawnCounterValue))
 console.log('provenance units-sentence =', JSON.stringify(explanationText))
 console.log('provenance opened-withdrawn-only-collective =', opened)
 console.log('provenance collective-rows =', rows.length, '| pending-only listed =', pendingOnly)

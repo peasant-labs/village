@@ -71,10 +71,18 @@ export default function CollectiveSubmissions({
               data-testid="collective-submission"
               data-transcript-id={pair.transcript_id}
             >
-              <div className="flex items-center gap-3 border border-rule bg-surface px-4 py-2.5">
+              {/* flex-wrap + the title's min-w (added at a ~390px
+                  narrow-viewport pass): with a bare shrink target, the title
+                  truncated to almost nothing once the status chip and the
+                  history button needed room too. Giving the title a
+                  guaranteed minimum before it shrinks further, and letting
+                  the chip+button wrap onto their own line when they don't
+                  fit beside it, is the same pattern already used for the
+                  collective name column and the counters cluster above. */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border border-rule bg-surface px-4 py-2.5">
                 <Link
                   href={`/transcripts/${pair.transcript_id}`}
-                  className="min-w-0 flex-1 truncate text-[13px] text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer"
+                  className="min-w-[8rem] flex-1 truncate text-[13px] text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer"
                 >
                   {pair.title ?? pair.transcript_id.slice(0, 8)}
                 </Link>

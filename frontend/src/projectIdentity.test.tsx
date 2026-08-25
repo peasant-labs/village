@@ -128,7 +128,7 @@ describe("buildProjectHref: the breadcrumb project-page href", () => {
 describe("groupByRepo: the git_remote axis's label must not read the resolved project identity", () => {
   function repoItem(c: {
     gitRemote: string | null;
-    projectRemoteLabel: string | null;
+    projectRemoteLabel: string;
     projectDisplayName: string;
   }) {
     return {
