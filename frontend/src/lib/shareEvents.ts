@@ -101,13 +101,3 @@ export function shareEventLabel(event: Pick<ShareEvent, "status" | "decided_by_a
   const clause = shareEventActorClause(event.decided_by_actor);
   return clause === "" ? verb : `${verb} ${clause}`;
 }
-
-/**
- * True when the event ends the contribution's life in that collective without
- * a refusal: the owner withdrew it, or the collective removed it. Kept
- * separate from a refusal so a surface that tints or groups outcomes cannot
- * quietly file a withdrawal under "rejected".
- */
-export function isWithdrawal(status: ShareEventStatus): boolean {
-  return status === "retracted" || status === "revoked";
-}

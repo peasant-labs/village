@@ -116,7 +116,6 @@ contributionCases:
 # The owner-only audit log for one (transcript, collective) pair. `events` is
 # the wire payload in the order the server sends it (event_num ascending);
 # `expectedLabels` is what each row must read, in the same order.
-# The owner-only audit log for one (transcript, collective) pair.
 #
 # Every case is a history the WRITE PATHS CAN ACTUALLY PRODUCE, because a case
 # describing an impossible state proves nothing about a real regression:
