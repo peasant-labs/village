@@ -292,3 +292,46 @@ Manual click-through checklist for the non-automated part of the gate:
 3. Switch between grid and list.
 4. Open transcript `d41a8e`, confirm the route changes to `/transcripts/d41a8e`, then open profile `alice-dev` and confirm `/users/alice-dev`.
 5. Search `ai` again, open `AI Research Team`, confirm `/groups/ai-research-team`, then back out and confirm the shell still renders the card grid.
+
+## Own-profile contributed-collectives gate (`profile-collectives`)
+
+`profile-collectives-shoot.mjs` captures the own-profile contributed-collectives
+section on the REAL profile route, in three states taken from one live page so
+they cannot mix builds: the section with every contributed collective and its
+counters, one collective open with its submissions listed, and one submission
+open with its full event history visible.
+
+It asserts build provenance BEFORE writing any PNG. The served page must carry
+the section, more than one contributed collective row, a collective with zero
+approved contributions and some awaiting review, and the literal unit wording
+`submission attempts` under the rejected counter. Each of those exists only in
+the change this gate covers, so a stale server or one serving another worktree
+fails with a nonzero exit instead of producing a misleading capture.
+
+It also reads computed styles from the live DOM and prints them, because a
+scaled PNG cannot tell two close token values apart. The reported values are the
+counter's font family (prose vs mono), font size, `font-variant-numeric`
+(tabular figures are load-bearing where three counters sit side by side), colour,
+border radius and line height.
+
+`mock-rest-profile.mjs` is the matching REST stand-in. It serves `/auth/me` as
+the profile's own owner (so the page decides the viewer is the owner through the
+production code path, not through a stub), the public profile, an empty library
+list, the three-counter contributions list, the owner's submissions per
+collective, and a share-event history containing all five states so the actor
+labels are visible in the capture.
+
+```sh
+CHROME=/path/to/google-chrome
+BASE=/abs/path/to/capture-base
+
+MOCK_REST_PORT=8790 node scripts/visual/mock-rest-profile.mjs &
+NEXT_PUBLIC_API_URL=http://localhost:8790/api/v1 pnpm build
+NEXT_PUBLIC_API_URL=http://localhost:8790/api/v1 pnpm start &
+
+CHROME_PATH=$CHROME node scripts/visual/profile-collectives-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME node scripts/visual/profile-collectives-shoot.mjs light $BASE/light
+```
+
+Capture into `review-capture/` (gitignored). Per-round proof PNGs are never
+committed.

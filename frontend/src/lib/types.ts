@@ -369,3 +369,117 @@ export interface TranscriptDetailResponse {
   owner: User;
   attestations?: Attestation[];
 }
+
+/**
+ * One collective the signed-in person has offered transcripts to, as served by
+ * `GET /users/me/collectives/contributions`.
+ *
+ * The three counters DO NOT COUNT THE SAME UNIT, and that asymmetry is part of
+ * the contract rather than an implementation detail:
+ *  - {@link approved_count} and {@link pending_count} count DISTINCT
+ *    TRANSCRIPTS. A transcript is either held by a collective or it is not.
+ *  - {@link rejected_attempt_count} counts REFUSAL EVENTS. One transcript
+ *    refused three times by one collective is three.
+ * Any surface rendering these numbers side by side has to say which unit each
+ * one measures, or the two read as comparable when they are not. See
+ * {@link CONTRIBUTION_COUNTER_UNITS} in `@/lib/shareEvents` for the one place
+ * that wording is declared.
+ *
+ * Withdrawals (`retracted`, `revoked`) are counted in NONE of the three.
+ */
+export interface ContributedCollective {
+  id: string;
+  name: string;
+  description: string | null;
+  linked_github_org: string | null;
+  /** Distinct transcripts of yours this collective currently holds. */
+  approved_count: number;
+  /** Distinct transcripts of yours currently awaiting this collective's review. */
+  pending_count: number;
+  /** Refusal EVENTS, not transcripts. */
+  rejected_attempt_count: number;
+}
+
+/**
+ * One accepted membership of a transcript in a collective the viewer may see,
+ * as served by `GET /transcripts/{id}/collectives`.
+ *
+ * The server answers with an EMPTY LIST, never a refusal, when the collective
+ * is invisible to the viewer or the transcript's owner has not opted in to
+ * being listed as a contributor. A consumer therefore renders an empty result
+ * as plain emptiness: anything that reads as "there is something here you may
+ * not see" re-creates exactly the disclosure the empty list exists to avoid.
+ */
+export interface TranscriptCollective {
+  id: string;
+  name: string;
+  description: string | null;
+  linked_github_org: string | null;
+  shared_at: string;
+}
+
+/**
+ * The outcome recorded on one share event (village backend
+ * `transcript_share_attempts.status`). These profile routes are deliberately
+ * outside the OpenAPI spec, so there is no generated TypeScript type — this is
+ * the frontend's own closed, hand-declared union, and
+ * {@link assertShareEventStatusExhaustive} is its compile-time proof.
+ *
+ * `retracted` (the owner withdrew) and `revoked` (the collective removed) are
+ * distinct terminal states, distinct from each other AND from `rejected`.
+ * Collapsing any of them into another makes the history unreadable.
+ */
+export type ShareEventStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "retracted"
+  | "revoked";
+
+/**
+ * Compile-time exhaustiveness proof for {@link ShareEventStatus}, used the same
+ * way as {@link assertNameSourceExhaustive}: a `switch` in production code
+ * reaches a `default` branch that assigns its input to `never`, so widening the
+ * union without handling the new member fails the BUILD.
+ */
+export function assertShareEventStatusExhaustive(status: never): never {
+  throw new Error(`unhandled ShareEventStatus: ${String(status)}`);
+}
+
+/**
+ * WHO acted on a share event, in what capacity — never WHO they are.
+ *
+ * The server sends a closed actor CLASS and deliberately never a user id:
+ * telling a submitter which moderator refused their work is a disclosure the
+ * design does not make. There is therefore no name to look up and no lookup
+ * that could be missing, so a consumer must not render "unknown" or any other
+ * wording that implies one failed.
+ *
+ * The empty string is the wire's value for an event that has not been decided
+ * yet (a `pending` event has no actor because nothing has been decided).
+ */
+export type ShareEventActor = "" | "owner" | "collective" | "moderator";
+
+/** Compile-time exhaustiveness proof for {@link ShareEventActor}. */
+export function assertShareEventActorExhaustive(actor: never): never {
+  throw new Error(`unhandled ShareEventActor: ${String(actor)}`);
+}
+
+/**
+ * One entry of the owner-only share-event history for a (transcript,
+ * collective) pair, as served by
+ * `GET /users/me/collectives/{groupId}/transcripts/{transcriptId}/events`.
+ *
+ * The server returns the FULL history in ascending {@link event_num} order, so
+ * it reads top to bottom as an audit log: every state change is an event,
+ * including the withdrawals nobody submitted. {@link event_num} is therefore an
+ * event ordinal and never an "attempt number" in rendered copy.
+ */
+export interface ShareEvent {
+  event_num: number;
+  status: ShareEventStatus;
+  recorded_at: string;
+  /** Null until the event is decided. */
+  decided_at: string | null;
+  decided_by_actor: ShareEventActor;
+}

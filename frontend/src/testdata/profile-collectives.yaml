@@ -1,0 +1,201 @@
+# Cases for the own-profile contributed-collectives section, the owner-only
+# share-event history, and the per-transcript collectives list.
+#
+# Deletion protection is by required NAME (see profileCollectivesFixtures.ts):
+# removing a case fails the loader because its name goes missing from the
+# manifest, not because a tally shrinks. No case count is asserted anywhere, so
+# adding a case is a one-file change.
+
+# Who is looking at the profile, and whether the section exists for them at all.
+viewerCases:
+  - name: owner-sees-the-section
+    viewer: owner
+    expectSection: true
+    expectContributionsRequest: true
+
+  - name: other-signed-in-viewer-sees-no-section
+    viewer: other-signed-in
+    expectSection: false
+    expectContributionsRequest: false
+
+  - name: anonymous-viewer-sees-no-section
+    viewer: anonymous
+    expectSection: false
+    expectContributionsRequest: false
+
+# What the owner's section renders for a given contributions payload.
+contributionCases:
+  - name: pending-only-collective-is-listed
+    collectives:
+      - id: 11111111-1111-4111-8111-111111111111
+        name: Quiet Reviewers
+        description: null
+        approvedCount: 0
+        pendingCount: 3
+        rejectedAttemptCount: 0
+    expectedCollectiveNames:
+      - Quiet Reviewers
+    expectedCounters:
+      - approved: 0
+        pending: 3
+        rejectedAttempts: 0
+
+  - name: two-approved-one-pending-two-rejected-attempts
+    collectives:
+      - id: 22222222-2222-4222-8222-222222222222
+        name: AI Research Team
+        description: a working group
+        approvedCount: 2
+        pendingCount: 1
+        rejectedAttemptCount: 2
+    expectedCollectiveNames:
+      - AI Research Team
+    expectedCounters:
+      - approved: 2
+        pending: 1
+        rejectedAttempts: 2
+
+  - name: a-fully-withdrawn-collective-still-lists-with-every-counter-zero
+    collectives:
+      - id: 33333333-3333-4333-8333-333333333333
+        name: Former Home
+        description: null
+        approvedCount: 0
+        pendingCount: 0
+        rejectedAttemptCount: 0
+    expectedCollectiveNames:
+      - Former Home
+    expectedCounters:
+      - approved: 0
+        pending: 0
+        rejectedAttempts: 0
+
+  - name: several-collectives-render-in-the-order-served
+    collectives:
+      - id: 44444444-4444-4444-8444-444444444444
+        name: Verified Contributors
+        description: null
+        approvedCount: 5
+        pendingCount: 0
+        rejectedAttemptCount: 1
+      - id: 55555555-5555-4555-8555-555555555555
+        name: Quiet Reviewers
+        description: null
+        approvedCount: 0
+        pendingCount: 2
+        rejectedAttemptCount: 0
+    expectedCollectiveNames:
+      - Verified Contributors
+      - Quiet Reviewers
+    expectedCounters:
+      - approved: 5
+        pending: 0
+        rejectedAttempts: 1
+      - approved: 0
+        pending: 2
+        rejectedAttempts: 0
+
+# The owner-only audit log for one (transcript, collective) pair. `events` is
+# the wire payload in the order the server sends it (event_num ascending);
+# `expectedLabels` is what each row must read, in the same order.
+eventHistoryCases:
+  - name: all-five-states-in-ascending-order
+    events:
+      - eventNum: 1
+        status: pending
+        decidedByActor: ""
+      - eventNum: 2
+        status: rejected
+        decidedByActor: moderator
+      - eventNum: 3
+        status: approved
+        decidedByActor: moderator
+      - eventNum: 4
+        status: retracted
+        decidedByActor: owner
+      - eventNum: 5
+        status: revoked
+        decidedByActor: collective
+    expectedLabels:
+      - submitted
+      - rejected by moderator
+      - approved by moderator
+      - retracted by owner
+      - revoked by collective
+
+  - name: repeated-rejection-then-still-pending
+    events:
+      - eventNum: 1
+        status: pending
+        decidedByActor: ""
+      - eventNum: 2
+        status: rejected
+        decidedByActor: moderator
+      - eventNum: 3
+        status: pending
+        decidedByActor: ""
+      - eventNum: 4
+        status: rejected
+        decidedByActor: moderator
+      - eventNum: 5
+        status: pending
+        decidedByActor: ""
+    expectedLabels:
+      - submitted
+      - rejected by moderator
+      - submitted
+      - rejected by moderator
+      - submitted
+
+  - name: withdrawn-by-owner-is-never-phrased-as-a-resubmission
+    events:
+      - eventNum: 1
+        status: pending
+        decidedByActor: ""
+      - eventNum: 2
+        status: retracted
+        decidedByActor: owner
+    expectedLabels:
+      - submitted
+      - retracted by owner
+
+  - name: removed-by-the-collective-is-distinct-from-a-refusal
+    events:
+      - eventNum: 1
+        status: pending
+        decidedByActor: ""
+      - eventNum: 2
+        status: approved
+        decidedByActor: moderator
+      - eventNum: 3
+        status: revoked
+        decidedByActor: collective
+    expectedLabels:
+      - submitted
+      - approved by moderator
+      - revoked by collective
+
+# The auth-optional per-transcript list. The server answers an empty list, never
+# a refusal, when the viewer may not see a membership or the owner has not
+# opted in to being listed as a contributor.
+transcriptCollectivesCases:
+  - name: approved-memberships-render-as-named-chips
+    httpStatus: 200
+    collectives:
+      - id: 66666666-6666-4666-8666-666666666666
+        name: AI Research Team
+      - id: 77777777-7777-4777-8777-777777777777
+        name: Verified Contributors
+    expectedCollectiveNames:
+      - AI Research Team
+      - Verified Contributors
+
+  - name: owner-not-opted-in-returns-an-empty-list-not-a-refusal
+    httpStatus: 200
+    collectives: []
+    expectedCollectiveNames: []
+
+  - name: transcript-in-no-collective-renders-nothing
+    httpStatus: 200
+    collectives: []
+    expectedCollectiveNames: []
