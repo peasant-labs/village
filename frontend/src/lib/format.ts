@@ -103,7 +103,11 @@ export interface ProjectGroupingResult<T> {
  * `project_display_name`, even when their raw `project_name` columns
  * disagree (one consented, one a Peasant privacy label) — that
  * mixed-name-same-hash case is exactly what the old name-keyed grouping got
- * wrong. There is no "Other" fallback: an item with no `project_hash` is
+ * wrong. The re-key is also structural, not merely a runtime choice: this
+ * function's own parameter type no longer carries a raw `project_name`
+ * field at all, so a regression back to name-keyed grouping is a
+ * compile-time type error here, not a behavior a test has to catch at
+ * runtime. There is no "Other" fallback: an item with no `project_hash` is
  * not folded into a synthetic bucket alongside real projects — it is
  * reported back separately via {@link ProjectGroupingResult.malformed} so
  * the caller can render it as an anomaly, not a project.

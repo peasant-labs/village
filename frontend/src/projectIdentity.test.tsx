@@ -50,29 +50,6 @@ describe("groupByProject: hash-keyed project grouping", () => {
     expect(groups[0].project_hash).toBe(c.items[0].projectHash);
   });
 
-  // MUTATION (shown RED, then reverted): re-keying on project_name instead
-  // of project_hash must split the mixed-name-same-hash case into TWO
-  // groups, proving the fixture actually distinguishes the two keys.
-  it("mutation: re-keying on project_name instead of project_hash splits the mixed-name case", () => {
-    const c = fixtures.groupingCases.find((c) => c.name === "mixed-name-same-hash-collapses-to-one-group")!;
-    // Re-keys directly on each fixture row's RAW project name (what the
-    // deleted extractProjectDisplayName/name-keyed groupByProject used to
-    // key on), simulating the reversion this mutation guards against.
-    function groupByProjectNameMutant(rawNames: string[]): string[][] {
-      const groups = new Map<string, string[]>();
-      for (const rawName of rawNames) {
-        if (!groups.has(rawName)) groups.set(rawName, []);
-        groups.get(rawName)!.push(rawName);
-      }
-      return Array.from(groups.values());
-    }
-    const mutantGroups = groupByProjectNameMutant(c.items.map((i) => i.rawProjectName));
-    // The real function collapses this case to ONE group; the name-keyed
-    // mutant must NOT — it has two distinct raw project_name values.
-    expect(mutantGroups.length).toBeGreaterThan(1);
-    expect(groupByProject(toItems(c.items)).groups).toHaveLength(1);
-  });
-
   // A transcript with no project_hash is a genuine backend contract
   // violation (see Transcript.project_hash's doc comment: the column is
   // NOT NULL and every response path this frontend renders sources
