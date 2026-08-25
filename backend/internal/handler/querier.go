@@ -86,6 +86,9 @@ type Querier interface {
 	ListAllGroups(ctx context.Context) ([]sqlc.ListAllGroupsRow, error)
 	SearchCollectives(ctx context.Context, arg sqlc.SearchCollectivesParams) ([]sqlc.SearchCollectivesRow, error)
 	ListCollectivesByGitHubOrg(ctx context.Context, arg sqlc.ListCollectivesByGitHubOrgParams) ([]sqlc.ListCollectivesByGitHubOrgRow, error)
+	ListOwnerCollectiveContributions(ctx context.Context, ownerID pgtype.UUID) ([]sqlc.ListOwnerCollectiveContributionsRow, error)
+	ListProjectCollectiveRollup(ctx context.Context, arg sqlc.ListProjectCollectiveRollupParams) ([]sqlc.ListProjectCollectiveRollupRow, error)
+	ListTranscriptCollectivesForViewer(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error)
 	AddGroupMember(ctx context.Context, arg sqlc.AddGroupMemberParams) error
 	RemoveGroupMember(ctx context.Context, arg sqlc.RemoveGroupMemberParams) error
 	GetGroupMember(ctx context.Context, arg sqlc.GetGroupMemberParams) (sqlc.GroupMember, error)

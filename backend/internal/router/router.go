@@ -104,6 +104,12 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		// Transcript commits (read persisted git commits for the timeline overlay)
 		r.With(h.AuthOptional).Get("/transcripts/{id}/commits", h.ListTranscriptCommits)
 
+		// Collectives a transcript belongs to, and the caller's own contributions.
+		// The contributions route takes the caller's id and has deliberately no
+		// username variant: pending and refused counts are the contributor's alone.
+		r.With(h.AuthOptional).Get("/transcripts/{id}/collectives", h.ListTranscriptCollectives)
+		r.With(h.AuthRequired).Get("/users/me/collectives/contributions", h.ListMyCollectiveContributions)
+
 		// Groups
 		r.Get("/groups/public", h.ListPublicGroups)
 		r.With(h.AuthOptional).Get("/groups/search", h.SearchCollectives)

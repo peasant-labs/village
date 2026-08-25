@@ -807,3 +807,142 @@ func (h *Handler) ListMyGroupShares(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, rows)
 }
+
+// contributedCollective is the wire shape of one row of a person's own
+// contributions. The three counters do not measure the same thing, and the
+// field names are what makes that legible to a consumer without reading this
+// file: approved_count and pending_count are counts of TRANSCRIPTS, while
+// rejected_attempt_count is a count of SUBMISSION ATTEMPTS, because one
+// transcript can be refused by one collective repeatedly and each refusal is
+// its own instance.
+type contributedCollective struct {
+	ID              pgtype.UUID `json:"id"`
+	Name            string      `json:"name"`
+	Description     pgtype.Text `json:"description"`
+	LinkedGithubOrg pgtype.Text `json:"linked_github_org"`
+	// ApprovedCount counts DISTINCT TRANSCRIPTS currently accepted.
+	ApprovedCount int32 `json:"approved_count"`
+	// PendingCount counts DISTINCT TRANSCRIPTS currently awaiting review.
+	PendingCount int32 `json:"pending_count"`
+	// RejectedAttemptCount counts REFUSAL EVENTS, not transcripts. Three
+	// refusals of one transcript are three refusals; that is what makes a
+	// repeatedly-refused submission legible instead of a bare zero.
+	RejectedAttemptCount int32 `json:"rejected_attempt_count"`
+}
+
+// ListMyCollectiveContributions returns the collectives the caller has offered
+// transcripts to. GET /users/me/collectives/contributions (AuthRequired).
+//
+// It is owner-only BY ROUTE: the query takes the authenticated caller's id and
+// there is deliberately no username parameter and no username variant, so the
+// pending and refused counts - which are nobody else's business - have no route
+// through which another viewer could ask for them.
+//
+// Collectives holding nothing but submissions still awaiting review ARE listed,
+// with approved_count = 0. Being told nothing until something is accepted is
+// how a person loses track of what they offered.
+func (h *Handler) ListMyCollectiveContributions(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized,
+			"Cannot list your contributed collectives: this request carries no signed-in identity, and contributions "+
+				"are readable only by the person who made them. Sign in and retry.")
+		return
+	}
+
+	rows, err := h.queries.ListOwnerCollectiveContributions(r.Context(), user.PgID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError,
+			"Cannot list your contributed collectives: reading the contribution counters failed in the database while "+
+				"aggregating your share history. Your contributions are unchanged and nothing was written. Retry; if it "+
+				"keeps failing the village's database is unavailable and an operator has to look at it.")
+		return
+	}
+
+	out := make([]contributedCollective, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, contributedCollective{
+			ID:                   row.ID,
+			Name:                 row.Name,
+			Description:          row.Description,
+			LinkedGithubOrg:      row.LinkedGithubOrg,
+			ApprovedCount:        row.ApprovedCount,
+			PendingCount:         row.PendingCount,
+			RejectedAttemptCount: row.RejectedAttemptCount,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"collectives": out})
+}
+
+// transcriptCollective is the wire shape of one accepted membership of a
+// transcript in a collective the viewer may see.
+type transcriptCollective struct {
+	ID              pgtype.UUID        `json:"id"`
+	Name            string             `json:"name"`
+	Description     pgtype.Text        `json:"description"`
+	LinkedGithubOrg pgtype.Text        `json:"linked_github_org"`
+	SharedAt        pgtype.Timestamptz `json:"shared_at"`
+}
+
+// ListTranscriptCollectives returns the collectives that hold this transcript
+// and that the viewer may see. GET /transcripts/{id}/collectives (AuthOptional).
+//
+// Two gates apply inside the query, and both answer with an EMPTY LIST rather
+// than a refusal: the collective visibility rule, and the transcript owner's
+// contributor opt-in. A refusal would itself confirm that memberships exist and
+// are being withheld, which is exactly what a person who has not opted in to
+// being listed asked not to happen.
+func (h *Handler) ListTranscriptCollectives(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest,
+			"Cannot list this transcript's collectives: the id in the path is not a UUID, so no transcript could be "+
+				"looked up. Use the transcript's id as it appears in its URL.")
+		return
+	}
+
+	transcript, err := h.queries.GetTranscriptByID(r.Context(), toPgUUID(id))
+	user := GetUser(r.Context())
+	// One answer for "no such transcript" and "not yours to see", so that asking
+	// cannot be used to discover which transcripts exist.
+	if err != nil || !h.canViewTranscript(r.Context(), user, transcript) {
+		writeError(w, http.StatusNotFound,
+			"Cannot list this transcript's collectives: no transcript with that id is visible to you. Either it does "+
+				"not exist, or it is not public and has not been shared with a collective you belong to. Sign in as its "+
+				"owner, or ask the owner to share it, then retry.")
+		return
+	}
+
+	rows, err := h.queries.ListTranscriptCollectivesForViewer(r.Context(), sqlc.ListTranscriptCollectivesForViewerParams{
+		TranscriptID:  transcript.ID,
+		UserID:        viewerID(user),
+		ViewerIsOwner: user != nil && transcript.OwnerID == user.PgID(),
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError,
+			"Cannot list this transcript's collectives: reading its memberships failed in the database. Nothing was "+
+				"changed. Retry; if it keeps failing the village's database is unavailable and an operator has to look at it.")
+		return
+	}
+
+	out := make([]transcriptCollective, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, transcriptCollective{
+			ID:              row.ID,
+			Name:            row.Name,
+			Description:     row.Description,
+			LinkedGithubOrg: row.LinkedGithubOrg,
+			SharedAt:        row.SharedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"collectives": out})
+}
+
+// viewerID is the caller's id for a visibility predicate, or the SQL NULL an
+// anonymous viewer needs so the "or the viewer is a member" branch cannot match.
+func viewerID(user *AuthUser) pgtype.UUID {
+	if user == nil {
+		return pgtype.UUID{}
+	}
+	return user.PgID()
+}
