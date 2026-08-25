@@ -71,19 +71,49 @@ export function describeNameSource(source: NameSource): string {
   }
 }
 
+/** One project's transcripts, grouped and ready to render. */
+export interface ProjectGroup<T> {
+  project: string;
+  project_hash: string;
+  items: T[];
+}
+
+/**
+ * The result of {@link groupByProject}: the real groups to render, plus any
+ * items that could not be grouped because they arrived with no
+ * `project_hash` despite the wire contract guaranteeing one (see
+ * `Transcript.project_hash`'s doc comment for the guarantee's provenance).
+ * `malformed` is expected to always be empty; a non-empty array is evidence
+ * of a genuine backend contract violation, not a normal UI state, and
+ * callers should surface it as a scoped, non-crashing notice rather than
+ * silently dropping the affected transcripts or hiding the rest of a
+ * person's project list behind a page-level crash.
+ */
+export interface ProjectGroupingResult<T> {
+  groups: ProjectGroup<T>[];
+  malformed: T[];
+}
+
 /**
  * Group transcript list items by project identity.
  *
  * Keyed on `project_hash` — a project has no row of its own; it IS the
  * distinct `(owner, project_hash)` pair. Two transcripts sharing a hash
- * always collapse into ONE
- * group and render the ONE server-resolved `project_display_name`, even
- * when their raw `project_name` columns disagree (one consented, one a
- * Peasant privacy label) — that mixed-name-same-hash case is exactly what
- * the old name-keyed grouping got wrong. There is no "Other" fallback:
- * `project_hash` is a required identity column enforced at the publish
- * boundary (migration `035_project_hash_required`), so a served transcript
- * missing one is a contract violation, not a normal case to paper over.
+ * always collapse into ONE group and render the ONE server-resolved
+ * `project_display_name`, even when their raw `project_name` columns
+ * disagree (one consented, one a Peasant privacy label) — that
+ * mixed-name-same-hash case is exactly what the old name-keyed grouping got
+ * wrong. There is no "Other" fallback: an item with no `project_hash` is
+ * not folded into a synthetic bucket alongside real projects — it is
+ * reported back separately via {@link ProjectGroupingResult.malformed} so
+ * the caller can render it as an anomaly, not a project.
+ *
+ * This function never throws. A missing `project_hash` is a genuine
+ * contract violation (see `Transcript.project_hash`'s doc comment), but a
+ * rendering-layer function crashing an entire person's project list over
+ * one malformed row would turn a cosmetic problem into an outage; the
+ * caller decides how to surface `malformed` (e.g. a notice scoped to just
+ * that anomaly) while every well-formed group still renders normally.
  *
  * Returns groups sorted by most recent transcript, with transcripts within
  * each group sorted by `published_at` descending.
@@ -91,33 +121,25 @@ export function describeNameSource(source: NameSource): string {
 export function groupByProject<
   T extends {
     transcript: {
-      project_hash: string | null;
+      project_hash: string;
       project_display_name: string;
       published_at: string;
     };
   }
->(items: T[]): { project: string; project_hash: string; items: T[] }[] {
+>(items: T[]): ProjectGroupingResult<T> {
   const groups = new Map<string, { displayName: string; items: T[] }>();
+  const malformed: T[] = [];
 
   for (const item of items) {
+    // Runtime data is not guaranteed by the TypeScript type: `project_hash`
+    // is typed `string` because the wire contract guarantees it, but a
+    // malformed or empty value can still arrive over the network if that
+    // guarantee is ever violated server-side. Checked defensively, never
+    // thrown — see this function's doc comment.
     const hash = item.transcript.project_hash;
     if (!hash) {
-      // What: a transcript with no project_hash reached the grouping layer.
-      // Why: project_hash is a required identity column enforced at the
-      // publish boundary (migration 035_project_hash_required) — every
-      // served transcript must carry one.
-      // Where: groupByProject in src/lib/format.ts.
-      // When: while grouping a fetched transcript list for the profile view.
-      // What it means: either a pre-migration row reached this client, or
-      // the backend contract was violated.
-      // Fix: verify the backend migration and publish-boundary guard are
-      // active; this UI cannot safely invent a grouping key.
-      throw new Error(
-        "groupByProject: transcript has no project_hash, but project_hash is a required identity " +
-          "column (migration 035_project_hash_required) enforced at the publish boundary. Every " +
-          "served transcript must carry one; verify the backend migration and publish guard are " +
-          "active rather than grouping this transcript into a synthetic bucket."
-      );
+      malformed.push(item);
+      continue;
     }
     if (!groups.has(hash)) {
       groups.set(hash, { displayName: item.transcript.project_display_name, items: [] });
@@ -135,7 +157,7 @@ export function groupByProject<
   }
 
   // Sort groups by most recent transcript
-  return Array.from(groups.entries())
+  const sortedGroups = Array.from(groups.entries())
     .map(([project_hash, group]) => ({
       project: group.displayName,
       project_hash,
@@ -146,6 +168,8 @@ export function groupByProject<
         new Date(b.items[0].transcript.published_at).getTime() -
         new Date(a.items[0].transcript.published_at).getTime()
     );
+
+  return { groups: sortedGroups, malformed };
 }
 
 /**
@@ -199,7 +223,10 @@ export function groupByRepo<
     owner_id: string;
     git_remote: string | null;
     project_name: string | null;
-    project_display_name: string;
+    // The remote-derived label ("host:owner/repo"), NOT the resolved
+    // project identity — see the label-selection comment below for why
+    // this axis must not read project_display_name.
+    project_remote_label: string | null;
     published_at: string;
     token_count: number | null;
     tokens_in: number | null;
@@ -235,18 +262,28 @@ export function groupByRepo<
         0
       );
 
-      // Repo grouping is a DIFFERENT axis from project identity: this
-      // bucket keys on the raw git_remote, and its "Unattributed" fallback
-      // is NOT the deleted project-level "unattributed" concept — it fires
-      // only when a transcript carries no remote at all, independent of
-      // project_hash. The label for an ATTRIBUTED bucket, though, is still
-      // "the human name of this repo's project" — exactly what
-      // project_display_name already is (the one server-resolved name
-      // every other surface renders), so it replaces the old
-      // extractProjectDisplayName(project_name, remote) derivation here
-      // too, rather than leaving a second, now-orphaned name algorithm
-      // alive on this axis.
-      const name = unattributed ? "Unattributed" : groupItems[0].project_display_name;
+      // Repo grouping is a DIFFERENT axis from project identity, and its
+      // label must stay on that axis too. This bucket keys on the raw
+      // git_remote, and its "Unattributed" fallback is NOT the deleted
+      // project-level "unattributed" concept — it fires only when a
+      // transcript carries no remote at all, independent of project_hash.
+      // An earlier revision of this function labelled the attributed
+      // bucket with `project_display_name` (the resolved PROJECT identity
+      // — override > consented > remote > privacy), which is the wrong
+      // field here: that resolution folds in an owner's rename or a
+      // consented project name, neither of which describes THIS remote —
+      // two transcripts sharing one git_remote could carry different
+      // project_hash values (e.g. a fork, or a rename of the on-disk
+      // folder) and therefore different resolved project names, which
+      // would make the bucket's label disagree with its own grouping key.
+      // `project_remote_label` is the field actually derived FROM the
+      // remote (`host:owner/repo`, schema.RemoteLabel), so it is the one
+      // that can never desync from a bucket keyed on that same remote.
+      // Falls back to the raw remote (the bucket key itself) only in the
+      // rare case a legacy/malformed remote parses to no label at all.
+      const name = unattributed
+        ? "Unattributed"
+        : groupItems[0].project_remote_label || remote || "Unattributed";
 
       return {
         key,

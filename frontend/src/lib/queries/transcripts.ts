@@ -200,13 +200,22 @@ export function useDeleteTranscript() {
   });
 }
 
+/**
+ * Sets the owner override for a project's display name, keyed on
+ * `project_hash` — the project's IDENTITY, not a derived name. The route
+ * this used to call, `PATCH /users/me/projects/rename` (keyed on `{from,
+ * to}` name strings), is deleted with no shim: it matched zero rows
+ * whenever the client's locally-derived name disagreed with what the
+ * server actually stored, which is the exact defect this project-identity
+ * work exists to fix. Do not reintroduce a name-keyed body shape here.
+ */
 export function useRenameUserProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ from, to }: { from: string; to: string }) =>
-      api(`/users/me/projects/rename`, {
+    mutationFn: ({ projectHash, displayName }: { projectHash: string; displayName: string }) =>
+      api(`/users/me/projects/${projectHash}`, {
         method: "PATCH",
-        body: JSON.stringify({ from, to }),
+        body: JSON.stringify({ display_name: displayName }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transcripts"] });

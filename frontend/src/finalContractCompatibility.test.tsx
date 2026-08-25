@@ -45,7 +45,7 @@ function transcriptList(modelProvider: string, transcriptID: string): Transcript
     tool_call_count: 0,
     tokens_in: 0,
     tokens_out: 0,
-    project_hash: null,
+    project_hash: "0".repeat(64),
     subagent_count: 0,
     subagents: [],
     diagnostics_warnings: [],

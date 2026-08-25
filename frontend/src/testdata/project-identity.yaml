@@ -8,6 +8,10 @@
 # tests of `buildProjectHref` (src/components/session-detail/v2/transcriptChrome.ts),
 # which SessionDetailV2 uses to build the crumb the mounted
 # titleHeroAndBreadcrumb.test.tsx separately proves lands on the real DOM.
+# `repoGroupLabelCases` drive the same file's direct tests of `groupByRepo`
+# (src/lib/format.ts) — the DIFFERENT, git_remote-keyed axis `CollectiveRepos.tsx`
+# renders, proving its attributed-bucket label reads project_remote_label,
+# never the resolved project_display_name.
 #
 # This file is a SHARED corpus: the project page and the own-profile
 # collectives section may append further case groups here as their own
@@ -88,3 +92,31 @@ breadcrumbHrefCases:
     ownerUsername: "user with spaces"
     projectHash: "8888888888888888888888888888888888888888888888888888888888888888"
     expectedHref: "/users/user%20with%20spaces/projects/8888888888888888888888888888888888888888888888888888888888888888"
+
+repoGroupLabelCases:
+  # Proves groupByRepo's ATTRIBUTED-bucket label reads project_remote_label
+  # (the field derived FROM the same git_remote the bucket keys on), never
+  # project_display_name (the resolved PROJECT identity, a different axis —
+  # it folds in an owner rename or a consented project name, either of
+  # which could differ across two transcripts sharing one remote).
+  - name: label-reads-project-remote-label-not-project-display-name
+    gitRemote: "https://github.com/peasant-labs/village.git"
+    projectRemoteLabel: "github.com:peasant-labs/village"
+    # Deliberately DIFFERENT from projectRemoteLabel, so a case reading the
+    # wrong field is caught: if groupByRepo ever regresses to reading
+    # project_display_name again, this case's expected name would need to
+    # be projectDisplayName instead, and the test fails loudly.
+    projectDisplayName: "the village (renamed by owner)"
+    expectedName: "github.com:peasant-labs/village"
+
+  - name: missing-remote-label-falls-back-to-the-raw-remote
+    gitRemote: "ssh://git@legacy.example.corp/team/repo"
+    projectRemoteLabel: null
+    projectDisplayName: "some resolved project name"
+    expectedName: "ssh://git@legacy.example.corp/team/repo"
+
+  - name: no-remote-at-all-stays-unattributed-regardless-of-labels
+    gitRemote: null
+    projectRemoteLabel: null
+    projectDisplayName: "should never be shown here"
+    expectedName: "Unattributed"

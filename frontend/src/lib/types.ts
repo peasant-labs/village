@@ -63,7 +63,24 @@ export interface Transcript {
   source_format: string | null;
   git_branch: string | null;
   git_remote: string | null;
-  project_hash: string | null;
+  /**
+   * A project's identity, not its name. Required at the database trust
+   * boundary: `transcripts.project_hash` carries a `NOT NULL` constraint
+   * (migration `035_project_hash_required`) enforced behind a publish-time
+   * guard, and every response path this frontend renders selects directly
+   * `FROM transcripts` — `ListTranscripts`/`GetTranscriptByID`
+   * (`backend/internal/database/queries/transcripts.sql`) and
+   * `ListGroupTranscripts` (`backend/internal/database/queries/shares.sql`)
+   * — with no other source table in the union. sqlc's own generated row
+   * types for all three queries already narrow this column to a plain Go
+   * `string` (see `backend/internal/database/sqlc/transcripts.sql.go` and
+   * `shares.sql.go`), confirming the guarantee independently of this
+   * comment. A frontend value that is empty despite the type is therefore a
+   * genuine contract violation, not a state to silently paper over —
+   * `groupByProject` in `@/lib/format` treats it as such rather than
+   * crashing the page.
+   */
+  project_hash: string;
   project_name: string | null;
   /**
    * The one resolved project display name every surface must render

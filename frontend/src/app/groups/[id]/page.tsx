@@ -275,7 +275,11 @@ export default function GroupDetailPage({
       if (item.shares?.some((s) => s.group_id === id)) return false;
       return true;
     }) || [];
-  const shareableGroups = groupByProject(shareable);
+  // Malformed (no-project_hash) items are a rendering-only anomaly this
+  // secondary picker doesn't need its own notice for — groupByProject never
+  // crashes on them, it just omits them from `groups`, so the picker stays
+  // safe to use even if the anomaly ever occurs.
+  const { groups: shareableGroups } = groupByProject(shareable);
 
   const totalTranscripts = stats?.total_transcripts ?? 0;
   const totalPages = Math.ceil(totalTranscripts / DATA_PAGE_SIZE);

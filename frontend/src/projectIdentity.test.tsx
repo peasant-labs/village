@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupByProject } from "@/lib/format";
+import { groupByProject, groupByRepo } from "@/lib/format";
 import { buildProjectHref } from "@/components/session-detail/v2/transcriptChrome";
 import {
   loadProjectIdentityFixtures,
@@ -17,7 +17,7 @@ import {
 
 const fixtures = loadProjectIdentityFixtures();
 
-type FixtureItem = { transcript: { project_hash: string | null; project_display_name: string; published_at: string } };
+type FixtureItem = { transcript: { project_hash: string; project_display_name: string; published_at: string } };
 
 function toItems(items: ProjectIdentityGroupingItem[]): FixtureItem[] {
   return items.map((i) => ({
@@ -32,10 +32,11 @@ function toItems(items: ProjectIdentityGroupingItem[]): FixtureItem[] {
 describe("groupByProject: hash-keyed project grouping", () => {
   for (const c of fixtures.groupingCases) {
     it(c.name, () => {
-      const groups = groupByProject(toItems(c.items));
+      const { groups, malformed } = groupByProject(toItems(c.items));
       expect(groups).toHaveLength(c.expectedGroupCount);
       expect(groups.map((g) => g.project)).toEqual(c.expectedGroupDisplayNames);
       expect(groups.map((g) => g.items.length)).toEqual(c.expectedGroupItemCounts);
+      expect(malformed).toHaveLength(0);
     });
   }
 
@@ -44,7 +45,7 @@ describe("groupByProject: hash-keyed project grouping", () => {
     // single returned group's own `project_hash` field is the shared hash,
     // not an arbitrary pick.
     const c = fixtures.groupingCases.find((c) => c.name === "mixed-name-same-hash-collapses-to-one-group")!;
-    const groups = groupByProject(toItems(c.items));
+    const { groups } = groupByProject(toItems(c.items));
     expect(groups).toHaveLength(1);
     expect(groups[0].project_hash).toBe(c.items[0].projectHash);
   });
@@ -69,31 +70,62 @@ describe("groupByProject: hash-keyed project grouping", () => {
     // The real function collapses this case to ONE group; the name-keyed
     // mutant must NOT — it has two distinct raw project_name values.
     expect(mutantGroups.length).toBeGreaterThan(1);
-    expect(groupByProject(toItems(c.items))).toHaveLength(1);
+    expect(groupByProject(toItems(c.items)).groups).toHaveLength(1);
+  });
+
+  // A transcript with no project_hash is a genuine backend contract
+  // violation (see Transcript.project_hash's doc comment: the column is
+  // NOT NULL and every response path this frontend renders sources
+  // exclusively from `transcripts`). groupByProject must neither (a) crash
+  // the whole render, nor (b) silently fold it into a synthetic "Other"
+  // bucket alongside real projects — it reports the item back separately
+  // via `malformed` so the caller can surface a scoped, non-crashing
+  // notice while every well-formed group still renders.
+  it("a missing project_hash is reported via malformed, not thrown and not folded into an 'Other' bucket", () => {
+    const wellFormed = toItems(
+      fixtures.groupingCases.find((c) => c.name === "distinct-hashes-stay-separate-even-with-the-same-display-name")!
+        .items,
+    );
+    const itemWithNoHash: FixtureItem = {
+      transcript: { project_hash: "", project_display_name: "whatever", published_at: "2026-08-01T00:00:00Z" },
+    };
+    let result: ReturnType<typeof groupByProject<FixtureItem>>;
+    expect(() => {
+      result = groupByProject([...wellFormed, itemWithNoHash]);
+    }).not.toThrow();
+    expect(result!.malformed).toEqual([itemWithNoHash]);
+    // Every well-formed group still renders — the malformed row does not
+    // widen or corrupt an existing group's item count.
+    expect(result!.groups).toHaveLength(2);
+    expect(result!.groups.every((g) => !g.items.includes(itemWithNoHash))).toBe(true);
+    // No group in the result is keyed "Other", the reversion this proves
+    // against.
+    expect(result!.groups.some((g) => g.project_hash === "Other")).toBe(false);
   });
 
   // MUTATION (shown RED, then reverted): restoring the deleted "Other"
-  // fallback for a missing project_hash must NOT be what happens — the real
-  // function throws an actionable error instead, because project_hash is a
-  // required identity column and a null value is a contract violation, not
-  // a normal case to paper over with a synthetic bucket.
+  // fallback for a missing project_hash must NOT be what happens — a real
+  // production reversion would fold the malformed item into a synthetic
+  // "Other" group instead of reporting it via `malformed`, silently mixing
+  // an anomaly in among real projects.
   it("mutation: a missing project_hash must not fall back to an 'Other' bucket", () => {
-    const itemWithNoHash: FixtureItem[] = [
-      { transcript: { project_hash: null, project_display_name: "whatever", published_at: "2026-08-01T00:00:00Z" } },
-    ];
-    expect(() => groupByProject(itemWithNoHash)).toThrow(/project_hash/);
-    // The forbidden reversion this proves against: silently bucketing under
-    // a literal "Other" key instead of throwing.
-    function groupWithOtherFallbackMutant(items: FixtureItem[]) {
+    const itemWithNoHash: FixtureItem = {
+      transcript: { project_hash: "", project_display_name: "whatever", published_at: "2026-08-01T00:00:00Z" },
+    };
+    function groupWithOtherFallbackMutant(items: FixtureItem[]): string[] {
       const groups = new Map<string, FixtureItem[]>();
       for (const item of items) {
-        const key = item.transcript.project_hash ?? "Other";
+        const key = item.transcript.project_hash || "Other";
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key)!.push(item);
       }
       return Array.from(groups.keys());
     }
-    expect(groupWithOtherFallbackMutant(itemWithNoHash)).toEqual(["Other"]);
+    expect(groupWithOtherFallbackMutant([itemWithNoHash])).toEqual(["Other"]);
+    // The real function never produces an "Other"-keyed group — the item
+    // goes to `malformed` instead.
+    const { groups } = groupByProject([itemWithNoHash]);
+    expect(groups.some((g) => g.project_hash === "Other")).toBe(false);
   });
 });
 
@@ -113,5 +145,50 @@ describe("buildProjectHref: the breadcrumb project-page href", () => {
     }
     expect(c.expectedHref).not.toBeNull();
     expect(alwaysNullMutant()).not.toBe(c.expectedHref);
+  });
+});
+
+describe("groupByRepo: the git_remote axis's label must not read the resolved project identity", () => {
+  function repoItem(c: {
+    gitRemote: string | null;
+    projectRemoteLabel: string | null;
+    projectDisplayName: string;
+  }) {
+    return {
+      owner_id: "owner-1",
+      git_remote: c.gitRemote,
+      project_name: "raw-name",
+      project_remote_label: c.projectRemoteLabel,
+      published_at: "2026-08-20T09:00:00Z",
+      token_count: 0,
+      tokens_in: 0,
+      tokens_out: 0,
+    };
+  }
+
+  for (const c of fixtures.repoGroupLabelCases) {
+    it(c.name, () => {
+      const [group] = groupByRepo([repoItem(c)]);
+      expect(group.name).toBe(c.expectedName);
+    });
+  }
+
+  // MUTATION (shown RED, then reverted): labelling the attributed bucket
+  // with project_display_name (the resolved PROJECT identity — a
+  // different axis) instead of project_remote_label must diverge from the
+  // real function on a case where the two fields differ, which is exactly
+  // why every non-Unattributed fixture case above requires them to differ.
+  it("mutation: reading project_display_name instead of project_remote_label diverges from the real label", () => {
+    const c = fixtures.repoGroupLabelCases.find(
+      (c) => c.name === "label-reads-project-remote-label-not-project-display-name",
+    )!;
+    const item = repoItem(c);
+    function labelWithProjectDisplayNameMutant(i: typeof item & { project_display_name: string }): string {
+      return i.project_display_name;
+    }
+    const mutantName = labelWithProjectDisplayNameMutant({ ...item, project_display_name: c.projectDisplayName });
+    const [group] = groupByRepo([item]);
+    expect(mutantName).not.toBe(group.name);
+    expect(group.name).toBe(c.expectedName);
   });
 });

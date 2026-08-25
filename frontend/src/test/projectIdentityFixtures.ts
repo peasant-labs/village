@@ -25,9 +25,18 @@ export type ProjectIdentityBreadcrumbHrefCase = {
   expectedHref: string | null;
 };
 
+export type RepoGroupLabelCase = {
+  name: string;
+  gitRemote: string | null;
+  projectRemoteLabel: string | null;
+  projectDisplayName: string;
+  expectedName: string;
+};
+
 export type ProjectIdentityFixtures = {
   groupingCases: ProjectIdentityGroupingCase[];
   breadcrumbHrefCases: ProjectIdentityBreadcrumbHrefCase[];
+  repoGroupLabelCases: RepoGroupLabelCase[];
 };
 
 // Required-NAME manifests, not counts (this epoch bans count guards): a
@@ -46,6 +55,12 @@ const requiredBreadcrumbHrefCaseNames = [
   "username-with-reserved-url-characters-is-encoded",
 ] as const;
 
+const requiredRepoGroupLabelCaseNames = [
+  "label-reads-project-remote-label-not-project-display-name",
+  "missing-remote-label-falls-back-to-the-raw-remote",
+  "no-remote-at-all-stays-unattributed-regardless-of-labels",
+] as const;
+
 const groupingItemKeys = ["projectHash", "rawProjectName", "projectDisplayName", "publishedAt"];
 const groupingCaseKeys = [
   "name",
@@ -55,6 +70,7 @@ const groupingCaseKeys = [
   "expectedGroupItemCounts",
 ];
 const breadcrumbHrefCaseKeys = ["name", "ownerUsername", "projectHash", "expectedHref"];
+const repoGroupLabelCaseKeys = ["name", "gitRemote", "projectRemoteLabel", "projectDisplayName", "expectedName"];
 
 function assertNamesMatch(actual: string[], required: readonly string[], label: string): void {
   const got = [...actual].sort();
@@ -73,7 +89,7 @@ export function loadProjectIdentityFixtures(): ProjectIdentityFixtures {
   if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("project-identity fixture root must be an object");
   }
-  assertExactKeys(parsed, ["groupingCases", "breadcrumbHrefCases"], "fixture root");
+  assertExactKeys(parsed, ["groupingCases", "breadcrumbHrefCases", "repoGroupLabelCases"], "fixture root");
   const fixtures = parsed as ProjectIdentityFixtures;
 
   assertNamesMatch(
@@ -119,6 +135,27 @@ export function loadProjectIdentityFixtures(): ProjectIdentityFixtures {
       throw new Error(
         `breadcrumb-href case ${c.name}: expectedHref must be null exactly when either ownerUsername or ` +
           `projectHash is missing, and non-null when both are present`,
+      );
+    }
+  }
+
+  assertNamesMatch(
+    fixtures.repoGroupLabelCases.map((c) => c.name),
+    requiredRepoGroupLabelCaseNames,
+    "project-identity repoGroupLabelCases",
+  );
+  for (const c of fixtures.repoGroupLabelCases) {
+    assertExactKeys(c, repoGroupLabelCaseKeys, `repo-group-label case ${c.name}`);
+    if (c.gitRemote == null && c.expectedName !== "Unattributed") {
+      throw new Error(
+        `repo-group-label case ${c.name}: a null gitRemote must always expect the "Unattributed" bucket name`,
+      );
+    }
+    if (c.gitRemote != null && c.expectedName === c.projectDisplayName) {
+      throw new Error(
+        `repo-group-label case ${c.name}: expectedName equals projectDisplayName, which makes this case ` +
+          `unable to distinguish groupByRepo reading project_remote_label from a regression back to ` +
+          `project_display_name — give expectedName and projectDisplayName different values`,
       );
     }
   }
