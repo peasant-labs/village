@@ -435,6 +435,34 @@ func (h *Handler) GetUserProject(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// The hash must actually belong to this owner before an identity is
+	// resolved for it. Without this check, ANY 64-hex string under a
+	// discoverable owner would synthesize a project-<12hex> identity via
+	// resolveProjectIdentities' last-resort fallback and render a page for a
+	// project that was never published. This reuses the same ownership probe
+	// as the project-rename route (CountOwnerTranscriptsInProject counts
+	// every transcript regardless of visibility, so it answers "does this
+	// hash belong to this owner at all", not "can this viewer see it") and
+	// answers with the SAME indistinguishable not-found message as the
+	// missing-user and hidden-owner cases above, so a 404 here does not leak
+	// which of the three refusals fired — including to the owner themselves:
+	// a project they never published does not exist for them either.
+	owned, err := h.queries.CountOwnerTranscriptsInProject(r.Context(), sqlc.CountOwnerTranscriptsInProjectParams{
+		OwnerID:     target.ID,
+		ProjectHash: projectHash,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError,
+			"the project could not be looked up: Village could not confirm the requested hash belongs to this owner's "+
+				"transcripts. The failure happened in the project page route before anything was disclosed, so nothing "+
+				"changed. Retry the request, and if it persists check that the database is reachable")
+		return
+	}
+	if owned == 0 {
+		writeError(w, http.StatusNotFound, projectPageNotFoundMessage)
+		return
+	}
+
 	viewerID := pgtype.UUID{}
 	viewerIsOwner := false
 	if viewer != nil {

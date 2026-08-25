@@ -1,18 +1,27 @@
 # Who may see a user's project page, and what they see on it.
 #
-# Two answers are being kept apart here, and confusing them is the failure this
-# fixture exists to catch:
+# Three answers are being kept apart here, and confusing any pair of them is the
+# failure this fixture exists to catch:
 #
-#   404 - the page is not shown at all, because the owner has chosen not to be
-#         discoverable. Village will not even confirm the page exists.
+#   404 (hidden owner) - the page is not shown at all, because the owner has
+#         chosen not to be discoverable. Village will not even confirm the page
+#         exists.
 #   200 with an empty list - the owner is discoverable, so the page is shown; the
-#         viewer simply may not see any of its transcripts.
+#         viewer simply may not see any of its transcripts, because every one of
+#         them is private.
+#   404 (unknown hash) - the owner is discoverable and the hash is well-formed,
+#         but no transcript of theirs carries it. The hash names no project of
+#         this owner's at all, so there is nothing to show even to the owner
+#         themselves.
 #
-# A route that answered 404 for the second case would hide a discoverable user's
-# project, and a route that answered 200 for the first would confirm a hidden
-# user's existence to anyone who guessed the URL. This boundary is asserted here in
-# its own right: it does NOT inherit coverage from the public profile route, whose
-# own boundary has no fixture behind it.
+# A route that answered 404 for the empty-list case would hide a discoverable
+# user's project. A route that answered 200 for the hidden-owner case would
+# confirm a hidden user's existence to anyone who guessed the URL. A route that
+# answered 200 for the unknown-hash case would synthesize a page for a project
+# that was never published, for ANY 64-hex string. All three refusals share the
+# identical not-found body, so none of them can be told apart from the response -
+# each is asserted here in its own right. This boundary does NOT inherit coverage
+# from the public profile route, whose own boundary has no fixture behind it.
 #
 # viewer is one of: owner (the owner themselves), other (a different signed-in
 # user), anonymous (no session at all).
@@ -93,6 +102,32 @@
   viewer: other
   transcript_visibility: private
   want_status: 200
+  want_transcript_count: 0
+
+- name: discoverable_owner_unknown_hash_viewed_by_anonymous
+  why: >
+    The ownership boundary. The owner is discoverable and would otherwise show
+    their page, but the requested hash names no project of theirs. Without this
+    case, any well-formed 64-hex string under a discoverable owner would
+    synthesize a page for a project that was never published.
+  owner_discoverable: true
+  viewer: anonymous
+  transcript_visibility: public
+  request_unknown_hash: true
+  want_status: 404
+  want_transcript_count: 0
+
+- name: discoverable_owner_unknown_hash_viewed_by_owner
+  why: >
+    The ownership boundary holds even for the owner viewing their own unknown
+    hash. A project the owner never published does not exist for them either;
+    without this case the check could be implemented as "refuse everyone but the
+    owner" and still pass every other case here.
+  owner_discoverable: true
+  viewer: owner
+  transcript_visibility: public
+  request_unknown_hash: true
+  want_status: 404
   want_transcript_count: 0
 
 - name: owner_renamed_project_resolves_to_the_chosen_name
