@@ -6,6 +6,13 @@ import { AGENT_ORIGIN, SESSION_ORIGINS, type SessionOrigin } from "@/lib/session
 
 export type AgentSessionGroupingSurface = "explore" | "profile";
 
+/** How the server decided a case's session origin. `classified` is Village's
+ *  own verdict over the content; `declared` is the producer's declaration,
+ *  stored into the same column. The mounted surface must not tell them apart. */
+export type AgentSessionOriginProvenance = "classified" | "declared";
+
+const ORIGIN_PROVENANCES: readonly AgentSessionOriginProvenance[] = ["classified", "declared"];
+
 export type AgentSessionGroupingCase = {
   name: string;
   surface: AgentSessionGroupingSurface;
@@ -13,6 +20,7 @@ export type AgentSessionGroupingCase = {
   agentSessions: string[];
   agentTotal: number;
   expectedToggleLabel: string | null;
+  originProvenance: AgentSessionOriginProvenance;
 };
 
 export type AgentSessionDetailCase = {
@@ -26,32 +34,16 @@ export type AgentSessionGroupingFixtures = {
   detailCases: AgentSessionDetailCase[];
 };
 
-/** Exact row count: a deleted case fails the loader instead of quietly
- *  shrinking what the mounted surfaces prove. */
-const EXPECTED_CASE_COUNT = 4;
-
-/** Exact detail-route row count, one per session-origin menu value. Held as a
- *  literal so a deleted fixture row fails, and checked against the shared menu
- *  so widening the menu fails here until a case covers the new value. */
-const EXPECTED_DETAIL_CASE_COUNT = 3;
-
-/** Widened on purpose: comparing the tuple's literal length against the literal
- *  above is a type error, and the point of the check is the runtime coupling. */
-const SESSION_ORIGIN_COUNT: number = SESSION_ORIGINS.length;
-
-if (SESSION_ORIGIN_COUNT !== EXPECTED_DETAIL_CASE_COUNT) {
-  throw new Error(
-    `the session-origin menu now holds ${SESSION_ORIGIN_COUNT} values but the detail fixtures expect ` +
-      `${EXPECTED_DETAIL_CASE_COUNT}: add a detail case for the new value in ` +
-      `src/testdata/agent-session-grouping.yaml and raise EXPECTED_DETAIL_CASE_COUNT to match`,
-  );
-}
-
+/** Deletion guard: every named case must be present. Names rather than a row
+ *  count, so adding a case is one edit to the fixture and a deleted case still
+ *  fails loudly by name. The detail cases are guarded the same way, by covering
+ *  every session-origin menu value exactly once. */
 const requiredCaseNames = [
   "explore-collapses-agent-sessions-out-of-the-browse-list",
   "explore-without-agent-sessions-renders-no-group",
   "profile-places-the-group-after-the-project-groups",
   "profile-library-made-only-of-agent-sessions-is-not-empty",
+  "explore-groups-a-declared-agent-session",
 ] as const;
 
 const caseKeys = [
@@ -61,6 +53,7 @@ const caseKeys = [
   "agentSessions",
   "agentTotal",
   "expectedToggleLabel",
+  "originProvenance",
 ];
 
 export function loadAgentSessionGroupingFixtures(): AgentSessionGroupingFixtures {
@@ -71,23 +64,25 @@ export function loadAgentSessionGroupingFixtures(): AgentSessionGroupingFixtures
   }
   assertExactKeys(parsed, ["cases", "detailCases"], "fixture root");
   const fixtures = parsed as AgentSessionGroupingFixtures;
-  if (fixtures.cases.length !== EXPECTED_CASE_COUNT) {
-    throw new Error(
-      `agent-session-grouping fixtures must contain exactly ${EXPECTED_CASE_COUNT} cases, got ${fixtures.cases.length}`,
-    );
-  }
   const names = fixtures.cases.map(({ name }) => name).sort();
   const wanted = [...requiredCaseNames].sort();
   if (JSON.stringify(names) !== JSON.stringify(wanted)) {
     throw new Error(`agent-session-grouping case names differ: got ${names.join(", ")}; want ${wanted.join(", ")}`);
   }
   const surfaces = new Set<string>();
+  const provenances = new Set<string>();
   for (const c of fixtures.cases) {
     assertExactKeys(c, caseKeys, `case ${c.name}`);
     if (c.surface !== "explore" && c.surface !== "profile") {
       throw new Error(`case ${c.name}: surface must be explore or profile, got ${c.surface}`);
     }
     surfaces.add(c.surface);
+    if (!ORIGIN_PROVENANCES.includes(c.originProvenance)) {
+      throw new Error(
+        `case ${c.name}: originProvenance must be one of ${ORIGIN_PROVENANCES.join(", ")}, got ${c.originProvenance}`,
+      );
+    }
+    provenances.add(c.originProvenance);
     if (c.agentTotal !== c.agentSessions.length) {
       throw new Error(
         `case ${c.name}: agentTotal ${c.agentTotal} disagrees with ${c.agentSessions.length} agent sessions — the ` +
@@ -117,11 +112,13 @@ export function loadAgentSessionGroupingFixtures(): AgentSessionGroupingFixtures
       throw new Error(`agent-session-grouping fixtures cover no ${surface} case`);
     }
   }
-  if (fixtures.detailCases.length !== EXPECTED_DETAIL_CASE_COUNT) {
-    throw new Error(
-      `agent-session-grouping detail cases must number exactly ${EXPECTED_DETAIL_CASE_COUNT}, one per session-origin ` +
-        `menu value, got ${fixtures.detailCases.length}`,
-    );
+  for (const provenance of ORIGIN_PROVENANCES) {
+    if (!provenances.has(provenance)) {
+      throw new Error(
+        `agent-session-grouping fixtures cover no ${provenance} case: a declared origin and a classified one are ` +
+          `written into the same column, so the mounted surface must be proven to group and label both the same way`,
+      );
+    }
   }
   const detailOrigins = new Set<string>();
   for (const c of fixtures.detailCases) {

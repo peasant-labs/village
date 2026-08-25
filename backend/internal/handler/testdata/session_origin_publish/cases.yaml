@@ -1,11 +1,33 @@
 # Cases for the session origin the publish path stores.
 #
-# Each row is published through the real PublishTranscript handler; the value
-# the handler passes to CreateTranscript must equal `expected_origin`.
+# Each row is published through the real PublishTranscript handler. An accepted
+# row must reach CreateTranscript carrying `expected_origin`; a refused row must
+# never reach it at all.
+#
+# The columns, and why each exists:
+#
+#   declared_origin   what the producer put on sessionDetail.sessionOrigin.
+#                     Omitted means an older producer that sends no field.
+#   classified_origin what THIS server's own classifier answers for the same
+#                     turns. The test recomputes it from the published bytes, so
+#                     a row cannot claim a divergence it does not have.
+#   expected_origin   the value the row must end up stored with.
+#
+# A declared row proves nothing unless `classified_origin` DIFFERS from the
+# declaration: if the two agree, the row passes whether or not the declaration
+# was honoured. That includes the declared-`unknown` row, whose whole point is
+# that the server must fall back to its own rule rather than store the word
+# `unknown` a publisher sent -- so its payload is one the classifier resolves to
+# `agent`, and the stored value must be `agent`.
 #
 # `undecodable: true` uploads bytes that are not a transcript envelope at all.
-# Publish must still succeed and store the fail-safe value, because a
-# transcript is never hidden merely because Village could not read it.
+# Publish must still succeed and store the fail-safe value, because a transcript
+# is never hidden merely because Village could not read it.
+#
+# `expected_status: 400` marks the refusal row. Its needles are authored here,
+# independently of any production message, so an error that stops saying these
+# things fails the row instead of silently agreeing with itself.
+
 - name: user_prompt_publishes_as_user
   arm: user
   turns:
@@ -15,6 +37,7 @@
     - role: assistant
       content: "Reading the discovery handler."
       count: 2
+  classified_origin: user
   expected_origin: user
 
 - name: agent_work_publishes_as_agent
@@ -29,6 +52,7 @@
     - role: tool
       content: "grep -rn session_origin"
       count: 3
+  classified_origin: agent
   expected_origin: agent
 
 - name: command_driven_session_publishes_as_user
@@ -45,6 +69,7 @@
     - role: tool
       content: "grep -rn discovery"
       count: 2
+  classified_origin: user
   expected_origin: user
 
 - name: system_context_only_publishes_as_unknown
@@ -53,6 +78,7 @@
     - role: system
       content: "<system-reminder>The workspace has uncommitted changes.</system-reminder>"
       count: 2
+  classified_origin: unknown
   expected_origin: unknown
 
 - name: undecodable_content_publishes_as_unknown
@@ -60,3 +86,80 @@
   undecodable: true
   turns: []
   expected_origin: unknown
+
+- name: declared_agent_is_stored_over_a_user_shaped_payload
+  arm: declared-agent-wins
+  # The producer held the raw harness record and says a program started this.
+  # The turns look exactly like a person's prompt, so this row fails unless the
+  # declaration is taken and the classifier is left alone.
+  declared_origin: agent
+  turns:
+    - role: user
+      content: "Summarize the discovery handler and list its callers."
+      count: 1
+    - role: assistant
+      content: "Reading the discovery handler."
+      count: 3
+  classified_origin: user
+  expected_origin: agent
+
+- name: declared_user_is_stored_over_an_agent_shaped_payload
+  arm: declared-user-wins
+  # The mirror image: a person drove it, but nothing they typed survived into
+  # the turns. Only the declaration keeps their own session out of the group.
+  declared_origin: user
+  turns:
+    - role: system
+      content: "SKILL BODY: run the exploration protocol."
+      count: 1
+    - role: assistant
+      content: "Scanning the repository."
+      count: 4
+    - role: tool
+      content: "grep -rn transcripts"
+      count: 2
+  classified_origin: agent
+  expected_origin: user
+
+- name: declared_unknown_returns_the_decision_to_this_server
+  arm: declared-unknown-defers
+  # The producer looked and could not tell. That is an instruction to decide
+  # here, not a value to store: this server holds the content and has a working
+  # classifier, so storing the word the publisher sent would be strictly worse
+  # than what it does for the same payload with no declaration at all.
+  #
+  # The payload is deliberately one the classifier resolves to `agent`. A
+  # payload the classifier also calls `unknown` would let an implementation that
+  # stores the declaration verbatim pass this row.
+  declared_origin: unknown
+  turns:
+    - role: system
+      content: "SKILL BODY: run the review protocol."
+      count: 1
+    - role: assistant
+      content: "Reading the publish path."
+      count: 4
+    - role: tool
+      content: "grep -rn ResolvePublishedOrigin"
+      count: 2
+  classified_origin: agent
+  expected_origin: agent
+
+- name: declared_out_of_menu_value_is_refused_and_stores_nothing
+  arm: declared-out-of-menu
+  # The publisher told us something we cannot honour. Classifying instead would
+  # hide the disagreement, so the publish is refused and nothing is written.
+  declared_origin: robot
+  turns:
+    - role: system
+      content: "SKILL BODY: run the exploration protocol."
+      count: 1
+    - role: assistant
+      content: "Scanning the repository."
+      count: 2
+  expected_status: 400
+  expected_error_contains:
+    - "robot"
+    - "user, agent, unknown"
+    - "nothing was stored"
+    - "publish again"
