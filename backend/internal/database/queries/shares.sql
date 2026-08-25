@@ -161,6 +161,37 @@ FROM transcript_share_attempts
 WHERE transcript_id = $1 AND group_id = $2
 ORDER BY event_num;
 
+-- name: ListOwnerCollectiveSubmissions :many
+-- EVERY (transcript, collective) pair the caller has ever offered to ONE
+-- collective, with the latest recorded event of each pair.
+--
+-- The source is the ATTEMPT LEDGER, never the derived current-state row, and
+-- that is the whole point of the statement. The derived row is a fold that
+-- keeps only live states: a pair whose last event was a retraction or a
+-- revocation has no derived row at all. A listing built on the derived row
+-- therefore reported nothing for a contribution that was submitted, refused and
+-- then withdrawn - the person was told they had refusals and then shown an
+-- empty list. Reading the ledger keeps the fully-withdrawn pair listed, so its
+-- history stays reachable.
+--
+-- Owner-only: $2 is the authenticated caller, and there is deliberately no
+-- username parameter and no username route, so no request can name a subject
+-- other than the caller. A caller with no pair here gets an empty result, which
+-- the handler answers as 404 - the same answer as a collective that does not
+-- exist, so asking cannot be used to discover one.
+-- $1 = group_id, $2 = owner_id.
+SELECT latest.transcript_id, latest.group_id, latest.title, latest.event_num,
+       latest.status, latest.recorded_at
+FROM (
+  SELECT DISTINCT ON (a.transcript_id)
+         a.transcript_id, a.group_id, t.title, a.event_num, a.status, a.recorded_at
+  FROM transcript_share_attempts a
+  JOIN transcripts t ON t.id = a.transcript_id
+  WHERE a.group_id = $1 AND t.owner_id = $2
+  ORDER BY a.transcript_id, a.event_num DESC
+) latest
+ORDER BY latest.recorded_at DESC, latest.transcript_id;
+
 -- name: GetGroupTranscriptStats :one
 SELECT
   COUNT(*)::int AS total_transcripts,

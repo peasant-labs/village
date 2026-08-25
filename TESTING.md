@@ -303,16 +303,65 @@ Three things the corpora pin that are easy to get wrong later:
   person's contributions, with `approved_count` zero. The counters do the
   filtering; a join that filtered on approved status would drop the row.
 - `approved_count` and `pending_count` count DISTINCT TRANSCRIPTS;
-  `rejected_attempt_count` counts REFUSAL EVENTS. The one case where those
-  genuinely diverge is a transcript accepted, withdrawn and accepted again, and
-  it is named `approved_count_counts_transcripts_not_attempts`.
-- Withdrawn (`retracted`) and removed (`revoked`) contributions count in NONE of
-  the three.
+  `rejected_attempt_count` and `withdrawn_attempt_count` count EVENTS. The one
+  case where those genuinely diverge is a transcript accepted, withdrawn and
+  accepted again, and it is named
+  `approved_count_counts_transcripts_not_attempts`.
+- `withdrawn_attempt_count` counts withdrawals by the owner (`retracted`) and
+  removals by the collective (`revoked`) TOGETHER. The two statuses stay
+  distinct in the ledger and the per-submission surfaces still name the actor;
+  only this profile-level total adds them up, which is why
+  `collective_with_retracted_and_revoked_shares` exists - a counter matching
+  only one of the two passes every single-status case and still hides half the
+  withdrawals. Before this counter existed those events were counted in none of
+  the others, and an acceptance test found the consequence: a contribution that
+  was submitted, refused three times and then withdrawn reported three refusals
+  on the profile and nothing at all when opened.
 
 `collectives_batch_test.go` is the no-N+1 guard: both surfaces answer a page of
 several collectives with exactly one query, counted through the mock querier. A
 single-collective case cannot tell one query from a query per collective, so
 every case in `testdata/collectives_batch/batch_cases.yaml` names several.
+
+### Owner submissions in one collective: the ledger-pairs read
+
+`internal/handler/collective_submissions_integration_test.go` +
+`testdata/owner-collective-submissions.yaml` cover
+`GET /api/v1/users/me/collectives/{groupId}/submissions`, the owner-only
+listing of EVERY (transcript, collective) pair a person has offered to one
+collective. Its whole reason to exist is a pair with NO current-state row: the
+derived row is a fold that keeps only live states, so a pair whose last event
+was a retraction or a revocation has none, and the surface this replaces - which
+read the derived row - answered "no submissions of yours are on record in this
+collective" to a person its own profile had just told about three refusals. The
+corpus therefore drives a live pair, a retracted pair, a revoked pair, the exact
+refused-three-times-then-withdrawn history the acceptance test found, an open
+submission, and a mixed case holding a live pair and a withdrawn pair at once.
+That mixed case is the one a projection-backed read cannot survive quietly: it
+SHORTENS the answer rather than emptying it, which looks like a working endpoint
+until somebody counts.
+
+It reuses `collectiveWorld` from `collectives_visibility_integration_test.go`,
+so the ledger is built by the shipped share handlers rather than written behind
+them, and it has to run against a real database because the distinction it
+asserts is produced by the derivation trigger. Every collective in the corpus is
+CURATED, so a submission opens an attempt the case can then decide or withdraw,
+and `event_num` is the ordinal of the ATTEMPT, not of the step: a decision
+closes the same attempt in place, while withdrawing an ACCEPTED contribution
+appends a further one. The loader refuses any history the write paths could not
+produce - a second open attempt, a decision with nothing open, a removal of
+something never accepted - because a case describing an unreachable state cannot
+fail for a reason a real regression would.
+
+The owner boundary is a property of the ROUTE, not of a predicate: there is no
+username segment anywhere on the path, and the three non-contributor shapes - a
+signed-in member of the same collective, a signed-in caller outside it, and no
+authenticated caller at all - all come back `404`, never `403`, so the answer
+never confirms that a history exists. A caller whose listing is empty gets the
+same `404`, which is why the query itself is the boundary. Rows are matched by
+transcript rather than by position, because the response is ordered by
+`recorded_at` and two events recorded in one clock tick would make a positional
+assertion flake without saying anything about the endpoint.
 
 ### Share-event history: the owner-facing read over the same ledger
 

@@ -1,0 +1,107 @@
+# Every (transcript, collective) pair one person has offered to ONE collective,
+# read back through GET /users/me/collectives/{groupId}/submissions.
+#
+# The endpoint reads the ATTEMPT LEDGER, never the derived current-state row.
+# The derived row keeps only live states, so a pair whose last event was a
+# retraction or a revocation has no derived row at all. A listing built on the
+# derived row told a person they had three refusals on their profile and then,
+# on opening, that no submissions of theirs were on record in the collective.
+# The withdrawn cases below are what hold that shut: they have NO current-state
+# row and must still be listed.
+#
+# Every history here is a sequence the write paths can actually produce. At most
+# one attempt is open at a time and an open attempt can only be the last event,
+# because a partial unique index refuses a second one. A withdrawal therefore
+# always follows either an acceptance or an open submission, never a refusal
+# with nothing left open.
+#
+# event_num is the ordinal of the attempt, not of the step. Every collective
+# here is CURATED, so a submission opens an attempt and the decision closes that
+# SAME attempt in place: submit then approve is one event, not two. Withdrawing
+# an ACCEPTED contribution appends a further attempt, because the acceptance
+# stays on record; withdrawing an OPEN submission closes that attempt in place,
+# because it was never decided.
+#
+# pairs are matched by transcript index, not by position in the response: the
+# response is ordered by recorded_at, and two events recorded in the same clock
+# tick would make an order assertion flake without telling anyone anything.
+
+- name: pair_with_a_live_current_state_row
+  why: the ordinary case - an accepted contribution has a current-state row, and reading the ledger must not lose it
+  transcripts:
+    - steps: [submit, approve]
+  viewer: owner
+  expect_status: 200
+  pairs:
+    - {transcript: 0, status: approved, event_num: 1}
+
+- name: fully_withdrawn_pair_is_still_listed
+  why: the case that motivated this endpoint - the owner withdrew, so there is NO current-state row, and a listing built on the projection would report nothing at all
+  transcripts:
+    - steps: [submit, approve, unshare]
+  viewer: owner
+  expect_status: 200
+  pairs:
+    - {transcript: 0, status: retracted, event_num: 2}
+
+- name: revoked_pair_is_listed_as_revoked_not_retracted
+  why: the collective removed the contribution rather than the owner withdrawing it; both leave no current-state row, and the row data must keep the two apart because the surface names the actor
+  transcripts:
+    - steps: [submit, approve, remove]
+  viewer: owner
+  expect_status: 200
+  pairs:
+    - {transcript: 0, status: revoked, event_num: 2}
+
+- name: refused_three_times_then_withdrawn_pair_is_still_listed
+  why: the exact history the acceptance test found - three refusals counted on the profile, then a fourth submission the owner withdrew, leaving nothing for the projection to hold and the person with a count they could not open
+  transcripts:
+    - steps: [submit, reject, submit, reject, submit, reject, submit, unshare]
+  viewer: owner
+  expect_status: 200
+  pairs:
+    - {transcript: 0, status: retracted, event_num: 4}
+
+- name: pair_whose_latest_event_is_pending
+  why: an open submission is the one state that can be last and unresolved; it must be listed as pending rather than skipped for having no decision
+  transcripts:
+    - steps: [submit]
+  viewer: owner
+  expect_status: 200
+  pairs:
+    - {transcript: 0, status: pending, event_num: 1}
+
+- name: live_and_fully_withdrawn_pairs_are_both_listed
+  why: the two kinds together - a listing that read the projection would return the accepted pair and silently drop the withdrawn one, which looks like a working endpoint until somebody counts
+  transcripts:
+    - steps: [submit, approve]
+    - steps: [submit, approve, unshare]
+  viewer: owner
+  expect_status: 200
+  pairs:
+    - {transcript: 0, status: approved, event_num: 1}
+    - {transcript: 1, status: retracted, event_num: 2}
+
+- name: non_owner_signed_in_collective_member_gets_404
+  why: a signed-in member of the same collective has every reason to see the collective and none to see somebody else's submission history; 404 rather than 403, so the answer does not confirm the history exists
+  transcripts:
+    - steps: [submit, approve]
+  viewer: member
+  expect_status: 404
+  pairs: []
+
+- name: other_signed_in_caller_gets_404
+  why: a signed-in caller outside the collective gets the same answer as one inside it, so the two cannot be told apart by asking
+  transcripts:
+    - steps: [submit, approve]
+  viewer: other
+  expect_status: 404
+  pairs: []
+
+- name: anonymous_caller_gets_404
+  why: the mounted route is AuthRequired, but the handler must refuse an unauthenticated caller on its own rather than relying on middleware it can be invoked without
+  transcripts:
+    - steps: [submit, approve]
+  viewer: anonymous
+  expect_status: 404
+  pairs: []

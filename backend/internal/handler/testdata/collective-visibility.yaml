@@ -1,4 +1,4 @@
-# Who may learn that a transcript is in a collective, and what the three
+# Who may learn that a transcript is in a collective, and what the four
 # contribution counters say.
 #
 # Every case builds one collective, one project and one or more transcripts,
@@ -43,6 +43,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: public_collective_listed_for_other_signed_in_viewer
   why: signing in must not narrow what a public collective shows
@@ -61,6 +62,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: public_collective_listed_for_contributing_owner
   why: the person who contributed always sees where their transcript went
@@ -79,6 +81,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: open_collective_listed_for_anonymous_viewer
   why: an open collective anyone may join is not a secret, even when its data access is members only
@@ -97,6 +100,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: open_collective_listed_for_other_signed_in_viewer
   why: the open branch of the predicate does not depend on who is asking
@@ -115,6 +119,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: members_only_collective_hidden_from_anonymous_viewer
   why: dropping the viewer predicate would announce a private collective to the whole internet; this is the case that catches it
@@ -133,6 +138,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: members_only_collective_hidden_from_non_member_viewer
   why: being signed in is not membership, and the predicate must distinguish the two
@@ -151,6 +157,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: members_only_collective_listed_for_member_viewer
   why: a member of the collective may see what it holds; without this case the predicate could be reduced to a blanket hide and stay green
@@ -169,6 +176,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: members_only_collective_listed_for_contributing_owner
   why: submitting requires membership, so a contributor to a members-only collective sees it through the member branch
@@ -187,6 +195,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: collective_with_only_pending_shares
   why: a collective holding nothing but submissions awaiting review IS listed among the contributions, with approved_count zero; a join that filtered on approved status would drop the row and the person would never learn what they are waiting on
@@ -205,6 +214,7 @@
     approved_count: 0
     pending_count: 1
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: collective_with_rejected_share
   why: a refused submission is not a membership, and the refusal is still counted
@@ -223,6 +233,7 @@
     approved_count: 0
     pending_count: 0
     rejected_attempt_count: 1
+    withdrawn_attempt_count: 0
 
 - name: collective_with_repeatedly_rejected_share
   why: one transcript refused twice is TWO refusals; counting distinct transcripts instead of events would report one and hide that the collective keeps saying no
@@ -241,9 +252,10 @@
     approved_count: 0
     pending_count: 0
     rejected_attempt_count: 2
+    withdrawn_attempt_count: 0
 
 - name: collective_with_only_retracted_shares
-  why: a withdrawn contribution counts in none of the three counters, and it is not a membership either
+  why: a contribution the owner withdrew is not a membership, and the withdrawal itself is counted; before withdrawn_attempt_count existed it was counted nowhere and the contribution simply vanished from every total
   collective: {data_access: public, acceptance_mode: curated}
   owner_is_discoverable: true
   transcript_visibility: public
@@ -259,9 +271,10 @@
     approved_count: 0
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 1
 
 - name: collective_with_only_revoked_shares
-  why: a contribution the collective removed counts in none of the three counters, and removal is not a refusal
+  why: a contribution the collective removed is not a membership and its removal is not a refusal, so it is counted as a withdrawal rather than in rejected_attempt_count
   collective: {data_access: public, acceptance_mode: curated}
   owner_is_discoverable: true
   transcript_visibility: public
@@ -277,6 +290,27 @@
     approved_count: 0
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 1
+
+- name: collective_with_retracted_and_revoked_shares
+  why: retracted and revoked are DISTINCT statuses with different actors, and withdrawn_attempt_count adds them together; a counter that matched only one of the two would report one here and hide the other withdrawal entirely
+  collective: {data_access: public, acceptance_mode: curated}
+  owner_is_discoverable: true
+  transcript_visibility: public
+  transcripts:
+    - steps: [submit, approve, unshare]
+    - steps: [submit, approve, remove]
+  viewer: owner
+  expect:
+    transcript_collectives: absent
+    project_rollup: absent
+    project_rollup_transcript_count: 0
+    search_collectives: visible
+    contributions_listed: true
+    approved_count: 0
+    pending_count: 0
+    rejected_attempt_count: 0
+    withdrawn_attempt_count: 2
 
 - name: approved_count_counts_transcripts_not_attempts
   why: the ONE case where counting transcripts and counting events genuinely diverge - this transcript was accepted, withdrawn and accepted again, so there are two acceptance events but only one contribution
@@ -295,6 +329,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 1
 
 - name: collective_with_approved_and_pending_transcripts
   why: the two live counters are independent, and a collective can hold one of each at the same time
@@ -314,6 +349,7 @@
     approved_count: 1
     pending_count: 1
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: shared_transcript_hidden_from_anonymous_viewer
   why: transcript visibility gates the request BEFORE collective visibility does; a signed-out reader cannot ask about a transcript that is not public, and the answer must not distinguish that from a transcript that does not exist
@@ -332,6 +368,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: opted_out_owner_hidden_from_other_viewer_though_collective_is_public
   why: the opt-in gate is independent of collective visibility - the collective itself is visible to this viewer through the search oracle, and the memberships are still withheld, so the oracle comparison deliberately does not apply here
@@ -350,6 +387,7 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
 
 - name: opted_out_owner_still_sees_their_own_memberships
   why: opting out of being listed as a contributor hides you from other people, not from yourself
@@ -368,3 +406,4 @@
     approved_count: 1
     pending_count: 0
     rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
