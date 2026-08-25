@@ -234,6 +234,14 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Project identity is a handler-owned precondition, checked here because the
+	// published contract cannot: its top level does not require the project object
+	// to be present at all. Refused before any blob is read or written.
+	if err := validatePublishProjectIdentity(req); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
 	h.sanitizeGeneratedTitle(&req)
 
 	schemaVersion := strconv.Itoa(req.Identity.SchemaVersion)
@@ -781,8 +789,11 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	// Enrich shares with acceptance_mode
 	enrichedShares, _ := h.queries.ListSharesByTranscriptIDs(r.Context(), []pgtype.UUID{transcript.ID})
 
+	identity := projectIdentityKey{OwnerID: transcript.OwnerID, ProjectHash: transcript.ProjectHash}
+	resolved := h.resolveProjectIdentities(r.Context(), []projectIdentityKey{identity})[identity]
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"transcript":      detailTranscriptResponse(transcript),
+		"transcript":      detailTranscriptResponse(transcript, resolved),
 		"tags":            tags,
 		"shares":          shares,
 		"enriched_shares": enrichedShares,
@@ -1090,50 +1101,6 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
-}
-
-func (h *Handler) RenameUserProject(w http.ResponseWriter, r *http.Request) {
-	user := GetUser(r.Context())
-
-	var req struct {
-		From string `json:"from"`
-		To   string `json:"to"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	from := strings.TrimSpace(req.From)
-	to := strings.TrimSpace(req.To)
-	if from == "" || to == "" {
-		writeError(w, http.StatusBadRequest, "Both from and to project names are required")
-		return
-	}
-	if from == to {
-		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "updated": 0})
-		return
-	}
-	if len(to) > 255 {
-		writeError(w, http.StatusBadRequest, "Project name too long")
-		return
-	}
-
-	updated, err := h.queries.RenameUserProject(r.Context(), sqlc.RenameUserProjectParams{
-		OwnerID:       user.PgID(),
-		ProjectName:   toPgText(from),
-		ProjectName_2: toPgText(to),
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to rename project")
-		return
-	}
-	if updated == 0 {
-		writeError(w, http.StatusNotFound, "Project not found")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "updated": updated})
 }
 
 func (h *Handler) ShareTranscript(w http.ResponseWriter, r *http.Request) {
@@ -1544,6 +1511,14 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Batch the project identities for the page: one statement for every
+	// (owner, project) pair on it, never one per row.
+	identityKeys := make([]projectIdentityKey, 0, len(parsed))
+	for _, p := range parsed {
+		identityKeys = append(identityKeys, projectIdentityKey{OwnerID: p.t.OwnerID, ProjectHash: p.t.ProjectHash})
+	}
+	resolvedProjects := h.resolveProjectIdentities(r.Context(), identityKeys)
+
 	// Batch attestations by transcript
 	attestsByTranscript := map[pgtype.UUID][]sqlc.ListAttestationsByTranscriptIDsRow{}
 	if len(transcriptIDs) > 0 {
@@ -1556,7 +1531,7 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	transcripts := []map[string]any{}
 	for _, p := range parsed {
 		transcripts = append(transcripts, map[string]any{
-			"transcript":   listTranscriptResponse(p.t),
+			"transcript":   listTranscriptResponse(p.t, resolvedProjects[projectIdentityKey{OwnerID: p.t.OwnerID, ProjectHash: p.t.ProjectHash}]),
 			"tags":         p.tags,
 			"owner":        p.owner,
 			"owner_orgs":   orgsByOwner[p.t.OwnerID],

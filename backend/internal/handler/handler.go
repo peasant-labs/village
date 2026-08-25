@@ -15,6 +15,7 @@ import (
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/github"
+	"github.com/peasant-labs/village/backend/internal/projectname"
 	"github.com/peasant-labs/village/backend/internal/scanner"
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
@@ -42,6 +43,21 @@ type Handler struct {
 	// snapshot. It is a synchronization observation point, not an alternate code
 	// path: the same count/page/commit statements run whether or not it is set.
 	discoveryReadBarrier func()
+
+	// projectNames resolves the one display name every surface renders for a
+	// project. Its RemoteLabeler seam is left UNWIRED here: formatting a git
+	// remote into a "host:owner/repo" label is a rule the contract module owns,
+	// and Village must not grow a second copy of it while waiting for a module
+	// release that exports it. Unwired, the resolver simply skips the remote
+	// tier; every other tier, and the last-resort label derived from the project
+	// hash, work exactly as they will once the seam is filled in.
+	projectNames projectname.Resolver
+
+	// projectCollectives reports a project's collective contributions as one
+	// viewer may see them. It is nil until the collectives query family is wired
+	// in, and the project page then reports no collectives rather than applying a
+	// visibility rule of its own — see ProjectCollectiveRollupLister.
+	projectCollectives ProjectCollectiveRollupLister
 
 	// gh is the GitHub App client backing the collective-repository feature.
 	// It is nil when the App is not configured; handlers detect this via

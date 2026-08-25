@@ -11,6 +11,27 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countOwnerTranscriptsInProject = `-- name: CountOwnerTranscriptsInProject :one
+SELECT count(*)::bigint
+FROM transcripts
+WHERE owner_id = $1 AND project_hash = $2
+`
+
+type CountOwnerTranscriptsInProjectParams struct {
+	OwnerID     pgtype.UUID `db:"owner_id" json:"owner_id"`
+	ProjectHash string      `db:"project_hash" json:"project_hash"`
+}
+
+// Ownership probe for the project-correction endpoints: an owner may only name a
+// project they have actually published into. It counts rather than returning a row
+// because the caller needs the yes/no answer, not the transcripts.
+func (q *Queries) CountOwnerTranscriptsInProject(ctx context.Context, arg CountOwnerTranscriptsInProjectParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countOwnerTranscriptsInProject, arg.OwnerID, arg.ProjectHash)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createTranscript = `-- name: CreateTranscript :one
 INSERT INTO transcripts (
     id, owner_id, local_id, title, description, visibility,
@@ -428,24 +449,226 @@ func (q *Queries) GetTranscriptIDByOwnerAndLocalID(ctx context.Context, arg GetT
 	return id, err
 }
 
-const renameUserProject = `-- name: RenameUserProject :execrows
-UPDATE transcripts
-SET project_name = $3, updated_at = now()
-WHERE owner_id = $1 AND project_name = $2
+const listOwnerProjectIdentities = `-- name: ListOwnerProjectIdentities :many
+SELECT
+    t.owner_id,
+    t.project_hash,
+    COALESCE(o.value, '')::text AS override_name,
+    COALESCE(
+        array_agg(t.project_name ORDER BY t.published_at DESC, t.id)
+            FILTER (WHERE t.project_name IS NOT NULL AND t.project_name <> ''),
+        ARRAY[]::text[]
+    )::text[] AS project_names,
+    COALESCE(
+        (array_agg(t.git_remote ORDER BY t.published_at DESC, t.id)
+            FILTER (WHERE t.git_remote IS NOT NULL AND t.git_remote <> ''))[1],
+        ''
+    )::text AS git_remote,
+    count(*)::bigint AS transcript_count
+FROM transcripts t
+LEFT JOIN owner_overrides o
+       ON o.owner_id = t.owner_id
+      AND o.target_kind = 'project'
+      AND o.field = 'display_name'
+      AND o.target_key = t.project_hash
+WHERE t.owner_id = ANY($1::uuid[])
+  AND t.project_hash = ANY($2::text[])
+GROUP BY t.owner_id, t.project_hash, o.value
+ORDER BY t.owner_id, t.project_hash
 `
 
-type RenameUserProjectParams struct {
-	OwnerID       pgtype.UUID `db:"owner_id" json:"owner_id"`
-	ProjectName   pgtype.Text `db:"project_name" json:"project_name"`
-	ProjectName_2 pgtype.Text `db:"project_name_2" json:"project_name_2"`
+type ListOwnerProjectIdentitiesParams struct {
+	OwnerIds      []pgtype.UUID `db:"owner_ids" json:"owner_ids"`
+	ProjectHashes []string      `db:"project_hashes" json:"project_hashes"`
 }
 
-func (q *Queries) RenameUserProject(ctx context.Context, arg RenameUserProjectParams) (int64, error) {
-	result, err := q.db.Exec(ctx, renameUserProject, arg.OwnerID, arg.ProjectName, arg.ProjectName_2)
+type ListOwnerProjectIdentitiesRow struct {
+	OwnerID         pgtype.UUID `db:"owner_id" json:"owner_id"`
+	ProjectHash     string      `db:"project_hash" json:"project_hash"`
+	OverrideName    string      `db:"override_name" json:"override_name"`
+	ProjectNames    []string    `db:"project_names" json:"project_names"`
+	GitRemote       string      `db:"git_remote" json:"git_remote"`
+	TranscriptCount int64       `db:"transcript_count" json:"transcript_count"`
+}
+
+// One row per (owner_id, project_hash) pair carrying every piece of evidence the
+// display-name resolver needs, aggregated in ONE statement so a page of transcripts
+// spanning many owners and many projects never issues a query per row.
+//
+// The candidate project names are returned as an ORDERED ARRAY rather than as a
+// pre-classified "consented name" and "privacy label" pair on purpose: telling those
+// two apart is the job of projectname.IsPrivacyLabel, and expressing that rule a
+// second time as a SQL regex would create two definitions of the same thing that
+// must stay identical forever. The ordering (published_at DESC, then id) is the
+// deterministic pick the resolver's contract requires, so the caller only has to
+// walk the array and take the first name of each class.
+//
+// The override join is narrowed to the single writable pair, ('project',
+// 'display_name'); the table reserves other pairs for later fields, and this read
+// must not start returning one the application does not implement.
+func (q *Queries) ListOwnerProjectIdentities(ctx context.Context, arg ListOwnerProjectIdentitiesParams) ([]ListOwnerProjectIdentitiesRow, error) {
+	rows, err := q.db.Query(ctx, listOwnerProjectIdentities, arg.OwnerIds, arg.ProjectHashes)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []ListOwnerProjectIdentitiesRow{}
+	for rows.Next() {
+		var i ListOwnerProjectIdentitiesRow
+		if err := rows.Scan(
+			&i.OwnerID,
+			&i.ProjectHash,
+			&i.OverrideName,
+			&i.ProjectNames,
+			&i.GitRemote,
+			&i.TranscriptCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectTranscriptsForViewer = `-- name: ListProjectTranscriptsForViewer :many
+SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.model_provider,
+    t.model_name, t.harness_version, t.session_start, t.session_end, t.turn_count, t.token_count,
+    t.blob_key, t.blob_size_bytes, t.schema_version, t.published_at, t.updated_at, t.parent_session_id,
+    t.ingested_at, t.source_file_path, t.source_format, t.git_branch, t.git_remote, t.git_worktree,
+    t.project_hash, t.project_path, t.project_name, t.tool_call_count, t.subagent_count, t.duration_ms,
+    t.subagents, t.diagnostics_warnings, t.diagnostics_partial, t.tokens_in, t.tokens_out,
+    t.title_generated, t.outcome, t.files_touched, t.lines_changed, t.retry_loops, t.retry_tokens_wasted,
+    t.within_session_reverts, t.signal_density, t.spec_quality_score, t.exploration_ratio,
+    t.scope_breadth, t.discovery_turns, t.m2_token_outcome_ratio, t.m3_unique_tool_count,
+    t.m4_error_recovery_count, t.m4_consecutive_error_max, t.m5_context_utilization_pct,
+    t.m5_peak_context_tokens, t.m5_avg_message_tokens, t.m6_output_survival_pct,
+    t.m6_lines_survived, t.m6_lines_total, t.m7_spec_word_count, t.m7_spec_has_examples,
+    t.m7_spec_has_constraints, t.computed_at, t.compute_version, t.content_hash, t.license_id,
+    t.wrapped_data_key, t.encryption_algorithm, t.key_version,
+    t.accepted_request_operation_fingerprint, t.session_origin
+FROM transcripts t
+WHERE t.owner_id = $1
+  AND t.project_hash = $2
+  AND (
+        t.visibility = 'public'
+        OR t.owner_id = $3
+        OR (t.visibility = 'shared' AND EXISTS (
+                SELECT 1
+                FROM transcript_shares ts
+                JOIN group_members gm ON gm.group_id = ts.group_id
+                WHERE ts.transcript_id = t.id AND gm.user_id = $3))
+      )
+ORDER BY t.published_at DESC, t.id DESC
+`
+
+type ListProjectTranscriptsForViewerParams struct {
+	OwnerID     pgtype.UUID `db:"owner_id" json:"owner_id"`
+	ProjectHash string      `db:"project_hash" json:"project_hash"`
+	ViewerID    pgtype.UUID `db:"viewer_id" json:"viewer_id"`
+}
+
+// The transcripts of one owner's project that one viewer may see. The predicate is
+// the SHIPPED web read policy, character-for-character the same disjunction the
+// discovery listing applies (public, or the viewer's own, or shared into a
+// collective the viewer belongs to); this route deliberately introduces no new
+// visibility rule of its own. An anonymous viewer passes a NULL id, which makes the
+// owner and membership arms unsatisfiable and leaves only the public arm.
+//
+// The membership arm is an EXISTS rather than a join so a transcript shared into
+// several of the viewer's collectives is still returned exactly once, with no
+// DISTINCT over the whole wide row.
+func (q *Queries) ListProjectTranscriptsForViewer(ctx context.Context, arg ListProjectTranscriptsForViewerParams) ([]Transcript, error) {
+	rows, err := q.db.Query(ctx, listProjectTranscriptsForViewer, arg.OwnerID, arg.ProjectHash, arg.ViewerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Transcript{}
+	for rows.Next() {
+		var i Transcript
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.LocalID,
+			&i.Title,
+			&i.Description,
+			&i.Visibility,
+			&i.ModelProvider,
+			&i.ModelName,
+			&i.HarnessVersion,
+			&i.SessionStart,
+			&i.SessionEnd,
+			&i.TurnCount,
+			&i.TokenCount,
+			&i.BlobKey,
+			&i.BlobSizeBytes,
+			&i.SchemaVersion,
+			&i.PublishedAt,
+			&i.UpdatedAt,
+			&i.ParentSessionID,
+			&i.IngestedAt,
+			&i.SourceFilePath,
+			&i.SourceFormat,
+			&i.GitBranch,
+			&i.GitRemote,
+			&i.GitWorktree,
+			&i.ProjectHash,
+			&i.ProjectPath,
+			&i.ProjectName,
+			&i.ToolCallCount,
+			&i.SubagentCount,
+			&i.DurationMs,
+			&i.Subagents,
+			&i.DiagnosticsWarnings,
+			&i.DiagnosticsPartial,
+			&i.TokensIn,
+			&i.TokensOut,
+			&i.TitleGenerated,
+			&i.Outcome,
+			&i.FilesTouched,
+			&i.LinesChanged,
+			&i.RetryLoops,
+			&i.RetryTokensWasted,
+			&i.WithinSessionReverts,
+			&i.SignalDensity,
+			&i.SpecQualityScore,
+			&i.ExplorationRatio,
+			&i.ScopeBreadth,
+			&i.DiscoveryTurns,
+			&i.M2TokenOutcomeRatio,
+			&i.M3UniqueToolCount,
+			&i.M4ErrorRecoveryCount,
+			&i.M4ConsecutiveErrorMax,
+			&i.M5ContextUtilizationPct,
+			&i.M5PeakContextTokens,
+			&i.M5AvgMessageTokens,
+			&i.M6OutputSurvivalPct,
+			&i.M6LinesSurvived,
+			&i.M6LinesTotal,
+			&i.M7SpecWordCount,
+			&i.M7SpecHasExamples,
+			&i.M7SpecHasConstraints,
+			&i.ComputedAt,
+			&i.ComputeVersion,
+			&i.ContentHash,
+			&i.LicenseID,
+			&i.WrappedDataKey,
+			&i.EncryptionAlgorithm,
+			&i.KeyVersion,
+			&i.AcceptedRequestOperationFingerprint,
+			&i.SessionOrigin,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const setAcceptedRequestOperationFingerprint = `-- name: SetAcceptedRequestOperationFingerprint :exec
