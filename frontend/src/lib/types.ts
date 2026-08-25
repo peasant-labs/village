@@ -425,18 +425,23 @@ export interface TranscriptDetailResponse {
  * One collective the signed-in person has offered transcripts to, as served by
  * `GET /users/me/collectives/contributions`.
  *
- * The three counters DO NOT COUNT THE SAME UNIT, and that asymmetry is part of
- * the contract rather than an implementation detail:
+ * The four counters DO NOT ALL COUNT THE SAME UNIT, and that asymmetry is part
+ * of the contract rather than an implementation detail:
  *  - {@link approved_count} and {@link pending_count} count DISTINCT
  *    TRANSCRIPTS. A transcript is either held by a collective or it is not.
- *  - {@link rejected_attempt_count} counts REFUSAL EVENTS. One transcript
- *    refused three times by one collective is three.
+ *  - {@link rejected_attempt_count} and {@link withdrawn_attempt_count} count
+ *    EVENTS. One transcript refused three times by one collective is three;
+ *    one transcript withdrawn and resubmitted twice is two withdrawals.
  * Any surface rendering these numbers side by side has to say which unit each
- * one measures, or the two read as comparable when they are not. See
+ * one measures, or they read as comparable when they are not. See
  * {@link CONTRIBUTION_COUNTER_UNITS} in `@/lib/shareEvents` for the one place
  * that wording is declared.
  *
- * Withdrawals (`retracted`, `revoked`) are counted in NONE of the three.
+ * `withdrawn_attempt_count` groups the two withdrawal outcomes (`retracted`,
+ * the owner's own act; `revoked`, the collective's) into ONE counter. That
+ * grouping is a counter-level simplification only — the per-submission event
+ * history (`ShareEvent`) still distinguishes them by actor, and must keep
+ * doing so; only the tally here folds them together.
  */
 export interface ContributedCollective {
   id: string;
@@ -449,6 +454,8 @@ export interface ContributedCollective {
   pending_count: number;
   /** Refusal EVENTS, not transcripts. */
   rejected_attempt_count: number;
+  /** Withdrawal EVENTS (`retracted` + `revoked` combined), not transcripts. */
+  withdrawn_attempt_count: number;
 }
 
 /**
@@ -533,4 +540,37 @@ export interface ShareEvent {
   /** Null until the event is decided. */
   decided_at: string | null;
   decided_by_actor: ShareEventActor;
+}
+
+/**
+ * One (transcript, collective) LEDGER PAIR, as served by the owner-only
+ * `GET /users/me/collectives/{groupId}/submissions` (a BARE JSON array, the
+ * same envelope-free shape as the sibling events endpoint).
+ *
+ * This is EVERY pair the owner has ever had with the collective, including a
+ * pair whose every event ended in a withdrawal and so has no row left in the
+ * legacy current-state list (`GET /groups/{id}/my-shares`). A fully-withdrawn
+ * pair still appears here, carrying its latest ({@link status},
+ * {@link event_num}, {@link recorded_at}) — the same fields the events
+ * endpoint's last row would show for it. This is deliberately NOT the
+ * current-state (`transcript_shares`) source: that source drops a pair the
+ * moment its last event is a withdrawal, which is the exact contradiction
+ * this endpoint exists to close (a nonzero withdrawn counter beside an empty
+ * list, as one user acceptance test caught).
+ *
+ * WHEN THE OWNER HAS NO PAIRS FOR THE COLLECTIVE, the endpoint answers 404,
+ * never a 200 with an empty array — the SAME disposition as "no such
+ * collective", so asking cannot be used to discover which collectives exist
+ * or who contributed to them. See {@link useMyCollectiveSubmissions} in
+ * `@/lib/queries/collectives`, which normalizes that 404 to an empty list for
+ * consumers: the rendered empty state is unaffected either way.
+ */
+export interface CollectiveSubmissionPair {
+  transcript_id: string;
+  group_id: string;
+  /** Null when the transcript has no title. Never derived or guessed. */
+  title: string | null;
+  status: ShareEventStatus;
+  event_num: number;
+  recorded_at: string;
 }

@@ -1,6 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../api";
-import type { ContributedCollective, ShareEvent, TranscriptCollective } from "../types";
+import { api, isApiErrorStatus } from "../api";
+import type {
+  CollectiveSubmissionPair,
+  ContributedCollective,
+  ShareEvent,
+  TranscriptCollective,
+} from "../types";
 
 /**
  * The collectives the SIGNED-IN caller has offered transcripts to, with the
@@ -44,6 +49,42 @@ export function useTranscriptCollectives(transcriptId: string) {
       return res.collectives ?? [];
     },
     enabled: !!transcriptId,
+  });
+}
+
+/**
+ * EVERY (transcript, collective) ledger pair the signed-in caller has with ONE
+ * collective, as served by `GET /users/me/collectives/{groupId}/submissions`.
+ *
+ * This is the OWNER-ONLY pairs source, not the legacy current-state list: it
+ * includes a pair whose every event ended in a withdrawal, which the
+ * current-state list has no row for at all. Owner-only by ROUTE — the path
+ * names no user — so a caller who does not own the collective's transcripts
+ * is answered 404, never 403, the same shape as {@link useShareEventHistory}.
+ *
+ * The server ALSO answers 404 — never a 200 with `[]` — when the owner
+ * genuinely has no pairs for this collective: one disposition for "no such
+ * collective" and "none of yours are here", so probing cannot be used to
+ * discover which collectives exist or who contributed to them. That 404 is
+ * normalized to an empty list HERE, so every consumer of this hook sees the
+ * same "genuinely empty" shape regardless of which of the two indistinguishable
+ * causes produced it, and renders the ordinary empty state rather than an
+ * error.
+ */
+export function useMyCollectiveSubmissions(groupId: string) {
+  return useQuery({
+    queryKey: ["my-collective-submissions", groupId],
+    queryFn: async () => {
+      try {
+        return await api<CollectiveSubmissionPair[]>(
+          `/users/me/collectives/${encodeURIComponent(groupId)}/submissions`,
+        );
+      } catch (err) {
+        if (isApiErrorStatus(err, 404)) return [];
+        throw err;
+      }
+    },
+    enabled: !!groupId,
   });
 }
 

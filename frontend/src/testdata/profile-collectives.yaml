@@ -33,12 +33,14 @@ contributionCases:
         approvedCount: 0
         pendingCount: 3
         rejectedAttemptCount: 0
+        withdrawnAttemptCount: 0
     expectedCollectiveNames:
       - Quiet Reviewers
     expectedCounters:
       - approved: 0
         pending: 3
         rejectedAttempts: 0
+        withdrawnAttempts: 0
 
   - name: two-approved-one-pending-two-rejected-attempts
     collectives:
@@ -48,14 +50,21 @@ contributionCases:
         approvedCount: 2
         pendingCount: 1
         rejectedAttemptCount: 2
+        withdrawnAttemptCount: 0
     expectedCollectiveNames:
       - AI Research Team
     expectedCounters:
       - approved: 2
         pending: 1
         rejectedAttempts: 2
+        withdrawnAttempts: 0
 
-  - name: a-fully-withdrawn-collective-still-lists-with-every-counter-zero
+  # Submitted, then withdrawn with no refusal ever recorded: the current-state
+  # row is gone (approved and pending both fall to 0), and the rejected
+  # counter stays 0 too since nothing was ever refused — but the withdrawn
+  # counter must be nonzero, or the withdrawal leaves no trace anywhere on the
+  # section at all.
+  - name: withdrawn-once-still-lists-with-a-nonzero-withdrawn-counter
     collectives:
       - id: 33333333-3333-4333-8333-333333333333
         name: Former Home
@@ -63,16 +72,21 @@ contributionCases:
         approvedCount: 0
         pendingCount: 0
         rejectedAttemptCount: 0
+        withdrawnAttemptCount: 1
     expectedCollectiveNames:
       - Former Home
     expectedCounters:
       - approved: 0
         pending: 0
         rejectedAttempts: 0
+        withdrawnAttempts: 1
 
   # Refused repeatedly and then withdrawn: the current-state row is gone, so
   # both transcript counters are 0, while the refusals stay counted from the
-  # event ledger. The section must still show the 3.
+  # event ledger and the withdrawal itself is now also counted. The section
+  # must show 3 rejected AND 1 withdrawn — this is exactly the collective the
+  # user's UAT caught contradicting itself ("3 submission attempts" beside
+  # "none on record").
   - name: refused-then-withdrawn-keeps-its-refusal-count-with-no-transcripts-left
     collectives:
       - id: 88888888-8888-4888-8888-888888888888
@@ -81,12 +95,14 @@ contributionCases:
         approvedCount: 0
         pendingCount: 0
         rejectedAttemptCount: 3
+        withdrawnAttemptCount: 1
     expectedCollectiveNames:
       - Strict Curators
     expectedCounters:
       - approved: 0
         pending: 0
         rejectedAttempts: 3
+        withdrawnAttempts: 1
 
   - name: several-collectives-render-in-the-order-served
     collectives:
@@ -96,12 +112,14 @@ contributionCases:
         approvedCount: 5
         pendingCount: 0
         rejectedAttemptCount: 1
+        withdrawnAttemptCount: 0
       - id: 55555555-5555-4555-8555-555555555555
         name: Quiet Reviewers
         description: null
         approvedCount: 0
         pendingCount: 2
         rejectedAttemptCount: 0
+        withdrawnAttemptCount: 0
     expectedCollectiveNames:
       - Verified Contributors
       - Quiet Reviewers
@@ -109,9 +127,11 @@ contributionCases:
       - approved: 5
         pending: 0
         rejectedAttempts: 1
+        withdrawnAttempts: 0
       - approved: 0
         pending: 2
         rejectedAttempts: 0
+        withdrawnAttempts: 0
 
 # The owner-only audit log for one (transcript, collective) pair. `events` is
 # the wire payload in the order the server sends it (event_num ascending);
@@ -296,6 +316,73 @@ eventHistoryCases:
       - approved by moderator
       - revoked by collective
       - submitted
+
+# The owner-only PAIRS list for one collective
+# (`GET /users/me/collectives/{groupId}/submissions`, a bare JSON array),
+# which the submissions panel now reads instead of the legacy current-state
+# list. Every (transcript, collective) pair the owner has EVER had appears
+# here, including one whose every event ended in a withdrawal — that pair has
+# no row in the current-state list at all, which is the exact contradiction
+# UAT caught (a nonzero withdrawn counter beside "no submissions of yours are
+# on record").
+#
+# When the owner has NO pairs for a collective, the server answers 404 —
+# never a 200 with an empty array, the same disposition as "no such
+# collective" — so a case models that with `pairs: null`, never `pairs: []`;
+# the loader rejects an empty ARRAY as a shape the real server cannot send.
+#
+# `expectedChips` restates, in served order, the chip text each pair's status
+# must render as. retracted and revoked both chip as "withdrawn"; the loader
+# checks this against the production chip labeller so a case cannot encode
+# wording the app does not produce.
+submissionPairCases:
+  - name: a-fully-withdrawn-pair-renders-as-a-row-not-empty-copy
+    pairs:
+      - transcriptId: b4b6e2ad-0000-4000-8000-000000000001
+        title: Chasing a refusal loop in Strict Curators
+        status: retracted
+        eventNum: 4
+        recordedAt: "2026-08-06T08:20:00Z"
+    expectedChips:
+      - withdrawn
+
+  - name: a-genuinely-empty-pairs-list-shows-the-none-on-record-copy
+    pairs: null
+    expectedChips: []
+
+  - name: a-mixed-collective-renders-every-pair-with-its-own-chip
+    pairs:
+      - transcriptId: c1a2b3c4-0000-4000-8000-000000000002
+        title: null
+        status: pending
+        eventNum: 1
+        recordedAt: "2026-08-10T09:00:00Z"
+      - transcriptId: d5e6f7a8-0000-4000-8000-000000000003
+        title: Measuring push latency across regions
+        status: approved
+        eventNum: 1
+        recordedAt: "2026-08-01T09:00:00Z"
+      - transcriptId: e9f0a1b2-0000-4000-8000-000000000004
+        title: A first pass at the pull contract
+        status: rejected
+        eventNum: 1
+        recordedAt: "2026-07-15T09:00:00Z"
+      - transcriptId: f3a4b5c6-0000-4000-8000-000000000005
+        title: null
+        status: retracted
+        eventNum: 1
+        recordedAt: "2026-07-20T09:00:00Z"
+      - transcriptId: a7b8c9d0-0000-4000-8000-000000000006
+        title: Notes on the redaction category split
+        status: revoked
+        eventNum: 2
+        recordedAt: "2026-07-25T09:00:00Z"
+    expectedChips:
+      - pending
+      - approved
+      - rejected
+      - withdrawn
+      - withdrawn
 
 # The auth-optional per-transcript list. The server answers an empty list, never
 # a refusal, when the viewer may not see a membership or the owner has not

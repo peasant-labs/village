@@ -12,31 +12,69 @@ import {
  *
  * This is the single declaration of the attempts-versus-transcripts asymmetry
  * in the UI. `approved_count` and `pending_count` count distinct transcripts;
- * `rejected_attempt_count` counts refusal events, so one transcript refused
- * three times by one collective contributes three. Printing "3 rejected"
- * beside "2 approved" without these units invites the reader to compare two
- * numbers that do not measure the same thing.
+ * `rejected_attempt_count` and `withdrawn_attempt_count` count EVENTS, so one
+ * transcript refused three times by one collective contributes three, and one
+ * transcript withdrawn and resubmitted twice contributes two withdrawals.
+ * Printing "3 rejected" beside "2 approved" without these units invites the
+ * reader to compare two numbers that do not measure the same thing.
  */
 export const CONTRIBUTION_COUNTER_UNITS = {
   approved: "transcripts",
   pending: "transcripts",
   rejectedAttempts: "submission attempts",
+  withdrawnAttempts: "submission attempts",
 } as const;
 
 /**
  * The sentence that states the asymmetry once, above the counters, so the
  * units beneath each number are explained rather than merely present.
+ *
+ * Four counters now render; TWO count distinct transcripts (approved,
+ * awaiting review) and TWO count events (rejected, withdrawn). This sentence
+ * has to keep saying that correctly, or it becomes exactly the defect class
+ * this feature exists to fix: a copy line that stops matching its own
+ * numbers.
  */
 export const CONTRIBUTION_COUNTER_EXPLANATION =
-  "approved and awaiting review count transcripts. rejected counts submission attempts, " +
-  "so one transcript refused three times counts three.";
+  "approved and awaiting review count transcripts. rejected and withdrawn count submission " +
+  "attempts, so one transcript refused three times counts three, and one transcript withdrawn " +
+  "twice counts two.";
 
 /** The lowercase chrome label shown above each counter. */
 export const CONTRIBUTION_COUNTER_LABELS = {
   approved: "approved",
   pending: "awaiting review",
   rejectedAttempts: "rejected",
+  withdrawnAttempts: "withdrawn · submission attempts",
 } as const;
+
+/**
+ * The chip label shown for one submission PAIR's latest status, in the
+ * per-collective submissions panel.
+ *
+ * `pending`, `approved` and `rejected` render as themselves. `retracted`
+ * (owner withdrew) and `revoked` (collective removed) both render as
+ * "withdrawn" — the SAME grouping the withdrawn counter applies. This
+ * grouping is a chip-level simplification only: the per-submission event
+ * history still distinguishes the two by actor (see {@link shareEventLabel}),
+ * so nothing here loses that distinction, it merely does not repeat it on the
+ * closed row.
+ */
+export function submissionPairChip(status: ShareEventStatus): string {
+  switch (status) {
+    case "pending":
+      return "pending";
+    case "approved":
+      return "approved";
+    case "rejected":
+      return "rejected";
+    case "retracted":
+    case "revoked":
+      return "withdrawn";
+    default:
+      return assertShareEventStatusExhaustive(status);
+  }
+}
 
 /**
  * What HAPPENED at one share event, as a verb.
