@@ -1199,12 +1199,20 @@ func (h *Handler) shareTranscriptLocked(w http.ResponseWriter, r *http.Request, 
 		}
 		pgGID := toPgUUID(gid)
 
-		// Check if already shared with this group
-		shared, err := q.IsTranscriptSharedWithGroup(r.Context(), sqlc.IsTranscriptSharedWithGroupParams{
+		// A live submission - one awaiting review, or one already accepted -
+		// is a duplicate, not a new instance. A rejected, withdrawn or removed
+		// history is not: submitting again after any of those opens the next
+		// attempt, which is the whole point of recording attempts.
+		//
+		// This is the application-level half of the duplicate refusal. The
+		// other half is uq_share_attempt_open in the database, which refuses a
+		// concurrent duplicate this read cannot see; the insert below turns
+		// that refusal into the same actionable answer.
+		latest, err := q.GetLatestShareAttempt(r.Context(), sqlc.GetLatestShareAttemptParams{
 			TranscriptID: pgID,
 			GroupID:      pgGID,
 		})
-		if err == nil && shared {
+		if err == nil && shareAttemptIsLive(latest.Status) {
 			alreadyShared = append(alreadyShared, gidStr)
 			continue
 		}
@@ -1247,15 +1255,25 @@ func (h *Handler) shareTranscriptLocked(w http.ResponseWriter, r *http.Request, 
 			status = "pending"
 		}
 
-		q.ShareTranscriptWithStatus(r.Context(), sqlc.ShareTranscriptWithStatusParams{
+		if err := q.ShareTranscriptWithStatus(r.Context(), sqlc.ShareTranscriptWithStatusParams{
 			TranscriptID: pgID,
 			GroupID:      pgGID,
 			Status:       status,
-		})
+		}); err != nil {
+			if isOpenShareAttemptConflict(err) {
+				alreadyShared = append(alreadyShared, gidStr)
+				continue
+			}
+			writeError(w, http.StatusInternalServerError, "Could not record the submission of this transcript to collective "+gidStr+
+				" while opening a new share attempt. Nothing was submitted to that collective. Retry the share; if it keeps failing, the collective may have been deleted while the request was in flight.")
+			return
+		}
 	}
 
 	if len(alreadyShared) > 0 && len(alreadyShared) == len(req.GroupIDs) {
-		writeError(w, http.StatusConflict, "Transcript is already shared with this collective")
+		writeError(w, http.StatusConflict, "This transcript is already submitted to "+
+			pluralCollectives(len(alreadyShared))+": a submission awaiting review or already accepted is still live, so a second submission would be a duplicate rather than a new attempt. "+
+			"Nothing was changed. Withdraw the existing submission first if you want to submit it again, or wait for the collective to decide it; once it is rejected or withdrawn, sharing again opens a new attempt.")
 		return
 	}
 

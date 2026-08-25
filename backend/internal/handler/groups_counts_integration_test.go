@@ -105,9 +105,9 @@ func countsInsertTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	id := toPgUUID(uuid.New())
 	hash := schema.ComputeTranscriptHash([]byte(localID))
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO transcripts (id, owner_id, local_id, title, visibility, model_provider, model_name, blob_key, blob_size_bytes, schema_version, content_hash, wrapped_data_key, encryption_algorithm, key_version)
-		VALUES ($1, $2, $3, $4, 'shared', $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id
-	`, id, owner, localID, "t-"+localID, "claude-code", "m-"+localID, "blob/"+localID, int64(len(localID)), "0.1.0", hash, []byte("fixture-wrapped-data-key"), "aes-256-gcm-random-nonce-v1", 1).Scan(&id); err != nil {
+		INSERT INTO transcripts (id, owner_id, local_id, title, visibility, model_provider, model_name, blob_key, blob_size_bytes, schema_version, content_hash, wrapped_data_key, encryption_algorithm, key_version, project_hash)
+		VALUES ($1, $2, $3, $4, 'shared', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id
+	`, id, owner, localID, "t-"+localID, "claude-code", "m-"+localID, "blob/"+localID, int64(len(localID)), "0.1.0", hash, []byte("fixture-wrapped-data-key"), "aes-256-gcm-random-nonce-v1", 1, fixtureProjectHash(localID)).Scan(&id); err != nil {
 		t.Fatalf("insert transcript %s: %v", localID, err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -116,10 +116,15 @@ func countsInsertTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	return id
 }
 
+// countsShare submits the transcript to the collective and leaves it in the
+// requested state. transcript_shares is derived, never written directly, so the
+// fixture opens an attempt and lets the derivation produce the current-state
+// row the counters read.
 func countsShare(t *testing.T, ctx context.Context, pool *pgxpool.Pool, transcript, group pgtype.UUID, status string) {
 	t.Helper()
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO transcript_shares (transcript_id, group_id, status) VALUES ($1, $2, $3)
+		INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
+		VALUES ($1, $2, 1, $3)
 	`, transcript, group, status); err != nil {
 		t.Fatalf("share: %v", err)
 	}

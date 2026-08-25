@@ -530,10 +530,14 @@ func (h *Handler) ReviewShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// decided_by records the moderator on the attempt itself. Sharing is not a
+	// licence or visibility change, so it does not cross the governance-audit
+	// axis and needs no actor GUC; the decision is attributed on the row.
 	err = h.queries.UpdateShareStatus(r.Context(), sqlc.UpdateShareStatusParams{
 		TranscriptID: toPgUUID(transcriptID),
 		GroupID:      pgID,
 		Status:       req.Status,
+		DecidedBy:    user.PgID(),
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to update share status")

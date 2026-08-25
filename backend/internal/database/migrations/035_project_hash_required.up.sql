@@ -1,0 +1,13 @@
+-- project_hash is the identity a user's transcripts group by. A name can change
+-- and can be withheld for privacy; the hash is what makes two transcripts the
+-- same project, so it is required rather than optional.
+--
+-- Production holds 0 rows with a null project_hash out of 1022 (measured before
+-- this migration was written), so no backfill is required. ALTER ... SET NOT
+-- NULL fails loudly by construction if that ever stops being true: it cannot
+-- silently drop or rewrite a row.
+--
+-- The constraint is the backstop, not the enforcement. What keeps the column
+-- populated is the publish-boundary guard that refuses a payload with no
+-- project hash; see docs/database-invariants.md.
+ALTER TABLE transcripts ALTER COLUMN project_hash SET NOT NULL;

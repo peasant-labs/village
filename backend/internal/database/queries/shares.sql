@@ -1,5 +1,35 @@
 -- name: UnshareTranscript :exec
-DELETE FROM transcript_shares WHERE transcript_id = $1 AND group_id = $2;
+-- The owner withdraws their contribution.
+--
+-- Two shapes, because an accepted contribution and a submission awaiting review
+-- are different things. A submission still awaiting review is closed in place:
+-- nothing was decided, and leaving it open would block the owner from ever
+-- offering that transcript again. An ACCEPTED contribution is history - it was
+-- accepted, by someone, on a date - so withdrawing it appends a further
+-- attempt rather than overwriting the acceptance.
+--
+-- Either way the latest attempt ends up 'retracted' and the derivation removes
+-- the current-state row.
+WITH live AS (
+    SELECT event_num, status
+    FROM transcript_share_attempts
+    WHERE transcript_id = $1 AND group_id = $2
+      AND status IN ('pending', 'approved')
+    ORDER BY event_num DESC
+    LIMIT 1
+), closed_open_submission AS (
+    UPDATE transcript_share_attempts t
+    SET status = 'retracted', decided_at = now()
+    FROM live
+    WHERE t.transcript_id = $1 AND t.group_id = $2
+      AND t.event_num = live.event_num
+      AND live.status = 'pending'
+    RETURNING t.event_num
+)
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT $1, $2, live.event_num + 1, 'retracted', now()
+FROM live
+WHERE live.status = 'approved';
 
 -- name: ListTranscriptShares :many
 SELECT ts.group_id, g.name as group_name, ts.shared_at
@@ -41,8 +71,36 @@ ORDER BY t.published_at DESC
 LIMIT $2 OFFSET $3;
 
 -- name: RemoveGroupTranscript :exec
-DELETE FROM transcript_shares
-WHERE group_id = $1 AND transcript_id = $2;
+-- The collective removes a contribution. 'revoked' is kept distinct from
+-- 'retracted' because the actor differs: the collective removed it rather than
+-- the owner withdrawing it, and conflating the two makes the history unreadable
+-- for the person whose transcript it is.
+--
+-- Same two shapes as a withdrawal: a submission awaiting review is closed in
+-- place, an accepted contribution gets a further attempt so its acceptance
+-- stays on record. A submission awaiting review is closed too - before the
+-- attempt model this route removed the share whatever its state, and leaving it
+-- open would keep it in the review queue and block re-submission forever.
+WITH live AS (
+    SELECT event_num, status
+    FROM transcript_share_attempts
+    WHERE group_id = $1 AND transcript_id = $2
+      AND status IN ('pending', 'approved')
+    ORDER BY event_num DESC
+    LIMIT 1
+), closed_open_submission AS (
+    UPDATE transcript_share_attempts t
+    SET status = 'revoked', decided_at = now()
+    FROM live
+    WHERE t.group_id = $1 AND t.transcript_id = $2
+      AND t.event_num = live.event_num
+      AND live.status = 'pending'
+    RETURNING t.event_num
+)
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT $2, $1, live.event_num + 1, 'revoked', now()
+FROM live
+WHERE live.status = 'approved';
 
 -- name: ListSharesByTranscriptIDs :many
 SELECT ts.transcript_id, ts.group_id, g.name as group_name,
@@ -63,19 +121,45 @@ WHERE ts.group_id = $1 AND ts.status = 'pending'
 ORDER BY ts.shared_at;
 
 -- name: UpdateShareStatus :exec
-UPDATE transcript_shares SET status = $3
-WHERE transcript_id = $1 AND group_id = $2;
+-- A moderator decides the open attempt. Only a still-open attempt can be
+-- decided; a decided attempt is history, and changing a decision means a new
+-- submission and a new attempt.
+UPDATE transcript_share_attempts
+SET status = $3, decided_at = now(), decided_by = $4
+WHERE transcript_id = $1
+  AND group_id = $2
+  AND status = 'pending';
 
 -- name: ShareTranscriptWithStatus :exec
-INSERT INTO transcript_shares (transcript_id, group_id, status)
-VALUES ($1, $2, $3)
-ON CONFLICT DO NOTHING;
+-- The owner submits the transcript to a collective, opening the next attempt.
+-- A rejected, retracted or revoked history does not block a new submission -
+-- that is the point of counting attempts - so there is deliberately no
+-- ON CONFLICT DO NOTHING here: a duplicate submission while one is already
+-- live is refused by uq_share_attempt_open rather than silently discarded.
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
+SELECT $1, $2, COALESCE(MAX(event_num), 0) + 1, $3
+FROM transcript_share_attempts
+WHERE transcript_id = $1 AND group_id = $2;
 
--- name: IsTranscriptSharedWithGroup :one
-SELECT EXISTS(
-  SELECT 1 FROM transcript_shares
-  WHERE transcript_id = $1 AND group_id = $2
-) AS shared;
+-- name: GetLatestShareAttempt :one
+-- The most recent attempt for a (transcript, collective) pair, or no row when
+-- the transcript was never submitted there. This is what the share path reads
+-- to tell a genuine re-submission from a duplicate one.
+SELECT id, transcript_id, group_id, event_num, status,
+       recorded_at, decided_at, decided_by
+FROM transcript_share_attempts
+WHERE transcript_id = $1 AND group_id = $2
+ORDER BY event_num DESC
+LIMIT 1;
+
+-- name: ListShareAttempts :many
+-- The full submission history for a (transcript, collective) pair, oldest
+-- first. Every rejection and every withdrawal is its own row.
+SELECT id, transcript_id, group_id, event_num, status,
+       recorded_at, decided_at, decided_by
+FROM transcript_share_attempts
+WHERE transcript_id = $1 AND group_id = $2
+ORDER BY event_num;
 
 -- name: GetGroupTranscriptStats :one
 SELECT
@@ -119,14 +203,37 @@ WHERE ts.group_id = $1 AND t.owner_id = $2
 ORDER BY ts.shared_at DESC;
 
 -- name: RetractUserSharesInGroup :exec
--- Removes every share row in the given collective where the underlying
--- transcript is owned by the given user. Used when a member leaves and
--- chooses to retract (or when the collective's policy is 'mandatory').
-DELETE FROM transcript_shares
-WHERE group_id = $1
-  AND transcript_id IN (
-    SELECT id FROM transcripts WHERE owner_id = $2
-  );
+-- Closes every live attempt in the given collective whose transcript is owned
+-- by the given user. Used when a member leaves and chooses to retract, or when
+-- the collective's deletion policy is 'mandatory', so nothing of theirs is left
+-- open in a collective they have left.
+--
+-- Per transcript this is the same two shapes as a single withdrawal: a
+-- submission awaiting review is closed in place, an accepted contribution gets
+-- a further attempt so its acceptance stays on record.
+WITH live AS (
+    SELECT DISTINCT ON (a.transcript_id)
+           a.transcript_id, a.event_num, a.status
+    FROM transcript_share_attempts a
+    JOIN transcripts t ON t.id = a.transcript_id
+    WHERE a.group_id = $1
+      AND t.owner_id = $2
+      AND a.status IN ('pending', 'approved')
+    ORDER BY a.transcript_id, a.event_num DESC
+), closed_open_submissions AS (
+    UPDATE transcript_share_attempts a
+    SET status = 'retracted', decided_at = now()
+    FROM live
+    WHERE a.group_id = $1
+      AND a.transcript_id = live.transcript_id
+      AND a.event_num = live.event_num
+      AND live.status = 'pending'
+    RETURNING a.event_num
+)
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT live.transcript_id, $1, live.event_num + 1, 'retracted', now()
+FROM live
+WHERE live.status = 'approved';
 
 -- name: ListGroupOwnersForTranscript :many
 -- Returns the owner user_ids of every collective that has a share row

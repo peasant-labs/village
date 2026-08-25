@@ -177,9 +177,9 @@ privacy relationship SQL (`scripts/seed-privacy-features.sql`).
 
 To exercise the curated-collective review flow as *yourself* (the dev user
 created when you sign in via OAuth), additionally run
-[`scripts/dev-pending-demo.sql`](scripts/dev-pending-demo.sql). It lands one
-pending `transcript_shares` row into a collective you own so a review row
-appears on `/groups/{id}`:
+[`scripts/dev-pending-demo.sql`](scripts/dev-pending-demo.sql). It opens one
+submission awaiting review in a collective you own, so a review row appears on
+`/groups/{id}`:
 
 ```sh
 docker exec -i $(docker compose ps -q postgres) psql -U peasant -d peasant \

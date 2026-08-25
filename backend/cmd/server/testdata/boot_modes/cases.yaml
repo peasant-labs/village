@@ -132,3 +132,17 @@
   rewrap_limit: 0
   origin_mode: ""
   error_contains: mutually exclusive
+- name: share state check with database authority only
+  args: ["-check-share-state"]
+  valid: true
+  mode: share-state-check
+  authority: postgresql
+  rewrap_limit: 0
+  error_contains: ""
+- name: share state check conflicts with migrate only
+  args: ["-check-share-state", "-migrate-only"]
+  valid: false
+  mode: ""
+  authority: ""
+  rewrap_limit: 0
+  error_contains: mutually exclusive

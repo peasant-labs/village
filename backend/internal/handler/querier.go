@@ -94,7 +94,8 @@ type Querier interface {
 	UpdateMemberRole(ctx context.Context, arg sqlc.UpdateMemberRoleParams) error
 
 	// Share methods
-	IsTranscriptSharedWithGroup(ctx context.Context, arg sqlc.IsTranscriptSharedWithGroupParams) (bool, error)
+	GetLatestShareAttempt(ctx context.Context, arg sqlc.GetLatestShareAttemptParams) (sqlc.TranscriptShareAttempt, error)
+	ListShareAttempts(ctx context.Context, arg sqlc.ListShareAttemptsParams) ([]sqlc.TranscriptShareAttempt, error)
 	ShareTranscriptWithStatus(ctx context.Context, arg sqlc.ShareTranscriptWithStatusParams) error
 	UnshareTranscript(ctx context.Context, arg sqlc.UnshareTranscriptParams) error
 	ListTranscriptShares(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.ListTranscriptSharesRow, error)
