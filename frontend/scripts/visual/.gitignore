@@ -28,6 +28,8 @@
 !explore-agent-group-shoot.mjs
 !mock-rest-profile.mjs
 !profile-collectives-shoot.mjs
+!mock-rest-project.mjs
+!project-page-shoot.mjs
 !png-diff.mjs
 !determinism.mjs
 !manage-README.md

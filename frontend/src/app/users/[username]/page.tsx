@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
-import { useTranscripts, useRenameUserProject } from "@/lib/queries/transcripts";
+import { use, useState } from "react";
+import { useTranscripts } from "@/lib/queries/transcripts";
 import { useDeleteAccount, usePublicProfile, useUpdateMySettings } from "@/lib/queries/auth";
 import { useAuth } from "@/providers/AuthProvider";
 import TranscriptList from "@/components/transcript/TranscriptList";
@@ -25,7 +25,6 @@ import {
   FileText,
   FolderOpen,
   Library,
-  Pencil,
   Plus,
   Trash2,
   Upload,
@@ -41,16 +40,9 @@ export default function UserProfilePage({
   const { user } = useAuth();
   const { data: profile, isError: isProfileError } = usePublicProfile(username);
   const { data, isLoading } = useTranscripts({ owner: username });
-  const renameProjectMutation = useRenameUserProject();
   const deleteAccountMutation = useDeleteAccount();
   const updateSettingsMutation = useUpdateMySettings();
   const [importOpen, setImportOpen] = useState(false);
-  // Keyed on project_hash (identity), never the display name — two
-  // different projects can coincidentally share a display name, and the
-  // rename mutation itself is now hash-keyed (see useRenameUserProject).
-  const [editingProjectHash, setEditingProjectHash] = useState<string | null>(null);
-  const [draftName, setDraftName] = useState("");
-  const editInputRef = useRef<HTMLInputElement | null>(null);
 
   const isOwnProfile =
     !!user && user.github_username.toLowerCase() === username.toLowerCase();
@@ -64,37 +56,6 @@ export default function UserProfilePage({
   const effectiveProfile = profile ?? (isOwnProfile ? user : undefined);
   const displayName = effectiveProfile?.display_name ?? username;
   const avatarUrl = effectiveProfile?.avatar_url ?? undefined;
-
-  useEffect(() => {
-    if (editingProjectHash && editInputRef.current) {
-      editInputRef.current.focus();
-      editInputRef.current.select();
-    }
-  }, [editingProjectHash]);
-
-  function startEdit(projectHash: string, currentDisplayName: string) {
-    setEditingProjectHash(projectHash);
-    setDraftName(currentDisplayName);
-  }
-
-  function cancelEdit() {
-    setEditingProjectHash(null);
-    setDraftName("");
-  }
-
-  function commitEdit() {
-    if (!editingProjectHash) return;
-    const next = draftName.trim();
-    const editingGroup = groups.find((g) => g.project_hash === editingProjectHash);
-    if (!next || (editingGroup && next === editingGroup.project)) {
-      cancelEdit();
-      return;
-    }
-    renameProjectMutation.mutate(
-      { projectHash: editingProjectHash, displayName: next },
-      { onSettled: () => cancelEdit() }
-    );
-  }
 
   function deleteAccount() {
     if (
@@ -241,48 +202,26 @@ export default function UserProfilePage({
                 className={`animate-fade-up stagger-${Math.min(gi + 1, 6)}`}
               >
                 <div className="flex items-center gap-3 px-5 py-3 bg-surface-hover">
-                  {editingProjectHash === group.project_hash ? (
-                    <input
-                      ref={editInputRef}
-                      type="text"
-                      value={draftName}
-                      maxLength={255}
-                      disabled={renameProjectMutation.isPending}
-                      onChange={(e) => setDraftName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          commitEdit();
-                        } else if (e.key === "Escape") {
-                          e.preventDefault();
-                          cancelEdit();
-                        }
-                      }}
-                      onBlur={commitEdit}
-                      className="min-w-0 flex-1 max-w-xs bg-surface border border-rule px-2 py-0.5 font-[family-name:var(--font-display)] text-sm font-semibold text-ink focus-mono disabled:opacity-50"
-                    />
-                  ) : (
-                    <h2 className="font-[family-name:var(--font-display)] text-sm font-semibold text-ink truncate">
+                  {/* The project name is the way into the project's own page,
+                      where its transcripts, its collectives and (for the owner)
+                      its name live. Routed on project_hash: the project's
+                      identity, never a name that could be re-derived.
+                      `normal-case` is load-bearing: the design system lowercases
+                      h1/h2/h3 as UI chrome, and a project's display name is
+                      USER CONTENT, which is never lowercased. */}
+                  <Link
+                    href={`/users/${encodeURIComponent(username)}/projects/${group.project_hash}`}
+                    className="min-w-0 focus-mono cursor-pointer"
+                  >
+                    <h2 className="font-[family-name:var(--font-display)] text-sm font-semibold text-ink truncate normal-case hover:text-ink-2 transition-colors">
                       {group.project}
                     </h2>
-                  )}
+                  </Link>
                   <span className="font-mono text-xs text-ink-3 tabular-nums shrink-0">
                     {group.items.length} session
                     {group.items.length !== 1 ? "s" : ""}
                   </span>
                   <div className="flex-1" />
-                  {isOwnProfile && editingProjectHash !== group.project_hash && (
-                    <button
-                      type="button"
-                      aria-label="Rename project"
-                      disabled={renameProjectMutation.isPending}
-                      onClick={() => startEdit(group.project_hash, group.project)}
-                      className="inline-flex items-center gap-1 font-mono text-xs text-ink-3 hover:text-ink transition-colors cursor-pointer focus-mono disabled:opacity-50"
-                    >
-                      <Pencil size={12} />
-                      Rename
-                    </button>
-                  )}
                 </div>
                 <TranscriptList
                   items={group.items}
@@ -396,7 +335,9 @@ export default function UserProfilePage({
           </div>
         )}
         <div className="min-w-0 flex flex-col gap-1.5">
-          <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-ink truncate">
+          {/* A person's display name is USER CONTENT. `normal-case` overrides the
+              design system's h1/h2/h3 lowercasing, which is a chrome rule. */}
+          <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-ink truncate normal-case">
             {displayName}
           </h1>
           <p className="font-mono text-sm text-ink-3">@{username}</p>
