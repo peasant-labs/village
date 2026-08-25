@@ -28,7 +28,8 @@ export type ProjectIdentityBreadcrumbHrefCase = {
 export type RepoGroupLabelCase = {
   name: string;
   gitRemote: string | null;
-  projectRemoteLabel: string | null;
+  /** "" (never null) — matches the wire, which never sends null here. */
+  projectRemoteLabel: string;
   projectDisplayName: string;
   expectedName: string;
 };

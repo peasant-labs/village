@@ -60,7 +60,7 @@ function wireItem(id: string, sessionOrigin: SessionOrigin): TranscriptListItem 
       project_hash: "1".repeat(64),
       project_display_name: "commons-grouping",
       project_name_source: "consented",
-      project_remote_label: null,
+      project_remote_label: "",
       parent_session_id: null,
       title_generated: null,
       license_id: null,

@@ -303,10 +303,17 @@ open with its full event history visible.
 
 It asserts build provenance BEFORE writing any PNG. The served page must carry
 the section, more than one contributed collective row, a collective with zero
-approved contributions and some awaiting review, and the literal unit wording
-`submission attempts` under the rejected counter. Each of those exists only in
-the change this gate covers, so a stale server or one serving another worktree
-fails with a nonzero exit instead of producing a misleading capture.
+approved contributions and some awaiting review, and the units sentence above
+the counters stating that rejected and withdrawn count submission attempts
+(not transcripts). Each of those exists only in the change this gate covers,
+so a stale server or one serving another worktree fails with a nonzero exit
+instead of producing a misleading capture. (Per-counter unit FOOTERS were
+removed at the user's explicit request; the distinction now lives only in
+that one sentence, which is what this gate checks.)
+
+Set `NARROW=1` to capture at a ~390px mobile viewport instead of the default
+desktop one, appending `-narrow` to every filename so a narrow run cannot
+overwrite a desktop capture sharing the same outdir.
 
 It also reads computed styles from the live DOM and prints them, because a
 scaled PNG cannot tell two close token values apart. The reported values are the
@@ -331,6 +338,10 @@ NEXT_PUBLIC_API_URL=http://localhost:8790/api/v1 pnpm start &
 
 CHROME_PATH=$CHROME node scripts/visual/profile-collectives-shoot.mjs dark  $BASE/dark
 CHROME_PATH=$CHROME node scripts/visual/profile-collectives-shoot.mjs light $BASE/light
+
+# narrow (~390px) captures, into the SAME outdirs — filenames get a -narrow suffix
+CHROME_PATH=$CHROME NARROW=1 node scripts/visual/profile-collectives-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME NARROW=1 node scripts/visual/profile-collectives-shoot.mjs light $BASE/light
 ```
 
 Capture into `review-capture/` (gitignored). Per-round proof PNGs are never
@@ -381,6 +392,12 @@ curl -s "http://localhost:3000/users/alice-dev/projects/$HASH" \
 CHROME_PATH=$CHROME VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
   node scripts/visual/project-page-shoot.mjs dark  $BASE/dark
 CHROME_PATH=$CHROME VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
+  node scripts/visual/project-page-shoot.mjs light $BASE/light
+
+# 4a. narrow (~390px) captures, into the SAME outdirs — filenames get a -narrow suffix
+CHROME_PATH=$CHROME NARROW=1 VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
+  node scripts/visual/project-page-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME NARROW=1 VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
   node scripts/visual/project-page-shoot.mjs light $BASE/light
 ```
 

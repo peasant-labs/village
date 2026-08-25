@@ -95,7 +95,7 @@ function makeTranscript(title: string, index: number, fixture: ProjectRouteFixtu
     project_name: fixture.displayName,
     project_display_name: fixture.displayName,
     project_name_source: fixture.nameSource,
-    project_remote_label: fixture.remoteLabel === "" ? null : fixture.remoteLabel,
+    project_remote_label: fixture.remoteLabel,
     tool_call_count: null,
     subagent_count: null,
     duration_ms: null,

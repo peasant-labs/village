@@ -12,7 +12,6 @@ import {
   loadProfileCollectivesFixtures,
   type ContributedCollectiveFixture,
 } from "@/test/profileCollectivesFixtures";
-import { CONTRIBUTION_COUNTER_UNITS } from "@/lib/shareEvents";
 import type { CollectiveSubmissionPair, ContributedCollective, ShareEvent } from "@/lib/types";
 
 // Mounts the REAL profile route (`UserProfilePage` inside the real
@@ -114,28 +113,6 @@ describe("mounted profile route: every contributed collective is listed", () => 
         expect(read("counter-withdrawn")?.textContent).toContain(
           String(expected.withdrawnAttempts),
         );
-
-        // The four numbers do not all measure the same thing, and the UI has
-        // to say so where the numbers are: approved and awaiting review count
-        // TRANSCRIPTS, rejected and withdrawn count SUBMISSION ATTEMPTS.
-        // Printing them side by side without their units invites a comparison
-        // that is not meaningful.
-        expect(read("counter-approved-unit")?.textContent?.trim()).toBe(
-          CONTRIBUTION_COUNTER_UNITS.approved,
-        );
-        expect(read("counter-pending-unit")?.textContent?.trim()).toBe(
-          CONTRIBUTION_COUNTER_UNITS.pending,
-        );
-        expect(read("counter-rejected-attempts-unit")?.textContent?.trim()).toBe(
-          "submission attempts",
-        );
-        expect(read("counter-rejected-attempts-unit")?.textContent?.trim()).not.toBe(
-          "transcripts",
-        );
-        expect(read("counter-withdrawn-unit")?.textContent?.trim()).toBe(
-          "submission attempts",
-        );
-        expect(read("counter-withdrawn-unit")?.textContent?.trim()).not.toBe("transcripts");
       });
     });
   }

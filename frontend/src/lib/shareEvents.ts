@@ -7,25 +7,6 @@ import {
 } from "@/lib/types";
 
 /**
- * The unit each contribution counter measures, in the words the profile
- * renders beneath it.
- *
- * This is the single declaration of the attempts-versus-transcripts asymmetry
- * in the UI. `approved_count` and `pending_count` count distinct transcripts;
- * `rejected_attempt_count` and `withdrawn_attempt_count` count EVENTS, so one
- * transcript refused three times by one collective contributes three, and one
- * transcript withdrawn and resubmitted twice contributes two withdrawals.
- * Printing "3 rejected" beside "2 approved" without these units invites the
- * reader to compare two numbers that do not measure the same thing.
- */
-export const CONTRIBUTION_COUNTER_UNITS = {
-  approved: "transcripts",
-  pending: "transcripts",
-  rejectedAttempts: "submission attempts",
-  withdrawnAttempts: "submission attempts",
-} as const;
-
-/**
  * The sentence that states the asymmetry once, above the counters, so the
  * units beneath each number are explained rather than merely present.
  *
