@@ -1,0 +1,36 @@
+# Fixture corpus for projectname.IsPrivacyLabel. The rule is exactly
+# ^project-[0-9a-f]{12}$.
+
+cases:
+  - name: exact-12-hex-match
+    project_name: "project-abcdef123456"
+    want: true
+
+  - name: eleven-hex-rejected
+    project_name: "project-abcdef12345"
+    want: false
+
+  - name: thirteen-hex-rejected
+    project_name: "project-abcdef1234567"
+    want: false
+
+  - name: uppercase-hex-rejected
+    project_name: "project-ABCDEF123456"
+    want: false
+
+  - name: non-hex-suffix-rejected
+    project_name: "project-zzzzzzzzzzzz"
+    want: false
+
+  # Documented, deliberate collision: a real project literally named
+  # "project-abcdef123456" is syntactically indistinguishable from a
+  # synthesised privacy label and IS accepted as one. This is the same input
+  # as exact-12-hex-match; it is kept as its own named case so the collision
+  # is asserted under its own name and cannot be silently renamed away.
+  - name: real-project-name-collision-is-accepted-as-privacy-label
+    project_name: "project-abcdef123456"
+    want: true
+
+  - name: empty-string-rejected
+    project_name: ""
+    want: false

@@ -1,0 +1,238 @@
+# Fixture corpus for projectname.Resolve.
+#
+# Every row asserts want_display_name AND want_source. want_remote_label is
+# always asserted too: Resolved.RemoteLabel is populated independently of
+# which tier supplied DisplayName, so several override/consented rows below
+# still expect a non-empty remote label alongside a higher-precedence name.
+#
+# git_remote values (raw, unformatted):
+#   recognized:   git@github.com:peasant-labs/village.git
+#     -> formats to github.com:peasant-labs/village via the test's mock
+#        RemoteLabeler
+#   unrecognized: not-a-real-remote
+#     -> the mock RemoteLabeler reports ok=false for this value
+#
+# project_hash is present on every row (it is a required, NOT NULL identity
+# column at the publish boundary elsewhere in the system), except that its
+# leading 12 hex characters are the payload the last-resort row asserts.
+
+cases:
+  # The full lattice: every subset of {override, consented, remote, privacy}
+  # present/absent (16 rows), keyed by which of the four tiers are non-empty.
+
+  - name: all-evidence-absent-synthesizes-privacy-label-from-hash
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: ""
+    git_remote: ""
+    privacy_label: ""
+    want_display_name: "project-0123456789ab"
+    want_source: "privacy"
+    want_remote_label: ""
+
+  - name: privacy-label-only-tier
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: ""
+    git_remote: ""
+    privacy_label: "project-abcdef123456"
+    want_display_name: "project-abcdef123456"
+    want_source: "privacy"
+    want_remote_label: ""
+
+  - name: remote-only-tier
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: ""
+    git_remote: "git@github.com:peasant-labs/village.git"
+    privacy_label: ""
+    want_display_name: "github.com:peasant-labs/village"
+    want_source: "remote"
+    want_remote_label: "github.com:peasant-labs/village"
+
+  - name: remote-and-privacy-present-remote-wins
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: ""
+    git_remote: "git@github.com:peasant-labs/village.git"
+    privacy_label: "project-abcdef123456"
+    want_display_name: "github.com:peasant-labs/village"
+    want_source: "remote"
+    want_remote_label: "github.com:peasant-labs/village"
+
+  - name: consented-only-tier
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: "consented-project"
+    git_remote: ""
+    privacy_label: ""
+    want_display_name: "consented-project"
+    want_source: "consented"
+    want_remote_label: ""
+
+  - name: consented-and-privacy-present-consented-wins
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: "consented-project"
+    git_remote: ""
+    privacy_label: "project-abcdef123456"
+    want_display_name: "consented-project"
+    want_source: "consented"
+    want_remote_label: ""
+
+  - name: consented-and-remote-present-consented-wins
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: "consented-project"
+    git_remote: "git@github.com:peasant-labs/village.git"
+    privacy_label: ""
+    want_display_name: "consented-project"
+    want_source: "consented"
+    want_remote_label: "github.com:peasant-labs/village"
+
+  - name: consented-remote-privacy-present-consented-wins
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: "consented-project"
+    git_remote: "git@github.com:peasant-labs/village.git"
+    privacy_label: "project-abcdef123456"
+    want_display_name: "consented-project"
+    want_source: "consented"
+    want_remote_label: "github.com:peasant-labs/village"
+
+  - name: override-only-tier
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: "Team Override"
+    consented_name: ""
+    git_remote: ""
+    privacy_label: ""
+    want_display_name: "Team Override"
+    want_source: "override"
+    want_remote_label: ""
+
+  - name: override-and-privacy-present-override-wins
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: "Team Override"
+    consented_name: ""
+    git_remote: ""
+    privacy_label: "project-abcdef123456"
+    want_display_name: "Team Override"
+    want_source: "override"
+    want_remote_label: ""
+
+  - name: override-and-remote-present-override-wins
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: "Team Override"
+    consented_name: ""
+    git_remote: "git@github.com:peasant-labs/village.git"
+    privacy_label: ""
+    want_display_name: "Team Override"
+    want_source: "override"
+    want_remote_label: "github.com:peasant-labs/village"
+
+  - name: override-remote-privacy-present-override-wins
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: "Team Override"
+    consented_name: ""
+    git_remote: "git@github.com:peasant-labs/village.git"
+    privacy_label: "project-abcdef123456"
+    want_display_name: "Team Override"
+    want_source: "override"
+    want_remote_label: "github.com:peasant-labs/village"
+
+  - name: override-and-consented-present-override-wins
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: "Team Override"
+    consented_name: "consented-project"
+    git_remote: ""
+    privacy_label: ""
+    want_display_name: "Team Override"
+    want_source: "override"
+    want_remote_label: ""
+
+  - name: override-consented-privacy-present-override-wins
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: "Team Override"
+    consented_name: "consented-project"
+    git_remote: ""
+    privacy_label: "project-abcdef123456"
+    want_display_name: "Team Override"
+    want_source: "override"
+    want_remote_label: ""
+
+  - name: override-consented-remote-present-override-wins
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: "Team Override"
+    consented_name: "consented-project"
+    git_remote: "git@github.com:peasant-labs/village.git"
+    privacy_label: ""
+    want_display_name: "Team Override"
+    want_source: "override"
+    want_remote_label: "github.com:peasant-labs/village"
+
+  - name: override-consented-remote-privacy-all-present-override-wins
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: "Team Override"
+    consented_name: "consented-project"
+    git_remote: "git@github.com:peasant-labs/village.git"
+    privacy_label: "project-abcdef123456"
+    want_display_name: "Team Override"
+    want_source: "override"
+    want_remote_label: "github.com:peasant-labs/village"
+
+  # Beyond the lattice: an unrecognized remote must not count as "known" for
+  # either the remote tier or the RemoteLabel subtitle, so evidence falls
+  # through to the next tier exactly as if git_remote had been empty.
+  - name: remote-unrecognized-falls-through-to-privacy
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: ""
+    git_remote: "not-a-real-remote"
+    privacy_label: "project-abcdef123456"
+    want_display_name: "project-abcdef123456"
+    want_source: "privacy"
+    want_remote_label: ""
+
+  # Documents the Evidence a correct SQL pick (published_at DESC, id ASC
+  # tie-break) produces when two candidate rows tie on published_at. The
+  # tie-break itself is enforced in SQL owned by a sibling slice
+  # (ListOwnerProjectIdentities); this fixture locks Resolve's behavior given
+  # the deterministically-picked evidence such a tie-break would hand it.
+  - name: published-at-tie-id-asc-tiebreak-consented-pick
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: "tie-break-winner-by-id-asc"
+    git_remote: ""
+    privacy_label: ""
+    want_display_name: "tie-break-winner-by-id-asc"
+    want_source: "consented"
+    want_remote_label: ""
+
+  # One project_hash carries one consented-name transcript and one
+  # privacy-label transcript from the same owner. Both rows are the same
+  # project and must resolve to exactly one name, not two.
+  - name: mixed-name-same-hash-one-project-one-name
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: "village"
+    git_remote: ""
+    privacy_label: "project-3fa9c2e1b0d4"
+    want_display_name: "village"
+    want_source: "consented"
+    want_remote_label: ""
+
+  # A Resolver constructed with its zero value (nil Label) must behave
+  # exactly as one whose labeler always reports the remote unusable, never
+  # panic. GitRemote is present here so this case would exercise the
+  # labeler if one were wired; since none is, evidence falls through to the
+  # last-resort synthesis just as it would if git_remote were empty.
+  - name: zero-value-resolver-nil-label-is-safe
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: ""
+    git_remote: "git@github.com:peasant-labs/village.git"
+    privacy_label: ""
+    no_labeler: true
+    want_display_name: "project-0123456789ab"
+    want_source: "privacy"
+    want_remote_label: ""
