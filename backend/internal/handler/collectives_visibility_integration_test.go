@@ -2,7 +2,7 @@
 
 package handler
 
-// Who may learn that a transcript is in a collective, and what the three
+// Who may learn that a transcript is in a collective, and what the four
 // contribution counters say - driven through the REAL share and collectives
 // handlers against a REAL PostgreSQL.
 //
@@ -64,6 +64,7 @@ type cvExpect struct {
 	ApprovedCount                int32  `yaml:"approved_count"`
 	PendingCount                 int32  `yaml:"pending_count"`
 	RejectedAttemptCount         int32  `yaml:"rejected_attempt_count"`
+	WithdrawnAttemptCount        int32  `yaml:"withdrawn_attempt_count"`
 }
 
 type cvCase struct {
@@ -96,6 +97,7 @@ var requiredCollectiveVisibilityCases = []string{
 	"collective_with_repeatedly_rejected_share",
 	"collective_with_only_retracted_shares",
 	"collective_with_only_revoked_shares",
+	"collective_with_retracted_and_revoked_shares",
 	"approved_count_counts_transcripts_not_attempts",
 	"collective_with_approved_and_pending_transcripts",
 	"shared_transcript_hidden_from_anonymous_viewer",
@@ -565,7 +567,7 @@ func (w *collectiveWorld) assertProjectRollup(t *testing.T, ctx context.Context,
 }
 
 // assertContributions drives GET /users/me/collectives/contributions as the
-// owner - the only viewer that route has - and checks the three counters.
+// owner - the only viewer that route has - and checks the four counters.
 func (w *collectiveWorld) assertContributions(t *testing.T, h *Handler, expect cvExpect, why string) {
 	t.Helper()
 	owner := &AuthUser{ID: uuid.UUID(w.owner.Bytes), Username: w.ownerName}
@@ -576,10 +578,11 @@ func (w *collectiveWorld) assertContributions(t *testing.T, h *Handler, expect c
 	}
 	var body struct {
 		Collectives []struct {
-			ID                   string `json:"id"`
-			ApprovedCount        int32  `json:"approved_count"`
-			PendingCount         int32  `json:"pending_count"`
-			RejectedAttemptCount int32  `json:"rejected_attempt_count"`
+			ID                    string `json:"id"`
+			ApprovedCount         int32  `json:"approved_count"`
+			PendingCount          int32  `json:"pending_count"`
+			RejectedAttemptCount  int32  `json:"rejected_attempt_count"`
+			WithdrawnAttemptCount int32  `json:"withdrawn_attempt_count"`
 		} `json:"collectives"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
@@ -604,11 +607,18 @@ func (w *collectiveWorld) assertContributions(t *testing.T, h *Handler, expect c
 			t.Errorf("rejected_attempt_count = %d, want %d; it counts REFUSAL EVENTS, not transcripts (%s)",
 				row.RejectedAttemptCount, expect.RejectedAttemptCount, why)
 		}
+		if row.WithdrawnAttemptCount != expect.WithdrawnAttemptCount {
+			t.Errorf("withdrawn_attempt_count = %d, want %d; it counts WITHDRAWAL EVENTS - retractions by the owner and "+
+				"removals by the collective, added together - not transcripts. Before this counter existed those events "+
+				"were counted nowhere and a withdrawn contribution vanished from every total (%s)",
+				row.WithdrawnAttemptCount, expect.WithdrawnAttemptCount, why)
+		}
 		return
 	}
 	if expect.ContributionsListed {
 		t.Fatalf("the contributions surface omits the collective entirely, want it listed with approved=%d pending=%d "+
-			"rejected_attempt=%d (%s)", expect.ApprovedCount, expect.PendingCount, expect.RejectedAttemptCount, why)
+			"rejected_attempt=%d withdrawn_attempt=%d (%s)", expect.ApprovedCount, expect.PendingCount,
+			expect.RejectedAttemptCount, expect.WithdrawnAttemptCount, why)
 	}
 }
 

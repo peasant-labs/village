@@ -397,6 +397,79 @@ func (q *Queries) ListGroupTranscripts(ctx context.Context, arg ListGroupTranscr
 	return items, nil
 }
 
+const listOwnerCollectiveSubmissions = `-- name: ListOwnerCollectiveSubmissions :many
+SELECT latest.transcript_id, latest.group_id, latest.title, latest.event_num,
+       latest.status, latest.recorded_at
+FROM (
+  SELECT DISTINCT ON (a.transcript_id)
+         a.transcript_id, a.group_id, t.title, a.event_num, a.status, a.recorded_at
+  FROM transcript_share_attempts a
+  JOIN transcripts t ON t.id = a.transcript_id
+  WHERE a.group_id = $1 AND t.owner_id = $2
+  ORDER BY a.transcript_id, a.event_num DESC
+) latest
+ORDER BY latest.recorded_at DESC, latest.transcript_id
+`
+
+type ListOwnerCollectiveSubmissionsParams struct {
+	GroupID pgtype.UUID `db:"group_id" json:"group_id"`
+	OwnerID pgtype.UUID `db:"owner_id" json:"owner_id"`
+}
+
+type ListOwnerCollectiveSubmissionsRow struct {
+	TranscriptID pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	GroupID      pgtype.UUID        `db:"group_id" json:"group_id"`
+	Title        pgtype.Text        `db:"title" json:"title"`
+	EventNum     int32              `db:"event_num" json:"event_num"`
+	Status       string             `db:"status" json:"status"`
+	RecordedAt   pgtype.Timestamptz `db:"recorded_at" json:"recorded_at"`
+}
+
+// EVERY (transcript, collective) pair the caller has ever offered to ONE
+// collective, with the latest recorded event of each pair.
+//
+// The source is the ATTEMPT LEDGER, never the derived current-state row, and
+// that is the whole point of the statement. The derived row is a fold that
+// keeps only live states: a pair whose last event was a retraction or a
+// revocation has no derived row at all. A listing built on the derived row
+// therefore reported nothing for a contribution that was submitted, refused and
+// then withdrawn - the person was told they had refusals and then shown an
+// empty list. Reading the ledger keeps the fully-withdrawn pair listed, so its
+// history stays reachable.
+//
+// Owner-only: $2 is the authenticated caller, and there is deliberately no
+// username parameter and no username route, so no request can name a subject
+// other than the caller. A caller with no pair here gets an empty result, which
+// the handler answers as 404 - the same answer as a collective that does not
+// exist, so asking cannot be used to discover one.
+// $1 = group_id, $2 = owner_id.
+func (q *Queries) ListOwnerCollectiveSubmissions(ctx context.Context, arg ListOwnerCollectiveSubmissionsParams) ([]ListOwnerCollectiveSubmissionsRow, error) {
+	rows, err := q.db.Query(ctx, listOwnerCollectiveSubmissions, arg.GroupID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnerCollectiveSubmissionsRow{}
+	for rows.Next() {
+		var i ListOwnerCollectiveSubmissionsRow
+		if err := rows.Scan(
+			&i.TranscriptID,
+			&i.GroupID,
+			&i.Title,
+			&i.EventNum,
+			&i.Status,
+			&i.RecordedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPendingGroupShares = `-- name: ListPendingGroupShares :many
 SELECT ts.transcript_id, t.title, t.model_provider,
        u.github_username as owner_username,

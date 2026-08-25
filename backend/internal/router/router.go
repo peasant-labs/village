@@ -106,6 +106,14 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		// with someone else's identifier.
 		r.With(h.AuthRequired).Get("/users/me/collectives/{groupId}/transcripts/{transcriptId}/events", h.ListShareEventHistory)
 
+		// Every (transcript, collective) pair the caller has offered to one
+		// collective, read from the attempt ledger rather than the derived
+		// current-state row, so a contribution whose last event was a
+		// withdrawal is still listed and its history is still reachable.
+		// Owner-only by the same route discipline: no username segment exists,
+		// and a caller with no pair here is answered 404, never 403.
+		r.With(h.AuthRequired).Get("/users/me/collectives/{groupId}/submissions", h.ListMyCollectiveSubmissions)
+
 		// Attestations
 		r.With(h.AuthOptional).Get("/transcripts/{id}/attestations", h.ListTranscriptAttestations)
 		r.With(h.AuthRequired).Post("/transcripts/{id}/attestations", h.CreateAttestation)

@@ -809,12 +809,12 @@ func (h *Handler) ListMyGroupShares(w http.ResponseWriter, r *http.Request) {
 }
 
 // contributedCollective is the wire shape of one row of a person's own
-// contributions. The three counters do not measure the same thing, and the
+// contributions. The four counters do not measure the same thing, and the
 // field names are what makes that legible to a consumer without reading this
 // file: approved_count and pending_count are counts of TRANSCRIPTS, while
-// rejected_attempt_count is a count of SUBMISSION ATTEMPTS, because one
-// transcript can be refused by one collective repeatedly and each refusal is
-// its own instance.
+// rejected_attempt_count and withdrawn_attempt_count are counts of SUBMISSION
+// ATTEMPTS, because one transcript can be refused or withdrawn by one
+// collective repeatedly and each occurrence is its own instance.
 type contributedCollective struct {
 	ID              pgtype.UUID `json:"id"`
 	Name            string      `json:"name"`
@@ -828,6 +828,12 @@ type contributedCollective struct {
 	// refusals of one transcript are three refusals; that is what makes a
 	// repeatedly-refused submission legible instead of a bare zero.
 	RejectedAttemptCount int32 `json:"rejected_attempt_count"`
+	// WithdrawnAttemptCount counts WITHDRAWAL EVENTS, not transcripts: both
+	// retractions by the owner and removals by the collective, added together.
+	// Before this counter existed those events were counted nowhere, so a
+	// contribution that ended in a withdrawal simply vanished from every total
+	// and the person had no way to tell it had ever happened.
+	WithdrawnAttemptCount int32 `json:"withdrawn_attempt_count"`
 }
 
 // ListMyCollectiveContributions returns the collectives the caller has offered
@@ -835,8 +841,8 @@ type contributedCollective struct {
 //
 // It is owner-only BY ROUTE: the query takes the authenticated caller's id and
 // there is deliberately no username parameter and no username variant, so the
-// pending and refused counts - which are nobody else's business - have no route
-// through which another viewer could ask for them.
+// pending, refused and withdrawn counts - which are nobody else's business -
+// have no route through which another viewer could ask for them.
 //
 // Collectives holding nothing but submissions still awaiting review ARE listed,
 // with approved_count = 0. Being told nothing until something is accepted is
@@ -862,13 +868,14 @@ func (h *Handler) ListMyCollectiveContributions(w http.ResponseWriter, r *http.R
 	out := make([]contributedCollective, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, contributedCollective{
-			ID:                   row.ID,
-			Name:                 row.Name,
-			Description:          row.Description,
-			LinkedGithubOrg:      row.LinkedGithubOrg,
-			ApprovedCount:        row.ApprovedCount,
-			PendingCount:         row.PendingCount,
-			RejectedAttemptCount: row.RejectedAttemptCount,
+			ID:                    row.ID,
+			Name:                  row.Name,
+			Description:           row.Description,
+			LinkedGithubOrg:       row.LinkedGithubOrg,
+			ApprovedCount:         row.ApprovedCount,
+			PendingCount:          row.PendingCount,
+			RejectedAttemptCount:  row.RejectedAttemptCount,
+			WithdrawnAttemptCount: row.WithdrawnAttemptCount,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"collectives": out})

@@ -350,7 +350,8 @@ const listOwnerCollectiveContributions = `-- name: ListOwnerCollectiveContributi
 SELECT g.id, g.name, g.description, g.linked_github_org,
        COUNT(DISTINCT CASE WHEN ts.status = 'approved' THEN ts.transcript_id END)::int AS approved_count,
        COUNT(DISTINCT CASE WHEN ts.status = 'pending'  THEN ts.transcript_id END)::int AS pending_count,
-       COUNT(CASE WHEN a.status = 'rejected' THEN 1 END)::int AS rejected_attempt_count
+       COUNT(CASE WHEN a.status = 'rejected' THEN 1 END)::int AS rejected_attempt_count,
+       COUNT(CASE WHEN a.status IN ('retracted', 'revoked') THEN 1 END)::int AS withdrawn_attempt_count
 FROM transcript_share_attempts a
 JOIN transcripts t ON t.id = a.transcript_id
 JOIN groups g ON g.id = a.group_id
@@ -362,25 +363,33 @@ ORDER BY approved_count DESC, pending_count DESC, g.name, g.id
 `
 
 type ListOwnerCollectiveContributionsRow struct {
-	ID                   pgtype.UUID `db:"id" json:"id"`
-	Name                 string      `db:"name" json:"name"`
-	Description          pgtype.Text `db:"description" json:"description"`
-	LinkedGithubOrg      pgtype.Text `db:"linked_github_org" json:"linked_github_org"`
-	ApprovedCount        int32       `db:"approved_count" json:"approved_count"`
-	PendingCount         int32       `db:"pending_count" json:"pending_count"`
-	RejectedAttemptCount int32       `db:"rejected_attempt_count" json:"rejected_attempt_count"`
+	ID                    pgtype.UUID `db:"id" json:"id"`
+	Name                  string      `db:"name" json:"name"`
+	Description           pgtype.Text `db:"description" json:"description"`
+	LinkedGithubOrg       pgtype.Text `db:"linked_github_org" json:"linked_github_org"`
+	ApprovedCount         int32       `db:"approved_count" json:"approved_count"`
+	PendingCount          int32       `db:"pending_count" json:"pending_count"`
+	RejectedAttemptCount  int32       `db:"rejected_attempt_count" json:"rejected_attempt_count"`
+	WithdrawnAttemptCount int32       `db:"withdrawn_attempt_count" json:"withdrawn_attempt_count"`
 }
 
-// The collectives the caller has offered transcripts to, with the three
+// The collectives the caller has offered transcripts to, with the four
 // counters their profile renders, from ONE aggregate.
 //
 // approved_count and pending_count count DISTINCT TRANSCRIPTS: a transcript is
 // either in a collective or it is not, so a contribution that was withdrawn and
-// accepted again is still one contribution. rejected_attempt_count counts
-// EVENTS, because one transcript can be refused by one collective repeatedly
-// and each refusal is its own instance. The wire field says attempt for that
-// reason. Withdrawn (retracted) and removed (revoked) events are counted in
-// none of the three.
+// accepted again is still one contribution. rejected_attempt_count and
+// withdrawn_attempt_count count EVENTS, because one transcript can be refused
+// or withdrawn by one collective repeatedly and each occurrence is its own
+// instance. The wire fields say attempt for that reason.
+//
+// withdrawn_attempt_count counts retracted (the owner withdrew) and revoked
+// (the collective removed) events TOGETHER. Before it existed those events were
+// counted in none of the counters, so a contribution that was submitted,
+// refused and then withdrawn reported refusals with nothing to open: the
+// withdrawal itself was invisible on every surface. The two statuses stay
+// distinct in the ledger and the per-submission surfaces still label them by
+// actor; only the profile-level total adds them up.
 //
 // The join is over the event ledger, so a collective holding nothing but
 // submissions still awaiting review IS listed, with approved_count = 0. The
@@ -409,6 +418,7 @@ func (q *Queries) ListOwnerCollectiveContributions(ctx context.Context, ownerID 
 			&i.ApprovedCount,
 			&i.PendingCount,
 			&i.RejectedAttemptCount,
+			&i.WithdrawnAttemptCount,
 		); err != nil {
 			return nil, err
 		}

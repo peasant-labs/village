@@ -109,6 +109,7 @@ type mockQuerier struct {
 	// how many times a surface reaches the database and prove one aggregate
 	// answers a whole page instead of one query per collective.
 	listOwnerCollectiveContributions   func(ctx context.Context, ownerID pgtype.UUID) ([]sqlc.ListOwnerCollectiveContributionsRow, error)
+	listOwnerCollectiveSubmissions     func(ctx context.Context, arg sqlc.ListOwnerCollectiveSubmissionsParams) ([]sqlc.ListOwnerCollectiveSubmissionsRow, error)
 	listProjectCollectiveRollup        func(ctx context.Context, arg sqlc.ListProjectCollectiveRollupParams) ([]sqlc.ListProjectCollectiveRollupRow, error)
 	listTranscriptCollectivesForViewer func(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error)
 
@@ -613,6 +614,12 @@ func (m *mockQuerier) ListOwnerCollectiveContributions(ctx context.Context, owne
 		return m.listOwnerCollectiveContributions(ctx, ownerID)
 	}
 	panic("ListOwnerCollectiveContributions: not stubbed")
+}
+func (m *mockQuerier) ListOwnerCollectiveSubmissions(ctx context.Context, arg sqlc.ListOwnerCollectiveSubmissionsParams) ([]sqlc.ListOwnerCollectiveSubmissionsRow, error) {
+	if m.listOwnerCollectiveSubmissions != nil {
+		return m.listOwnerCollectiveSubmissions(ctx, arg)
+	}
+	panic("ListOwnerCollectiveSubmissions: not stubbed")
 }
 func (m *mockQuerier) ListProjectCollectiveRollup(ctx context.Context, arg sqlc.ListProjectCollectiveRollupParams) ([]sqlc.ListProjectCollectiveRollupRow, error) {
 	if m.listProjectCollectiveRollup != nil {
