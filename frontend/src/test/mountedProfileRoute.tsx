@@ -4,7 +4,12 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import UserProfilePage from "@/app/users/[username]/page";
-import type { ContributedCollective, ShareEvent, User } from "@/lib/types";
+import type {
+  CollectiveSubmissionPair,
+  ContributedCollective,
+  ShareEvent,
+  User,
+} from "@/lib/types";
 
 /**
  * Support for tests that mount the REAL profile route
@@ -18,13 +23,6 @@ import type { ContributedCollective, ShareEvent, User } from "@/lib/types";
  * the component who the viewer was could not observe the app getting it wrong.
  */
 
-/** One share row as `GET /groups/{id}/my-shares` serves it. */
-export interface MountedProfileShare {
-  id: string;
-  title: string | null;
-  status: "pending" | "approved" | "rejected";
-}
-
 export interface MountedProfileFixture {
   /** The profile being viewed. */
   profileUsername: string;
@@ -32,8 +30,13 @@ export interface MountedProfileFixture {
   viewerUsername: string | null;
   /** `GET /users/me/collectives/contributions`. */
   contributions: ContributedCollective[];
-  /** `GET /groups/{id}/my-shares`, keyed by collective id. */
-  sharesByGroupId?: Record<string, MountedProfileShare[]>;
+  /**
+   * `GET /users/me/collectives/{groupId}/submissions`, keyed by collective id
+   * — the owner-only PAIRS source. Includes a pair whose latest event is a
+   * withdrawal (`retracted`/`revoked`); that pair has no row in the legacy
+   * current-state list but MUST have one here.
+   */
+  submissionsByGroupId?: Record<string, CollectiveSubmissionPair[]>;
   /** `GET /users/me/collectives/{groupId}/transcripts/{transcriptId}/events`. */
   eventsByGroupAndTranscript?: Record<string, ShareEvent[]>;
 }
@@ -97,24 +100,9 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
         fixture.eventsByGroupAndTranscript?.[eventKey(eventsMatch[1], eventsMatch[2])] ?? [],
       );
     }
-    const sharesMatch = path.match(/^\/groups\/([^/]+)\/my-shares$/);
-    if (sharesMatch) {
-      const shares = fixture.sharesByGroupId?.[sharesMatch[1]] ?? [];
-      return json(
-        shares.map((s) => ({
-          id: s.id,
-          title: s.title,
-          model_provider: "anthropic",
-          model_name: "claude",
-          visibility: "public",
-          published_at: "2026-08-01T00:00:00.000Z",
-          turn_count: 2,
-          tokens_in: 10,
-          tokens_out: 10,
-          status: s.status,
-          shared_at: "2026-08-01T00:00:00.000Z",
-        })),
-      );
+    const submissionsMatch = path.match(/^\/users\/me\/collectives\/([^/]+)\/submissions$/);
+    if (submissionsMatch) {
+      return json(fixture.submissionsByGroupId?.[submissionsMatch[1]] ?? []);
     }
     if (path.startsWith("/transcripts?")) {
       return json({ transcripts: [], total: 0, agent_total: 0, page: 1, limit: 24 });

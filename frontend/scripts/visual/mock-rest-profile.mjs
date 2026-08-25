@@ -4,16 +4,19 @@
      - GET /api/v1/auth/me                                  (who is looking)
      - GET /api/v1/users/{username}                         (the public profile)
      - GET /api/v1/transcripts?owner=...                    (the library)
-     - GET /api/v1/users/me/collectives/contributions       (the section)
+     - GET /api/v1/users/me/collectives/contributions       (the section, now four counters)
    and, once a collective and then a submission are opened:
-     - GET /api/v1/groups/{id}/my-shares
+     - GET /api/v1/users/me/collectives/{groupId}/submissions   (the owner-only PAIRS list)
      - GET /api/v1/users/me/collectives/{groupId}/transcripts/{transcriptId}/events
 
    The dataset is chosen to exercise the cases the section has to get right in
    one capture: a collective with approved, awaiting-review AND repeatedly
    refused submissions, a collective holding only submissions awaiting review,
-   and an event history containing all five states so the actor labels are
-   visible.
+   a collective refused three times and then withdrawn (so its pairs list has
+   a row with a "withdrawn" chip rather than being empty — the exact
+   contradiction a real user acceptance test caught: a nonzero withdrawn
+   counter beside "no submissions of yours are on record"), and an event
+   history containing all five states so the actor labels are visible.
 
    Usage:
      MOCK_REST_PORT=8790 node scripts/visual/mock-rest-profile.mjs
@@ -49,6 +52,7 @@ const contributions = [
     approved_count: 2,
     pending_count: 1,
     rejected_attempt_count: 2,
+    withdrawn_attempt_count: 1,
   },
   {
     id: QUIET,
@@ -58,7 +62,12 @@ const contributions = [
     approved_count: 0,
     pending_count: 3,
     rejected_attempt_count: 0,
+    withdrawn_attempt_count: 0,
   },
+  // Submitted, then withdrawn with no refusal ever recorded. The current
+  // state row is gone (approved and pending both 0) and nothing was ever
+  // refused (rejected 0), but the withdrawn counter is nonzero — and its
+  // pairs list has a row, not nothing.
   {
     id: FORMER,
     name: 'Former Home',
@@ -67,12 +76,15 @@ const contributions = [
     approved_count: 0,
     pending_count: 0,
     rejected_attempt_count: 0,
+    withdrawn_attempt_count: 1,
   },
   // Refused three times and then withdrawn. The refusals stay counted from the
-  // event ledger while both transcript counters fall to zero, and the current
-  // state row is gone — so opening this collective lists no submissions and
-  // its history has no entry point. That dead end is real and is captured here
-  // rather than described only in prose.
+  // event ledger, the withdrawal itself is now also counted, and both
+  // transcript counters fall to zero — but the pairs endpoint still lists the
+  // one pair, with a chip reading "withdrawn" and its history control intact.
+  // This is the exact collective a real user acceptance test caught
+  // contradicting itself: "3 submission attempts" above, "no submissions of
+  // yours are on record" below.
   {
     id: STRICT,
     name: 'Strict Curators',
@@ -81,36 +93,36 @@ const contributions = [
     approved_count: 0,
     pending_count: 0,
     rejected_attempt_count: 3,
+    withdrawn_attempt_count: 1,
   },
 ]
 
-const share = (id, title, status) => ({
-  id,
-  title,
-  model_provider: 'claude-code',
-  model_name: 'Claude Opus 4.5',
-  visibility: 'public',
-  published_at: '2026-08-01T09:00:00Z',
-  turn_count: 42,
-  tokens_in: 91000,
-  tokens_out: 12000,
+// One (transcript, collective) ledger pair, as the owner-only pairs endpoint
+// serves it: identity plus latest state only, no title.
+const pair = (transcriptId, status, eventNum, recordedAt) => ({
+  transcript_id: transcriptId,
   status,
-  shared_at: '2026-08-01T09:00:00Z',
+  event_num: eventNum,
+  recorded_at: recordedAt,
 })
 
-const sharesByGroup = {
+const submissionsByGroup = {
   [RESEARCH]: [
-    share('9a1c4e21', 'Rewriting the ingest commit detector', 'pending'),
-    share('4f77b0c3', 'Tracing a redaction rule regression', 'approved'),
-    share('c02d5188', 'Measuring push latency across regions', 'approved'),
+    pair('9a1c4e21', 'pending', 5, '2026-08-07T09:40:00Z'),
+    pair('4f77b0c3', 'approved', 2, '2026-07-26T15:45:00Z'),
+    pair('c02d5188', 'approved', 1, '2026-07-11T17:20:00Z'),
+    // The withdrawn pair the withdrawn counter above accounts for: refused
+    // once, then withdrawn by the owner — no current-state row, but a real
+    // row here with a "withdrawn" chip.
+    pair('b7c8d9e0', 'retracted', 2, '2026-07-30T10:00:00Z'),
   ],
   [QUIET]: [
-    share('7b3e9d04', 'Reading the store migration ledger', 'pending'),
-    share('1d8a6c55', 'A first pass at the pull contract', 'pending'),
-    share('e5b21f70', 'Notes on the redaction category split', 'pending'),
+    pair('7b3e9d04', 'pending', 1, '2026-08-10T09:00:00Z'),
+    pair('1d8a6c55', 'pending', 1, '2026-08-11T09:00:00Z'),
+    pair('e5b21f70', 'pending', 1, '2026-08-12T09:00:00Z'),
   ],
-  [FORMER]: [],
-  [STRICT]: [],
+  [FORMER]: [pair('a1b2c3d4', 'retracted', 1, '2026-08-05T12:00:00Z')],
+  [STRICT]: [pair('b4b6e2ad', 'retracted', 4, '2026-08-06T08:20:00Z')],
 }
 
 // One attempt row. `recorded` is when the attempt was opened and `decided` when
@@ -148,6 +160,19 @@ const eventsByGroupAndTranscript = {
   [`${RESEARCH}/c02d5188`]: [
     event(1, 'approved', 'moderator', '2026-07-11T08:00:00Z', '2026-07-11T17:20:00Z'),
   ],
+  [`${RESEARCH}/b7c8d9e0`]: [
+    event(1, 'rejected', 'moderator', '2026-07-20T09:00:00Z', '2026-07-21T09:00:00Z'),
+    event(2, 'retracted', 'owner', '2026-07-30T10:00:00Z', '2026-07-30T10:00:00Z'),
+  ],
+  [`${FORMER}/a1b2c3d4`]: [
+    event(1, 'retracted', 'owner', '2026-08-05T12:00:00Z', '2026-08-05T12:00:00Z'),
+  ],
+  [`${STRICT}/b4b6e2ad`]: [
+    event(1, 'rejected', 'moderator', '2026-07-01T09:00:00Z', '2026-07-02T10:00:00Z'),
+    event(2, 'rejected', 'moderator', '2026-07-10T09:00:00Z', '2026-07-11T10:00:00Z'),
+    event(3, 'rejected', 'moderator', '2026-07-20T09:00:00Z', '2026-07-21T10:00:00Z'),
+    event(4, 'retracted', 'owner', '2026-08-06T07:05:00Z', '2026-08-06T08:20:00Z'),
+  ],
 }
 
 const send = (res, status, body) => {
@@ -175,8 +200,8 @@ const server = createServer((req, res) => {
   const events = path.match(/^\/users\/me\/collectives\/([^/]+)\/transcripts\/([^/]+)\/events$/)
   if (events) return send(res, 200, eventsByGroupAndTranscript[`${events[1]}/${events[2]}`] ?? [])
 
-  const shares = path.match(/^\/groups\/([^/]+)\/my-shares$/)
-  if (shares) return send(res, 200, sharesByGroup[shares[1]] ?? [])
+  const submissions = path.match(/^\/users\/me\/collectives\/([^/]+)\/submissions$/)
+  if (submissions) return send(res, 200, submissionsByGroup[submissions[1]] ?? [])
 
   if (path === '/transcripts') {
     return send(res, 200, {

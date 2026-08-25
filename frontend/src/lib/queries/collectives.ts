@@ -1,6 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
-import type { ContributedCollective, ShareEvent, TranscriptCollective } from "../types";
+import type {
+  CollectiveSubmissionPair,
+  ContributedCollective,
+  ShareEvent,
+  TranscriptCollective,
+} from "../types";
 
 /**
  * The collectives the SIGNED-IN caller has offered transcripts to, with the
@@ -44,6 +49,27 @@ export function useTranscriptCollectives(transcriptId: string) {
       return res.collectives ?? [];
     },
     enabled: !!transcriptId,
+  });
+}
+
+/**
+ * EVERY (transcript, collective) ledger pair the signed-in caller has with ONE
+ * collective, as served by `GET /users/me/collectives/{groupId}/submissions`.
+ *
+ * This is the OWNER-ONLY pairs source, not the legacy current-state list: it
+ * includes a pair whose every event ended in a withdrawal, which the
+ * current-state list has no row for at all. Owner-only by ROUTE — the path
+ * names no user — so a caller who does not own the collective's transcripts
+ * is answered 404, never 403, the same shape as {@link useShareEventHistory}.
+ */
+export function useMyCollectiveSubmissions(groupId: string) {
+  return useQuery({
+    queryKey: ["my-collective-submissions", groupId],
+    queryFn: () =>
+      api<CollectiveSubmissionPair[]>(
+        `/users/me/collectives/${encodeURIComponent(groupId)}/submissions`,
+      ),
+    enabled: !!groupId,
   });
 }
 

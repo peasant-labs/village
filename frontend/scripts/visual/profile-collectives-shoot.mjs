@@ -1,13 +1,23 @@
 /* Screenshot the own-profile contributed-collectives section on the REAL profile route.
 
    Three captures per theme, taken from one live page so they cannot mix builds:
-     profile-collectives            the section with every contributed collective and its counters
-     profile-collectives-submissions one collective open, its submissions listed
+     profile-collectives            the section with every contributed collective and its FOUR counters
+     profile-collectives-submissions one collective open, its submissions (pairs) listed
      profile-collectives-history     one submission open, its full event log visible
 
+   The collective opened for the submissions/history captures is deliberately
+   the one whose only pair is a withdrawal ("Strict Curators": refused three
+   times, then withdrawn) — that pair has NO current-state row, so it is the
+   exact case a real user acceptance test caught contradicting itself: a
+   nonzero "3 submission attempts" counter beside "no submissions of yours are
+   on record". This capture proves the row now renders, with a chip reading
+   "withdrawn", instead of the empty-state copy.
+
    Build provenance is asserted BEFORE any PNG is written: the served page must
-   carry the section, the three counters, and the unit wording that states the
-   attempts-versus-transcripts asymmetry — all of which exist only in this
+   carry the section, FOUR counters (including "withdrawn"), the unit wording
+   that states the attempts-versus-transcripts asymmetry, and — after opening
+   the withdrawn-only collective — a submission row with a "withdrawn" chip and
+   the "none on record" copy genuinely absent. All of this exists only in this
    change. A stale server, or one serving another worktree, fails with a
    nonzero exit instead of producing a misleading capture.
 
@@ -114,6 +124,54 @@ if (unitText !== 'submission attempts') {
     'rebuild from this worktree and retry.')
 }
 
+// The fourth counter: withdrawn events, grouping retracted + revoked. Its
+// presence and unit are asserted the same way the rejected counter's is
+// above — this is the counter a real user acceptance test found missing.
+const withdrawnCounter = await page.$('[data-testid="counter-withdrawn"]')
+if (!withdrawnCounter) {
+  await browser.close()
+  die(2, 'the withdrawn counter never rendered.',
+    'the served build predates the fourth counter, or the collective row filters it out.',
+    'the capture would not show the counter this change adds.',
+    'rebuild from this worktree, confirm the mock serves withdrawn_attempt_count, and retry.')
+}
+const withdrawnUnitText = await page.$eval('[data-testid="counter-withdrawn-unit"]', (el) => el.textContent.trim())
+if (withdrawnUnitText !== 'submission attempts') {
+  await browser.close()
+  die(2, `the withdrawn counter's unit reads ${JSON.stringify(withdrawnUnitText)}.`,
+    'the served bytes label the withdrawn counter as counting transcripts rather than events.',
+    'the capture would show a unit that contradicts the counter it labels — exactly the mutation this slice proves RED.',
+    'rebuild from this worktree and retry.')
+}
+const withdrawnCounterValue = await page.evaluate(() =>
+  [...document.querySelectorAll('[data-testid="contributed-collective"]')]
+    .find((row) => row.textContent.includes('Strict Curators'))
+    ?.querySelector('[data-testid="counter-withdrawn"]')?.children?.[1]?.textContent?.trim() ?? '',
+)
+if (withdrawnCounterValue !== '1') {
+  await browser.close()
+  die(2, `Strict Curators' withdrawn counter reads ${JSON.stringify(withdrawnCounterValue)}, expected to contain 1.`,
+    'the served counter does not match the fixture, or the row is not the withdrawn-only collective expected here.',
+    'the capture would misreport what this counter measures for the collective the capture is built around.',
+    'confirm the mock serves withdrawn_attempt_count: 1 for Strict Curators and retry.')
+}
+
+// The units sentence above the counters must still describe the row now that
+// FOUR counters render, two counting transcripts and two counting events. A
+// sentence that stops matching its own numbers is the defect class this
+// change exists to fix.
+const explanationText = await page.$eval(
+  '[data-testid="profile-collectives"] > div > p',
+  (el) => el.textContent.trim(),
+)
+if (!/rejected and withdrawn count submission/.test(explanationText)) {
+  await browser.close()
+  die(2, `the units sentence reads ${JSON.stringify(explanationText)}.`,
+    'the served bytes still describe only three counters, or describe the withdrawn counter incorrectly.',
+    'the capture would show a copy line that no longer matches the four numbers beneath it — the exact contradiction UAT caught.',
+    'rebuild from this worktree and retry.')
+}
+
 const pendingOnly = await page.evaluate(() =>
   [...document.querySelectorAll('[data-testid="contributed-collective"]')].some((row) => {
     const approved = row.querySelector('[data-testid="counter-approved"]')?.textContent ?? ''
@@ -183,19 +241,51 @@ await page.evaluate(() => document.querySelector('[data-testid="profile-collecti
 await pause(300)
 await shoot('profile-collectives', '[data-testid="profile-collectives"]')
 
-// Open the first collective, then its first submission, so the audit log is
-// captured on the same page as the counters above it.
-await page.evaluate(() => {
-  const row = document.querySelector('[data-testid="contributed-collective"]')
-  row.querySelector('button').click()
+// Open "Strict Curators" — the collective whose only pair was refused three
+// times and then withdrawn — so the withdrawn row is what this capture shows,
+// not an incidental approved/pending row. Falls back to the first row only if
+// that name is not found, so the script still runs against an older fixture.
+const opened = await page.evaluate(() => {
+  const rows = [...document.querySelectorAll('[data-testid="contributed-collective"]')]
+  const row = rows.find((r) => r.textContent.includes('Strict Curators')) ?? rows[0]
+  row?.querySelector('button')?.click()
+  return row?.textContent.includes('Strict Curators') ?? false
 })
 const submission = await waitFor('[data-testid="collective-submission"]')
 if (!submission) {
   await browser.close()
   die(1, 'opening a collective produced no submissions.',
-    'the my-shares request failed or returned nothing for that collective.',
+    'the submissions request failed or returned nothing for that collective.',
     'the history capture would have no entry point.',
-    'confirm the mock serves /groups/{id}/my-shares for the first listed collective and retry.')
+    'confirm the mock serves /users/me/collectives/{groupId}/submissions for the opened collective and retry.')
+}
+
+// The pairs endpoint's whole point: a fully-withdrawn pair is a ROW, with a
+// chip reading "withdrawn", not an empty list. Asserted structurally (the
+// chip element and its text) rather than by scanning body text, and the
+// empty-state node's ABSENCE is asserted too — a CSS-only defect can leave
+// textContent intact while hiding nothing, so presence/absence of the node
+// itself is what is checked.
+if (opened) {
+  const chipText = await page.$eval(
+    '[data-testid="collective-submission-status"]',
+    (el) => el.textContent.trim(),
+  )
+  if (chipText !== 'withdrawn') {
+    await browser.close()
+    die(2, `the withdrawn pair's chip reads ${JSON.stringify(chipText)}.`,
+      'the served build does not group retracted/revoked pairs under a "withdrawn" chip.',
+      'the capture would not show the state this endpoint exists to surface.',
+      'rebuild from this worktree and retry.')
+  }
+  const emptyCopy = await page.$('[data-testid="collective-submissions-empty"]')
+  if (emptyCopy) {
+    await browser.close()
+    die(2, 'the "no submissions of yours are on record" copy is present alongside a real row.',
+      'the empty-state condition is not keyed to the pairs list actually being empty.',
+      'the capture would show the exact contradiction UAT caught: a nonzero counter beside "none on record".',
+      'confirm the empty condition is pairs.length === 0, not the current-state list, and retry.')
+  }
 }
 await pause(300)
 await shoot('profile-collectives-submissions', '[data-testid="profile-collectives"]')
@@ -239,6 +329,9 @@ await pause(300)
 await shoot('profile-collectives-history', '[data-testid="profile-collectives"]')
 
 console.log('provenance rejected-unit =', JSON.stringify(unitText))
+console.log('provenance withdrawn-unit =', JSON.stringify(withdrawnUnitText), '| withdrawn-value =', JSON.stringify(withdrawnCounterValue))
+console.log('provenance units-sentence =', JSON.stringify(explanationText))
+console.log('provenance opened-withdrawn-only-collective =', opened)
 console.log('provenance collective-rows =', rows.length, '| pending-only listed =', pendingOnly)
 console.log('provenance event-times =', shownTimes.join('  ->  '))
 console.log('provenance event-rows =')

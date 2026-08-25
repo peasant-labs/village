@@ -17,11 +17,11 @@ import CollectiveSubmissions from "./CollectiveSubmissions";
 /**
  * One counter, printed with the UNIT it measures.
  *
- * The unit is not decoration. Two of these three count transcripts and the
- * third counts submission attempts, so a bare "3" beside a bare "2" would
- * invite a comparison that is not meaningful. The unit line is what makes the
- * numbers readable, and it is rendered for every counter so none of them looks
- * like the special case.
+ * The unit is not decoration. Two of these four count transcripts and two
+ * count submission attempts, so a bare "3" beside a bare "2" would invite a
+ * comparison that is not meaningful. The unit line is what makes the numbers
+ * readable, and it is rendered for every counter so none of them looks like
+ * the special case.
  */
 function ContributionCounter({
   testId,
@@ -93,6 +93,12 @@ function ContributedCollectiveRow({
             label={CONTRIBUTION_COUNTER_LABELS.rejectedAttempts}
             value={collective.rejected_attempt_count}
             unit={CONTRIBUTION_COUNTER_UNITS.rejectedAttempts}
+          />
+          <ContributionCounter
+            testId="counter-withdrawn"
+            label={CONTRIBUTION_COUNTER_LABELS.withdrawnAttempts}
+            value={collective.withdrawn_attempt_count}
+            unit={CONTRIBUTION_COUNTER_UNITS.withdrawnAttempts}
           />
         </div>
         <button

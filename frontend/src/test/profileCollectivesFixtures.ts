@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { assertExactKeys } from "@/test/fixtureAssertions";
-import { shareEventLabel } from "@/lib/shareEvents";
+import { shareEventLabel, submissionPairChip } from "@/lib/shareEvents";
 import type { ShareEventActor, ShareEventStatus } from "@/lib/types";
 
 /** Who is looking at the profile in a viewer case. */
@@ -22,12 +22,14 @@ export type ContributedCollectiveFixture = {
   approvedCount: number;
   pendingCount: number;
   rejectedAttemptCount: number;
+  withdrawnAttemptCount: number;
 };
 
 export type ExpectedCounters = {
   approved: number;
   pending: number;
   rejectedAttempts: number;
+  withdrawnAttempts: number;
 };
 
 export type ContributionCase = {
@@ -58,6 +60,21 @@ export type EventHistoryCase = {
   expectedLabels: string[];
 };
 
+/** One (transcript, collective) pair as the owner-only pairs endpoint serves it. */
+export type SubmissionPairFixture = {
+  transcriptId: string;
+  status: ShareEventStatus;
+  eventNum: number;
+  recordedAt: string;
+};
+
+export type SubmissionPairCase = {
+  name: string;
+  pairs: SubmissionPairFixture[];
+  /** The chip text expected for each pair, in the SAME order as `pairs`. */
+  expectedChips: string[];
+};
+
 export type TranscriptCollectiveFixture = {
   id: string;
   name: string;
@@ -74,6 +91,7 @@ export type ProfileCollectivesFixtures = {
   viewerCases: ProfileViewerCase[];
   contributionCases: ContributionCase[];
   eventHistoryCases: EventHistoryCase[];
+  submissionPairCases: SubmissionPairCase[];
   transcriptCollectivesCases: TranscriptCollectivesCase[];
 };
 
@@ -89,8 +107,14 @@ const requiredContributionCaseNames = [
   "pending-only-collective-is-listed",
   "refused-then-withdrawn-keeps-its-refusal-count-with-no-transcripts-left",
   "two-approved-one-pending-two-rejected-attempts",
-  "a-fully-withdrawn-collective-still-lists-with-every-counter-zero",
+  "withdrawn-once-still-lists-with-a-nonzero-withdrawn-counter",
   "several-collectives-render-in-the-order-served",
+] as const;
+
+const requiredSubmissionPairCaseNames = [
+  "a-fully-withdrawn-pair-renders-as-a-row-not-empty-copy",
+  "a-genuinely-empty-pairs-list-shows-the-none-on-record-copy",
+  "a-mixed-collective-renders-every-pair-with-its-own-chip",
 ] as const;
 
 const requiredEventHistoryCaseNames = [
@@ -115,6 +139,7 @@ const collectiveKeys = [
   "approvedCount",
   "pendingCount",
   "rejectedAttemptCount",
+  "withdrawnAttemptCount",
 ];
 const contributionCaseKeys = [
   "name",
@@ -122,7 +147,9 @@ const contributionCaseKeys = [
   "expectedCollectiveNames",
   "expectedCounters",
 ];
-const expectedCounterKeys = ["approved", "pending", "rejectedAttempts"];
+const expectedCounterKeys = ["approved", "pending", "rejectedAttempts", "withdrawnAttempts"];
+const submissionPairKeys = ["transcriptId", "status", "eventNum", "recordedAt"];
+const submissionPairCaseKeys = ["name", "pairs", "expectedChips"];
 const eventKeys = [
   "eventNum",
   "status",
@@ -169,7 +196,13 @@ export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
   }
   assertExactKeys(
     parsed,
-    ["viewerCases", "contributionCases", "eventHistoryCases", "transcriptCollectivesCases"],
+    [
+      "viewerCases",
+      "contributionCases",
+      "eventHistoryCases",
+      "submissionPairCases",
+      "transcriptCollectivesCases",
+    ],
     "fixture root",
   );
   const fixtures = parsed as ProfileCollectivesFixtures;
@@ -230,12 +263,13 @@ export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
       if (
         counters.approved !== g.approvedCount ||
         counters.pending !== g.pendingCount ||
-        counters.rejectedAttempts !== g.rejectedAttemptCount
+        counters.rejectedAttempts !== g.rejectedAttemptCount ||
+        counters.withdrawnAttempts !== g.withdrawnAttemptCount
       ) {
         throw new Error(
           `contribution case ${c.name}: expectedCounters[${i}] must restate the served counters ` +
             `for ${g.name} exactly; got ${JSON.stringify(counters)} against served ` +
-            `${g.approvedCount}/${g.pendingCount}/${g.rejectedAttemptCount}`,
+            `${g.approvedCount}/${g.pendingCount}/${g.rejectedAttemptCount}/${g.withdrawnAttemptCount}`,
         );
       }
       if (c.expectedCollectiveNames[i] !== g.name) {
@@ -379,6 +413,72 @@ export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
         throw new Error(
           `event-history case ${c.name} events[${i}]: only a refusal may read as "rejected"; ` +
             `a withdrawal folded into that wording makes the log unreadable`,
+        );
+      }
+    });
+  }
+
+  assertNamesMatch(
+    fixtures.submissionPairCases.map((c) => c.name),
+    requiredSubmissionPairCaseNames,
+    "profile-collectives submissionPairCases",
+  );
+  for (const c of fixtures.submissionPairCases) {
+    assertExactKeys(c, submissionPairCaseKeys, `submission-pair case ${c.name}`);
+    if (c.pairs.length !== c.expectedChips.length) {
+      throw new Error(
+        `submission-pair case ${c.name}: every served pair must have exactly one expected chip, ` +
+          `in the order served`,
+      );
+    }
+    // The defect this fixture family exists to prevent: the "none on record"
+    // copy appearing beside a nonempty list, or a row silently missing when
+    // the list is genuinely empty. Tying both cases to the SAME boolean is
+    // what makes it impossible for a fixture to express the contradiction.
+    const isGenuinelyEmpty = c.name === "a-genuinely-empty-pairs-list-shows-the-none-on-record-copy";
+    if (isGenuinelyEmpty !== (c.pairs.length === 0)) {
+      throw new Error(
+        `submission-pair case ${c.name}: only the case named for a genuinely empty pairs list may ` +
+          `serve zero pairs; every other case must serve at least one pair, or it cannot prove the ` +
+          `row-instead-of-vanishing behavior this endpoint exists for`,
+      );
+    }
+    c.pairs.forEach((p, i) => {
+      assertExactKeys(p, submissionPairKeys, `submission-pair case ${c.name} pairs[${i}]`);
+      if (!STATUSES.includes(p.status)) {
+        throw new Error(
+          `submission-pair case ${c.name} pairs[${i}]: status must be one of ` +
+            `${STATUSES.join(", ")}, got ${p.status}`,
+        );
+      }
+      if (!Number.isInteger(p.eventNum) || p.eventNum < 1) {
+        throw new Error(
+          `submission-pair case ${c.name} pairs[${i}]: eventNum must be a positive integer, got ${p.eventNum}`,
+        );
+      }
+      if (Number.isNaN(Date.parse(p.recordedAt))) {
+        throw new Error(
+          `submission-pair case ${c.name} pairs[${i}]: recordedAt must be a parseable timestamp, ` +
+            `got ${p.recordedAt}`,
+        );
+      }
+      // The chip is checked against the production chip labeller so the
+      // fixture cannot encode wording the app does not actually produce, the
+      // same discipline `shareEventLabel` gets above for the history rows.
+      const produced = submissionPairChip(p.status);
+      if (produced !== c.expectedChips[i]) {
+        throw new Error(
+          `submission-pair case ${c.name} pairs[${i}]: expectedChips[${i}] is ` +
+            `"${c.expectedChips[i]}" but the application chips this pair "${produced}"`,
+        );
+      }
+      // retracted and revoked BOTH chip as "withdrawn" — the whole point of
+      // this endpoint is that a withdrawn pair renders as a row, not as a
+      // disappearance.
+      if ((p.status === "retracted" || p.status === "revoked") && c.expectedChips[i] !== "withdrawn") {
+        throw new Error(
+          `submission-pair case ${c.name} pairs[${i}]: a ${p.status} pair must chip as "withdrawn", ` +
+            `got "${c.expectedChips[i]}"`,
         );
       }
     });
