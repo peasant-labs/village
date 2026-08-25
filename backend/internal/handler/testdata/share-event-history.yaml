@@ -1,0 +1,87 @@
+# Cases for GET
+# /api/v1/users/me/collectives/{groupId}/transcripts/{transcriptId}/events,
+# driven through the real HTTP handlers against a real PostgreSQL.
+#
+# Each case drives the share-attempt lattice with the same step vocabulary as
+# share-attempts.yaml (submit/decide/unshare/remove), then reads the history
+# back as one of three viewers and asserts the response.
+#
+# viewer: owner (the transcript's owner - the only caller this route ever
+# permits), other_member (a different, signed-in member of the SAME
+# collective - proves owner-only is enforced even for a legitimate collective
+# member), or anonymous (no authenticated user at all - the defensive
+# fallback inside the handler, since the mounted route is also AuthRequired).
+#
+# events, when present, are asserted in array order against the response body
+# in that same order - the response is a history read top to bottom, so
+# event_num must appear ascending with no reordering.
+
+- name: full_history_all_five_states_in_order
+  why: >-
+    the owner-facing view exists to answer "why was this rejected, and how
+    many times" - a mixed history spanning every state must render as one
+    numbered sequence, oldest first, with the correct actor class per event
+  steps:
+    - {do: submit, expect: ok}
+    - {do: decide, status: rejected, expect: ok}
+    - {do: submit, expect: ok}
+    - {do: decide, status: approved, expect: ok}
+    - {do: unshare, expect: ok}
+    - {do: submit, expect: ok}
+    - {do: decide, status: approved, expect: ok}
+    - {do: remove, expect: ok}
+  viewer: owner
+  expect_status: 200
+  events:
+    - {event_num: 1, status: rejected, decided: true, actor: moderator}
+    - {event_num: 2, status: approved, decided: true, actor: moderator}
+    - {event_num: 3, status: retracted, decided: true, actor: owner}
+    - {event_num: 4, status: approved, decided: true, actor: moderator}
+    - {event_num: 5, status: revoked, decided: true, actor: collective}
+
+- name: pending_event_carries_no_decided_at_and_no_actor
+  why: >-
+    an open submission has not been decided yet, so decided_at must stay
+    null and decided_by_actor must render empty rather than guessing
+  steps:
+    - {do: submit, expect: ok}
+  viewer: owner
+  expect_status: 200
+  events:
+    - {event_num: 1, status: pending, decided: false, actor: ""}
+
+- name: retracted_and_revoked_history_never_names_a_raw_user
+  why: >-
+    retracted and revoked events are recorded with no decided_by user id at
+    all in the write paths that produce them, and the actor class must
+    render from the status regardless
+  steps:
+    - {do: submit, expect: ok}
+    - {do: unshare, expect: ok}
+  viewer: owner
+  expect_status: 200
+  events:
+    - {event_num: 1, status: retracted, decided: true, actor: owner}
+
+- name: non_owner_signed_in_collective_member_gets_404
+  why: >-
+    owner-only is enforced by the route, not merely a predicate - a
+    different member of the very same collective, fully authenticated, must
+    still be turned away with 404, not 403, so the response never confirms
+    the transcript exists
+  steps:
+    - {do: submit, expect: ok}
+    - {do: decide, status: rejected, expect: ok}
+  viewer: other_member
+  expect_status: 404
+
+- name: anonymous_caller_gets_404
+  why: >-
+    the mounted route is AuthRequired and turns an anonymous caller away
+    with 401 before the handler ever runs, but the handler itself fails
+    closed to 404 rather than panicking or leaking existence if it is ever
+    reached without an authenticated caller in context
+  steps:
+    - {do: submit, expect: ok}
+  viewer: anonymous
+  expect_status: 404

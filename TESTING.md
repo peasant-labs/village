@@ -242,7 +242,11 @@ statement in `queries/*.sql`, works out what each one writes, and checks it
 against the closed inventory in
 `queries/testdata/transcript-shares-statements.yaml`. Adding any statement that
 touches `transcript_shares` - a JOIN read included - fails until it is declared
-there, and it can only be declared as a read.
+there, and it can only be declared as a read. `ListShareAttempts` itself is
+outside that inventory: it selects only from `transcript_share_attempts` (the
+ledger) and never mentions `transcript_shares` (the derived projection), so the
+guard's word-boundary match on the table name does not fire for it and it needs
+no entry there.
 
 **`transcripts.project_hash` is NOT NULL**, so every fixture that inserts a
 transcript with raw SQL must name one. Fixtures for the same project share a
@@ -282,6 +286,28 @@ Three things the corpora pin that are easy to get wrong later:
 several collectives with exactly one query, counted through the mock querier. A
 single-collective case cannot tell one query from a query per collective, so
 every case in `testdata/collectives_batch/batch_cases.yaml` names several.
+
+### Share-event history: the owner-facing read over the same ledger
+
+`internal/handler/share_event_history_integration_test.go` +
+`testdata/share-event-history.yaml` cover
+`GET /api/v1/users/me/collectives/{groupId}/transcripts/{transcriptId}/events`,
+the owner-only endpoint that reads `ListShareAttempts` back out as a numbered
+history. It reuses `shareWorld` from `share_attempts_integration_test.go` to
+drive the same submit/decide/unshare/remove steps and build a genuine attempt
+ledger, then calls `ListShareEventHistory` directly as three viewers: the
+transcript's owner, a different signed-in member of the same collective, and no
+authenticated caller at all. The fixture asserts a mixed five-state history
+returns in `event_num` ascending order, that a still-pending event carries no
+`decided_at` and no actor, that `decided_by_actor` renders only the closed class
+`owner | collective | moderator` and never a raw user id, and that both
+non-owner shapes come back `404` rather than `403` so the response never
+confirms the transcript exists. Like the share-attempt lattice above, this has
+to run against a real database: the actor class and the ordering both come from
+data the derivation and the ledger's own `ORDER BY` produce, not from anything
+the Go test computes itself. It carries `//go:build integration` and runs
+under `make backend-encrypted-test` alongside the rest of this file's real-Postgres
+suites.
 
 ### Pull, skip-gate, publish-idempotency, and explicit-backfill families
 
