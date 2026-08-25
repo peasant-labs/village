@@ -159,6 +159,13 @@ func testLabeler(remote string) (string, bool) {
 	return "", false
 }
 
+// TestResolve also pins the closed NameSource set's four literal wire
+// values: WantSource in each fixture row is a plain YAML string, decoupled
+// from the Go constants, so a silently changed NameSourceOverride (etc.)
+// literal fails here exactly as it would in a dedicated enum test. See
+// requiredResolutionCaseNames for the source-tier coverage this depends on:
+// every one of "override", "consented", "remote", "privacy" appears as a
+// want_source in resolution.yaml.
 func TestResolve(t *testing.T) {
 	for _, c := range loadResolutionFixture(t) {
 		t.Run(c.Name, func(t *testing.T) {
@@ -240,29 +247,6 @@ func TestIsPrivacyLabel(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			if got := IsPrivacyLabel(c.ProjectName); got != c.Want {
 				t.Errorf("IsPrivacyLabel(%q) = %v, want %v", c.ProjectName, got, c.Want)
-			}
-		})
-	}
-}
-
-// TestNameSourceValues pins the closed NameSource set's four literal wire
-// values, since NameSource travels to the frontend as a closed
-// string-literal union rendered by more than one consumer.
-func TestNameSourceValues(t *testing.T) {
-	cases := []struct {
-		name   string
-		source NameSource
-		want   string
-	}{
-		{"override", NameSourceOverride, "override"},
-		{"consented", NameSourceConsented, "consented"},
-		{"remote", NameSourceRemote, "remote"},
-		{"privacy", NameSourcePrivacy, "privacy"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if string(c.source) != c.want {
-				t.Errorf("NameSource %s = %q, want %q", c.name, c.source, c.want)
 			}
 		})
 	}
