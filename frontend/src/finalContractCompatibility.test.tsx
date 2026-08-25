@@ -33,6 +33,12 @@ function transcriptList(modelProvider: string, transcriptID: string): Transcript
     ingested_at: null,
     source_format: null,
     project_name: "fixture-project",
+    // The resolved project identity fields — this contract-compatibility
+    // fixture is unrelated to project naming, so a fixed representative
+    // value is fine here; it just needs to satisfy the closed union.
+    project_display_name: "fixture-project",
+    project_name_source: "consented",
+    project_remote_label: null,
     git_remote: null,
     git_branch: null,
     duration_ms: 0,

@@ -70,7 +70,15 @@ export function adaptExplore(
         toolCallCount: item.transcript.tool_call_count,
         durationMs: item.transcript.duration_ms,
         gitBranch: item.transcript.git_branch,
-        projectName: item.transcript.project_name,
+        // The one server-resolved project name (`project_display_name`),
+        // fed through the ONLY project field the fairtrade explore card's
+        // ExploreTranscriptPayload carries. This is also what makes
+        // fairtrade's own internal card grouping (which buckets by this
+        // same `projectName` string) collapse a mixed-name, same-hash pair
+        // into ONE group without any change to the fairtrade package — the
+        // explore-card surface is satisfied through the adapter rather
+        // than a fairtrade fork.
+        projectName: item.transcript.project_display_name,
         tags: (item.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name })),
         owner: {
           githubUsername: item.owner.github_username,

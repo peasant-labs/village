@@ -65,11 +65,14 @@ cases:
     # the hero renders it in full while the crumb truncates it. This
     # isolates the breadcrumb's OWN truncation from fairtrade's hero
     # truncation, which a case that only exceeded 160 could not do. The
-    # project value is also a host-slug path so `displayProject`'s
-    # transform is exercised, not just passed through.
+    # project value is a plain resolved display name: the breadcrumb
+    # builder no longer re-derives a name from a raw path — it
+    # renders the server-resolved `project_display_name` verbatim — so this
+    # case no longer exercises a host-slug transform, only the title
+    # truncation the case is actually named for.
     storedTitle: "Investigate why the session that opened this ticket kept retrying the same failing request forever"
     firstUserTurnContent: "Look into the retry storm on this session."
-    project: "~Users-acme-dev-Documents-Projects-phaze"
+    project: "phaze"
     expectedProjectCrumbLabel: "phaze"
     expectedHeroTitle: "Investigate why the session that opened this ticket kept retrying the same failing request forever"
     expectedCrumbUsesShortId: false

@@ -67,7 +67,9 @@ export default function TranscriptDetailPage({
   }
 
   const t = data.transcript;
-  const projectName = t.project_name ?? "transcript";
+  // The one server-resolved project name every surface renders — never the
+  // raw `project_name` column.
+  const projectName = t.project_display_name;
 
   // Content blob loaded, but it is not a SessionDetailPayload — the v2 viewer
   // needs structured turns. Render a graceful fallback instead of crashing.
@@ -113,6 +115,8 @@ export default function TranscriptDetailPage({
         transcriptOwnerId={data.owner?.id}
         sessionOrigin={t.session_origin}
         projectName={projectName}
+        projectHash={t.project_hash}
+        ownerUsername={data.owner?.github_username}
         detail={detail}
         error={contentError ? String((contentError as Error).message ?? contentError) : null}
       />

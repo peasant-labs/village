@@ -16,6 +16,30 @@ export interface User {
   provider_username: string | null;
 }
 
+/**
+ * The tier a project's resolved display name came from (village backend
+ * `internal/projectname.NameSource`). These routes are deliberately outside
+ * the OpenAPI spec, so there is no generated TypeScript type — this is the
+ * frontend's own closed, hand-declared union. Widening the server-side enum
+ * without adding a member here must fail the BUILD, not silently render an
+ * unstyled fallback: see {@link assertNameSourceExhaustive} for the
+ * compile-time proof, and `describeNameSource` in `@/lib/format` for the one
+ * live exhaustive consumer.
+ */
+export type NameSource = "override" | "consented" | "remote" | "privacy";
+
+/**
+ * Compile-time exhaustiveness proof for {@link NameSource}. A `switch` over
+ * every declared source in production code must reach a `default` branch
+ * that assigns its input to `never` — if `NameSource` gains a member without
+ * a matching `case`, the `never` assignment fails to typecheck and the build
+ * breaks. This function has no runtime purpose; it exists to be called from
+ * a `default` branch as `assertNameSourceExhaustive(source)`.
+ */
+export function assertNameSourceExhaustive(source: never): never {
+  throw new Error(`unhandled NameSource: ${String(source)}`);
+}
+
 export interface Transcript {
   id: string;
   owner_id: string;
@@ -41,6 +65,18 @@ export interface Transcript {
   git_remote: string | null;
   project_hash: string | null;
   project_name: string | null;
+  /**
+   * The one resolved project display name every surface must render
+   * (village project-identity resolver, `override > consented > remote >
+   * privacy`). Never empty — the resolver always synthesises a privacy-safe
+   * fallback when no other tier applies. Prefer this over `project_name`,
+   * which stays a raw, unresolved wire column.
+   */
+  project_display_name: string;
+  /** Which resolution tier produced {@link project_display_name}. */
+  project_name_source: NameSource;
+  /** `host:owner/repo` when a git remote is known, else null. */
+  project_remote_label: string | null;
   tool_call_count: number | null;
   subagent_count: number | null;
   duration_ms: number | null;

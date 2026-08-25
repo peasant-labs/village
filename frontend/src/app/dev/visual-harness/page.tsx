@@ -19,6 +19,7 @@ import { Moon, Sun } from "lucide-react";
 import { detectPhases } from "@/lib/insights";
 import TurnLabelPopover from "@/components/transcript/TurnLabelPopover";
 import {
+  buildProjectHref,
   buildTranscriptBreadcrumb,
   overlayStoredTitle,
 } from "@/components/session-detail/v2/transcriptChrome";
@@ -40,6 +41,12 @@ const SAMPLE_TRANSCRIPT_TITLE = "Port the transcript canvas into the shared pack
  *  `sampleSession.id`) — mirrors `transcriptId` in `SessionDetailV2`, fed
  *  into `buildTranscriptBreadcrumb`'s short-id fallback parameter below. */
 const SAMPLE_TRANSCRIPT_ID = "transcript-sess-demo-0001";
+/** Stands in for the owner's `github_username` and the transcript's
+ *  `project_hash` — mirrors `ownerUsername`/`projectHash` in
+ *  `SessionDetailV2`, fed into `buildProjectHref` below so the harness
+ *  captures a real breadcrumb href rather than a label-only crumb. */
+const SAMPLE_OWNER_USERNAME = "demo-owner";
+const SAMPLE_PROJECT_HASH = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
 
 /**
  * Visual-regression harness host — a DEV-ONLY fixture mount of the SAME
@@ -105,6 +112,7 @@ export default function VisualHarnessPage() {
   const handleLabelSave = async (label: TurnLabel): Promise<TurnLabel> => label;
 
   const project = sampleSession.project ?? "transcript";
+  const projectHref = buildProjectHref(SAMPLE_OWNER_USERNAME, SAMPLE_PROJECT_HASH);
 
   return (
     <div
@@ -185,6 +193,7 @@ export default function VisualHarnessPage() {
           // hand-copied second rule.
           breadcrumb={buildTranscriptBreadcrumb({
             project,
+            projectHref,
             storedTitle: SAMPLE_TRANSCRIPT_TITLE,
             transcriptId: SAMPLE_TRANSCRIPT_ID,
           })}
