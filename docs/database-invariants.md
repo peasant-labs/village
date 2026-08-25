@@ -229,13 +229,79 @@ The audit triggers (migration 026) and the share-derivation triggers
   event.
 - **The share-attempt model (migration 036).** `transcript_share_attempts` is
   the written table: every submission of a transcript to a collective is its own
-  attempt, and `UNIQUE (transcript_id, group_id, attempt_no)` orders them.
-  `transcript_shares` is a DERIVED current-state row, kept physical rather than
-  turned into a view because two shipped indexes carry hot joins over it that a
-  "latest attempt per pair" view would turn into a window-function scan.
-  Application code NEVER writes `transcript_shares` - a source guard over
-  `queries/*.sql` parses each statement's write targets, and the fail-closed
-  trigger refuses the write even if a statement slips past review.
+  attempt. `id` is the primary key; `event_num` orders the events within one
+  (transcript, collective) pair and `UNIQUE (transcript_id, group_id, event_num)`
+  keeps that ordering dense and unambiguous; `recorded_at` is when the event was
+  recorded, and it is what the derived row's `shared_at` carries.
+  `transcript_shares` is a DERIVED current-state row. Application code NEVER
+  writes it - a source guard over `queries/*.sql` parses each statement's write
+  targets, and the fail-closed trigger refuses the write even if a statement
+  slips past review.
+- **`transcript_shares.shared_at` is the `recorded_at` of the CURRENT LATEST
+  event** for that (transcript, collective) pair - when the submission behind
+  the present state was made. It is NOT the first-ever submission for the pair:
+  a rejected-then-resubmitted contribution carries the RESUBMISSION's time,
+  which is what keeps a moderation queue ordered by genuine age rather than
+  leaving a resubmitted item ahead of older work forever. It is also NOT the
+  approval time - that is `decided_at` on the underlying event. Two shipped
+  reads order by this column (`ListPendingGroupShares`, `ListUserSharesInGroup`)
+  and two select it, so changing its meaning changes what those screens say.
+  The definition is also attached to the schema as a `COMMENT ON COLUMN`, so
+  `\d+ transcript_shares` answers the question without finding this document.
+- **Why the projection is a TABLE and not a view - measured, not assumed.** A
+  `DISTINCT ON` view over the ledger is byte-for-byte equivalent to the stored
+  projection, needs no query rewrites (the generated sqlc output is identical),
+  and would be refused for writes natively by PostgreSQL. It was still rejected,
+  on one measurement: the view's cost is proportional to ACCUMULATED HISTORY,
+  because `DISTINCT ON` must sort the entire ledger before any predicate applies
+  and `status = 'approved'` cannot be pushed below it without changing which row
+  is latest. Holding the corpus and the current state CONSTANT and deepening
+  only the history 4.4x, the pull-authorization read went from 0.87 ms against
+  the table (flat) to 32 ms against the view. The table's cost is invariant to
+  history; the view's is not, and this model exists to accumulate history
+  forever with no compaction path. At today's data the difference is about
+  2 ms - the concern is about where it goes, not where it is.
+- **The projection must always be reconstructible from the ledger, and that is
+  TESTED.** `rebuild_transcript_shares()` rebuilds the whole of
+  `transcript_shares` from `transcript_share_attempts` and returns the row count
+  it installed; it takes an EXCLUSIVE lock, so run it in a maintenance window
+  rather than under load. `check_transcript_shares_drift()` returns the number
+  of rows where the stored projection disagrees with a latest-event fold, and
+  the `transcript_share_drift` view names each one and classifies it
+  (`missing_from_projection`, `absent_from_ledger`, `status_mismatch`,
+  `shared_at_mismatch`). Both are built on ONE shared definition of "latest"
+  (`transcript_share_latest_event` -> `transcript_share_expected_state`) so the
+  rebuild and the check can never disagree about what they are comparing. The
+  integration suite corrupts the projection in each of those four ways, proves
+  the check goes RED for each, and proves the rebuild restores exactly what the
+  derivation produced. Keeping a derived table was accepted on this guarantee;
+  an untested rebuild would make it a claim rather than a property.
+- **The consistency check is also a one-shot maintenance mode:**
+  `village-server -check-share-state`. It is REPORT-ONLY - it never writes, so
+  it is safe against production at any time - and it exits NON-ZERO when the
+  projection disagrees with the ledger, because a silent pass is worthless to CI
+  and to the operator who ran it to find out. Repair is the separate, deliberate
+  `SELECT rebuild_transcript_shares()`. **Deploying it on this platform has two
+  known hazards, both previously hit:** a non-zero exit is read as a crash and
+  the service is RESTARTED, so this mode must be deployed as a cloned service
+  with **restart policy Never and no public networking**, or a real drift report
+  will loop forever re-reporting the same drift; and `slog` writes to stderr, so
+  the platform tags ordinary INFO lines as errors and a clean run can LOOK like
+  a failure in the log viewer - read the exit code, not the log colour. The mode
+  needs PostgreSQL authority only: no object storage and no key authority, so a
+  job that cannot decrypt anything is a job that cannot leak anything.
+- **The source guard and the database guard are NOT redundant with each other,
+  and the database guard is the one with complete coverage.** The source guard
+  reads `queries/*.sql`, so it sees DECLARED sqlc statements only. At least one
+  query against `transcript_shares` is built dynamically in Go and never appears
+  in a query file (`internal/handler/transcripts.go`, the `ListTranscripts`
+  filter), so it is invisible to that guard. Today that statement only reads, so
+  nothing is at risk - but a hand-built WRITE added the same way would be caught
+  by the fail-closed trigger and by nothing else. Do not remove the database
+  guard on the grounds that the source guard already covers the writers: it does
+  not cover all of them. The reverse also holds - the source guard is what turns
+  a new writer into a legible build-time failure naming the statement, instead of
+  a runtime error from PostgreSQL that never mentions the attempt model.
 - **`transcript_shares.status` keeps its shipped three values**
   (`pending | approved | rejected`, migration 005). `retracted` and `revoked`
   are attempt states only; the derivation DELETES the current-state row for
@@ -253,6 +319,24 @@ The audit triggers (migration 026) and the share-derivation triggers
 - **No `app.actor_id` for sharing.** Sharing is not a licence or visibility
   change, so it does not cross the governance-audit axis; `decided_by` records
   the moderator directly on the attempt row.
+- **Normalization: `owner_overrides`, `transcript_share_attempts` and
+  `transcript_shares` are each in BCNF**, audited against the live catalog.
+  `owner_overrides` has one candidate key (its primary key) and every non-key
+  attribute depends on the whole of it. `transcript_share_attempts` has TWO
+  candidate keys, `{id}` and `{transcript_id, group_id, event_num}`, and no
+  functional dependency has a non-superkey determinant - in particular
+  `(transcript_id, group_id)` determines nothing, which is the point of the
+  model. `transcript_shares` has one candidate key and one dependency on it.
+  Two things that look like violations and are not: `uq_share_attempt_open` is a
+  CONDITIONAL key (unique only `WHERE status = 'pending'`), which functional
+  dependency theory cannot express at all; and the nullable `decided_at` /
+  `decided_by` are an anti-null argument, not a BCNF one.
+  **`transcript_shares` IS redundant** - every row of it is determined by the
+  ledger - but that is redundancy ACROSS relations, a deliberate materialized
+  derivation. Normal forms constrain dependencies WITHIN one relation and say
+  nothing about cross-relation derivability, so the redundancy is not a
+  normalization defect and removing it is a performance question, answered
+  above, not a normalization one.
 - **Fail-closed attribution:** both mutation-side functions read
   `NULLIF(current_setting('app.actor_id', true), '')::uuid` and **RAISE if
   NULL** - there is NO owner fallback (a guessed attribution is fabricated

@@ -211,7 +211,7 @@ and let the derivation produce the row:
 
 ```go
 pool.Exec(ctx, `
-    INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status)
+    INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
     VALUES ($1, $2, 1, $3)`, transcript, group, status)
 ```
 
@@ -226,6 +226,16 @@ while propagating nothing. The migration-level proofs - the backfill of
 pre-attempt shares, and the writer fence refusing INSERT, UPDATE and DELETE
 separately - are in
 `internal/database/migration_036_share_attempts_integration_test.go`.
+
+The projection must always be reconstructible from the ledger, so
+`TestShareProjectionRebuildsFromTheLedger` corrupts `transcript_shares` in each
+of the four ways it can diverge, proves `check_transcript_shares_drift()` goes
+RED for each and classifies it correctly, and proves
+`rebuild_transcript_shares()` restores exactly what the derivation produced.
+Corrupting the projection needs `app.share_state_derivation` set, which is how a
+test stands in for a corrupting bug. Every lifecycle case additionally asserts
+the WHOLE projection still equals a latest-event fold, so a transition that
+damaged some other pair cannot pass unseen.
 
 A third guard needs no database at all: `query_write_fence_test.go` parses every
 statement in `queries/*.sql`, works out what each one writes, and checks it

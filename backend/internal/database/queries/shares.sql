@@ -11,23 +11,23 @@
 -- Either way the latest attempt ends up 'retracted' and the derivation removes
 -- the current-state row.
 WITH live AS (
-    SELECT attempt_no, status
+    SELECT event_num, status
     FROM transcript_share_attempts
     WHERE transcript_id = $1 AND group_id = $2
       AND status IN ('pending', 'approved')
-    ORDER BY attempt_no DESC
+    ORDER BY event_num DESC
     LIMIT 1
 ), closed_open_submission AS (
     UPDATE transcript_share_attempts t
     SET status = 'retracted', decided_at = now()
     FROM live
     WHERE t.transcript_id = $1 AND t.group_id = $2
-      AND t.attempt_no = live.attempt_no
+      AND t.event_num = live.event_num
       AND live.status = 'pending'
-    RETURNING t.attempt_no
+    RETURNING t.event_num
 )
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status, decided_at)
-SELECT $1, $2, live.attempt_no + 1, 'retracted', now()
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT $1, $2, live.event_num + 1, 'retracted', now()
 FROM live
 WHERE live.status = 'approved';
 
@@ -82,23 +82,23 @@ LIMIT $2 OFFSET $3;
 -- attempt model this route removed the share whatever its state, and leaving it
 -- open would keep it in the review queue and block re-submission forever.
 WITH live AS (
-    SELECT attempt_no, status
+    SELECT event_num, status
     FROM transcript_share_attempts
     WHERE group_id = $1 AND transcript_id = $2
       AND status IN ('pending', 'approved')
-    ORDER BY attempt_no DESC
+    ORDER BY event_num DESC
     LIMIT 1
 ), closed_open_submission AS (
     UPDATE transcript_share_attempts t
     SET status = 'revoked', decided_at = now()
     FROM live
     WHERE t.group_id = $1 AND t.transcript_id = $2
-      AND t.attempt_no = live.attempt_no
+      AND t.event_num = live.event_num
       AND live.status = 'pending'
-    RETURNING t.attempt_no
+    RETURNING t.event_num
 )
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status, decided_at)
-SELECT $2, $1, live.attempt_no + 1, 'revoked', now()
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT $2, $1, live.event_num + 1, 'revoked', now()
 FROM live
 WHERE live.status = 'approved';
 
@@ -136,8 +136,8 @@ WHERE transcript_id = $1
 -- that is the point of counting attempts - so there is deliberately no
 -- ON CONFLICT DO NOTHING here: a duplicate submission while one is already
 -- live is refused by uq_share_attempt_open rather than silently discarded.
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status)
-SELECT $1, $2, COALESCE(MAX(attempt_no), 0) + 1, $3
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
+SELECT $1, $2, COALESCE(MAX(event_num), 0) + 1, $3
 FROM transcript_share_attempts
 WHERE transcript_id = $1 AND group_id = $2;
 
@@ -145,21 +145,21 @@ WHERE transcript_id = $1 AND group_id = $2;
 -- The most recent attempt for a (transcript, collective) pair, or no row when
 -- the transcript was never submitted there. This is what the share path reads
 -- to tell a genuine re-submission from a duplicate one.
-SELECT id, transcript_id, group_id, attempt_no, status,
-       submitted_at, decided_at, decided_by
+SELECT id, transcript_id, group_id, event_num, status,
+       recorded_at, decided_at, decided_by
 FROM transcript_share_attempts
 WHERE transcript_id = $1 AND group_id = $2
-ORDER BY attempt_no DESC
+ORDER BY event_num DESC
 LIMIT 1;
 
 -- name: ListShareAttempts :many
 -- The full submission history for a (transcript, collective) pair, oldest
 -- first. Every rejection and every withdrawal is its own row.
-SELECT id, transcript_id, group_id, attempt_no, status,
-       submitted_at, decided_at, decided_by
+SELECT id, transcript_id, group_id, event_num, status,
+       recorded_at, decided_at, decided_by
 FROM transcript_share_attempts
 WHERE transcript_id = $1 AND group_id = $2
-ORDER BY attempt_no;
+ORDER BY event_num;
 
 -- name: GetGroupTranscriptStats :one
 SELECT
@@ -213,25 +213,25 @@ ORDER BY ts.shared_at DESC;
 -- a further attempt so its acceptance stays on record.
 WITH live AS (
     SELECT DISTINCT ON (a.transcript_id)
-           a.transcript_id, a.attempt_no, a.status
+           a.transcript_id, a.event_num, a.status
     FROM transcript_share_attempts a
     JOIN transcripts t ON t.id = a.transcript_id
     WHERE a.group_id = $1
       AND t.owner_id = $2
       AND a.status IN ('pending', 'approved')
-    ORDER BY a.transcript_id, a.attempt_no DESC
+    ORDER BY a.transcript_id, a.event_num DESC
 ), closed_open_submissions AS (
     UPDATE transcript_share_attempts a
     SET status = 'retracted', decided_at = now()
     FROM live
     WHERE a.group_id = $1
       AND a.transcript_id = live.transcript_id
-      AND a.attempt_no = live.attempt_no
+      AND a.event_num = live.event_num
       AND live.status = 'pending'
-    RETURNING a.attempt_no
+    RETURNING a.event_num
 )
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status, decided_at)
-SELECT live.transcript_id, $1, live.attempt_no + 1, 'retracted', now()
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT live.transcript_id, $1, live.event_num + 1, 'retracted', now()
 FROM live
 WHERE live.status = 'approved';
 

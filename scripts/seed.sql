@@ -86,13 +86,13 @@ ON CONFLICT DO NOTHING;
 -- which also means the seeded data exercises the real path.
 --
 -- AI Research Team (open): accepted on submission
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status) VALUES
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status) VALUES
     ('c0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000001', 1, 'approved')
 ON CONFLICT DO NOTHING;
 UPDATE transcripts SET visibility = 'shared' WHERE id = 'c0000000-0000-0000-0000-000000000004';
 
 -- Verified Contributors: accepted contributions from verified members
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status) VALUES
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status) VALUES
     ('c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002', 1, 'approved'),
     ('c0000000-0000-0000-0000-000000000005', 'd0000000-0000-0000-0000-000000000002', 1, 'approved')
 ON CONFLICT DO NOTHING;
@@ -105,7 +105,7 @@ UPDATE transcripts SET visibility = 'shared' WHERE id IN (
 -- The 'pending' rows are the seed fixture for the owner-review workflow on
 -- /groups/{id} — alice-dev (owner of Curated Showcase) sees them under
 -- "Pending review" and can approve / reject.
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status) VALUES
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status) VALUES
     ('c0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003', 1, 'approved'),
     ('c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003', 1, 'pending'),
     ('c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000003', 1, 'pending'),

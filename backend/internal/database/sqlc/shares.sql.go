@@ -45,11 +45,11 @@ func (q *Queries) GetGroupTranscriptStats(ctx context.Context, groupID pgtype.UU
 }
 
 const getLatestShareAttempt = `-- name: GetLatestShareAttempt :one
-SELECT id, transcript_id, group_id, attempt_no, status,
-       submitted_at, decided_at, decided_by
+SELECT id, transcript_id, group_id, event_num, status,
+       recorded_at, decided_at, decided_by
 FROM transcript_share_attempts
 WHERE transcript_id = $1 AND group_id = $2
-ORDER BY attempt_no DESC
+ORDER BY event_num DESC
 LIMIT 1
 `
 
@@ -68,9 +68,9 @@ func (q *Queries) GetLatestShareAttempt(ctx context.Context, arg GetLatestShareA
 		&i.ID,
 		&i.TranscriptID,
 		&i.GroupID,
-		&i.AttemptNo,
+		&i.EventNum,
 		&i.Status,
-		&i.SubmittedAt,
+		&i.RecordedAt,
 		&i.DecidedAt,
 		&i.DecidedBy,
 	)
@@ -446,11 +446,11 @@ func (q *Queries) ListPendingGroupShares(ctx context.Context, groupID pgtype.UUI
 }
 
 const listShareAttempts = `-- name: ListShareAttempts :many
-SELECT id, transcript_id, group_id, attempt_no, status,
-       submitted_at, decided_at, decided_by
+SELECT id, transcript_id, group_id, event_num, status,
+       recorded_at, decided_at, decided_by
 FROM transcript_share_attempts
 WHERE transcript_id = $1 AND group_id = $2
-ORDER BY attempt_no
+ORDER BY event_num
 `
 
 type ListShareAttemptsParams struct {
@@ -473,9 +473,9 @@ func (q *Queries) ListShareAttempts(ctx context.Context, arg ListShareAttemptsPa
 			&i.ID,
 			&i.TranscriptID,
 			&i.GroupID,
-			&i.AttemptNo,
+			&i.EventNum,
 			&i.Status,
-			&i.SubmittedAt,
+			&i.RecordedAt,
 			&i.DecidedAt,
 			&i.DecidedBy,
 		); err != nil {
@@ -632,23 +632,23 @@ func (q *Queries) ListUserSharesInGroup(ctx context.Context, arg ListUserSharesI
 
 const removeGroupTranscript = `-- name: RemoveGroupTranscript :exec
 WITH live AS (
-    SELECT attempt_no, status
+    SELECT event_num, status
     FROM transcript_share_attempts
     WHERE group_id = $1 AND transcript_id = $2
       AND status IN ('pending', 'approved')
-    ORDER BY attempt_no DESC
+    ORDER BY event_num DESC
     LIMIT 1
 ), closed_open_submission AS (
     UPDATE transcript_share_attempts t
     SET status = 'revoked', decided_at = now()
     FROM live
     WHERE t.group_id = $1 AND t.transcript_id = $2
-      AND t.attempt_no = live.attempt_no
+      AND t.event_num = live.event_num
       AND live.status = 'pending'
-    RETURNING t.attempt_no
+    RETURNING t.event_num
 )
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status, decided_at)
-SELECT $2, $1, live.attempt_no + 1, 'revoked', now()
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT $2, $1, live.event_num + 1, 'revoked', now()
 FROM live
 WHERE live.status = 'approved'
 `
@@ -676,25 +676,25 @@ func (q *Queries) RemoveGroupTranscript(ctx context.Context, arg RemoveGroupTran
 const retractUserSharesInGroup = `-- name: RetractUserSharesInGroup :exec
 WITH live AS (
     SELECT DISTINCT ON (a.transcript_id)
-           a.transcript_id, a.attempt_no, a.status
+           a.transcript_id, a.event_num, a.status
     FROM transcript_share_attempts a
     JOIN transcripts t ON t.id = a.transcript_id
     WHERE a.group_id = $1
       AND t.owner_id = $2
       AND a.status IN ('pending', 'approved')
-    ORDER BY a.transcript_id, a.attempt_no DESC
+    ORDER BY a.transcript_id, a.event_num DESC
 ), closed_open_submissions AS (
     UPDATE transcript_share_attempts a
     SET status = 'retracted', decided_at = now()
     FROM live
     WHERE a.group_id = $1
       AND a.transcript_id = live.transcript_id
-      AND a.attempt_no = live.attempt_no
+      AND a.event_num = live.event_num
       AND live.status = 'pending'
-    RETURNING a.attempt_no
+    RETURNING a.event_num
 )
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status, decided_at)
-SELECT live.transcript_id, $1, live.attempt_no + 1, 'retracted', now()
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT live.transcript_id, $1, live.event_num + 1, 'retracted', now()
 FROM live
 WHERE live.status = 'approved'
 `
@@ -718,8 +718,8 @@ func (q *Queries) RetractUserSharesInGroup(ctx context.Context, arg RetractUserS
 }
 
 const shareTranscriptWithStatus = `-- name: ShareTranscriptWithStatus :exec
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status)
-SELECT $1, $2, COALESCE(MAX(attempt_no), 0) + 1, $3
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
+SELECT $1, $2, COALESCE(MAX(event_num), 0) + 1, $3
 FROM transcript_share_attempts
 WHERE transcript_id = $1 AND group_id = $2
 `
@@ -742,23 +742,23 @@ func (q *Queries) ShareTranscriptWithStatus(ctx context.Context, arg ShareTransc
 
 const unshareTranscript = `-- name: UnshareTranscript :exec
 WITH live AS (
-    SELECT attempt_no, status
+    SELECT event_num, status
     FROM transcript_share_attempts
     WHERE transcript_id = $1 AND group_id = $2
       AND status IN ('pending', 'approved')
-    ORDER BY attempt_no DESC
+    ORDER BY event_num DESC
     LIMIT 1
 ), closed_open_submission AS (
     UPDATE transcript_share_attempts t
     SET status = 'retracted', decided_at = now()
     FROM live
     WHERE t.transcript_id = $1 AND t.group_id = $2
-      AND t.attempt_no = live.attempt_no
+      AND t.event_num = live.event_num
       AND live.status = 'pending'
-    RETURNING t.attempt_no
+    RETURNING t.event_num
 )
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status, decided_at)
-SELECT $1, $2, live.attempt_no + 1, 'retracted', now()
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT $1, $2, live.event_num + 1, 'retracted', now()
 FROM live
 WHERE live.status = 'approved'
 `

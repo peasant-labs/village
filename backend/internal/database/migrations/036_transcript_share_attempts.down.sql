@@ -1,3 +1,8 @@
+DROP FUNCTION IF EXISTS check_transcript_shares_drift();
+DROP FUNCTION IF EXISTS rebuild_transcript_shares();
+DROP VIEW IF EXISTS transcript_share_drift;
+DROP VIEW IF EXISTS transcript_share_expected_state;
+DROP VIEW IF EXISTS transcript_share_latest_event;
 DROP TRIGGER IF EXISTS trg_share_attempt_immutable ON transcript_share_attempts;
 DROP TRIGGER IF EXISTS trg_transcript_shares_fail_closed ON transcript_shares;
 DROP TRIGGER IF EXISTS trg_derive_transcript_share ON transcript_share_attempts;

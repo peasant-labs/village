@@ -15,14 +15,14 @@ CREATE TABLE transcript_share_attempts (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     transcript_id UUID NOT NULL REFERENCES transcripts(id) ON DELETE CASCADE,
     group_id      UUID NOT NULL REFERENCES groups(id)      ON DELETE CASCADE,
-    attempt_no    INT  NOT NULL CHECK (attempt_no >= 1),
+    event_num     INT  NOT NULL CHECK (event_num >= 1),
     status        VARCHAR(20) NOT NULL
                    CHECK (status IN ('pending', 'approved', 'rejected',
                                      'retracted', 'revoked')),
-    submitted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    recorded_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     decided_at    TIMESTAMPTZ,
     decided_by    UUID REFERENCES users(id) ON DELETE SET NULL,
-    UNIQUE (transcript_id, group_id, attempt_no)
+    UNIQUE (transcript_id, group_id, event_num)
 );
 
 -- At most ONE open attempt per (transcript, group): a second submission while
@@ -42,7 +42,7 @@ CREATE INDEX idx_share_attempts_group_status
 -- are correct for pre-existing data from the first deploy. This runs before the
 -- triggers exist: the current-state rows it derives from are already present
 -- and already correct, so there is nothing for the derivation to do.
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status, submitted_at)
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, recorded_at)
 SELECT transcript_id, group_id, 1, status, COALESCE(shared_at, now())
 FROM transcript_shares;
 
@@ -66,14 +66,14 @@ CREATE OR REPLACE FUNCTION derive_transcript_share() RETURNS TRIGGER
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 DECLARE
     latest_status    TEXT;
-    latest_submitted TIMESTAMPTZ;
+    latest_recorded TIMESTAMPTZ;
 BEGIN
-    SELECT a.status, a.submitted_at
-      INTO latest_status, latest_submitted
+    SELECT a.status, a.recorded_at
+      INTO latest_status, latest_recorded
       FROM transcript_share_attempts a
      WHERE a.transcript_id = NEW.transcript_id
        AND a.group_id      = NEW.group_id
-     ORDER BY a.attempt_no DESC
+     ORDER BY a.event_num DESC
      LIMIT 1;
 
     -- Transaction-scoped permission for the one sanctioned writer of
@@ -83,7 +83,7 @@ BEGIN
 
     IF latest_status IN ('pending', 'approved', 'rejected') THEN
         INSERT INTO transcript_shares (transcript_id, group_id, status, shared_at)
-        VALUES (NEW.transcript_id, NEW.group_id, latest_status, latest_submitted)
+        VALUES (NEW.transcript_id, NEW.group_id, latest_status, latest_recorded)
         ON CONFLICT (transcript_id, group_id)
         DO UPDATE SET status = EXCLUDED.status, shared_at = EXCLUDED.shared_at;
     ELSE
@@ -161,9 +161,9 @@ BEGIN
        AND NEW.id            =            OLD.id
        AND NEW.transcript_id =            OLD.transcript_id
        AND NEW.group_id      =            OLD.group_id
-       AND NEW.attempt_no    =            OLD.attempt_no
+       AND NEW.event_num     =            OLD.event_num
        AND NEW.status        =            OLD.status
-       AND NEW.submitted_at  =            OLD.submitted_at
+       AND NEW.recorded_at   =            OLD.recorded_at
        AND NEW.decided_at    IS NOT DISTINCT FROM OLD.decided_at THEN
         RETURN NEW;
     END IF;
@@ -179,3 +179,114 @@ DROP TRIGGER IF EXISTS trg_share_attempt_immutable ON transcript_share_attempts;
 CREATE TRIGGER trg_share_attempt_immutable
     BEFORE UPDATE ON transcript_share_attempts
     FOR EACH ROW EXECUTE FUNCTION guard_share_attempt_immutable();
+
+-- ---------------------------------------------------------------------------
+-- Reconstruction and verification.
+--
+-- The current-state row is a projection of the ledger, so it must always be
+-- reconstructible FROM the ledger. That guarantee is what makes a derived table
+-- acceptable rather than a second source of truth, and it is only real if
+-- something exercises it - so the rebuild below is executed by the test suite,
+-- not merely written down.
+--
+-- ONE definition of "latest", shared by the rebuild and the drift check, so the
+-- two can never disagree about what they are comparing.
+--
+-- These views are helpers for reconstruction and verification. They are NOT a
+-- replacement for transcript_shares: the projection stays a physical table
+-- because its read cost is invariant to how much history accumulates behind it,
+-- while a view's cost grows with every recorded event (measured, not assumed -
+-- see docs/database-invariants.md).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE VIEW transcript_share_latest_event AS
+SELECT DISTINCT ON (transcript_id, group_id)
+       transcript_id, group_id, event_num, status, recorded_at
+FROM transcript_share_attempts
+ORDER BY transcript_id, group_id, event_num DESC;
+
+-- The projection rule: the three representable states become a current-state
+-- row carrying the latest event's recorded_at as shared_at; the two terminal
+-- states become NO ROW.
+CREATE OR REPLACE VIEW transcript_share_expected_state AS
+SELECT transcript_id, group_id, status, recorded_at AS shared_at
+FROM transcript_share_latest_event
+WHERE status IN ('pending', 'approved', 'rejected');
+
+-- Every way the projection can disagree with the ledger. Zero rows means the
+-- stored projection is exactly a latest-event fold over the whole ledger.
+CREATE OR REPLACE VIEW transcript_share_drift AS
+SELECT COALESCE(stored.transcript_id, expected.transcript_id) AS transcript_id,
+       COALESCE(stored.group_id, expected.group_id)           AS group_id,
+       CASE
+           WHEN stored.transcript_id IS NULL              THEN 'missing_from_projection'
+           WHEN expected.transcript_id IS NULL            THEN 'absent_from_ledger'
+           WHEN stored.status IS DISTINCT FROM expected.status THEN 'status_mismatch'
+           ELSE 'shared_at_mismatch'
+       END                                                    AS problem,
+       stored.status                                          AS stored_status,
+       expected.status                                        AS expected_status,
+       stored.shared_at                                       AS stored_shared_at,
+       expected.shared_at                                     AS expected_shared_at
+FROM transcript_shares stored
+FULL OUTER JOIN transcript_share_expected_state expected
+  ON stored.transcript_id = expected.transcript_id
+ AND stored.group_id      = expected.group_id
+WHERE stored.transcript_id IS NULL
+   OR expected.transcript_id IS NULL
+   OR stored.status    IS DISTINCT FROM expected.status
+   OR stored.shared_at IS DISTINCT FROM expected.shared_at;
+
+-- Rebuilds the whole projection from the ledger and returns the row count it
+-- installed. Takes an EXCLUSIVE lock so it cannot interleave with the
+-- derivation trigger; run it in a maintenance window, not under load.
+CREATE OR REPLACE FUNCTION rebuild_transcript_shares() RETURNS bigint
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE
+    installed bigint;
+BEGIN
+    LOCK TABLE transcript_shares IN EXCLUSIVE MODE;
+    PERFORM set_config('app.share_state_derivation', 'on', true);
+
+    DELETE FROM transcript_shares;
+    INSERT INTO transcript_shares (transcript_id, group_id, status, shared_at)
+    SELECT transcript_id, group_id, status, shared_at FROM transcript_share_expected_state;
+    GET DIAGNOSTICS installed = ROW_COUNT;
+
+    PERFORM set_config('app.share_state_derivation', 'off', true);
+    RETURN installed;
+END $$;
+
+-- How many rows of the projection disagree with the ledger. Zero is the only
+-- healthy answer.
+CREATE OR REPLACE FUNCTION check_transcript_shares_drift() RETURNS bigint
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
+    SELECT count(*) FROM transcript_share_drift;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Column meanings, attached to the schema so \d+ answers the question and a
+-- reader never has to find a document to know what a column holds.
+-- ---------------------------------------------------------------------------
+COMMENT ON TABLE transcript_share_attempts IS
+    'The ledger: one row per recorded event in a transcript''s relationship with a collective '
+    '(submitted, decided, withdrawn, removed). transcript_shares is a projection of this table '
+    'and is reconstructible from it with rebuild_transcript_shares().';
+COMMENT ON COLUMN transcript_share_attempts.event_num IS
+    'Orders the events within one (transcript, collective) pair, from 1. The highest event_num '
+    'for a pair is the current one.';
+COMMENT ON COLUMN transcript_share_attempts.recorded_at IS
+    'When this event was recorded. For a submission that is when it was offered; a later decision '
+    'on the same event does not change it (decided_at carries that).';
+COMMENT ON TABLE transcript_shares IS
+    'DERIVED current-state row, written only by trg_derive_transcript_share from '
+    'transcript_share_attempts. Application code never writes it. Rebuild with '
+    'rebuild_transcript_shares(); verify with check_transcript_shares_drift().';
+COMMENT ON COLUMN transcript_shares.shared_at IS
+    'The recorded_at of the CURRENT LATEST event for this (transcript, collective) pair - that is, '
+    'when the submission behind the present state was made. It is NOT the first-ever submission '
+    'for the pair: a rejected and resubmitted contribution carries the resubmission''s time, which '
+    'is what keeps a moderation queue ordered by genuine age. It is also NOT the approval time; '
+    'that is decided_at on the underlying event.';
+COMMENT ON COLUMN transcript_shares.status IS
+    'The current event''s status, restricted to the three representable states. A pair whose '
+    'latest event is retracted or revoked has NO row here at all.';

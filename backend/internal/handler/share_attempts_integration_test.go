@@ -127,6 +127,10 @@ func TestShareAttemptLifecycle(t *testing.T) {
 			world.assertAttempts(t, ctx, testCase)
 			world.assertDerivedRow(t, ctx, testCase)
 			world.assertCounts(t, ctx, testCase)
+			// The per-case assertions above check this pair. This one checks the
+			// WHOLE projection against a latest-event fold over the whole ledger,
+			// so a transition that corrupted some OTHER pair cannot pass unseen.
+			assertProjectionMatchesLedger(t, ctx, world.pool, testCase.Name)
 		})
 	}
 }
@@ -286,7 +290,7 @@ func (w *shareWorld) assertAttempts(t *testing.T, ctx context.Context, testCase 
 	t.Helper()
 	rows, err := w.pool.Query(ctx, `
 		SELECT status FROM transcript_share_attempts
-		WHERE transcript_id = $1 AND group_id = $2 ORDER BY attempt_no
+		WHERE transcript_id = $1 AND group_id = $2 ORDER BY event_num
 	`, w.transcript, w.group)
 	if err != nil {
 		t.Fatalf("read the attempt sequence: %v", err)
@@ -403,4 +407,24 @@ func shareInsertTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 func fixtureProjectHash(seed string) string {
 	sum := sha256.Sum256([]byte("project:" + seed))
 	return hex.EncodeToString(sum[:6])
+}
+
+// assertProjectionMatchesLedger asserts that transcript_shares is exactly a
+// latest-event fold over the whole of transcript_share_attempts. The comparison
+// runs in the database, against the same definition the maintenance check and
+// the rebuild use, so a green result here means those agree too.
+func assertProjectionMatchesLedger(t *testing.T, ctx context.Context, pool *pgxpool.Pool, after string) {
+	t.Helper()
+	var drift int64
+	if err := pool.QueryRow(ctx, `SELECT check_transcript_shares_drift()`).Scan(&drift); err != nil {
+		t.Fatalf("evaluate the projection-versus-ledger check after %s: %v", after, err)
+	}
+	if drift == 0 {
+		return
+	}
+	var problem, stored, expected string
+	_ = pool.QueryRow(ctx, `SELECT problem, COALESCE(stored_status,'<none>'), COALESCE(expected_status,'<none>')
+	                        FROM transcript_share_drift LIMIT 1`).Scan(&problem, &stored, &expected)
+	t.Fatalf("after %s the derived projection disagrees with the ledger in %d row(s); first is %s (stored %s, expected %s). "+
+		"Every transition must leave the projection equal to a latest-event fold over the ledger.", after, drift, problem, stored, expected)
 }

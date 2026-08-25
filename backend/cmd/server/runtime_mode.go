@@ -26,6 +26,7 @@ const (
 	runtimeModeRewrap
 	runtimeModeSeedCore
 	runtimeModeSeedPrivacy
+	runtimeModeShareStateCheck
 )
 
 // runtimeSelection is the validated result of parsing process arguments. It is
@@ -63,6 +64,7 @@ func parseRuntimeSelection(args []string) (runtimeSelection, error) {
 	rewrap := flags.Bool("rewrap-transcript-keys", false, "rewrap a bounded batch of transcript data keys and exit")
 	seedCore := flags.Bool("seed-core", false, "load the encrypted core development profile and exit")
 	seedPrivacy := flags.Bool("seed-privacy", false, "load the encrypted privacy development profile and exit")
+	shareStateCheck := flags.Bool("check-share-state", false, "report whether the derived transcript_shares projection still equals a latest-event fold over transcript_share_attempts, and exit")
 	rewrapLimit := flags.Int("rewrap-limit", defaultRewrapLimit, "maximum transcript data keys to inspect")
 
 	if err := flags.Parse(args); err != nil {
@@ -73,13 +75,13 @@ func parseRuntimeSelection(args []string) (runtimeSelection, error) {
 	}
 
 	selected := 0
-	for _, enabled := range []bool{*migrateOnly, *contentBackfill, *titleBackfill != "", *originBackfill != "", *rewrap, *seedCore, *seedPrivacy} {
+	for _, enabled := range []bool{*migrateOnly, *contentBackfill, *titleBackfill != "", *originBackfill != "", *rewrap, *seedCore, *seedPrivacy, *shareStateCheck} {
 		if enabled {
 			selected++
 		}
 	}
 	if selected > 1 {
-		return runtimeSelection{}, fmt.Errorf("runtime mode parsing failed because %d mutually exclusive operations were selected in parseRuntimeSelection before authority loading; no job or listener was started; choose only one of serve, migrate-only, content-identity backfill, title backfill, origin backfill, rewrap, core seed, or privacy seed", selected)
+		return runtimeSelection{}, fmt.Errorf("runtime mode parsing failed because %d mutually exclusive operations were selected in parseRuntimeSelection before authority loading; no job or listener was started; choose only one of serve, migrate-only, content-identity backfill, title backfill, origin backfill, rewrap, core seed, privacy seed, or share-state check", selected)
 	}
 	rewrapLimitSupplied := false
 	flags.Visit(func(parsed *flag.Flag) {
@@ -126,6 +128,11 @@ func parseRuntimeSelection(args []string) (runtimeSelection, error) {
 		return runtimeSelection{mode: runtimeModeSeedCore, authority: config.BlobProcessingAuthority}, nil
 	case *seedPrivacy:
 		return runtimeSelection{mode: runtimeModeSeedPrivacy, authority: config.BlobProcessingAuthority}, nil
+	case *shareStateCheck:
+		// Reads two tables and writes nothing, so it needs no object storage and
+		// no key authority - deliberately, because a maintenance job that cannot
+		// decrypt anything is a maintenance job that cannot leak anything.
+		return runtimeSelection{mode: runtimeModeShareStateCheck, authority: config.PostgreSQLAuthority}, nil
 	default:
 		return runtimeSelection{mode: runtimeModeServe, authority: config.ServingAuthority}, nil
 	}

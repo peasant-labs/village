@@ -123,7 +123,7 @@ func countsInsertTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 func countsShare(t *testing.T, ctx context.Context, pool *pgxpool.Pool, transcript, group pgtype.UUID, status string) {
 	t.Helper()
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status)
+		INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
 		VALUES ($1, $2, 1, $3)
 	`, transcript, group, status); err != nil {
 		t.Fatalf("share: %v", err)

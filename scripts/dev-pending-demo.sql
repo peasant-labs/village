@@ -40,7 +40,7 @@ WHERE id = :'collective_id'::uuid
 --    transcript_shares is derived by a database trigger from the attempt
 --    history and refuses a direct write, so this opens the attempt and the
 --    derivation produces the row the review page reads.
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status)
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
 VALUES (
     :'transcript_id'::uuid,
     :'collective_id'::uuid,

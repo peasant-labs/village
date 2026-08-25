@@ -68,7 +68,7 @@ ON CONFLICT DO NOTHING;
 -- transcript_shares is derived by a database trigger from the attempt history
 -- and refuses a direct write, so the seed opens attempts and lets the
 -- derivation produce the current-state rows.
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status)
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
 SELECT v.transcript_id::uuid, g.id, 1, v.status
 FROM groups g
 CROSS JOIN (VALUES
@@ -96,7 +96,7 @@ JOIN users u ON u.github_username = :vitor_handle
 WHERE g.name = 'Verified Contributors'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status)
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
 SELECT v.transcript_id::uuid, g.id, 1, 'approved'
 FROM (VALUES
     ('AI Research Team',      'a77d3338-0b48-4b0d-9e84-7f65923d3612'),
