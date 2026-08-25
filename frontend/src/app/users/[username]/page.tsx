@@ -204,12 +204,15 @@ export default function UserProfilePage({
                   {/* The project name is the way into the project's own page,
                       where its transcripts, its collectives and (for the owner)
                       its name live. Routed on project_hash: the project's
-                      identity, never a name that could be re-derived. */}
+                      identity, never a name that could be re-derived.
+                      `normal-case` is load-bearing: the design system lowercases
+                      h1/h2/h3 as UI chrome, and a project's display name is
+                      USER CONTENT, which is never lowercased. */}
                   <Link
                     href={`/users/${encodeURIComponent(username)}/projects/${group.project_hash}`}
                     className="min-w-0 focus-mono cursor-pointer"
                   >
-                    <h2 className="font-[family-name:var(--font-display)] text-sm font-semibold text-ink truncate hover:text-ink-2 transition-colors">
+                    <h2 className="font-[family-name:var(--font-display)] text-sm font-semibold text-ink truncate normal-case hover:text-ink-2 transition-colors">
                       {group.project}
                     </h2>
                   </Link>
@@ -331,7 +334,9 @@ export default function UserProfilePage({
           </div>
         )}
         <div className="min-w-0 flex flex-col gap-1.5">
-          <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-ink truncate">
+          {/* A person's display name is USER CONTENT. `normal-case` overrides the
+              design system's h1/h2/h3 lowercasing, which is a chrome rule. */}
+          <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-ink truncate normal-case">
             {displayName}
           </h1>
           <p className="font-mono text-sm text-ink-3">@{username}</p>

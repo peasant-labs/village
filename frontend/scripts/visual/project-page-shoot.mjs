@@ -24,13 +24,21 @@
      notfound the visibility boundary's answer. Point VILLAGE_URL at a project
             hash the mock does not serve; the page must render its ONE not-found
             panel, and no project heading.
+     profile the PROFILE page, whose project cards link into the project page.
+            Point VILLAGE_URL at /users/{username}. The card heading renders a
+            project's display name, which is USER CONTENT, so the capture is
+            gated on the name surviving as typed: the served name must carry a
+            capital and the heading's computed text-transform must be `none`.
+            The design system lowercases h1/h2/h3 as chrome, so a lowercase-only
+            fixture could not tell a fixed page from a broken one.
      viewer a viewer who is NOT the owner. The correction control must be ABSENT
             and the roll-up is expected empty, which is the ORDINARY answer once
             collective visibility and the contributor opt-in have applied. Pair
             it with MOCK_PROJECT_VIEWER=other MOCK_PROJECT_ROLLUP=empty on the mock.
 
    env:
-     VILLAGE_URL     project page URL (required; must be the hash-keyed route)
+     VILLAGE_URL     page URL (required; the hash-keyed project route, or the
+                     profile route /users/{username} in profile mode)
      CHROME_PATH     Chrome/Chromium binary (required)
      PUPPETEER_CORE  explicit module path to puppeteer-core (optional)
    usage: VILLAGE_URL=... CHROME_PATH=... node project-page-shoot.mjs <theme> <outdir>
@@ -68,8 +76,16 @@ if (!TARGET_URL) {
   die(1, 'VILLAGE_URL is unset.', 'the project page is keyed on a project hash, so there is no safe default route.',
     'no capture can be taken.', 'set VILLAGE_URL to /users/{username}/projects/{projectHash} on the running app.')
 }
-if (!/\/users\/[^/]+\/projects\/[0-9a-f]{64}\/?$/.test(new URL(TARGET_URL).pathname)) {
-  die(1, `VILLAGE_URL path ${JSON.stringify(new URL(TARGET_URL).pathname)} is not the hash-keyed project route.`,
+const targetPath = new URL(TARGET_URL).pathname
+if (MODE === 'profile') {
+  if (!/^\/users\/[^/]+\/?$/.test(targetPath)) {
+    die(1, `VILLAGE_URL path ${JSON.stringify(targetPath)} is not the profile route.`,
+      'the profile mode captures /users/{username}, the surface whose project cards link into the project page.',
+      'the capture would prove nothing about the profile card this change changes.',
+      'point VILLAGE_URL at /users/{username} on the running app.')
+  }
+} else if (!/\/users\/[^/]+\/projects\/[0-9a-f]{64}\/?$/.test(targetPath)) {
+  die(1, `VILLAGE_URL path ${JSON.stringify(targetPath)} is not the hash-keyed project route.`,
     'the route this change adds is /users/{username}/projects/{projectHash} with a 64-hex hash.',
     'the capture would prove nothing about this change.',
     'point VILLAGE_URL at the hash-keyed route on the running app.')
@@ -112,8 +128,11 @@ const waitFor = async (sel, timeoutMs = 12000) => {
 // ── Build provenance ────────────────────────────────────────────────────────
 // Each marker below exists ONLY in this change. A served build that lacks any
 // of them is not the build under test, so nothing is captured.
-const heading = MODE === 'notfound' ? null : await waitFor('[data-testid="project-display-name"]')
-if (MODE !== 'notfound' && !heading) {
+// The profile and not-found modes capture surfaces that carry no project
+// header, so the header markers below are asserted only for the project page.
+const isProjectSurface = MODE !== 'notfound' && MODE !== 'profile'
+const heading = isProjectSurface ? await waitFor('[data-testid="project-display-name"]') : null
+if (isProjectSurface && !heading) {
   await browser.close()
   die(2, 'the project heading never rendered.',
     'the served build predates the project page, or the page fetch failed.',
@@ -122,8 +141,8 @@ if (MODE !== 'notfound' && !heading) {
 }
 const headingText = heading ? await page.evaluate((el) => el.textContent.trim(), heading) : ''
 
-const subtitleEl = MODE === 'notfound' ? null : await page.$('[data-testid="project-remote-label"]')
-if (MODE !== 'notfound' && !subtitleEl) {
+const subtitleEl = isProjectSurface ? await page.$('[data-testid="project-remote-label"]') : null
+if (isProjectSurface && !subtitleEl) {
   await browser.close()
   die(2, 'the repository-label subtitle never rendered.',
     'the served payload carried an empty project_remote_label, or the served build predates the subtitle.',
@@ -155,8 +174,8 @@ if (MODE === 'viewer' && control) {
     'confirm the mock serves MOCK_PROJECT_VIEWER=other, and fix the ownership test if it does.')
 }
 
-const rollup = MODE === 'notfound' ? null : await waitFor('[data-testid="project-collectives"]')
-if (MODE !== 'notfound' && !rollup) {
+const rollup = isProjectSurface ? await waitFor('[data-testid="project-collectives"]') : null
+if (isProjectSurface && !rollup) {
   await browser.close()
   die(2, 'the collectives roll-up never rendered.',
     'the served build predates the roll-up panel.',
@@ -255,6 +274,67 @@ const shoot = async (name, sel, { sparse = false } = {}) => {
   console.log('shot', name.padEnd(26), `${Math.round(box.width)}x${Math.round(box.height)}`.padEnd(11),
     `nonbg=${(r.nonbgRatio * 100).toFixed(1)}% colors=${r.distinctColors} ${(bytes / 1024).toFixed(1)}KB`)
   return file
+}
+
+// ── The profile page ────────────────────────────────────────────────────────
+// The card heading is USER CONTENT rendered in an h2, and the design system
+// lowercases h1/h2/h3 as chrome. The capture is refused unless the served name
+// carries a capital, because a lowercase-only name cannot show the difference
+// between a page that overrides the rule and one that does not.
+if (MODE === 'profile') {
+  const card = await waitFor('a[href*="/projects/"] h2')
+  if (!card) {
+    await browser.close()
+    die(2, 'no project card heading rendered on the profile page.',
+      'the served build predates the card link into the project page, or the transcript list was empty.',
+      'the capture would not show the heading this change fixes.',
+      'rebuild from this worktree against the project mock, and retry.')
+  }
+  const cardProbe = await page.evaluate(() => {
+    const link = document.querySelector('a[href*="/projects/"]')
+    const h = link ? link.querySelector('h2') : null
+    if (!h) return null
+    const s = getComputedStyle(h)
+    return {
+      href: link.getAttribute('href'),
+      rendered: h.textContent.trim(),
+      textTransform: s.textTransform,
+      fontFamily: s.fontFamily,
+      fontSize: s.fontSize,
+      profileHeading: (() => {
+        const h1 = document.querySelector('h1')
+        if (!h1) return null
+        const cs = getComputedStyle(h1)
+        return { rendered: h1.textContent.trim(), textTransform: cs.textTransform }
+      })(),
+    }
+  })
+  if (!/[A-Z]/.test(cardProbe.rendered)) {
+    await browser.close()
+    die(1, `the project card heading reads ${JSON.stringify(cardProbe.rendered)} and carries no capital.`,
+      'the fixture served an all-lowercase project name, so the capture cannot distinguish a heading that preserves user content from one the design system lowercased.',
+      'the capture would prove nothing about the casing this change fixes.',
+      'serve a project display name containing capitals from the mock and retry.')
+  }
+  if (cardProbe.textTransform !== 'none') {
+    await browser.close()
+    die(1, `the project card heading computes text-transform: ${cardProbe.textTransform}.`,
+      "the design system lowercases h1/h2/h3 as UI chrome and this heading renders a project's display name, which is user content.",
+      "the capture would document a page that silently rewrites a person's project name.",
+      'add `normal-case` to the heading and retry.')
+  }
+  if (cardProbe.profileHeading && cardProbe.profileHeading.textTransform !== 'none') {
+    await browser.close()
+    die(1, `the profile display-name heading computes text-transform: ${cardProbe.profileHeading.textTransform}.`,
+      "a person's display name is user content and the design system lowercases h1 as chrome.",
+      'the capture would document a page that silently rewrites a person\'s name.',
+      'add `normal-case` to the profile h1 and retry.')
+  }
+  await shoot('vpp-profile-projects', 'body')
+  console.log('provenance', JSON.stringify({ url: TARGET_URL, mode: MODE, card: cardProbe }))
+  console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
+  await browser.close()
+  process.exit(0)
 }
 
 // ── The not-found answer ────────────────────────────────────────────────────

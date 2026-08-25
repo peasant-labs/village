@@ -6,6 +6,11 @@
      - PATCH  /api/v1/users/me/projects/{projectHash}
      - DELETE /api/v1/users/me/projects/{projectHash}/display-name
 
+   The PROFILE page (`/users/{username}`), whose project cards link into the
+   project page, fetches:
+     - GET    /api/v1/users/{username}
+     - GET    /api/v1/transcripts?owner={username}
+
    The correction routes are served live (in memory) so a capture can be taken
    before and after a reset, and so the control is exercised the way a user
    exercises it rather than being screenshotted in one frozen state.
@@ -51,7 +56,11 @@ const otherViewer = makeUser('bob-reviewer', 'Bob Reviewer')
 // Live identity state. The correction routes mutate it, and the page re-reads
 // it, so a capture taken after a reset shows the resolved default rather than
 // an echo of what was typed.
-let displayName = 'the village'
+// The override name carries CAPITALS on purpose. A project's display name is
+// user content, and the design system lowercases h1/h2/h3 as chrome, so a
+// lowercase-only fixture cannot show whether the name survives as typed. Both
+// the project page heading and the profile project card render this string.
+let displayName = 'The Village'
 let nameSource = 'override'
 const REMOTE_LABEL = 'github.com:peasant-labs/village'
 const RESOLVED_DEFAULT = { displayName: 'village', nameSource: 'consented' }
@@ -162,6 +171,19 @@ const projectPage = () => ({
   collectives: ROLLUP === 'empty' ? [] : collectives,
 })
 
+/** The profile route's list shape: the same sessions, wrapped as list items. */
+const profileTranscripts = () => ({
+  transcripts: sessions.map((s, i) => ({
+    transcript: transcript(s, i),
+    tags: [],
+    owner,
+  })),
+  total: sessions.length,
+  agent_total: 0,
+  page: 1,
+  limit: 20,
+})
+
 const send = (res, code, body) => {
   res.writeHead(code, {
     'content-type': 'application/json',
@@ -213,6 +235,15 @@ const server = createServer(async (req, res) => {
   }
   if (req.method === 'GET' && path === `/users/${OWNER_USERNAME}/projects/${PROJECT_HASH}`) {
     return send(res, 200, projectPage())
+  }
+  // The PROFILE page, whose project cards link into the project page. It is
+  // served from the SAME identity state, so the card heading and the project
+  // heading always render the same string.
+  if (req.method === 'GET' && path === `/users/${OWNER_USERNAME}`) {
+    return send(res, 200, owner)
+  }
+  if (req.method === 'GET' && path === '/transcripts') {
+    return send(res, 200, profileTranscripts())
   }
   // Every other project page answers the way the visibility boundary answers:
   // one 404, with no wording that says which case it was.

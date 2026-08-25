@@ -107,6 +107,8 @@ describe("mounted project page: the collectives roll-up", () => {
   for (const c of fixtures.rollupCases) {
     it(c.name, async () => {
       const fixture = baseFixture({
+        ownerUsername: c.ownerUsername,
+        viewer: c.viewerUsername,
         collectives: c.collectives.map((g) => ({
           id: g.id,
           name: g.name,
@@ -121,6 +123,14 @@ describe("mounted project page: the collectives roll-up", () => {
       const panel = document.querySelector('[data-testid="project-collectives"]');
       expect(panel).not.toBeNull();
       const panelText = (panel?.textContent ?? "").replace(/\s+/g, " ").trim();
+
+      // The case renders as the viewer it names, so a case declared as a
+      // non-owner really is one: the owner-only control is absent for them.
+      const viewerIsOwner =
+        c.viewerUsername.toLowerCase() === c.ownerUsername.toLowerCase();
+      expect(document.querySelector('[data-testid="project-rename-control"]') !== null).toBe(
+        viewerIsOwner,
+      );
 
       const rowNames = [...panel!.querySelectorAll("li a")].map((a) =>
         (a.textContent ?? "").trim(),

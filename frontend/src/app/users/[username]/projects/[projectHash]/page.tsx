@@ -78,18 +78,25 @@ export default function UserProjectPage({
     return (
       <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
         <Crumbs username={username} current={null} />
-        <div
-          data-testid="project-page-not-found"
-          className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center"
-        >
-          <EyeOff size={28} className="text-ink-4" />
-          <p className="text-sm font-medium text-ink">Project not found</p>
-          <Link
-            href="/"
-            className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-          >
-            Back to Commons
-          </Link>
+        {/* The design system's own zero-state block, the same component the
+            transcript and collectives panels use, with the way back in its
+            action slot. Its wording stays lowercase chrome like its siblings
+            and says nothing about WHICH refusal produced it. */}
+        <div data-testid="project-page-not-found">
+          <EmptyState
+            icon={EyeOff}
+            as="h3"
+            title="project not found"
+            message="Village has no project page here that you can open."
+            action={
+              <Link
+                href="/"
+                className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
+              >
+                back to commons
+              </Link>
+            }
+          />
         </div>
       </div>
     );

@@ -312,6 +312,7 @@ gated by collective visibility and the owner's contributor opt-in.
 | `owner` (default) | `vpp-project-page`, `vpp-project-rename`, `vpp-project-collectives`, `vpp-project-after-reset` | the control is present, and resetting the name really changes both the name and the tier it is resolved from |
 | `viewer` | `vpp-project-page-viewer`, `vpp-project-collectives-empty` | the control is ABSENT for a viewer who is not the owner, and an empty roll-up renders as an ordinary empty state |
 | `notfound` | `vpp-project-not-found` | one refusal panel, and NO project heading beside it |
+| `profile` | `vpp-profile-projects` | the profile page whose project cards link into the project page. Point `VILLAGE_URL` at `/users/{username}`. The card heading renders a project's display name, which is USER CONTENT, so the mode refuses to capture unless the served name carries a capital, and it fails if the heading (or the profile display-name heading) computes a `text-transform` other than `none`. The design system lowercases `h1`/`h2`/`h3` as chrome, so an all-lowercase fixture could not tell a correct page from a broken one. |
 
 Repeatable run (a real production build, not `next dev`, so the served bytes are
 the bytes under review):
@@ -340,8 +341,19 @@ CHROME_PATH=$CHROME VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/
   node scripts/visual/project-page-shoot.mjs light $BASE/light
 ```
 
+```sh
+# 5. capture the profile page, whose project cards link into the project page
+CHROME_PATH=$CHROME PROJECT_SHOOT_MODE=profile \
+  VILLAGE_URL="http://localhost:3000/users/alice-dev" \
+  node scripts/visual/project-page-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME PROJECT_SHOOT_MODE=profile \
+  VILLAGE_URL="http://localhost:3000/users/alice-dev" \
+  node scripts/visual/project-page-shoot.mjs light $BASE/light
+```
+
 The owner mode consumes the override it resets, so restart the mock between
-themes. For the other two states, restart the mock with
+themes. The profile mode reads the same identity state, so run it before the
+owner mode resets the override, or restart the mock first. For the other two states, restart the mock with
 `MOCK_PROJECT_VIEWER=other MOCK_PROJECT_ROLLUP=empty` and run with
 `PROJECT_SHOOT_MODE=viewer`, then point `VILLAGE_URL` at a hash the mock does not
 serve and run with `PROJECT_SHOOT_MODE=notfound`.

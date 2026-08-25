@@ -46,9 +46,12 @@ notFoundCases:
   # must render ONE answer for all of them: the moment the wording differs, the
   # refusal itself discloses which case it was.
   #
-  # `serverMessage` differs between these cases ON PURPOSE. It stands in for a
-  # future server change that starts distinguishing them; the rendered text must
-  # not follow it.
+  # `serverMessage` differs between these cases ON PURPOSE, and the loader
+  # refuses a corpus where two are equal. Production sends ONE constant for all
+  # three (handler `projectPageNotFoundMessage`, status 404, body `{"error": …}`),
+  # so identical inputs here would make the assertion pass no matter what the
+  # page rendered. These distinguishable inputs stand in for a server that starts
+  # to differentiate; the rendered text must not follow it either way.
   - name: hidden-owner-renders-not-found
     serverMessage: "no such project page: the user has chosen not to be discoverable"
 
@@ -59,7 +62,13 @@ notFoundCases:
     serverMessage: "no such project page: that project does not exist"
 
 rollupCases:
+  # Each case names the viewer it renders as. The empty case is viewed by
+  # somebody who is NOT the owner, because that is the viewer the empty answer
+  # is claimed to be ordinary for; a corpus where every case is the owner could
+  # not show it.
   - name: approved-collectives-render-with-their-transcript-counts
+    ownerUsername: "alice-dev"
+    viewerUsername: "alice-dev"
     collectives:
       - id: "11111111-1111-4111-8111-111111111111"
         name: "AI Research Team"
@@ -81,6 +90,8 @@ rollupCases:
   # or with any wording that implies something is being withheld, would confirm
   # the very memberships the gate exists to hide.
   - name: empty-rollup-renders-as-an-ordinary-empty-state
+    ownerUsername: "alice-dev"
+    viewerUsername: "bob-reviewer"
     collectives: []
     expectedRowNames: []
     expectedCounts: []
@@ -155,7 +166,7 @@ profileLinkCases:
   - name: profile-project-card-links-to-the-hash-keyed-project-page
     ownerUsername: "alice-dev"
     projectHash: "1111111111111111111111111111111111111111111111111111111111111111"
-    projectDisplayName: "village"
+    projectDisplayName: "The Village"
     expectedHref: "/users/alice-dev/projects/1111111111111111111111111111111111111111111111111111111111111111"
 
   - name: profile-project-card-href-encodes-a-reserved-username

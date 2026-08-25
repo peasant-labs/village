@@ -36,6 +36,8 @@ export type ProjectPageRollupCollective = {
 
 export type ProjectPageRollupCase = {
   name: string;
+  ownerUsername: string;
+  viewerUsername: string;
   collectives: ProjectPageRollupCollective[];
   expectedRowNames: string[];
   expectedCounts: string[];
@@ -117,7 +119,15 @@ const requiredProfileLinkCaseNames = [
 const viewerCaseKeys = ["name", "ownerUsername", "viewerUsername", "expectRenameControl"];
 const notFoundCaseKeys = ["name", "serverMessage"];
 const rollupCollectiveKeys = ["id", "name", "description", "linkedGithubOrg", "transcriptCount"];
-const rollupCaseKeys = ["name", "collectives", "expectedRowNames", "expectedCounts", "expectEmptyRollup"];
+const rollupCaseKeys = [
+  "name",
+  "ownerUsername",
+  "viewerUsername",
+  "collectives",
+  "expectedRowNames",
+  "expectedCounts",
+  "expectEmptyRollup",
+];
 const renameCaseKeys = [
   "name",
   "initialDisplayName",
@@ -210,6 +220,20 @@ export function loadProjectPageFixtures(): ProjectPageFixtures {
   }
 
   assertNamesMatch(fixtures.rollupCases.map((c) => c.name), requiredRollupCaseNames, "project-page rollupCases");
+  // An empty roll-up is claimed to be the ORDINARY answer for a viewer who is
+  // not the owner. A corpus that renders every case as the owner never puts a
+  // non-owner on the page, so the claim would be narrative rather than tested.
+  const rollupNonOwnerCases = fixtures.rollupCases.filter(
+    (c) => c.viewerUsername.toLowerCase() !== c.ownerUsername.toLowerCase(),
+  );
+  if (!rollupNonOwnerCases.some((c) => c.expectEmptyRollup)) {
+    throw new Error(
+      `project-page rollupCases: at least one case expecting an EMPTY roll-up must be viewed by ` +
+        `somebody who is not the owner. Empty is described as the ordinary answer for a non-owner, ` +
+        `so a corpus viewed entirely by the owner cannot show it. Set viewerUsername to a different ` +
+        `user on the empty case.`,
+    );
+  }
   for (const c of fixtures.rollupCases) {
     assertExactKeys(c, rollupCaseKeys, `roll-up case ${c.name}`);
     for (const g of c.collectives) {
