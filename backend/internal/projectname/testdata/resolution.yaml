@@ -220,3 +220,19 @@ cases:
     want_display_name: "village"
     want_source: "consented"
     want_remote_label: ""
+
+  # A Resolver constructed with its zero value (nil Label) must behave
+  # exactly as one whose labeler always reports the remote unusable, never
+  # panic. GitRemote is present here so this case would exercise the
+  # labeler if one were wired; since none is, evidence falls through to the
+  # last-resort synthesis just as it would if git_remote were empty.
+  - name: zero-value-resolver-nil-label-is-safe
+    project_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    override_name: ""
+    consented_name: ""
+    git_remote: "git@github.com:peasant-labs/village.git"
+    privacy_label: ""
+    no_labeler: true
+    want_display_name: "project-0123456789ab"
+    want_source: "privacy"
+    want_remote_label: ""

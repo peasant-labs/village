@@ -18,12 +18,15 @@ var privacyLabelCasesYAML []byte
 // resolutionCase is one row of the precedence-lattice fixture. Every case
 // asserts want_display_name, want_source, and want_remote_label.
 type resolutionCase struct {
-	Name            string `yaml:"name"`
-	ProjectHash     string `yaml:"project_hash"`
-	OverrideName    string `yaml:"override_name"`
-	ConsentedName   string `yaml:"consented_name"`
-	GitRemote       string `yaml:"git_remote"`
-	PrivacyLabel    string `yaml:"privacy_label"`
+	Name          string `yaml:"name"`
+	ProjectHash   string `yaml:"project_hash"`
+	OverrideName  string `yaml:"override_name"`
+	ConsentedName string `yaml:"consented_name"`
+	GitRemote     string `yaml:"git_remote"`
+	PrivacyLabel  string `yaml:"privacy_label"`
+	// NoLabeler selects the zero-value Resolver (nil Label) instead of the
+	// fixture's recognizing testLabeler, proving the zero value is safe.
+	NoLabeler       bool   `yaml:"no_labeler"`
 	WantDisplayName string `yaml:"want_display_name"`
 	WantSource      string `yaml:"want_source"`
 	WantRemoteLabel string `yaml:"want_remote_label"`
@@ -58,6 +61,7 @@ var requiredResolutionCaseNames = []string{
 	"remote-unrecognized-falls-through-to-privacy",
 	"published-at-tie-id-asc-tiebreak-consented-pick",
 	"mixed-name-same-hash-one-project-one-name",
+	"zero-value-resolver-nil-label-is-safe",
 }
 
 func loadResolutionFixture(t *testing.T) []resolutionCase {
@@ -158,13 +162,17 @@ func testLabeler(remote string) (string, bool) {
 func TestResolve(t *testing.T) {
 	for _, c := range loadResolutionFixture(t) {
 		t.Run(c.Name, func(t *testing.T) {
-			got := Resolve(Evidence{
+			r := Resolver{Label: testLabeler}
+			if c.NoLabeler {
+				r = Resolver{}
+			}
+			got := r.Resolve(Evidence{
 				ProjectHash:   c.ProjectHash,
 				OverrideName:  c.OverrideName,
 				ConsentedName: c.ConsentedName,
 				GitRemote:     c.GitRemote,
 				PrivacyLabel:  c.PrivacyLabel,
-			}, testLabeler)
+			})
 
 			if got.DisplayName != c.WantDisplayName {
 				t.Errorf("DisplayName = %q, want %q", got.DisplayName, c.WantDisplayName)
@@ -185,18 +193,22 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-// TestResolve_NilLabeler proves the RemoteLabeler seam is optional at the
-// call boundary: a nil label behaves exactly as one that always reports
-// ok=false, never panics, and still respects the rest of the precedence
-// chain.
-func TestResolve_NilLabeler(t *testing.T) {
-	got := Resolve(Evidence{
+// TestResolve_ZeroValueResolverIsSafe proves the RemoteLabeler seam is
+// optional at construction time: a Resolver{} with a nil Label behaves
+// exactly as one whose labeler always reports ok=false — never panics, and
+// still respects the rest of the precedence chain. testdata/resolution.yaml
+// carries the same assertion as a named fixture case
+// (zero-value-resolver-nil-label-is-safe); this direct unit test pins the
+// same behavior without depending on fixture wiring.
+func TestResolve_ZeroValueResolverIsSafe(t *testing.T) {
+	var r Resolver
+	got := r.Resolve(Evidence{
 		ProjectHash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		GitRemote:   "git@github.com:peasant-labs/village.git",
-	}, nil)
+	})
 
 	if got.RemoteLabel != "" {
-		t.Errorf("RemoteLabel = %q, want empty with a nil labeler", got.RemoteLabel)
+		t.Errorf("RemoteLabel = %q, want empty with a zero-value Resolver", got.RemoteLabel)
 	}
 	if got.Source != NameSourcePrivacy {
 		t.Errorf("Source = %q, want %q (last-resort synthesis with the remote unusable)", got.Source, NameSourcePrivacy)
@@ -213,7 +225,8 @@ func TestResolve_NilLabeler(t *testing.T) {
 // unreachable). Resolve must still never return an empty DisplayName or the
 // literal "Other".
 func TestResolve_EntirelyEmptyEvidenceNeverReturnsEmptyOrOther(t *testing.T) {
-	got := Resolve(Evidence{}, nil)
+	var r Resolver
+	got := r.Resolve(Evidence{})
 	if got.DisplayName == "" {
 		t.Error("DisplayName must never be empty, even for entirely empty evidence")
 	}

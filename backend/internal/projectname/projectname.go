@@ -80,9 +80,22 @@ type Resolved struct {
 // RemoteLabel: at the time this package was written, that function did not
 // exist yet in the pinned schema module version, and this package must
 // never depend on unpublished schema surface. The wiring to the real
-// schema.RemoteLabel happens at the call site once the module is re-pinned
-// — this package only declares and consumes the function shape.
+// schema.RemoteLabel happens at construction time once the module is
+// re-pinned — this package only declares and consumes the function shape.
 type RemoteLabeler func(remote string) (label string, ok bool)
+
+// Resolver holds the one dependency Resolve needs beyond its Evidence
+// argument: the RemoteLabeler seam. A caller resolves many projects per
+// request (a profile page resolves one per (owner_id, project_hash) pair),
+// so the seam is injected once at construction and reused across every
+// Resolve call rather than threaded through each one.
+//
+// The zero value is safe to use: a Resolver with a nil Label behaves
+// exactly as one whose labeler always reports ok=false — the remote tier
+// and the RemoteLabel subtitle are simply unavailable, never a panic.
+type Resolver struct {
+	Label RemoteLabeler
+}
 
 // Resolve applies the ratified precedence
 //
@@ -90,11 +103,10 @@ type RemoteLabeler func(remote string) (label string, ok bool)
 //
 // and never returns an empty DisplayName or the literal "Other".
 //
-// label formats Evidence.GitRemote into the display label Resolved.RemoteLabel
-// carries; it is applied once regardless of which tier ultimately supplies
-// DisplayName, because RemoteLabel is rendered as a subtitle independent of
-// Source. A nil label is treated the same as one that always reports ok=false
-// (the remote tier and the RemoteLabel subtitle are simply unavailable).
+// r.Label formats Evidence.GitRemote into the display label
+// Resolved.RemoteLabel carries; it is applied once regardless of which tier
+// ultimately supplies DisplayName, because RemoteLabel is rendered as a
+// subtitle independent of Source.
 //
 // Last-resort rule: when OverrideName, ConsentedName, GitRemote (or its
 // formatted label), and PrivacyLabel are all unusable but ProjectHash is
@@ -104,10 +116,10 @@ type RemoteLabeler func(remote string) (label string, ok bool)
 // the system does not allow to reach storage — Resolve still never returns
 // an empty DisplayName or "Other": it falls back to a fixed, clearly-marked
 // placeholder so a caller can never observe either forbidden value.
-func Resolve(e Evidence, label RemoteLabeler) Resolved {
+func (r Resolver) Resolve(e Evidence) Resolved {
 	remoteLabel := ""
-	if label != nil && e.GitRemote != "" {
-		if formatted, ok := label(e.GitRemote); ok && formatted != "" {
+	if r.Label != nil && e.GitRemote != "" {
+		if formatted, ok := r.Label(e.GitRemote); ok && formatted != "" {
 			remoteLabel = formatted
 		}
 	}
