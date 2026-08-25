@@ -254,9 +254,10 @@ Newer real-Postgres families worth knowing when touching those paths:
   both require the normal PostgreSQL, encrypted-blob, and KEK authority needed to
   authenticate historical content.
 
-- **Session-origin classification and scope** (`internal/sessionorigin`,
-  `internal/backfill`, `internal/handler`): one classifier decides who drove a
-  session, and every surface derives from it.
+- **Session-origin resolution and scope** (`internal/sessionorigin`,
+  `internal/backfill`, `internal/handler`): the producer declares who drove a
+  session when it can, one classifier decides when it cannot, and every surface
+  derives from the single stored value.
   - `internal/sessionorigin/testdata/classification/cases.yaml` is the rule
     itself: a real user prompt; a command invocation on the system role, on the
     user role, and carrying attributes; the teammate-driven worker shape; a
@@ -270,8 +271,24 @@ Newer real-Postgres families worth knowing when touching those paths:
   - `internal/handler/testdata/session_origin_publish/cases.yaml` pins what
     publish stores, including the fail-safe value for content that cannot be
     decoded, plus a re-publish that replaces the class when the content changes.
-    These run against the real handler with a mocked querier, so the assertion
-    is the exact value passed to `CreateTranscript` / `UpdateTranscriptByOwnerAndLocalID`.
+    It also pins the declared-first resolution: a declared `agent` stored over a
+    payload this server would call `user`, a declared `user` stored over a
+    payload it would call `agent`, a declared `unknown` that returns the
+    decision here and stores the classified answer, and an out-of-menu
+    declaration refused with `400` that writes nothing. These run against the
+    real handler with a mocked querier, so the assertion is the exact value
+    passed to `CreateTranscript` / `UpdateTranscriptByOwnerAndLocalID`, and the
+    refusal row additionally asserts `CreateTranscript` was never called.
+    Every row states what this server's own classifier answers for the same
+    turns, and the test recomputes that answer from the published bytes: a
+    declared row whose classifier agrees with the declaration is rejected by the
+    loader, because such a row passes whether or not the declaration was
+    honoured. The declared-`unknown` row carries the same requirement one step
+    further - its payload must be one the classifier resolves to `agent`, or the
+    row would also pass for an implementation that stored the publisher's word
+    verbatim. The refusal needles are authored in the corpus rather than taken
+    from the production message. The loader's deletion guard is the required-arm
+    name list; it pins no row count, so adding an arm is one edit to the corpus.
   - `internal/handler/testdata/session_origin_discovery/cases.yaml` pins the
     discovery scope over real PostgreSQL: the default list hides agent-driven
     sessions for anonymous and owner callers, an explicit `origin` returns
@@ -283,6 +300,13 @@ Newer real-Postgres families worth knowing when touching those paths:
     `-backfill-origins` end to end: dry-run writes nothing, apply installs the
     decision, a rerun is a no-op, a read failure leaves the row untouched, and a
     concurrent write wins the compare-and-set.
+  - `frontend/src/testdata/agent-session-grouping.yaml` is the mounted proof
+    that a declared origin and a classified one are indistinguishable
+    downstream. It drives the REAL Explore and profile routes with REST mocked
+    and asserts the collapsed group, its count, the expanded rows, and the row
+    badge, over cases tagged `classified` and cases tagged `declared`; the
+    loader requires at least one of each and guards deletion by case name rather
+    than by a row count. Run it with `pnpm test` from `frontend/`.
 
   ```bash
   cd backend

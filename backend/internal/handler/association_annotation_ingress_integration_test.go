@@ -29,6 +29,7 @@ import (
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
 
@@ -635,7 +636,7 @@ func TestAssociationAnnotationIngress_RealPostgres(t *testing.T) {
 			Identity: schema.SessionIdentity{SessionID: schema.SessionID(rollbackLocalID), SchemaVersion: 2},
 			Model:    schema.ModelInfo{Harness: "claude-code", Model: "association-test"},
 		}
-		params := schemaToTranscriptParams(request, "blob/"+rollbackLocalID, 1, "2")
+		params := schemaToTranscriptParams(request, "blob/"+rollbackLocalID, 1, "2", sessionorigin.Unknown)
 		params.OwnerID = ownerA
 		params.LocalID = rollbackLocalID
 		params = completeEncryptedFixtureParams(params)

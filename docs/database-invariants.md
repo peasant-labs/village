@@ -101,15 +101,32 @@ boundary are documented in
   is mirrored in Go by `internal/sessionorigin.All`, and a value read out of the
   column passes `Origin.Validate()` before any caller uses it, so an
   out-of-menu value fails closed instead of being guessed in either direction.
-  The classification is one shared pure function: a payload with a real user
-  turn carrying content, or with any turn that opens with a command wrapper
+  The value is resolved declared-first. The producer that recorded the session
+  held the raw harness record, so when the published payload carries
+  `sessionDetail.sessionOrigin` of `'user'` or `'agent'` that declaration is
+  what the column stores and this server's classifier is not consulted at all. A
+  declared `'unknown'` is a different instruction: the producer looked and could
+  not tell, so it returns the question here and the classifier decides. A
+  payload with no declaration - typically a producer older than the field -
+  falls back the same way, so a declared `'unknown'` and an absent field behave
+  identically. The column never stores a declared `'unknown'` verbatim: this
+  server holds the content and has a working classifier, so recording the
+  publisher's word would be strictly worse than what it decides for the same
+  payload itself. A declaration outside the menu is refused with `400` before
+  anything is written, because classifying instead would silently hide the
+  disagreement with what the publisher said.
+  The fallback classification is one shared pure function: a payload with a real
+  user turn carrying content, or with any turn that opens with a command wrapper
   whatever its wire role, is `'user'`; a payload with neither of those in which
   assistant or tool work still happened is `'agent'`; anything else is
   `'unknown'`. The command wrapper names come from the shared redaction
   package, not from local literals, because the role a recorder assigns a
   command turn has changed over time and both shapes describe the same person.
-  Publish and republish classify the validated payload and write the column in
-  the same audited transaction as the rest of the metadata. Historical rows keep
+  Publish and republish resolve the validated payload and write the column in
+  the same audited transaction as the rest of the metadata. A declared value and
+  a classified one land in the SAME column, so discovery, the `origin`
+  parameter, the row badge, the deep link, and the maintenance backfill read one
+  value and need no knowledge of where it came from. Historical rows keep
   the `'unknown'` default until an operator runs the origin backfill, which
   updates them one row at a time as the system actor. `'unknown'` is the
   fail-safe value: only `'agent'` is collapsed out of root-level discovery
@@ -216,11 +233,13 @@ boundary are documented in
 - All three functions are `SET search_path = pg_catalog, public`.
 - **`session_origin` is not a governance axis.** It is discovery metadata, so a
   `session_origin`-only UPDATE does not satisfy the governance trigger's WHEN
-  clause and appends no audit row. Publish still writes it inside the audited
-  INSERT/UPDATE transaction as the publisher, and the maintenance origin
-  backfill still opens its per-row transaction as the system actor, so every
-  writer of the column is attributed even though the column itself records no
-  event.
+  clause and appends no audit row. This holds however the value was decided: a
+  producer's declaration is stored by the same publish INSERT/UPDATE as a
+  classified one, inside the audited transaction as the publisher, and the
+  maintenance origin backfill still opens its per-row transaction as the system
+  actor. So every writer of the column is attributed even though the column
+  itself records no event, and taking the producer's word for the value adds no
+  new writer and no new audit obligation.
 - **Fail-closed attribution:** both mutation-side functions read
   `NULLIF(current_setting('app.actor_id', true), '')::uuid` and **RAISE if
   NULL** - there is NO owner fallback (a guessed attribution is fabricated

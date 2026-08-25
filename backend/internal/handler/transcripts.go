@@ -264,10 +264,16 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	servedHash := schema.ComputeTranscriptContentHash(content)
 
-	// Who drove this session, decided from the accepted bytes by the one shared
-	// classifier. Discovery collapses agent-driven sessions out of root-level
-	// lists; every other value is listed normally.
-	publishedOrigin := classifyPublishedSessionOrigin(r.Context(), content)
+	// Who drove this session: the producer's declaration when it made one, the
+	// one shared classifier over the accepted bytes when it did not. Discovery
+	// collapses agent-driven sessions out of root-level lists; every other value
+	// is listed normally. An out-of-menu declaration is refused here, before
+	// anything is written.
+	publishedOrigin, err := resolvePublishedSessionOrigin(r.Context(), content)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	var fingerprint schema.PublishRequestFingerprint
 	if authoritative {
 		if servedHash != authoritativeReq.ContentHash {
@@ -394,11 +400,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		blobSize := int64(len(content))
 
 		// Use mapper to convert schema.PublishRequest to DB params
-		params := schemaToTranscriptParams(req, blobKey, blobSize, schemaVersion)
+		params := schemaToTranscriptParams(req, blobKey, blobSize, schemaVersion, publishedOrigin)
 		params.ID = transcriptID
 		params.OwnerID = ownerPgID
 		params.LocalID = string(req.Identity.SessionID)
-		params.SessionOrigin = publishedOrigin.String()
 
 		// Normalize nil JSONB to null
 		if len(params.Subagents) == 0 {
