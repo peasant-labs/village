@@ -544,7 +544,8 @@ export interface ShareEvent {
 
 /**
  * One (transcript, collective) LEDGER PAIR, as served by the owner-only
- * `GET /users/me/collectives/{groupId}/submissions`.
+ * `GET /users/me/collectives/{groupId}/submissions` (a BARE JSON array, the
+ * same envelope-free shape as the sibling events endpoint).
  *
  * This is EVERY pair the owner has ever had with the collective, including a
  * pair whose every event ended in a withdrawal and so has no row left in the
@@ -557,11 +558,18 @@ export interface ShareEvent {
  * this endpoint exists to close (a nonzero withdrawn counter beside an empty
  * list, as one user acceptance test caught).
  *
- * Carries no `title`: only the ledger identity and its latest state, so a
- * consumer renders {@link transcript_id} where a title would otherwise go.
+ * WHEN THE OWNER HAS NO PAIRS FOR THE COLLECTIVE, the endpoint answers 404,
+ * never a 200 with an empty array — the SAME disposition as "no such
+ * collective", so asking cannot be used to discover which collectives exist
+ * or who contributed to them. See {@link useMyCollectiveSubmissions} in
+ * `@/lib/queries/collectives`, which normalizes that 404 to an empty list for
+ * consumers: the rendered empty state is unaffected either way.
  */
 export interface CollectiveSubmissionPair {
   transcript_id: string;
+  group_id: string;
+  /** Null when the transcript has no title. Never derived or guessed. */
+  title: string | null;
   status: ShareEventStatus;
   event_num: number;
   recorded_at: string;

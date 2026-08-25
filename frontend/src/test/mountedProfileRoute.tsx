@@ -35,6 +35,11 @@ export interface MountedProfileFixture {
    * — the owner-only PAIRS source. Includes a pair whose latest event is a
    * withdrawal (`retracted`/`revoked`); that pair has no row in the legacy
    * current-state list but MUST have one here.
+   *
+   * A collective id with NO key here 404s, matching the real server's
+   * disposition for "the owner has no pairs for this collective" (never a 200
+   * with `[]`) — omit the key to model the genuinely-empty case rather than
+   * supplying an empty array, which the real backend cannot produce.
    */
   submissionsByGroupId?: Record<string, CollectiveSubmissionPair[]>;
   /** `GET /users/me/collectives/{groupId}/transcripts/{transcriptId}/events`. */
@@ -102,7 +107,11 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
     }
     const submissionsMatch = path.match(/^\/users\/me\/collectives\/([^/]+)\/submissions$/);
     if (submissionsMatch) {
-      return json(fixture.submissionsByGroupId?.[submissionsMatch[1]] ?? []);
+      const pairs = fixture.submissionsByGroupId?.[submissionsMatch[1]];
+      // The real server 404s rather than serving `[]` when the owner has no
+      // pairs here (see the field doc above); a missing key models that.
+      if (pairs === undefined) return json({ error: "not found" }, 404);
+      return json(pairs);
     }
     if (path.startsWith("/transcripts?")) {
       return json({ transcripts: [], total: 0, agent_total: 0, page: 1, limit: 24 });

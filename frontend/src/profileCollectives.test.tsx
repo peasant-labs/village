@@ -164,18 +164,23 @@ describe("mounted profile route: the submissions panel reads the pairs endpoint"
 
   for (const c of fixtures.submissionPairCases) {
     it(c.name, async () => {
-      const pairs: CollectiveSubmissionPair[] = c.pairs.map((p) => ({
-        transcript_id: p.transcriptId,
-        status: p.status,
-        event_num: p.eventNum,
-        recorded_at: p.recordedAt,
-      }));
+      const pairs: CollectiveSubmissionPair[] | null =
+        c.pairs === null
+          ? null
+          : c.pairs.map((p) => ({
+              transcript_id: p.transcriptId,
+              group_id: group.id,
+              title: p.title,
+              status: p.status,
+              event_num: p.eventNum,
+              recorded_at: p.recordedAt,
+            }));
 
       // The first pair's own history, so opening its history control actually
       // shows a populated log rather than proving nothing beyond "it did not
       // crash".
       const firstPairEvents: ShareEvent[] =
-        c.pairs.length === 0
+        c.pairs === null
           ? []
           : [
               {
@@ -198,9 +203,11 @@ describe("mounted profile route: the submissions panel reads the pairs endpoint"
         profileUsername: OWNER,
         viewerUsername: OWNER,
         contributions: [toWire(group)],
-        submissionsByGroupId: { [group.id]: pairs },
+        // Omitting the key models the server's real 404-when-empty
+        // disposition; only a non-null pairs case supplies one.
+        submissionsByGroupId: pairs === null ? {} : { [group.id]: pairs },
         eventsByGroupAndTranscript:
-          c.pairs.length === 0
+          c.pairs === null
             ? {}
             : { [eventKey(group.id, c.pairs[0].transcriptId)]: firstPairEvents },
       });
@@ -209,17 +216,20 @@ describe("mounted profile route: the submissions panel reads the pairs endpoint"
       const user = userEvent.setup();
       await user.click(collectiveRows()[0].querySelector("button")!);
 
-      if (c.pairs.length === 0) {
+      if (c.pairs === null) {
+        // The 404 must render as the ordinary empty state, never as an error
+        // or a crash.
         await waitFor(() =>
           expect(
             document.querySelector('[data-testid="collective-submissions-empty"]'),
           ).not.toBeNull(),
         );
+        expect(document.querySelector('[data-testid="collective-submission"]')).toBeNull();
         expect(submissionPairsRows()).toHaveLength(0);
         return;
       }
 
-      await waitFor(() => expect(submissionPairsRows()).toHaveLength(c.pairs.length));
+      await waitFor(() => expect(submissionPairsRows()).toHaveLength(c.pairs!.length));
       // The empty-state copy must be genuinely ABSENT as a node, not merely
       // visually hidden — a CSS-only defect can leave textContent unchanged
       // while a person sees nothing wrong, so this checks for the node.
@@ -229,7 +239,7 @@ describe("mounted profile route: the submissions panel reads the pairs endpoint"
 
       const rows = submissionPairsRows();
       rows.forEach((row, i) => {
-        expect(row.dataset.transcriptId).toBe(c.pairs[i].transcriptId);
+        expect(row.dataset.transcriptId).toBe(c.pairs![i].transcriptId);
         const chip = row.querySelector<HTMLElement>('[data-testid="collective-submission-status"]');
         expect(chip?.textContent?.trim()).toBe(c.expectedChips[i]);
       });
@@ -266,6 +276,8 @@ describe("mounted profile route: the per-collective history is a full event log"
           [group.id]: [
             {
               transcript_id: transcriptId,
+              group_id: group.id,
+              title: "Refactoring the ingest pipeline",
               status: events[events.length - 1].status,
               event_num: events.length,
               recorded_at: events[events.length - 1].recorded_at,

@@ -23,9 +23,10 @@ import ShareEventLog from "./ShareEventLog";
  * had with this collective is a row, INCLUDING one whose every event ended in
  * a withdrawal and so has no current-state row left. That pair renders with
  * its history control intact and a chip reading "withdrawn"
- * ({@link submissionPairChip}). The empty-state copy below therefore means
- * exactly what it says: the pairs list, not merely the current-state list, is
- * empty.
+ * ({@link submissionPairChip}). The server answers 404 — never a 200 with an
+ * empty array — when the owner genuinely has none; {@link useMyCollectiveSubmissions}
+ * normalizes that to an empty list, so the empty-state copy below means
+ * exactly what it says regardless of which cause produced it.
  */
 export default function CollectiveSubmissions({
   groupId,
@@ -75,7 +76,7 @@ export default function CollectiveSubmissions({
                   href={`/transcripts/${pair.transcript_id}`}
                   className="min-w-0 flex-1 truncate text-[13px] text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer"
                 >
-                  {pair.transcript_id.slice(0, 8)}
+                  {pair.title ?? pair.transcript_id.slice(0, 8)}
                 </Link>
                 <span
                   data-testid="collective-submission-status"

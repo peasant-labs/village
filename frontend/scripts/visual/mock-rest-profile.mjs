@@ -98,9 +98,11 @@ const contributions = [
 ]
 
 // One (transcript, collective) ledger pair, as the owner-only pairs endpoint
-// serves it: identity plus latest state only, no title.
-const pair = (transcriptId, status, eventNum, recordedAt) => ({
+// serves it: identity, its collective, a title (nullable), and latest state.
+const pair = (groupId, transcriptId, title, status, eventNum, recordedAt) => ({
   transcript_id: transcriptId,
+  group_id: groupId,
+  title,
   status,
   event_num: eventNum,
   recorded_at: recordedAt,
@@ -108,21 +110,21 @@ const pair = (transcriptId, status, eventNum, recordedAt) => ({
 
 const submissionsByGroup = {
   [RESEARCH]: [
-    pair('9a1c4e21', 'pending', 5, '2026-08-07T09:40:00Z'),
-    pair('4f77b0c3', 'approved', 2, '2026-07-26T15:45:00Z'),
-    pair('c02d5188', 'approved', 1, '2026-07-11T17:20:00Z'),
+    pair(RESEARCH, '9a1c4e21', 'Rewriting the ingest commit detector', 'pending', 5, '2026-08-07T09:40:00Z'),
+    pair(RESEARCH, '4f77b0c3', 'Tracing a redaction rule regression', 'approved', 2, '2026-07-26T15:45:00Z'),
+    pair(RESEARCH, 'c02d5188', 'Measuring push latency across regions', 'approved', 1, '2026-07-11T17:20:00Z'),
     // The withdrawn pair the withdrawn counter above accounts for: refused
     // once, then withdrawn by the owner — no current-state row, but a real
     // row here with a "withdrawn" chip.
-    pair('b7c8d9e0', 'retracted', 2, '2026-07-30T10:00:00Z'),
+    pair(RESEARCH, 'b7c8d9e0', 'A first pass at the pull contract', 'retracted', 2, '2026-07-30T10:00:00Z'),
   ],
   [QUIET]: [
-    pair('7b3e9d04', 'pending', 1, '2026-08-10T09:00:00Z'),
-    pair('1d8a6c55', 'pending', 1, '2026-08-11T09:00:00Z'),
-    pair('e5b21f70', 'pending', 1, '2026-08-12T09:00:00Z'),
+    pair(QUIET, '7b3e9d04', 'Reading the store migration ledger', 'pending', 1, '2026-08-10T09:00:00Z'),
+    pair(QUIET, '1d8a6c55', null, 'pending', 1, '2026-08-11T09:00:00Z'),
+    pair(QUIET, 'e5b21f70', 'Notes on the redaction category split', 'pending', 1, '2026-08-12T09:00:00Z'),
   ],
-  [FORMER]: [pair('a1b2c3d4', 'retracted', 1, '2026-08-05T12:00:00Z')],
-  [STRICT]: [pair('b4b6e2ad', 'retracted', 4, '2026-08-06T08:20:00Z')],
+  [FORMER]: [pair(FORMER, 'a1b2c3d4', null, 'retracted', 1, '2026-08-05T12:00:00Z')],
+  [STRICT]: [pair(STRICT, 'b4b6e2ad', 'Chasing a refusal loop', 'retracted', 4, '2026-08-06T08:20:00Z')],
 }
 
 // One attempt row. `recorded` is when the attempt was opened and `decided` when
@@ -201,7 +203,13 @@ const server = createServer((req, res) => {
   if (events) return send(res, 200, eventsByGroupAndTranscript[`${events[1]}/${events[2]}`] ?? [])
 
   const submissions = path.match(/^\/users\/me\/collectives\/([^/]+)\/submissions$/)
-  if (submissions) return send(res, 200, submissionsByGroup[submissions[1]] ?? [])
+  if (submissions) {
+    const pairs = submissionsByGroup[submissions[1]]
+    // The real server 404s — never a 200 with `[]` — when the owner has no
+    // pairs for the collective, so an unknown group id models that here too.
+    if (pairs === undefined) return send(res, 404, { error: 'not found' })
+    return send(res, 200, pairs)
+  }
 
   if (path === '/transcripts') {
     return send(res, 200, {

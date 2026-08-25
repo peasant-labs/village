@@ -318,12 +318,18 @@ eventHistoryCases:
       - submitted
 
 # The owner-only PAIRS list for one collective
-# (`GET /users/me/collectives/{groupId}/submissions`), which the submissions
-# panel now reads instead of the legacy current-state list. Every
-# (transcript, collective) pair the owner has EVER had appears here, including
-# one whose every event ended in a withdrawal — that pair has no row in the
-# current-state list at all, which is the exact contradiction UAT caught
-# (a nonzero withdrawn counter beside "no submissions of yours are on record").
+# (`GET /users/me/collectives/{groupId}/submissions`, a bare JSON array),
+# which the submissions panel now reads instead of the legacy current-state
+# list. Every (transcript, collective) pair the owner has EVER had appears
+# here, including one whose every event ended in a withdrawal — that pair has
+# no row in the current-state list at all, which is the exact contradiction
+# UAT caught (a nonzero withdrawn counter beside "no submissions of yours are
+# on record").
+#
+# When the owner has NO pairs for a collective, the server answers 404 —
+# never a 200 with an empty array, the same disposition as "no such
+# collective" — so a case models that with `pairs: null`, never `pairs: []`;
+# the loader rejects an empty ARRAY as a shape the real server cannot send.
 #
 # `expectedChips` restates, in served order, the chip text each pair's status
 # must render as. retracted and revoked both chip as "withdrawn"; the loader
@@ -333,6 +339,7 @@ submissionPairCases:
   - name: a-fully-withdrawn-pair-renders-as-a-row-not-empty-copy
     pairs:
       - transcriptId: b4b6e2ad-0000-4000-8000-000000000001
+        title: Chasing a refusal loop in Strict Curators
         status: retracted
         eventNum: 4
         recordedAt: "2026-08-06T08:20:00Z"
@@ -340,28 +347,33 @@ submissionPairCases:
       - withdrawn
 
   - name: a-genuinely-empty-pairs-list-shows-the-none-on-record-copy
-    pairs: []
+    pairs: null
     expectedChips: []
 
   - name: a-mixed-collective-renders-every-pair-with-its-own-chip
     pairs:
       - transcriptId: c1a2b3c4-0000-4000-8000-000000000002
+        title: null
         status: pending
         eventNum: 1
         recordedAt: "2026-08-10T09:00:00Z"
       - transcriptId: d5e6f7a8-0000-4000-8000-000000000003
+        title: Measuring push latency across regions
         status: approved
         eventNum: 1
         recordedAt: "2026-08-01T09:00:00Z"
       - transcriptId: e9f0a1b2-0000-4000-8000-000000000004
+        title: A first pass at the pull contract
         status: rejected
         eventNum: 1
         recordedAt: "2026-07-15T09:00:00Z"
       - transcriptId: f3a4b5c6-0000-4000-8000-000000000005
+        title: null
         status: retracted
         eventNum: 1
         recordedAt: "2026-07-20T09:00:00Z"
       - transcriptId: a7b8c9d0-0000-4000-8000-000000000006
+        title: Notes on the redaction category split
         status: revoked
         eventNum: 2
         recordedAt: "2026-07-25T09:00:00Z"

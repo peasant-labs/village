@@ -63,6 +63,7 @@ export type EventHistoryCase = {
 /** One (transcript, collective) pair as the owner-only pairs endpoint serves it. */
 export type SubmissionPairFixture = {
   transcriptId: string;
+  title: string | null;
   status: ShareEventStatus;
   eventNum: number;
   recordedAt: string;
@@ -70,7 +71,13 @@ export type SubmissionPairFixture = {
 
 export type SubmissionPairCase = {
   name: string;
-  pairs: SubmissionPairFixture[];
+  /**
+   * `null` means the endpoint 404s for this collective — the server's actual
+   * disposition when the owner has no pairs here, never a 200 with `[]`. Only
+   * the case named for a genuinely empty list may use `null`; every other
+   * case serves at least one pair.
+   */
+  pairs: SubmissionPairFixture[] | null;
   /** The chip text expected for each pair, in the SAME order as `pairs`. */
   expectedChips: string[];
 };
@@ -148,7 +155,7 @@ const contributionCaseKeys = [
   "expectedCounters",
 ];
 const expectedCounterKeys = ["approved", "pending", "rejectedAttempts", "withdrawnAttempts"];
-const submissionPairKeys = ["transcriptId", "status", "eventNum", "recordedAt"];
+const submissionPairKeys = ["transcriptId", "title", "status", "eventNum", "recordedAt"];
 const submissionPairCaseKeys = ["name", "pairs", "expectedChips"];
 const eventKeys = [
   "eventNum",
@@ -425,25 +432,39 @@ export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
   );
   for (const c of fixtures.submissionPairCases) {
     assertExactKeys(c, submissionPairCaseKeys, `submission-pair case ${c.name}`);
-    if (c.pairs.length !== c.expectedChips.length) {
+    // The defect this fixture family exists to prevent: the "none on record"
+    // copy appearing beside a nonempty list, or a row silently missing when
+    // the list is genuinely empty. Tying both cases to the SAME boolean is
+    // what makes it impossible for a fixture to express the contradiction.
+    //
+    // `pairs: null` models the server's REAL disposition for "the owner has
+    // no pairs here": a 404, never a 200 with `[]`. A fixture asserting a
+    // 200-empty response would describe a shape the backend cannot produce —
+    // exactly the fixture-realism defect this epoch keeps finding — so only
+    // `null` may express the empty case, and an empty ARRAY is rejected here.
+    const isGenuinelyEmpty = c.name === "a-genuinely-empty-pairs-list-shows-the-none-on-record-copy";
+    if (isGenuinelyEmpty !== (c.pairs === null)) {
+      throw new Error(
+        `submission-pair case ${c.name}: only the case named for a genuinely empty pairs list may ` +
+          `set pairs to null (the server's real 404 disposition); every other case must serve at ` +
+          `least one pair, or it cannot prove the row-instead-of-vanishing behavior this endpoint ` +
+          `exists for`,
+      );
+    }
+    if (c.pairs !== null && c.pairs.length === 0) {
+      throw new Error(
+        `submission-pair case ${c.name}: pairs is an empty ARRAY, a response shape the real server ` +
+          `never sends (it 404s instead) — use pairs: null to model the genuinely-empty case`,
+      );
+    }
+    const pairs = c.pairs ?? [];
+    if (pairs.length !== c.expectedChips.length) {
       throw new Error(
         `submission-pair case ${c.name}: every served pair must have exactly one expected chip, ` +
           `in the order served`,
       );
     }
-    // The defect this fixture family exists to prevent: the "none on record"
-    // copy appearing beside a nonempty list, or a row silently missing when
-    // the list is genuinely empty. Tying both cases to the SAME boolean is
-    // what makes it impossible for a fixture to express the contradiction.
-    const isGenuinelyEmpty = c.name === "a-genuinely-empty-pairs-list-shows-the-none-on-record-copy";
-    if (isGenuinelyEmpty !== (c.pairs.length === 0)) {
-      throw new Error(
-        `submission-pair case ${c.name}: only the case named for a genuinely empty pairs list may ` +
-          `serve zero pairs; every other case must serve at least one pair, or it cannot prove the ` +
-          `row-instead-of-vanishing behavior this endpoint exists for`,
-      );
-    }
-    c.pairs.forEach((p, i) => {
+    pairs.forEach((p, i) => {
       assertExactKeys(p, submissionPairKeys, `submission-pair case ${c.name} pairs[${i}]`);
       if (!STATUSES.includes(p.status)) {
         throw new Error(
