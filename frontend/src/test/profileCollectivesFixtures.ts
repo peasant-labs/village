@@ -41,6 +41,15 @@ export type ShareEventFixture = {
   eventNum: number;
   status: ShareEventStatus;
   decidedByActor: ShareEventActor;
+  /** When the attempt was opened. */
+  recordedAt: string;
+  /** When it was decided, or null while it is still open. */
+  decidedAt: string | null;
+  /** The timestamp the row must SHOW: the decision time once decided, the
+   *  submission time while still open. Authored here rather than derived from
+   *  the component, so the assertion has an independent expectation to fail
+   *  against. */
+  expectedDisplayedAt: string;
 };
 
 export type EventHistoryCase = {
@@ -78,6 +87,7 @@ const requiredViewerCaseNames = [
 
 const requiredContributionCaseNames = [
   "pending-only-collective-is-listed",
+  "refused-then-withdrawn-keeps-its-refusal-count-with-no-transcripts-left",
   "two-approved-one-pending-two-rejected-attempts",
   "a-fully-withdrawn-collective-still-lists-with-every-counter-zero",
   "several-collectives-render-in-the-order-served",
@@ -85,6 +95,7 @@ const requiredContributionCaseNames = [
 
 const requiredEventHistoryCaseNames = [
   "all-five-states-in-ascending-order",
+  "timestamps-never-run-backwards-across-a-long-history",
   "repeated-rejection-then-still-pending",
   "withdrawn-by-owner-is-never-phrased-as-a-resubmission",
   "removed-by-the-collective-is-distinct-from-a-refusal",
@@ -112,7 +123,14 @@ const contributionCaseKeys = [
   "expectedCounters",
 ];
 const expectedCounterKeys = ["approved", "pending", "rejectedAttempts"];
-const eventKeys = ["eventNum", "status", "decidedByActor"];
+const eventKeys = [
+  "eventNum",
+  "status",
+  "decidedByActor",
+  "recordedAt",
+  "decidedAt",
+  "expectedDisplayedAt",
+];
 const eventHistoryCaseKeys = ["name", "events", "expectedLabels"];
 const transcriptCollectiveKeys = ["id", "name"];
 const transcriptCollectivesCaseKeys = [
@@ -267,6 +285,68 @@ export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
         throw new Error(
           `event-history case ${c.name} events[${i}]: the server sends the history in event_num ` +
             `ASCENDING order, so events[${i}] must carry eventNum ${i + 1}, got ${e.eventNum}`,
+        );
+      }
+      // Only the LAST row may still be open: uq_share_attempt_open allows one
+      // pending attempt per (transcript, collective), and a row stops being
+      // pending the moment anything happens to it. An interior pending row is
+      // a state the write paths cannot produce, so a case containing one could
+      // not fail for a reason a real regression would.
+      if (e.status === "pending" && i !== c.events.length - 1) {
+        throw new Error(
+          `event-history case ${c.name} events[${i}]: only the LAST event may be pending — at most ` +
+            `one attempt per (transcript, collective) is ever open, so an interior pending row is ` +
+            `a history no write path can produce`,
+        );
+      }
+      const recorded = Date.parse(e.recordedAt);
+      const decided = e.decidedAt == null ? null : Date.parse(e.decidedAt);
+      if (Number.isNaN(recorded) || (e.decidedAt != null && Number.isNaN(decided!))) {
+        throw new Error(
+          `event-history case ${c.name} events[${i}]: recordedAt/decidedAt must be parseable ` +
+            `timestamps, got ${e.recordedAt} / ${e.decidedAt}`,
+        );
+      }
+      if ((e.decidedAt == null) !== (e.status === "pending")) {
+        throw new Error(
+          `event-history case ${c.name} events[${i}]: decidedAt is null exactly while the event is ` +
+            `still open, and set for every decided event`,
+        );
+      }
+      if (decided != null && decided < recorded) {
+        throw new Error(
+          `event-history case ${c.name} events[${i}]: an event cannot be decided before it was ` +
+            `recorded (${e.decidedAt} < ${e.recordedAt})`,
+        );
+      }
+      if (i > 0) {
+        const prev = c.events[i - 1];
+        const prevClosed = Date.parse(prev.decidedAt ?? prev.recordedAt);
+        if (recorded < prevClosed) {
+          throw new Error(
+            `event-history case ${c.name} events[${i}]: a new attempt is only opened after the ` +
+              `previous one closed, so recordedAt (${e.recordedAt}) cannot precede the previous ` +
+              `event's own time (${prev.decidedAt ?? prev.recordedAt})`,
+          );
+        }
+      }
+      // The timestamp the row shows, stated in the fixture and checked against
+      // the fields it must come from. A log whose displayed times run backwards
+      // contradicts its own "oldest first" claim, so the fixture refuses to
+      // express one.
+      const displayedIso = e.decidedAt ?? e.recordedAt;
+      const displayed = `${displayedIso.slice(0, 10)} ${displayedIso.slice(11, 16)}`;
+      if (e.expectedDisplayedAt !== displayed) {
+        throw new Error(
+          `event-history case ${c.name} events[${i}]: expectedDisplayedAt is ` +
+            `"${e.expectedDisplayedAt}" but the decided-else-recorded time is "${displayed}"`,
+        );
+      }
+      if (i > 0 && e.expectedDisplayedAt < c.events[i - 1].expectedDisplayedAt) {
+        throw new Error(
+          `event-history case ${c.name} events[${i}]: the displayed time runs BACKWARDS ` +
+            `("${e.expectedDisplayedAt}" after "${c.events[i - 1].expectedDisplayedAt}") — the log ` +
+            `is read oldest first, so its times must never decrease`,
         );
       }
       // The expected label is checked against the production labeller here so a

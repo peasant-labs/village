@@ -214,6 +214,20 @@ if (!log) {
 const eventRows = await page.$$eval('[data-testid="share-event"]', (els) =>
   els.map((el) => `${el.dataset.eventNum}:${el.dataset.eventStatus}:${el.textContent.replace(/\s+/g, ' ').trim()}`),
 )
+// The log claims to read oldest first. If the timestamps disagree, the capture
+// would be evidence of a chronology that cannot happen, so the run fails rather
+// than producing it — this is exactly the defect that reached a screenshot once.
+const shownTimes = await page.$$eval('[data-testid="share-event-time"]', (els) =>
+  els.map((el) => el.textContent.trim()),
+)
+const backwards = shownTimes.findIndex((t, i) => i > 0 && t < shownTimes[i - 1])
+if (backwards > 0) {
+  await browser.close()
+  die(1, `the event log shows a time running backwards: row ${backwards + 1} reads ${JSON.stringify(shownTimes[backwards])} after row ${backwards} reads ${JSON.stringify(shownTimes[backwards - 1])}.`,
+    'either the fixture stamps events with times that cannot occur in that order, or the row renders the wrong time field.',
+    'the capture would show an audit log contradicting its own oldest-first claim, which is misleading evidence.',
+    'fix the fixture so each attempt is recorded after the previous one closed, or fix the field the row reads, then recapture.')
+}
 if (eventRows.length < 2) {
   await browser.close()
   die(1, `the event log rendered ${eventRows.length} row(s).`,
@@ -226,6 +240,7 @@ await shoot('profile-collectives-history', '[data-testid="profile-collectives"]'
 
 console.log('provenance rejected-unit =', JSON.stringify(unitText))
 console.log('provenance collective-rows =', rows.length, '| pending-only listed =', pendingOnly)
+console.log('provenance event-times =', shownTimes.join('  ->  '))
 console.log('provenance event-rows =')
 for (const r of eventRows) console.log('   ', r)
 console.log('computed styles =', JSON.stringify(probe, null, 2))

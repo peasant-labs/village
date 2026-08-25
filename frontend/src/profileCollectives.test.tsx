@@ -142,8 +142,8 @@ describe("mounted profile route: the per-collective history is a full event log"
       const events: ShareEvent[] = c.events.map((e) => ({
         event_num: e.eventNum,
         status: e.status,
-        recorded_at: "2026-08-01T00:00:00.000Z",
-        decided_at: e.decidedByActor === "" ? null : "2026-08-02T00:00:00.000Z",
+        recorded_at: e.recordedAt,
+        decided_at: e.decidedAt,
         decided_by_actor: e.decidedByActor,
       }));
 
@@ -193,6 +193,22 @@ describe("mounted profile route: the per-collective history is a full event log"
           expect(row.textContent).not.toContain("rejected");
         }
       });
+
+      // The log claims to read oldest first, and the timestamps must agree with
+      // that claim. Each row shows the decision time once decided and the
+      // submission time while still open; reading down the column must never
+      // go backwards, or the log contradicts itself in front of the person it
+      // exists to inform.
+      const shownTimes = [
+        ...document.querySelectorAll<HTMLElement>('[data-testid="share-event-time"]'),
+      ].map((el) => el.textContent!.trim());
+      expect(shownTimes).toEqual(c.events.map((e) => e.expectedDisplayedAt));
+      for (let i = 1; i < shownTimes.length; i += 1) {
+        expect(
+          shownTimes[i] >= shownTimes[i - 1],
+          `event ${i + 1} shows ${shownTimes[i]}, which is BEFORE event ${i}'s ${shownTimes[i - 1]}`,
+        ).toBe(true);
+      }
 
       // The actor is a CLASS and the wire carries no name, so nothing here is
       // looked up and nothing can be reported as missing.

@@ -108,7 +108,15 @@ export default function ShareEventLog({
               <Icon className="size-3.5 text-ink-3 shrink-0" />
               <span className="font-mono text-[13px] text-ink">{shareEventLabel(event)}</span>
               <span className="flex-1" />
-              <span className="font-mono text-xs text-ink-3 tabular-nums shrink-0">
+              {/* When this event happened: the decision time once decided,
+                  the submission time while still open. Both come from the same
+                  row, and the write paths only ever open a new attempt after
+                  the previous one closed, so reading down the column is
+                  reading forwards in time. */}
+              <span
+                data-testid="share-event-time"
+                className="font-mono text-xs text-ink-3 tabular-nums shrink-0"
+              >
                 {formatEventTime(event.decided_at ?? event.recorded_at)}
               </span>
             </li>

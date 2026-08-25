@@ -38,6 +38,7 @@ const user = {
 const RESEARCH = '22222222-2222-4222-8222-222222222222'
 const QUIET = '11111111-1111-4111-8111-111111111111'
 const FORMER = '33333333-3333-4333-8333-333333333333'
+const STRICT = '88888888-8888-4888-8888-888888888888'
 
 const contributions = [
   {
@@ -67,6 +68,20 @@ const contributions = [
     pending_count: 0,
     rejected_attempt_count: 0,
   },
+  // Refused three times and then withdrawn. The refusals stay counted from the
+  // event ledger while both transcript counters fall to zero, and the current
+  // state row is gone — so opening this collective lists no submissions and
+  // its history has no entry point. That dead end is real and is captured here
+  // rather than described only in prose.
+  {
+    id: STRICT,
+    name: 'Strict Curators',
+    description: 'refused three times, then withdrawn',
+    linked_github_org: null,
+    approved_count: 0,
+    pending_count: 0,
+    rejected_attempt_count: 3,
+  },
 ]
 
 const share = (id, title, status) => ({
@@ -95,12 +110,18 @@ const sharesByGroup = {
     share('e5b21f70', 'Notes on the redaction category split', 'pending'),
   ],
   [FORMER]: [],
+  [STRICT]: [],
 }
 
-const event = (num, status, actor, decided) => ({
+// One attempt row. `recorded` is when the attempt was opened and `decided` when
+// it was closed (null while it is still open). Both are given per row: a shared
+// constant would make every still-open row show the same instant and the log
+// would appear to run backwards, which is a defect in the FIXTURE and would
+// make the capture misleading evidence.
+const event = (num, status, actor, recorded, decided) => ({
   event_num: num,
   status,
-  recorded_at: '2026-08-01T09:00:00Z',
+  recorded_at: recorded,
   decided_at: decided,
   decided_by_actor: actor,
 })
@@ -109,30 +130,23 @@ const event = (num, status, actor, decided) => ({
 // withdrawn by the owner, then removed by the collective. Every row names the
 // actor class, and no row reads as a re-submission of a withdrawal.
 const eventsByGroupAndTranscript = {
-  // All five states, in the order they happened, ending open — so the capture
-  // shows a refusal, a withdrawal by the owner and a removal by the collective
-  // side by side, each naming its own actor.
+  // All five states in the order they happened, ending open. One row per
+  // submission: a row is opened pending and closed in place, except a
+  // withdrawal of an ACCEPTED contribution, which appends its own row so the
+  // acceptance stays on record. Times increase down the log.
   [`${RESEARCH}/9a1c4e21`]: [
-    event(1, 'pending', '', null),
-    event(2, 'rejected', 'moderator', '2026-08-02T10:00:00Z'),
-    event(3, 'pending', '', null),
-    event(4, 'approved', 'moderator', '2026-08-04T14:30:00Z'),
-    event(5, 'revoked', 'collective', '2026-08-05T11:00:00Z'),
-    event(6, 'pending', '', null),
-    event(7, 'retracted', 'owner', '2026-08-06T08:20:00Z'),
-    event(8, 'pending', '', null),
+    event(1, 'rejected', 'moderator', '2026-08-01T09:00:00Z', '2026-08-02T10:00:00Z'),
+    event(2, 'approved', 'moderator', '2026-08-03T08:15:00Z', '2026-08-04T14:30:00Z'),
+    event(3, 'revoked', 'collective', '2026-08-05T11:00:00Z', '2026-08-05T11:00:00Z'),
+    event(4, 'retracted', 'owner', '2026-08-06T07:05:00Z', '2026-08-06T08:20:00Z'),
+    event(5, 'pending', '', '2026-08-07T09:40:00Z', null),
   ],
   [`${RESEARCH}/4f77b0c3`]: [
-    event(1, 'pending', '', null),
-    event(2, 'approved', 'moderator', '2026-08-03T11:15:00Z'),
-    event(3, 'retracted', 'owner', '2026-08-05T08:00:00Z'),
-    event(4, 'pending', '', null),
-    event(5, 'approved', 'moderator', '2026-08-06T09:45:00Z'),
+    event(1, 'rejected', 'moderator', '2026-07-20T13:00:00Z', '2026-07-22T09:10:00Z'),
+    event(2, 'approved', 'moderator', '2026-07-25T10:30:00Z', '2026-07-26T15:45:00Z'),
   ],
   [`${RESEARCH}/c02d5188`]: [
-    event(1, 'pending', '', null),
-    event(2, 'approved', 'moderator', '2026-08-07T16:20:00Z'),
-    event(3, 'revoked', 'collective', '2026-08-09T12:00:00Z'),
+    event(1, 'approved', 'moderator', '2026-07-11T08:00:00Z', '2026-07-11T17:20:00Z'),
   ],
 }
 

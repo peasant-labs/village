@@ -70,6 +70,24 @@ contributionCases:
         pending: 0
         rejectedAttempts: 0
 
+  # Refused repeatedly and then withdrawn: the current-state row is gone, so
+  # both transcript counters are 0, while the refusals stay counted from the
+  # event ledger. The section must still show the 3.
+  - name: refused-then-withdrawn-keeps-its-refusal-count-with-no-transcripts-left
+    collectives:
+      - id: 88888888-8888-4888-8888-888888888888
+        name: Strict Curators
+        description: null
+        approvedCount: 0
+        pendingCount: 0
+        rejectedAttemptCount: 3
+    expectedCollectiveNames:
+      - Strict Curators
+    expectedCounters:
+      - approved: 0
+        pending: 0
+        rejectedAttempts: 3
+
   - name: several-collectives-render-in-the-order-served
     collectives:
       - id: 44444444-4444-4444-8444-444444444444
@@ -98,82 +116,187 @@ contributionCases:
 # The owner-only audit log for one (transcript, collective) pair. `events` is
 # the wire payload in the order the server sends it (event_num ascending);
 # `expectedLabels` is what each row must read, in the same order.
+# The owner-only audit log for one (transcript, collective) pair.
+#
+# Every case is a history the WRITE PATHS CAN ACTUALLY PRODUCE, because a case
+# describing an impossible state proves nothing about a real regression:
+#   - one row per submission. A row is opened `pending` and UPDATED in place to
+#     approved / rejected, or to retracted / revoked when it is withdrawn while
+#     still awaiting review. Withdrawing an ACCEPTED contribution appends a
+#     further row instead, so the acceptance stays on record.
+#   - at most ONE row is `pending` (uq_share_attempt_open), and it can only be
+#     the last: a row stops being pending the moment anything happens to it.
+#   - `recordedAt` increases with `eventNum`, and a new attempt is never opened
+#     before the previous one closed, so `recordedAt[n] >= decidedAt[n-1]`.
+#     An appended withdrawal row is recorded and decided in the same moment.
+#
+# `expectedDisplayedAt` is the timestamp the row must SHOW: the decision time
+# once decided, the submission time while still open. Because of the ordering
+# rules above it never runs backwards, and the loader refuses a case where it
+# would — an audit log whose times go backwards is not an audit log.
 eventHistoryCases:
   - name: all-five-states-in-ascending-order
     events:
       - eventNum: 1
-        status: pending
-        decidedByActor: ""
-      - eventNum: 2
         status: rejected
         decidedByActor: moderator
-      - eventNum: 3
+        recordedAt: "2026-08-01T09:00:00Z"
+        decidedAt: "2026-08-02T10:00:00Z"
+        expectedDisplayedAt: "2026-08-02 10:00"
+      - eventNum: 2
         status: approved
         decidedByActor: moderator
+        recordedAt: "2026-08-03T08:15:00Z"
+        decidedAt: "2026-08-04T14:30:00Z"
+        expectedDisplayedAt: "2026-08-04 14:30"
+      - eventNum: 3
+        status: revoked
+        decidedByActor: collective
+        recordedAt: "2026-08-05T11:00:00Z"
+        decidedAt: "2026-08-05T11:00:00Z"
+        expectedDisplayedAt: "2026-08-05 11:00"
       - eventNum: 4
         status: retracted
         decidedByActor: owner
+        recordedAt: "2026-08-06T07:05:00Z"
+        decidedAt: "2026-08-06T08:20:00Z"
+        expectedDisplayedAt: "2026-08-06 08:20"
       - eventNum: 5
-        status: revoked
-        decidedByActor: collective
+        status: pending
+        decidedByActor: ""
+        recordedAt: "2026-08-07T09:40:00Z"
+        decidedAt: null
+        expectedDisplayedAt: "2026-08-07 09:40"
     expectedLabels:
-      - submitted
       - rejected by moderator
       - approved by moderator
-      - retracted by owner
       - revoked by collective
+      - retracted by owner
+      - submitted
 
   - name: repeated-rejection-then-still-pending
     events:
       - eventNum: 1
-        status: pending
-        decidedByActor: ""
+        status: rejected
+        decidedByActor: moderator
+        recordedAt: "2026-08-01T09:00:00Z"
+        decidedAt: "2026-08-02T10:00:00Z"
+        expectedDisplayedAt: "2026-08-02 10:00"
       - eventNum: 2
         status: rejected
         decidedByActor: moderator
+        recordedAt: "2026-08-03T09:00:00Z"
+        decidedAt: "2026-08-04T14:30:00Z"
+        expectedDisplayedAt: "2026-08-04 14:30"
       - eventNum: 3
         status: pending
         decidedByActor: ""
-      - eventNum: 4
-        status: rejected
-        decidedByActor: moderator
-      - eventNum: 5
-        status: pending
-        decidedByActor: ""
+        recordedAt: "2026-08-05T09:00:00Z"
+        decidedAt: null
+        expectedDisplayedAt: "2026-08-05 09:00"
     expectedLabels:
-      - submitted
       - rejected by moderator
-      - submitted
       - rejected by moderator
       - submitted
 
   - name: withdrawn-by-owner-is-never-phrased-as-a-resubmission
     events:
       - eventNum: 1
-        status: pending
-        decidedByActor: ""
-      - eventNum: 2
         status: retracted
         decidedByActor: owner
+        recordedAt: "2026-08-01T09:00:00Z"
+        decidedAt: "2026-08-01T16:00:00Z"
+        expectedDisplayedAt: "2026-08-01 16:00"
+      - eventNum: 2
+        status: pending
+        decidedByActor: ""
+        recordedAt: "2026-08-02T09:00:00Z"
+        decidedAt: null
+        expectedDisplayedAt: "2026-08-02 09:00"
     expectedLabels:
-      - submitted
       - retracted by owner
+      - submitted
 
   - name: removed-by-the-collective-is-distinct-from-a-refusal
     events:
       - eventNum: 1
-        status: pending
-        decidedByActor: ""
+        status: approved
+        decidedByActor: moderator
+        recordedAt: "2026-08-01T09:00:00Z"
+        decidedAt: "2026-08-02T10:00:00Z"
+        expectedDisplayedAt: "2026-08-02 10:00"
+      - eventNum: 2
+        status: revoked
+        decidedByActor: collective
+        recordedAt: "2026-08-03T12:00:00Z"
+        decidedAt: "2026-08-03T12:00:00Z"
+        expectedDisplayedAt: "2026-08-03 12:00"
+      - eventNum: 3
+        status: rejected
+        decidedByActor: moderator
+        recordedAt: "2026-08-04T09:00:00Z"
+        decidedAt: "2026-08-05T11:30:00Z"
+        expectedDisplayedAt: "2026-08-05 11:30"
+    expectedLabels:
+      - approved by moderator
+      - revoked by collective
+      - rejected by moderator
+
+  # A history long enough, and spread over enough months, that a row reading the
+  # wrong time field or a log rendered newest-first shows up as a time running
+  # backwards rather than as a plausible-looking date.
+  - name: timestamps-never-run-backwards-across-a-long-history
+    events:
+      - eventNum: 1
+        status: rejected
+        decidedByActor: moderator
+        recordedAt: "2026-08-01T09:00:00Z"
+        decidedAt: "2026-08-02T10:00:00Z"
+        expectedDisplayedAt: "2026-08-02 10:00"
       - eventNum: 2
         status: approved
         decidedByActor: moderator
+        recordedAt: "2026-08-03T08:15:00Z"
+        decidedAt: "2026-08-03T18:45:00Z"
+        expectedDisplayedAt: "2026-08-03 18:45"
       - eventNum: 3
+        status: retracted
+        decidedByActor: owner
+        recordedAt: "2026-08-09T07:30:00Z"
+        decidedAt: "2026-08-09T07:30:00Z"
+        expectedDisplayedAt: "2026-08-09 07:30"
+      - eventNum: 4
+        status: rejected
+        decidedByActor: moderator
+        recordedAt: "2026-08-14T10:00:00Z"
+        decidedAt: "2026-08-20T16:05:00Z"
+        expectedDisplayedAt: "2026-08-20 16:05"
+      - eventNum: 5
+        status: approved
+        decidedByActor: moderator
+        recordedAt: "2026-09-02T11:20:00Z"
+        decidedAt: "2026-09-04T09:00:00Z"
+        expectedDisplayedAt: "2026-09-04 09:00"
+      - eventNum: 6
         status: revoked
         decidedByActor: collective
+        recordedAt: "2026-09-30T13:10:00Z"
+        decidedAt: "2026-09-30T13:10:00Z"
+        expectedDisplayedAt: "2026-09-30 13:10"
+      - eventNum: 7
+        status: pending
+        decidedByActor: ""
+        recordedAt: "2026-10-05T08:00:00Z"
+        decidedAt: null
+        expectedDisplayedAt: "2026-10-05 08:00"
     expectedLabels:
-      - submitted
+      - rejected by moderator
+      - approved by moderator
+      - retracted by owner
+      - rejected by moderator
       - approved by moderator
       - revoked by collective
+      - submitted
 
 # The auth-optional per-transcript list. The server answers an empty list, never
 # a refusal, when the viewer may not see a membership or the owner has not
