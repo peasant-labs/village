@@ -369,3 +369,54 @@ export interface TranscriptDetailResponse {
   owner: User;
   attestations?: Attestation[];
 }
+
+/**
+ * One project's resolved identity, as the server answers it.
+ *
+ * The correction routes (`PATCH /users/me/projects/{projectHash}` and
+ * `DELETE .../display-name`) answer with exactly this shape, so a client reads
+ * the new name and the tier it came from out of the response instead of
+ * re-deriving either one.
+ *
+ * `project_remote_label` is a Go `string` on the wire, so an unknown remote
+ * arrives as `""`, never `null` — a project with no git remote is a normal
+ * state, and the subtitle is simply omitted for it.
+ */
+export interface ResolvedProject {
+  project_hash: string;
+  project_display_name: string;
+  project_name_source: NameSource;
+  project_remote_label: string;
+}
+
+/**
+ * One collective in a project page's roll-up.
+ *
+ * It carries NO share counters beyond `transcript_count`. The roll-up is
+ * restricted to APPROVED shares, and the pending and rejected tallies belong to
+ * the project owner alone — this page can be loaded by someone who is not the
+ * owner, so carrying them here would be a disclosure change, not a convenience.
+ * The owner reads those counters from their own contributions surface instead.
+ */
+export interface ProjectCollectiveRollupEntry {
+  id: string;
+  name: string;
+  description: string | null;
+  linked_github_org: string | null;
+  transcript_count: number;
+}
+
+/**
+ * `GET /api/v1/users/{username}/projects/{projectHash}` (AuthOptional).
+ *
+ * `transcripts` holds only the rows this viewer may see, and `collectives` only
+ * the collectives this viewer may see whose contributor listing the owner has
+ * opted into. Both are normally empty for a viewer who is not the owner; an
+ * empty list is an ordinary answer, never an error.
+ */
+export interface UserProjectPageResponse {
+  project: ResolvedProject;
+  owner: User;
+  transcripts: Transcript[];
+  collectives: ProjectCollectiveRollupEntry[];
+}

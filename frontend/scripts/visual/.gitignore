@@ -26,6 +26,8 @@
 !mock-rest-pagination.mjs
 !explore-pagination-shoot.mjs
 !explore-agent-group-shoot.mjs
+!mock-rest-project.mjs
+!project-page-shoot.mjs
 !png-diff.mjs
 !determinism.mjs
 !manage-README.md

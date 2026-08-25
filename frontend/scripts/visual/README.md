@@ -292,3 +292,56 @@ Manual click-through checklist for the non-automated part of the gate:
 3. Switch between grid and list.
 4. Open transcript `d41a8e`, confirm the route changes to `/transcripts/d41a8e`, then open profile `alice-dev` and confirm `/users/alice-dev`.
 5. Search `ai` again, open `AI Research Team`, confirm `/groups/ai-research-team`, then back out and confirm the shell still renders the card grid.
+
+## Project-page gate (`vpp-*`)
+
+The project page (`/users/{username}/projects/{projectHash}`) is captured by its own
+pair of scripts, because it is the only surface whose content depends on WHO is
+looking: the owner-only correction control, and a collectives roll-up that is
+gated by collective visibility and the owner's contributor opt-in.
+
+| Script | Role |
+|---|---|
+| `mock-rest-project.mjs` | REST stand-in for the project page. Serves the page payload and the two hash-keyed correction routes LIVE, so a reset is a real round-trip rather than a second frozen fixture. `MOCK_PROJECT_VIEWER=owner\|other\|anon` chooses who is looking; `MOCK_PROJECT_ROLLUP=empty` serves an empty roll-up. |
+| `project-page-shoot.mjs` | Captures the page per theme and asserts build provenance BEFORE writing any PNG: the served page must carry the project heading, the repository-label subtitle in `host:owner/repo` shape, and the correction control, and `VILLAGE_URL` must be the 64-hex hash-keyed route. It also prints a `getComputedStyle` probe (tokens, fonts, radius, tabular numerals, text-transform), because `--surface` vs `--canvas` and `--ink-2` vs `--ink-3` cannot be told apart in a scaled PNG. |
+
+`PROJECT_SHOOT_MODE` selects which production state is captured:
+
+| Mode | Surfaces | Asserts |
+|---|---|---|
+| `owner` (default) | `vpp-project-page`, `vpp-project-rename`, `vpp-project-collectives`, `vpp-project-after-reset` | the control is present, and resetting the name really changes both the name and the tier it is resolved from |
+| `viewer` | `vpp-project-page-viewer`, `vpp-project-collectives-empty` | the control is ABSENT for a viewer who is not the owner, and an empty roll-up renders as an ordinary empty state |
+| `notfound` | `vpp-project-not-found` | one refusal panel, and NO project heading beside it |
+
+Repeatable run (a real production build, not `next dev`, so the served bytes are
+the bytes under review):
+
+```sh
+CHROME=/path/to/google-chrome
+BASE=$PWD/review-capture                  # gitignored; per-round PNGs are never committed
+HASH=a3f1c07d5b9e42618c0d7f4a2b6e8901d3c5a7f9b1e2d4c6a8f0b2d4e6f80123
+
+# 1. serve the project fixtures
+MOCK_REST_PORT=8790 node scripts/visual/mock-rest-project.mjs &
+
+# 2. build + start the app against that API base (NEXT_PUBLIC_API_URL is baked at build time)
+NEXT_PUBLIC_API_URL=http://localhost:8790/api/v1 pnpm build
+NEXT_PUBLIC_API_URL=http://localhost:8790/api/v1 pnpm start &
+
+# 3. confirm the served bundle is THIS build before trusting a capture
+curl -s "http://localhost:3000/users/alice-dev/projects/$HASH" \
+  | grep -oE 'src="[^"]*\.js"' | sed 's/src="//;s/"//' | sort -u \
+  | xargs -I{} sh -c 'curl -s "http://localhost:3000{}" | grep -l "project-rename-control" >/dev/null && echo "provenance: {}"'
+
+# 4. capture the owner's view in both themes
+CHROME_PATH=$CHROME VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
+  node scripts/visual/project-page-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
+  node scripts/visual/project-page-shoot.mjs light $BASE/light
+```
+
+The owner mode consumes the override it resets, so restart the mock between
+themes. For the other two states, restart the mock with
+`MOCK_PROJECT_VIEWER=other MOCK_PROJECT_ROLLUP=empty` and run with
+`PROJECT_SHOOT_MODE=viewer`, then point `VILLAGE_URL` at a hash the mock does not
+serve and run with `PROJECT_SHOOT_MODE=notfound`.
