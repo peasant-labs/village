@@ -103,12 +103,21 @@ export interface ProjectGroupingResult<T> {
  * `project_display_name`, even when their raw `project_name` columns
  * disagree (one consented, one a Peasant privacy label) — that
  * mixed-name-same-hash case is exactly what the old name-keyed grouping got
- * wrong. The re-key is also structural, not merely a runtime choice: this
- * function's own parameter type no longer carries a raw `project_name`
- * field at all, so a regression back to name-keyed grouping is a
- * compile-time type error here, not a behavior a test has to catch at
- * runtime. There is no "Other" fallback: an item with no `project_hash` is
- * not folded into a synthetic bucket alongside real projects — it is
+ * wrong. Two different guards cover two different regressions here, and
+ * they are NOT interchangeable. This function's parameter type no longer
+ * carries a raw `project_name` field at all, so a regression that keys on
+ * THAT specific, no-longer-present field is a compile-time type error. A
+ * regression that keys on a field the type DOES still carry —
+ * `project_display_name`, for instance — compiles cleanly; nothing about
+ * the type shape rules it out. That class of regression is caught only at
+ * runtime, by the fixture cases above (a distinct-hashes-same-display-name
+ * case is exactly the kind of row that diverges under a display-name key
+ * but not under a hash key). Do not read the compile-time point as
+ * covering the general "no regression to name-keyed grouping" claim, and
+ * do not treat the fixture coverage above as redundant with it — it is
+ * doing real, non-overlapping work. There is no "Other" fallback: an item
+ * with no `project_hash` is not folded into a synthetic bucket alongside
+ * real projects — it is
  * reported back separately via {@link ProjectGroupingResult.malformed} so
  * the caller can render it as an anomaly, not a project.
  *
