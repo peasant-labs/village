@@ -46,11 +46,17 @@ type projectPageCase struct {
 	// transcript. It exists so a case can store Peasant's privacy-safe label
 	// instead of a real name, which is what lets the remote tier be reached.
 	PublishedProjectName string `yaml:"published_project_name"`
-	WantStatus           int    `yaml:"want_status"`
-	WantTranscriptCount  int    `yaml:"want_transcript_count"`
-	WantDisplayName      string `yaml:"want_display_name"`
-	WantNameSource       string `yaml:"want_name_source"`
-	WantRemoteLabel      string `yaml:"want_remote_label"`
+	// RequestUnknownHash requests a well-formed hash the world never published,
+	// instead of the one its transcript actually carries. It exists to test the
+	// ownership boundary: a hash that belongs to no project of this owner's,
+	// regardless of whether the owner or transcript visibility would otherwise
+	// allow the page through.
+	RequestUnknownHash  bool   `yaml:"request_unknown_hash"`
+	WantStatus          int    `yaml:"want_status"`
+	WantTranscriptCount int    `yaml:"want_transcript_count"`
+	WantDisplayName     string `yaml:"want_display_name"`
+	WantNameSource      string `yaml:"want_name_source"`
+	WantRemoteLabel     string `yaml:"want_remote_label"`
 	// ShareIntoPublicCollective records the project's transcript as an APPROVED
 	// contribution to a public collective, which is what makes the roll-up
 	// non-empty. The share is written as an ATTEMPT; the current-state row is
@@ -74,6 +80,8 @@ var requiredProjectPageCases = []string{
 	"hidden_owner_viewed_by_owner",
 	"discoverable_owner_all_transcripts_private_viewed_by_anonymous",
 	"discoverable_owner_all_transcripts_private_viewed_by_other_signed_in",
+	"discoverable_owner_unknown_hash_viewed_by_anonymous",
+	"discoverable_owner_unknown_hash_viewed_by_owner",
 	"owner_renamed_project_resolves_to_the_chosen_name",
 	"project_with_no_owner_name_resolves_to_the_published_name",
 	"project_with_only_a_privacy_label_resolves_to_the_repository",
@@ -257,9 +265,17 @@ func TestGetUserProject_VisibilityBoundary(t *testing.T) {
 			world := newProjectPageWorld(t, ctx, pool, testCase)
 			defer world.cleanup(t, ctx)
 
+			// A case may request a well-formed hash the world never published,
+			// instead of the one its transcript actually carries, to exercise the
+			// ownership boundary rather than the visibility one.
+			requestedHash := world.projectHash
+			if testCase.RequestUnknownHash {
+				requestedHash = strings.Repeat("b", 52) + world.projectHash[52:]
+			}
+
 			r := httptest.NewRequest(http.MethodGet,
-				"/api/v1/users/"+world.ownerName+"/projects/"+world.projectHash, nil)
-			r = withProjectPageURLParams(r, world.ownerName, world.projectHash)
+				"/api/v1/users/"+world.ownerName+"/projects/"+requestedHash, nil)
+			r = withProjectPageURLParams(r, world.ownerName, requestedHash)
 			switch testCase.Viewer {
 			case "owner":
 				r = r.WithContext(withUserID(r.Context(), uuid.UUID(world.owner.Bytes)))
