@@ -28,6 +28,7 @@ import TranscriptEditDialog from '@/components/transcript/TranscriptEditDialog';
 import ContributePicker from '@/components/transcript/ContributePicker';
 import TurnLabelPopover from '@/components/transcript/TurnLabelPopover';
 import AttestButton from '@/components/transcript/AttestButton';
+import TranscriptCollectives from '@/components/transcript/TranscriptCollectives';
 import { buildProjectHref, buildTranscriptBreadcrumb, overlayStoredTitle } from './transcriptChrome';
 
 /** A transcript's stored visibility. `shared` is set server-side when the
@@ -225,14 +226,21 @@ export function SessionDetailV2({
           // headerActions seam — its old strip above the viewer was an
           // awkward band with no demo equivalent. AttestButton self-gates on
           // having visible orgs; its popover floats from its own trigger.
+          // The collectives holding this transcript sit here too. They are
+          // shown to ANY viewer the server chose to show them to (the
+          // endpoint is auth-optional and answers an empty list when the
+          // visibility rule or the owner's contributor opt-in withholds
+          // them), so the action row renders whenever there is a transcript
+          // id, not only for a signed-in viewer.
           headerActions={
-            isAgentSession(sessionOrigin) || (user && transcriptId) ? (
+            transcriptId || isAgentSession(sessionOrigin) ? (
               <span className="inline-flex items-center gap-2">
                 {isAgentSession(sessionOrigin) && (
                   <span className="chip" data-testid="agent-session-chip">
                     agent session
                   </span>
                 )}
+                {transcriptId && <TranscriptCollectives transcriptId={transcriptId} />}
                 {user && transcriptId && <AttestButton transcriptId={transcriptId} />}
               </span>
             ) : undefined

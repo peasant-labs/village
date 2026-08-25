@@ -15,6 +15,7 @@ import {
   TeachingEmptyState,
 } from "@/lib/ft-ui";
 import PublishImportDialog from "@/app/publish/PublishImportDialog";
+import ProfileCollectives from "@/components/collective/ProfileCollectives";
 import { groupByProject } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -421,6 +422,11 @@ export default function UserProfilePage({
           ]}
         />
       )}
+
+      {/* Contributed collectives — own profile only. The section itself owns
+       * that gate (and disables its own request with it), so there is one
+       * place it can be got wrong rather than two. */}
+      <ProfileCollectives isOwnProfile={isOwnProfile} />
 
       {/*
        * Library + profile settings.

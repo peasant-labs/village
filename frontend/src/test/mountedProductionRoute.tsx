@@ -49,6 +49,12 @@ export interface MountedRouteTranscriptMetadata {
     github_username?: string;
   };
   enriched_shares: unknown[];
+  /** The approved memberships `GET /transcripts/{id}/collectives` serves to
+   *  THIS viewer. Defaults to the empty list the server sends whenever the
+   *  collective-visibility rule or the owner's contributor opt-in withholds
+   *  everything — which is also what a transcript in no collective gets, by
+   *  design. Callers that do not exercise the memberships omit it. */
+  viewer_collectives?: Array<{ id: string; name: string }>;
 }
 
 const DEFAULT_PROJECT_HASH = "0".repeat(64);
@@ -92,6 +98,21 @@ export function installRESTFixture(
     const url = String(input);
     if (url.endsWith(`/transcripts/${transcriptID}/content`)) {
       return new Response(JSON.stringify(detail), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith(`/transcripts/${transcriptID}/collectives`)) {
+      // Always 200 with a list, never a refusal: a refusal status would
+      // itself confirm that memberships exist and are being withheld.
+      return new Response(
+        JSON.stringify({
+          collectives: (resolvedMetadata.viewer_collectives ?? []).map((c) => ({
+            ...c,
+            description: null,
+            linked_github_org: null,
+            shared_at: "2026-08-01T00:00:00.000Z",
+          })),
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
     }
     if (url.endsWith(`/transcripts/${transcriptID}/annotations`)) {
       return new Response(JSON.stringify({ annotations: [] }), { status: 200, headers: { "content-type": "application/json" } });
