@@ -1,0 +1,122 @@
+# Cases for the village frontend's project-identity behavior: hash-keyed
+# grouping (no "Other" fallback), and the breadcrumb project-page href
+# construction. Loaded by src/test/projectIdentityFixtures.ts.
+#
+# `groupingCases` drive src/projectIdentity.test.tsx's direct tests of the
+# real, exported `groupByProject` (src/lib/format.ts) — the same function
+# `UserProfilePage` calls. `breadcrumbHrefCases` drive the same file's direct
+# tests of `buildProjectHref` (src/components/session-detail/v2/transcriptChrome.ts),
+# which SessionDetailV2 uses to build the crumb the mounted
+# titleHeroAndBreadcrumb.test.tsx separately proves lands on the real DOM.
+# `repoGroupLabelCases` drive the same file's direct tests of `groupByRepo`
+# (src/lib/format.ts) — the DIFFERENT, git_remote-keyed axis `CollectiveRepos.tsx`
+# renders, proving its attributed-bucket label reads project_remote_label,
+# never the resolved project_display_name.
+#
+# This file is a SHARED corpus: the project page and the own-profile
+# collectives section may append further case groups here as their own
+# features land. This slice populates only the grouping and
+# breadcrumb-href groups it owns.
+
+groupingCases:
+  - name: mixed-name-same-hash-collapses-to-one-group
+    # Two transcripts share project_hash H — one
+    # carries a consented project_name, the other Peasant's privacy-safe
+    # label — but the resolver has already picked ONE display name for both.
+    # Grouping on project_hash (not project_name) must therefore produce
+    # exactly one group, even though the raw project_name columns disagree.
+    items:
+      - projectHash: "1111111111111111111111111111111111111111111111111111111111111111"
+        rawProjectName: "village"
+        projectDisplayName: "village"
+        publishedAt: "2026-08-20T09:00:00Z"
+      - projectHash: "1111111111111111111111111111111111111111111111111111111111111111"
+        rawProjectName: "project-3fa9c2e1b0d4"
+        projectDisplayName: "village"
+        publishedAt: "2026-08-21T09:00:00Z"
+    expectedGroupCount: 1
+    expectedGroupDisplayNames: ["village"]
+    expectedGroupItemCounts: [2]
+
+  - name: distinct-hashes-stay-separate-even-with-the-same-display-name
+    # A display-name COLLISION across two different projects (a coincidence,
+    # not a bug) must not merge them: identity is the hash, never the name.
+    items:
+      - projectHash: "2222222222222222222222222222222222222222222222222222222222222222"
+        rawProjectName: "shared-name"
+        projectDisplayName: "shared-name"
+        publishedAt: "2026-08-19T09:00:00Z"
+      - projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        rawProjectName: "shared-name"
+        projectDisplayName: "shared-name"
+        publishedAt: "2026-08-18T09:00:00Z"
+    expectedGroupCount: 2
+    expectedGroupDisplayNames: ["shared-name", "shared-name"]
+    expectedGroupItemCounts: [1, 1]
+
+  - name: groups-sorted-by-most-recent-transcript
+    # Unrelated to project-identity per se, but re-key must preserve the
+    # existing most-recent-first group ordering and within-group ordering —
+    # a regression here would be silent (both groups still render, just in
+    # the wrong order).
+    items:
+      - projectHash: "4444444444444444444444444444444444444444444444444444444444444444"
+        rawProjectName: "older-project"
+        projectDisplayName: "older-project"
+        publishedAt: "2026-08-01T09:00:00Z"
+      - projectHash: "5555555555555555555555555555555555555555555555555555555555555555"
+        rawProjectName: "newer-project"
+        projectDisplayName: "newer-project"
+        publishedAt: "2026-08-20T09:00:00Z"
+    expectedGroupCount: 2
+    expectedGroupDisplayNames: ["newer-project", "older-project"]
+    expectedGroupItemCounts: [1, 1]
+
+breadcrumbHrefCases:
+  - name: username-and-hash-present-builds-href
+    ownerUsername: "octocat"
+    projectHash: "6666666666666666666666666666666666666666666666666666666666666666"
+    expectedHref: "/users/octocat/projects/6666666666666666666666666666666666666666666666666666666666666666"
+
+  - name: missing-project-hash-degrades-to-no-href
+    ownerUsername: "octocat"
+    projectHash: null
+    expectedHref: null
+
+  - name: missing-owner-username-degrades-to-no-href
+    ownerUsername: null
+    projectHash: "7777777777777777777777777777777777777777777777777777777777777777"
+    expectedHref: null
+
+  - name: username-with-reserved-url-characters-is-encoded
+    ownerUsername: "user with spaces"
+    projectHash: "8888888888888888888888888888888888888888888888888888888888888888"
+    expectedHref: "/users/user%20with%20spaces/projects/8888888888888888888888888888888888888888888888888888888888888888"
+
+repoGroupLabelCases:
+  # Proves groupByRepo's ATTRIBUTED-bucket label reads project_remote_label
+  # (the field derived FROM the same git_remote the bucket keys on), never
+  # project_display_name (the resolved PROJECT identity, a different axis —
+  # it folds in an owner rename or a consented project name, either of
+  # which could differ across two transcripts sharing one remote).
+  - name: label-reads-project-remote-label-not-project-display-name
+    gitRemote: "https://github.com/peasant-labs/village.git"
+    projectRemoteLabel: "github.com:peasant-labs/village"
+    # Deliberately DIFFERENT from projectRemoteLabel, so a case reading the
+    # wrong field is caught: if groupByRepo ever regresses to reading
+    # project_display_name again, this case's expected name would need to
+    # be projectDisplayName instead, and the test fails loudly.
+    projectDisplayName: "the village (renamed by owner)"
+    expectedName: "github.com:peasant-labs/village"
+
+  - name: missing-remote-label-falls-back-to-the-raw-remote
+    gitRemote: "ssh://git@legacy.example.corp/team/repo"
+    projectRemoteLabel: null
+    projectDisplayName: "some resolved project name"
+    expectedName: "ssh://git@legacy.example.corp/team/repo"
+
+  - name: no-remote-at-all-stays-unattributed-regardless-of-labels
+    gitRemote: null
+    projectRemoteLabel: null
+    projectDisplayName: "should never be shown here"
+    expectedName: "Unattributed"

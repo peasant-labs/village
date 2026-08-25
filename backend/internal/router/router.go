@@ -100,6 +100,11 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Delete("/transcripts/{id}", h.DeleteTranscript)
 		r.With(h.AuthRequired).Post("/transcripts/{id}/share", h.ShareTranscript)
 		r.With(h.AuthRequired).Delete("/transcripts/{id}/share/{groupID}", h.UnshareTranscript)
+		// Owner-only share-event history for one (transcript, collective) pair.
+		// Deliberately no username parameter anywhere on this path: owner-only
+		// is enforced by the ROUTE, not merely a predicate a caller could bypass
+		// with someone else's identifier.
+		r.With(h.AuthRequired).Get("/users/me/collectives/{groupId}/transcripts/{transcriptId}/events", h.ListShareEventHistory)
 
 		// Attestations
 		r.With(h.AuthOptional).Get("/transcripts/{id}/attestations", h.ListTranscriptAttestations)

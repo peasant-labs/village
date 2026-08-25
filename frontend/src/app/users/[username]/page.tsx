@@ -44,13 +44,18 @@ export default function UserProfilePage({
   const deleteAccountMutation = useDeleteAccount();
   const updateSettingsMutation = useUpdateMySettings();
   const [importOpen, setImportOpen] = useState(false);
-  const [editingProject, setEditingProject] = useState<string | null>(null);
+  // Keyed on project_hash (identity), never the display name — two
+  // different projects can coincidentally share a display name, and the
+  // rename mutation itself is now hash-keyed (see useRenameUserProject).
+  const [editingProjectHash, setEditingProjectHash] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
   const editInputRef = useRef<HTMLInputElement | null>(null);
 
   const isOwnProfile =
     !!user && user.github_username.toLowerCase() === username.toLowerCase();
-  const groups = data?.transcripts ? groupByProject(data.transcripts) : [];
+  const { groups, malformed: malformedProjectItems } = data?.transcripts
+    ? groupByProject(data.transcripts)
+    : { groups: [], malformed: [] };
   const agentTotal = data?.agent_total ?? 0;
 
   // Fall back to the session user for one's own profile so the owner is never
@@ -60,31 +65,32 @@ export default function UserProfilePage({
   const avatarUrl = effectiveProfile?.avatar_url ?? undefined;
 
   useEffect(() => {
-    if (editingProject && editInputRef.current) {
+    if (editingProjectHash && editInputRef.current) {
       editInputRef.current.focus();
       editInputRef.current.select();
     }
-  }, [editingProject]);
+  }, [editingProjectHash]);
 
-  function startEdit(project: string) {
-    setEditingProject(project);
-    setDraftName(project);
+  function startEdit(projectHash: string, currentDisplayName: string) {
+    setEditingProjectHash(projectHash);
+    setDraftName(currentDisplayName);
   }
 
   function cancelEdit() {
-    setEditingProject(null);
+    setEditingProjectHash(null);
     setDraftName("");
   }
 
   function commitEdit() {
-    if (!editingProject) return;
+    if (!editingProjectHash) return;
     const next = draftName.trim();
-    if (!next || next === editingProject) {
+    const editingGroup = groups.find((g) => g.project_hash === editingProjectHash);
+    if (!next || (editingGroup && next === editingGroup.project)) {
       cancelEdit();
       return;
     }
     renameProjectMutation.mutate(
-      { from: editingProject, to: next },
+      { projectHash: editingProjectHash, displayName: next },
       { onSettled: () => cancelEdit() }
     );
   }
@@ -198,21 +204,43 @@ export default function UserProfilePage({
           ))}
         </div>
       ) : (
-        <DataState
-          // A library made only of agent-driven sessions is not empty: the
-          // collapsed group below is its whole content, so the teaching empty
-          // state would be wrong and would hide it.
-          empty={groups.length === 0 && agentTotal === 0}
-          emptyState={libraryEmptyState}
-        >
+        <>
+          {malformedProjectItems.length > 0 && (
+            // A non-crashing, scoped notice: project_hash is a required
+            // identity column (migration 035_project_hash_required in
+            // village's backend), so a transcript reaching this page
+            // without one is a genuine backend contract violation, not a
+            // normal empty/loading state. Every OTHER, well-formed project
+            // group still renders below — one malformed row must not turn
+            // a cosmetic grouping problem into an outage for the rest of
+            // this person's library.
+            <div className="border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger mb-3">
+              <p className="font-medium">
+                {malformedProjectItems.length} transcript
+                {malformedProjectItems.length !== 1 ? "s" : ""} could not be grouped by project
+              </p>
+              <p className="mt-1 text-[13px]">
+                Each is missing the project identity the server is expected to always provide.
+                They are omitted from the project list below; the rest of the library is
+                unaffected.
+              </p>
+            </div>
+          )}
+          <DataState
+            // A library made only of agent-driven sessions is not empty: the
+            // collapsed group below is its whole content, so the teaching empty
+            // state would be wrong and would hide it.
+            empty={groups.length === 0 && agentTotal === 0}
+            emptyState={libraryEmptyState}
+          >
           <div className="divide-y divide-rule">
             {groups.map((group, gi) => (
               <div
-                key={group.project}
+                key={group.project_hash}
                 className={`animate-fade-up stagger-${Math.min(gi + 1, 6)}`}
               >
                 <div className="flex items-center gap-3 px-5 py-3 bg-surface-hover">
-                  {editingProject === group.project ? (
+                  {editingProjectHash === group.project_hash ? (
                     <input
                       ref={editInputRef}
                       type="text"
@@ -242,12 +270,12 @@ export default function UserProfilePage({
                     {group.items.length !== 1 ? "s" : ""}
                   </span>
                   <div className="flex-1" />
-                  {isOwnProfile && editingProject !== group.project && (
+                  {isOwnProfile && editingProjectHash !== group.project_hash && (
                     <button
                       type="button"
                       aria-label="Rename project"
                       disabled={renameProjectMutation.isPending}
-                      onClick={() => startEdit(group.project)}
+                      onClick={() => startEdit(group.project_hash, group.project)}
                       className="inline-flex items-center gap-1 font-mono text-xs text-ink-3 hover:text-ink transition-colors cursor-pointer focus-mono disabled:opacity-50"
                     >
                       <Pencil size={12} />
@@ -273,7 +301,8 @@ export default function UserProfilePage({
               bare
             />
           </div>
-        </DataState>
+          </DataState>
+        </>
       )}
     </div>
   );

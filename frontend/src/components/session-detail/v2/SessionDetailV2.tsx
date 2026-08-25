@@ -28,7 +28,7 @@ import TranscriptEditDialog from '@/components/transcript/TranscriptEditDialog';
 import ContributePicker from '@/components/transcript/ContributePicker';
 import TurnLabelPopover from '@/components/transcript/TurnLabelPopover';
 import AttestButton from '@/components/transcript/AttestButton';
-import { buildTranscriptBreadcrumb, overlayStoredTitle } from './transcriptChrome';
+import { buildProjectHref, buildTranscriptBreadcrumb, overlayStoredTitle } from './transcriptChrome';
 
 /** A transcript's stored visibility. `shared` is set server-side when the
  *  transcript is shared to a collective; it is not directly selectable. */
@@ -55,7 +55,16 @@ interface SessionDetailV2Props {
    *  labelled here so a viewer who arrived by direct link sees the same thing
    *  the collapsed list group told them. */
   sessionOrigin?: SessionOrigin;
+  /** The one server-resolved project display name (`Transcript.project_display_name`)
+   *  — the single name every surface renders. */
   projectName: string;
+  /** The transcript's `project_hash`, combined with `ownerUsername` to build
+   *  the breadcrumb's project-page href. `null`/`undefined` degrades the
+   *  crumb to a label with no link. */
+  projectHash?: string | null;
+  /** The transcript owner's `github_username`, combined with `projectHash`
+   *  to build the breadcrumb's project-page href. */
+  ownerUsername?: string | null;
   detail: SessionDetailPayload | undefined;
   error?: string | null;
 }
@@ -78,6 +87,8 @@ export function SessionDetailV2({
   transcriptOwnerId,
   sessionOrigin,
   projectName,
+  projectHash,
+  ownerUsername,
   detail,
   error,
 }: SessionDetailV2Props) {
@@ -185,7 +196,13 @@ export function SessionDetailV2({
     );
   }
 
-  const project = detail.project ?? projectName;
+  // The one server-resolved project name every surface renders.
+  // `detail.project` is the content endpoint's own raw wire field and is NOT
+  // the resolved identity — reading it here would reintroduce the "two
+  // algorithms disagree" bug this slice removes, so `projectName` always
+  // wins.
+  const project = projectName;
+  const projectHref = buildProjectHref(ownerUsername, projectHash);
   const visibility = transcriptVisibility ?? 'private';
 
   return (
@@ -249,18 +266,17 @@ export function SessionDetailV2({
             },
           }}
           // Village's host trail through the app router (lowercase chrome).
-          // Village has no /projects route: the hardcoded `/projects` and
-          // `/projects/<project>` hrefs 404'd (village#33). Every crumb href
-          // below must resolve to a route that actually exists. The project
-          // label still carries meaning (Peasant's privacy-safe project
-          // label) even with no village route to link it to, so it stays as
-          // a label-only crumb rather than being dropped. The last crumb
-          // reads the RAW stored title (trimmed, truncated) — not the
-          // overlaid hero fallback above — so an untitled transcript shows
-          // the short VILLAGE transcript id instead of repeating
-          // "Untitled transcript" three words wide in a breadcrumb.
+          // The project crumb links to `/users/{username}/projects/{hash}`
+          // when both the owner's username and the project hash are
+          // known; otherwise it degrades to a label-only crumb rather than
+          // emitting a broken link. The last crumb reads the RAW stored
+          // title (trimmed, truncated) — not the overlaid hero fallback
+          // above — so an untitled transcript shows the short VILLAGE
+          // transcript id instead of repeating "Untitled transcript" three
+          // words wide in a breadcrumb.
           breadcrumb={buildTranscriptBreadcrumb({
             project,
+            projectHref,
             storedTitle: transcriptTitle,
             transcriptId,
           })}

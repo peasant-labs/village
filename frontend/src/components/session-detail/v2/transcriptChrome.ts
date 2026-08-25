@@ -1,5 +1,4 @@
 import type { adaptTranscript } from '@peasant-labs/fairtrade/ui';
-import { displayProject } from '@/lib/quality/utils';
 import { EXPLORE_SECTION } from '@/lib/nav/sections';
 
 /** Same label the explore card (`TranscriptCard.tsx`) shows for a transcript
@@ -53,9 +52,30 @@ export function overlayStoredTitle(
   };
 }
 
+/**
+ * Builds the project page href `/users/{username}/projects/{projectHash}`
+ * or `null` when either input is missing so a caller with an
+ * incomplete transcript record degrades to a label-only crumb instead of
+ * emitting a broken link.
+ */
+export function buildProjectHref(
+  ownerUsername: string | null | undefined,
+  projectHash: string | null | undefined,
+): string | null {
+  if (!ownerUsername || !projectHash) return null;
+  return `/users/${encodeURIComponent(ownerUsername)}/projects/${encodeURIComponent(projectHash)}`;
+}
+
 export interface TranscriptBreadcrumbInput {
-  /** Peasant's privacy-safe project label. */
+  /** The one server-resolved project display name (`Transcript.project_display_name`)
+   *  — never a locally re-derived name. */
   project: string;
+  /** Href to the project page (`/users/{username}/projects/{projectHash}`),
+   *  or `null` when the caller cannot build one (missing owner username or
+   *  project hash). When `null` the crumb renders as a label with no link,
+   *  the same degraded-but-visible behavior the crumb already had before a
+   *  project route existed. */
+  projectHref: string | null;
   /** The transcript's raw stored title (untrimmed is fine; trimmed here). */
   storedTitle: string | null | undefined;
   /** The real village transcript id — the id in this page's own
@@ -71,13 +91,12 @@ export interface TranscriptBreadcrumbCrumb {
 
 /**
  * Builds the detail page's host trail through the app router (lowercase
- * chrome): (1) the nav registry's home crumb; (2) the project label with no
- * href (village has no `/projects` route, but the label still carries
- * meaning — Peasant's privacy-safe project label); (3) the last crumb,
- * reading the RAW stored title (trimmed, truncated) — not the hero's
- * overlaid "Untitled transcript" placeholder — so an untitled transcript
- * shows the short VILLAGE transcript id instead of repeating "Untitled
- * transcript" three words wide in a breadcrumb.
+ * chrome): (1) the nav registry's home crumb; (2) the resolved project name,
+ * linking to `/users/{username}/projects/{projectHash}` when `projectHref`
+ * is available; (3) the last crumb, reading the RAW stored title (trimmed,
+ * truncated) — not the hero's overlaid "Untitled transcript" placeholder —
+ * so an untitled transcript shows the short VILLAGE transcript id instead
+ * of repeating "Untitled transcript" three words wide in a breadcrumb.
  *
  * The single call site both `SessionDetailV2` and the dev-only visual
  * harness use, so the two surfaces cannot drift onto independently
@@ -85,6 +104,7 @@ export interface TranscriptBreadcrumbCrumb {
  */
 export function buildTranscriptBreadcrumb({
   project,
+  projectHref,
   storedTitle,
   transcriptId,
 }: TranscriptBreadcrumbInput): TranscriptBreadcrumbCrumb[] {
@@ -93,7 +113,7 @@ export function buildTranscriptBreadcrumb({
   const crumbTitle = trimmedTitle ? truncateCrumbLabel(trimmedTitle) : shortVillageId;
   return [
     { label: EXPLORE_SECTION.label, href: EXPLORE_SECTION.href },
-    { label: displayProject(project) },
+    { label: project, ...(projectHref ? { href: projectHref } : {}) },
     { label: crumbTitle },
   ];
 }
