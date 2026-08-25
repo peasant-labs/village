@@ -331,25 +331,39 @@ func (w *shareWorld) assertDerivedRow(t *testing.T, ctx context.Context, testCas
 	}
 }
 
+// assertCounts checks the four counts the fixture declares. They are asserted
+// one by one rather than from a table: these are the DEFINITIONS of the four
+// counters, not a corpus of cases - the cases live in share-attempts.yaml, and
+// each row there supplies the expected values used here.
 func (w *shareWorld) assertCounts(t *testing.T, ctx context.Context, testCase shareAttemptCase) {
 	t.Helper()
-	for _, expectation := range []struct {
-		label string
-		query string
-		want  int
-	}{
-		{"approved transcripts", `SELECT count(DISTINCT transcript_id) FROM transcript_shares WHERE group_id=$1 AND status='approved'`, testCase.ApprovedTranscripts},
-		{"pending transcripts", `SELECT count(DISTINCT transcript_id) FROM transcript_shares WHERE group_id=$1 AND status='pending'`, testCase.PendingTranscripts},
-		{"approved attempts", `SELECT count(*) FROM transcript_share_attempts WHERE group_id=$1 AND status='approved'`, testCase.ApprovedAttempts},
-		{"rejected attempts", `SELECT count(*) FROM transcript_share_attempts WHERE group_id=$1 AND status='rejected'`, testCase.RejectedAttempts},
-	} {
-		var got int
-		if err := w.pool.QueryRow(ctx, expectation.query, w.group).Scan(&got); err != nil {
-			t.Fatalf("count %s: %v", expectation.label, err)
-		}
-		if got != expectation.want {
-			t.Errorf("%s = %d, want %d (%s)", expectation.label, got, expectation.want, testCase.Why)
-		}
+	// A transcript is either in a collective or not, so the two live counters
+	// count DISTINCT TRANSCRIPTS.
+	w.assertCount(t, ctx, "approved transcripts",
+		`SELECT count(DISTINCT transcript_id) FROM transcript_shares WHERE group_id=$1 AND status='approved'`,
+		testCase.ApprovedTranscripts, testCase.Why)
+	w.assertCount(t, ctx, "pending transcripts",
+		`SELECT count(DISTINCT transcript_id) FROM transcript_shares WHERE group_id=$1 AND status='pending'`,
+		testCase.PendingTranscripts, testCase.Why)
+	// Attempts are counted as ATTEMPTS: three rejections of one transcript are
+	// three rejections, and two accepted attempts of one transcript are still
+	// one contribution. Carrying both makes that divergence visible.
+	w.assertCount(t, ctx, "approved attempts",
+		`SELECT count(*) FROM transcript_share_attempts WHERE group_id=$1 AND status='approved'`,
+		testCase.ApprovedAttempts, testCase.Why)
+	w.assertCount(t, ctx, "rejected attempts",
+		`SELECT count(*) FROM transcript_share_attempts WHERE group_id=$1 AND status='rejected'`,
+		testCase.RejectedAttempts, testCase.Why)
+}
+
+func (w *shareWorld) assertCount(t *testing.T, ctx context.Context, label, query string, want int, why string) {
+	t.Helper()
+	var got int
+	if err := w.pool.QueryRow(ctx, query, w.group).Scan(&got); err != nil {
+		t.Fatalf("count %s: %v", label, err)
+	}
+	if got != want {
+		t.Errorf("%s = %d, want %d (%s)", label, got, want, why)
 	}
 }
 

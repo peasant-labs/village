@@ -3,12 +3,16 @@
 package database
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"gopkg.in/yaml.v3"
 )
 
 // These cases run against a real PostgreSQL because every one of them is a
@@ -91,24 +95,27 @@ func TestTranscriptSharesWriterFenceRefusesEveryVerb(t *testing.T) {
 	}
 
 	other := insertShareFixtureTranscript(t, ctx, pool, owner)
-	for _, probe := range []struct {
-		verb      string
-		statement string
-		args      []any
-	}{
-		{"INSERT", `INSERT INTO transcript_shares (transcript_id, group_id, status) VALUES ($1,$2,'approved')`, []any{other, group}},
-		{"UPDATE", `UPDATE transcript_shares SET status='rejected' WHERE transcript_id=$1 AND group_id=$2`, []any{transcript, group}},
-		{"DELETE", `DELETE FROM transcript_shares WHERE transcript_id=$1 AND group_id=$2`, []any{transcript, group}},
-	} {
-		_, err := pool.Exec(ctx, probe.statement, probe.args...)
-		if err == nil {
-			t.Errorf("a direct %s on transcript_shares succeeded; the writer fence must refuse all three verbs, and a guard "+
-				"scoped to only some of them leaves the derived row writable behind the attempt history", probe.verb)
-			continue
-		}
-		if !strings.Contains(err.Error(), "transcript_shares is derived, not written") {
-			t.Errorf("a direct %s failed with %v, which is not the writer fence; the refusal must name what to do instead", probe.verb, err)
-		}
+	fencePairs := map[string]sharePair{
+		"derived_pair": {transcript: transcript, group: group},
+		"unused_pair":  {transcript: other, group: group},
+	}
+	// One verb per subtest, so a failure names the verb structurally as well as
+	// in its message. Each probe is executed and asserted on its own: a fence
+	// scoped to one verb must fail the other two, not be masked by them.
+	for _, probe := range loadShareWriterFenceProbes(t, fencePairs) {
+		t.Run(probe.Name, func(t *testing.T) {
+			pair := fencePairs[probe.Target]
+			_, err := pool.Exec(ctx, probe.Statement, pair.transcript, pair.group)
+			if err == nil {
+				t.Fatalf("a direct %s on transcript_shares SUCCEEDED (%s). The writer fence must refuse all three verbs "+
+					"independently; a guard scoped to only some of them leaves the derived row writable behind the ledger.",
+					probe.Verb, probe.Why)
+			}
+			if !strings.Contains(err.Error(), "transcript_shares is derived, not written") {
+				t.Fatalf("a direct %s was refused by %v, which is not the writer fence; the refusal must name what to write "+
+					"instead", probe.Verb, err)
+			}
+		})
 	}
 
 	// The one non-derivation write that must still succeed: a foreign-key
@@ -227,20 +234,17 @@ func TestShareProjectionRebuildsFromTheLedger(t *testing.T) {
 
 	assertNoShareDrift(t, ctx, pool, "after building the ledger through the derivation")
 	before := snapshotProjection(t, ctx, pool)
-	// The three live pairs and the resubmitted one each hold a current-state
-	// row; the withdrawn pair holds none, because its latest event is terminal.
-	for _, expected := range []struct {
-		name string
-		pair string
-	}{
-		{"pending", live["pending"] + "|" + group},
-		{"approved", live["approved"] + "|" + group},
-		{"rejected", live["rejected"] + "|" + group},
-		{"resubmitted-then-approved", resubmitted + "|" + group},
-	} {
-		if _, present := before[expected.pair]; !present {
-			t.Fatalf("the %s pair has no current-state row; a pair whose latest event is representable must have one", expected.name)
+	// A pair whose latest event is representable holds a current-state row; a
+	// pair whose latest event is terminal holds none. Both directions are
+	// asserted, because a projection that kept every pair and one that kept none
+	// would each satisfy only half of this.
+	for state, transcript := range live {
+		if _, present := before[transcript+"|"+group]; !present {
+			t.Fatalf("the %s pair has no current-state row; a pair whose latest event is representable must have one", state)
 		}
+	}
+	if _, present := before[resubmitted+"|"+group]; !present {
+		t.Fatal("the resubmitted pair has no current-state row; its latest event is an acceptance and must be projected")
 	}
 	if _, present := before[withdrawn+"|"+group]; present {
 		t.Fatal("the withdrawn pair has a current-state row; a pair whose latest event is terminal must have none")
@@ -248,36 +252,37 @@ func TestShareProjectionRebuildsFromTheLedger(t *testing.T) {
 	wantProjected := int64(len(before))
 
 	// Each corruption is a way the projection can actually diverge, and each
-	// must be both DETECTED and REPAIRED. Writing them requires the derivation
-	// flag - the GUC is context-passing, not a credential, which is what lets a
-	// test stand in for a corrupting bug.
-	for _, corruption := range []struct {
-		name        string
-		statement   string
-		args        []any
-		wantProblem string
-	}{
-		{"a status that no longer matches the latest event", `UPDATE transcript_shares SET status='rejected' WHERE transcript_id=$1 AND group_id=$2`, []any{live["approved"], group}, "status_mismatch"},
-		{"a current-state row that went missing", `DELETE FROM transcript_shares WHERE transcript_id=$1 AND group_id=$2`, []any{live["pending"], group}, "missing_from_projection"},
-		{"a current-state row with nothing behind it", `INSERT INTO transcript_shares (transcript_id, group_id, status) VALUES ($1,$2,'approved')`, []any{withdrawn, group}, "absent_from_ledger"},
-		{"a shared_at that drifted from its event", `UPDATE transcript_shares SET shared_at=now() - interval '400 days' WHERE transcript_id=$1 AND group_id=$2`, []any{live["rejected"], group}, "shared_at_mismatch"},
-	} {
-		t.Run(corruption.name, func(t *testing.T) {
-			corruptProjection(t, ctx, pool, corruption.statement, corruption.args...)
+	// must be both DETECTED and REPAIRED. The cases live in a fixture, not in a
+	// table here, so adding a new way to diverge is a fixture row rather than a
+	// code change. Writing the projection requires the derivation flag - the GUC
+	// is context-passing, not a credential, which is what lets a test stand in
+	// for a corrupting bug.
+	pairs := map[string]sharePair{
+		"approved_pair":  {transcript: live["approved"], group: group},
+		"pending_pair":   {transcript: live["pending"], group: group},
+		"rejected_pair":  {transcript: live["rejected"], group: group},
+		"withdrawn_pair": {transcript: withdrawn, group: group},
+	}
+	for _, corruption := range loadShareProjectionCorruptions(t, pairs) {
+		t.Run(corruption.Name, func(t *testing.T) {
+			pair := pairs[corruption.Target]
+			corruptProjection(t, ctx, pool, corruption.Statement, pair.transcript, pair.group)
 
 			var drift int64
 			if err := pool.QueryRow(ctx, `SELECT check_transcript_shares_drift()`).Scan(&drift); err != nil {
 				t.Fatal(err)
 			}
 			if drift == 0 {
-				t.Fatalf("the consistency check reports zero drift after %s; a check that cannot see this corruption cannot see a real one either", corruption.name)
+				t.Fatalf("the consistency check reports zero drift after %s (%s); a check that cannot see this corruption "+
+					"cannot see a real one either", corruption.Name, corruption.Why)
 			}
 			var problem string
 			if err := pool.QueryRow(ctx, `SELECT problem FROM transcript_share_drift LIMIT 1`).Scan(&problem); err != nil {
 				t.Fatal(err)
 			}
-			if problem != corruption.wantProblem {
-				t.Errorf("drift classified as %q, want %q; an operator reading the report needs to know WHICH way it diverged", problem, corruption.wantProblem)
+			if problem != corruption.WantProblem {
+				t.Errorf("drift classified as %q, want %q; an operator reading the report needs to know WHICH way it diverged",
+					problem, corruption.WantProblem)
 			}
 
 			var installed int64
@@ -293,6 +298,88 @@ func TestShareProjectionRebuildsFromTheLedger(t *testing.T) {
 			}
 		})
 	}
+}
+
+// sharePair is one (transcript, collective) the fixture can aim a corruption at.
+type sharePair struct{ transcript, group string }
+
+// shareProjectionCorruption is one fixture row: a way the projection can
+// diverge from the ledger, and the classification the drift view must report.
+type shareProjectionCorruption struct {
+	Name        string `yaml:"name"`
+	Why         string `yaml:"why"`
+	Target      string `yaml:"target"`
+	Statement   string `yaml:"statement"`
+	WantProblem string `yaml:"want_problem"`
+}
+
+//go:embed testdata/share_projection/corruptions.yaml
+var shareProjectionCorruptionsYAML []byte
+
+// requiredShareProjectionCorruptions names the divergences that must stay
+// covered. Each is here because losing it would leave a real way for the
+// projection to drift with nothing watching for it.
+var requiredShareProjectionCorruptions = []string{
+	"status_no_longer_matches_the_latest_event",
+	"current_state_row_went_missing",
+	"current_state_row_with_nothing_behind_it",
+	"shared_at_drifted_from_its_event",
+}
+
+// shareDriftClassifications is the closed set transcript_share_drift can
+// report. A fixture naming anything else is describing a divergence the view
+// does not know how to classify.
+var shareDriftClassifications = map[string]bool{
+	"missing_from_projection": true,
+	"absent_from_ledger":      true,
+	"status_mismatch":         true,
+	"shared_at_mismatch":      true,
+}
+
+func loadShareProjectionCorruptions(t *testing.T, pairs map[string]sharePair) []shareProjectionCorruption {
+	t.Helper()
+	decoder := yaml.NewDecoder(bytes.NewReader(shareProjectionCorruptionsYAML))
+	decoder.KnownFields(true)
+	var cases []shareProjectionCorruption
+	if err := decoder.Decode(&cases); err != nil {
+		t.Fatalf("decode the projection-corruption fixture: %v", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		t.Fatalf("the projection-corruption fixture must be exactly one YAML document; found a second: %v", trailing)
+	}
+
+	present := map[string]bool{}
+	for _, testCase := range cases {
+		if present[testCase.Name] {
+			t.Fatalf("the projection-corruption fixture repeats case %q", testCase.Name)
+		}
+		present[testCase.Name] = true
+		if testCase.Why == "" {
+			t.Fatalf("case %q states no reason it exists; a case nobody can justify cannot be maintained", testCase.Name)
+		}
+		if _, known := pairs[testCase.Target]; !known {
+			t.Fatalf("case %q aims at target %q, which this test does not set up; the corruption would hit nothing", testCase.Name, testCase.Target)
+		}
+		if !shareDriftClassifications[testCase.WantProblem] {
+			t.Fatalf("case %q expects classification %q, which transcript_share_drift cannot report; teach the view that "+
+				"divergence before asserting it", testCase.Name, testCase.WantProblem)
+		}
+		// Both placeholders must be present, or the statement is not actually
+		// bound to the pair the case claims to corrupt and could silently
+		// corrupt nothing at all.
+		if !strings.Contains(testCase.Statement, "$1") || !strings.Contains(testCase.Statement, "$2") {
+			t.Fatalf("case %q has a statement that does not bind both $1 (transcript) and $2 (collective), so it is not "+
+				"aimed at its target pair: %s", testCase.Name, testCase.Statement)
+		}
+	}
+	for _, required := range requiredShareProjectionCorruptions {
+		if !present[required] {
+			t.Fatalf("the projection-corruption fixture no longer covers %q. That divergence exists in the real system; "+
+				"restore the case rather than removing it from this manifest.", required)
+		}
+	}
+	return cases
 }
 
 func mustExec(t *testing.T, ctx context.Context, pool *pgxpool.Pool, statement string, args ...any) {
@@ -367,4 +454,66 @@ func assertNoShareDrift(t *testing.T, ctx context.Context, pool *pgxpool.Pool, w
 		_ = pool.QueryRow(ctx, `SELECT problem, COALESCE(stored_status,'<none>'), COALESCE(expected_status,'<none>') FROM transcript_share_drift LIMIT 1`).Scan(&problem, &stored, &expected)
 		t.Fatalf("the projection disagrees with the ledger in %d row(s) %s; first is %s (stored %s, expected %s)", drift, when, problem, stored, expected)
 	}
+}
+
+// shareWriterFenceProbe is one fixture row: a single verb aimed at the derived
+// projection, which the fail-closed fence must refuse on its own.
+type shareWriterFenceProbe struct {
+	Name      string `yaml:"name"`
+	Verb      string `yaml:"verb"`
+	Why       string `yaml:"why"`
+	Target    string `yaml:"target"`
+	Statement string `yaml:"statement"`
+}
+
+//go:embed testdata/share_writer_fence/probes.yaml
+var shareWriterFenceProbesYAML []byte
+
+// requiredShareWriterFenceVerbs is exactly what
+// BEFORE INSERT OR UPDATE OR DELETE claims to cover. Every verb must be probed
+// separately, because a fence narrowed to one of them would otherwise pass.
+var requiredShareWriterFenceVerbs = []string{"INSERT", "UPDATE", "DELETE"}
+
+func loadShareWriterFenceProbes(t *testing.T, pairs map[string]sharePair) []shareWriterFenceProbe {
+	t.Helper()
+	decoder := yaml.NewDecoder(bytes.NewReader(shareWriterFenceProbesYAML))
+	decoder.KnownFields(true)
+	var probes []shareWriterFenceProbe
+	if err := decoder.Decode(&probes); err != nil {
+		t.Fatalf("decode the writer-fence probe fixture: %v", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		t.Fatalf("the writer-fence probe fixture must be exactly one YAML document; found a second: %v", trailing)
+	}
+
+	byVerb := map[string]string{}
+	for _, probe := range probes {
+		if probe.Why == "" {
+			t.Fatalf("probe %q states no reason it exists; a case nobody can justify cannot be maintained", probe.Name)
+		}
+		if existing, repeated := byVerb[probe.Verb]; repeated {
+			t.Fatalf("probes %q and %q both cover verb %s; each verb is proved once, on its own", existing, probe.Name, probe.Verb)
+		}
+		byVerb[probe.Verb] = probe.Name
+		if _, known := pairs[probe.Target]; !known {
+			t.Fatalf("probe %q aims at target %q, which this test does not set up; the write would hit nothing", probe.Name, probe.Target)
+		}
+		// The statement must actually perform the verb it claims, or a probe
+		// could report a refusal of some other operation entirely.
+		if !strings.HasPrefix(strings.ToUpper(strings.TrimSpace(probe.Statement)), probe.Verb) {
+			t.Fatalf("probe %q claims verb %s but its statement does not begin with it: %s", probe.Name, probe.Verb, probe.Statement)
+		}
+		if !strings.Contains(probe.Statement, "$1") || !strings.Contains(probe.Statement, "$2") {
+			t.Fatalf("probe %q has a statement that does not bind both $1 (transcript) and $2 (collective), so it is not "+
+				"aimed at its target pair: %s", probe.Name, probe.Statement)
+		}
+	}
+	for _, verb := range requiredShareWriterFenceVerbs {
+		if byVerb[verb] == "" {
+			t.Fatalf("the writer-fence probe fixture no longer covers %s. The fence claims to refuse INSERT, UPDATE and "+
+				"DELETE; dropping a verb is exactly how a fence narrowed to the others would pass unnoticed.", verb)
+		}
+	}
+	return probes
 }
