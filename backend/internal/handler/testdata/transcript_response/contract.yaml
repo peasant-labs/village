@@ -61,6 +61,17 @@ allowed_fields:
   - content_hash
   - license_id
   - session_origin
+# Resolved project identity. These three are layered OVER the raw project_name /
+# project_hash / git_remote in allowed_fields, which stay exactly as published;
+# they carry the ONE display name every surface renders, the tier that name came
+# from, and the repository label. They are listed separately from allowed_fields
+# because their values do not come from the transcript row: they come from the
+# per-(owner, project) resolution a route performs, so each mounted path below
+# declares whether it resolves.
+resolved_project_fields:
+  project_display_name: fixture resolved project
+  project_name_source: override
+  project_remote_label: github.com:peasant-labs/fixture
 denied_fields:
   - blob_key
   - source_file_path
@@ -70,17 +81,26 @@ future_internal_fields:
   - wrapped_data_key
   - encryption_algorithm
   - key_version
+# resolves_project records whether the mounted route performs the per-(owner,
+# project) resolution. Where it does not, the three resolved fields are still on
+# the wire and are empty - that is the shipped answer for those routes, asserted
+# rather than assumed, so a route that silently STOPS resolving is caught.
 mounted_paths:
   - name: publish
     shape: nested
+    resolves_project: false
   - name: detail
     shape: nested
+    resolves_project: true
   - name: update
     shape: nested
+    resolves_project: false
   - name: list
     shape: nested
+    resolves_project: true
   - name: public_group
     shape: flat_group
+    resolves_project: false
 owner_fields:
   - owner_username
   - owner_avatar_url

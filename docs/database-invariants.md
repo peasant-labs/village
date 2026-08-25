@@ -392,6 +392,18 @@ authenticating. Both are custom Postgres parameters read via
   constraint alone as the enforcement - a payload rejected only by a NOT NULL
   violation reaches the publisher as a database error rather than as something
   they can act on.
+- **`owner_overrides` reserves wider menus than the application implements, and
+  the narrowing lives in Go** (migration 034). The table's `target_kind` and
+  `field` CHECKs hold the full reserved menus so that implementing a further
+  correctable field later is a code change rather than a migration; the only
+  pair any route writes today is `('project', 'display_name')`, and that
+  narrowing is a typed Go enum at the handler, NOT a second database CHECK. Do
+  not add one: two closed sets that must agree forever is exactly the drift this
+  split avoids. `target_key` is untyped `TEXT` for the same reason - a project is
+  keyed by its 64-hex hash, a transcript would be keyed by a UUID - so the
+  handler validates the key's SHAPE for the kind it is writing before the row is
+  stored. A malformed key would otherwise be accepted and then match no read
+  ever again.
 - **`owner_overrides` carries NO governance audit trigger and needs no
   `app.actor_id`** (migration 034). The governance audit fires only on
   `transcripts.license_id` and `transcripts.visibility`, which are the

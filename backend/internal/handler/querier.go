@@ -42,7 +42,14 @@ type Querier interface {
 	UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg sqlc.UpdateTranscriptByOwnerAndLocalIDParams) (sqlc.Transcript, error)
 	UpdateTranscriptMetadata(ctx context.Context, arg sqlc.UpdateTranscriptMetadataParams) (sqlc.Transcript, error)
 	DeleteTranscript(ctx context.Context, id pgtype.UUID) error
-	RenameUserProject(ctx context.Context, arg sqlc.RenameUserProjectParams) (int64, error)
+	ListOwnerProjectIdentities(ctx context.Context, arg sqlc.ListOwnerProjectIdentitiesParams) ([]sqlc.ListOwnerProjectIdentitiesRow, error)
+	CountOwnerTranscriptsInProject(ctx context.Context, arg sqlc.CountOwnerTranscriptsInProjectParams) (int64, error)
+	ListProjectTranscriptsForViewer(ctx context.Context, arg sqlc.ListProjectTranscriptsForViewerParams) ([]sqlc.Transcript, error)
+
+	// Owner corrections to derived, published metadata
+	UpsertOwnerOverride(ctx context.Context, arg sqlc.UpsertOwnerOverrideParams) (sqlc.OwnerOverride, error)
+	DeleteOwnerOverride(ctx context.Context, arg sqlc.DeleteOwnerOverrideParams) (int64, error)
+	GetOwnerOverride(ctx context.Context, arg sqlc.GetOwnerOverrideParams) (sqlc.OwnerOverride, error)
 	ListTranscriptAssociationsByOwnerAndIDs(ctx context.Context, arg sqlc.ListTranscriptAssociationsByOwnerAndIDsParams) ([]sqlc.TranscriptAssociation, error)
 	ListTranscriptAssociationsByOwnerTranscriptAndObservedCommitHashes(ctx context.Context, arg sqlc.ListTranscriptAssociationsByOwnerTranscriptAndObservedCommitHashesParams) ([]sqlc.TranscriptAssociation, error)
 	InsertTranscriptAssociations(ctx context.Context, arg sqlc.InsertTranscriptAssociationsParams) error

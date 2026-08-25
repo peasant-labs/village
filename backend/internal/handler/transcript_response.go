@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/projectname"
 )
 
 // transcriptResponse is the single public projection of a transcript row.
@@ -74,6 +75,32 @@ type transcriptResponse struct {
 	// group instead of listing them at root level; every value still opens
 	// normally from a direct link.
 	SessionOrigin string `json:"session_origin"`
+
+	// The three resolved project fields below are RENDERING answers, layered over
+	// the raw project_name, project_hash and git_remote above, which stay exactly
+	// as published. A client shows ProjectDisplayName instead of deriving a name
+	// of its own, so every surface agrees; ProjectNameSource says which tier the
+	// name came from, so an inferred label can be styled differently from an
+	// owner-chosen one; ProjectRemoteLabel is the repository label, populated
+	// independently of the source so it can be rendered as a subtitle even when
+	// the name came from a higher tier.
+	//
+	// ProjectNameSource is the closed projectname.NameSource set, not a bare
+	// string, so an unknown tier cannot be introduced by accident on this wire.
+	ProjectDisplayName string                 `json:"project_display_name"`
+	ProjectNameSource  projectname.NameSource `json:"project_name_source"`
+	ProjectRemoteLabel string                 `json:"project_remote_label"`
+}
+
+// withResolvedProject attaches the resolved identity to a projected transcript.
+// It is a separate step from toTranscriptResponse because resolution is a
+// per-(owner, project) answer that a caller batches across a whole page, while the
+// projection is per row.
+func (t transcriptResponse) withResolvedProject(resolved projectname.Resolved) transcriptResponse {
+	t.ProjectDisplayName = resolved.DisplayName
+	t.ProjectNameSource = resolved.Source
+	t.ProjectRemoteLabel = resolved.RemoteLabel
+	return t
 }
 
 func toTranscriptResponse(r sqlc.Transcript) transcriptResponse {
@@ -98,16 +125,23 @@ func publishTranscriptResponse(row sqlc.Transcript) transcriptResponse {
 	return toTranscriptResponse(row)
 }
 
-func detailTranscriptResponse(row sqlc.Transcript) transcriptResponse {
-	return toTranscriptResponse(row)
+func detailTranscriptResponse(row sqlc.Transcript, resolved projectname.Resolved) transcriptResponse {
+	return toTranscriptResponse(row).withResolvedProject(resolved)
 }
 
 func updateTranscriptResponse(row sqlc.Transcript) transcriptResponse {
 	return toTranscriptResponse(row)
 }
 
-func listTranscriptResponse(row sqlc.Transcript) transcriptResponse {
-	return toTranscriptResponse(row)
+func listTranscriptResponse(row sqlc.Transcript, resolved projectname.Resolved) transcriptResponse {
+	return toTranscriptResponse(row).withResolvedProject(resolved)
+}
+
+// projectPageTranscriptResponse projects one row of a project page. Every row on
+// that page belongs to the SAME project, so they all share one resolved identity
+// rather than resolving it per row.
+func projectPageTranscriptResponse(row sqlc.Transcript, resolved projectname.Resolved) transcriptResponse {
+	return toTranscriptResponse(row).withResolvedProject(resolved)
 }
 
 type groupTranscriptResponse struct {
