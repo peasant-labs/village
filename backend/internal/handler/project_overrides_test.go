@@ -186,32 +186,80 @@ func projectOverrideBody(testCase projectOverrideCase) string {
 	return testCase.Body
 }
 
+//go:embed testdata/owner-override-writable-pairs.yaml
+var ownerOverrideWritablePairsYAML []byte
+
+type ownerOverridePairCase struct {
+	Name       string `yaml:"name"`
+	Why        string `yaml:"why"`
+	TargetKind string `yaml:"target_kind"`
+	Field      string `yaml:"field"`
+	Writable   bool   `yaml:"writable"`
+}
+
+// requiredOwnerOverridePairCases names the cases that must exist. The two
+// crossed pairs are the ones that catch a validator checking the kind and the
+// field separately instead of checking the pair, and the redaction-span case is
+// the pair whose early acceptance would store a disclosure decision with no
+// audit trail behind it.
+var requiredOwnerOverridePairCases = []string{
+	"project_display_name_is_the_one_implemented_pair",
+	"transcript_title_is_reserved_only",
+	"redaction_span_decision_is_reserved_only",
+	"project_title_crosses_two_valid_menu_members",
+	"transcript_display_name_crosses_the_other_way",
+}
+
+func loadOwnerOverridePairCases(t *testing.T) []ownerOverridePairCase {
+	t.Helper()
+	cases, err := decodeFixtureRows[ownerOverridePairCase](ownerOverrideWritablePairsYAML)
+	if err != nil {
+		t.Fatalf("load the owner-override pair fixture: %v", err)
+	}
+	present := map[string]bool{}
+	for _, c := range cases {
+		if present[c.Name] {
+			t.Fatalf("the owner-override pair fixture repeats case %q", c.Name)
+		}
+		present[c.Name] = true
+		if c.Why == "" {
+			t.Fatalf("case %q states no reason it exists; a case nobody can justify cannot be maintained", c.Name)
+		}
+		if c.TargetKind == "" || c.Field == "" {
+			t.Fatalf("case %q names no complete pair, so it asserts nothing about the closed set", c.Name)
+		}
+	}
+	for _, required := range requiredOwnerOverridePairCases {
+		if !present[required] {
+			t.Fatalf("the owner-override pair fixture no longer contains %q. That case exists because losing it hides a "+
+				"real failure; restore it rather than removing it from this manifest.", required)
+		}
+	}
+	return cases
+}
+
 // TestWritableOverridePairs_RefusesReservedPairs proves the closed set is enforced
 // in Go rather than by a second database CHECK. The table reserves wider menus so
 // a later field is a code change; until such a field is implemented, a route may
 // not write one.
 func TestWritableOverridePairs_RefusesReservedPairs(t *testing.T) {
-	if err := validateOverridePair(overrideTargetProject, overrideFieldDisplayName); err != nil {
-		t.Fatalf("the implemented pair (%s, %s) was refused: %v", overrideTargetProject, overrideFieldDisplayName, err)
-	}
-	// Reserved by the table's CHECK constraints, implemented by no route.
-	for _, reserved := range []struct {
-		kind  overrideTargetKind
-		field overrideField
-	}{
-		{"transcript", "title"},
-		{"redaction_span", "redaction_decision"},
-		{overrideTargetProject, "title"},
-		{"transcript", overrideFieldDisplayName},
-	} {
-		err := validateOverridePair(reserved.kind, reserved.field)
-		if err == nil {
-			t.Errorf("the reserved pair (%s, %s) was accepted; no route implements it", reserved.kind, reserved.field)
-			continue
-		}
-		if !strings.Contains(err.Error(), "reserved but not implemented") {
-			t.Errorf("the refusal of (%s, %s) does not say why: %v", reserved.kind, reserved.field, err)
-		}
+	for _, testCase := range loadOwnerOverridePairCases(t) {
+		t.Run(testCase.Name, func(t *testing.T) {
+			kind, field := overrideTargetKind(testCase.TargetKind), overrideField(testCase.Field)
+			err := validateOverridePair(kind, field)
+			if testCase.Writable {
+				if err != nil {
+					t.Fatalf("the implemented pair (%s, %s) was refused: %v", kind, field, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("the reserved pair (%s, %s) was accepted; no route implements it", kind, field)
+			}
+			if !strings.Contains(err.Error(), "reserved but not implemented") {
+				t.Errorf("the refusal of (%s, %s) does not say why: %v", kind, field, err)
+			}
+		})
 	}
 }
 

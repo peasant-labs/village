@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/peasant-labs/redact"
+	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/github"
@@ -45,19 +46,12 @@ type Handler struct {
 	discoveryReadBarrier func()
 
 	// projectNames resolves the one display name every surface renders for a
-	// project. Its RemoteLabeler seam is left UNWIRED here: formatting a git
-	// remote into a "host:owner/repo" label is a rule the contract module owns,
-	// and Village must not grow a second copy of it while waiting for a module
-	// release that exports it. Unwired, the resolver simply skips the remote
-	// tier; every other tier, and the last-resort label derived from the project
-	// hash, work exactly as they will once the seam is filled in.
+	// project. Its RemoteLabeler seam is filled by the contract module's
+	// RemoteLabel, so the rule that turns a raw git remote into a
+	// "host:owner/repo" label lives in the contract both Village and Peasant
+	// import, and neither keeps a copy of it. A test may substitute its own
+	// labeler; nothing else may.
 	projectNames projectname.Resolver
-
-	// projectCollectives reports a project's collective contributions as one
-	// viewer may see them. It is nil until the collectives query family is wired
-	// in, and the project page then reports no collectives rather than applying a
-	// visibility rule of its own — see ProjectCollectiveRollupLister.
-	projectCollectives ProjectCollectiveRollupLister
 
 	// gh is the GitHub App client backing the collective-repository feature.
 	// It is nil when the App is not configured; handlers detect this via
@@ -91,7 +85,11 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 		blobs:                 blobs,
 		titles:                titles,
 		preservationEvaluator: productionObservedModelPreservationEvaluator{},
-		scanContent:           scanner.ScanForSecrets,
+		// The remote-label rule belongs to the contract module, which both
+		// Village and Peasant import, so the two render one label for one
+		// repository instead of each formatting remotes their own way.
+		projectNames: projectname.Resolver{Label: schema.RemoteLabel},
+		scanContent:  scanner.ScanForSecrets,
 	}
 
 	// The GitHub App is optional. If credentials are absent (or invalid),

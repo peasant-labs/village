@@ -79,8 +79,15 @@ func TestGetSchemaVersion_WireKeysPresent(t *testing.T) {
 // The floor decides which CLIs may publish at all. Raising it refuses every older
 // client outright, so it may only ever move as a deliberate, separately-argued
 // decision — never as a side effect of some other change. The tests above prove
-// the window is advertised and that a below-floor client is turned away; neither
-// notices if the floor itself moves. This one does.
+// only that the window is ADVERTISED and well-formed; neither of them notices if
+// the floor itself moves. This one does.
+//
+// Note what Village does and does not do here. Village ADVERTISES the floor; it
+// does not enforce it. The refusal of a below-floor client happens in the CLI,
+// which preflights against this advertised window, so there is no Village-side
+// rejection to assert and this test does not pretend to assert one. That makes
+// the advertised value the whole of Village's contribution to the negotiation,
+// and pinning it the strongest assertion this repository can make.
 //
 // It was written while adding the project-identity guard, where raising the floor
 // LOOKED like a way to guarantee that every accepted payload carries a project

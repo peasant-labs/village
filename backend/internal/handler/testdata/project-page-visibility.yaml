@@ -108,6 +108,7 @@
   want_transcript_count: 1
   want_display_name: Ledger service
   want_name_source: override
+  want_remote_label: github.com:peasant-labs/ledger
 
 - name: project_with_no_owner_name_resolves_to_the_published_name
   why: >
@@ -120,3 +121,40 @@
   want_transcript_count: 1
   want_display_name: ledger-service
   want_name_source: consented
+  want_remote_label: github.com:peasant-labs/ledger
+
+- name: project_with_only_a_privacy_label_resolves_to_the_repository
+  why: >
+    The remote tier, which cannot fire from any tier above it. With no owner
+    correction and no disclosed name - only Peasant's privacy-safe label - the
+    repository label is what a person can actually recognise, so it becomes the
+    display name and the source says so. This case is the one that fails if the
+    remote-label seam is unwired or wired to something other than the contract
+    module's rule, because every other case here resolves from a higher tier and
+    would pass with the seam dead.
+  owner_discoverable: true
+  viewer: anonymous
+  transcript_visibility: public
+  published_project_name: project-abc123def456
+  want_status: 200
+  want_transcript_count: 1
+  want_display_name: github.com:peasant-labs/ledger
+  want_name_source: remote
+  want_remote_label: github.com:peasant-labs/ledger
+
+- name: approved_contribution_appears_in_the_collectives_rollup
+  why: >
+    The only case that proves the collectives roll-up is actually WIRED to the
+    shared collectives query. Every other case here has no contribution at all,
+    so the page would answer with an empty roll-up whether the query ran or not,
+    and a seam left disconnected would pass all of them. This case asserts the
+    named collective comes back with its approved transcript counted. It does NOT
+    re-assert the visibility matrix, which belongs to that query's own corpus.
+  owner_discoverable: true
+  viewer: anonymous
+  transcript_visibility: public
+  share_into_public_collective: true
+  want_status: 200
+  want_transcript_count: 1
+  want_collective_count: 1
+  want_collective_transcript_count: 1

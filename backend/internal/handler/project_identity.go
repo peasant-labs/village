@@ -345,27 +345,52 @@ func projectNotFoundForOwnerMessage(projectHash string) string {
 		projectHash)
 }
 
-// ProjectCollectiveRollupLister reports which collectives a project's transcripts
-// have been contributed to, as one viewer may see them.
+// ProjectCollectiveRollupEntry is one collective in a project's roll-up.
 //
-// It is an injected seam rather than a direct query call for one reason: the
-// collectives visibility predicate exists ONCE, in the collectives query family,
-// and this route must consume it rather than grow a second copy that then has to
-// stay identical forever. Until that query is wired in, the seam is nil and the
-// project page reports no collectives — it never guesses at visibility on its own.
-type ProjectCollectiveRollupLister func(ctx context.Context, ownerID pgtype.UUID, projectHash string, viewerID pgtype.UUID) ([]ProjectCollectiveRollupEntry, error)
-
-// ProjectCollectiveRollupEntry is one collective in a project's roll-up. The
-// counters are asymmetric ON PURPOSE and the field names say so: approved and
-// pending count distinct TRANSCRIPTS, while rejections count submission ATTEMPTS,
-// because one transcript can be refused several times.
+// It carries NO share counters. The roll-up is restricted to APPROVED shares, and
+// the pending and rejected tallies are the owner's alone by user ratification —
+// this page can be loaded by a non-owner, so surfacing them here would be a
+// disclosure change rather than a convenience. TranscriptCount is therefore the
+// count of that collective's APPROVED transcripts from this project, and the only
+// count the shape admits.
 type ProjectCollectiveRollupEntry struct {
-	CollectiveID         pgtype.UUID `json:"collective_id"`
-	Name                 string      `json:"name"`
-	Slug                 string      `json:"slug"`
-	ApprovedCount        int64       `json:"approved_count"`
-	PendingCount         int64       `json:"pending_count"`
-	RejectedAttemptCount int64       `json:"rejected_attempt_count"`
+	ID              pgtype.UUID `json:"id"`
+	Name            string      `json:"name"`
+	Description     pgtype.Text `json:"description"`
+	LinkedGithubOrg pgtype.Text `json:"linked_github_org"`
+	TranscriptCount int32       `json:"transcript_count"`
+}
+
+// projectCollectiveRollup answers which collectives hold this project's accepted
+// transcripts, as this viewer may see them.
+//
+// The visibility decision is made ENTIRELY by the query: it applies the one
+// collectives predicate, character-identical to the collective search, plus the
+// contributor opt-in gate. This function passes the viewer through and maps the
+// row; it must never add, relax, or second-guess a visibility rule, because a
+// second copy of that predicate is exactly the drift the single query exists to
+// prevent.
+func (h *Handler) projectCollectiveRollup(ctx context.Context, ownerID pgtype.UUID, projectHash string, viewerID pgtype.UUID, viewerIsOwner bool) ([]ProjectCollectiveRollupEntry, error) {
+	rows, err := h.queries.ListProjectCollectiveRollup(ctx, sqlc.ListProjectCollectiveRollupParams{
+		OwnerID:       ownerID,
+		ProjectHash:   projectHash,
+		UserID:        viewerID,
+		ViewerIsOwner: viewerIsOwner,
+	})
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]ProjectCollectiveRollupEntry, 0, len(rows))
+	for _, row := range rows {
+		entries = append(entries, ProjectCollectiveRollupEntry{
+			ID:              row.ID,
+			Name:            row.Name,
+			Description:     row.Description,
+			LinkedGithubOrg: row.LinkedGithubOrg,
+			TranscriptCount: row.TranscriptCount,
+		})
+	}
+	return entries, nil
 }
 
 // GetUserProject serves one user's project page: who owns it, what it is called,
@@ -411,8 +436,10 @@ func (h *Handler) GetUserProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	viewerID := pgtype.UUID{}
+	viewerIsOwner := false
 	if viewer != nil {
 		viewerID = viewer.PgID()
+		viewerIsOwner = viewerID == target.ID
 	}
 
 	transcripts, err := h.queries.ListProjectTranscriptsForViewer(r.Context(), sqlc.ListProjectTranscriptsForViewerParams{
@@ -431,16 +458,13 @@ func (h *Handler) GetUserProject(w http.ResponseWriter, r *http.Request) {
 	key := projectIdentityKey{OwnerID: target.ID, ProjectHash: projectHash}
 	resolved := h.resolveProjectIdentities(r.Context(), []projectIdentityKey{key})[key]
 
-	collectives := []ProjectCollectiveRollupEntry{}
-	if h.projectCollectives != nil {
-		collectives, err = h.projectCollectives(r.Context(), target.ID, projectHash, viewerID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError,
-				"the project's collectives could not be listed: reading the contribution roll-up failed. It happened "+
-					"after the project was resolved and before the response was sent, so nothing was disclosed and "+
-					"nothing changed. Retry the request, and if it persists check that the database is reachable")
-			return
-		}
+	collectives, err := h.projectCollectiveRollup(r.Context(), target.ID, projectHash, viewerID, viewerIsOwner)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError,
+			"the project's collectives could not be listed: reading the contribution roll-up failed. It happened "+
+				"after the project was resolved and before the response was sent, so nothing was disclosed and "+
+				"nothing changed. Retry the request, and if it persists check that the database is reachable")
+		return
 	}
 
 	responses := make([]transcriptResponse, 0, len(transcripts))

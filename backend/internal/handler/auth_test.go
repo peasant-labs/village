@@ -17,6 +17,7 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/projectname"
 	"github.com/peasant-labs/village/backend/internal/scanner"
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
@@ -814,6 +815,9 @@ func newTestHandler(q Querier, blobs storage.TranscriptBlobStore) *Handler {
 		titles:                titles,
 		preservationEvaluator: productionObservedModelPreservationEvaluator{},
 		scanContent:           scanner.ScanForSecrets,
+		// The same labeler production wires, so a unit test never observes a
+		// resolver the served handler does not have.
+		projectNames: projectname.Resolver{Label: schema.RemoteLabel},
 	}
 }
 

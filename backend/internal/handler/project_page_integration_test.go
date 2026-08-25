@@ -42,10 +42,22 @@ type projectPageCase struct {
 	Viewer               string `yaml:"viewer"`
 	TranscriptVisibility string `yaml:"transcript_visibility"`
 	OwnerOverrideName    string `yaml:"owner_override_name"`
+	// PublishedProjectName overrides the name the publisher disclosed on the
+	// transcript. It exists so a case can store Peasant's privacy-safe label
+	// instead of a real name, which is what lets the remote tier be reached.
+	PublishedProjectName string `yaml:"published_project_name"`
 	WantStatus           int    `yaml:"want_status"`
 	WantTranscriptCount  int    `yaml:"want_transcript_count"`
 	WantDisplayName      string `yaml:"want_display_name"`
 	WantNameSource       string `yaml:"want_name_source"`
+	WantRemoteLabel      string `yaml:"want_remote_label"`
+	// ShareIntoPublicCollective records the project's transcript as an APPROVED
+	// contribution to a public collective, which is what makes the roll-up
+	// non-empty. The share is written as an ATTEMPT; the current-state row is
+	// derived by the database trigger, never by a fixture.
+	ShareIntoPublicCollective     bool `yaml:"share_into_public_collective"`
+	WantCollectiveCount           int  `yaml:"want_collective_count"`
+	WantCollectiveTranscriptCount int  `yaml:"want_collective_transcript_count"`
 }
 
 // requiredProjectPageCases names the cases that must exist. The two
@@ -64,6 +76,8 @@ var requiredProjectPageCases = []string{
 	"discoverable_owner_all_transcripts_private_viewed_by_other_signed_in",
 	"owner_renamed_project_resolves_to_the_chosen_name",
 	"project_with_no_owner_name_resolves_to_the_published_name",
+	"project_with_only_a_privacy_label_resolves_to_the_repository",
+	"approved_contribution_appears_in_the_collectives_rollup",
 }
 
 func loadProjectPageCases(t *testing.T) []projectPageCase {
@@ -103,11 +117,14 @@ func loadProjectPageCases(t *testing.T) []projectPageCase {
 
 // projectPageWorld is one case's owner, viewer and project.
 type projectPageWorld struct {
-	pool        *pgxpool.Pool
-	owner       pgtype.UUID
-	ownerName   string
-	other       pgtype.UUID
-	projectHash string
+	pool         *pgxpool.Pool
+	owner        pgtype.UUID
+	ownerName    string
+	other        pgtype.UUID
+	projectHash  string
+	transcript   pgtype.UUID
+	collective   pgtype.UUID
+	collectiveOn bool
 }
 
 // publishedProjectName is the name the publisher disclosed on the transcript. It
@@ -130,7 +147,32 @@ func newProjectPageWorld(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 		t.Fatalf("set the owner's discoverability: %v", err)
 	}
 
-	projectPageInsertTranscript(t, ctx, pool, w.owner, "page-"+suffix, w.projectHash, testCase.TranscriptVisibility)
+	w.transcript = projectPageInsertTranscript(t, ctx, pool, w.owner, "page-"+suffix, w.projectHash,
+		testCase.TranscriptVisibility, testCase.publishedName())
+
+	if testCase.ShareIntoPublicCollective {
+		w.collectiveOn = true
+		if err := pool.QueryRow(ctx, `
+			INSERT INTO groups (name, created_by, acceptance_mode, data_access)
+			VALUES ($1, $2, 'open', 'public') RETURNING id
+		`, "project-collective-"+suffix, w.owner).Scan(&w.collective); err != nil {
+			t.Fatalf("create the collective: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')
+		`, w.collective, w.owner); err != nil {
+			t.Fatalf("add the collective owner: %v", err)
+		}
+		// The current-state share row is written by the trigger on this insert.
+		// A fixture that wrote transcript_shares directly would prove nothing
+		// about the shipped mechanism, and the fail-closed guard refuses it.
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at, decided_by)
+			VALUES ($1, $2, 1, 'approved', now(), $3)
+		`, w.transcript, w.collective, w.owner); err != nil {
+			t.Fatalf("record the approved contribution: %v", err)
+		}
+	}
 
 	if testCase.OwnerOverrideName != "" {
 		if _, err := pool.Exec(ctx, `
@@ -148,12 +190,26 @@ func (w *projectPageWorld) cleanup(t *testing.T, ctx context.Context) {
 	if _, err := w.pool.Exec(ctx, "DELETE FROM owner_overrides WHERE owner_id = $1", w.owner); err != nil {
 		t.Errorf("cleanup owner corrections: %v", err)
 	}
+	if w.collectiveOn {
+		if _, err := w.pool.Exec(ctx, "DELETE FROM groups WHERE id = $1", w.collective); err != nil {
+			t.Errorf("cleanup collective: %v", err)
+		}
+	}
 	cleanupOwners(t, ctx, w.pool, w.owner, w.other)
 }
 
 // projectPageInsertTranscript stores one transcript carrying a project identity, a
 // disclosed project name and a git remote.
-func projectPageInsertTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner pgtype.UUID, localID, projectHash, visibility string) {
+// publishedName is the project name the case's transcript carries. Cases that do
+// not name one carry an ordinary disclosed name.
+func (c projectPageCase) publishedName() string {
+	if c.PublishedProjectName != "" {
+		return c.PublishedProjectName
+	}
+	return publishedProjectName
+}
+
+func projectPageInsertTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner pgtype.UUID, localID, projectHash, visibility, projectName string) pgtype.UUID {
 	t.Helper()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -163,19 +219,21 @@ func projectPageInsertTranscript(t *testing.T, ctx context.Context, pool *pgxpoo
 	if _, err := tx.Exec(ctx, "SELECT set_config('app.actor_id', $1, true), set_config('app.transcript_writer_version', '1', true)", database.SystemActorID); err != nil {
 		t.Fatal(err)
 	}
+	id := toPgUUID(uuid.New())
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO transcripts (id, owner_id, local_id, title, visibility, model_provider, model_name, blob_key,
 		                         blob_size_bytes, schema_version, content_hash, wrapped_data_key, encryption_algorithm,
 		                         key_version, project_hash, project_name, git_remote)
 		VALUES ($1,$2,$3,$4,$5,'claude-code',$6,$7,$8,'0.1.0',$9,$10,'aes-256-gcm-random-nonce-v1',1,$11,$12,$13)
-	`, toPgUUID(uuid.New()), owner, localID, "t-"+localID, visibility, "m-"+localID, "blob/"+localID,
+	`, id, owner, localID, "t-"+localID, visibility, "m-"+localID, "blob/"+localID,
 		int64(len(localID)), "hash-"+localID, []byte("fixture-wrapped-data-key"),
-		projectHash, publishedProjectName, "git@github.com:peasant-labs/ledger.git"); err != nil {
+		projectHash, projectName, "git@github.com:peasant-labs/ledger.git"); err != nil {
 		t.Fatalf("insert transcript %s: %v", localID, err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
+	return id
 }
 
 // withProjectPageURLParams attaches BOTH route parameters in one context.
@@ -217,7 +275,7 @@ func TestGetUserProject_VisibilityBoundary(t *testing.T) {
 			}
 			if testCase.WantStatus != http.StatusOK {
 				// A refusal must not leak the page it refused to show.
-				if strings.Contains(w.Body.String(), publishedProjectName) {
+				if strings.Contains(w.Body.String(), testCase.publishedName()) {
 					t.Fatalf("the refusal disclosed the project's published name: %s", w.Body.String())
 				}
 				return
@@ -248,6 +306,28 @@ func TestGetUserProject_VisibilityBoundary(t *testing.T) {
 			}
 			if testCase.WantNameSource != "" && page.Project.NameSource != projectname.NameSource(testCase.WantNameSource) {
 				t.Errorf("resolved name source = %q, want %q", page.Project.NameSource, testCase.WantNameSource)
+			}
+			// The repository label is rendered as a subtitle independently of which
+			// tier supplied the display name, so it is asserted on its own. An empty
+			// label here means the contract module's remote-label rule is not reaching
+			// the resolver, which looks on screen exactly like the missing-name defect
+			// this work exists to fix.
+			if testCase.WantRemoteLabel != "" && page.Project.RemoteLabel != testCase.WantRemoteLabel {
+				t.Errorf("resolved remote label = %q, want %q", page.Project.RemoteLabel, testCase.WantRemoteLabel)
+			}
+			if len(page.Collectives) != testCase.WantCollectiveCount {
+				t.Fatalf("the roll-up listed %d collectives, want %d. An empty roll-up on a project that HAS an approved "+
+					"contribution means the page is not calling the shared collectives query at all.",
+					len(page.Collectives), testCase.WantCollectiveCount)
+			}
+			for _, collective := range page.Collectives {
+				if collective.TranscriptCount != int32(testCase.WantCollectiveTranscriptCount) {
+					t.Errorf("collective %q counted %d transcripts, want %d",
+						collective.Name, collective.TranscriptCount, testCase.WantCollectiveTranscriptCount)
+				}
+				if collective.ID != world.collective {
+					t.Errorf("the roll-up named a collective this project did not contribute to")
+				}
 			}
 			for _, listed := range page.Transcripts {
 				if listed.ProjectHash != world.projectHash {
