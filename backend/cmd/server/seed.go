@@ -27,7 +27,14 @@ type seedProfile struct {
 	Name        string           `yaml:"name"`
 	Transcripts []seedTranscript `yaml:"transcripts"`
 }
-type seedTranscript struct{ ID, OwnerID, LocalID, Title, Visibility, Provider string }
+
+// ProjectHash is the identity the transcript groups by. It is required, not
+// derived from the name, so the seed profile names it per transcript and the
+// seeded data exercises the same grouping real published data does.
+type seedTranscript struct {
+	ID, OwnerID, LocalID, Title, Visibility, Provider string
+	ProjectHash                                       string `yaml:"projecthash"`
+}
 
 type systemTranscriptCreator interface {
 	CreateTranscriptAsSystemResult(context.Context, sqlc.CreateTranscriptParams) handler.SystemTranscriptCreateResult
@@ -99,7 +106,7 @@ func runSeedWithCreator(ctx context.Context, mode runtimeMode, pool *pgxpool.Poo
 		// like a person's session. Every writer of this row must name a menu
 		// member: the column's CHECK rejects the Go zero value outright, so a
 		// caller cannot leave the question unanswered by accident.
-		params := sqlc.CreateTranscriptParams{ID: pgtype.UUID{Bytes: id, Valid: true}, OwnerID: pgtype.UUID{Bytes: owner, Valid: true}, LocalID: item.LocalID, Title: pgtype.Text{String: item.Title, Valid: true}, Visibility: item.Visibility, ModelProvider: item.Provider, BlobKey: string(descriptor.ObjectKey()), BlobSizeBytes: pgtype.Int8{Int64: identity.PlaintextSize(), Valid: true}, SchemaVersion: "2", ContentHash: pgtype.Text{String: string(identity.Hash()), Valid: true}, WrappedDataKey: descriptor.WrappedDEK(), EncryptionAlgorithm: string(descriptor.Algorithm()), KeyVersion: int32(descriptor.KeyVersion()), SessionOrigin: sessionorigin.Unknown.String()}
+		params := sqlc.CreateTranscriptParams{ID: pgtype.UUID{Bytes: id, Valid: true}, OwnerID: pgtype.UUID{Bytes: owner, Valid: true}, LocalID: item.LocalID, Title: pgtype.Text{String: item.Title, Valid: true}, Visibility: item.Visibility, ModelProvider: item.Provider, BlobKey: string(descriptor.ObjectKey()), BlobSizeBytes: pgtype.Int8{Int64: identity.PlaintextSize(), Valid: true}, ProjectHash: item.ProjectHash, SchemaVersion: "2", ContentHash: pgtype.Text{String: string(identity.Hash()), Valid: true}, WrappedDataKey: descriptor.WrappedDEK(), EncryptionAlgorithm: string(descriptor.Algorithm()), KeyVersion: int32(descriptor.KeyVersion()), SessionOrigin: sessionorigin.Unknown.String()}
 		result := creator.CreateTranscriptAsSystemResult(ctx, params)
 		if result.Completion != handler.TransactionCommitted && result.Err == nil {
 			result.Err = errors.New("system transcript persistence returned a non-committed completion without a cause; inspect the persistence implementation")

@@ -123,6 +123,17 @@ type License struct {
 	CommercialOk        bool   `db:"commercial_ok" json:"commercial_ok"`
 }
 
+type OwnerOverride struct {
+	OwnerID    pgtype.UUID        `db:"owner_id" json:"owner_id"`
+	TargetKind string             `db:"target_kind" json:"target_kind"`
+	TargetKey  string             `db:"target_key" json:"target_key"`
+	Field      string             `db:"field" json:"field"`
+	Value      string             `db:"value" json:"value"`
+	Provenance []byte             `db:"provenance" json:"provenance"`
+	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type RepositoryCommit struct {
 	ID          pgtype.UUID        `db:"id" json:"id"`
 	Owner       string             `db:"owner" json:"owner"`
@@ -167,7 +178,7 @@ type Transcript struct {
 	GitBranch                           pgtype.Text        `db:"git_branch" json:"git_branch"`
 	GitRemote                           pgtype.Text        `db:"git_remote" json:"git_remote"`
 	GitWorktree                         pgtype.Text        `db:"git_worktree" json:"git_worktree"`
-	ProjectHash                         pgtype.Text        `db:"project_hash" json:"project_hash"`
+	ProjectHash                         string             `db:"project_hash" json:"project_hash"`
 	ProjectPath                         pgtype.Text        `db:"project_path" json:"project_path"`
 	ProjectName                         pgtype.Text        `db:"project_name" json:"project_name"`
 	ToolCallCount                       pgtype.Int4        `db:"tool_call_count" json:"tool_call_count"`
@@ -253,6 +264,17 @@ type TranscriptShare struct {
 	GroupID      pgtype.UUID        `db:"group_id" json:"group_id"`
 	SharedAt     pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
 	Status       string             `db:"status" json:"status"`
+}
+
+type TranscriptShareAttempt struct {
+	ID           pgtype.UUID        `db:"id" json:"id"`
+	TranscriptID pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	GroupID      pgtype.UUID        `db:"group_id" json:"group_id"`
+	AttemptNo    int32              `db:"attempt_no" json:"attempt_no"`
+	Status       string             `db:"status" json:"status"`
+	SubmittedAt  pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	DecidedAt    pgtype.Timestamptz `db:"decided_at" json:"decided_at"`
+	DecidedBy    pgtype.UUID        `db:"decided_by" json:"decided_by"`
 }
 
 type TranscriptTag struct {

@@ -54,7 +54,7 @@ func schemaToTranscriptParams(req schema.PublishRequest, blobKey string, blobSiz
 		GitBranch:               optionalStringToPgText(req.Git.Branch),
 		GitRemote:               optionalStringToPgText(req.Git.Remote),
 		GitWorktree:             optionalStringToPgText(req.Git.Worktree),
-		ProjectHash:             pgtype.Text{String: string(req.Project.Hash), Valid: req.Project.Hash != ""},
+		ProjectHash:             string(req.Project.Hash),
 		ProjectPath:             pgtype.Text{String: req.Project.FilePath, Valid: req.Project.FilePath != ""},
 		ProjectName:             pgtype.Text{String: req.Project.Name, Valid: req.Project.Name != ""},
 		ToolCallCount:           intToPgInt4(req.Stats.ToolCallCount),
@@ -492,7 +492,7 @@ func transcriptToSchema(t sqlc.Transcript) schema.PublishRequest {
 			Worktree: pgTextToStringPtr(t.GitWorktree),
 		},
 		Project: schema.ProjectContext{
-			Hash:     schema.ProjectHash(t.ProjectHash.String),
+			Hash:     schema.ProjectHash(t.ProjectHash),
 			FilePath: t.ProjectPath.String,
 			Name:     t.ProjectName.String,
 		},

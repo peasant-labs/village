@@ -5,7 +5,7 @@
 --
 -- The main scripts/seed.sql only inserts pending shares into alice-dev's
 -- seeded "Curated Showcase" collective. This script lands a single PENDING
--- transcript_shares row into YOUR collective so a "review" row shows up on
+-- submission awaiting review into YOUR collective so a "review" row shows up on
 -- /groups/{id}.
 --
 -- Run (Docker-compose dev setup, matches `make seed`):
@@ -24,7 +24,7 @@
 \set transcript_id 'c0000000-0000-0000-0000-000000000001'
 
 \echo ''
-\echo '>>> If you hit a foreign-key error on transcript_shares.transcript_id,'
+\echo '>>> If you hit a foreign-key error on the attempt transcript_id,'
 \echo '>>> run `make seed` first to populate the seed transcripts.'
 \echo ''
 
@@ -36,12 +36,15 @@ SET acceptance_mode = 'curated'
 WHERE id = :'collective_id'::uuid
   AND acceptance_mode <> 'curated';
 
--- 2. Insert ONE pending share targeting your collective.
---    shared_at defaults to now() per the schema, so we omit it.
-INSERT INTO transcript_shares (transcript_id, group_id, status)
+-- 2. Open ONE submission awaiting review in your collective.
+--    transcript_shares is derived by a database trigger from the attempt
+--    history and refuses a direct write, so this opens the attempt and the
+--    derivation produces the row the review page reads.
+INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status)
 VALUES (
     :'transcript_id'::uuid,
     :'collective_id'::uuid,
+    1,
     'pending'
 )
 ON CONFLICT DO NOTHING;

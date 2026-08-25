@@ -79,7 +79,7 @@ type CreateTranscriptParams struct {
 	GitBranch               pgtype.Text        `db:"git_branch" json:"git_branch"`
 	GitRemote               pgtype.Text        `db:"git_remote" json:"git_remote"`
 	GitWorktree             pgtype.Text        `db:"git_worktree" json:"git_worktree"`
-	ProjectHash             pgtype.Text        `db:"project_hash" json:"project_hash"`
+	ProjectHash             string             `db:"project_hash" json:"project_hash"`
 	ProjectPath             pgtype.Text        `db:"project_path" json:"project_path"`
 	ProjectName             pgtype.Text        `db:"project_name" json:"project_name"`
 	ToolCallCount           pgtype.Int4        `db:"tool_call_count" json:"tool_call_count"`
@@ -571,7 +571,7 @@ type UpdateTranscriptByOwnerAndLocalIDParams struct {
 	GitBranch               pgtype.Text        `db:"git_branch" json:"git_branch"`
 	GitRemote               pgtype.Text        `db:"git_remote" json:"git_remote"`
 	GitWorktree             pgtype.Text        `db:"git_worktree" json:"git_worktree"`
-	ProjectHash             pgtype.Text        `db:"project_hash" json:"project_hash"`
+	ProjectHash             string             `db:"project_hash" json:"project_hash"`
 	ProjectPath             pgtype.Text        `db:"project_path" json:"project_path"`
 	ProjectName             pgtype.Text        `db:"project_name" json:"project_name"`
 	ToolCallCount           pgtype.Int4        `db:"tool_call_count" json:"tool_call_count"`

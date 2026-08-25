@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/redact"
@@ -460,8 +461,11 @@ func (m *mockQuerier) ListGroupMembers(ctx context.Context, arg sqlc.ListGroupMe
 func (m *mockQuerier) ListGroupPendingMembers(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListGroupPendingMembersRow, error) {
 	return nil, nil
 }
-func (m *mockQuerier) IsTranscriptSharedWithGroup(ctx context.Context, arg sqlc.IsTranscriptSharedWithGroupParams) (bool, error) {
-	return false, nil
+func (m *mockQuerier) GetLatestShareAttempt(ctx context.Context, arg sqlc.GetLatestShareAttemptParams) (sqlc.TranscriptShareAttempt, error) {
+	return sqlc.TranscriptShareAttempt{}, pgx.ErrNoRows
+}
+func (m *mockQuerier) ListShareAttempts(ctx context.Context, arg sqlc.ListShareAttemptsParams) ([]sqlc.TranscriptShareAttempt, error) {
+	panic("ListShareAttempts: not stubbed")
 }
 func (m *mockQuerier) UnshareTranscript(ctx context.Context, arg sqlc.UnshareTranscriptParams) error {
 	panic("UnshareTranscript: not stubbed")

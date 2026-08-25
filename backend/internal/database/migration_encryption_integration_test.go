@@ -353,7 +353,7 @@ func assertInvalidDescriptor(t *testing.T, pool *pgxpool.Pool, wrappedSQL, algor
 	if _, err := tx.Exec(ctx, "SELECT set_config('app.transcript_writer_version','1',true), set_config('app.actor_id',$1,true)", SystemActorID); err != nil {
 		t.Fatal(err)
 	}
-	statement := fmt.Sprintf(`INSERT INTO transcripts (owner_id,local_id,visibility,model_provider,blob_key,schema_version,wrapped_data_key,encryption_algorithm,key_version) VALUES ($1,$2,'private','claude-code',$3,'1',%s,%s,%s)`, wrappedSQL, algorithmSQL, versionSQL)
+	statement := fmt.Sprintf(`INSERT INTO transcripts (owner_id,local_id,visibility,model_provider,blob_key,schema_version,project_hash,wrapped_data_key,encryption_algorithm,key_version) VALUES ($1,$2,'private','claude-code',$3,'1','c4e19a2f0b73',%s,%s,%s)`, wrappedSQL, algorithmSQL, versionSQL)
 	_, err = tx.Exec(ctx, statement, owner, uuid.NewString(), "transcripts/"+uuid.NewString()+".bin")
 	if err == nil || !strings.Contains(err.Error(), wantConstraint) {
 		t.Fatalf("invalid %s descriptor result = %v, want named constraint rejection", wantConstraint, err)
@@ -510,8 +510,8 @@ func insertFenceOwner(t *testing.T, ctx context.Context, tx pgx.Tx) string {
 func insertFenceTranscript(ctx context.Context, tx pgx.Tx, owner string) (string, error) {
 	var id string
 	err := tx.QueryRow(ctx, `
-		INSERT INTO transcripts (owner_id,local_id,visibility,model_provider,blob_key,schema_version,wrapped_data_key,encryption_algorithm,key_version)
-		VALUES ($1,$2,'private','claude-code',$3,'1',decode('01','hex'),'aes-256-gcm-random-nonce-v1',1)
+		INSERT INTO transcripts (owner_id,local_id,visibility,model_provider,blob_key,schema_version,project_hash,wrapped_data_key,encryption_algorithm,key_version)
+		VALUES ($1,$2,'private','claude-code',$3,'1','c4e19a2f0b73',decode('01','hex'),'aes-256-gcm-random-nonce-v1',1)
 		RETURNING id::text`, owner, uuid.NewString(), "transcripts/"+uuid.NewString()+".bin").Scan(&id)
 	return id, err
 }
@@ -538,7 +538,7 @@ func tryLegacyInsert(pool *pgxpool.Pool) error {
 	if _, err := tx.Exec(ctx, "SELECT set_config('app.actor_id',$1,true)", SystemActorID); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO transcripts (owner_id,local_id,visibility,model_provider,blob_key,schema_version) VALUES ($1,$2,'private','claude-code',$3,'1')`, owner, uuid.NewString(), "transcripts/"+uuid.NewString()+".json"); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO transcripts (owner_id,local_id,visibility,model_provider,blob_key,schema_version,project_hash) VALUES ($1,$2,'private','claude-code',$3,'1','c4e19a2f0b73')`, owner, uuid.NewString(), "transcripts/"+uuid.NewString()+".json"); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

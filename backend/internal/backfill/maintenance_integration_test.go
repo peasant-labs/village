@@ -377,7 +377,9 @@ func insertMaintenanceRowForOwner(t *testing.T, ctx context.Context, pool *pgxpo
 		hash = nil
 		size = nil
 	}
-	markedExec(t, ctx, pool, "INSERT INTO transcripts(id,owner_id,local_id,visibility,model_provider,blob_key,blob_size_bytes,schema_version,content_hash,wrapped_data_key,encryption_algorithm,key_version) VALUES($1,$2,$3,'private','claude',$4,$5,'2',$6,$7,$8,$9)", id, owner, id.String(), key, size, hash, d.WrappedDEK(), d.Algorithm(), version)
+	// project_hash is a required identity column, so every fixture transcript
+	// names the project it belongs to.
+	markedExec(t, ctx, pool, "INSERT INTO transcripts(id,owner_id,local_id,visibility,model_provider,blob_key,blob_size_bytes,schema_version,content_hash,wrapped_data_key,encryption_algorithm,key_version,project_hash) VALUES($1,$2,$3,'private','claude',$4,$5,'2',$6,$7,$8,$9,$10)", id, owner, id.String(), key, size, hash, d.WrappedDEK(), d.Algorithm(), version, "b7c2a90e4d18")
 	return id, owner, d
 }
 func markedExec(t *testing.T, ctx context.Context, pool *pgxpool.Pool, query string, args ...any) {

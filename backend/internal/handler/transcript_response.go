@@ -80,7 +80,7 @@ func toTranscriptResponse(r sqlc.Transcript) transcriptResponse {
 	return transcriptResponse{
 		ID: r.ID, OwnerID: r.OwnerID, LocalID: r.LocalID, Title: r.Title, Description: r.Description, Visibility: r.Visibility, ModelProvider: r.ModelProvider, ModelName: r.ModelName, HarnessVersion: r.HarnessVersion,
 		SessionStart: r.SessionStart, SessionEnd: r.SessionEnd, TurnCount: r.TurnCount, TokenCount: r.TokenCount, BlobSizeBytes: r.BlobSizeBytes, SchemaVersion: r.SchemaVersion, PublishedAt: r.PublishedAt, UpdatedAt: r.UpdatedAt,
-		ParentSessionID: r.ParentSessionID, IngestedAt: r.IngestedAt, SourceFormat: r.SourceFormat, GitBranch: r.GitBranch, GitRemote: r.GitRemote, ProjectHash: r.ProjectHash, ProjectName: r.ProjectName,
+		ParentSessionID: r.ParentSessionID, IngestedAt: r.IngestedAt, SourceFormat: r.SourceFormat, GitBranch: r.GitBranch, GitRemote: r.GitRemote, ProjectHash: pgtype.Text{String: r.ProjectHash, Valid: true}, ProjectName: r.ProjectName,
 		ToolCallCount: r.ToolCallCount, SubagentCount: r.SubagentCount, DurationMs: r.DurationMs, Subagents: r.Subagents, DiagnosticsWarnings: r.DiagnosticsWarnings, DiagnosticsPartial: r.DiagnosticsPartial,
 		TokensIn: r.TokensIn, TokensOut: r.TokensOut, TitleGenerated: r.TitleGenerated, Outcome: r.Outcome, FilesTouched: r.FilesTouched, LinesChanged: r.LinesChanged, RetryLoops: r.RetryLoops, RetryTokensWasted: r.RetryTokensWasted,
 		WithinSessionReverts: r.WithinSessionReverts, SignalDensity: r.SignalDensity, SpecQualityScore: r.SpecQualityScore, ExplorationRatio: r.ExplorationRatio, ScopeBreadth: r.ScopeBreadth, DiscoveryTurns: r.DiscoveryTurns,

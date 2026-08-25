@@ -1,12 +1,16 @@
+# projecthash is the project identity a transcript groups by. It is required on
+# every transcript. Two rows sharing a hash are two sessions of ONE project, so
+# the seeded data exercises grouping rather than presenting every session as its
+# own project.
 - name: core
   transcripts:
-    - {id: c0000000-0000-0000-0000-000000000001, ownerid: a0000000-0000-0000-0000-000000000001, localid: local-001, title: Debugging auth middleware, visibility: public, provider: claude}
-    - {id: c0000000-0000-0000-0000-000000000002, ownerid: a0000000-0000-0000-0000-000000000001, localid: local-002, title: Greenfield React setup, visibility: public, provider: claude}
-    - {id: c0000000-0000-0000-0000-000000000003, ownerid: a0000000-0000-0000-0000-000000000002, localid: local-003, title: Database query refactoring, visibility: public, provider: gemini}
-    - {id: c0000000-0000-0000-0000-000000000004, ownerid: a0000000-0000-0000-0000-000000000002, localid: local-004, title: Multi-agent debugging, visibility: public, provider: claude}
-    - {id: c0000000-0000-0000-0000-000000000005, ownerid: a0000000-0000-0000-0000-000000000003, localid: local-005, title: Building a REST API, visibility: public, provider: claude}
+    - {id: c0000000-0000-0000-0000-000000000001, ownerid: a0000000-0000-0000-0000-000000000001, localid: local-001, title: Debugging auth middleware, visibility: public, provider: claude, projecthash: 3fa9c2e1b0d4}
+    - {id: c0000000-0000-0000-0000-000000000002, ownerid: a0000000-0000-0000-0000-000000000001, localid: local-002, title: Greenfield React setup, visibility: public, provider: claude, projecthash: 3fa9c2e1b0d4}
+    - {id: c0000000-0000-0000-0000-000000000003, ownerid: a0000000-0000-0000-0000-000000000002, localid: local-003, title: Database query refactoring, visibility: public, provider: gemini, projecthash: 7c1d8e2f4a60}
+    - {id: c0000000-0000-0000-0000-000000000004, ownerid: a0000000-0000-0000-0000-000000000002, localid: local-004, title: Multi-agent debugging, visibility: public, provider: claude, projecthash: 7c1d8e2f4a60}
+    - {id: c0000000-0000-0000-0000-000000000005, ownerid: a0000000-0000-0000-0000-000000000003, localid: local-005, title: Building a REST API, visibility: public, provider: claude, projecthash: b2e4f60a8c13}
 - name: privacy
   transcripts:
-    - {id: c1000000-0000-0000-0000-000000000001, ownerid: f0000000-0000-0000-0000-000000000001, localid: dana-001, title: Tracing a flaky test, visibility: private, provider: claude}
-    - {id: c1000000-0000-0000-0000-000000000002, ownerid: f0000000-0000-0000-0000-000000000001, localid: dana-002, title: Schema migration review, visibility: private, provider: claude}
-    - {id: c1000000-0000-0000-0000-000000000003, ownerid: f0000000-0000-0000-0000-000000000003, localid: erin-001, title: CI pipeline tuning, visibility: private, provider: gemini}
+    - {id: c1000000-0000-0000-0000-000000000001, ownerid: f0000000-0000-0000-0000-000000000001, localid: dana-001, title: Tracing a flaky test, visibility: private, provider: claude, projecthash: 5a0c7d3e9b21}
+    - {id: c1000000-0000-0000-0000-000000000002, ownerid: f0000000-0000-0000-0000-000000000001, localid: dana-002, title: Schema migration review, visibility: private, provider: claude, projecthash: 5a0c7d3e9b21}
+    - {id: c1000000-0000-0000-0000-000000000003, ownerid: f0000000-0000-0000-0000-000000000003, localid: erin-001, title: CI pipeline tuning, visibility: private, provider: gemini, projecthash: 91f3b7c5d20e}

@@ -202,6 +202,42 @@ default to `postgres://peasant:peasant@localhost:5432/peasant_test`. **CI sets
 `postgres://test:test@localhost:5432/village_test?sslmode=disable`**, so set it
 yourself to match CI rather than relying on any file's fallback.
 
+### Share attempts: fixtures write attempts, never the derived share row
+
+`transcript_shares` is DERIVED. A database trigger maintains it from
+`transcript_share_attempts`, and a second trigger refuses any other write, so a
+fixture that inserts a share row directly now fails outright. Write the attempt
+and let the derivation produce the row:
+
+```go
+pool.Exec(ctx, `
+    INSERT INTO transcript_share_attempts (transcript_id, group_id, attempt_no, status)
+    VALUES ($1, $2, 1, $3)`, transcript, group, status)
+```
+
+That is also what the dev seed scripts do, so seeded data exercises the real
+path. The lattice itself lives in
+`internal/handler/share_attempts_integration_test.go` +
+`testdata/share-attempts.yaml`, driven through the real HTTP handlers: it has to
+be a real database, because a Go test computing its own expected values would
+pass with no trigger installed at all, and because decisions and withdrawals are
+UPDATEs, a trigger narrowed to INSERT would keep a mock-backed assertion green
+while propagating nothing. The migration-level proofs - the backfill of
+pre-attempt shares, and the writer fence refusing INSERT, UPDATE and DELETE
+separately - are in
+`internal/database/migration_036_share_attempts_integration_test.go`.
+
+A third guard needs no database at all: `query_write_fence_test.go` parses every
+statement in `queries/*.sql`, works out what each one writes, and checks it
+against the closed inventory in
+`queries/testdata/transcript-shares-statements.yaml`. Adding any statement that
+touches `transcript_shares` - a JOIN read included - fails until it is declared
+there, and it can only be declared as a read.
+
+**`transcripts.project_hash` is NOT NULL**, so every fixture that inserts a
+transcript with raw SQL must name one. Fixtures for the same project share a
+hash; unrelated fixtures must not collide.
+
 ### Pull, skip-gate, publish-idempotency, and explicit-backfill families
 
 Newer real-Postgres families worth knowing when touching those paths:
@@ -347,11 +383,13 @@ commits; groups → members; api_keys; annotations). The cascade chain is rooted
 ```
 users
  ├─ transcripts (owner_id … ON DELETE CASCADE)
- │   ├─ transcript_shares
+ │   ├─ transcript_shares            (cascade only; the writer fence lets it through)
+ │   ├─ transcript_share_attempts
  │   └─ transcript_commits
  ├─ groups (created_by …)
  │   ├─ group_members
- │   └─ transcript_shares (group_id …)
+ │   ├─ transcript_shares (group_id …)
+ │   └─ transcript_share_attempts (group_id …)
  ├─ api_keys
  └─ annotations
 ```

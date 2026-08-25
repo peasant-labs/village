@@ -204,7 +204,10 @@ boundary are documented in
   fail-closed actor rule applies to the `transcripts` triggers that produce
   the rows, not to direct historical appends (which only tests perform).
 
-## 6. Audit triggers (migration 026)
+## 6. Triggers
+
+The audit triggers (migration 026) and the share-derivation triggers
+(migration 036).
 
 | Trigger | Timing | Writes | Notes |
 |---|---|---|---|
@@ -212,6 +215,9 @@ boundary are documented in
 | `trg_audit_transcript_governance` | AFTER UPDATE … WHEN (license/visibility `IS DISTINCT FROM`) | `license_changed` / `visibility_changed` / `governance_changed` | The WHEN clause IS the no-op suppression - a title-only or content_hash-only UPDATE never fires it and needs no actor |
 | `trg_audit_transcript_retract` | BEFORE DELETE ON transcripts | `retracted` (from `OLD.*`) | Fires per cascaded row too - the only mechanism covering `DeleteAccount`'s `ON DELETE CASCADE` (migration 010), which runs no per-transcript Go |
 | `trg_governance_audit_immutable` | BEFORE UPDATE OR DELETE ON the audit table | - (RAISE) | §5 tamper resistance |
+| `trg_derive_transcript_share` | AFTER INSERT OR UPDATE ON transcript_share_attempts | the derived `transcript_shares` row | Upserts the row with the latest attempt's status for `pending`/`approved`/`rejected`, and DELETES it for `retracted`/`revoked`. **INSERT OR UPDATE, not INSERT**: decisions, withdrawals and removals are all UPDATEs of an existing attempt |
+| `trg_transcript_shares_fail_closed` | BEFORE INSERT OR UPDATE OR DELETE ON transcript_shares | - (RAISE) | Application SQL cannot write the derived row at all. Only the derivation may, and it proves that by holding `app.share_state_derivation`. A foreign-key cascade is allowed through, recognised by its parent row already being gone |
+| `trg_share_attempt_immutable` | BEFORE UPDATE ON transcript_share_attempts | - (RAISE) | Decided attempts (`approved`, `rejected`, `retracted`, `revoked`) are history. The one permitted change is the `decided_by` FK's `ON DELETE SET NULL`, which anonymises a deleted moderator's past decisions rather than blocking the deletion |
 
 - All three functions are `SET search_path = pg_catalog, public`.
 - **`session_origin` is not a governance axis.** It is discovery metadata, so a
@@ -221,6 +227,32 @@ boundary are documented in
   backfill still opens its per-row transaction as the system actor, so every
   writer of the column is attributed even though the column itself records no
   event.
+- **The share-attempt model (migration 036).** `transcript_share_attempts` is
+  the written table: every submission of a transcript to a collective is its own
+  attempt, and `UNIQUE (transcript_id, group_id, attempt_no)` orders them.
+  `transcript_shares` is a DERIVED current-state row, kept physical rather than
+  turned into a view because two shipped indexes carry hot joins over it that a
+  "latest attempt per pair" view would turn into a window-function scan.
+  Application code NEVER writes `transcript_shares` - a source guard over
+  `queries/*.sql` parses each statement's write targets, and the fail-closed
+  trigger refuses the write even if a statement slips past review.
+- **`transcript_shares.status` keeps its shipped three values**
+  (`pending | approved | rejected`, migration 005). `retracted` and `revoked`
+  are attempt states only; the derivation DELETES the current-state row for
+  them, which is exactly what withdrawal and removal did before the attempt
+  model, so every shipped read keeps its behaviour.
+- **At most one live attempt per (transcript, collective).**
+  `uq_share_attempt_open` is a partial unique index over `status = 'pending'`,
+  and an accepted attempt is live by construction because a submission is
+  refused while one is live. **Every terminal transition must close the live
+  attempt.** A submission still awaiting review is closed IN PLACE, because
+  nothing was decided and leaving it open would block re-submission forever with
+  no cause the user can see. An ACCEPTED contribution is closed by APPENDING a
+  further attempt, because its acceptance is history and the immutability
+  trigger refuses an in-place edit.
+- **No `app.actor_id` for sharing.** Sharing is not a licence or visibility
+  change, so it does not cross the governance-audit axis; `decided_by` records
+  the moderator directly on the attempt row.
 - **Fail-closed attribution:** both mutation-side functions read
   `NULLIF(current_setting('app.actor_id', true), '')::uuid` and **RAISE if
   NULL** - there is NO owner fallback (a guessed attribution is fabricated
@@ -239,6 +271,7 @@ authenticating. Both are custom Postgres parameters read via
 |---|---|---|---|
 | `app.actor_id` | WHO performs this transaction's transcript mutations. REQUIRED by the fail-closed audit triggers for INSERT / governance-axis UPDATE / DELETE on `transcripts`. | Txn (`set_config(..., true)` / `SET LOCAL`) - except seeds (below) | `Handler.inTxAs` (authenticated user; rejects non-Valid UUIDs) / `Handler.inTxAsSystem` (the ONLY route to the system actor); `scripts/seed.sql` sets it SESSION-scoped (`set_config(..., false)`) because `make seed` pipes autocommit psql where `SET LOCAL` is a no-op; sanctioned ops via `SET LOCAL` in a transaction |
 | `app.audit_maintenance` | Deliberate, statement-log-visible escape permitting UPDATE/DELETE on the append-only audit table within one transaction. | Txn only | Test teardown (`purgeAuditRows`, the sole sanctioned cleaner); operator runbooks, with a recorded reason |
+| `app.share_state_derivation` | Permission for the ONE sanctioned writer of the derived `transcript_shares` row. Set to `on` by `derive_transcript_share` immediately before it writes and back to `off` immediately after, so the permission never outlives the derivation it was opened for. It is not authorization: it marks the derivation, and everything else is refused. | Txn only (`set_config(..., true)`) | `derive_transcript_share` only. NOTHING in Go sets it |
 | `app.transcript_writer_version` | Compatibility marker proving a transcript storage mutation uses the encryption-aware descriptor shape. Exact current value: `1`. It is not authorization. | Txn only (`set_config(..., true)` / `SET LOCAL`) | Every encryption-aware create, republish, rewrite, hash backfill, rewrap, direct delete, and account-delete transaction |
 
 - **System actor:** `00000000-0000-0000-0000-000000000000`
@@ -264,6 +297,26 @@ authenticating. Both are custom Postgres parameters read via
 - **`users → transcripts` is `ON DELETE CASCADE`** (migration 010); groups
   cascade from their creator. Account deletion is a DB-level cascade - any
   future per-transcript bookkeeping must therefore live in triggers, not Go.
+- **`project_hash` is a REQUIRED identity column on transcripts** (migration
+  035). It is what makes two transcripts the same project; a name can change and
+  can be withheld for privacy, the identity cannot. Production held zero null
+  rows when the constraint landed, so there was no backfill, and
+  `ALTER ... SET NOT NULL` fails loudly by construction if that ever stops being
+  true rather than inventing an identity. The constraint is a BACKSTOP: what
+  keeps the column populated is the publish-boundary guard that refuses a
+  payload carrying no project hash, with an actionable message. Do not treat the
+  constraint alone as the enforcement - a payload rejected only by a NOT NULL
+  violation reaches the publisher as a database error rather than as something
+  they can act on.
+- **`owner_overrides` carries NO governance audit trigger and needs no
+  `app.actor_id`** (migration 034). The governance audit fires only on
+  `transcripts.license_id` and `transcripts.visibility`, which are the
+  disclosure axes; a display name an owner chooses for their own project is
+  neither, and the shipped project rename path is already actor-less for the
+  same reason. **The condition that reverses this decision:** the table's
+  reserved `field` menu includes `redaction_decision`. A redaction decision IS a
+  disclosure axis, so if that field is ever implemented the audit decision is
+  re-opened BEFORE the migration that implements it lands - not afterwards.
 - **`UNIQUE(owner_id, local_id)`** on transcripts (001) - `local_id` is the
   peasant session id; publish upserts by this key (ID-only existence probe +
   locked narrow pre-image inside the publish transaction).
