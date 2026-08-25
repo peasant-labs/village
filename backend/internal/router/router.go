@@ -71,6 +71,16 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		// User public profiles
 		r.With(h.AuthOptional).Get("/users/{username}", h.GetUserPublicProfile)
 		r.With(h.AuthOptional).Get("/users/{username}/orgs", h.ListUserPublicOrgs)
+		// One user's project. Keyed on the project HASH, which is the identity a
+		// user's transcripts group by; AuthOptional, and it answers 404 for a
+		// non-discoverable owner exactly as the profile route above does.
+		r.With(h.AuthOptional).Get("/users/{username}/projects/{projectHash}", h.GetUserProject)
+
+		// Owner corrections to a project's rendered name. Both routes are keyed on
+		// the project hash, never on a name: a name is what changes, so it cannot
+		// also be the key. Neither route writes transcripts.project_name.
+		r.With(h.AuthRequired).Patch("/users/me/projects/{projectHash}", h.SetProjectDisplayName)
+		r.With(h.AuthRequired).Delete("/users/me/projects/{projectHash}/display-name", h.ClearProjectDisplayName)
 
 		// Authenticated user org management
 		r.With(h.AuthRequired).Get("/auth/orgs", h.ListMyOrgs)
@@ -88,7 +98,6 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthOptional).Get("/transcripts/{id}/content", h.GetTranscriptContent)
 		r.With(h.AuthRequired).Patch("/transcripts/{id}", h.UpdateTranscript)
 		r.With(h.AuthRequired).Delete("/transcripts/{id}", h.DeleteTranscript)
-		r.With(h.AuthRequired).Patch("/users/me/projects/rename", h.RenameUserProject)
 		r.With(h.AuthRequired).Post("/transcripts/{id}/share", h.ShareTranscript)
 		r.With(h.AuthRequired).Delete("/transcripts/{id}/share/{groupID}", h.UnshareTranscript)
 		// Owner-only share-event history for one (transcript, collective) pair.

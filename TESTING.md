@@ -252,6 +252,33 @@ no entry there.
 transcript with raw SQL must name one. Fixtures for the same project share a
 hash; unrelated fixtures must not collide.
 
+### Project identity: three fixture families
+
+A project is identified by its hash, never by its name, and three fixtures hold
+that line:
+
+- **`handler/testdata/publish-project-hash.yaml`** drives the publish boundary's
+  identity guard. Its only non-vacuous case is a payload that omits the
+  `project` object ENTIRELY - the one hole the published contract still permits,
+  since its top level requires only `model`. A present-but-hash-less project was
+  already refused by the contract, so that case is there to prove the older
+  rejection still holds, not to prove the guard works. The refusal is asserted
+  by its six actionable elements, not by its status code alone.
+- **`handler/testdata/project-overrides-validation.yaml`** drives the owner
+  correction routes (`PATCH /users/me/projects/{projectHash}` and
+  `DELETE .../display-name`). It asserts what each write was KEYED on, because
+  the endpoint these replaced was keyed on the stored project name and therefore
+  matched zero rows whenever the rendered name differed from it. It also covers
+  the malformed-key cases, which are the only thing standing between a bad key
+  and an untyped `TEXT` column.
+- **`handler/testdata/project-page-visibility.yaml`** drives
+  `GET /users/{username}/projects/{projectHash}` against real Postgres. It keeps
+  two answers apart: 404 (the owner is not discoverable, so Village will not
+  confirm the page exists) and 200-with-an-empty-list (the owner is
+  discoverable; the viewer simply may see none of their transcripts). This
+  boundary is asserted here in its own right - it does NOT inherit coverage from
+  the public profile route, whose own boundary has no fixture behind it.
+
 ### Collectives surfaces: who may see a membership, and what the counters mean
 
 The three collectives queries in `queries/groups.sql` carry a COPY of

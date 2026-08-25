@@ -17,6 +17,7 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/projectname"
 	"github.com/peasant-labs/village/backend/internal/scanner"
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
@@ -75,6 +76,17 @@ type mockQuerier struct {
 	countTranscriptAnnotations             func(ctx context.Context, transcriptID pgtype.UUID) (int64, error)
 	compareAndSwapTranscriptBlob           func(ctx context.Context, arg sqlc.CompareAndSwapTranscriptBlobParams) (sqlc.Transcript, error)
 	listApprovedTranscriptShareGroups      func(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
+
+	// Project identity stubs. listOwnerProjectIdentities also counts its calls,
+	// so a test can prove a page of transcripts resolves its project names in ONE
+	// statement rather than one per row.
+	listOwnerProjectIdentities      func(ctx context.Context, arg sqlc.ListOwnerProjectIdentitiesParams) ([]sqlc.ListOwnerProjectIdentitiesRow, error)
+	listOwnerProjectIdentitiesCalls int
+	countOwnerTranscriptsInProject  func(ctx context.Context, arg sqlc.CountOwnerTranscriptsInProjectParams) (int64, error)
+	listProjectTranscriptsForViewer func(ctx context.Context, arg sqlc.ListProjectTranscriptsForViewerParams) ([]sqlc.Transcript, error)
+	upsertOwnerOverride             func(ctx context.Context, arg sqlc.UpsertOwnerOverrideParams) (sqlc.OwnerOverride, error)
+	deleteOwnerOverride             func(ctx context.Context, arg sqlc.DeleteOwnerOverrideParams) (int64, error)
+	getOwnerOverride                func(ctx context.Context, arg sqlc.GetOwnerOverrideParams) (sqlc.OwnerOverride, error)
 
 	// Transcript commit stubs
 	insertTranscriptCommits func(ctx context.Context, arg sqlc.InsertTranscriptCommitsParams) error
@@ -304,8 +316,42 @@ func (m *mockQuerier) UpdateTranscriptMetadata(ctx context.Context, arg sqlc.Upd
 func (m *mockQuerier) DeleteTranscript(ctx context.Context, id pgtype.UUID) error {
 	return nil
 }
-func (m *mockQuerier) RenameUserProject(ctx context.Context, arg sqlc.RenameUserProjectParams) (int64, error) {
+func (m *mockQuerier) ListOwnerProjectIdentities(ctx context.Context, arg sqlc.ListOwnerProjectIdentitiesParams) ([]sqlc.ListOwnerProjectIdentitiesRow, error) {
+	m.listOwnerProjectIdentitiesCalls++
+	if m.listOwnerProjectIdentities != nil {
+		return m.listOwnerProjectIdentities(ctx, arg)
+	}
+	return nil, nil
+}
+func (m *mockQuerier) CountOwnerTranscriptsInProject(ctx context.Context, arg sqlc.CountOwnerTranscriptsInProjectParams) (int64, error) {
+	if m.countOwnerTranscriptsInProject != nil {
+		return m.countOwnerTranscriptsInProject(ctx, arg)
+	}
 	return 0, nil
+}
+func (m *mockQuerier) ListProjectTranscriptsForViewer(ctx context.Context, arg sqlc.ListProjectTranscriptsForViewerParams) ([]sqlc.Transcript, error) {
+	if m.listProjectTranscriptsForViewer != nil {
+		return m.listProjectTranscriptsForViewer(ctx, arg)
+	}
+	return nil, nil
+}
+func (m *mockQuerier) UpsertOwnerOverride(ctx context.Context, arg sqlc.UpsertOwnerOverrideParams) (sqlc.OwnerOverride, error) {
+	if m.upsertOwnerOverride != nil {
+		return m.upsertOwnerOverride(ctx, arg)
+	}
+	return sqlc.OwnerOverride{}, nil
+}
+func (m *mockQuerier) DeleteOwnerOverride(ctx context.Context, arg sqlc.DeleteOwnerOverrideParams) (int64, error) {
+	if m.deleteOwnerOverride != nil {
+		return m.deleteOwnerOverride(ctx, arg)
+	}
+	return 0, nil
+}
+func (m *mockQuerier) GetOwnerOverride(ctx context.Context, arg sqlc.GetOwnerOverrideParams) (sqlc.OwnerOverride, error) {
+	if m.getOwnerOverride != nil {
+		return m.getOwnerOverride(ctx, arg)
+	}
+	return sqlc.OwnerOverride{}, nil
 }
 func (m *mockQuerier) ListTranscriptAssociationsByOwnerAndIDs(ctx context.Context, arg sqlc.ListTranscriptAssociationsByOwnerAndIDsParams) ([]sqlc.TranscriptAssociation, error) {
 	if m.listTranscriptAssociationsByOwnerAndIDs != nil {
@@ -769,6 +815,9 @@ func newTestHandler(q Querier, blobs storage.TranscriptBlobStore) *Handler {
 		titles:                titles,
 		preservationEvaluator: productionObservedModelPreservationEvaluator{},
 		scanContent:           scanner.ScanForSecrets,
+		// The same labeler production wires, so a unit test never observes a
+		// resolver the served handler does not have.
+		projectNames: projectname.Resolver{Label: schema.RemoteLabel},
 	}
 }
 

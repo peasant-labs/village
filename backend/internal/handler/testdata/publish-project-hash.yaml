@@ -1,0 +1,44 @@
+# The publish boundary's project-identity guard.
+#
+# The published contract already refuses a project object that is PRESENT but has
+# no hash, so a case for that proves nothing new about the guard - it is here to
+# prove the older rejection still holds after the guard was added. The hole the
+# guard closes is the payload that omits the project object ALTOGETHER, which the
+# contract's top level still permits: it requires only `model`.
+#
+# want_actionable_elements names the six things a refusal must tell its reader.
+# Asserting the status alone would pass on a bare "invalid input", which tells a
+# publisher nothing about what to do next.
+
+- name: project_object_absent_entirely
+  why: >
+    The only hole the published contract still permits. A payload with no project
+    object at all passes schema validation, so without this guard it would be
+    stored with no project identity and belong to no project on any surface.
+  metadata: '{"identity":{"sessionId":"550e8400-e29b-41d4-a716-446655440000","schemaVersion":2},"model":{"harness":"codex","model":"gpt-4"},"timestamp":{"start":1700000000000,"end":1700000060000},"source":{"filePath":"/path/to/transcript.jsonl","format":"jsonl"},"diagnostics":{"warnings":[]}}'
+  want_status: 422
+  want_actionable_elements:
+    what: no project.hash
+    why: "A project's identity, not its name, is what groups a publisher's transcripts"
+    where: Village's publish trust boundary
+    when: before any transcript row, blob, or share was written
+    meaning: nothing was stored and no transcript you published earlier was changed
+    fix: Upgrade the peasant CLI to a version that sends the project object
+
+- name: project_object_present_without_hash
+  why: >
+    The pre-existing contract rejection. It is not what the guard was added for,
+    and it would still be refused with the guard removed; it is here so that a
+    change loosening the contract cannot pass unnoticed.
+  metadata: '{"identity":{"sessionId":"550e8400-e29b-41d4-a716-446655440000","schemaVersion":2},"model":{"harness":"codex","model":"gpt-4"},"timestamp":{"start":1700000000000,"end":1700000060000},"source":{"filePath":"/path/to/transcript.jsonl","format":"jsonl"},"project":{"name":"test-project"},"diagnostics":{"warnings":[]}}'
+  want_status: 422
+  want_actionable_elements: {}
+
+- name: project_object_present_with_hash_is_accepted
+  why: >
+    Proves the guard refuses a missing identity rather than refusing publishes in
+    general. Without it, a guard that rejected everything would still pass the two
+    cases above.
+  metadata: '{"identity":{"sessionId":"550e8400-e29b-41d4-a716-446655440000","schemaVersion":2},"model":{"harness":"codex","model":"gpt-4"},"timestamp":{"start":1700000000000,"end":1700000060000},"source":{"filePath":"/path/to/transcript.jsonl","format":"jsonl"},"project":{"hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","name":"test-project"},"diagnostics":{"warnings":[]}}'
+  want_status: 201
+  want_actionable_elements: {}

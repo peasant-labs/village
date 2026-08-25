@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +18,38 @@ import (
 )
 
 const DefaultVisibility = "private"
+
+// ErrPublishProjectHashMissing marks a publish refused for carrying no project
+// identity. It is a distinct sentinel so the publish handler can answer 422 for it
+// without string-matching the message.
+var ErrPublishProjectHashMissing = errors.New("publish metadata carries no project hash")
+
+// validatePublishProjectIdentity is the publish trust boundary's guard on project
+// identity: a transcript may not be stored unless it says which project it belongs
+// to.
+//
+// The hash is the identity. A name can change, and a privacy-conscious client may
+// withhold it entirely, so a name cannot say whether two transcripts came from the
+// same project; the hash can, and every grouping and routing surface keys on it.
+// A row with no hash would belong to no project and appear in no project's history.
+//
+// The published contract already rejects a project object that is PRESENT but
+// hash-less. The hole this closes is the payload that omits the project object
+// altogether, which the contract's top level still permits.
+func validatePublishProjectIdentity(req schema.PublishRequest) error {
+	if strings.TrimSpace(string(req.Project.Hash)) != "" {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: the metadata contains no project.hash. "+
+			"A project's identity, not its name, is what groups a publisher's transcripts, and a name may be renamed or "+
+			"withheld for privacy, so every published transcript must carry the hash. "+
+			"The request was refused at Village's publish trust boundary, "+
+			"before any transcript row, blob, or share was written, "+
+			"so nothing was stored and no transcript you published earlier was changed. "+
+			"Upgrade the peasant CLI to a version that sends the project object, then push this session again",
+		ErrPublishProjectHashMissing)
+}
 
 func schemaToTranscriptParams(req schema.PublishRequest, blobKey string, blobSize int64, schemaVersion string) sqlc.CreateTranscriptParams {
 	q := qualityToParams(req.Quality)
