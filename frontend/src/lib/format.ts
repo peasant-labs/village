@@ -1,3 +1,5 @@
+import { assertNameSourceExhaustive, type NameSource } from "@/lib/types";
+
 /**
  * Format a model identifier into a human-readable name.
  * e.g. "claude-opus-4-5-20251101" → "Claude Opus 4.5"
@@ -45,79 +47,122 @@ export function formatModelName(
 }
 
 /**
- * Extract a clean project display name from raw project metadata.
- * Prefers git remote URL, falls back to stripping known path prefixes
- * from the project name key.
- *
- * e.g. git remote "github.com/example-org/sample-app.git" → "sample-app"
- * e.g. "-Users-developer-Documents-GitHub-sample-app" → "sample-app"
- * e.g. "-Users-developer-Documents-GitHub-example-service" → "example-service"
- * e.g. "/Users/developer/Documents/GitHub/sample-app" → "sample-app"
+ * Human-readable explanation of a {@link NameSource} tier, for a tooltip or
+ * `title` attribute next to a rendered project name — so a viewer can tell
+ * an owner-chosen name from one the resolver inferred. This is the one live
+ * consumer that must handle every {@link NameSource} member: the `default`
+ * branch calls {@link assertNameSourceExhaustive}, so adding a tier to the
+ * union without adding a `case` here fails the BUILD (see
+ * `NameSource`'s doc comment and the compile-time mutation this proves in
+ * the slice's completion report).
  */
-export function extractProjectDisplayName(
-  projectName: string | null | undefined,
-  gitRemote: string | null | undefined
-): string | null {
-  // Try git remote first
-  if (gitRemote) {
-    const remote = gitRemote.replace(/\.git$/, "");
-    const idx = remote.lastIndexOf("/");
-    if (idx >= 0) {
-      const name = remote.substring(idx + 1);
-      if (name) return name;
-    }
+export function describeNameSource(source: NameSource): string {
+  switch (source) {
+    case "override":
+      return "Renamed by the project owner";
+    case "consented":
+      return "From the transcript's stored project name";
+    case "remote":
+      return "From the transcript's git remote";
+    case "privacy":
+      return "Auto-generated from the project's privacy-safe identity";
+    default:
+      return assertNameSourceExhaustive(source);
   }
+}
 
-  if (!projectName) return null;
-
-  // Slash-separated path: take last segment
-  if (projectName.includes("/")) {
-    const segments = projectName.split("/").filter(Boolean);
-    return segments[segments.length - 1] || projectName;
-  }
-
-  // Dash-delimited path key (e.g. "-Users-developer-Documents-GitHub-project-name")
-  // Strip leading dash, split into segments, find the last known directory
-  // marker (like "GitHub", "Documents", "Projects", etc.) and take everything after it
-  const knownDirs = ["GitHub", "Documents", "Projects", "repos", "src", "code", "dev", "home"];
-  const stripped = projectName.replace(/^-/, "");
-  const segments = stripped.split("-");
-
-  let lastKnownIdx = -1;
-  for (let i = 0; i < segments.length; i++) {
-    if (knownDirs.some((d) => d.toLowerCase() === segments[i].toLowerCase())) {
-      lastKnownIdx = i;
-    }
-  }
-
-  if (lastKnownIdx >= 0 && lastKnownIdx < segments.length - 1) {
-    return segments.slice(lastKnownIdx + 1).join("-");
-  }
-
-  return projectName;
+/** One project's transcripts, grouped and ready to render. */
+export interface ProjectGroup<T> {
+  project: string;
+  project_hash: string;
+  items: T[];
 }
 
 /**
- * Group transcript list items by project name.
- * Returns groups sorted by most recent transcript, with transcripts
- * within each group sorted by published_at descending.
+ * The result of {@link groupByProject}: the real groups to render, plus any
+ * items that could not be grouped because they arrived with no
+ * `project_hash` despite the wire contract guaranteeing one (see
+ * `Transcript.project_hash`'s doc comment for the guarantee's provenance).
+ * `malformed` is expected to always be empty; a non-empty array is evidence
+ * of a genuine backend contract violation, not a normal UI state, and
+ * callers should surface it as a scoped, non-crashing notice rather than
+ * silently dropping the affected transcripts or hiding the rest of a
+ * person's project list behind a page-level crash.
+ */
+export interface ProjectGroupingResult<T> {
+  groups: ProjectGroup<T>[];
+  malformed: T[];
+}
+
+/**
+ * Group transcript list items by project identity.
+ *
+ * Keyed on `project_hash` — a project has no row of its own; it IS the
+ * distinct `(owner, project_hash)` pair. Two transcripts sharing a hash
+ * always collapse into ONE group and render the ONE server-resolved
+ * `project_display_name`, even when their raw `project_name` columns
+ * disagree (one consented, one a Peasant privacy label) — that
+ * mixed-name-same-hash case is exactly what the old name-keyed grouping got
+ * wrong. Two different guards cover two different regressions here, and
+ * they are NOT interchangeable. This function's parameter type no longer
+ * carries a raw `project_name` field at all, so a regression that keys on
+ * THAT specific, no-longer-present field is a compile-time type error. A
+ * regression that keys on a field the type DOES still carry —
+ * `project_display_name`, for instance — compiles cleanly; nothing about
+ * the type shape rules it out. That class of regression is caught only at
+ * runtime, by the fixture cases above (a distinct-hashes-same-display-name
+ * case is exactly the kind of row that diverges under a display-name key
+ * but not under a hash key). Do not read the compile-time point as
+ * covering the general "no regression to name-keyed grouping" claim, and
+ * do not treat the fixture coverage above as redundant with it — it is
+ * doing real, non-overlapping work. There is no "Other" fallback: an item
+ * with no `project_hash` is not folded into a synthetic bucket alongside
+ * real projects — it is
+ * reported back separately via {@link ProjectGroupingResult.malformed} so
+ * the caller can render it as an anomaly, not a project.
+ *
+ * This function never throws. A missing `project_hash` is a genuine
+ * contract violation (see `Transcript.project_hash`'s doc comment), but a
+ * rendering-layer function crashing an entire person's project list over
+ * one malformed row would turn a cosmetic problem into an outage; the
+ * caller decides how to surface `malformed` (e.g. a notice scoped to just
+ * that anomaly) while every well-formed group still renders normally.
+ *
+ * Returns groups sorted by most recent transcript, with transcripts within
+ * each group sorted by `published_at` descending.
  */
 export function groupByProject<
-  T extends { transcript: { project_name: string | null; git_remote: string | null; published_at: string } }
->(items: T[]): { project: string; items: T[] }[] {
-  const groups = new Map<string, T[]>();
+  T extends {
+    transcript: {
+      project_hash: string;
+      project_display_name: string;
+      published_at: string;
+    };
+  }
+>(items: T[]): ProjectGroupingResult<T> {
+  const groups = new Map<string, { displayName: string; items: T[] }>();
+  const malformed: T[] = [];
 
   for (const item of items) {
-    const key =
-      extractProjectDisplayName(item.transcript.project_name, item.transcript.git_remote) ??
-      "Other";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(item);
+    // Runtime data is not guaranteed by the TypeScript type: `project_hash`
+    // is typed `string` because the wire contract guarantees it, but a
+    // malformed or empty value can still arrive over the network if that
+    // guarantee is ever violated server-side. Checked defensively, never
+    // thrown — see this function's doc comment.
+    const hash = item.transcript.project_hash;
+    if (!hash) {
+      malformed.push(item);
+      continue;
+    }
+    if (!groups.has(hash)) {
+      groups.set(hash, { displayName: item.transcript.project_display_name, items: [] });
+    }
+    groups.get(hash)!.items.push(item);
   }
 
   // Sort transcripts within each group by published_at desc
-  for (const groupItems of groups.values()) {
-    groupItems.sort(
+  for (const group of groups.values()) {
+    group.items.sort(
       (a, b) =>
         new Date(b.transcript.published_at).getTime() -
         new Date(a.transcript.published_at).getTime()
@@ -125,13 +170,19 @@ export function groupByProject<
   }
 
   // Sort groups by most recent transcript
-  return Array.from(groups.entries())
-    .map(([project, groupItems]) => ({ project, items: groupItems }))
+  const sortedGroups = Array.from(groups.entries())
+    .map(([project_hash, group]) => ({
+      project: group.displayName,
+      project_hash,
+      items: group.items,
+    }))
     .sort(
       (a, b) =>
         new Date(b.items[0].transcript.published_at).getTime() -
         new Date(a.items[0].transcript.published_at).getTime()
     );
+
+  return { groups: sortedGroups, malformed };
 }
 
 /**
@@ -185,6 +236,10 @@ export function groupByRepo<
     owner_id: string;
     git_remote: string | null;
     project_name: string | null;
+    // The remote-derived label ("host:owner/repo"), NOT the resolved
+    // project identity — see the label-selection comment below for why
+    // this axis must not read project_display_name.
+    project_remote_label: string | null;
     published_at: string;
     token_count: number | null;
     tokens_in: number | null;
@@ -220,12 +275,28 @@ export function groupByRepo<
         0
       );
 
+      // Repo grouping is a DIFFERENT axis from project identity, and its
+      // label must stay on that axis too. This bucket keys on the raw
+      // git_remote, and its "Unattributed" fallback is NOT the deleted
+      // project-level "unattributed" concept — it fires only when a
+      // transcript carries no remote at all, independent of project_hash.
+      // An earlier revision of this function labelled the attributed
+      // bucket with `project_display_name` (the resolved PROJECT identity
+      // — override > consented > remote > privacy), which is the wrong
+      // field here: that resolution folds in an owner's rename or a
+      // consented project name, neither of which describes THIS remote —
+      // two transcripts sharing one git_remote could carry different
+      // project_hash values (e.g. a fork, or a rename of the on-disk
+      // folder) and therefore different resolved project names, which
+      // would make the bucket's label disagree with its own grouping key.
+      // `project_remote_label` is the field actually derived FROM the
+      // remote (`host:owner/repo`, schema.RemoteLabel), so it is the one
+      // that can never desync from a bucket keyed on that same remote.
+      // Falls back to the raw remote (the bucket key itself) only in the
+      // rare case a legacy/malformed remote parses to no label at all.
       const name = unattributed
         ? "Unattributed"
-        : extractProjectDisplayName(
-            groupItems[0].project_name,
-            remote
-          ) ?? "Unattributed";
+        : groupItems[0].project_remote_label || remote || "Unattributed";
 
       return {
         key,

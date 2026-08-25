@@ -8,7 +8,7 @@ import { ShieldCheck } from "lucide-react";
 import { ProviderTag, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import type { TranscriptListItem } from "@/lib/types";
-import { extractProjectDisplayName, resolveAttribution } from "@/lib/format";
+import { describeNameSource, resolveAttribution } from "@/lib/format";
 import { useAuth } from "@/providers/AuthProvider";
 
 function formatDuration(ms: number): string {
@@ -23,7 +23,9 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
   const { transcript: t, tags, owner, shares, attestations } = item;
   const { user: viewer } = useAuth();
   const attribution = resolveAttribution(owner, viewer?.id);
-  const projectDisplay = extractProjectDisplayName(t.project_name, t.git_remote);
+  // The one server-resolved project identity every surface renders — never
+  // a locally re-derived name.
+  const projectDisplay = t.project_display_name;
 
   return (
     <Link
@@ -39,7 +41,10 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
             <Tag className="shrink-0">{t.model_provider}</Tag>
           )}
           {projectDisplay && (
-            <span className="text-[11px] font-mono text-ink-3 truncate">
+            <span
+              className="text-[11px] font-mono text-ink-3 truncate"
+              title={describeNameSource(t.project_name_source)}
+            >
               {projectDisplay}
             </span>
           )}

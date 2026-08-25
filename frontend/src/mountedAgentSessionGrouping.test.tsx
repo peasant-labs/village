@@ -53,6 +53,14 @@ function wireItem(id: string, sessionOrigin: SessionOrigin): TranscriptListItem 
       git_branch: null,
       git_remote: null,
       project_name: "commons-grouping",
+      // Fixed across every wired item so they collapse into the SAME
+      // project group under groupByProject's hash-keyed re-key — matching
+      // this fixture's earlier, name-derived behavior, where every item
+      // shared the derived name "commons-grouping" and landed in one group.
+      project_hash: "1".repeat(64),
+      project_display_name: "commons-grouping",
+      project_name_source: "consented",
+      project_remote_label: null,
       parent_session_id: null,
       title_generated: null,
       license_id: null,
