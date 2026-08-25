@@ -14,6 +14,9 @@
 - {name: ListAllGroups, file: groups.sql, kind: read}
 - {name: SearchCollectives, file: groups.sql, kind: read}
 - {name: ListCollectivesByGitHubOrg, file: groups.sql, kind: read}
+- {name: ListOwnerCollectiveContributions, file: groups.sql, kind: read}
+- {name: ListProjectCollectiveRollup, file: groups.sql, kind: read}
+- {name: ListTranscriptCollectivesForViewer, file: groups.sql, kind: read}
 
 - {name: ListTranscriptShares, file: shares.sql, kind: read}
 - {name: ListGroupTranscripts, file: shares.sql, kind: read}

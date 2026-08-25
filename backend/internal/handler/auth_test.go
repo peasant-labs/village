@@ -103,6 +103,14 @@ type mockQuerier struct {
 	// Group membership stub (used for owner/admin gating)
 	getGroupMember func(ctx context.Context, arg sqlc.GetGroupMemberParams) (sqlc.GroupMember, error)
 
+	// Collectives stubs. They are overridable func fields (rather than the
+	// constant-nil shorthand used by the older group stubs) so a test can count
+	// how many times a surface reaches the database and prove one aggregate
+	// answers a whole page instead of one query per collective.
+	listOwnerCollectiveContributions   func(ctx context.Context, ownerID pgtype.UUID) ([]sqlc.ListOwnerCollectiveContributionsRow, error)
+	listProjectCollectiveRollup        func(ctx context.Context, arg sqlc.ListProjectCollectiveRollupParams) ([]sqlc.ListProjectCollectiveRollupRow, error)
+	listTranscriptCollectivesForViewer func(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error)
+
 	// Collective repository / GitHub App stubs
 	upsertGitHubAppInstallation    func(ctx context.Context, arg sqlc.UpsertGitHubAppInstallationParams) error
 	getGitHubAppInstallation       func(ctx context.Context, installationID int64) (sqlc.GithubAppInstallation, error)
@@ -598,6 +606,24 @@ func (m *mockQuerier) SearchCollectives(ctx context.Context, arg sqlc.SearchColl
 }
 func (m *mockQuerier) ListCollectivesByGitHubOrg(ctx context.Context, arg sqlc.ListCollectivesByGitHubOrgParams) ([]sqlc.ListCollectivesByGitHubOrgRow, error) {
 	return nil, nil
+}
+func (m *mockQuerier) ListOwnerCollectiveContributions(ctx context.Context, ownerID pgtype.UUID) ([]sqlc.ListOwnerCollectiveContributionsRow, error) {
+	if m.listOwnerCollectiveContributions != nil {
+		return m.listOwnerCollectiveContributions(ctx, ownerID)
+	}
+	panic("ListOwnerCollectiveContributions: not stubbed")
+}
+func (m *mockQuerier) ListProjectCollectiveRollup(ctx context.Context, arg sqlc.ListProjectCollectiveRollupParams) ([]sqlc.ListProjectCollectiveRollupRow, error) {
+	if m.listProjectCollectiveRollup != nil {
+		return m.listProjectCollectiveRollup(ctx, arg)
+	}
+	panic("ListProjectCollectiveRollup: not stubbed")
+}
+func (m *mockQuerier) ListTranscriptCollectivesForViewer(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error) {
+	if m.listTranscriptCollectivesForViewer != nil {
+		return m.listTranscriptCollectivesForViewer(ctx, arg)
+	}
+	panic("ListTranscriptCollectivesForViewer: not stubbed")
 }
 func (m *mockQuerier) HasUserVisibleOrg(ctx context.Context, arg sqlc.HasUserVisibleOrgParams) (bool, error) {
 	return false, nil

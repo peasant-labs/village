@@ -275,6 +275,41 @@ that line:
   boundary is asserted here in its own right - it does NOT inherit coverage from
   the public profile route, whose own boundary has no fixture behind it.
 
+### Collectives surfaces: who may see a membership, and what the counters mean
+
+The three collectives queries in `queries/groups.sql` carry a COPY of
+`SearchCollectives`'s visibility predicate, and copies drift. The corpus in
+`internal/handler/testdata/collective-visibility.yaml` therefore asks the shipped
+`SearchCollectives` the same question about the same world and treats it as an
+ORACLE: a case where a new surface and the oracle disagree about a collective is
+a failure, unless the contributor opt-in - which the oracle does not carry - is
+the declared reason. Cases run through the real HTTP handlers with a real viewer
+session, because both gates live in SQL and asserting them against a Go
+re-implementation would prove only that the re-implementation agrees with itself.
+
+The second corpus, `internal/handler/testdata/contributor-optin.yaml`, is the
+opt-in matrix on BOTH viewer-facing surfaces. Its shape assertion matters as much
+as its filtering: withholding memberships is answered with 200 and an EMPTY LIST,
+never 403, because a refusal would itself confirm that hidden memberships exist.
+The loader refuses any case that declares a non-200 status.
+
+Three things the corpora pin that are easy to get wrong later:
+
+- A collective holding only submissions awaiting review IS listed among a
+  person's contributions, with `approved_count` zero. The counters do the
+  filtering; a join that filtered on approved status would drop the row.
+- `approved_count` and `pending_count` count DISTINCT TRANSCRIPTS;
+  `rejected_attempt_count` counts REFUSAL EVENTS. The one case where those
+  genuinely diverge is a transcript accepted, withdrawn and accepted again, and
+  it is named `approved_count_counts_transcripts_not_attempts`.
+- Withdrawn (`retracted`) and removed (`revoked`) contributions count in NONE of
+  the three.
+
+`collectives_batch_test.go` is the no-N+1 guard: both surfaces answer a page of
+several collectives with exactly one query, counted through the mock querier. A
+single-collective case cannot tell one query from a query per collective, so
+every case in `testdata/collectives_batch/batch_cases.yaml` names several.
+
 ### Pull, skip-gate, publish-idempotency, and explicit-backfill families
 
 Newer real-Postgres families worth knowing when touching those paths:
