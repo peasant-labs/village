@@ -115,6 +115,36 @@ if (rows.length < 2) {
     'confirm the mock serves the full contributions list and that no client-side filter drops rows, then retry.')
 }
 
+// A reader must be able to identify every collective WITHOUT expanding it —
+// this is a structural check (rendered scrollWidth vs clientWidth), not a
+// textContent check, because a CSS-only regression (min-width removed, the
+// wrapper's shrink-0 dropped) leaves the name STRING unchanged in the DOM
+// while visually crushing it to an ellipsis; only measuring the box the
+// browser actually laid out catches that. This is the layout an earlier
+// round of this exact gate FAILED to catch — the four-counter column
+// squeezed the collapsed name cell to a few characters ("AI…") while every
+// other assertion here (unit wording, row count, computed styles) stayed
+// green, and only a human looking at the PNG caught it.
+const nameLegibility = await page.evaluate(() =>
+  [...document.querySelectorAll('[data-testid="contributed-collective"]')].map((row) => {
+    const link = row.querySelector('a')
+    if (!link) return { text: null, truncated: true }
+    return {
+      text: link.textContent.trim(),
+      // +1 tolerates sub-pixel layout rounding, not real truncation.
+      truncated: link.scrollWidth > link.clientWidth + 1,
+    }
+  }),
+)
+const truncatedNames = nameLegibility.filter((n) => n.truncated)
+if (truncatedNames.length > 0) {
+  await browser.close()
+  die(2, `${truncatedNames.length} collapsed collective name(s) render truncated: ${JSON.stringify(truncatedNames.map((n) => n.text))}.`,
+    'the name column has been squeezed below its guaranteed minimum width by its siblings (the counters, the toggle button) — most likely the name column lost its min-width, or the counters+button cluster lost the shrink-0 that keeps it from crushing the name instead of wrapping.',
+    'a reader could not identify which collective a collapsed row belongs to from an ellipsis alone; this is the layout regression a real reviewer caught by eye after every automated check passed.',
+    'confirm ProfileCollectives.tsx keeps the name column\'s min-width and the counters+button cluster\'s shrink-0 (see the comments at that JSX), rebuild from this worktree, and retry.')
+}
+
 const unitText = await page.$eval('[data-testid="counter-rejected-attempts-unit"]', (el) => el.textContent.trim())
 if (unitText !== 'submission attempts') {
   await browser.close()
@@ -328,6 +358,7 @@ if (eventRows.length < 2) {
 await pause(300)
 await shoot('profile-collectives-history', '[data-testid="profile-collectives"]')
 
+console.log('provenance collapsed-name-legibility =', JSON.stringify(nameLegibility))
 console.log('provenance rejected-unit =', JSON.stringify(unitText))
 console.log('provenance withdrawn-unit =', JSON.stringify(withdrawnUnitText), '| withdrawn-value =', JSON.stringify(withdrawnCounterValue))
 console.log('provenance units-sentence =', JSON.stringify(explanationText))

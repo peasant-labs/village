@@ -62,7 +62,15 @@ function ContributedCollectiveRow({
       className="border border-rule bg-surface"
     >
       <div className="flex flex-wrap items-start gap-x-8 gap-y-4 px-5 py-4">
-        <div className="min-w-0 flex-1 flex flex-col gap-1">
+        {/* min-w guarantees this column real space before it ever gives any
+            up: the four counters + toggle button are `shrink-0` below, so
+            they wrap onto their OWN line as a unit rather than being allowed
+            to crush the name down to an unreadable "AI…" fragment. A name
+            longer than this column can hold still truncates (`truncate`
+            below) — that is a deliberate fallback for pathological input,
+            not the routine case, which is why the acceptance bar is "every
+            fixture name renders in full", not "no name ever truncates". */}
+        <div className="min-w-[12rem] flex-1 flex flex-col gap-1">
           <Link
             href={`/groups/${collective.id}`}
             className="font-[family-name:var(--font-display)] text-sm font-semibold text-ink truncate hover:text-ink-2 transition-colors focus-mono cursor-pointer"
@@ -75,45 +83,52 @@ function ContributedCollectiveRow({
             </p>
           )}
         </div>
-        <div className="flex items-start gap-8">
-          <ContributionCounter
-            testId="counter-approved"
-            label={CONTRIBUTION_COUNTER_LABELS.approved}
-            value={collective.approved_count}
-            unit={CONTRIBUTION_COUNTER_UNITS.approved}
-          />
-          <ContributionCounter
-            testId="counter-pending"
-            label={CONTRIBUTION_COUNTER_LABELS.pending}
-            value={collective.pending_count}
-            unit={CONTRIBUTION_COUNTER_UNITS.pending}
-          />
-          <ContributionCounter
-            testId="counter-rejected-attempts"
-            label={CONTRIBUTION_COUNTER_LABELS.rejectedAttempts}
-            value={collective.rejected_attempt_count}
-            unit={CONTRIBUTION_COUNTER_UNITS.rejectedAttempts}
-          />
-          <ContributionCounter
-            testId="counter-withdrawn"
-            label={CONTRIBUTION_COUNTER_LABELS.withdrawnAttempts}
-            value={collective.withdrawn_attempt_count}
-            unit={CONTRIBUTION_COUNTER_UNITS.withdrawnAttempts}
-          />
+        {/* shrink-0: this cluster never gets crushed to make room for the
+            name column above. When it cannot sit beside the name at the
+            name's guaranteed minimum width, flex-wrap moves the WHOLE
+            cluster to its own line instead — the name is never the one that
+            gives. */}
+        <div className="flex flex-wrap items-start gap-x-8 gap-y-4 shrink-0">
+          <div className="flex items-start gap-8">
+            <ContributionCounter
+              testId="counter-approved"
+              label={CONTRIBUTION_COUNTER_LABELS.approved}
+              value={collective.approved_count}
+              unit={CONTRIBUTION_COUNTER_UNITS.approved}
+            />
+            <ContributionCounter
+              testId="counter-pending"
+              label={CONTRIBUTION_COUNTER_LABELS.pending}
+              value={collective.pending_count}
+              unit={CONTRIBUTION_COUNTER_UNITS.pending}
+            />
+            <ContributionCounter
+              testId="counter-rejected-attempts"
+              label={CONTRIBUTION_COUNTER_LABELS.rejectedAttempts}
+              value={collective.rejected_attempt_count}
+              unit={CONTRIBUTION_COUNTER_UNITS.rejectedAttempts}
+            />
+            <ContributionCounter
+              testId="counter-withdrawn"
+              label={CONTRIBUTION_COUNTER_LABELS.withdrawnAttempts}
+              value={collective.withdrawn_attempt_count}
+              unit={CONTRIBUTION_COUNTER_UNITS.withdrawnAttempts}
+            />
+          </div>
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={onToggle}
+            className={cn(
+              "inline-flex items-center gap-1.5 h-8 px-2.5 shrink-0 self-center",
+              "border border-rule bg-surface font-mono text-xs text-ink-3",
+              "hover:bg-surface-hover hover:text-ink transition-colors focus-mono cursor-pointer",
+            )}
+          >
+            <ChevronDown className={cn("size-3.5", open && "rotate-180")} />
+            {open ? "hide submissions" : "submissions"}
+          </button>
         </div>
-        <button
-          type="button"
-          aria-expanded={open}
-          onClick={onToggle}
-          className={cn(
-            "inline-flex items-center gap-1.5 h-8 px-2.5 shrink-0 self-center",
-            "border border-rule bg-surface font-mono text-xs text-ink-3",
-            "hover:bg-surface-hover hover:text-ink transition-colors focus-mono cursor-pointer",
-          )}
-        >
-          <ChevronDown className={cn("size-3.5", open && "rotate-180")} />
-          {open ? "hide submissions" : "submissions"}
-        </button>
       </div>
       {open && (
         <div className="border-t border-rule px-5 py-4">
