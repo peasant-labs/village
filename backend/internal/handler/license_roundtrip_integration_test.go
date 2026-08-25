@@ -28,6 +28,7 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 )
 
 func TestPull_LicenseRoundTrip_RealPostgres(t *testing.T) {
@@ -62,7 +63,7 @@ func TestPull_LicenseRoundTrip_RealPostgres(t *testing.T) {
 			Identity: schema.SessionIdentity{SessionID: schema.SessionID(localID), SchemaVersion: 2},
 			Model:    schema.ModelInfo{Harness: "claude-code", Model: "m"},
 		}
-		params := schemaToTranscriptParams(req, "blob/"+localID, 1, "2")
+		params := schemaToTranscriptParams(req, "blob/"+localID, 1, "2", sessionorigin.Unknown)
 		params.OwnerID = owner
 		params.LocalID = localID
 		params = completeEncryptedFixtureParams(params)

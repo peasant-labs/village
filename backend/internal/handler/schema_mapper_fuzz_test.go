@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 )
 
 // FuzzIntToPgInt4 fuzzes intToPgInt4 with arbitrary int values.
@@ -303,7 +304,7 @@ func FuzzSchemaToTranscriptParams(f *testing.F) {
 
 		// The primary assertion: schemaToTranscriptParams must not panic
 		// for any combination of inputs.
-		result := schemaToTranscriptParams(req, blobKey, blobSize, schemaVersionStr)
+		result := schemaToTranscriptParams(req, blobKey, blobSize, schemaVersionStr, sessionorigin.Unknown)
 
 		// Structural invariants that must hold for all inputs:
 

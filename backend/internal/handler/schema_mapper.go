@@ -17,20 +17,22 @@ import (
 
 const DefaultVisibility = "private"
 
-func schemaToTranscriptParams(req schema.PublishRequest, blobKey string, blobSize int64, schemaVersion string) sqlc.CreateTranscriptParams {
+// schemaToTranscriptParams converts one publish request into database params.
+// origin is the already-resolved session origin: metadata alone cannot say who
+// drove a session, so that answer is decided on the publish path -- from the
+// producer's declaration when it made one, from this server's classifier over
+// the accepted bytes when it did not -- and handed in. The mapper neither
+// decides it nor seeds a placeholder for a later overwrite, so the value it
+// returns is the value stored.
+func schemaToTranscriptParams(req schema.PublishRequest, blobKey string, blobSize int64, schemaVersion string, origin sessionorigin.Origin) sqlc.CreateTranscriptParams {
 	q := qualityToParams(req.Quality)
 
 	return sqlc.CreateTranscriptParams{
-		ID:          toPgUUID(uuid.New()),
-		Title:       deriveTitle(req),
-		Description: pgtype.Text{Valid: false},
-		Visibility:  DefaultVisibility,
-		// Metadata alone cannot say who drove the session: that answer lives in
-		// the uploaded content. The mapper therefore starts at the fail-safe
-		// menu value, and the publish path overwrites it with the classified
-		// one once the accepted bytes are decoded. Starting here rather than at
-		// the zero value keeps every caller of this mapper CHECK-valid.
-		SessionOrigin: sessionorigin.Unknown.String(),
+		ID:            toPgUUID(uuid.New()),
+		Title:         deriveTitle(req),
+		Description:   pgtype.Text{Valid: false},
+		Visibility:    DefaultVisibility,
+		SessionOrigin: origin.String(),
 		// License is captured at publish (create) from the producer-stamped
 		// req.License. The schema module's embedded SchemaLicense enum already
 		// rejected any out-of-menu value at the 422 gate, so this is either empty

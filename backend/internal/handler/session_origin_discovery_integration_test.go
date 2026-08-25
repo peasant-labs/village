@@ -223,7 +223,7 @@ func govStoreWithOrigin(t *testing.T, ctx context.Context, h *Handler, owner pgt
 		Identity: schema.SessionIdentity{SessionID: schema.SessionID(localID), SchemaVersion: 2},
 		Model:    schema.ModelInfo{Harness: "claude-code", Model: "m"},
 	}
-	params := schemaToTranscriptParams(req, "blob/"+localID, 1, "2")
+	params := schemaToTranscriptParams(req, "blob/"+localID, 1, "2", sessionorigin.Unknown)
 	params.OwnerID = owner
 	params.LocalID = localID
 	params.Visibility = visibility

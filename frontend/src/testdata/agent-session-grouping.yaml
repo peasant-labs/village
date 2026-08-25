@@ -10,6 +10,13 @@
 #
 # `expectedToggleLabel` is the literal text of the collapsed group's control.
 # A null label means no group must render at all.
+#
+# `originProvenance` records how the server decided the rows' session origin:
+# `classified` means Village read the content and judged it, `declared` means
+# the producer that recorded the session said so on the wire and Village stored
+# what it was told. The two write the SAME column, so the mounted surface must
+# not be able to tell them apart -- which is the point of carrying a declared
+# case here: the group, its count, and the row label must come out identical.
 cases:
   - name: explore-collapses-agent-sessions-out-of-the-browse-list
     surface: explore
@@ -17,6 +24,7 @@ cases:
     agentSessions: [bbbbbbb1, bbbbbbb2, bbbbbbb3]
     agentTotal: 3
     expectedToggleLabel: "+ 3 agent sessions"
+    originProvenance: classified
 
   - name: explore-without-agent-sessions-renders-no-group
     surface: explore
@@ -24,6 +32,7 @@ cases:
     agentSessions: []
     agentTotal: 0
     expectedToggleLabel: null
+    originProvenance: classified
 
   - name: profile-places-the-group-after-the-project-groups
     surface: profile
@@ -31,6 +40,7 @@ cases:
     agentSessions: [ddddddd1, ddddddd2]
     agentTotal: 2
     expectedToggleLabel: "+ 2 agent sessions"
+    originProvenance: classified
 
   - name: profile-library-made-only-of-agent-sessions-is-not-empty
     surface: profile
@@ -38,6 +48,18 @@ cases:
     agentSessions: [ddddddd9]
     agentTotal: 1
     expectedToggleLabel: "+ 1 agent session"
+    originProvenance: classified
+
+  # The producer declared these rows agent-driven; Village stored the
+  # declaration into the same column it writes its own verdict into. Nothing
+  # about the mounted result may change.
+  - name: explore-groups-a-declared-agent-session
+    surface: explore
+    listedSessions: [eeeeeee1]
+    agentSessions: [fffffff1, fffffff2]
+    agentTotal: 2
+    expectedToggleLabel: "+ 2 agent sessions"
+    originProvenance: declared
 
 # Cases for the mounted transcript detail route. A direct link opens every
 # transcript whatever its origin; an agent-driven one is labelled rather than

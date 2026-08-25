@@ -22,6 +22,7 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 )
 
 // samePtr compares two *string (NULL-as-nil) for equality.
@@ -152,7 +153,7 @@ func TestConcurrentCreates_EachGetsOnePublished_RealPostgres(t *testing.T) {
 				Identity: schema.SessionIdentity{SessionID: schema.SessionID(local), SchemaVersion: 2},
 				Model:    schema.ModelInfo{Harness: "claude-code", Model: "m"},
 			}
-			params := schemaToTranscriptParams(req, "blob/"+local, 1, "2")
+			params := schemaToTranscriptParams(req, "blob/"+local, 1, "2", sessionorigin.Unknown)
 			params.OwnerID = owner
 			params.LocalID = local
 			params = completeEncryptedFixtureParams(params)
@@ -289,7 +290,7 @@ func TestPublishedEvent_NoLicense_RealPostgres(t *testing.T) {
 		Identity: schema.SessionIdentity{SessionID: "no-license-1", SchemaVersion: 2},
 		Model:    schema.ModelInfo{Harness: "claude-code", Model: "m"},
 	}
-	params := schemaToTranscriptParams(req, "blob/no-license-1", 1, "2")
+	params := schemaToTranscriptParams(req, "blob/no-license-1", 1, "2", sessionorigin.Unknown)
 	params.OwnerID = owner
 	params.LocalID = "no-license-1"
 	params = completeEncryptedFixtureParams(params)
