@@ -26,7 +26,7 @@ export const CONTRIBUTION_COUNTER_LABELS = {
   approved: "approved",
   pending: "awaiting review",
   rejectedAttempts: "rejected",
-  withdrawnAttempts: "withdrawn · submission attempts",
+  withdrawnAttempts: "withdrawn",
 } as const;
 
 /**
