@@ -126,7 +126,7 @@ function ContributedCollectiveRow({
             )}
           >
             <ChevronDown className={cn("size-3.5", open && "rotate-180")} />
-            {open ? "hide submissions" : "submissions"}
+            submissions
           </button>
         </div>
       </div>

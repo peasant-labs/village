@@ -106,7 +106,7 @@ export default function CollectiveSubmissions({
                   )}
                 >
                   <History className="size-3.5" />
-                  {open ? "hide history" : "history"}
+                  history
                 </button>
               </div>
               {open && (
