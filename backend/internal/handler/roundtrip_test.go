@@ -8,6 +8,7 @@ import (
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/handler/testfixtures"
+	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 )
 
 func TestRoundTrip(t *testing.T) {
@@ -34,7 +35,7 @@ func TestRoundTrip(t *testing.T) {
 			blobSize := int64(1234)
 			schemaVersion := fmt.Sprintf("%d", req.Identity.SchemaVersion)
 
-			params := schemaToTranscriptParams(req, blobKey, blobSize, schemaVersion)
+			params := schemaToTranscriptParams(req, blobKey, blobSize, schemaVersion, sessionorigin.Unknown)
 			params.LocalID = string(req.Identity.SessionID)
 
 			transcript := paramsToTranscript(params)
@@ -67,7 +68,7 @@ func TestRoundTrip_License(t *testing.T) {
 				Identity: schema.SessionIdentity{SessionID: "550e8400-e29b-41d4-a716-446655440000", SchemaVersion: 2},
 				Model:    schema.ModelInfo{Harness: "claude-code", Model: "m"},
 			}
-			params := schemaToTranscriptParams(req, "blob", 1, "2")
+			params := schemaToTranscriptParams(req, "blob", 1, "2", sessionorigin.Unknown)
 			params.LocalID = string(req.Identity.SessionID)
 
 			// store-side: empty ⇒ NULL; a value ⇒ set (FK-safe — the menu is already

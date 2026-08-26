@@ -19,6 +19,7 @@ import (
 	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 	"gopkg.in/yaml.v3"
 )
 
@@ -87,7 +88,7 @@ func TestTitleWriteBoundariesFromFixtures(t *testing.T) {
 				if got := *req.Quality.TitleGenerated; got != fixture.Expected {
 					t.Fatalf("safe generated title = %q, want %q", got, fixture.Expected)
 				}
-				params := schemaToTranscriptParams(req, "blob", 1, "2")
+				params := schemaToTranscriptParams(req, "blob", 1, "2", sessionorigin.Unknown)
 				if params.Title.String != fixture.Expected || params.TitleGenerated.String != fixture.Expected {
 					t.Fatalf("persisted title pair = %q/%q, want identical %q", params.Title.String, params.TitleGenerated.String, fixture.Expected)
 				}
