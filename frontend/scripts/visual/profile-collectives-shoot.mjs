@@ -357,6 +357,21 @@ if (backwards > 0) {
     'the capture would show an audit log contradicting its own oldest-first claim, which is misleading evidence.',
     'fix the fixture so each attempt is recorded after the previous one closed, or fix the field the row reads, then recapture.')
 }
+// Nothing in the log may bleed past its box. At a narrow viewport the row used
+// to keep its timestamp unshrinkable and squeeze the label word-per-line while
+// the time ran off the right edge; the row now wraps instead. This is a
+// structural check (scrollWidth vs clientWidth on the list and every row), not
+// a text check, because an overflow leaves textContent untouched.
+const overflow = await page.$$eval('[data-testid="share-event-log"], [data-testid="share-event"]', (els) =>
+  els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent.replace(/\s+/g, ' ').trim().slice(0, 60)),
+)
+if (overflow.length > 0) {
+  await browser.close()
+  die(1, `the event log bleeds past its box in ${overflow.length} element(s): ${JSON.stringify(overflow)}.`,
+    'a row keeps an unshrinkable child wider than the space the viewport leaves it, so the content overflows instead of wrapping.',
+    'the capture would show timestamps cut off at the edge of the card, which is what a person sees at this width.',
+    'let the row wrap (flex-wrap) and let the timestamp fall to its own line, then recapture.')
+}
 if (eventRows.length < 2) {
   await browser.close()
   die(1, `the event log rendered ${eventRows.length} row(s).`,

@@ -100,14 +100,13 @@ export default function ShareEventLog({
               data-testid="share-event"
               data-event-num={event.event_num}
               data-event-status={event.status}
-              className="flex items-center gap-3 px-4 py-2.5 leading-relaxed"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 leading-relaxed"
             >
               <span className="font-mono text-xs text-ink-4 tabular-nums shrink-0">
                 event {event.event_num}
               </span>
               <Icon className="size-3.5 text-ink-3 shrink-0" />
-              <span className="font-mono text-[13px] text-ink">{shareEventLabel(event)}</span>
-              <span className="flex-1" />
+              <span className="font-mono text-[13px] text-ink whitespace-nowrap">{shareEventLabel(event)}</span>
               {/* When this event happened: the decision time once decided,
                   the submission time while still open. Both come from the same
                   row, and the write paths only ever open a new attempt after
@@ -115,7 +114,7 @@ export default function ShareEventLog({
                   reading forwards in time. */}
               <span
                 data-testid="share-event-time"
-                className="font-mono text-xs text-ink-3 tabular-nums shrink-0"
+                className="ml-auto font-mono text-xs text-ink-3 tabular-nums shrink-0"
               >
                 {formatEventTime(event.decided_at ?? event.recorded_at)}
               </span>
