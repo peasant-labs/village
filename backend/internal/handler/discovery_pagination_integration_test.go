@@ -105,12 +105,14 @@ func discoveryInsertRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, o
 		INSERT INTO transcripts (
 			id, owner_id, local_id, title, visibility, model_provider, model_name,
 			blob_key, blob_size_bytes, schema_version, content_hash, wrapped_data_key,
-			encryption_algorithm, key_version, published_at, turn_count, token_count, duration_ms
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+			encryption_algorithm, key_version, published_at, turn_count, token_count, duration_ms,
+			project_hash
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 	`,
 		toPgUUID(id), owner, row.Name, "t-"+row.Name, row.Visibility, "claude-code", "m-"+row.Name,
 		"blob/"+row.Name, int64(len(row.Name)), "0.1.0", hash, []byte("fixture-wrapped-data-key"),
 		"aes-256-gcm-random-nonce-v1", 1, time.UnixMilli(row.PublishedAtMs), row.TurnCount, row.TokenCount, row.DurationMs,
+		fixtureProjectHash(row.Name),
 	); err != nil {
 		t.Fatalf("discoveryInsertRow %q: insert: %v", row.Name, err)
 	}

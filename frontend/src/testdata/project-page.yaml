@@ -1,0 +1,176 @@
+# Cases for the village project page, `/users/{username}/projects/{projectHash}`.
+# Loaded by src/test/projectPageFixtures.ts and driven by src/projectPage.test.tsx,
+# which mounts the REAL route (and, for the profile link group, the REAL profile
+# route) rather than rendering a component with hand-built props.
+#
+# Every group below guards a boundary that a plausible production change could
+# break silently:
+#
+#   viewerCases      who may see the owner-only correction control.
+#   notFoundCases    the 404 answer, which must be identical for every refusal.
+#   rollupCases      the collectives roll-up, including that empty is ORDINARY.
+#   renameCases      the hash-keyed set and clear, and what the control shows after.
+#   headerCases      the repository label rendered as the header's one subtitle.
+#   profileLinkCases the profile project card's link into this page.
+
+viewerCases:
+  # The correction control is the owner's alone. A viewer who is not the owner
+  # must not be offered it, whether they are signed in as somebody else or not
+  # signed in at all — the page is AuthOptional, so both reach it.
+  - name: owner-sees-the-rename-control
+    ownerUsername: "alice-dev"
+    viewerUsername: "alice-dev"
+    expectRenameControl: true
+
+  - name: other-signed-in-viewer-sees-no-rename-control
+    ownerUsername: "alice-dev"
+    viewerUsername: "bob-reviewer"
+    expectRenameControl: false
+
+  - name: anonymous-viewer-sees-no-rename-control
+    ownerUsername: "alice-dev"
+    viewerUsername: null
+    expectRenameControl: false
+
+  # Username comparison is case-insensitive on both sides, matching the profile
+  # page's own ownership test. A capitalisation difference is the same person,
+  # not a different one, and must not lock an owner out of their own control.
+  - name: owner-with-different-letter-case-still-sees-the-control
+    ownerUsername: "Alice-Dev"
+    viewerUsername: "alice-dev"
+    expectRenameControl: true
+
+notFoundCases:
+  # The server answers 404 identically for a user who does not exist, a user who
+  # has turned discoverability off, and a project neither of them owns. The page
+  # must render ONE answer for all of them: the moment the wording differs, the
+  # refusal itself discloses which case it was.
+  #
+  # `serverMessage` differs between these cases ON PURPOSE, and the loader
+  # refuses a corpus where two are equal. Production sends ONE constant for all
+  # three (handler `projectPageNotFoundMessage`, status 404, body `{"error": …}`),
+  # so identical inputs here would make the assertion pass no matter what the
+  # page rendered. These distinguishable inputs stand in for a server that starts
+  # to differentiate; the rendered text must not follow it either way.
+  - name: hidden-owner-renders-not-found
+    serverMessage: "no such project page: the user has chosen not to be discoverable"
+
+  - name: no-such-user-renders-not-found
+    serverMessage: "no such project page: no user goes by that name"
+
+  - name: no-such-project-for-a-visible-owner-renders-not-found
+    serverMessage: "no such project page: that project does not exist"
+
+rollupCases:
+  # Each case names the viewer it renders as. The empty case is viewed by
+  # somebody who is NOT the owner, because that is the viewer the empty answer
+  # is claimed to be ordinary for; a corpus where every case is the owner could
+  # not show it.
+  - name: approved-collectives-render-with-their-transcript-counts
+    ownerUsername: "alice-dev"
+    viewerUsername: "alice-dev"
+    collectives:
+      - id: "11111111-1111-4111-8111-111111111111"
+        name: "AI Research Team"
+        description: "Applied agent research."
+        linkedGithubOrg: "ai-research"
+        transcriptCount: 4
+      - id: "22222222-2222-4222-8222-222222222222"
+        name: "Verified Contributors"
+        description: null
+        linkedGithubOrg: null
+        transcriptCount: 1
+    expectedRowNames: ["AI Research Team", "Verified Contributors"]
+    expectedCounts: ["4", "1"]
+    expectEmptyRollup: false
+
+  # The roll-up is gated server-side by collective visibility AND the owner's
+  # contributor opt-in, so a viewer who is not the owner routinely receives an
+  # empty list for a project that IS in collectives. Rendering that as an error,
+  # or with any wording that implies something is being withheld, would confirm
+  # the very memberships the gate exists to hide.
+  - name: empty-rollup-renders-as-an-ordinary-empty-state
+    ownerUsername: "alice-dev"
+    viewerUsername: "bob-reviewer"
+    collectives: []
+    expectedRowNames: []
+    expectedCounts: []
+    expectEmptyRollup: true
+
+renameCases:
+  # The set is keyed on the project HASH. The route it must call carries the
+  # hash in its path and the new name in its body; a request that keys on a
+  # display name is the defect these routes replaced.
+  - name: saving-a-name-sends-the-hash-and-the-new-name
+    initialDisplayName: "project-3fa9c2e1b0d4"
+    initialSource: "privacy"
+    action: "set"
+    typedName: "the village"
+    expectedMethod: "PATCH"
+    expectedPathSuffix: "/users/me/projects/{hash}"
+    expectedBodyDisplayName: "the village"
+    resultingDisplayName: "the village"
+    resultingSource: "override"
+    expectClearEnabledBefore: false
+
+  # Clearing reverts to whatever the remaining evidence resolves to, and the
+  # SOURCE changes with it. A control that kept showing the cleared name would
+  # be showing a name the server no longer holds.
+  - name: clearing-reverts-to-the-resolved-default-and-the-source-changes
+    initialDisplayName: "the village"
+    initialSource: "override"
+    action: "clear"
+    typedName: null
+    expectedMethod: "DELETE"
+    expectedPathSuffix: "/users/me/projects/{hash}/display-name"
+    expectedBodyDisplayName: null
+    resultingDisplayName: "village"
+    resultingSource: "consented"
+    expectClearEnabledBefore: true
+
+  # Nothing to clear when no override exists: the server would answer 404, so
+  # the control does not offer the action in the first place.
+  - name: clear-is-unavailable-when-no-override-exists
+    initialDisplayName: "village"
+    initialSource: "consented"
+    action: "none"
+    typedName: null
+    expectedMethod: null
+    expectedPathSuffix: null
+    expectedBodyDisplayName: null
+    resultingDisplayName: "village"
+    resultingSource: "consented"
+    expectClearEnabledBefore: false
+
+headerCases:
+  # The repository label is the header's ONE subtitle, rendered exactly as the
+  # server resolved it. It carries no port by ratified design, so two forges on
+  # the same host at different ports read alike.
+  - name: known-remote-renders-as-the-subtitle
+    remoteLabel: "github.com:peasant-labs/village"
+    expectedSubtitle: "github.com:peasant-labs/village"
+
+  - name: self-hosted-remote-keeps-its-full-host
+    remoteLabel: "gitlab.example.corp:team/repo"
+    expectedSubtitle: "gitlab.example.corp:team/repo"
+
+  # A project with no git remote is an ordinary project. The subtitle is simply
+  # absent; nothing is invented client-side to fill it.
+  - name: project-with-no-remote-renders-no-subtitle
+    remoteLabel: ""
+    expectedSubtitle: null
+
+profileLinkCases:
+  # The profile's project heading is the way in. It must be a real anchor to the
+  # hash-keyed route, so the assertion is on the href a user actually activates.
+  - name: profile-project-card-links-to-the-hash-keyed-project-page
+    ownerUsername: "alice-dev"
+    projectHash: "1111111111111111111111111111111111111111111111111111111111111111"
+    projectDisplayName: "The Village"
+    expectedHref: "/users/alice-dev/projects/1111111111111111111111111111111111111111111111111111111111111111"
+
+  - name: profile-project-card-href-encodes-a-reserved-username
+    ownerUsername: "a b"
+    projectHash: "4444444444444444444444444444444444444444444444444444444444444444"
+    projectDisplayName: "second project"
+    expectedHref: "/users/a%20b/projects/4444444444444444444444444444444444444444444444444444444444444444"

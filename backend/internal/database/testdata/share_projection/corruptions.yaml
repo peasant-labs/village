@@ -1,0 +1,39 @@
+# Every way the derived transcript_shares projection can diverge from the ledger
+# it is derived from.
+#
+# These are not hypotheticals: each one is a state a real bug could leave behind
+# - a trigger that wrote the wrong status, one that failed to fire, one that
+# fired for a pair with no ledger behind it, or one that carried the wrong
+# timestamp. The test corrupts the projection this way on purpose and requires
+# that check_transcript_shares_drift() DETECTS it, that transcript_share_drift
+# CLASSIFIES it correctly, and that rebuild_transcript_shares() REPAIRS it.
+#
+# target names a pair set up by the test; the statement is bound to that pair as
+# $1 (transcript) and $2 (group), so every statement must use both.
+# want_problem is the classification transcript_share_drift must report, and it
+# is a closed set - adding a fifth kind of divergence means teaching the view
+# about it first.
+
+- name: status_no_longer_matches_the_latest_event
+  why: a derivation that wrote the wrong status, or stopped propagating a decision
+  target: approved_pair
+  statement: UPDATE transcript_shares SET status = 'rejected' WHERE transcript_id = $1 AND group_id = $2
+  want_problem: status_mismatch
+
+- name: current_state_row_went_missing
+  why: a derivation that failed to fire at all for a pair that has a live event
+  target: pending_pair
+  statement: DELETE FROM transcript_shares WHERE transcript_id = $1 AND group_id = $2
+  want_problem: missing_from_projection
+
+- name: current_state_row_with_nothing_behind_it
+  why: a row surviving after its pair was withdrawn, so the projection claims a share the ledger has closed
+  target: withdrawn_pair
+  statement: INSERT INTO transcript_shares (transcript_id, group_id, status) VALUES ($1, $2, 'approved')
+  want_problem: absent_from_ledger
+
+- name: shared_at_drifted_from_its_event
+  why: the status is right but the time is not, which silently reorders a moderation queue
+  target: rejected_pair
+  statement: UPDATE transcript_shares SET shared_at = now() - interval '400 days' WHERE transcript_id = $1 AND group_id = $2
+  want_problem: shared_at_mismatch

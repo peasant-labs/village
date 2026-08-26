@@ -78,17 +78,23 @@ INSERT INTO group_members (group_id, user_id, role) VALUES
     ('d0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000003', 'member')
 ON CONFLICT DO NOTHING;
 
--- Transcript shares with different statuses
--- AI Research Team (open): auto-approved share
-INSERT INTO transcript_shares (transcript_id, group_id, status) VALUES
-    ('c0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000001', 'approved')
+-- Contributions to collectives, in their various states.
+--
+-- transcript_shares is DERIVED, not written: a database trigger maintains the
+-- current-state row from the attempt history, and a direct write to it is
+-- refused. The seed therefore opens attempts, exactly as the application does,
+-- which also means the seeded data exercises the real path.
+--
+-- AI Research Team (open): accepted on submission
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status) VALUES
+    ('c0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000001', 1, 'approved')
 ON CONFLICT DO NOTHING;
 UPDATE transcripts SET visibility = 'shared' WHERE id = 'c0000000-0000-0000-0000-000000000004';
 
--- Verified Contributors: approved shares from verified members
-INSERT INTO transcript_shares (transcript_id, group_id, status) VALUES
-    ('c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002', 'approved'),
-    ('c0000000-0000-0000-0000-000000000005', 'd0000000-0000-0000-0000-000000000002', 'approved')
+-- Verified Contributors: accepted contributions from verified members
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status) VALUES
+    ('c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002', 1, 'approved'),
+    ('c0000000-0000-0000-0000-000000000005', 'd0000000-0000-0000-0000-000000000002', 1, 'approved')
 ON CONFLICT DO NOTHING;
 UPDATE transcripts SET visibility = 'shared' WHERE id IN (
     'c0000000-0000-0000-0000-000000000003',
@@ -99,11 +105,11 @@ UPDATE transcripts SET visibility = 'shared' WHERE id IN (
 -- The 'pending' rows are the seed fixture for the owner-review workflow on
 -- /groups/{id} — alice-dev (owner of Curated Showcase) sees them under
 -- "Pending review" and can approve / reject.
-INSERT INTO transcript_shares (transcript_id, group_id, status) VALUES
-    ('c0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003', 'approved'),
-    ('c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003', 'pending'),
-    ('c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000003', 'pending'),
-    ('c0000000-0000-0000-0000-000000000005', 'd0000000-0000-0000-0000-000000000003', 'rejected')
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status) VALUES
+    ('c0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003', 1, 'approved'),
+    ('c0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003', 1, 'pending'),
+    ('c0000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000003', 1, 'pending'),
+    ('c0000000-0000-0000-0000-000000000005', 'd0000000-0000-0000-0000-000000000003', 1, 'rejected')
 ON CONFLICT DO NOTHING;
 UPDATE transcripts SET visibility = 'shared' WHERE id = 'c0000000-0000-0000-0000-000000000001';
 

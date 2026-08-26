@@ -1,0 +1,19 @@
+# Multi-collective inputs for the query-count guards.
+#
+# A person can contribute to many collectives, and one transcript can sit in
+# many. Both surfaces must answer with ONE aggregate whatever that number is; a
+# per-collective loop would be invisible to a single-collective case, which is
+# why every case here names several.
+
+- name: transcript in many collectives is answered by one query
+  collectives:
+    - a shared prompt library
+    - a research reading group
+    - an internal platform guild
+
+- name: contributions across many collectives are answered by one query
+  collectives:
+    - a shared prompt library
+    - a research reading group
+    - an internal platform guild
+    - a documentation working group

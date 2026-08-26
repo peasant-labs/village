@@ -1,0 +1,213 @@
+# The share-attempt lattice, driven through the real HTTP handlers against a
+# real PostgreSQL.
+#
+# Every submission of a transcript to a collective is its own attempt. A
+# rejection closes an attempt; submitting again opens the next one. The
+# current-state row in transcript_shares is DERIVED from the latest attempt by a
+# database trigger, so each case reads it back after every transition.
+#
+# derived: the state of the current-state row after the last step. It matches
+# the latest attempt for pending, approved and rejected. It is `absent` for
+# retracted and revoked, because the shipped current-state row carries only
+# those three states and a withdrawn or removed contribution is not a share any
+# more - the attempts table retains why.
+#
+# The four counts ARE the contract here, not a deletion guard: approved and
+# pending count DISTINCT TRANSCRIPTS, because a transcript is either in a
+# collective or not, while rejected counts ATTEMPTS, because three rejections of
+# one transcript are three rejections. approved_attempts is carried alongside
+# approved_transcripts so the one case where those two diverge is visible rather
+# than inferred, and that case is named below.
+#
+# steps: submit (the owner offers the transcript), decide (the collective
+# accepts or rejects the open attempt), unshare (the owner withdraws),
+# remove (the collective removes an accepted contribution), leave_collective
+# (the owner leaves and retracts), rewrite_terminal_attempt (an in-place edit of
+# decided history, which must be refused).
+
+- name: first_submission_to_open_collective
+  why: an open collective accepts on submission, so the first attempt is already decided
+  acceptance: open
+  steps:
+    - {do: submit, expect: ok}
+  attempts: [approved]
+  derived: approved
+  approved_transcripts: 1
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: first_submission_to_curated_collective
+  why: a curated collective reviews first, so the first attempt is open
+  acceptance: curated
+  steps:
+    - {do: submit, expect: ok}
+  attempts: [pending]
+  derived: pending
+  approved_transcripts: 0
+  pending_transcripts: 1
+  approved_attempts: 0
+  rejected_attempts: 0
+
+- name: rejected_then_resubmitted_then_rejected_again
+  why: each rejection is its own instance, so two rejections of one transcript count twice
+  acceptance: curated
+  steps:
+    - {do: submit, expect: ok}
+    - {do: decide, status: rejected, expect: ok}
+    - {do: submit, expect: ok}
+    - {do: decide, status: rejected, expect: ok}
+  attempts: [rejected, rejected]
+  derived: rejected
+  approved_transcripts: 0
+  pending_transcripts: 0
+  approved_attempts: 0
+  rejected_attempts: 2
+
+- name: rejected_then_resubmitted_then_approved
+  why: a rejection does not bar the transcript; the next submission can be accepted
+  acceptance: curated
+  steps:
+    - {do: submit, expect: ok}
+    - {do: decide, status: rejected, expect: ok}
+    - {do: submit, expect: ok}
+    - {do: decide, status: approved, expect: ok}
+  attempts: [rejected, approved]
+  derived: approved
+  approved_transcripts: 1
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 1
+
+- name: duplicate_submission_while_pending_refused
+  why: a second submission while one is awaiting review is a duplicate, not a new instance
+  acceptance: curated
+  steps:
+    - {do: submit, expect: ok}
+    - {do: submit, expect: refused}
+  attempts: [pending]
+  derived: pending
+  approved_transcripts: 0
+  pending_transcripts: 1
+  approved_attempts: 0
+  rejected_attempts: 0
+
+- name: submission_while_approved_refused
+  why: an accepted contribution is already there; offering it again would be a duplicate
+  acceptance: open
+  steps:
+    - {do: submit, expect: ok}
+    - {do: submit, expect: refused}
+  attempts: [approved]
+  derived: approved
+  approved_transcripts: 1
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: owner_unshare_of_approved_contribution
+  why: withdrawing an accepted contribution appends the withdrawal rather than erasing the acceptance, and counts as no kind of rejection
+  acceptance: open
+  steps:
+    - {do: submit, expect: ok}
+    - {do: unshare, expect: ok}
+  attempts: [approved, retracted]
+  derived: absent
+  approved_transcripts: 0
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: owner_unshare_of_pending_submission
+  why: a submission still awaiting review was never decided, so withdrawing closes that same attempt
+  acceptance: curated
+  steps:
+    - {do: submit, expect: ok}
+    - {do: unshare, expect: ok}
+  attempts: [retracted]
+  derived: absent
+  approved_transcripts: 0
+  pending_transcripts: 0
+  approved_attempts: 0
+  rejected_attempts: 0
+
+- name: unshare_while_pending_then_reshare
+  why: withdrawing a submission must free the transcript to be offered again, or re-submission is blocked forever with no cause the user can see
+  acceptance: curated
+  steps:
+    - {do: submit, expect: ok}
+    - {do: unshare, expect: ok}
+    - {do: submit, expect: ok}
+  attempts: [retracted, pending]
+  derived: pending
+  approved_transcripts: 0
+  pending_transcripts: 1
+  approved_attempts: 0
+  rejected_attempts: 0
+
+- name: collective_removal_of_approved_contribution
+  why: removal by the collective is kept distinct from withdrawal by the owner, and is no kind of rejection either
+  acceptance: open
+  steps:
+    - {do: submit, expect: ok}
+    - {do: remove, expect: ok}
+  attempts: [approved, revoked]
+  derived: absent
+  approved_transcripts: 0
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: reshare_after_revocation
+  why: a removed contribution can be offered again as a new attempt rather than a resurrection of the old one
+  acceptance: open
+  steps:
+    - {do: submit, expect: ok}
+    - {do: remove, expect: ok}
+    - {do: submit, expect: ok}
+  attempts: [approved, revoked, approved]
+  derived: approved
+  approved_transcripts: 1
+  pending_transcripts: 0
+  approved_attempts: 2
+  rejected_attempts: 0
+
+- name: leaving_the_collective_retracts_the_live_attempt
+  why: a member who leaves and retracts leaves nothing of theirs live in that collective
+  acceptance: open
+  steps:
+    - {do: submit, expect: ok}
+    - {do: leave_collective, expect: ok}
+  attempts: [approved, retracted]
+  derived: absent
+  approved_transcripts: 0
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: terminal_attempt_update_refused
+  why: decided history is the record of what was decided, so a changed decision is a new attempt rather than an edited one
+  acceptance: open
+  steps:
+    - {do: submit, expect: ok}
+    - {do: rewrite_terminal_attempt, expect: refused}
+  attempts: [approved]
+  derived: approved
+  approved_transcripts: 1
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: reshare_after_retraction_counts_one_transcript
+  why: withdrawing and offering again is two attempts and the first acceptance is not overwritten; this is the one case where the two ways of counting diverge, because two accepted attempts of the SAME transcript are still one contribution
+  acceptance: open
+  steps:
+    - {do: submit, expect: ok}
+    - {do: unshare, expect: ok}
+    - {do: submit, expect: ok}
+  attempts: [approved, retracted, approved]
+  derived: approved
+  approved_transcripts: 1
+  pending_transcripts: 0
+  approved_attempts: 2
+  rejected_attempts: 0

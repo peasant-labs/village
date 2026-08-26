@@ -71,6 +71,16 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		// User public profiles
 		r.With(h.AuthOptional).Get("/users/{username}", h.GetUserPublicProfile)
 		r.With(h.AuthOptional).Get("/users/{username}/orgs", h.ListUserPublicOrgs)
+		// One user's project. Keyed on the project HASH, which is the identity a
+		// user's transcripts group by; AuthOptional, and it answers 404 for a
+		// non-discoverable owner exactly as the profile route above does.
+		r.With(h.AuthOptional).Get("/users/{username}/projects/{projectHash}", h.GetUserProject)
+
+		// Owner corrections to a project's rendered name. Both routes are keyed on
+		// the project hash, never on a name: a name is what changes, so it cannot
+		// also be the key. Neither route writes transcripts.project_name.
+		r.With(h.AuthRequired).Patch("/users/me/projects/{projectHash}", h.SetProjectDisplayName)
+		r.With(h.AuthRequired).Delete("/users/me/projects/{projectHash}/display-name", h.ClearProjectDisplayName)
 
 		// Authenticated user org management
 		r.With(h.AuthRequired).Get("/auth/orgs", h.ListMyOrgs)
@@ -88,9 +98,21 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthOptional).Get("/transcripts/{id}/content", h.GetTranscriptContent)
 		r.With(h.AuthRequired).Patch("/transcripts/{id}", h.UpdateTranscript)
 		r.With(h.AuthRequired).Delete("/transcripts/{id}", h.DeleteTranscript)
-		r.With(h.AuthRequired).Patch("/users/me/projects/rename", h.RenameUserProject)
 		r.With(h.AuthRequired).Post("/transcripts/{id}/share", h.ShareTranscript)
 		r.With(h.AuthRequired).Delete("/transcripts/{id}/share/{groupID}", h.UnshareTranscript)
+		// Owner-only share-event history for one (transcript, collective) pair.
+		// Deliberately no username parameter anywhere on this path: owner-only
+		// is enforced by the ROUTE, not merely a predicate a caller could bypass
+		// with someone else's identifier.
+		r.With(h.AuthRequired).Get("/users/me/collectives/{groupId}/transcripts/{transcriptId}/events", h.ListShareEventHistory)
+
+		// Every (transcript, collective) pair the caller has offered to one
+		// collective, read from the attempt ledger rather than the derived
+		// current-state row, so a contribution whose last event was a
+		// withdrawal is still listed and its history is still reachable.
+		// Owner-only by the same route discipline: no username segment exists,
+		// and a caller with no pair here is answered 404, never 403.
+		r.With(h.AuthRequired).Get("/users/me/collectives/{groupId}/submissions", h.ListMyCollectiveSubmissions)
 
 		// Attestations
 		r.With(h.AuthOptional).Get("/transcripts/{id}/attestations", h.ListTranscriptAttestations)
@@ -103,6 +125,12 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 
 		// Transcript commits (read persisted git commits for the timeline overlay)
 		r.With(h.AuthOptional).Get("/transcripts/{id}/commits", h.ListTranscriptCommits)
+
+		// Collectives a transcript belongs to, and the caller's own contributions.
+		// The contributions route takes the caller's id and has deliberately no
+		// username variant: pending and refused counts are the contributor's alone.
+		r.With(h.AuthOptional).Get("/transcripts/{id}/collectives", h.ListTranscriptCollectives)
+		r.With(h.AuthRequired).Get("/users/me/collectives/contributions", h.ListMyCollectiveContributions)
 
 		// Groups
 		r.Get("/groups/public", h.ListPublicGroups)

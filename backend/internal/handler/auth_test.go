@@ -10,12 +10,14 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/projectname"
 	"github.com/peasant-labs/village/backend/internal/scanner"
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
@@ -75,6 +77,17 @@ type mockQuerier struct {
 	compareAndSwapTranscriptBlob           func(ctx context.Context, arg sqlc.CompareAndSwapTranscriptBlobParams) (sqlc.Transcript, error)
 	listApprovedTranscriptShareGroups      func(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
 
+	// Project identity stubs. listOwnerProjectIdentities also counts its calls,
+	// so a test can prove a page of transcripts resolves its project names in ONE
+	// statement rather than one per row.
+	listOwnerProjectIdentities      func(ctx context.Context, arg sqlc.ListOwnerProjectIdentitiesParams) ([]sqlc.ListOwnerProjectIdentitiesRow, error)
+	listOwnerProjectIdentitiesCalls int
+	countOwnerTranscriptsInProject  func(ctx context.Context, arg sqlc.CountOwnerTranscriptsInProjectParams) (int64, error)
+	listProjectTranscriptsForViewer func(ctx context.Context, arg sqlc.ListProjectTranscriptsForViewerParams) ([]sqlc.Transcript, error)
+	upsertOwnerOverride             func(ctx context.Context, arg sqlc.UpsertOwnerOverrideParams) (sqlc.OwnerOverride, error)
+	deleteOwnerOverride             func(ctx context.Context, arg sqlc.DeleteOwnerOverrideParams) (int64, error)
+	getOwnerOverride                func(ctx context.Context, arg sqlc.GetOwnerOverrideParams) (sqlc.OwnerOverride, error)
+
 	// Transcript commit stubs
 	insertTranscriptCommits func(ctx context.Context, arg sqlc.InsertTranscriptCommitsParams) error
 	deleteTranscriptCommits func(ctx context.Context, transcriptID pgtype.UUID) error
@@ -90,6 +103,15 @@ type mockQuerier struct {
 
 	// Group membership stub (used for owner/admin gating)
 	getGroupMember func(ctx context.Context, arg sqlc.GetGroupMemberParams) (sqlc.GroupMember, error)
+
+	// Collectives stubs. They are overridable func fields (rather than the
+	// constant-nil shorthand used by the older group stubs) so a test can count
+	// how many times a surface reaches the database and prove one aggregate
+	// answers a whole page instead of one query per collective.
+	listOwnerCollectiveContributions   func(ctx context.Context, ownerID pgtype.UUID) ([]sqlc.ListOwnerCollectiveContributionsRow, error)
+	listOwnerCollectiveSubmissions     func(ctx context.Context, arg sqlc.ListOwnerCollectiveSubmissionsParams) ([]sqlc.ListOwnerCollectiveSubmissionsRow, error)
+	listProjectCollectiveRollup        func(ctx context.Context, arg sqlc.ListProjectCollectiveRollupParams) ([]sqlc.ListProjectCollectiveRollupRow, error)
+	listTranscriptCollectivesForViewer func(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error)
 
 	// Collective repository / GitHub App stubs
 	upsertGitHubAppInstallation    func(ctx context.Context, arg sqlc.UpsertGitHubAppInstallationParams) error
@@ -295,8 +317,42 @@ func (m *mockQuerier) UpdateTranscriptMetadata(ctx context.Context, arg sqlc.Upd
 func (m *mockQuerier) DeleteTranscript(ctx context.Context, id pgtype.UUID) error {
 	return nil
 }
-func (m *mockQuerier) RenameUserProject(ctx context.Context, arg sqlc.RenameUserProjectParams) (int64, error) {
+func (m *mockQuerier) ListOwnerProjectIdentities(ctx context.Context, arg sqlc.ListOwnerProjectIdentitiesParams) ([]sqlc.ListOwnerProjectIdentitiesRow, error) {
+	m.listOwnerProjectIdentitiesCalls++
+	if m.listOwnerProjectIdentities != nil {
+		return m.listOwnerProjectIdentities(ctx, arg)
+	}
+	return nil, nil
+}
+func (m *mockQuerier) CountOwnerTranscriptsInProject(ctx context.Context, arg sqlc.CountOwnerTranscriptsInProjectParams) (int64, error) {
+	if m.countOwnerTranscriptsInProject != nil {
+		return m.countOwnerTranscriptsInProject(ctx, arg)
+	}
 	return 0, nil
+}
+func (m *mockQuerier) ListProjectTranscriptsForViewer(ctx context.Context, arg sqlc.ListProjectTranscriptsForViewerParams) ([]sqlc.Transcript, error) {
+	if m.listProjectTranscriptsForViewer != nil {
+		return m.listProjectTranscriptsForViewer(ctx, arg)
+	}
+	return nil, nil
+}
+func (m *mockQuerier) UpsertOwnerOverride(ctx context.Context, arg sqlc.UpsertOwnerOverrideParams) (sqlc.OwnerOverride, error) {
+	if m.upsertOwnerOverride != nil {
+		return m.upsertOwnerOverride(ctx, arg)
+	}
+	return sqlc.OwnerOverride{}, nil
+}
+func (m *mockQuerier) DeleteOwnerOverride(ctx context.Context, arg sqlc.DeleteOwnerOverrideParams) (int64, error) {
+	if m.deleteOwnerOverride != nil {
+		return m.deleteOwnerOverride(ctx, arg)
+	}
+	return 0, nil
+}
+func (m *mockQuerier) GetOwnerOverride(ctx context.Context, arg sqlc.GetOwnerOverrideParams) (sqlc.OwnerOverride, error) {
+	if m.getOwnerOverride != nil {
+		return m.getOwnerOverride(ctx, arg)
+	}
+	return sqlc.OwnerOverride{}, nil
 }
 func (m *mockQuerier) ListTranscriptAssociationsByOwnerAndIDs(ctx context.Context, arg sqlc.ListTranscriptAssociationsByOwnerAndIDsParams) ([]sqlc.TranscriptAssociation, error) {
 	if m.listTranscriptAssociationsByOwnerAndIDs != nil {
@@ -460,8 +516,11 @@ func (m *mockQuerier) ListGroupMembers(ctx context.Context, arg sqlc.ListGroupMe
 func (m *mockQuerier) ListGroupPendingMembers(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListGroupPendingMembersRow, error) {
 	return nil, nil
 }
-func (m *mockQuerier) IsTranscriptSharedWithGroup(ctx context.Context, arg sqlc.IsTranscriptSharedWithGroupParams) (bool, error) {
-	return false, nil
+func (m *mockQuerier) GetLatestShareAttempt(ctx context.Context, arg sqlc.GetLatestShareAttemptParams) (sqlc.TranscriptShareAttempt, error) {
+	return sqlc.TranscriptShareAttempt{}, pgx.ErrNoRows
+}
+func (m *mockQuerier) ListShareAttempts(ctx context.Context, arg sqlc.ListShareAttemptsParams) ([]sqlc.TranscriptShareAttempt, error) {
+	panic("ListShareAttempts: not stubbed")
 }
 func (m *mockQuerier) UnshareTranscript(ctx context.Context, arg sqlc.UnshareTranscriptParams) error {
 	panic("UnshareTranscript: not stubbed")
@@ -549,6 +608,30 @@ func (m *mockQuerier) SearchCollectives(ctx context.Context, arg sqlc.SearchColl
 }
 func (m *mockQuerier) ListCollectivesByGitHubOrg(ctx context.Context, arg sqlc.ListCollectivesByGitHubOrgParams) ([]sqlc.ListCollectivesByGitHubOrgRow, error) {
 	return nil, nil
+}
+func (m *mockQuerier) ListOwnerCollectiveContributions(ctx context.Context, ownerID pgtype.UUID) ([]sqlc.ListOwnerCollectiveContributionsRow, error) {
+	if m.listOwnerCollectiveContributions != nil {
+		return m.listOwnerCollectiveContributions(ctx, ownerID)
+	}
+	panic("ListOwnerCollectiveContributions: not stubbed")
+}
+func (m *mockQuerier) ListOwnerCollectiveSubmissions(ctx context.Context, arg sqlc.ListOwnerCollectiveSubmissionsParams) ([]sqlc.ListOwnerCollectiveSubmissionsRow, error) {
+	if m.listOwnerCollectiveSubmissions != nil {
+		return m.listOwnerCollectiveSubmissions(ctx, arg)
+	}
+	panic("ListOwnerCollectiveSubmissions: not stubbed")
+}
+func (m *mockQuerier) ListProjectCollectiveRollup(ctx context.Context, arg sqlc.ListProjectCollectiveRollupParams) ([]sqlc.ListProjectCollectiveRollupRow, error) {
+	if m.listProjectCollectiveRollup != nil {
+		return m.listProjectCollectiveRollup(ctx, arg)
+	}
+	panic("ListProjectCollectiveRollup: not stubbed")
+}
+func (m *mockQuerier) ListTranscriptCollectivesForViewer(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error) {
+	if m.listTranscriptCollectivesForViewer != nil {
+		return m.listTranscriptCollectivesForViewer(ctx, arg)
+	}
+	panic("ListTranscriptCollectivesForViewer: not stubbed")
 }
 func (m *mockQuerier) HasUserVisibleOrg(ctx context.Context, arg sqlc.HasUserVisibleOrgParams) (bool, error) {
 	return false, nil
@@ -739,6 +822,9 @@ func newTestHandler(q Querier, blobs storage.TranscriptBlobStore) *Handler {
 		titles:                titles,
 		preservationEvaluator: productionObservedModelPreservationEvaluator{},
 		scanContent:           scanner.ScanForSecrets,
+		// The same labeler production wires, so a unit test never observes a
+		// resolver the served handler does not have.
+		projectNames: projectname.Resolver{Label: schema.RemoteLabel},
 	}
 }
 

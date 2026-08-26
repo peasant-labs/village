@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/projectname"
 )
 
 //go:embed testdata/transcript_response/contract.yaml
@@ -28,12 +29,43 @@ type transcriptResponseContract struct {
 	OwnerFields           []string                      `yaml:"owner_fields"`
 	OwnerValues           map[string]any                `yaml:"owner_values"`
 	SourceRow             map[string]any                `yaml:"source_row"`
+	ResolvedProjectFields map[string]string             `yaml:"resolved_project_fields"`
 	ConditionalValidators []conditionalValidatorFixture `yaml:"conditional_validators"`
 }
 
 type mountedPathFixture struct {
-	Name  string `yaml:"name"`
-	Shape string `yaml:"shape"`
+	Name            string `yaml:"name"`
+	Shape           string `yaml:"shape"`
+	ResolvesProject bool   `yaml:"resolves_project"`
+}
+
+// requiredResolvedProjectFields names the resolved identity fields the wire must
+// carry. They are named rather than counted because each one exists for its own
+// reason: the display name is what a surface renders, the source is what lets an
+// inferred label be styled differently from an owner-chosen one, and the remote
+// label is the repository subtitle. Losing any one of them silently changes what
+// a client can show.
+var requiredResolvedProjectFields = []string{
+	"project_display_name",
+	"project_name_source",
+	"project_remote_label",
+}
+
+// resolvedProjectFixture turns the fixture's declared resolved values into the
+// production resolver result the mounted composition points take.
+func resolvedProjectFixture(t *testing.T, fixture transcriptResponseContract) projectname.Resolved {
+	t.Helper()
+	for _, field := range requiredResolvedProjectFields {
+		if fixture.ResolvedProjectFields[field] == "" {
+			t.Fatalf("the response contract declares no value for resolved field %q. That field exists because a client "+
+				"renders it; restore it rather than removing it from this manifest.", field)
+		}
+	}
+	return projectname.Resolved{
+		DisplayName: fixture.ResolvedProjectFields["project_display_name"],
+		Source:      projectname.NameSource(fixture.ResolvedProjectFields["project_name_source"]),
+		RemoteLabel: fixture.ResolvedProjectFields["project_remote_label"],
+	}
 }
 
 func TestPullAuthorizationPrecedesConditionalResponse(t *testing.T) {
@@ -100,6 +132,7 @@ func TestTranscriptResponseContractExact(t *testing.T) {
 	for _, field := range fixture.AllowedFields {
 		want[field] = true
 	}
+	resolved := resolvedProjectFixture(t, fixture)
 	for _, mountedPath := range fixture.MountedPaths {
 		t.Run(mountedPath.Name, func(t *testing.T) {
 			var responseValue any
@@ -107,11 +140,11 @@ func TestTranscriptResponseContractExact(t *testing.T) {
 			case "publish":
 				responseValue = publishTranscriptResponse(source)
 			case "detail":
-				responseValue = detailTranscriptResponse(source)
+				responseValue = detailTranscriptResponse(source, resolved)
 			case "update":
 				responseValue = updateTranscriptResponse(source)
 			case "list":
-				responseValue = listTranscriptResponse(source)
+				responseValue = listTranscriptResponse(source, resolved)
 			case "public_group":
 				groupSource := make(map[string]any, len(fixture.SourceRow)+len(fixture.OwnerValues))
 				for field, value := range fixture.SourceRow {
@@ -147,7 +180,7 @@ func assertMountedResponseValues(t *testing.T, fixture transcriptResponseContrac
 	if err := json.Unmarshal(payload, &response); err != nil {
 		t.Fatalf("decode %s production response composition: %v", mountedPath.Name, err)
 	}
-	wantCount := len(want)
+	wantCount := len(want) + len(requiredResolvedProjectFields)
 	if mountedPath.Shape == "flat_group" {
 		wantCount += len(fixture.OwnerFields)
 	}
@@ -166,6 +199,24 @@ func assertMountedResponseValues(t *testing.T, fixture transcriptResponseContrac
 		}
 		if !bytes.Equal(got, wantJSON) {
 			t.Errorf("%s field %q = %s; want source-distinguishing value %s", mountedPath.Name, field, got, wantJSON)
+		}
+	}
+	for _, field := range requiredResolvedProjectFields {
+		got, ok := response[field]
+		if !ok {
+			t.Errorf("%s response omitted resolved project field %q", mountedPath.Name, field)
+			continue
+		}
+		wantValue := ""
+		if mountedPath.ResolvesProject {
+			wantValue = fixture.ResolvedProjectFields[field]
+		}
+		wantJSON, err := json.Marshal(wantValue)
+		if err != nil {
+			t.Fatalf("marshal resolved project value for %s: %v", field, err)
+		}
+		if !bytes.Equal(got, wantJSON) {
+			t.Errorf("%s field %q = %s; want %s", mountedPath.Name, field, got, wantJSON)
 		}
 	}
 	for _, field := range fixture.DeniedFields {
@@ -199,7 +250,7 @@ func assertMountedResponseValues(t *testing.T, fixture transcriptResponseContrac
 		}
 	}
 	for field := range response {
-		if !want[field] && !containsString(fixture.OwnerFields, field) {
+		if !want[field] && !containsString(fixture.OwnerFields, field) && !containsString(requiredResolvedProjectFields, field) {
 			t.Errorf("%s response exposed unexpected field %q", mountedPath.Name, field)
 		}
 	}

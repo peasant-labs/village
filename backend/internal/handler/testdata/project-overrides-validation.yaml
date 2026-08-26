@@ -1,0 +1,194 @@
+# The owner-correction routes: naming a project, and going back to the name
+# Village derives on its own.
+#
+# Both routes are keyed on the project HASH. The endpoint they replace was keyed
+# on the stored project_name, so a caller holding a project's RENDERED name - the
+# only name any surface shows - matched no rows whenever the rendered name and the
+# stored one differed, and the owner was told their own project did not exist. The
+# hash_keyed_rename_matches_the_owners_project case is the one that fails if that
+# keying ever comes back.
+#
+# owned_transcripts is how many transcripts the caller has published into the
+# project; it is what separates "not yours" from "malformed". override_exists is
+# whether a correction is already stored, which is what separates a cleared
+# correction from nothing to clear.
+
+- name: hash_keyed_rename_matches_the_owners_project
+  why: >
+    The defect this route exists to fix. The old rename was keyed on the stored
+    project name and matched zero rows whenever the derived display name differed
+    from it. Keyed on the hash, the owner's own project is found.
+  method: PATCH
+  project_hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  body: '{"display_name":"Ledger service"}'
+  owned_transcripts: 3
+  override_exists: false
+  want_status: 200
+  want_override_written: true
+
+- name: rename_of_a_project_the_caller_never_published_into
+  why: >
+    An owner may only name their own projects. A well-formed hash that belongs to
+    nobody the caller has published as must answer 404, not 200 with a correction
+    stored against a project that is not theirs.
+  method: PATCH
+  project_hash: b1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  body: '{"display_name":"Someone else''s project"}'
+  owned_transcripts: 0
+  override_exists: false
+  want_status: 404
+  want_override_written: false
+  want_message_contains:
+    - is not one of yours
+    - nothing changed
+
+- name: rename_keyed_on_a_hash_that_is_too_short
+  why: >
+    A project hash is exactly 64 hex characters. A shorter key would be stored and
+    then match no read ever again, so it is refused at the boundary.
+  method: PATCH
+  project_hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b
+  body: '{"display_name":"Ledger service"}'
+  owned_transcripts: 3
+  override_exists: false
+  want_status: 400
+  want_override_written: false
+  want_message_contains:
+    - is not a project hash
+    - 64 lowercase hexadecimal
+
+- name: rename_keyed_on_an_uppercase_hash
+  why: >
+    Stored project keys are lowercase. Folding another casing in silently would
+    make one project addressable under two different keys, so uppercase is refused
+    rather than normalized.
+  method: PATCH
+  project_hash: A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2
+  body: '{"display_name":"Ledger service"}'
+  owned_transcripts: 3
+  override_exists: false
+  want_status: 400
+  want_override_written: false
+  want_message_contains:
+    - is not a project hash
+
+- name: rename_keyed_on_a_non_hexadecimal_string
+  why: >
+    target_key is untyped TEXT in the database by design, so the application layer
+    is the only thing that stops a key of the wrong shape from being stored.
+  method: PATCH
+  project_hash: zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+  body: '{"display_name":"Ledger service"}'
+  owned_transcripts: 3
+  override_exists: false
+  want_status: 400
+  want_override_written: false
+  want_message_contains:
+    - is not a project hash
+
+- name: rename_to_an_empty_name
+  why: >
+    A project must always have a name to render. An empty correction would leave
+    every surface with nothing to show.
+  method: PATCH
+  project_hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  body: '{"display_name":""}'
+  owned_transcripts: 3
+  override_exists: false
+  want_status: 400
+  want_override_written: false
+  want_message_contains:
+    - display_name is empty
+
+- name: rename_to_a_whitespace_only_name
+  why: >
+    Whitespace renders as nothing, so it is the empty name wearing a disguise. It
+    must be refused for the same reason, which only holds if the route trims
+    before it checks.
+  method: PATCH
+  project_hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  body: '{"display_name":"    "}'
+  owned_transcripts: 3
+  override_exists: false
+  want_status: 400
+  want_override_written: false
+  want_message_contains:
+    - display_name is empty
+
+- name: rename_to_a_name_longer_than_the_surfaces_can_render
+  why: >
+    Refused rather than truncated: a silently shortened name is a name the owner
+    did not choose.
+  method: PATCH
+  project_hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  body_display_name_repeat: 256
+  owned_transcripts: 3
+  override_exists: false
+  want_status: 400
+  want_override_written: false
+  want_message_contains:
+    - cannot be rendered by the surfaces
+
+- name: rename_to_a_name_at_the_longest_allowed_length
+  why: >
+    The boundary itself. Without it, an off-by-one that refuses the longest legal
+    name would pass every other case in this fixture.
+  method: PATCH
+  project_hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  body_display_name_repeat: 255
+  owned_transcripts: 3
+  override_exists: false
+  want_status: 200
+  want_override_written: true
+
+- name: rename_with_a_body_that_is_not_an_object
+  why: >
+    The route changes one thing, so it needs one object with one field. A body it
+    cannot read must say so rather than storing a zero value.
+  method: PATCH
+  project_hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  body: 'not json at all'
+  owned_transcripts: 3
+  override_exists: false
+  want_status: 400
+  want_override_written: false
+  want_message_contains:
+    - not the JSON object this route expects
+
+- name: clear_a_name_the_owner_had_chosen
+  why: >
+    The counterpart of the rename, and a user-ratified control in its own right:
+    an owner who renamed a project must be able to go back to the name Village
+    derives on its own.
+  method: DELETE
+  project_hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  owned_transcripts: 3
+  override_exists: true
+  want_status: 200
+  want_override_deleted: true
+
+- name: clear_when_no_name_was_ever_chosen
+  why: >
+    There is nothing to remove, and saying so is different from saying it worked.
+  method: DELETE
+  project_hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  owned_transcripts: 3
+  override_exists: false
+  want_status: 404
+  want_override_deleted: true
+  want_message_contains:
+    - there is no name of your own to remove
+
+- name: clear_keyed_on_a_malformed_hash
+  why: >
+    The clear route validates the key exactly as the rename route does; a
+    validation that lives on only one of the two is a validation that can be
+    walked around.
+  method: DELETE
+  project_hash: not-a-hash
+  owned_transcripts: 3
+  override_exists: true
+  want_status: 400
+  want_override_deleted: false
+  want_message_contains:
+    - is not a project hash

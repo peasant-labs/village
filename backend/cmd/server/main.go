@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/peasant-labs/redact"
@@ -77,6 +78,11 @@ func run(ctx context.Context, args []string) error {
 	}
 	if selection.Mode() == runtimeModeMigrateOnly {
 		return nil
+	}
+	if selection.Mode() == runtimeModeShareStateCheck {
+		// Handled here, beside migrate-only, so it never constructs blob storage
+		// or a key authority it has no use for.
+		return reportShareStateConsistency(ctx, pool)
 	}
 	titles, err := constructTitlePipeline()
 	if err != nil {
@@ -182,4 +188,44 @@ func serve(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool, blobs st
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutdownCtx)
+}
+
+// reportShareStateConsistency compares the derived transcript_shares projection
+// against a latest-event fold over the whole ledger and reports the result. It
+// writes NOTHING; repair is the separate, deliberate rebuild_transcript_shares().
+//
+// It exits NON-ZERO when the projection disagrees with the ledger, because a
+// silent pass is worthless to CI and to an operator who ran it to find out.
+//
+// DEPLOYING THIS AS A ONE-SHOT JOB - read before scheduling it:
+//   - Restart policy MUST be Never, and the job MUST have no public networking.
+//     This platform reads a non-zero exit as a crash and restarts the service,
+//     so a checker that correctly exits non-zero on drift would otherwise LOOP,
+//     re-reporting the same drift forever. Clone the backend service, strip its
+//     networking, set restart to Never.
+//   - slog writes to stderr, so the platform tags ordinary INFO lines as errors.
+//     A clean run can therefore LOOK like a failure in the log viewer. Read the
+//     exit code, not the log colour.
+func reportShareStateConsistency(ctx context.Context, pool *pgxpool.Pool) error {
+	report, err := backfill.ShareStateConsistency(ctx, pool)
+	if err != nil {
+		return err
+	}
+	slog.Info("share_state_consistency_complete",
+		"projection_rows", report.ProjectionRows,
+		"ledger_pairs", report.LedgerPairs,
+		"drift_rows", report.DriftRows,
+		"consistent", report.Consistent())
+	for _, row := range report.Sample {
+		slog.Warn("share_state_drift",
+			"transcript_id", uuid.UUID(row.TranscriptID.Bytes).String(),
+			"group_id", uuid.UUID(row.GroupID.Bytes).String(),
+			"problem", row.Problem,
+			"stored_status", row.StoredStatus.String,
+			"expected_status", row.ExpectedStatus.String)
+	}
+	if !report.Consistent() {
+		return fmt.Errorf("share-state consistency found %d row(s) where the derived transcript_shares projection disagrees with a latest-event fold over transcript_share_attempts; nothing was changed, because this mode only reports; the ledger is authoritative, so repair by running SELECT rebuild_transcript_shares() in a maintenance window and rerun this check to confirm zero", report.DriftRows)
+	}
+	return nil
 }

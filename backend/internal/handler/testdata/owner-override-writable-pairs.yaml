@@ -1,0 +1,55 @@
+# The closed set of owner-correction (target_kind, field) pairs.
+#
+# The owner_overrides table holds the full RESERVED menus in its CHECK
+# constraints, so implementing a further correctable field later is a code change
+# rather than a migration. Narrowing those menus to the pairs any route actually
+# writes is a typed Go enum, deliberately NOT a second database CHECK: two closed
+# sets that must agree forever is exactly the drift the split avoids.
+#
+# writable: true means a route implements the pair today. Every other combination
+# the table's CHECKs permit is reserved-but-unimplemented and must be refused
+# before it reaches the database, because a stored correction nothing reads is
+# indistinguishable from a correction that silently did nothing.
+
+- name: project_display_name_is_the_one_implemented_pair
+  why: >
+    The pair every correction route writes. Without it a validator that refused
+    everything would pass every refusal case below.
+  target_kind: project
+  field: display_name
+  writable: true
+
+- name: transcript_title_is_reserved_only
+  why: >
+    Reserved by the table's field CHECK for a future per-transcript title
+    correction. No route writes it, so no route may accept it.
+  target_kind: transcript
+  field: title
+  writable: false
+
+- name: redaction_span_decision_is_reserved_only
+  why: >
+    Reserved, and the one reserved pair with a governance consequence: a
+    redaction decision IS a disclosure axis, so implementing it re-opens the
+    audit-trigger decision BEFORE the migration that implements it. Accepting it
+    early would store a disclosure decision with no audit trail behind it.
+  target_kind: redaction_span
+  field: redaction_decision
+  writable: false
+
+- name: project_title_crosses_two_valid_menu_members
+  why: >
+    Both halves are individually valid menu members, so this is the case that
+    catches a validator checking the kind and the field SEPARATELY instead of
+    checking the PAIR.
+  target_kind: project
+  field: title
+  writable: false
+
+- name: transcript_display_name_crosses_the_other_way
+  why: >
+    The mirror of the case above, with the valid field and the other valid kind,
+    so a validator cannot pass by accident in one direction only.
+  target_kind: transcript
+  field: display_name
+  writable: false

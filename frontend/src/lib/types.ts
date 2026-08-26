@@ -1,3 +1,54 @@
+
+/**
+ * One project's resolved identity, as the server answers it.
+ *
+ * The correction routes (`PATCH /users/me/projects/{projectHash}` and
+ * `DELETE .../display-name`) answer with exactly this shape, so a client reads
+ * the new name and the tier it came from out of the response instead of
+ * re-deriving either one.
+ *
+ * `project_remote_label` is a Go `string` on the wire, so an unknown remote
+ * arrives as `""`, never `null` — a project with no git remote is a normal
+ * state, and the subtitle is simply omitted for it.
+ */
+export interface ResolvedProject {
+  project_hash: string;
+  project_display_name: string;
+  project_name_source: NameSource;
+  project_remote_label: string;
+}
+
+/**
+ * One collective in a project page's roll-up.
+ *
+ * It carries NO share counters beyond `transcript_count`. The roll-up is
+ * restricted to APPROVED shares, and the pending and rejected tallies belong to
+ * the project owner alone — this page can be loaded by someone who is not the
+ * owner, so carrying them here would be a disclosure change, not a convenience.
+ * The owner reads those counters from their own contributions surface instead.
+ */
+export interface ProjectCollectiveRollupEntry {
+  id: string;
+  name: string;
+  description: string | null;
+  linked_github_org: string | null;
+  transcript_count: number;
+}
+
+/**
+ * `GET /api/v1/users/{username}/projects/{projectHash}` (AuthOptional).
+ *
+ * `transcripts` holds only the rows this viewer may see, and `collectives` only
+ * the collectives this viewer may see whose contributor listing the owner has
+ * opted into. Both are normally empty for a viewer who is not the owner; an
+ * empty list is an ordinary answer, never an error.
+ */
+export interface UserProjectPageResponse {
+  project: ResolvedProject;
+  owner: User;
+  transcripts: Transcript[];
+  collectives: ProjectCollectiveRollupEntry[];
+}
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 
 export interface User {
@@ -14,6 +65,30 @@ export interface User {
   // provider_username is the raw handle from the OAuth provider (suggestion).
   username_chosen: boolean;
   provider_username: string | null;
+}
+
+/**
+ * The tier a project's resolved display name came from (village backend
+ * `internal/projectname.NameSource`). These routes are deliberately outside
+ * the OpenAPI spec, so there is no generated TypeScript type — this is the
+ * frontend's own closed, hand-declared union. Widening the server-side enum
+ * without adding a member here must fail the BUILD, not silently render an
+ * unstyled fallback: see {@link assertNameSourceExhaustive} for the
+ * compile-time proof, and `describeNameSource` in `@/lib/format` for the one
+ * live exhaustive consumer.
+ */
+export type NameSource = "override" | "consented" | "remote" | "privacy";
+
+/**
+ * Compile-time exhaustiveness proof for {@link NameSource}. A `switch` over
+ * every declared source in production code must reach a `default` branch
+ * that assigns its input to `never` — if `NameSource` gains a member without
+ * a matching `case`, the `never` assignment fails to typecheck and the build
+ * breaks. This function has no runtime purpose; it exists to be called from
+ * a `default` branch as `assertNameSourceExhaustive(source)`.
+ */
+export function assertNameSourceExhaustive(source: never): never {
+  throw new Error(`unhandled NameSource: ${String(source)}`);
 }
 
 export interface Transcript {
@@ -39,8 +114,43 @@ export interface Transcript {
   source_format: string | null;
   git_branch: string | null;
   git_remote: string | null;
-  project_hash: string | null;
+  /**
+   * A project's identity, not its name. Required at the database trust
+   * boundary: `transcripts.project_hash` carries a `NOT NULL` constraint
+   * (migration `035_project_hash_required`) enforced behind a publish-time
+   * guard, and every response path this frontend renders selects directly
+   * `FROM transcripts` — `ListTranscripts`/`GetTranscriptByID`
+   * (`backend/internal/database/queries/transcripts.sql`) and
+   * `ListGroupTranscripts` (`backend/internal/database/queries/shares.sql`)
+   * — with no other source table in the union. sqlc's own generated row
+   * types for all three queries already narrow this column to a plain Go
+   * `string` (see `backend/internal/database/sqlc/transcripts.sql.go` and
+   * `shares.sql.go`), confirming the guarantee independently of this
+   * comment. A frontend value that is empty despite the type is therefore a
+   * genuine contract violation, not a state to silently paper over —
+   * `groupByProject` in `@/lib/format` treats it as such rather than
+   * crashing the page.
+   */
+  project_hash: string;
   project_name: string | null;
+  /**
+   * The one resolved project display name every surface must render
+   * (village project-identity resolver, `override > consented > remote >
+   * privacy`). Never empty — the resolver always synthesises a privacy-safe
+   * fallback when no other tier applies. Prefer this over `project_name`,
+   * which stays a raw, unresolved wire column.
+   */
+  project_display_name: string;
+  /** Which resolution tier produced {@link project_display_name}. */
+  project_name_source: NameSource;
+  /**
+   * `host:owner/repo` when a git remote is known, else `""`. A Go `string` on
+   * the wire (`project_identity.go`'s `resolvedProject.RemoteLabel` and
+   * `transcript_response.go`'s `transcriptResponse.ProjectRemoteLabel`), so
+   * an unknown remote arrives as the empty string, never `null` — the two are
+   * different absences and only the empty string is one this field can carry.
+   */
+  project_remote_label: string;
   tool_call_count: number | null;
   subagent_count: number | null;
   duration_ms: number | null;
@@ -315,4 +425,158 @@ export interface TranscriptDetailResponse {
   enriched_shares: EnrichedTranscriptShare[];
   owner: User;
   attestations?: Attestation[];
+}
+
+/**
+ * One collective the signed-in person has offered transcripts to, as served by
+ * `GET /users/me/collectives/contributions`.
+ *
+ * The four counters DO NOT ALL COUNT THE SAME UNIT, and that asymmetry is part
+ * of the contract rather than an implementation detail:
+ *  - {@link approved_count} and {@link pending_count} count DISTINCT
+ *    TRANSCRIPTS. A transcript is either held by a collective or it is not.
+ *  - {@link rejected_attempt_count} and {@link withdrawn_attempt_count} count
+ *    EVENTS. One transcript refused three times by one collective is three;
+ *    one transcript withdrawn and resubmitted twice is two withdrawals.
+ * Any surface rendering these numbers side by side has to say which unit each
+ * one measures, or they read as comparable when they are not. See
+ * {@link CONTRIBUTION_COUNTER_EXPLANATION} in `@/lib/shareEvents` for the one
+ * place that wording is declared.
+ *
+ * `withdrawn_attempt_count` groups the two withdrawal outcomes (`retracted`,
+ * the owner's own act; `revoked`, the collective's) into ONE counter. That
+ * grouping is a counter-level simplification only — the per-submission event
+ * history (`ShareEvent`) still distinguishes them by actor, and must keep
+ * doing so; only the tally here folds them together.
+ */
+export interface ContributedCollective {
+  id: string;
+  name: string;
+  description: string | null;
+  linked_github_org: string | null;
+  /** Distinct transcripts of yours this collective currently holds. */
+  approved_count: number;
+  /** Distinct transcripts of yours currently awaiting this collective's review. */
+  pending_count: number;
+  /** Refusal EVENTS, not transcripts. */
+  rejected_attempt_count: number;
+  /** Withdrawal EVENTS (`retracted` + `revoked` combined), not transcripts. */
+  withdrawn_attempt_count: number;
+}
+
+/**
+ * One accepted membership of a transcript in a collective the viewer may see,
+ * as served by `GET /transcripts/{id}/collectives`.
+ *
+ * The server answers with an EMPTY LIST, never a refusal, when the collective
+ * is invisible to the viewer or the transcript's owner has not opted in to
+ * being listed as a contributor. A consumer therefore renders an empty result
+ * as plain emptiness: anything that reads as "there is something here you may
+ * not see" re-creates exactly the disclosure the empty list exists to avoid.
+ */
+export interface TranscriptCollective {
+  id: string;
+  name: string;
+  description: string | null;
+  linked_github_org: string | null;
+  shared_at: string;
+}
+
+/**
+ * The outcome recorded on one share event (village backend
+ * `transcript_share_attempts.status`). These profile routes are deliberately
+ * outside the OpenAPI spec, so there is no generated TypeScript type — this is
+ * the frontend's own closed, hand-declared union, and
+ * {@link assertShareEventStatusExhaustive} is its compile-time proof.
+ *
+ * `retracted` (the owner withdrew) and `revoked` (the collective removed) are
+ * distinct terminal states, distinct from each other AND from `rejected`.
+ * Collapsing any of them into another makes the history unreadable.
+ */
+export type ShareEventStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "retracted"
+  | "revoked";
+
+/**
+ * Compile-time exhaustiveness proof for {@link ShareEventStatus}, used the same
+ * way as {@link assertNameSourceExhaustive}: a `switch` in production code
+ * reaches a `default` branch that assigns its input to `never`, so widening the
+ * union without handling the new member fails the BUILD.
+ */
+export function assertShareEventStatusExhaustive(status: never): never {
+  throw new Error(`unhandled ShareEventStatus: ${String(status)}`);
+}
+
+/**
+ * WHO acted on a share event, in what capacity — never WHO they are.
+ *
+ * The server sends a closed actor CLASS and deliberately never a user id:
+ * telling a submitter which moderator refused their work is a disclosure the
+ * design does not make. There is therefore no name to look up and no lookup
+ * that could be missing, so a consumer must not render "unknown" or any other
+ * wording that implies one failed.
+ *
+ * The empty string is the wire's value for an event that has not been decided
+ * yet (a `pending` event has no actor because nothing has been decided).
+ */
+export type ShareEventActor = "" | "owner" | "collective" | "moderator";
+
+/** Compile-time exhaustiveness proof for {@link ShareEventActor}. */
+export function assertShareEventActorExhaustive(actor: never): never {
+  throw new Error(`unhandled ShareEventActor: ${String(actor)}`);
+}
+
+/**
+ * One entry of the owner-only share-event history for a (transcript,
+ * collective) pair, as served by
+ * `GET /users/me/collectives/{groupId}/transcripts/{transcriptId}/events`.
+ *
+ * The server returns the FULL history in ascending {@link event_num} order, so
+ * it reads top to bottom as an audit log: every state change is an event,
+ * including the withdrawals nobody submitted. {@link event_num} is therefore an
+ * event ordinal and never an "attempt number" in rendered copy.
+ */
+export interface ShareEvent {
+  event_num: number;
+  status: ShareEventStatus;
+  recorded_at: string;
+  /** Null until the event is decided. */
+  decided_at: string | null;
+  decided_by_actor: ShareEventActor;
+}
+
+/**
+ * One (transcript, collective) LEDGER PAIR, as served by the owner-only
+ * `GET /users/me/collectives/{groupId}/submissions` (a BARE JSON array, the
+ * same envelope-free shape as the sibling events endpoint).
+ *
+ * This is EVERY pair the owner has ever had with the collective, including a
+ * pair whose every event ended in a withdrawal and so has no row left in the
+ * legacy current-state list (`GET /groups/{id}/my-shares`). A fully-withdrawn
+ * pair still appears here, carrying its latest ({@link status},
+ * {@link event_num}, {@link recorded_at}) — the same fields the events
+ * endpoint's last row would show for it. This is deliberately NOT the
+ * current-state (`transcript_shares`) source: that source drops a pair the
+ * moment its last event is a withdrawal, which is the exact contradiction
+ * this endpoint exists to close (a nonzero withdrawn counter beside an empty
+ * list, as one user acceptance test caught).
+ *
+ * WHEN THE OWNER HAS NO PAIRS FOR THE COLLECTIVE, the endpoint answers 404,
+ * never a 200 with an empty array — the SAME disposition as "no such
+ * collective", so asking cannot be used to discover which collectives exist
+ * or who contributed to them. See {@link useMyCollectiveSubmissions} in
+ * `@/lib/queries/collectives`, which normalizes that 404 to an empty list for
+ * consumers: the rendered empty state is unaffected either way.
+ */
+export interface CollectiveSubmissionPair {
+  transcript_id: string;
+  group_id: string;
+  /** Null when the transcript has no title. Never derived or guessed. */
+  title: string | null;
+  status: ShareEventStatus;
+  event_num: number;
+  recorded_at: string;
 }

@@ -83,8 +83,8 @@ github.com/ncruces/go-strftime v0.1.9 h1:bY0MQC28UADQmHmaF5dgpLmImcShSi2kHU9XLdh
 github.com/ncruces/go-strftime v0.1.9/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/peasant-labs/redact v0.1.2 h1:QLLYZH760Qo+Mj1WfQ8j2IxGS+EgaTFo2bKTiu0dEuw=
 github.com/peasant-labs/redact v0.1.2/go.mod h1:X3C7ssZnus4U/t4+HnbbQ4IE9e7txyPIlZYSftvp3Cs=
-github.com/peasant-labs/schema v0.1.2-rc1 h1:BOf5Q7G6fwPeTWAt1JXsslR7YjCGDcPBq0m8ogGT36E=
-github.com/peasant-labs/schema v0.1.2-rc1/go.mod h1:zuSUP1kUd6Bn3QcNPFfjJbMqZHV6HLpsKPSihU+Q1qo=
+github.com/peasant-labs/schema v0.1.2 h1:JOffGKz5WgUgxITNtP7Naxs1JFa5FiVjOD+KBUWoaII=
+github.com/peasant-labs/schema v0.1.2/go.mod h1:zuSUP1kUd6Bn3QcNPFfjJbMqZHV6HLpsKPSihU+Q1qo=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=

@@ -1,0 +1,37 @@
+# Every statement in queries/*.sql that touches transcript_shares, named and
+# classified. The current-state share row is derived by a database trigger from
+# transcript_share_attempts, so the only permitted kind here is `read`.
+#
+# This is a closed set: a statement that touches the table and is not listed
+# fails the guard, and a listed statement that no longer exists fails it too.
+# A JOIN, a FROM or a subquery is a read; only a statement whose own top-level
+# INSERT, UPDATE or DELETE targets the table is a write, and a write cannot be
+# declared - rewrite it against transcript_share_attempts instead.
+#
+# Adding a statement: add its name, its file, and kind: read.
+
+- {name: ListUserGroups, file: groups.sql, kind: read}
+- {name: ListAllGroups, file: groups.sql, kind: read}
+- {name: SearchCollectives, file: groups.sql, kind: read}
+- {name: ListCollectivesByGitHubOrg, file: groups.sql, kind: read}
+- {name: ListOwnerCollectiveContributions, file: groups.sql, kind: read}
+- {name: ListProjectCollectiveRollup, file: groups.sql, kind: read}
+- {name: ListTranscriptCollectivesForViewer, file: groups.sql, kind: read}
+
+- {name: ListTranscriptShares, file: shares.sql, kind: read}
+- {name: ListGroupTranscripts, file: shares.sql, kind: read}
+- {name: ListSharesByTranscriptIDs, file: shares.sql, kind: read}
+- {name: ListPendingGroupShares, file: shares.sql, kind: read}
+- {name: GetGroupTranscriptStats, file: shares.sql, kind: read}
+- {name: ListGroupModelBreakdown, file: shares.sql, kind: read}
+- {name: ListGroupContributors, file: shares.sql, kind: read}
+- {name: ListUserSharesInGroup, file: shares.sql, kind: read}
+- {name: ListGroupOwnersForTranscript, file: shares.sql, kind: read}
+
+- {name: ListApprovedTranscriptShareGroups, file: shares_pull.sql, kind: read}
+
+- {name: ListPullableTranscripts, file: transcripts_pull.sql, kind: read}
+- {name: CountPullableTranscripts, file: transcripts_pull.sql, kind: read}
+- {name: ListPullableTranscriptsByIDs, file: transcripts_pull.sql, kind: read}
+
+- {name: ListProjectTranscriptsForViewer, file: transcripts.sql, kind: read}

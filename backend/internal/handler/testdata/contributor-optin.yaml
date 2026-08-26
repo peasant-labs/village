@@ -1,0 +1,69 @@
+# The contributor opt-in, applied to BOTH viewer-facing collectives surfaces.
+#
+# A person who has not opted in to being listed as a contributor is not listed
+# by either surface. The refusal shape matters as much as the filtering: the
+# answer is 200 with an EMPTY LIST, never 403, because a refusal would itself
+# confirm that memberships exist and are being withheld - which is precisely
+# what the person asked not to happen.
+#
+# The collective in every case is public and open, so collective visibility can
+# never be the reason a row is missing; the only variable is the opt-in.
+#
+# transcript_collectives is asserted through GET /transcripts/{id}/collectives
+# with a real viewer session. project_rollup is asserted against
+# ListProjectCollectiveRollup, the query the project page calls; it has no
+# handler of its own in this change.
+
+- name: opted_in_owner_listed_to_anonymous_viewer
+  why: the baseline - with the opt-in satisfied a signed-out reader sees the memberships, so a later empty result is attributable to the gate and not to an unrelated break
+  owner_is_discoverable: true
+  viewer: anonymous
+  expect:
+    http_status: 200
+    transcript_collectives: listed
+    project_rollup: listed
+
+- name: opted_in_owner_listed_to_other_signed_in_viewer
+  why: signing in neither grants nor removes the opt-in
+  owner_is_discoverable: true
+  viewer: other
+  expect:
+    http_status: 200
+    transcript_collectives: listed
+    project_rollup: listed
+
+- name: opted_in_owner_listed_to_themselves
+  why: the owner branch and the opt-in branch must both admit the owner, not one at the expense of the other
+  owner_is_discoverable: true
+  viewer: owner
+  expect:
+    http_status: 200
+    transcript_collectives: listed
+    project_rollup: listed
+
+- name: opted_out_owner_returns_empty_list_not_forbidden_to_anonymous
+  why: THE case for the refusal shape - a 403 would tell a signed-out reader that hidden memberships exist, which is the leak the empty list avoids
+  owner_is_discoverable: false
+  viewer: anonymous
+  expect:
+    http_status: 200
+    transcript_collectives: empty
+    project_rollup: empty
+
+- name: opted_out_owner_hidden_from_other_signed_in_viewer
+  why: dropping the opt-in predicate from the per-transcript surface would list an opted-out contributor's memberships to any signed-in stranger
+  owner_is_discoverable: false
+  viewer: other
+  expect:
+    http_status: 200
+    transcript_collectives: empty
+    project_rollup: empty
+
+- name: opted_out_owner_still_sees_their_own_memberships
+  why: the gate hides a person from other people, never from themselves; without this case the predicate could be reduced to a blanket hide and stay green
+  owner_is_discoverable: false
+  viewer: owner
+  expect:
+    http_status: 200
+    transcript_collectives: listed
+    project_rollup: listed

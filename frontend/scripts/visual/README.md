@@ -292,3 +292,128 @@ Manual click-through checklist for the non-automated part of the gate:
 3. Switch between grid and list.
 4. Open transcript `d41a8e`, confirm the route changes to `/transcripts/d41a8e`, then open profile `alice-dev` and confirm `/users/alice-dev`.
 5. Search `ai` again, open `AI Research Team`, confirm `/groups/ai-research-team`, then back out and confirm the shell still renders the card grid.
+
+## Own-profile contributed-collectives gate (`profile-collectives`)
+
+`profile-collectives-shoot.mjs` captures the own-profile contributed-collectives
+section on the REAL profile route, in three states taken from one live page so
+they cannot mix builds: the section with every contributed collective and its
+counters, one collective open with its submissions listed, and one submission
+open with its full event history visible.
+
+It asserts build provenance BEFORE writing any PNG. The served page must carry
+the section, more than one contributed collective row, a collective with zero
+approved contributions and some awaiting review, and the units sentence above
+the counters stating that rejected and withdrawn count submission attempts
+(not transcripts). Each of those exists only in the change this gate covers,
+so a stale server or one serving another worktree fails with a nonzero exit
+instead of producing a misleading capture. (Per-counter unit FOOTERS were
+removed at the user's explicit request; the distinction now lives only in
+that one sentence, which is what this gate checks.)
+
+Set `NARROW=1` to capture at a ~390px mobile viewport instead of the default
+desktop one, appending `-narrow` to every filename so a narrow run cannot
+overwrite a desktop capture sharing the same outdir.
+
+It also reads computed styles from the live DOM and prints them, because a
+scaled PNG cannot tell two close token values apart. The reported values are the
+counter's font family (prose vs mono), font size, `font-variant-numeric`
+(tabular figures are load-bearing where three counters sit side by side), colour,
+border radius and line height.
+
+`mock-rest-profile.mjs` is the matching REST stand-in. It serves `/auth/me` as
+the profile's own owner (so the page decides the viewer is the owner through the
+production code path, not through a stub), the public profile, an empty library
+list, the three-counter contributions list, the owner's submissions per
+collective, and a share-event history containing all five states so the actor
+labels are visible in the capture.
+
+```sh
+CHROME=/path/to/google-chrome
+BASE=/abs/path/to/capture-base
+
+MOCK_REST_PORT=8790 node scripts/visual/mock-rest-profile.mjs &
+NEXT_PUBLIC_API_URL=http://localhost:8790/api/v1 pnpm build
+NEXT_PUBLIC_API_URL=http://localhost:8790/api/v1 pnpm start &
+
+CHROME_PATH=$CHROME node scripts/visual/profile-collectives-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME node scripts/visual/profile-collectives-shoot.mjs light $BASE/light
+
+# narrow (~390px) captures, into the SAME outdirs — filenames get a -narrow suffix
+CHROME_PATH=$CHROME NARROW=1 node scripts/visual/profile-collectives-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME NARROW=1 node scripts/visual/profile-collectives-shoot.mjs light $BASE/light
+```
+
+Capture into `review-capture/` (gitignored). Per-round proof PNGs are never
+committed.
+
+## Project-page gate (`vpp-*`)
+
+The project page (`/users/{username}/projects/{projectHash}`) is captured by its own
+pair of scripts, because it is the only surface whose content depends on WHO is
+looking: the owner-only correction control, and a collectives roll-up that is
+gated by collective visibility and the owner's contributor opt-in.
+
+| Script | Role |
+|---|---|
+| `mock-rest-project.mjs` | REST stand-in for the project page. Serves the page payload and the two hash-keyed correction routes LIVE, so a reset is a real round-trip rather than a second frozen fixture. `MOCK_PROJECT_VIEWER=owner\|other\|anon` chooses who is looking; `MOCK_PROJECT_ROLLUP=empty` serves an empty roll-up. |
+| `project-page-shoot.mjs` | Captures the page per theme and asserts build provenance BEFORE writing any PNG: the served page must carry the project heading, the repository-label subtitle in `host:owner/repo` shape, and the correction control, and `VILLAGE_URL` must be the 64-hex hash-keyed route. It also prints a `getComputedStyle` probe (tokens, fonts, radius, tabular numerals, text-transform), because `--surface` vs `--canvas` and `--ink-2` vs `--ink-3` cannot be told apart in a scaled PNG. |
+
+`PROJECT_SHOOT_MODE` selects which production state is captured:
+
+| Mode | Surfaces | Asserts |
+|---|---|---|
+| `owner` (default) | `vpp-project-page`, `vpp-project-rename`, `vpp-project-collectives`, `vpp-project-after-reset` | the control is present, and resetting the name really changes both the name and the tier it is resolved from |
+| `viewer` | `vpp-project-page-viewer`, `vpp-project-collectives-empty` | the control is ABSENT for a viewer who is not the owner, and an empty roll-up renders as an ordinary empty state |
+| `notfound` | `vpp-project-not-found` | one refusal panel, and NO project heading beside it |
+| `profile` | `vpp-profile-projects` | the profile page whose project cards link into the project page. Point `VILLAGE_URL` at `/users/{username}`. The card heading renders a project's display name, which is USER CONTENT, so the mode refuses to capture unless the served name carries a capital, and it fails if the heading (or the profile display-name heading) computes a `text-transform` other than `none`. The design system lowercases `h1`/`h2`/`h3` as chrome, so an all-lowercase fixture could not tell a correct page from a broken one. |
+
+Repeatable run (a real production build, not `next dev`, so the served bytes are
+the bytes under review):
+
+```sh
+CHROME=/path/to/google-chrome
+BASE=$PWD/review-capture                  # gitignored; per-round PNGs are never committed
+HASH=a3f1c07d5b9e42618c0d7f4a2b6e8901d3c5a7f9b1e2d4c6a8f0b2d4e6f80123
+
+# 1. serve the project fixtures
+MOCK_REST_PORT=8790 node scripts/visual/mock-rest-project.mjs &
+
+# 2. build + start the app against that API base (NEXT_PUBLIC_API_URL is baked at build time)
+NEXT_PUBLIC_API_URL=http://localhost:8790/api/v1 pnpm build
+NEXT_PUBLIC_API_URL=http://localhost:8790/api/v1 pnpm start &
+
+# 3. confirm the served bundle is THIS build before trusting a capture
+curl -s "http://localhost:3000/users/alice-dev/projects/$HASH" \
+  | grep -oE 'src="[^"]*\.js"' | sed 's/src="//;s/"//' | sort -u \
+  | xargs -I{} sh -c 'curl -s "http://localhost:3000{}" | grep -l "project-rename-control" >/dev/null && echo "provenance: {}"'
+
+# 4. capture the owner's view in both themes
+CHROME_PATH=$CHROME VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
+  node scripts/visual/project-page-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
+  node scripts/visual/project-page-shoot.mjs light $BASE/light
+
+# 4a. narrow (~390px) captures, into the SAME outdirs — filenames get a -narrow suffix
+CHROME_PATH=$CHROME NARROW=1 VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
+  node scripts/visual/project-page-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME NARROW=1 VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
+  node scripts/visual/project-page-shoot.mjs light $BASE/light
+```
+
+```sh
+# 5. capture the profile page, whose project cards link into the project page
+CHROME_PATH=$CHROME PROJECT_SHOOT_MODE=profile \
+  VILLAGE_URL="http://localhost:3000/users/alice-dev" \
+  node scripts/visual/project-page-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME PROJECT_SHOOT_MODE=profile \
+  VILLAGE_URL="http://localhost:3000/users/alice-dev" \
+  node scripts/visual/project-page-shoot.mjs light $BASE/light
+```
+
+The owner mode consumes the override it resets, so restart the mock between
+themes. The profile mode reads the same identity state, so run it before the
+owner mode resets the override, or restart the mock first. For the other two states, restart the mock with
+`MOCK_PROJECT_VIEWER=other MOCK_PROJECT_ROLLUP=empty` and run with
+`PROJECT_SHOOT_MODE=viewer`, then point `VILLAGE_URL` at a hash the mock does not
+serve and run with `PROJECT_SHOOT_MODE=notfound`.

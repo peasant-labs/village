@@ -1,0 +1,33 @@
+# The fail-closed writer fence on transcript_shares, probed one verb at a time.
+#
+# The independence is the point. A trigger accidentally scoped to a single verb
+# would pass a proof that only tried that verb, and the derived row would stay
+# writable behind the ledger's back. So there is one row per verb, each is
+# executed and asserted on its own, and a failure names WHICH verb slipped
+# through - "the fence failed" without the verb is not something an operator or
+# a reviewer can act on.
+#
+# The three verbs are a closed set: they are exactly what
+# BEFORE INSERT OR UPDATE OR DELETE claims to cover. A fourth row would be
+# describing a verb the fence does not declare.
+#
+# target names a pair the test sets up; the statement is bound to it as $1
+# (transcript) and $2 (collective), so every statement must use both.
+
+- name: direct_insert_is_refused
+  verb: INSERT
+  why: a new current-state row invented without any ledger event behind it
+  target: unused_pair
+  statement: INSERT INTO transcript_shares (transcript_id, group_id, status) VALUES ($1, $2, 'approved')
+
+- name: direct_update_is_refused
+  verb: UPDATE
+  why: an existing current-state row edited out from under the event it was derived from
+  target: derived_pair
+  statement: UPDATE transcript_shares SET status = 'rejected' WHERE transcript_id = $1 AND group_id = $2
+
+- name: direct_delete_is_refused
+  verb: DELETE
+  why: a current-state row removed while its pair still has a live event
+  target: derived_pair
+  statement: DELETE FROM transcript_shares WHERE transcript_id = $1 AND group_id = $2

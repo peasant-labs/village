@@ -123,6 +123,17 @@ type License struct {
 	CommercialOk        bool   `db:"commercial_ok" json:"commercial_ok"`
 }
 
+type OwnerOverride struct {
+	OwnerID    pgtype.UUID        `db:"owner_id" json:"owner_id"`
+	TargetKind string             `db:"target_kind" json:"target_kind"`
+	TargetKey  string             `db:"target_key" json:"target_key"`
+	Field      string             `db:"field" json:"field"`
+	Value      string             `db:"value" json:"value"`
+	Provenance []byte             `db:"provenance" json:"provenance"`
+	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type RepositoryCommit struct {
 	ID          pgtype.UUID        `db:"id" json:"id"`
 	Owner       string             `db:"owner" json:"owner"`
@@ -167,7 +178,7 @@ type Transcript struct {
 	GitBranch                           pgtype.Text        `db:"git_branch" json:"git_branch"`
 	GitRemote                           pgtype.Text        `db:"git_remote" json:"git_remote"`
 	GitWorktree                         pgtype.Text        `db:"git_worktree" json:"git_worktree"`
-	ProjectHash                         pgtype.Text        `db:"project_hash" json:"project_hash"`
+	ProjectHash                         string             `db:"project_hash" json:"project_hash"`
 	ProjectPath                         pgtype.Text        `db:"project_path" json:"project_path"`
 	ProjectName                         pgtype.Text        `db:"project_name" json:"project_name"`
 	ToolCallCount                       pgtype.Int4        `db:"tool_call_count" json:"tool_call_count"`
@@ -248,11 +259,53 @@ type TranscriptGovernanceEventsAudit struct {
 	EffectiveAt  pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
 }
 
+// DERIVED current-state row, written only by trg_derive_transcript_share from transcript_share_attempts. Application code never writes it. Rebuild with rebuild_transcript_shares(); verify with check_transcript_shares_drift().
 type TranscriptShare struct {
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	GroupID      pgtype.UUID `db:"group_id" json:"group_id"`
+	// The recorded_at of the CURRENT LATEST event for this (transcript, collective) pair - that is, when the submission behind the present state was made. It is NOT the first-ever submission for the pair: a rejected and resubmitted contribution carries the resubmission's time, which is what keeps a moderation queue ordered by genuine age. It is also NOT the approval time; that is decided_at on the underlying event.
+	SharedAt pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
+	// The current event's status, restricted to the three representable states. A pair whose latest event is retracted or revoked has NO row here at all.
+	Status string `db:"status" json:"status"`
+}
+
+// The ledger: one row per recorded event in a transcript's relationship with a collective (submitted, decided, withdrawn, removed). transcript_shares is a projection of this table and is reconstructible from it with rebuild_transcript_shares().
+type TranscriptShareAttempt struct {
+	ID           pgtype.UUID `db:"id" json:"id"`
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	GroupID      pgtype.UUID `db:"group_id" json:"group_id"`
+	// Orders the events within one (transcript, collective) pair, from 1. The highest event_num for a pair is the current one.
+	EventNum int32  `db:"event_num" json:"event_num"`
+	Status   string `db:"status" json:"status"`
+	// When this event was recorded. For a submission that is when it was offered; a later decision on the same event does not change it (decided_at carries that).
+	RecordedAt pgtype.Timestamptz `db:"recorded_at" json:"recorded_at"`
+	DecidedAt  pgtype.Timestamptz `db:"decided_at" json:"decided_at"`
+	DecidedBy  pgtype.UUID        `db:"decided_by" json:"decided_by"`
+}
+
+type TranscriptShareDrift struct {
+	TranscriptID     pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	GroupID          pgtype.UUID        `db:"group_id" json:"group_id"`
+	Problem          string             `db:"problem" json:"problem"`
+	StoredStatus     pgtype.Text        `db:"stored_status" json:"stored_status"`
+	ExpectedStatus   pgtype.Text        `db:"expected_status" json:"expected_status"`
+	StoredSharedAt   pgtype.Timestamptz `db:"stored_shared_at" json:"stored_shared_at"`
+	ExpectedSharedAt pgtype.Timestamptz `db:"expected_shared_at" json:"expected_shared_at"`
+}
+
+type TranscriptShareExpectedState struct {
 	TranscriptID pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
 	GroupID      pgtype.UUID        `db:"group_id" json:"group_id"`
-	SharedAt     pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
 	Status       string             `db:"status" json:"status"`
+	SharedAt     pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
+}
+
+type TranscriptShareLatestEvent struct {
+	TranscriptID pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	GroupID      pgtype.UUID        `db:"group_id" json:"group_id"`
+	EventNum     int32              `db:"event_num" json:"event_num"`
+	Status       string             `db:"status" json:"status"`
+	RecordedAt   pgtype.Timestamptz `db:"recorded_at" json:"recorded_at"`
 }
 
 type TranscriptTag struct {

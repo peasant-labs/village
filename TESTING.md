@@ -202,6 +202,189 @@ default to `postgres://peasant:peasant@localhost:5432/peasant_test`. **CI sets
 `postgres://test:test@localhost:5432/village_test?sslmode=disable`**, so set it
 yourself to match CI rather than relying on any file's fallback.
 
+### Share attempts: fixtures write attempts, never the derived share row
+
+`transcript_shares` is DERIVED. A database trigger maintains it from
+`transcript_share_attempts`, and a second trigger refuses any other write, so a
+fixture that inserts a share row directly now fails outright. Write the attempt
+and let the derivation produce the row:
+
+```go
+pool.Exec(ctx, `
+    INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
+    VALUES ($1, $2, 1, $3)`, transcript, group, status)
+```
+
+That is also what the dev seed scripts do, so seeded data exercises the real
+path. The lattice itself lives in
+`internal/handler/share_attempts_integration_test.go` +
+`testdata/share-attempts.yaml`, driven through the real HTTP handlers: it has to
+be a real database, because a Go test computing its own expected values would
+pass with no trigger installed at all, and because decisions and withdrawals are
+UPDATEs, a trigger narrowed to INSERT would keep a mock-backed assertion green
+while propagating nothing. The migration-level proofs - the backfill of
+pre-attempt shares, and the writer fence refusing INSERT, UPDATE and DELETE
+separately - are in
+`internal/database/migration_036_share_attempts_integration_test.go`.
+
+The projection must always be reconstructible from the ledger, so
+`TestShareProjectionRebuildsFromTheLedger` corrupts `transcript_shares` in each
+of the four ways it can diverge, proves `check_transcript_shares_drift()` goes
+RED for each and classifies it correctly, and proves
+`rebuild_transcript_shares()` restores exactly what the derivation produced.
+Corrupting the projection needs `app.share_state_derivation` set, which is how a
+test stands in for a corrupting bug. Every lifecycle case additionally asserts
+the WHOLE projection still equals a latest-event fold, so a transition that
+damaged some other pair cannot pass unseen.
+
+A third guard needs no database at all: `query_write_fence_test.go` parses every
+statement in `queries/*.sql`, works out what each one writes, and checks it
+against the closed inventory in
+`queries/testdata/transcript-shares-statements.yaml`. Adding any statement that
+touches `transcript_shares` - a JOIN read included - fails until it is declared
+there, and it can only be declared as a read. `ListShareAttempts` itself is
+outside that inventory: it selects only from `transcript_share_attempts` (the
+ledger) and never mentions `transcript_shares` (the derived projection), so the
+guard's word-boundary match on the table name does not fire for it and it needs
+no entry there.
+
+**`transcripts.project_hash` is NOT NULL**, so every fixture that inserts a
+transcript with raw SQL must name one. Fixtures for the same project share a
+hash; unrelated fixtures must not collide.
+
+### Project identity: three fixture families
+
+A project is identified by its hash, never by its name, and three fixtures hold
+that line:
+
+- **`handler/testdata/publish-project-hash.yaml`** drives the publish boundary's
+  identity guard. Its only non-vacuous case is a payload that omits the
+  `project` object ENTIRELY - the one hole the published contract still permits,
+  since its top level requires only `model`. A present-but-hash-less project was
+  already refused by the contract, so that case is there to prove the older
+  rejection still holds, not to prove the guard works. The refusal is asserted
+  by its six actionable elements, not by its status code alone.
+- **`handler/testdata/project-overrides-validation.yaml`** drives the owner
+  correction routes (`PATCH /users/me/projects/{projectHash}` and
+  `DELETE .../display-name`). It asserts what each write was KEYED on, because
+  the endpoint these replaced was keyed on the stored project name and therefore
+  matched zero rows whenever the rendered name differed from it. It also covers
+  the malformed-key cases, which are the only thing standing between a bad key
+  and an untyped `TEXT` column.
+- **`handler/testdata/project-page-visibility.yaml`** drives
+  `GET /users/{username}/projects/{projectHash}` against real Postgres. It keeps
+  two answers apart: 404 (the owner is not discoverable, so Village will not
+  confirm the page exists) and 200-with-an-empty-list (the owner is
+  discoverable; the viewer simply may see none of their transcripts). This
+  boundary is asserted here in its own right - it does NOT inherit coverage from
+  the public profile route, whose own boundary has no fixture behind it.
+
+### Collectives surfaces: who may see a membership, and what the counters mean
+
+The three collectives queries in `queries/groups.sql` carry a COPY of
+`SearchCollectives`'s visibility predicate, and copies drift. The corpus in
+`internal/handler/testdata/collective-visibility.yaml` therefore asks the shipped
+`SearchCollectives` the same question about the same world and treats it as an
+ORACLE: a case where a new surface and the oracle disagree about a collective is
+a failure, unless the contributor opt-in - which the oracle does not carry - is
+the declared reason. Cases run through the real HTTP handlers with a real viewer
+session, because both gates live in SQL and asserting them against a Go
+re-implementation would prove only that the re-implementation agrees with itself.
+
+The second corpus, `internal/handler/testdata/contributor-optin.yaml`, is the
+opt-in matrix on BOTH viewer-facing surfaces. Its shape assertion matters as much
+as its filtering: withholding memberships is answered with 200 and an EMPTY LIST,
+never 403, because a refusal would itself confirm that hidden memberships exist.
+The loader refuses any case that declares a non-200 status.
+
+Three things the corpora pin that are easy to get wrong later:
+
+- A collective holding only submissions awaiting review IS listed among a
+  person's contributions, with `approved_count` zero. The counters do the
+  filtering; a join that filtered on approved status would drop the row.
+- `approved_count` and `pending_count` count DISTINCT TRANSCRIPTS;
+  `rejected_attempt_count` and `withdrawn_attempt_count` count EVENTS. The one
+  case where those genuinely diverge is a transcript accepted, withdrawn and
+  accepted again, and it is named
+  `approved_count_counts_transcripts_not_attempts`.
+- `withdrawn_attempt_count` counts withdrawals by the owner (`retracted`) and
+  removals by the collective (`revoked`) TOGETHER. The two statuses stay
+  distinct in the ledger and the per-submission surfaces still name the actor;
+  only this profile-level total adds them up, which is why
+  `collective_with_retracted_and_revoked_shares` exists - a counter matching
+  only one of the two passes every single-status case and still hides half the
+  withdrawals. Before this counter existed those events were counted in none of
+  the others, and an acceptance test found the consequence: a contribution that
+  was submitted, refused three times and then withdrawn reported three refusals
+  on the profile and nothing at all when opened.
+
+`collectives_batch_test.go` is the no-N+1 guard: both surfaces answer a page of
+several collectives with exactly one query, counted through the mock querier. A
+single-collective case cannot tell one query from a query per collective, so
+every case in `testdata/collectives_batch/batch_cases.yaml` names several.
+
+### Owner submissions in one collective: the ledger-pairs read
+
+`internal/handler/collective_submissions_integration_test.go` +
+`testdata/owner-collective-submissions.yaml` cover
+`GET /api/v1/users/me/collectives/{groupId}/submissions`, the owner-only
+listing of EVERY (transcript, collective) pair a person has offered to one
+collective. Its whole reason to exist is a pair with NO current-state row: the
+derived row is a fold that keeps only live states, so a pair whose last event
+was a retraction or a revocation has none, and the surface this replaces - which
+read the derived row - answered "no submissions of yours are on record in this
+collective" to a person its own profile had just told about three refusals. The
+corpus therefore drives a live pair, a retracted pair, a revoked pair, the exact
+refused-three-times-then-withdrawn history the acceptance test found, an open
+submission, and a mixed case holding a live pair and a withdrawn pair at once.
+That mixed case is the one a projection-backed read cannot survive quietly: it
+SHORTENS the answer rather than emptying it, which looks like a working endpoint
+until somebody counts.
+
+It reuses `collectiveWorld` from `collectives_visibility_integration_test.go`,
+so the ledger is built by the shipped share handlers rather than written behind
+them, and it has to run against a real database because the distinction it
+asserts is produced by the derivation trigger. Every collective in the corpus is
+CURATED, so a submission opens an attempt the case can then decide or withdraw,
+and `event_num` is the ordinal of the ATTEMPT, not of the step: a decision
+closes the same attempt in place, while withdrawing an ACCEPTED contribution
+appends a further one. The loader refuses any history the write paths could not
+produce - a second open attempt, a decision with nothing open, a removal of
+something never accepted - because a case describing an unreachable state cannot
+fail for a reason a real regression would.
+
+The owner boundary is a property of the ROUTE, not of a predicate: there is no
+username segment anywhere on the path, and the three non-contributor shapes - a
+signed-in member of the same collective, a signed-in caller outside it, and no
+authenticated caller at all - all come back `404`, never `403`, so the answer
+never confirms that a history exists. A caller whose listing is empty gets the
+same `404`, which is why the query itself is the boundary. Rows are matched by
+transcript rather than by position, because the response is ordered by
+`recorded_at` and two events recorded in one clock tick would make a positional
+assertion flake without saying anything about the endpoint.
+
+### Share-event history: the owner-facing read over the same ledger
+
+`internal/handler/share_event_history_integration_test.go` +
+`testdata/share-event-history.yaml` cover
+`GET /api/v1/users/me/collectives/{groupId}/transcripts/{transcriptId}/events`,
+the owner-only endpoint that reads `ListShareAttempts` back out as a numbered
+history. It reuses `shareWorld` from `share_attempts_integration_test.go` to
+drive the same submit/decide/unshare/remove steps and build a genuine attempt
+ledger, then calls `ListShareEventHistory` directly as three viewers: the
+transcript's owner, a different signed-in member of the same collective, and no
+authenticated caller at all. The fixture asserts a mixed five-state history
+returns in `event_num` ascending order, that a still-pending event carries no
+`decided_at` and no actor, that `decided_by_actor` renders only the closed class
+`owner | collective | moderator` and never a raw user id, and that both
+non-owner shapes come back `404` rather than `403` so the response never
+confirms the transcript exists. Like the share-attempt lattice above, this has
+to run against a real database: the actor class and the ordering both come from
+data the derivation and the ledger's own `ORDER BY` produce, not from anything
+the Go test computes itself. It carries `//go:build integration` and runs
+under `make backend-encrypted-test` alongside the rest of this file's real-Postgres
+suites.
+
 ### Pull, skip-gate, publish-idempotency, and explicit-backfill families
 
 Newer real-Postgres families worth knowing when touching those paths:
@@ -371,11 +554,13 @@ commits; groups → members; api_keys; annotations). The cascade chain is rooted
 ```
 users
  ├─ transcripts (owner_id … ON DELETE CASCADE)
- │   ├─ transcript_shares
+ │   ├─ transcript_shares            (cascade only; the writer fence lets it through)
+ │   ├─ transcript_share_attempts
  │   └─ transcript_commits
  ├─ groups (created_by …)
  │   ├─ group_members
- │   └─ transcript_shares (group_id …)
+ │   ├─ transcript_shares (group_id …)
+ │   └─ transcript_share_attempts (group_id …)
  ├─ api_keys
  └─ annotations
 ```

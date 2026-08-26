@@ -44,23 +44,37 @@ func (q *Queries) GetGroupTranscriptStats(ctx context.Context, groupID pgtype.UU
 	return i, err
 }
 
-const isTranscriptSharedWithGroup = `-- name: IsTranscriptSharedWithGroup :one
-SELECT EXISTS(
-  SELECT 1 FROM transcript_shares
-  WHERE transcript_id = $1 AND group_id = $2
-) AS shared
+const getLatestShareAttempt = `-- name: GetLatestShareAttempt :one
+SELECT id, transcript_id, group_id, event_num, status,
+       recorded_at, decided_at, decided_by
+FROM transcript_share_attempts
+WHERE transcript_id = $1 AND group_id = $2
+ORDER BY event_num DESC
+LIMIT 1
 `
 
-type IsTranscriptSharedWithGroupParams struct {
+type GetLatestShareAttemptParams struct {
 	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
 	GroupID      pgtype.UUID `db:"group_id" json:"group_id"`
 }
 
-func (q *Queries) IsTranscriptSharedWithGroup(ctx context.Context, arg IsTranscriptSharedWithGroupParams) (bool, error) {
-	row := q.db.QueryRow(ctx, isTranscriptSharedWithGroup, arg.TranscriptID, arg.GroupID)
-	var shared bool
-	err := row.Scan(&shared)
-	return shared, err
+// The most recent attempt for a (transcript, collective) pair, or no row when
+// the transcript was never submitted there. This is what the share path reads
+// to tell a genuine re-submission from a duplicate one.
+func (q *Queries) GetLatestShareAttempt(ctx context.Context, arg GetLatestShareAttemptParams) (TranscriptShareAttempt, error) {
+	row := q.db.QueryRow(ctx, getLatestShareAttempt, arg.TranscriptID, arg.GroupID)
+	var i TranscriptShareAttempt
+	err := row.Scan(
+		&i.ID,
+		&i.TranscriptID,
+		&i.GroupID,
+		&i.EventNum,
+		&i.Status,
+		&i.RecordedAt,
+		&i.DecidedAt,
+		&i.DecidedBy,
+	)
+	return i, err
 }
 
 const listGroupContributors = `-- name: ListGroupContributors :many
@@ -237,7 +251,7 @@ type ListGroupTranscriptsRow struct {
 	GitBranch               pgtype.Text        `db:"git_branch" json:"git_branch"`
 	GitRemote               pgtype.Text        `db:"git_remote" json:"git_remote"`
 	GitWorktree             pgtype.Text        `db:"git_worktree" json:"git_worktree"`
-	ProjectHash             pgtype.Text        `db:"project_hash" json:"project_hash"`
+	ProjectHash             string             `db:"project_hash" json:"project_hash"`
 	ProjectPath             pgtype.Text        `db:"project_path" json:"project_path"`
 	ProjectName             pgtype.Text        `db:"project_name" json:"project_name"`
 	ToolCallCount           pgtype.Int4        `db:"tool_call_count" json:"tool_call_count"`
@@ -383,6 +397,79 @@ func (q *Queries) ListGroupTranscripts(ctx context.Context, arg ListGroupTranscr
 	return items, nil
 }
 
+const listOwnerCollectiveSubmissions = `-- name: ListOwnerCollectiveSubmissions :many
+SELECT latest.transcript_id, latest.group_id, latest.title, latest.event_num,
+       latest.status, latest.recorded_at
+FROM (
+  SELECT DISTINCT ON (a.transcript_id)
+         a.transcript_id, a.group_id, t.title, a.event_num, a.status, a.recorded_at
+  FROM transcript_share_attempts a
+  JOIN transcripts t ON t.id = a.transcript_id
+  WHERE a.group_id = $1 AND t.owner_id = $2
+  ORDER BY a.transcript_id, a.event_num DESC
+) latest
+ORDER BY latest.recorded_at DESC, latest.transcript_id
+`
+
+type ListOwnerCollectiveSubmissionsParams struct {
+	GroupID pgtype.UUID `db:"group_id" json:"group_id"`
+	OwnerID pgtype.UUID `db:"owner_id" json:"owner_id"`
+}
+
+type ListOwnerCollectiveSubmissionsRow struct {
+	TranscriptID pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	GroupID      pgtype.UUID        `db:"group_id" json:"group_id"`
+	Title        pgtype.Text        `db:"title" json:"title"`
+	EventNum     int32              `db:"event_num" json:"event_num"`
+	Status       string             `db:"status" json:"status"`
+	RecordedAt   pgtype.Timestamptz `db:"recorded_at" json:"recorded_at"`
+}
+
+// EVERY (transcript, collective) pair the caller has ever offered to ONE
+// collective, with the latest recorded event of each pair.
+//
+// The source is the ATTEMPT LEDGER, never the derived current-state row, and
+// that is the whole point of the statement. The derived row is a fold that
+// keeps only live states: a pair whose last event was a retraction or a
+// revocation has no derived row at all. A listing built on the derived row
+// therefore reported nothing for a contribution that was submitted, refused and
+// then withdrawn - the person was told they had refusals and then shown an
+// empty list. Reading the ledger keeps the fully-withdrawn pair listed, so its
+// history stays reachable.
+//
+// Owner-only: $2 is the authenticated caller, and there is deliberately no
+// username parameter and no username route, so no request can name a subject
+// other than the caller. A caller with no pair here gets an empty result, which
+// the handler answers as 404 - the same answer as a collective that does not
+// exist, so asking cannot be used to discover one.
+// $1 = group_id, $2 = owner_id.
+func (q *Queries) ListOwnerCollectiveSubmissions(ctx context.Context, arg ListOwnerCollectiveSubmissionsParams) ([]ListOwnerCollectiveSubmissionsRow, error) {
+	rows, err := q.db.Query(ctx, listOwnerCollectiveSubmissions, arg.GroupID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnerCollectiveSubmissionsRow{}
+	for rows.Next() {
+		var i ListOwnerCollectiveSubmissionsRow
+		if err := rows.Scan(
+			&i.TranscriptID,
+			&i.GroupID,
+			&i.Title,
+			&i.EventNum,
+			&i.Status,
+			&i.RecordedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPendingGroupShares = `-- name: ListPendingGroupShares :many
 SELECT ts.transcript_id, t.title, t.model_provider,
        u.github_username as owner_username,
@@ -420,6 +507,50 @@ func (q *Queries) ListPendingGroupShares(ctx context.Context, groupID pgtype.UUI
 			&i.OwnerUsername,
 			&i.OwnerIsDiscoverable,
 			&i.SharedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listShareAttempts = `-- name: ListShareAttempts :many
+SELECT id, transcript_id, group_id, event_num, status,
+       recorded_at, decided_at, decided_by
+FROM transcript_share_attempts
+WHERE transcript_id = $1 AND group_id = $2
+ORDER BY event_num
+`
+
+type ListShareAttemptsParams struct {
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	GroupID      pgtype.UUID `db:"group_id" json:"group_id"`
+}
+
+// The full submission history for a (transcript, collective) pair, oldest
+// first. Every rejection and every withdrawal is its own row.
+func (q *Queries) ListShareAttempts(ctx context.Context, arg ListShareAttemptsParams) ([]TranscriptShareAttempt, error) {
+	rows, err := q.db.Query(ctx, listShareAttempts, arg.TranscriptID, arg.GroupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TranscriptShareAttempt{}
+	for rows.Next() {
+		var i TranscriptShareAttempt
+		if err := rows.Scan(
+			&i.ID,
+			&i.TranscriptID,
+			&i.GroupID,
+			&i.EventNum,
+			&i.Status,
+			&i.RecordedAt,
+			&i.DecidedAt,
+			&i.DecidedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -573,8 +704,26 @@ func (q *Queries) ListUserSharesInGroup(ctx context.Context, arg ListUserSharesI
 }
 
 const removeGroupTranscript = `-- name: RemoveGroupTranscript :exec
-DELETE FROM transcript_shares
-WHERE group_id = $1 AND transcript_id = $2
+WITH live AS (
+    SELECT event_num, status
+    FROM transcript_share_attempts
+    WHERE group_id = $1 AND transcript_id = $2
+      AND status IN ('pending', 'approved')
+    ORDER BY event_num DESC
+    LIMIT 1
+), closed_open_submission AS (
+    UPDATE transcript_share_attempts t
+    SET status = 'revoked', decided_at = now()
+    FROM live
+    WHERE t.group_id = $1 AND t.transcript_id = $2
+      AND t.event_num = live.event_num
+      AND live.status = 'pending'
+    RETURNING t.event_num
+)
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT $2, $1, live.event_num + 1, 'revoked', now()
+FROM live
+WHERE live.status = 'approved'
 `
 
 type RemoveGroupTranscriptParams struct {
@@ -582,17 +731,45 @@ type RemoveGroupTranscriptParams struct {
 	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
 }
 
+// The collective removes a contribution. 'revoked' is kept distinct from
+// 'retracted' because the actor differs: the collective removed it rather than
+// the owner withdrawing it, and conflating the two makes the history unreadable
+// for the person whose transcript it is.
+//
+// Same two shapes as a withdrawal: a submission awaiting review is closed in
+// place, an accepted contribution gets a further attempt so its acceptance
+// stays on record. A submission awaiting review is closed too - before the
+// attempt model this route removed the share whatever its state, and leaving it
+// open would keep it in the review queue and block re-submission forever.
 func (q *Queries) RemoveGroupTranscript(ctx context.Context, arg RemoveGroupTranscriptParams) error {
 	_, err := q.db.Exec(ctx, removeGroupTranscript, arg.GroupID, arg.TranscriptID)
 	return err
 }
 
 const retractUserSharesInGroup = `-- name: RetractUserSharesInGroup :exec
-DELETE FROM transcript_shares
-WHERE group_id = $1
-  AND transcript_id IN (
-    SELECT id FROM transcripts WHERE owner_id = $2
-  )
+WITH live AS (
+    SELECT DISTINCT ON (a.transcript_id)
+           a.transcript_id, a.event_num, a.status
+    FROM transcript_share_attempts a
+    JOIN transcripts t ON t.id = a.transcript_id
+    WHERE a.group_id = $1
+      AND t.owner_id = $2
+      AND a.status IN ('pending', 'approved')
+    ORDER BY a.transcript_id, a.event_num DESC
+), closed_open_submissions AS (
+    UPDATE transcript_share_attempts a
+    SET status = 'retracted', decided_at = now()
+    FROM live
+    WHERE a.group_id = $1
+      AND a.transcript_id = live.transcript_id
+      AND a.event_num = live.event_num
+      AND live.status = 'pending'
+    RETURNING a.event_num
+)
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT live.transcript_id, $1, live.event_num + 1, 'retracted', now()
+FROM live
+WHERE live.status = 'approved'
 `
 
 type RetractUserSharesInGroupParams struct {
@@ -600,18 +777,24 @@ type RetractUserSharesInGroupParams struct {
 	OwnerID pgtype.UUID `db:"owner_id" json:"owner_id"`
 }
 
-// Removes every share row in the given collective where the underlying
-// transcript is owned by the given user. Used when a member leaves and
-// chooses to retract (or when the collective's policy is 'mandatory').
+// Closes every live attempt in the given collective whose transcript is owned
+// by the given user. Used when a member leaves and chooses to retract, or when
+// the collective's deletion policy is 'mandatory', so nothing of theirs is left
+// open in a collective they have left.
+//
+// Per transcript this is the same two shapes as a single withdrawal: a
+// submission awaiting review is closed in place, an accepted contribution gets
+// a further attempt so its acceptance stays on record.
 func (q *Queries) RetractUserSharesInGroup(ctx context.Context, arg RetractUserSharesInGroupParams) error {
 	_, err := q.db.Exec(ctx, retractUserSharesInGroup, arg.GroupID, arg.OwnerID)
 	return err
 }
 
 const shareTranscriptWithStatus = `-- name: ShareTranscriptWithStatus :exec
-INSERT INTO transcript_shares (transcript_id, group_id, status)
-VALUES ($1, $2, $3)
-ON CONFLICT DO NOTHING
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
+SELECT $1, $2, COALESCE(MAX(event_num), 0) + 1, $3
+FROM transcript_share_attempts
+WHERE transcript_id = $1 AND group_id = $2
 `
 
 type ShareTranscriptWithStatusParams struct {
@@ -620,13 +803,37 @@ type ShareTranscriptWithStatusParams struct {
 	Status       string      `db:"status" json:"status"`
 }
 
+// The owner submits the transcript to a collective, opening the next attempt.
+// A rejected, retracted or revoked history does not block a new submission -
+// that is the point of counting attempts - so there is deliberately no
+// ON CONFLICT DO NOTHING here: a duplicate submission while one is already
+// live is refused by uq_share_attempt_open rather than silently discarded.
 func (q *Queries) ShareTranscriptWithStatus(ctx context.Context, arg ShareTranscriptWithStatusParams) error {
 	_, err := q.db.Exec(ctx, shareTranscriptWithStatus, arg.TranscriptID, arg.GroupID, arg.Status)
 	return err
 }
 
 const unshareTranscript = `-- name: UnshareTranscript :exec
-DELETE FROM transcript_shares WHERE transcript_id = $1 AND group_id = $2
+WITH live AS (
+    SELECT event_num, status
+    FROM transcript_share_attempts
+    WHERE transcript_id = $1 AND group_id = $2
+      AND status IN ('pending', 'approved')
+    ORDER BY event_num DESC
+    LIMIT 1
+), closed_open_submission AS (
+    UPDATE transcript_share_attempts t
+    SET status = 'retracted', decided_at = now()
+    FROM live
+    WHERE t.transcript_id = $1 AND t.group_id = $2
+      AND t.event_num = live.event_num
+      AND live.status = 'pending'
+    RETURNING t.event_num
+)
+INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status, decided_at)
+SELECT $1, $2, live.event_num + 1, 'retracted', now()
+FROM live
+WHERE live.status = 'approved'
 `
 
 type UnshareTranscriptParams struct {
@@ -634,23 +841,46 @@ type UnshareTranscriptParams struct {
 	GroupID      pgtype.UUID `db:"group_id" json:"group_id"`
 }
 
+// The owner withdraws their contribution.
+//
+// Two shapes, because an accepted contribution and a submission awaiting review
+// are different things. A submission still awaiting review is closed in place:
+// nothing was decided, and leaving it open would block the owner from ever
+// offering that transcript again. An ACCEPTED contribution is history - it was
+// accepted, by someone, on a date - so withdrawing it appends a further
+// attempt rather than overwriting the acceptance.
+//
+// Either way the latest attempt ends up 'retracted' and the derivation removes
+// the current-state row.
 func (q *Queries) UnshareTranscript(ctx context.Context, arg UnshareTranscriptParams) error {
 	_, err := q.db.Exec(ctx, unshareTranscript, arg.TranscriptID, arg.GroupID)
 	return err
 }
 
 const updateShareStatus = `-- name: UpdateShareStatus :exec
-UPDATE transcript_shares SET status = $3
-WHERE transcript_id = $1 AND group_id = $2
+UPDATE transcript_share_attempts
+SET status = $3, decided_at = now(), decided_by = $4
+WHERE transcript_id = $1
+  AND group_id = $2
+  AND status = 'pending'
 `
 
 type UpdateShareStatusParams struct {
 	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
 	GroupID      pgtype.UUID `db:"group_id" json:"group_id"`
 	Status       string      `db:"status" json:"status"`
+	DecidedBy    pgtype.UUID `db:"decided_by" json:"decided_by"`
 }
 
+// A moderator decides the open attempt. Only a still-open attempt can be
+// decided; a decided attempt is history, and changing a decision means a new
+// submission and a new attempt.
 func (q *Queries) UpdateShareStatus(ctx context.Context, arg UpdateShareStatusParams) error {
-	_, err := q.db.Exec(ctx, updateShareStatus, arg.TranscriptID, arg.GroupID, arg.Status)
+	_, err := q.db.Exec(ctx, updateShareStatus,
+		arg.TranscriptID,
+		arg.GroupID,
+		arg.Status,
+		arg.DecidedBy,
+	)
 	return err
 }

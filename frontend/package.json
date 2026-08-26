@@ -24,7 +24,11 @@
     "mock:rest:explore": "node scripts/visual/mock-rest-explore.mjs",
     "mock:rest:pagination": "node scripts/visual/mock-rest-pagination.mjs",
     "mock:rest": "node scripts/visual/mock-rest.mjs",
-    "shoot:explore:pagination": "node scripts/visual/explore-pagination-shoot.mjs"
+    "shoot:explore:pagination": "node scripts/visual/explore-pagination-shoot.mjs",
+    "shoot:profile:collectives": "node scripts/visual/profile-collectives-shoot.mjs",
+    "mock:rest:profile": "node scripts/visual/mock-rest-profile.mjs",
+    "mock:rest:project": "node scripts/visual/mock-rest-project.mjs",
+    "shoot:project": "node scripts/visual/project-page-shoot.mjs"
   },
   "dependencies": {
     "@peasant-labs/fairtrade": "0.0.16",

@@ -1,0 +1,195 @@
+# Who may see a user's project page, and what they see on it.
+#
+# Three answers are being kept apart here, and confusing any pair of them is the
+# failure this fixture exists to catch:
+#
+#   404 (hidden owner) - the page is not shown at all, because the owner has
+#         chosen not to be discoverable. Village will not even confirm the page
+#         exists.
+#   200 with an empty list - the owner is discoverable, so the page is shown; the
+#         viewer simply may not see any of its transcripts, because every one of
+#         them is private.
+#   404 (unknown hash) - the owner is discoverable and the hash is well-formed,
+#         but no transcript of theirs carries it. The hash names no project of
+#         this owner's at all, so there is nothing to show even to the owner
+#         themselves.
+#
+# A route that answered 404 for the empty-list case would hide a discoverable
+# user's project. A route that answered 200 for the hidden-owner case would
+# confirm a hidden user's existence to anyone who guessed the URL. A route that
+# answered 200 for the unknown-hash case would synthesize a page for a project
+# that was never published, for ANY 64-hex string. All three refusals share the
+# identical not-found body, so none of them can be told apart from the response -
+# each is asserted here in its own right. This boundary does NOT inherit coverage
+# from the public profile route, whose own boundary has no fixture behind it.
+#
+# viewer is one of: owner (the owner themselves), other (a different signed-in
+# user), anonymous (no session at all).
+
+- name: discoverable_owner_public_project_viewed_by_anonymous
+  why: >
+    The ordinary public case. Without it, a route that refused every anonymous
+    caller would still pass every refusal case below.
+  owner_discoverable: true
+  viewer: anonymous
+  transcript_visibility: public
+  want_status: 200
+  want_transcript_count: 1
+
+- name: discoverable_owner_public_project_viewed_by_other_signed_in
+  why: A signed-in stranger sees exactly what an anonymous caller sees.
+  owner_discoverable: true
+  viewer: other
+  transcript_visibility: public
+  want_status: 200
+  want_transcript_count: 1
+
+- name: discoverable_owner_public_project_viewed_by_owner
+  why: The owner sees their own project.
+  owner_discoverable: true
+  viewer: owner
+  transcript_visibility: public
+  want_status: 200
+  want_transcript_count: 1
+
+- name: hidden_owner_viewed_by_anonymous
+  why: >
+    The hidden-user boundary. A non-discoverable user must not be confirmed to
+    exist by anyone who guesses the URL, so the answer is 404 rather than 403.
+  owner_discoverable: false
+  viewer: anonymous
+  transcript_visibility: public
+  want_status: 404
+  want_transcript_count: 0
+
+- name: hidden_owner_viewed_by_other_signed_in
+  why: >
+    Signing in is not what lifts the hidden-user boundary; being the owner is.
+    Without this case a check written as "viewer != nil" would pass.
+  owner_discoverable: false
+  viewer: other
+  transcript_visibility: public
+  want_status: 404
+  want_transcript_count: 0
+
+- name: hidden_owner_viewed_by_owner
+  why: >
+    A hidden user can still reach their own page. Without this case the boundary
+    could be implemented as a blanket refusal and still look correct.
+  owner_discoverable: false
+  viewer: owner
+  transcript_visibility: private
+  want_status: 200
+  want_transcript_count: 1
+
+- name: discoverable_owner_all_transcripts_private_viewed_by_anonymous
+  why: >
+    The case that separates the two answers. The owner is discoverable, so the
+    page is shown; every transcript in the project is private, so the list is
+    empty. Answering 404 here would hide a discoverable user's project, and the
+    two outcomes are indistinguishable unless this case is asserted on its own.
+  owner_discoverable: true
+  viewer: anonymous
+  transcript_visibility: private
+  want_status: 200
+  want_transcript_count: 0
+
+- name: discoverable_owner_all_transcripts_private_viewed_by_other_signed_in
+  why: >
+    The same separation for a signed-in stranger, who must not see another user's
+    private work merely by holding a session.
+  owner_discoverable: true
+  viewer: other
+  transcript_visibility: private
+  want_status: 200
+  want_transcript_count: 0
+
+- name: discoverable_owner_unknown_hash_viewed_by_anonymous
+  why: >
+    The ownership boundary. The owner is discoverable and would otherwise show
+    their page, but the requested hash names no project of theirs. Without this
+    case, any well-formed 64-hex string under a discoverable owner would
+    synthesize a page for a project that was never published.
+  owner_discoverable: true
+  viewer: anonymous
+  transcript_visibility: public
+  request_unknown_hash: true
+  want_status: 404
+  want_transcript_count: 0
+
+- name: discoverable_owner_unknown_hash_viewed_by_owner
+  why: >
+    The ownership boundary holds even for the owner viewing their own unknown
+    hash. A project the owner never published does not exist for them either;
+    without this case the check could be implemented as "refuse everyone but the
+    owner" and still pass every other case here.
+  owner_discoverable: true
+  viewer: owner
+  transcript_visibility: public
+  request_unknown_hash: true
+  want_status: 404
+  want_transcript_count: 0
+
+- name: owner_renamed_project_resolves_to_the_chosen_name
+  why: >
+    The page resolves its display name through the same path every other surface
+    uses, and the owner's own name wins. Without it, a page that echoed the raw
+    stored project_name would pass every visibility case above.
+  owner_discoverable: true
+  viewer: anonymous
+  transcript_visibility: public
+  owner_override_name: Ledger service
+  want_status: 200
+  want_transcript_count: 1
+  want_display_name: Ledger service
+  want_name_source: override
+  want_remote_label: github.com:peasant-labs/ledger
+
+- name: project_with_no_owner_name_resolves_to_the_published_name
+  why: >
+    With no correction stored, the name the publisher disclosed is what renders,
+    and the source says so. Proves the override tier is not the only one wired.
+  owner_discoverable: true
+  viewer: anonymous
+  transcript_visibility: public
+  want_status: 200
+  want_transcript_count: 1
+  want_display_name: ledger-service
+  want_name_source: consented
+  want_remote_label: github.com:peasant-labs/ledger
+
+- name: project_with_only_a_privacy_label_resolves_to_the_repository
+  why: >
+    The remote tier, which cannot fire from any tier above it. With no owner
+    correction and no disclosed name - only Peasant's privacy-safe label - the
+    repository label is what a person can actually recognise, so it becomes the
+    display name and the source says so. This case is the one that fails if the
+    remote-label seam is unwired or wired to something other than the contract
+    module's rule, because every other case here resolves from a higher tier and
+    would pass with the seam dead.
+  owner_discoverable: true
+  viewer: anonymous
+  transcript_visibility: public
+  published_project_name: project-abc123def456
+  want_status: 200
+  want_transcript_count: 1
+  want_display_name: github.com:peasant-labs/ledger
+  want_name_source: remote
+  want_remote_label: github.com:peasant-labs/ledger
+
+- name: approved_contribution_appears_in_the_collectives_rollup
+  why: >
+    The only case that proves the collectives roll-up is actually WIRED to the
+    shared collectives query. Every other case here has no contribution at all,
+    so the page would answer with an empty roll-up whether the query ran or not,
+    and a seam left disconnected would pass all of them. This case asserts the
+    named collective comes back with its approved transcript counted. It does NOT
+    re-assert the visibility matrix, which belongs to that query's own corpus.
+  owner_discoverable: true
+  viewer: anonymous
+  transcript_visibility: public
+  share_into_public_collective: true
+  want_status: 200
+  want_transcript_count: 1
+  want_collective_count: 1
+  want_collective_transcript_count: 1

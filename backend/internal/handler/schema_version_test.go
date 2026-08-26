@@ -72,3 +72,51 @@ func TestGetSchemaVersion_WireKeysPresent(t *testing.T) {
 		}
 	}
 }
+
+// TestGetSchemaVersion_PushFloorPinnedAtAdvertisedValue pins the ADVERTISED push
+// floor at the exact version Village serves today.
+//
+// The floor decides which CLIs may publish at all. Raising it refuses every older
+// client outright, so it may only ever move as a deliberate, separately-argued
+// decision — never as a side effect of some other change. The tests above prove
+// only that the window is ADVERTISED and well-formed; neither of them notices if
+// the floor itself moves. This one does.
+//
+// Note what Village does and does not do here. Village ADVERTISES the floor; it
+// does not enforce it. The refusal of a below-floor client happens in the CLI,
+// which preflights against this advertised window, so there is no Village-side
+// rejection to assert and this test does not pretend to assert one. That makes
+// the advertised value the whole of Village's contribution to the negotiation,
+// and pinning it the strongest assertion this repository can make.
+//
+// It was written while adding the project-identity guard, where raising the floor
+// LOOKED like a way to guarantee that every accepted payload carries a project
+// hash. It is not: no published push-contract version guarantees a project object,
+// so a higher floor would have refused older clients for an unrelated reason and
+// closed nothing. The guard is enforced per payload instead, and the floor stays
+// where it is.
+func TestGetSchemaVersion_PushFloorPinnedAtAdvertisedValue(t *testing.T) {
+	const pinnedPushFloor schema.PushContractVersion = "0.1.0"
+
+	if minPushContractVersion != pinnedPushFloor {
+		t.Fatalf("the push-acceptance floor is %q, pinned at %q. Moving the floor refuses every client below it, so it "+
+			"is a deliberate compatibility decision: argue it, then update this pin in the same change.",
+			minPushContractVersion, pinnedPushFloor)
+	}
+
+	h := newTestHandler(&mockQuerier{}, nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/schema/version", nil)
+	w := httptest.NewRecorder()
+	h.GetSchemaVersion(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", w.Code)
+	}
+	var resp schema.SchemaVersionResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode SchemaVersionResponse: %v", err)
+	}
+	if resp.MinPushContractVersion != pinnedPushFloor {
+		t.Fatalf("advertised minPushContractVersion = %q, want the pinned floor %q", resp.MinPushContractVersion, pinnedPushFloor)
+	}
+}

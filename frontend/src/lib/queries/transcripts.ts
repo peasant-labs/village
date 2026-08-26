@@ -1,6 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, API_URL_BASE, getAuthHeaders } from "../api";
-import type { TranscriptListResponse, TranscriptDetailResponse } from "../types";
+import type {
+  ResolvedProject,
+  TranscriptDetailResponse,
+  TranscriptListResponse,
+  UserProjectPageResponse,
+} from "../types";
 import type {
   AnnotationSummary,
   ListAnnotationsResponse,
@@ -200,16 +205,78 @@ export function useDeleteTranscript() {
   });
 }
 
-export function useRenameUserProject() {
+/**
+ * The project page's payload: `GET /users/{username}/projects/{projectHash}`
+ * (AuthOptional).
+ *
+ * A 404 from this route is the profile-visibility boundary, not a transport
+ * failure: it answers identically for a user who does not exist, a user who has
+ * turned discoverability off, and a project neither of those owns. `retry` is
+ * therefore off — re-requesting a deliberate refusal only delays the not-found
+ * render — and callers branch on the {@link ApiError} status rather than
+ * treating the rejection as a generic error.
+ */
+export function useUserProject(username: string, projectHash: string) {
+  return useQuery({
+    queryKey: ["user-project", username, projectHash],
+    queryFn: () =>
+      api<UserProjectPageResponse>(
+        `/users/${encodeURIComponent(username)}/projects/${encodeURIComponent(projectHash)}`,
+      ),
+    retry: false,
+    enabled: !!username && !!projectHash,
+  });
+}
+
+/**
+ * Sets the owner override for a project's display name, keyed on
+ * `project_hash` — the project's IDENTITY, not a derived name. The route this
+ * replaced, `PATCH /users/me/projects/rename` (keyed on `{from, to}` name
+ * strings), is deleted with no shim: it matched zero rows whenever the client's
+ * locally-derived name disagreed with what the server actually stored, which is
+ * the exact defect this project-identity work exists to fix. Do not reintroduce
+ * a name-keyed body shape here.
+ *
+ * The response is the project's newly {@link ResolvedProject resolved} identity,
+ * so the control that issued the change re-renders from the server's answer
+ * instead of echoing the value it just sent.
+ */
+export function useSetProjectDisplayName() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ from, to }: { from: string; to: string }) =>
-      api(`/users/me/projects/rename`, {
+    mutationFn: ({ projectHash, displayName }: { projectHash: string; displayName: string }) =>
+      api<ResolvedProject>(`/users/me/projects/${encodeURIComponent(projectHash)}`, {
         method: "PATCH",
-        body: JSON.stringify({ from, to }),
+        body: JSON.stringify({ display_name: displayName }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transcripts"] });
+      qc.invalidateQueries({ queryKey: ["user-project"] });
+    },
+  });
+}
+
+/**
+ * Clears the owner override, reverting the project to its resolved default
+ * (`DELETE /users/me/projects/{projectHash}/display-name`).
+ *
+ * The default is whatever the remaining evidence resolves to — a consented
+ * name, a remote label, or the privacy-safe label — so the answer is read back
+ * off the response rather than guessed at: after a clear, both the name AND the
+ * tier it now comes from change, and a client that kept showing the cleared
+ * value would be showing a name the server no longer holds.
+ */
+export function useClearProjectDisplayName() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ projectHash }: { projectHash: string }) =>
+      api<ResolvedProject>(
+        `/users/me/projects/${encodeURIComponent(projectHash)}/display-name`,
+        { method: "DELETE" },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transcripts"] });
+      qc.invalidateQueries({ queryKey: ["user-project"] });
     },
   });
 }

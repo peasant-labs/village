@@ -212,7 +212,13 @@ export { CommitGraph } from "@peasant-labs/fairtrade/ui";
  * TeachingEmptyState — empty state that teaches the mechanism: icon + title +
  *   guidance prose + copyable `$ command` chip (with copy button) + privacy line.
  */
-export { DataState, ConnectionPill } from "@peasant-labs/fairtrade/ui";
+/**
+ * fairtrade EmptyState — the plain zero-state block (ringed icon + title +
+ * message + optional action). Use it where the empty answer is ORDINARY and
+ * needs no teaching: TeachingEmptyState explains a mechanism, which is the
+ * wrong voice for a list that is simply empty for this viewer.
+ */
+export { DataState, ConnectionPill, EmptyState } from "@peasant-labs/fairtrade/ui";
 
 /**
  * fairtrade TeachingEmptyState — widened to accept `style` so callers can embed

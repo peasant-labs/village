@@ -16,15 +16,24 @@ import {
 // fairtrade's TranscriptViewer) with REST mocked, following the same pattern
 // as mountedObservedModelRoute.test.tsx. Covers village#32 (the detail hero
 // deriving its own title instead of showing the stored one) and village#33
-// (the breadcrumb's hardcoded, 404ing /projects hrefs).
+// (the breadcrumb project crumb now links to the project page instead of
+// being a dead label).
 //
 // Each fixture case renders TWICE, in two independent `it` blocks below, so
 // the two production defects it guards against are independently
 // observable: reverting only the title overlay must fail only the "hero
-// title" tests, and reverting only the hardcoded /projects hrefs must fail
-// only the "breadcrumb" tests. A single combined `it` per case would still
-// catch both regressions, but could not say WHICH one broke from its own
-// output alone.
+// title" tests, and reverting only the project-crumb href must fail only the
+// "breadcrumb" tests. A single combined `it` per case would still catch both
+// regressions, but could not say WHICH one broke from its own output alone.
+//
+// Every case here goes through installRESTFixture's project-identity
+// defaults (see mountedProductionRoute.tsx): project_display_name defaults
+// to project_name and owner.github_username defaults to "fixture-owner", so
+// the expected project href below is always
+// `/users/fixture-owner/projects/{DEFAULT_PROJECT_HASH}`.
+const DEFAULT_PROJECT_HASH = "0".repeat(64);
+const DEFAULT_OWNER_USERNAME = "fixture-owner";
+const expectedProjectHref = `/users/${DEFAULT_OWNER_USERNAME}/projects/${DEFAULT_PROJECT_HASH}`;
 
 const fixtures = loadTitleHeroAndBreadcrumbFixtures();
 
@@ -103,7 +112,8 @@ describe("mounted production transcript route: routable breadcrumb", () => {
       const { transcriptID } = await renderCase(c);
 
       // Every href must resolve to a real village route, and specifically
-      // none may start with /projects (village#33).
+      // none may start with the removed, always-404ing /projects prefix
+      // (village#33) — the real project route is under /users/{username}.
       const nav = document.querySelector('nav[aria-label="breadcrumb"]');
       expect(nav).not.toBeNull();
 
@@ -112,17 +122,20 @@ describe("mounted production transcript route: routable breadcrumb", () => {
         expect(href?.startsWith("/projects")).toBe(false);
       }
 
+      // Two links now: the explore crumb, and the project crumb, which the app
+      // requires to navigate to /users/{username}/projects/{projectHash}.
       const crumbAnchors = [...nav!.querySelectorAll("a")];
-      expect(crumbAnchors).toHaveLength(1);
+      expect(crumbAnchors).toHaveLength(2);
       expect(crumbAnchors[0]?.getAttribute("href")).toBe("/");
       expect(crumbAnchors[0]?.textContent).toBe("explore");
 
-      // Project label carries meaning (Peasant's privacy-safe project
-      // label) with no village route to link it to, so it renders as text,
-      // not a link.
-      const projectCrumbs = [...nav!.querySelectorAll("span.link")];
-      expect(projectCrumbs).toHaveLength(1);
-      expect(projectCrumbs[0]?.textContent).toBe(c.expectedProjectCrumbLabel);
+      expect(crumbAnchors[1]?.getAttribute("href")).toBe(expectedProjectHref);
+      expect(crumbAnchors[1]?.textContent).toBe(c.expectedProjectCrumbLabel);
+
+      // No crumb renders as a dead, unlinked label any more: the middle
+      // crumb is now always an anchor (asserted above), never a `span.link`.
+      const deadProjectCrumbs = [...nav!.querySelectorAll("span.link")];
+      expect(deadProjectCrumbs).toHaveLength(0);
 
       // Last crumb reads the RAW stored title (trimmed, truncated) — not
       // the hero's overlaid "Untitled transcript" placeholder — falling
