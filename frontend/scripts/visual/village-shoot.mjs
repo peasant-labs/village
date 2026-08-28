@@ -1,6 +1,6 @@
 /* Screenshot the assembled Village transcript view (the dev visual-harness route):
      wire SessionDetailPayload -> Fairtrade adaptTranscript -> TranscriptViewer,
-     with transcript-browser's @xyflow TrajectoryGraph plugged into Fairtrade's graph slot.
+     with fairtrade's own @xyflow TrajectoryGraph plugged into Fairtrade's graph slot.
 
    Mirrors the surface set of the canonical fairtrade demo (scripts/shootdemo.mjs) so the shots pair
    1:1 with the DEMO captures. The app and demo both render Fairtrade's canonical `.txn-*` markup, and

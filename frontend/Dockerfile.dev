@@ -1,7 +1,6 @@
 # Dev image for the village frontend. The build context is THIS repo's root
-# (the pnpm workspace root) — every dependency, including @peasant-labs/fairtrade
-# and @peasant-labs/transcript-browser, resolves from the npm registry, so the
-# image needs no sibling worktrees. (The previous version copied the paired
+# (the pnpm workspace root); every dependency, including @peasant-labs/fairtrade,
+# resolves from the npm registry, so the image needs no sibling worktrees. (The previous version copied the paired
 # fairtrade-design-system worktree and ran a source prebuild on every start;
 # that dev-link machinery is retired — published packages only.)
 FROM node:24-alpine

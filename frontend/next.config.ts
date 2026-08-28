@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 import path from "path";
 
-// @peasant-labs/fairtrade, transcript-browser, and analytics are all
-// pre-built bundled ESM published to npm. They must NOT be in
-// transpilePackages: Next would run RSC transforms on their hook-using code
+// @peasant-labs/fairtrade (including its graph and analytics entries) is
+// pre-built bundled ESM published to npm. It must NOT be in
+// transpilePackages: Next would run RSC transforms on its hook-using code
 // without 'use client' guards → useState treated as null at prerender.
 //
 // A manual resolve.alias for react/react-dom is also harmful: it overrides

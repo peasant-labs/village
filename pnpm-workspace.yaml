@@ -15,5 +15,4 @@ allowBuilds:
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@peasant-labs/fairtrade'
-  - '@peasant-labs/transcript-browser'
   - '@peasant-labs/schema'

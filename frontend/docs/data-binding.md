@@ -2,8 +2,7 @@
 
 How data flows from the Go backend to the rendered UI in `village/frontend`, and
 back for mutations. Grounded in the code under `frontend/src` and the published
-`@peasant-labs/transcript-browser`, `@peasant-labs/fairtrade`, and
-`@peasant-labs/schema` package boundaries.
+`@peasant-labs/fairtrade` and `@peasant-labs/schema` package boundaries.
 
 This documents **what exists and why**. It does not propose new view-models or
 refactors.
@@ -39,7 +38,7 @@ Data moves through these layers, top (network) to bottom (pixels):
    - **One cohesive wire→view-model projection** for the transcript trace:
      `adaptTranscript()` → `TranscriptViewModel`. It lives in
      `@peasant-labs/fairtrade/ui` and is called **inside** the shared
-     `transcript-browser` `<SessionDetail>` composer (not in village). Village's
+     `<SessionDetail>` composer (not in village). Village's
      `SessionDetailV2` is the **host-glue adapter** that feeds the REST payload,
      auth, and mutations into that package.
    - **Distributed, tiny per-component prop-adapters** for the heterogeneous
@@ -218,7 +217,7 @@ keep them straight:
 
 **`adaptTranscript` — the actual wire→view-model projection.** Exported from
 `@peasant-labs/fairtrade/ui`; called inside the shared
-`transcript-browser/.../SessionDetail.tsx:218-221`, **not** by village.
+`fairtrade/.../SessionDetail.tsx:218-221`, **not** by village.
 
 - **Input**: `TranscriptWireInput` ≈ the raw `SessionDetailPayload`
   (`{ ...detail, turns }`).
@@ -287,7 +286,7 @@ the data actually is homogeneous vs heterogeneous.
 internally. This keeps the cooked shape identical for both village (REST) and
 peasant (WS), and keeps the single wire-parse site in one place. The package is
 strictly data-in-via-props / actions-out-via-callbacks; it reads no auth, no
-router, no env (`transcript-browser/.../index.ts:5-9`).
+router, no env (`fairtrade/.../index.ts:5-9`).
 
 **Where mutation wiring lives.** All mutations are `useMutation` hooks colocated
 by resource in `src/lib/queries/*` (not in components). Components/dialogs only
@@ -387,9 +386,9 @@ specifically to enable this branching (`api.ts:3-9`).
 - `src/components/transcript/{TranscriptEditDialog,ContributePicker,ConfirmContributeDialog,TurnLabelPopover}.tsx` — write-path dialogs.
 
 **Shared viewer (the cohesive view-model lives here)**
-- `@peasant-labs/transcript-browser` — `SessionDetail` composer; calls
-  `adaptTranscript` and renders the cooked view model.
-- `@peasant-labs/fairtrade/ui` — `adaptTranscript` and `TranscriptViewModel`.
+- `@peasant-labs/fairtrade/ui`: `SessionDetail` composer, `adaptTranscript`,
+  and `TranscriptViewModel`; renders the cooked view model.
+- `@peasant-labs/fairtrade/graph`: the trajectory-graph engine.
 - `@peasant-labs/schema` — generated `SessionDetailPayload`, enums, and runtime
   validation contracts consumed by both the app and viewer.
 

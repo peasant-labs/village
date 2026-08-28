@@ -4,12 +4,11 @@ import { atkinsonHyperlegible, atkinsonHyperlegibleMono } from "@/app/fonts";
 // CSS import order: fairtrade components.css (tokens + base + component
 // styles) FIRST, then the fairtrade analytics per-surface bundle (nothing
 // auto-loads it — the dashboard ships unstyled without the explicit import),
-// then app globals, then transcript-browser styles. Always import fairtrade
+// then the fairtrade graph engine bundle (trajectory-graph node visuals +
+// @xyflow chrome), then app globals. Always import fairtrade
 // components.css (never base.css standalone) so its layered tokens/base win.
-// The old analytics-last ordering hack (the external package's own layered
-// styles had to win over app CSS) is gone with the package — the fairtrade
-// surface is token-driven, so order among the fairtrade sheets no longer
-// carries theming semantics.
+// The fairtrade surface is token-driven, so order among the fairtrade sheets
+// no longer carries theming semantics.
 //
 // NOTE: @peasant-labs/fairtrade/fonts.css is NOT imported — it loads Atkinson
 // via a remote `@import url(...)`, which Next's CSS bundling can relocate
@@ -24,8 +23,8 @@ import { atkinsonHyperlegible, atkinsonHyperlegibleMono } from "@/app/fonts";
 // web app already applied (see its src/app/fonts/index.ts).
 import "@peasant-labs/fairtrade/components.css";
 import "@peasant-labs/fairtrade/analytics.css";
+import "@peasant-labs/fairtrade/graph.css";
 import "./globals.css";
-import "@peasant-labs/transcript-browser/styles.css";
 
 export const metadata: Metadata = {
   title: "village | peasant labs",

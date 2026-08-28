@@ -4,9 +4,9 @@
 # points its BASE inside this folder these patterns keep them out of git.
 #
 # Allowlist: the tracked harness scripts + docs, PLUS the committed `baseline/`
-# (the same-component transcript-browser <SessionDetail> reference — the ONE
-# capture set that IS tracked, as the no-regression "before"). Add a new `!path`
-# line to track any future script.
+# (a frozen `<SessionDetail>` reference from before the fairtrade graph fold,
+# the ONE capture set that IS tracked, as the no-regression "before"). Add a
+# new `!path` line to track any future script.
 *
 !.gitignore
 !README.md

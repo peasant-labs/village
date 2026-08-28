@@ -1,4 +1,4 @@
-import type { TurnLabel } from "@peasant-labs/transcript-browser";
+import type { TurnLabel } from "@peasant-labs/fairtrade/ui";
 import type { AnnotationSummary } from "@peasant-labs/schema";
 
 export type { AnnotationSummary };

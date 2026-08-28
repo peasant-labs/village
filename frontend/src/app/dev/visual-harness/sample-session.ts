@@ -11,8 +11,8 @@ import type {
  * This file is a faithful port of the demo mockup's `buildWire()`: the editorial
  * fixtures below are projected into the canonical wire `SessionDetailPayload`,
  * which the visual-harness route feeds through Fairtrade's canonical
- * `adaptTranscript` → `<TranscriptViewer>` composition, with transcript-browser
- * supplying only the graph engine — exactly the payload Village's real
+ * `adaptTranscript` → `<TranscriptViewer>` composition, with fairtrade's
+ * `/graph` entry supplying the graph engine: exactly the payload Village's real
  * `/transcripts/[id]` page hands it, minus the REST fetch.
  * Rendering the SAME data the demo renders lets the side-by-side capture stitch a
  * true height-matched, same-data comparison of the canonical demo vs the
@@ -394,7 +394,7 @@ export const sampleSession: SessionDetailPayload & {
   tokensOut: 6200,
   turnCount: 8,
   toolCallCount: 5,
-  project: "transcript-browser",
+  project: "fairtrade-design-system",
   model: ROOT_MODEL,
   workingDirectory: "/Users/developer/work/sample-app",
   outcome: "resolved",

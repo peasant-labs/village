@@ -18,8 +18,8 @@ cases:
     # hero and the crumb should both show it verbatim, unmodified.
     storedTitle: "Port the transcript canvas into the shared package"
     firstUserTurnContent: "Let's port the canvas component into the shared package."
-    project: "transcript-browser"
-    expectedProjectCrumbLabel: "transcript-browser"
+    project: "fairtrade-design-system"
+    expectedProjectCrumbLabel: "fairtrade-design-system"
     expectedHeroTitle: "Port the transcript canvas into the shared package"
     expectedCrumbUsesShortId: false
     expectedCrumbLastLabel: "Port the transcript canvas into the shared package"

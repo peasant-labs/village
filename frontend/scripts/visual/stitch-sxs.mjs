@@ -16,7 +16,7 @@
    It pairs a REFERENCE set against the SUBJECT app captures (<base-dir>/<APP_DIR>/<theme>/) — both
    produced elsewhere; this script only composites them. See the README "Oracle" section for what the
    transcript SxS does and does NOT gate:
-     - REF_DIR=tb (default) vs APP_DIR=village → the SAME-component transcript-browser <SessionDetail>
+     - REF_DIR=tb (default) vs APP_DIR=village → the SAME-component <SessionDetail>
        before/after. The reference is the COMMITTED, frozen `baseline/tb/` set tracked next to these
        scripts (the frozen pre-theme-convergence capture); a divergence is a real regression.
        (Resolved from the committed dir unless a same-named set is staged under <base-dir>.)
@@ -52,7 +52,7 @@ const SURFACE_SET = process.env.SURFACE_SET || 'txn'
 const IMGDIFF_FAIL_PCT = SURFACE_SET === 'cex' ? 12 : 0.5
 // The LEFT (reference) pane and the RIGHT (subject) pane are both parameterized:
 //   - DEFAULT transcript oracle: REF_DIR=tb vs APP_DIR=village — the SAME-component before/after view.
-//     The reference `tb` is the committed, frozen transcript-browser <SessionDetail>
+//     The reference `tb` is the committed, frozen <SessionDetail>
 //     capture from before theme convergence (non-regenerable; tracked at baseline/tb/ next to
 //     these scripts); the subject is the current village <SessionDetail>. Both are `.tb-*`, so a
 //     divergence is a real transcript regression, not a component difference. (The SxS is NOT expected to
@@ -64,7 +64,7 @@ const IMGDIFF_FAIL_PCT = SURFACE_SET === 'cex' ? 12 : 0.5
 const REF_DIR = process.env.REF_DIR || (SURFACE_SET === 'cex' ? 'demo' : 'tb')
 const REF_LABEL = process.env.REF_LABEL || (SURFACE_SET === 'cex'
   ? 'REFERENCE  (fairtrade in-use demo — village app)'
-  : 'REFERENCE  (transcript-browser <SessionDetail> — before convergence)')
+  : 'REFERENCE  (<SessionDetail>, before convergence)')
 const APP_DIR = process.env.APP_DIR || 'village'
 const APP_LABEL = process.env.APP_LABEL || (SURFACE_SET === 'cex'
   ? 'VILLAGE-FRONTEND  (Explore — current)'
