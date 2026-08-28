@@ -77,7 +77,7 @@ describe("mounted routes: which surface each visitor lands on", () => {
 describe("mounted home route: recent sessions, then projects", () => {
   for (const c of fixtures.homeCases) {
     it(c.name, async () => {
-      const requested = installHomeRouteREST({
+      const backend = installHomeRouteREST({
         viewerUsername: c.viewerUsername,
         transcripts: c.transcripts,
         ownerRequestFailure: c.requestFailure,
@@ -85,6 +85,7 @@ describe("mounted home route: recent sessions, then projects", () => {
       });
       await renderAppRoute("/");
 
+      const requested = backend.requested;
       const ownerRequests = () => requested.filter((p) => p.includes("owner="));
 
       // Without a handle the page must ask NOTHING. A blank owner filter is
@@ -156,9 +157,13 @@ describe("mounted home route: recent sessions, then projects", () => {
       // failed is the same lie as calling it empty, one shape over.
       if (c.expectHomeSurface === "stale") {
         const answered = ownerRequests().length;
-        // The real refetch path: the app's query client refetches on focus, so
-        // the notice is reached the way a person reaches it, not by reaching
-        // into the cache.
+        // TanStack's focus manager really does listen for this event, so the
+        // refetch is triggered the way the browser triggers it rather than by
+        // reaching into the cache. What makes it fire IMMEDIATELY here is this
+        // harness's own `staleTime: 0`; in the app a refresh within the stale
+        // window is skipped, and arrives on the next focus after it. The
+        // separate check below is what holds the production side of that: the
+        // app must not have turned focus refetching off.
         await act(async () => {
           document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
         });
@@ -180,6 +185,35 @@ describe("mounted home route: recent sessions, then projects", () => {
           ...document.querySelectorAll('[data-testid="home-recent-sessions"] a[aria-label]'),
         ].map((a) => (a.getAttribute("aria-label") ?? "").replace(/^Open transcript /, ""));
         expect(stillListed).toEqual(c.expectRecentTitles);
+
+        // The notice's OWN retry is a second control, and the only way back
+        // from a failed refresh. A dead handler here would leave a person
+        // pressing a button that never asks again.
+        const noticeRetry = document.querySelector<HTMLButtonElement>(
+          '[data-testid="home-stale-retry"]',
+        );
+        expect(noticeRetry).not.toBeNull();
+        const beforeNoticeRetry = ownerRequests().length;
+        await act(async () => {
+          fireEvent.click(noticeRetry!);
+        });
+        await waitFor(() =>
+          expect(ownerRequests().length).toBeGreaterThan(beforeNoticeRetry),
+        );
+
+        // And it recovers: once the server answers again the notice goes, and
+        // the rows are the refreshed ones rather than a permanent warning.
+        backend.heal();
+        await act(async () => {
+          fireEvent.click(
+            document.querySelector<HTMLButtonElement>('[data-testid="home-stale-retry"]')!,
+          );
+        });
+        await waitFor(() =>
+          expect(document.querySelector('[data-testid="home-stale-notice"]')).toBeNull(),
+        );
+        expect(homeSurface()).not.toBeNull();
+        expect(homeErrorSurface()).toBeNull();
       }
 
       // The page reads the viewer's OWN transcripts. A request without the

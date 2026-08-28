@@ -24,6 +24,13 @@ import type { TranscriptListItem } from "@/lib/types";
  * on, and where do I continue" — a count of transcripts answers neither.
  */
 
+/**
+ * Whether the viewer's handle is known, still being chosen, or recorded as
+ * chosen while blank. The page owes each a different answer, so they are a
+ * closed set rather than a pair of booleans combined at each branch.
+ */
+type HandleState = "known" | "choosing" | "missing";
+
 /** How many recent sessions the top list shows before the project list takes over. */
 const RECENT_SESSION_LIMIT = 5;
 
@@ -56,14 +63,20 @@ export default function HomePage() {
   // with the whole commons under a heading that says "your", so the request is
   // not issued at all until the viewer's handle is known.
   //
-  // There are two ways it can be blank, and they end differently. Somebody who
-  // has not claimed a handle yet is on their way to `/welcome`: the handle gate
-  // reads `username_chosen`, so this page only has to hold still. An account
-  // that claims a chosen handle and still carries none is a server contract
-  // violation, and is told so rather than shown an endless skeleton.
-  const hasUsername = username !== "";
-  const awaitingHandleChoice = user != null && !user.username_chosen;
-  const { data, isLoading, isError, error, refetch } = useTranscripts(
+  // The three states are named rather than derived from two booleans at each
+  // use, because they are answered differently and only one of them is a
+  // waiting state. `choosing` is on its way to `/welcome` — the handle gate
+  // reads `username_chosen`, so this page only has to hold still. `missing` is
+  // an account that records having chosen a handle while carrying none: a
+  // server contract violation nothing will resolve on its own.
+  // A null user is not an account with a bad handle, it is no answer yet, and
+  // it must never reach the accusation below. `RootPage` does not mount this
+  // page without one, but the guard belongs with the state it describes rather
+  // than with the only caller that happens to hold the line today.
+  const handleState: HandleState =
+    username !== "" ? "known" : user?.username_chosen === true ? "missing" : "choosing";
+  const hasUsername = handleState === "known";
+  const { data, isLoading, isFetching, isError, error, refetch } = useTranscripts(
     { owner: username },
     { enabled: hasUsername },
   );
@@ -71,6 +84,13 @@ export default function HomePage() {
   // The reported cause is its own sentence wherever it is shown: it comes from
   // the server and carries no guaranteed capital or full stop.
   const failureCause = error instanceof Error ? error.message : "an unknown error";
+
+  // A retry that fails again produces the SAME alert text, which a screen
+  // reader will not announce a second time and a sighted reader cannot
+  // distinguish from a button that did nothing. So the request being in flight
+  // is its own visible state on the control, and its own polite announcement.
+  const retrying = isError && isFetching;
+  const retryText = retrying ? "retrying" : "retry";
 
   const items = data?.transcripts ?? [];
   const recent = mostRecentFirst(items).slice(0, RECENT_SESSION_LIMIT);
@@ -99,7 +119,7 @@ export default function HomePage() {
     </div>
   );
 
-  if (isLoading || (!hasUsername && awaitingHandleChoice)) {
+  if (isLoading || handleState === "choosing") {
     return (
       <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
         <div className="h-8 w-64 animate-shimmer" />
@@ -109,10 +129,9 @@ export default function HomePage() {
     );
   }
 
-  // A chosen handle that is blank cannot be asked about, and nothing is coming
-  // to fix it: the redirect that would rescue an unchosen handle does not fire
-  // for this account. Say so, rather than shimmer forever.
-  if (!hasUsername) {
+  // Nothing is coming to fix this one: the redirect that rescues an unchosen
+  // handle does not fire for an account that records having chosen one.
+  if (handleState === "missing") {
     return (
       <div
         className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
@@ -160,7 +179,8 @@ export default function HomePage() {
             `The request reported: ${failureCause}.`
           }
           onRetry={() => refetch()}
-          retryLabel="retry"
+          retryLabel={retryText}
+          retryDisabled={retrying}
         />
       </div>
     );
@@ -171,6 +191,15 @@ export default function HomePage() {
       className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up"
       data-testid="home-page"
     >
+      <p
+        role="status"
+        aria-live="polite"
+        className="sr-only"
+        data-testid="home-status"
+      >
+        {retrying ? "reloading your sessions" : ""}
+      </p>
+
       <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-ink">
         home
       </h1>
@@ -191,8 +220,10 @@ export default function HomePage() {
             type="button"
             className="btn btn-secondary btn-sm shrink-0"
             onClick={() => refetch()}
+            disabled={retrying}
+            data-testid="home-stale-retry"
           >
-            retry
+            {retryText}
           </button>
         </div>
       )}

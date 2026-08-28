@@ -13,6 +13,7 @@
      MOCK_REST_PORT=8791 node scripts/visual/mock-rest-home.mjs
      MOCK_REST_PORT=8791 MOCK_SIGNED_OUT=1 node scripts/visual/mock-rest-home.mjs
      MOCK_REST_PORT=8791 MOCK_OWNER_LIST_FAILS=1 node scripts/visual/mock-rest-home.mjs
+     MOCK_REST_PORT=8791 MOCK_BLANK_HANDLE=1 node scripts/visual/mock-rest-home.mjs
 */
 import { createServer } from 'node:http'
 
@@ -26,8 +27,12 @@ const SIGNED_OUT = process.env.MOCK_SIGNED_OUT === '1'
 // whole broken app. The distinction is the point: a failed list is not an empty
 // library, and only a capture where the rest of the page works can show that.
 const OWNER_LIST_FAILS = process.env.MOCK_OWNER_LIST_FAILS === '1'
+// When set, the account reports having CHOSEN a handle while carrying none.
+// The handle gate reads `username_chosen`, so it does not rescue this account:
+// it is the contract violation the page has to name rather than shimmer on.
+const BLANK_HANDLE = process.env.MOCK_BLANK_HANDLE === '1'
 
-const user = {
+const baseUser = {
   id: 'user-demo',
   github_id: 123456,
   github_username: 'alice-dev',
@@ -41,6 +46,10 @@ const user = {
   username_chosen: true,
   provider_username: 'alice-dev',
 }
+
+// The served identity. Every other route still answers, so a capture of the
+// blank-handle surface is evidence about THAT surface and not a broken app.
+const user = BLANK_HANDLE ? { ...baseUser, github_username: '' } : baseUser
 
 const HASH_VILLAGE = '1'.repeat(64)
 const HASH_PEASANT = '2'.repeat(64)

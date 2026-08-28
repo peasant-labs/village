@@ -77,6 +77,17 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+/** What a test holds over the stubbed backend after installing it. */
+export interface MountedHomeBackend {
+  /** Every path either route requested, in order. */
+  requested: string[];
+  /**
+   * Stop failing the owner-scoped request, so the NEXT attempt answers. Lets a
+   * test prove a surface recovers rather than only that it can be reached.
+   */
+  heal(): void;
+}
+
 /**
  * Stubs `fetch` for every call either route makes, and RECORDS the request
  * paths so a test can assert that an endpoint was never reached — which is how
@@ -86,10 +97,10 @@ function json(body: unknown, status = 200): Response {
  * An unexpected request throws, so a new fetch introduced on either route
  * shows up as a named failure rather than as a silent hang.
  */
-export function installHomeRouteREST(fixture: MountedHomeFixture): string[] {
+export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBackend {
   const requested: string[] = [];
   const chosen = fixture.usernameChosen ?? true;
-  const failure: HomeRequestFailure = fixture.ownerRequestFailure ?? "never";
+  let failure: HomeRequestFailure = fixture.ownerRequestFailure ?? "never";
   const owner = userFixture(fixture.viewerUsername ?? "anon", chosen);
   let ownerAnswers = 0;
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -128,7 +139,12 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): string[] {
     throw new Error(`mounted home route fixture received an unexpected request to ${url}`);
   });
   vi.stubGlobal("fetch", fetchMock);
-  return requested;
+  return {
+    requested,
+    heal() {
+      failure = "never";
+    },
+  };
 }
 
 async function renderRoute(element: React.ReactElement): Promise<void> {

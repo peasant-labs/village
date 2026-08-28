@@ -113,8 +113,8 @@ export default function ExplorePage() {
   }
 
   // One label for both ways the same failure is offered: the full surface and
-  // the notice above retained rows. Two literals sixteen lines apart would
-  // drift the moment one of them is reworded.
+  // the notice above retained rows. Written out in two places, it would drift
+  // the moment one of them is reworded.
   const retryLabel = `retry page ${requestedPage}`;
 
   const retryButton = (

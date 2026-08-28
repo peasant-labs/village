@@ -294,9 +294,14 @@ sortCases:
     expectOrder: [newer, older, unparseable]
 
   - name: two-unparseable-timestamps-keep-the-order-they-arrived-in
+    # THREE rows, not two: for a two-element array a comparator that returns a
+    # positive number preserves the order just as returning zero does, so a
+    # pair could not tell "leave these alone" from "swap these".
     given:
       - id: first-bad
         publishedAt: ""
       - id: second-bad
         publishedAt: "also not a timestamp"
-    expectOrder: [first-bad, second-bad]
+      - id: third-bad
+        publishedAt: "nor is this one"
+    expectOrder: [first-bad, second-bad, third-bad]

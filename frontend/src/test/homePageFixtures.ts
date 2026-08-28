@@ -179,6 +179,12 @@ const homeSurfaces: readonly HomeSurface[] = [
 /**
  * The surface a case's OWN inputs entail. Derived here, so a case cannot claim
  * an expectation its inputs do not support, and so each rule is stated once.
+ *
+ * The order below mirrors the early returns in `HomePage`, and deliberately:
+ * it is a second copy of that precedence, kept so a case that contradicts
+ * itself fails loudly at load. If the page ever reorders its branches — a
+ * failure taking the page ahead of the no-handle answer, say — this function
+ * moves with it, and the mounted assertions are what catch the mismatch.
  */
 function surfaceFor(c: HomeCase): HomeSurface {
   if (c.viewerUsername === "") return c.usernameChosen ? "no-handle" : "skeleton";
@@ -361,6 +367,17 @@ export function loadHomePageFixtures(): HomePageFixtures {
       throw new Error(
         `home case ${c.name}: no request is issued without a handle, so the case cannot supply ` +
           `rows for one`,
+      );
+    }
+    // A surface that renders no list cannot be asserted against row
+    // expectations, so carrying them would leave dead fields nothing checks.
+    if (
+      (c.expectHomeSurface === "skeleton" || c.expectHomeSurface === "no-handle") &&
+      (c.expectRecentTitles.length > 0 || c.expectProjectRows.length > 0)
+    ) {
+      throw new Error(
+        `home case ${c.name}: the ${c.expectHomeSurface} surface renders no session or project ` +
+          `list, so its row expectations would never be read; leave both empty`,
       );
     }
 

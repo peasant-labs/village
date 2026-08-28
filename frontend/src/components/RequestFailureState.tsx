@@ -33,6 +33,12 @@ export interface RequestFailureStateProps {
   onRetry: () => void;
   /** The retry control's label; names the exact request being re-issued. */
   retryLabel: ReactNode;
+  /**
+   * The retry is already in flight. A retry that fails again renders the same
+   * words, so without this the control is indistinguishable from one that did
+   * nothing when it was pressed.
+   */
+  retryDisabled?: boolean;
 }
 
 export default function RequestFailureState({
@@ -40,6 +46,7 @@ export default function RequestFailureState({
   message,
   onRetry,
   retryLabel,
+  retryDisabled = false,
 }: RequestFailureStateProps) {
   return (
     <div className="flex flex-col gap-6 animate-fade-up">
@@ -54,6 +61,7 @@ export default function RequestFailureState({
           type="button"
           className="btn btn-secondary btn-sm shrink-0"
           onClick={onRetry}
+          disabled={retryDisabled}
         >
           {retryLabel}
         </button>

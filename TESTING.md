@@ -322,14 +322,16 @@ column) layout and that connector are proven by
 `frontend/src/test/homePageFixtures.ts` hold every case for the two routes the
 root of the app resolves to: the signed-in person's home page at `/`, and the
 public discovery list, which now also has its own address at `/explore`. The
-file carries three groups. `routeCases` pin WHICH surface each (path, visitor)
+file carries four groups. `routeCases` pin WHICH surface each (path, visitor)
 pair lands on, and are consumed by `frontend/src/homePage.test.tsx`, which
 mounts the REAL routes inside the real `AuthProvider` with `fetch` stubbed, so
 the session decides the answer rather than a stubbed hook. `homeCases` pin what
 the home surface renders for a given owner-scoped transcript list - the recent
 sessions in order, the project rows, their session counts and their hash-keyed
-links - and are consumed by the same file. `navCases` pin which top-nav entry
-is offered and which one is marked active, and are consumed by
+links - and are consumed by the same file. `sortCases` pin the exported
+recent-first sort on its own, including timestamps that do not parse, which the
+mounted corpus rejects by design and so cannot reach. `navCases` pin which
+top-nav entry is offered and which one is marked active, and are consumed by
 `frontend/src/lib/nav/sections.test.ts`.
 
 The loader guards deletion with required-NAME lists, never a row count, and it
@@ -340,14 +342,37 @@ supplies more sessions than its recent list shows (so dropping the cap fails)
 and at least one supplies its rows in an order that is not already
 most-recent-first (so never sorting fails).
 
-One `homeCases` field is about the request rather than the rows: `requestFails`
-models the owner-scoped list request FAILING instead of answering. The corpus
-is rejected unless at least one case sets it, because a page that rendered a
-failed request as the teaching empty state would otherwise pass, and would tell
-a person with a full library that they have published nothing. `expectEmptyState`
-is therefore only true when the case supplies no rows AND its request succeeds.
+Three `homeCases` fields describe the REQUEST rather than the rows, and each is
+written on every case so none is silently read as the happy path.
+`usernameChosen` says whether the account claims a chosen handle;
+`requestFailure` is `never`, `always`, or `after-first-answer`; and
+`expectHomeSurface` names which of the page's six answers the case must land on
+(`rows`, `empty`, `failure`, `stale`, `skeleton`, `no-handle`).
+
+The loader DERIVES the surface a case's own inputs entail and rejects any case
+whose written expectation disagrees, so a case cannot be edited into agreement
+with a broken page. That derivation mirrors the page's branch order on purpose;
+the mounted assertions are what catch a mismatch between the two.
+
+The corpus is rejected unless a case lands on each of `failure`, `stale`,
+`skeleton` and `no-handle`, and the loader names what each absence would let
+through: a failed request rendered as the teaching empty state (telling a person
+with a full library they have published nothing); a failed REFRESH replacing
+rows the app already holds; a blank owner filter issued while the handle is
+still being chosen (which the list handler drops, so the whole commons arrives
+under a heading that says "your"); and an endless skeleton for an account whose
+chosen handle is blank. `expectHomeSurface: empty` is therefore legal only when
+the case supplies no rows AND its request succeeds AND the handle is known.
+
 The failure case asserts the shared failure panel, the absence of the empty
-state, and that clicking retry re-issues the same owner-scoped request.
+state, the whole message (the endpoint, the sentence saying a failure is not an
+emptiness, and the server's own reported cause), and that clicking retry
+re-issues the same owner-scoped request. The stale case drives a real
+`visibilitychange` so TanStack's focus manager refetches, then asserts the rows
+survive, the notice appears, its retry re-issues the request, and the notice
+clears once the server answers again. `frontend/src/providers/queryDefaults.test.tsx`
+holds the production side of that path: the app's own client must not disable
+refetch-on-focus, or the surface could never be reached outside the tests.
 
 `frontend/src/test/transcriptRowFixture.ts` builds one complete `Transcript`
 wire row with every column filled in, so a fixture states only the fields its
@@ -358,9 +383,19 @@ The mounted captures are `frontend/scripts/visual/mock-rest-home.mjs` (set
 `MOCK_SIGNED_OUT=1` for the signed-out arm) plus
 `frontend/scripts/visual/home-shoot.mjs`, which asserts build provenance - the
 two sections in order and hash-keyed project links - before it writes a PNG.
-Take that capture against the served production build (`pnpm build` then
-`pnpm start`), never `pnpm dev`, whose overlay bubbles land on the surface under
-review.
+Take that capture against the served production build (`pnpm build` then the
+standalone server), never `pnpm dev`, whose overlay bubbles land on the surface
+under review.
+
+`HOME_SHOOT_MODE` selects the arm: `home` (default), `failure`
+(with `MOCK_OWNER_LIST_FAILS=1`), or `no-handle` (with `MOCK_BLANK_HANDLE=1`).
+Each arm refuses to write a PNG from a build that does not render its surface -
+the failure arm requires the panel, the reassurance sentence, a retry, and no
+empty state or rows; the no-handle arm requires a terminated surface with no
+shimmer left. All three assert computed styles through one shared helper, so a
+surface that ships unstyled cannot produce a plausible-looking capture. The two
+sparse arms gate the non-empty check on their PANEL rather than the page, whose
+emptiness is the intended design.
 
 ### Project identity: five fixture families
 

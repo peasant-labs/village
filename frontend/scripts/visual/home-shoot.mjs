@@ -19,7 +19,7 @@
    renders "nothing published yet" on a failed request cannot produce a PNG.
 
    env:
-     HOME_SHOOT_MODE surface arm: `home` (default) or `failure`
+     HOME_SHOOT_MODE surface arm: `home` (default), `failure`, or `no-handle`
      VILLAGE_URL     app URL (default http://localhost:3000/)
      CHROME_PATH     Chrome/Chromium binary (required)
      PUPPETEER_CORE  explicit module path to puppeteer-core (optional)
@@ -34,7 +34,7 @@ const CHROME = process.env.CHROME_PATH
 const URL = process.env.VILLAGE_URL || 'http://localhost:3000/'
 const theme = process.argv[2] || 'dark'
 const MODE = process.env.HOME_SHOOT_MODE || 'home'
-const MODES = ['home', 'failure']
+const MODES = ['home', 'failure', 'no-handle']
 if (!MODES.includes(MODE)) {
   console.error(`ERROR [home-shoot.mjs] HOME_SHOOT_MODE=${MODE} is not one of ${MODES.join(', ')}.`)
   process.exit(1)
@@ -86,6 +86,55 @@ if (actualTheme !== theme) {
 const pause = (ms) => new Promise((r) => setTimeout(r, ms))
 const gate = new SurfaceGate(page)
 
+/* Assert what a selector's COMPUTED style actually is, and fail closed when it
+   is not. A scaled PNG cannot tell two close token values apart, and a whole
+   surface can ship unstyled while every mount-and-served check stays green, so
+   each arm names the properties its surface is judged on and this refuses the
+   capture when one of them is wrong.
+
+   `expect` maps a CSS property to a predicate on the computed value; `label`
+   names the element in the error so the fix is obvious. */
+const assertComputed = async (sel, expect, label) => {
+  const got = await page.evaluate(
+    (selector, props) => {
+      const el = document.querySelector(selector)
+      if (!el) return null
+      const style = getComputedStyle(el)
+      return Object.fromEntries(props.map((p) => [p, style[p]]))
+    },
+    sel,
+    Object.keys(expect),
+  )
+  if (!got) {
+    await fail(
+      `ERROR [home-shoot.mjs] ${label} is not present, so its computed style cannot be checked.
+  What failed: no element matched "${sel}".
+  Why: the served build does not render the element the capture is judged on.
+  Where: home-shoot.mjs computed-style probe.
+  Means: the PNG would be of a different surface than the one named.
+  Fix: rebuild and restart the server from this worktree, then retry.`,
+      2,
+    )
+  }
+  const wrong = Object.entries(expect).filter(([prop, ok]) => !ok(got[prop]))
+  if (wrong.length > 0) {
+    await fail(
+      `ERROR [home-shoot.mjs] ${label} does not carry the design system's computed styles.
+  What failed: ${wrong.map(([prop]) => `${prop}=${JSON.stringify(got[prop])}`).join(', ')}.
+  Why: the stylesheet did not reach the element, or a token was replaced.
+  Where: home-shoot.mjs computed-style probe on "${sel}".
+  Means: the PNG would look plausible while the surface ships unstyled or off-token.
+  Fix: confirm the served build includes the app stylesheet, then retry.`,
+      2,
+    )
+  }
+  return got
+}
+
+/* The design system is square everywhere, and its chrome is Atkinson mono. */
+const isSquare = (value) => value === '0px'
+const isMono = (value) => /atkinson/i.test(value ?? '')
+
 const waitFor = async (sel, timeoutMs = 12000) => {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
@@ -94,6 +143,79 @@ const waitFor = async (sel, timeoutMs = 12000) => {
     await pause(100)
   }
   return null
+}
+
+if (MODE === 'no-handle') {
+  const panel = await waitFor('[data-testid="home-page-no-handle"]')
+  if (!panel) {
+    await fail(
+      `ERROR [home-shoot.mjs] the blank-handle surface never mounted at ${URL}.
+  What failed: no [data-testid="home-page-no-handle"] element appeared after the app loaded.
+  Why: the served build predates this branch, or the mock served a handle instead of a blank one.
+  Where: home-shoot.mjs no-handle-arm readiness wait.
+  Means: the capture would be the ordinary home page or an endless skeleton.
+  Fix: restart the mock with MOCK_BLANK_HANDLE=1, rebuild from this worktree, and retry.`,
+      2,
+    )
+  }
+  const shape = await page.evaluate(() => {
+    const panel = document.querySelector('[data-testid="home-page-no-handle"]')
+    const alert = panel?.querySelector('[role="alert"]')
+    return {
+      alertText: (alert?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      shimmer: document.querySelectorAll('.animate-shimmer').length,
+      emptyState: document.querySelector('[data-testid="home-empty-state"]') != null,
+      rows: document.querySelectorAll('[data-testid="home-project-row"]').length,
+    }
+  })
+  // The point of the surface: it TERMINATES. A shimmer still on screen would
+  // mean the page is waiting for something that is never coming.
+  if (
+    shape.shimmer !== 0 ||
+    shape.rows !== 0 ||
+    shape.emptyState ||
+    !shape.alertText.includes('your account has no handle')
+  ) {
+    await fail(
+      `ERROR [home-shoot.mjs] the blank-handle surface is not the terminal answer.
+  What failed: ${JSON.stringify(shape)}.
+  Why: the page is still shimmering, listed rows, or carries no alert naming the missing handle.
+  Where: home-shoot.mjs no-handle-arm build-provenance check.
+  Means: the capture would not evidence the surface under review.
+  Fix: rebuild and restart the server from this worktree, then retry.`,
+      2,
+    )
+  }
+  const noHandleStyle = await assertComputed(
+    '[data-testid="home-page-no-handle"] [role="alert"]',
+    { borderTopWidth: (v) => v !== '0px', borderRadius: isSquare },
+    'the blank-handle alert',
+  )
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await pause(150)
+  const body = await page.$('body')
+  const bodyBox = await body.boundingBox()
+  if (!bodyBox || bodyBox.width < 4 || bodyBox.height < 4) {
+    await fail(`ERROR [home-shoot.mjs] body resolved to a blank box at ${URL}.`, 1)
+  }
+  // Gated on the panel for the same reason the failure arm is: this surface is
+  // one alert on an otherwise empty page, by design.
+  const panelFile = `${out}/village-home-no-handle-panel.png`
+  await panel.screenshot({ path: panelFile })
+  const panelGate = await gate.assert('village-home-no-handle-panel', panelFile, {
+    sel: '[data-testid="home-page-no-handle"]',
+    where: 'home-shoot.mjs',
+  })
+  const pageFile = `${out}/village-home-no-handle.png`
+  await body.screenshot({ path: pageFile, captureBeyondViewport: true })
+  const pageMeasure = await gate.measure(pageFile)
+  console.log('shot', 'village-home-no-handle-panel'.padEnd(30), `nonbg=${(panelGate.nonbgRatio * 100).toFixed(1)}% colors=${panelGate.distinctColors} ${(statSync(panelFile).size / 1024).toFixed(1)}KB`)
+  console.log('shot', 'village-home-no-handle'.padEnd(30), `${Math.round(bodyBox.width)}x${Math.round(bodyBox.height)}`.padEnd(11), `nonbg=${(pageMeasure.nonbgRatio * 100).toFixed(2)}% colors=${pageMeasure.distinctColors} ${(statSync(pageFile).size / 1024).toFixed(1)}KB (page measured, not gated)`)
+  console.log('blank-handle panel:', JSON.stringify(shape))
+  console.log('computed alert style:', JSON.stringify(noHandleStyle))
+  console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
+  await browser.close()
+  process.exit(0)
 }
 
 if (MODE === 'failure') {
@@ -112,22 +234,13 @@ if (MODE === 'failure') {
   const shape = await page.evaluate(() => {
     const panel = document.querySelector('[data-testid="home-page-error"]')
     const alert = panel?.querySelector('[role="alert"]')
-    const button = panel?.querySelector('button')
     const retry = [...(panel?.querySelectorAll('button') ?? [])].map((b) => (b.textContent ?? '').trim())
-    const alertStyle = alert ? getComputedStyle(alert) : null
-    const buttonStyle = button ? getComputedStyle(button) : null
     return {
       alertText: (alert?.textContent ?? '').replace(/\s+/g, ' ').trim(),
       retry,
       emptyState: document.querySelector('[data-testid="home-empty-state"]') != null,
       rows: document.querySelectorAll('[data-testid="home-project-row"]').length,
       recentList: document.querySelector('[data-testid="home-recent-sessions"]') != null,
-      style: alertStyle && {
-        borderTopWidth: alertStyle.borderTopWidth,
-        borderRadius: alertStyle.borderRadius,
-        buttonFontFamily: buttonStyle?.fontFamily ?? null,
-        buttonBorderRadius: buttonStyle?.borderRadius ?? null,
-      },
     }
   })
   // The whole point of the surface: a failed request is NOT an empty library,
@@ -152,27 +265,17 @@ if (MODE === 'failure') {
       2,
     )
   }
-  // A scaled PNG cannot tell an unstyled panel from a styled one, so the panel's
-  // own computed values are asserted: a real border, square corners, and the
-  // design system's mono on the control. A surface that shipped unstyled would
-  // otherwise still produce a plausible-looking capture.
-  const st = shape.style
-  if (
-    !st ||
-    st.borderTopWidth === '0px' ||
-    st.borderRadius !== '0px' ||
-    st.buttonBorderRadius !== '0px' ||
-    !/atkinson/i.test(st.buttonFontFamily ?? '')
-  ) {
-    await fail(
-      `ERROR [home-shoot.mjs] the failure panel's computed styles are not the design system's.
-  What failed: ${JSON.stringify(st)}.
-  Why: the panel rendered without its border, with rounded corners, or with the control in a fallback font, so the stylesheet did not reach it.
-  Where: home-shoot.mjs failure-arm computed-style probe.
-  Means: the PNG would look plausible while the surface ships unstyled.
-  Fix: confirm the served build includes the app stylesheet, then retry.`,
-      2,
-    )
+  const st = {
+    panel: await assertComputed(
+      '[data-testid="home-page-error"] [role="alert"]',
+      { borderTopWidth: (v) => v !== '0px', borderRadius: isSquare },
+      'the failure panel',
+    ),
+    retry: await assertComputed(
+      '[data-testid="home-page-error"] button',
+      { fontFamily: isMono, borderRadius: isSquare },
+      "the failure panel's retry control",
+    ),
   }
   await page.evaluate(() => window.scrollTo(0, 0))
   await pause(150)
@@ -227,16 +330,9 @@ const provenance = await page.evaluate(() => {
     .map((e) => e.getAttribute('data-testid'))
     .filter((id) => id === 'home-recent-sessions' || id === 'home-projects')
   const rows = [...document.querySelectorAll('[data-testid="home-project-row"]')]
-  const count = rows[0]?.querySelector('span.font-mono')
-  const style = count ? getComputedStyle(count) : null
   return {
     order,
     hrefs: rows.map((r) => r.getAttribute('href')),
-    countStyle: style && {
-      fontFamily: style.fontFamily,
-      fontVariantNumeric: style.fontVariantNumeric,
-      borderRadius: style.borderRadius,
-    },
   }
 })
 
@@ -264,6 +360,20 @@ if (!hashKeyed) {
   )
 }
 
+// The session count beside a project name is the surface's own token claim:
+// mono, tabular figures (so counts line up under names of any length), square.
+// Read from the live DOM and ASSERTED, not merely reported: a count that had
+// lost its font would be invisible in a scaled PNG.
+const countStyle = await assertComputed(
+  '[data-testid="home-project-row"] span.font-mono',
+  {
+    fontFamily: isMono,
+    fontVariantNumeric: (v) => v === 'tabular-nums',
+    borderRadius: isSquare,
+  },
+  "the project row's session count",
+)
+
 await page.evaluate(() => window.scrollTo(0, 0))
 await pause(150)
 
@@ -287,6 +397,6 @@ const r = await gate.assert('village-home', file, { sel: 'body', where: 'home-sh
 const bytes = statSync(file).size
 
 console.log('shot', 'village-home'.padEnd(22), `${Math.round(box.width)}x${Math.round(box.height)}`.padEnd(11), `nonbg=${(r.nonbgRatio * 100).toFixed(1)}% colors=${r.distinctColors} ${(bytes / 1024).toFixed(1)}KB`)
-console.log('computed session-count style:', JSON.stringify(provenance.countStyle))
+console.log('computed session-count style:', JSON.stringify(countStyle))
 console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
 await browser.close()

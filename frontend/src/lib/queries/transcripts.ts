@@ -87,8 +87,10 @@ function assertTranscriptListResponseMatchesRequest(
  * one cache entry. The fetch receives TanStack's per-request {@link AbortSignal}
  * so a superseded page request is cancelled instead of racing to commit.
  * Previous confirmed rows are retained via `placeholderData` while a new page
- * loads, and are retained on a failed refetch too, so a caller that renders a
- * failure must decide whether it still holds rows worth keeping on screen.
+ * loads, and are retained on a failed refetch OF THE SAME KEY, so a caller that
+ * renders a failure must decide whether it still holds rows worth keeping on
+ * screen. A first fetch of a NEW key that fails retains nothing, which is why a
+ * caller that changes page or filter still needs its no-rows failure surface.
  *
  * @param options.enabled withhold the request until the caller's parameters are
  *   real. A filter value that is not yet known is dropped by the list handler

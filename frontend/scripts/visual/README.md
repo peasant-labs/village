@@ -450,6 +450,11 @@ needs a backend that answers `GET /auth/me`:
   `MOCK_SIGNED_OUT=1` for the signed-out arm, where the same root route must
   serve discovery instead, and `MOCK_OWNER_LIST_FAILS=1` for the failure arm,
   where only the owner-scoped list request fails.
+- **Blank-handle arm:** `HOME_SHOOT_MODE=no-handle` with `MOCK_BLANK_HANDLE=1`
+  captures the terminal surface an account gets when it records a chosen handle
+  while carrying none. Its provenance check requires the alert AND that no
+  shimmer is left on the page, because the whole point of the surface is that it
+  stops waiting.
 - **Failure arm:** `HOME_SHOOT_MODE=failure` captures the answer the page owes
   when the owner-scoped request fails: the shared failure panel and its retry,
   and NOT the teaching empty state. Its provenance check refuses to write a PNG
