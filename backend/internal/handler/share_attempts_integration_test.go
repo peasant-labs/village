@@ -23,7 +23,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -59,8 +61,9 @@ type shareAttemptCase struct {
 // requiredShareAttemptCases names the cases that must exist. Each one is here
 // because losing it would hide a specific failure: the index wedge that blocks
 // re-submission forever, the in-place edit of decided history, the duplicate
-// refusals, and the one case where counting transcripts and counting attempts
-// disagree.
+// refusals, the one case where counting transcripts and counting attempts
+// disagree, and the ordering conflict that used to reach the person as an
+// unexplained failure.
 var requiredShareAttemptCases = []string{
 	"first_submission_to_open_collective",
 	"first_submission_to_curated_collective",
@@ -76,6 +79,7 @@ var requiredShareAttemptCases = []string{
 	"leaving_the_collective_retracts_the_live_attempt",
 	"terminal_attempt_update_refused",
 	"reshare_after_retraction_counts_one_transcript",
+	"competing_event_ordinal_answers_409_not_an_unexplained_failure",
 }
 
 func loadShareAttemptCases(t *testing.T) []shareAttemptCase {
@@ -142,6 +146,7 @@ type shareWorld struct {
 	moderator  pgtype.UUID
 	group      pgtype.UUID
 	transcript pgtype.UUID
+	localID    string
 	pool       *pgxpool.Pool
 }
 
@@ -159,7 +164,8 @@ func newShareWorld(t *testing.T, ctx context.Context, pool *pgxpool.Pool, name, 
 	}
 	shareAddMember(t, ctx, pool, w.group, w.moderator, "owner")
 	shareAddMember(t, ctx, pool, w.group, w.owner, "member")
-	w.transcript = shareInsertTranscript(t, ctx, pool, w.owner, "share-"+suffix)
+	w.localID = "share-" + suffix
+	w.transcript = shareInsertTranscript(t, ctx, pool, w.owner, w.localID)
 	return w
 }
 
@@ -184,6 +190,8 @@ func (w *shareWorld) run(t *testing.T, ctx context.Context, h *Handler, index in
 		w.expectStatus(t, index, step, w.remove(t, h))
 	case "leave_collective":
 		w.expectStatus(t, index, step, w.leaveCollective(t, h))
+	case "competing_event_ordinal":
+		w.expectStatus(t, index, step, w.submitAgainstACompetingEventOrdinal(t, ctx, h))
 	case "rewrite_terminal_attempt":
 		w.rewriteTerminalAttempt(t, ctx, index, step)
 	default:
@@ -228,6 +236,120 @@ func (w *shareWorld) submit(t *testing.T, h *Handler) int {
 	h.ShareTranscript(rec, w.request(w.owner, w.ownerName, http.MethodPost, "/api/v1/transcripts/share", body,
 		map[string]string{"id": uuid.UUID(w.transcript.Bytes).String()}))
 	return rec.Result().StatusCode
+}
+
+// submitAgainstACompetingEventOrdinal offers the transcript while ANOTHER writer
+// - a whole-project contribution, or any other appender - is recording an event
+// for the same pair that this submission cannot yet see.
+//
+// The single share holds the transcript's publish advisory lock for the whole of
+// its work, so two single shares of one transcript serialize and can never race
+// here; the competing writer is therefore simulated with a transaction of its
+// own, which is exactly the shape a concurrent batch presents. This test holds
+// the lock first so the share is gated, appends an ACCEPTED event at ordinal 1
+// without committing it, releases the lock, waits until the share is genuinely
+// blocked inside the unique index, and only then commits. The share's own insert
+// then violates UNIQUE (transcript_id, group_id, event_num).
+//
+// It must reach the person as a 409 that names the transcript and says asking
+// again will work. Before the shared conflict classifier it fell through to a
+// 500 that named nothing - the same gap the whole-project path had.
+func (w *shareWorld) submitAgainstACompetingEventOrdinal(t *testing.T, ctx context.Context, h *Handler) int {
+	t.Helper()
+	lockKey := sessionPublishLockKey(w.owner, w.localID)
+	lockConn, err := w.pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire the connection that holds the publish lock: %v", err)
+	}
+	lockReleased := false
+	defer func() {
+		if !lockReleased {
+			_, _ = lockConn.Exec(context.Background(), "SELECT pg_advisory_unlock(hashtextextended($1, 0))", lockKey)
+		}
+		lockConn.Release()
+	}()
+	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_lock(hashtextextended($1, 0))", lockKey); err != nil {
+		t.Fatalf("hold the publish lock for the transcript: %v", err)
+	}
+
+	body, err := json.Marshal(map[string][]string{"group_ids": {uuid.UUID(w.group.Bytes).String()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	rec := httptest.NewRecorder()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		h.ShareTranscript(rec, w.request(w.owner, w.ownerName, http.MethodPost, "/api/v1/transcripts/share", body,
+			map[string]string{"id": uuid.UUID(w.transcript.Bytes).String()}))
+	}()
+	w.waitForLockWaiter(t, ctx, "advisory")
+
+	competing, err := w.pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin the competing writer's transaction: %v", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = competing.Rollback(context.Background())
+		}
+	}()
+	if _, err := competing.Exec(ctx, `
+		INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status)
+		VALUES ($1, $2, 1, 'approved')`, w.transcript, w.group); err != nil {
+		t.Fatalf("append the competing event: %v", err)
+	}
+
+	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", lockKey); err != nil {
+		t.Fatalf("release the publish lock: %v", err)
+	}
+	lockReleased = true
+	w.waitForLockWaiter(t, ctx, "transactionid")
+	if err := competing.Commit(ctx); err != nil {
+		t.Fatalf("commit the competing event: %v", err)
+	}
+	committed = true
+	wg.Wait()
+
+	var refusal struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &refusal); err != nil {
+		t.Fatalf("decode the refusal: %v (body: %s)", err, rec.Body.String())
+	}
+	if !strings.Contains(refusal.Error, uuid.UUID(w.transcript.Bytes).String()) {
+		t.Errorf("the refusal does not name the transcript. A conflict answer that names nothing cannot be acted on. "+
+			"Message: %s", refusal.Error)
+	}
+	if !strings.Contains(refusal.Error, "lost the race") {
+		t.Errorf("the refusal does not say the submission lost a race. An ordering conflict is cleared by asking "+
+			"again, unlike a duplicate submission, so answering both the same way tells half the callers the wrong "+
+			"thing. Message: %s", refusal.Error)
+	}
+	return rec.Result().StatusCode
+}
+
+// waitForLockWaiter blocks until PostgreSQL reports a session waiting on a lock
+// of the given kind, so each stage of the race is OBSERVED rather than assumed
+// after a sleep.
+func (w *shareWorld) waitForLockWaiter(t *testing.T, ctx context.Context, lockType string) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		var waiting int
+		if err := w.pool.QueryRow(ctx,
+			"SELECT count(*)::int FROM pg_locks WHERE locktype = $1 AND NOT granted", lockType).Scan(&waiting); err != nil {
+			t.Fatalf("look for a session waiting on a %s lock: %v", lockType, err)
+		}
+		if waiting > 0 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("no session ever waited on a %s lock, so the race this case describes never happened and it would prove "+
+		"nothing", lockType)
 }
 
 func (w *shareWorld) decide(t *testing.T, h *Handler, status string) int {

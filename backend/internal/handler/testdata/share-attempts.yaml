@@ -211,3 +211,19 @@
   pending_transcripts: 0
   approved_attempts: 2
   rejected_attempts: 0
+
+- name: competing_event_ordinal_answers_409_not_an_unexplained_failure
+  why: >
+    another writer records an event for the same pair that this submission cannot yet see, so the ordinal it computed
+    is taken by the time it writes; that is a conflict the person clears by asking again, not a failure, and it must
+    name the transcript and say so rather than reaching them as an unexplained error. The competing event is ACCEPTED,
+    so the open-attempt index cannot fire and only the event-ordering constraint can produce this answer
+  acceptance: open
+  steps:
+    - {do: competing_event_ordinal, expect: refused}
+  attempts: [approved]
+  derived: approved
+  approved_transcripts: 1
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0

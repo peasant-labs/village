@@ -21,6 +21,13 @@ import (
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
 
+// defaultContributableRowLimit is how many transcripts one person may have
+// before the contribute listing refuses to build a page for them. It is far
+// above any real corpus: the route exists to serve everything an owner could
+// contribute, and this is the point at which serving everything stops being a
+// service to them.
+const defaultContributableRowLimit = 10000
+
 type TitlePipeline interface {
 	Generate(string, redact.TitleContext) (redact.TitleResult, error)
 	Sanitize(string, redact.TitleContext) (redact.TitleResult, error)
@@ -52,6 +59,19 @@ type Handler struct {
 	// import, and neither keeps a copy of it. A test may substitute its own
 	// labeler; nothing else may.
 	projectNames projectname.Resolver
+
+	// contributableRowLimit bounds the un-paginated contribute listing
+	// (GET /groups/{id}/contributable). That listing is deliberately whole: the
+	// surface builds a project tree over it, and a page of it would let someone
+	// contribute part of a project while believing they contributed all of it. A
+	// bound is still needed, so an owner whose corpus exceeds it is told so
+	// instead of being served an answer no browser can render.
+	//
+	// It is a field rather than a constant so a test can prove the refusal with
+	// four rows instead of ten thousand. Production wiring sets it in the
+	// constructors below; a handler that never set it refuses to serve the route
+	// at all rather than serving an unbounded response.
+	contributableRowLimit int
 
 	// gh is the GitHub App client backing the collective-repository feature.
 	// It is nil when the App is not configured; handlers detect this via
@@ -88,8 +108,9 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 		// The remote-label rule belongs to the contract module, which both
 		// Village and Peasant import, so the two render one label for one
 		// repository instead of each formatting remotes their own way.
-		projectNames: projectname.Resolver{Label: schema.RemoteLabel},
-		scanContent:  scanner.ScanForSecrets,
+		projectNames:          projectname.Resolver{Label: schema.RemoteLabel},
+		scanContent:           scanner.ScanForSecrets,
+		contributableRowLimit: defaultContributableRowLimit,
 	}
 
 	// The GitHub App is optional. If credentials are absent (or invalid),

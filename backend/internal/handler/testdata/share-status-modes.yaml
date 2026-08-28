@@ -1,0 +1,62 @@
+# What state a collective opens a submission in, and when it refuses one
+# outright. This is the rule both the single share and the whole-project
+# contribution apply, so a case lost here is a way for the two to drift apart.
+
+- name: open_collective_accepts_on_receipt
+  why: >
+    The default. Losing it would let a change that queued every contribution for
+    review pass, and nobody would see their own contribution appear.
+  acceptance: open
+  want_status: approved
+
+- name: curated_collective_queues_for_review
+  why: >
+    Moderation exists. Losing this would let a contribution appear in a curated
+    collective without anyone having decided it.
+  acceptance: curated
+  want_status: pending
+
+- name: verified_only_with_the_linked_org_visible_accepts
+  why: >
+    A collective linked to one organization accepts a member of that organization
+    whose membership is public.
+  acceptance: verified_only
+  linked_org: peasant-labs
+  org_visible: true
+  want_status: approved
+
+- name: verified_only_without_the_linked_org_refuses
+  why: >
+    The same collective refuses a member whose membership of that organization is
+    not visible. Losing this would make verified-only mean nothing.
+  acceptance: verified_only
+  linked_org: peasant-labs
+  org_visible: false
+  want_refusal: unverified_org
+
+- name: verified_only_org_read_failure_refuses
+  why: >
+    An unanswered question about verification is not an acceptance. Losing this
+    would let a database hiccup admit an unverified member.
+  acceptance: verified_only
+  linked_org: peasant-labs
+  org_visible: true
+  org_read_fails: true
+  want_refusal: unverified_org
+
+- name: verified_only_unlinked_with_no_visible_org_refuses
+  why: >
+    A verified-only collective that names no organization still requires one to
+    be visible. Losing this would admit a member with no public organization at
+    all.
+  acceptance: verified_only
+  org_visible: false
+  want_refusal: unverified_org
+
+- name: verified_only_unlinked_with_a_visible_org_accepts
+  why: >
+    The same collective accepts a member with any visible organization, which is
+    the shipped meaning of an unlinked verified-only collective.
+  acceptance: verified_only
+  org_visible: true
+  want_status: approved

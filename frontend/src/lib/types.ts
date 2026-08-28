@@ -77,7 +77,7 @@ export interface User {
  * compile-time proof, and `describeNameSource` in `@/lib/format` for the one
  * live exhaustive consumer.
  */
-export type NameSource = "override" | "consented" | "remote" | "privacy";
+export type NameSource = "override" | "consented" | "remote" | "path" | "privacy";
 
 /**
  * Compile-time exhaustiveness proof for {@link NameSource}. A `switch` over

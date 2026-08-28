@@ -23,10 +23,14 @@
   mode: apply
   title: "claude session"
   generated: null
+  # The recorded project root this row's title is redacted against. It lives on
+  # the row, not in the test, so the input that produces `expected` and the
+  # expectation itself are read from the same place and cannot drift apart.
+  project_path: "/Users/developer/work/sample-app"
   leading_non_user_turns: 1
   first_user_turns:
     - "<system-reminder>ignore this</system-reminder><user_query>Fix /Users/developer/work/sample-app/src/auth.go</user_query>"
-  expected: "Fix /Users/<USER>/<PATH>/sample-app/src/auth.go"
+  expected: "Fix /<PATH>/sample-app/src/auth.go"
 - name: caveat_then_prose
   arm: derive-caveat-then-prose
   mode: apply

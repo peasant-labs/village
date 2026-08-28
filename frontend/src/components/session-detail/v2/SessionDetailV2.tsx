@@ -69,6 +69,13 @@ interface SessionDetailV2Props {
   ownerUsername?: string | null;
   detail: SessionDetailPayload | undefined;
   error?: string | null;
+  /** `"full"` (default) is the standalone `/transcripts/{id}` route: every
+   *  owner/viewer action, the trajectory graph, and the header action row.
+   *  `"preview"` is the contribute page's read-only preview column: turns +
+   *  tool calls only, a small header with a link to the full route, and
+   *  every capability forced off (see the `variant === "preview"` branches
+   *  below). Closed union; there is no third variant. */
+  variant?: "full" | "preview";
 }
 
 /**
@@ -93,11 +100,13 @@ export function SessionDetailV2({
   ownerUsername,
   detail,
   error,
+  variant = "full",
 }: SessionDetailV2Props) {
   void sessionId; // retained in the prop contract for callers / deep links
   const { user } = useAuth();
   const { theme } = useTheme();
-  const isOwner = !!user && !!transcriptOwnerId && user.id === transcriptOwnerId;
+  const isPreview = variant === "preview";
+  const isOwner = !isPreview && !!user && !!transcriptOwnerId && user.id === transcriptOwnerId;
 
   const updateTranscript = useUpdateTranscript();
 
@@ -105,7 +114,7 @@ export function SessionDetailV2({
   // Reachable here means the transcript is viewable, so labelling is gated on
   // a signed-in viewer with a backing transcript record. The composite never
   // reads auth — village decides who can label and supplies its own popover.
-  const canLabel = !!user && !!transcriptId;
+  const canLabel = !isPreview && !!user && !!transcriptId;
   const annotationsQuery = useTranscriptAnnotations(transcriptId ?? '', !!transcriptId);
   const createAnnotation = useCreateTranscriptAnnotation();
 
@@ -219,6 +228,29 @@ export function SessionDetailV2({
           connection error; showing the last loaded transcript.
         </p>
       )}
+      {isPreview && (
+        // The preview column's own small header: title + a link to the full
+        // route. Everything else the full route's header row carries
+        // (collectives, attest, breadcrumb project link) is owner/viewer
+        // chrome that does not belong in a read-only preview.
+        <div
+          className="flex items-center justify-between gap-3 px-4 py-2 border-b border-rule shrink-0"
+          data-testid="preview-header"
+        >
+          <span className="text-sm text-ink truncate">
+            {transcriptTitle || 'untitled transcript'}
+          </span>
+          {transcriptId && (
+            <Link
+              href={`/transcripts/${transcriptId}`}
+              className="text-[12px] text-ink-3 hover:text-ink transition-colors focus-mono shrink-0"
+              data-testid="preview-open-full-link"
+            >
+              open full transcript
+            </Link>
+          )}
+        </div>
+      )}
       <div className="flex-1 min-h-0">
         <TranscriptViewer
           viewModel={vm!}
@@ -232,9 +264,11 @@ export function SessionDetailV2({
           // endpoint is auth-optional and answers an empty list when the
           // visibility rule or the owner's contributor opt-in withholds
           // them), so the action row renders whenever there is a transcript
-          // id, not only for a signed-in viewer.
+          // id, not only for a signed-in viewer. The preview variant hides
+          // this whole row — collectives/attest are owner-facing actions
+          // that do not belong in a read-only preview column.
           headerActions={
-            transcriptId || isAgentSession(sessionOrigin) ? (
+            !isPreview && (transcriptId || isAgentSession(sessionOrigin)) ? (
               <span className="inline-flex items-center gap-2">
                 {isAgentSession(sessionOrigin) && (
                   <span className="chip" data-testid="agent-session-chip">
@@ -248,25 +282,30 @@ export function SessionDetailV2({
           }
           // Capabilities gated by village auth/ownership; the composite's
           // canExport covers the download serializers (the old canDownload).
+          // The preview variant forces every capability off: a viewer
+          // previewing someone else's session in the contribute column must
+          // never see or reach an owner-only action from inside the preview.
           capabilities={{
             canLabel,
-            canEdit: isOwner && !!transcriptId,
-            canChangeVisibility: isOwner && !!transcriptId,
-            canContribute: !!user && !!transcriptId,
-            canExport: true,
+            canEdit: !isPreview && isOwner && !!transcriptId,
+            canChangeVisibility: !isPreview && isOwner && !!transcriptId,
+            canContribute: !isPreview && !!user && !!transcriptId,
+            canExport: !isPreview,
           }}
           callbacks={{
-            onEdit: () => setEditOpen(true),
-            onContribute: () => setContributeOpen(true),
+            onEdit: isPreview ? undefined : () => setEditOpen(true),
+            onContribute: isPreview ? undefined : () => setContributeOpen(true),
             // The composite's visibility control just fires; the host flips
             // the stored value through village's update mutation.
-            onChangeVisibility: () => {
-              if (!transcriptId) return;
-              updateTranscript.mutate({
-                id: transcriptId,
-                visibility: visibility === 'public' ? 'private' : 'public',
-              });
-            },
+            onChangeVisibility: isPreview
+              ? undefined
+              : () => {
+                  if (!transcriptId) return;
+                  updateTranscript.mutate({
+                    id: transcriptId,
+                    visibility: visibility === 'public' ? 'private' : 'public',
+                  });
+                },
             onCopyLink: () => {
               const url = transcriptId
                 ? `${window.location.origin}/transcripts/${transcriptId}`
@@ -301,17 +340,27 @@ export function SessionDetailV2({
           }
           // The graph toggle mounts fairtrade's @xyflow engine (graph
           // topology/pan/zoom; node visuals are the design-system's own).
-          graphSlot={() => (
-            <TrajectoryGraph
-              turns={turns}
-              toolVMsByTurn={toolVMsByTurn}
-              filteredTurns={turns}
-              phases={phases}
-              annotations={annotations}
-              searchMatches={[]}
-              provider={detail.harness}
-            />
-          )}
+          // The preview variant omits this render-prop entirely so the
+          // trajectory graph is never mounted there. The composite's own
+          // list/graph toggle is not conditioned on graphSlot, so it still
+          // renders in preview and shows the composite's built-in "no graph
+          // engine" empty state; hiding the toggle itself is a fairtrade
+          // follow-up.
+          graphSlot={
+            isPreview
+              ? undefined
+              : () => (
+                  <TrajectoryGraph
+                    turns={turns}
+                    toolVMsByTurn={toolVMsByTurn}
+                    filteredTurns={turns}
+                    phases={phases}
+                    annotations={annotations}
+                    searchMatches={[]}
+                    provider={detail.harness}
+                  />
+                )
+          }
           // Village's typed label model — saved chips + the single-panel
           // popover both host-owned (the composite's good/neutral/bad model
           // stays the demo's).
@@ -333,7 +382,7 @@ export function SessionDetailV2({
         />
       </div>
 
-      {transcriptId && isOwner && (
+      {!isPreview && transcriptId && isOwner && (
         <TranscriptEditDialog
           open={editOpen}
           onClose={() => setEditOpen(false)}
@@ -344,7 +393,7 @@ export function SessionDetailV2({
         />
       )}
 
-      {transcriptId && (
+      {!isPreview && transcriptId && (
         <ContributePicker
           open={contributeOpen}
           onClose={() => setContributeOpen(false)}

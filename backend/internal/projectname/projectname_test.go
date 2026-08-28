@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"io"
+	"sort"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -36,11 +37,11 @@ type resolutionFixture struct {
 	Cases []resolutionCase `yaml:"cases"`
 }
 
-// requiredResolutionCaseNames is the deletion-protection manifest for
-// resolution.yaml: every name that must be present for the fixture to
-// still prove the full precedence lattice plus the documented edge cases.
-// This is a required-NAME manifest, not a count guard — adding a new case
-// never breaks this list, only removing a required one does.
+// requiredResolutionCaseNames is the name manifest for resolution.yaml: every
+// name the fixture must carry for it to still prove the full precedence
+// lattice plus the documented edge cases. It is asserted as EXACT membership
+// (see assertExactFixtureCaseNames), so a new case is added here in the same
+// change that adds the row, and a deleted case is named when it goes missing.
 var requiredResolutionCaseNames = []string{
 	"all-evidence-absent-synthesizes-privacy-label-from-hash",
 	"privacy-label-only-tier",
@@ -62,6 +63,55 @@ var requiredResolutionCaseNames = []string{
 	"published-at-tie-id-asc-tiebreak-consented-pick",
 	"mixed-name-same-hash-one-project-one-name",
 	"zero-value-resolver-nil-label-is-safe",
+}
+
+// assertExactFixtureCaseNames holds one fixture in this package to EXACT
+// membership against its required-name manifest, in BOTH directions: a
+// declared name that is no longer in the file fails, and a case in the file
+// that the manifest does not declare fails too.
+//
+// Both directions matter for different reasons. A missing name means a
+// boundary silently stopped being covered — the deletion the manifest exists
+// to catch. An undeclared name means a case is running that nothing protects:
+// deleting it later would be invisible, so an addition that skips the manifest
+// quietly re-opens the hole the manifest closed.
+//
+// This is a name manifest, never a count. A count says only that somebody
+// changed the file; it cannot say WHICH case went missing, it goes stale on
+// every legitimate addition, and two branches that each add a case collide on
+// the same integer.
+func assertExactFixtureCaseNames(t *testing.T, fixture string, present map[string]bool, required []string) {
+	t.Helper()
+	declared := make(map[string]bool, len(required))
+	for _, name := range required {
+		declared[name] = true
+	}
+	var missing, undeclared []string
+	for name := range declared {
+		if !present[name] {
+			missing = append(missing, name)
+		}
+	}
+	for name := range present {
+		if !declared[name] {
+			undeclared = append(undeclared, name)
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(undeclared)
+	if len(missing) > 0 {
+		t.Fatalf("testdata/%s.yaml no longer contains the case(s) %v, which its manifest in projectname_test.go "+
+			"declares. Each of those cases exists because losing it hides a real failure in project-name "+
+			"resolution, and it went missing when the fixture was last edited. Restore the row under its exact "+
+			"name rather than deleting the name from the manifest; if the case really is obsolete, say why in the "+
+			"same change that removes both.", fixture, missing)
+	}
+	if len(undeclared) > 0 {
+		t.Fatalf("testdata/%s.yaml carries the case(s) %v, which its manifest in projectname_test.go does not "+
+			"declare. An undeclared case is unprotected: a later edit could delete it and no test would notice, "+
+			"which is exactly what the manifest exists to prevent. Add each new name to the manifest in the same "+
+			"change that adds the row.", fixture, undeclared)
+	}
 }
 
 func loadResolutionFixture(t *testing.T) []resolutionCase {
@@ -87,11 +137,7 @@ func loadResolutionFixture(t *testing.T) []resolutionCase {
 		}
 		seen[c.Name] = true
 	}
-	for _, required := range requiredResolutionCaseNames {
-		if !seen[required] {
-			t.Fatalf("resolution fixture is missing required case %q", required)
-		}
-	}
+	assertExactFixtureCaseNames(t, "resolution", seen, requiredResolutionCaseNames)
 	return fixture.Cases
 }
 
@@ -105,8 +151,8 @@ type privacyLabelFixture struct {
 	Cases []privacyLabelCase `yaml:"cases"`
 }
 
-// requiredPrivacyLabelCaseNames is the deletion-protection manifest for
-// privacy-label.yaml.
+// requiredPrivacyLabelCaseNames is the name manifest for privacy-label.yaml,
+// asserted as EXACT membership.
 var requiredPrivacyLabelCaseNames = []string{
 	"exact-12-hex-match",
 	"eleven-hex-rejected",
@@ -140,11 +186,7 @@ func loadPrivacyLabelFixture(t *testing.T) []privacyLabelCase {
 		}
 		seen[c.Name] = true
 	}
-	for _, required := range requiredPrivacyLabelCaseNames {
-		if !seen[required] {
-			t.Fatalf("privacy-label fixture is missing required case %q", required)
-		}
-	}
+	assertExactFixtureCaseNames(t, "privacy-label", seen, requiredPrivacyLabelCaseNames)
 	return fixture.Cases
 }
 
@@ -249,5 +291,140 @@ func TestIsPrivacyLabel(t *testing.T) {
 				t.Errorf("IsPrivacyLabel(%q) = %v, want %v", c.ProjectName, got, c.Want)
 			}
 		})
+	}
+}
+
+//go:embed testdata/path-tier.yaml
+var pathTierCasesYAML []byte
+
+// pathTierCase is one row of the path-tier fixture. Every row asserts the
+// full Resolved triple, and every row states why it exists.
+type pathTierCase struct {
+	Name            string `yaml:"name"`
+	Why             string `yaml:"why"`
+	ProjectHash     string `yaml:"project_hash"`
+	OverrideName    string `yaml:"override_name"`
+	ConsentedName   string `yaml:"consented_name"`
+	GitRemote       string `yaml:"git_remote"`
+	ProjectPath     string `yaml:"project_path"`
+	PrivacyLabel    string `yaml:"privacy_label"`
+	WantDisplayName string `yaml:"want_display_name"`
+	WantSource      string `yaml:"want_source"`
+	WantRemoteLabel string `yaml:"want_remote_label"`
+}
+
+type pathTierFixture struct {
+	Cases []pathTierCase `yaml:"cases"`
+}
+
+// requiredPathTierCaseNames is the name manifest for path-tier.yaml, asserted
+// as EXACT membership: a declared row that goes missing and an undeclared row
+// that appears both fail by name.
+//
+// Each name is load-bearing. remote_beats_path is the only row that fails
+// when the path tier is moved above the remote tier; path_when_no_remote is
+// the only row that fails when the tier is deleted; override_beats_path and
+// consented_beats_path pin the two tiers above; no_path_privacy_label pins
+// that an ABSENT path changes nothing.
+var requiredPathTierCaseNames = []string{
+	"remote_beats_path",
+	"path_when_no_remote",
+	"override_beats_path",
+	"consented_beats_path",
+	"no_path_privacy_label",
+}
+
+func loadPathTierFixture(t *testing.T) []pathTierCase {
+	t.Helper()
+	decoder := yaml.NewDecoder(bytes.NewReader(pathTierCasesYAML))
+	decoder.KnownFields(true)
+	var fixture pathTierFixture
+	if err := decoder.Decode(&fixture); err != nil {
+		t.Fatalf("decode strict path-tier fixture: %v", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		t.Fatalf("path-tier fixture must contain exactly one YAML document: %v", err)
+	}
+
+	seen := map[string]bool{}
+	for _, c := range fixture.Cases {
+		if c.Name == "" {
+			t.Fatal("path-tier fixture has a case with an empty name")
+		}
+		if seen[c.Name] {
+			t.Fatalf("path-tier fixture repeats case name %q", c.Name)
+		}
+		if c.Why == "" {
+			t.Fatalf("path-tier case %q states no reason it exists; a case nobody can justify cannot be maintained", c.Name)
+		}
+		seen[c.Name] = true
+	}
+	assertExactFixtureCaseNames(t, "path-tier", seen, requiredPathTierCaseNames)
+	return fixture.Cases
+}
+
+// TestResolve_PathTier drives the path tier through the same exported
+// Resolve every surface calls. It also pins the literal wire value "path":
+// want_source is a plain YAML string, decoupled from the NameSourcePath
+// constant, so silently changing that literal fails here.
+func TestResolve_PathTier(t *testing.T) {
+	for _, c := range loadPathTierFixture(t) {
+		t.Run(c.Name, func(t *testing.T) {
+			got := Resolver{Label: testLabeler}.Resolve(Evidence{
+				ProjectHash:   c.ProjectHash,
+				OverrideName:  c.OverrideName,
+				ConsentedName: c.ConsentedName,
+				GitRemote:     c.GitRemote,
+				ProjectPath:   c.ProjectPath,
+				PrivacyLabel:  c.PrivacyLabel,
+			})
+
+			if got.DisplayName != c.WantDisplayName {
+				t.Errorf("DisplayName = %q, want %q", got.DisplayName, c.WantDisplayName)
+			}
+			if string(got.Source) != c.WantSource {
+				t.Errorf("Source = %q, want %q", got.Source, c.WantSource)
+			}
+			if got.RemoteLabel != c.WantRemoteLabel {
+				t.Errorf("RemoteLabel = %q, want %q", got.RemoteLabel, c.WantRemoteLabel)
+			}
+			if got.DisplayName == "" {
+				t.Error("DisplayName must never be empty")
+			}
+			if got.DisplayName == "Other" {
+				t.Error("DisplayName must never be the literal \"Other\"")
+			}
+		})
+	}
+}
+
+// TestResolve_PathIsDisplayedVerbatim proves the village applies NO transform
+// of its own to a stored path. The value arrives already redacted from the
+// publishing client, so re-deriving or masking it here would either corrupt a
+// correct value or paper over an incorrect one; both are worse than showing
+// what was stored. This is the resolver-level half of the same guarantee the
+// handler's wire-level fixture row asserts end to end.
+func TestResolve_PathIsDisplayedVerbatim(t *testing.T) {
+	// Deliberately awkward shapes: a trailing slash, an inner space, a
+	// Windows form and a value that is not path-shaped at all. None of them
+	// is a value the village may rewrite.
+	for _, stored := range []string{
+		"/<PATH>/app",
+		"/<PATH>/app/",
+		"/<PATH>/my app",
+		`C:\<PATH>\app`,
+		"not-a-path",
+	} {
+		got := Resolver{Label: testLabeler}.Resolve(Evidence{
+			ProjectHash: "6666666666666666666666666666666666666666666666666666666666666666",
+			ProjectPath: stored,
+		})
+		if got.DisplayName != stored {
+			t.Errorf("stored path %q rendered as %q; the village must display a stored path byte for byte", stored, got.DisplayName)
+		}
+		if got.Source != NameSourcePath {
+			t.Errorf("stored path %q resolved under source %q, want %q", stored, got.Source, NameSourcePath)
+		}
 	}
 }

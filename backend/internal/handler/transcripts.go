@@ -1203,38 +1203,38 @@ func (h *Handler) shareTranscriptLocked(w http.ResponseWriter, r *http.Request, 
 			continue
 		}
 
-		status := "approved"
-		switch group.AcceptanceMode {
-		case "verified_only":
-			// If the collective is linked to a specific GitHub org, require
-			// the user to have THAT org marked visible. Otherwise fall back
-			// to the legacy "any visible org" check.
-			if group.LinkedGithubOrg.Valid && group.LinkedGithubOrg.String != "" {
-				ok, err := q.HasUserVisibleOrg(r.Context(), sqlc.HasUserVisibleOrgParams{
-					UserID: user.PgID(),
-					Lower:  group.LinkedGithubOrg.String,
-				})
-				if err != nil || !ok {
-					continue // skip — user does not have the required org visible
-				}
-			} else {
-				visOrgs, _ := q.ListUserVisibleOrgs(r.Context(), user.PgID())
-				if len(visOrgs) == 0 {
-					continue // skip — user has no visible orgs
-				}
-			}
-		case "curated":
-			status = "pending"
+		// The acceptance-mode rule lives in shareStatusForGroup so this path and
+		// the whole-project path cannot disagree about what a collective accepts
+		// or about who may offer it anything. This caller answers a refusal by
+		// skipping the collective, exactly as it did when the rule was inline.
+		status, refusal := shareStatusForGroup(r.Context(), q, user, group)
+		if refusal != nil {
+			continue // skip — the collective does not accept a submission from this member
 		}
 
 		if err := q.ShareTranscriptWithStatus(r.Context(), sqlc.ShareTranscriptWithStatusParams{
 			TranscriptID: pgID,
 			GroupID:      pgGID,
-			Status:       status,
+			Status:       string(status),
 		}); err != nil {
-			if isOpenShareAttemptConflict(err) {
+			switch classifyShareAttemptConflict(err) {
+			case shareAttemptConflictOpen:
+				// A live submission is a duplicate, not a new instance, so this
+				// collective joins the already-submitted list and the rest of
+				// the request carries on. Unchanged behaviour.
 				alreadyShared = append(alreadyShared, gidStr)
 				continue
+			case shareAttemptConflictEventNum:
+				// Another writer appended an event to this pair that this
+				// statement could not yet see, so the ordinal it computed was
+				// taken by the time it wrote. That is a CONFLICT the person can
+				// clear by asking again, not a failure, and it is answered here
+				// rather than falling through to an unexplained 500.
+				writeError(w, http.StatusConflict, "Transcript "+id.String()+" was submitted to collective "+gidStr+
+					" by another request at the same moment as this one, so this submission lost the race for its place in "+
+					"that collective's history. Nothing was submitted to that collective. Share it again: the next attempt "+
+					"either records the submission or reports it as already submitted.")
+				return
 			}
 			writeError(w, http.StatusInternalServerError, "Could not record the submission of this transcript to collective "+gidStr+
 				" while opening a new share attempt. Nothing was submitted to that collective. Retry the share; if it keeps failing, the collective may have been deleted while the request was in flight.")

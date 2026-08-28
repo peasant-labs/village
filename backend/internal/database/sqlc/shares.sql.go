@@ -397,6 +397,59 @@ func (q *Queries) ListGroupTranscripts(ctx context.Context, arg ListGroupTranscr
 	return items, nil
 }
 
+const listLiveShareAttemptsForGroup = `-- name: ListLiveShareAttemptsForGroup :many
+SELECT latest.transcript_id, latest.status
+FROM (
+    SELECT DISTINCT ON (a.transcript_id)
+           a.transcript_id, a.status
+    FROM transcript_share_attempts a
+    WHERE a.group_id = $1
+      AND a.transcript_id = ANY($2::uuid[])
+    ORDER BY a.transcript_id, a.event_num DESC
+) latest
+WHERE latest.status IN ('pending', 'approved')
+`
+
+type ListLiveShareAttemptsForGroupParams struct {
+	GroupID       pgtype.UUID   `db:"group_id" json:"group_id"`
+	TranscriptIds []pgtype.UUID `db:"transcript_ids" json:"transcript_ids"`
+}
+
+type ListLiveShareAttemptsForGroupRow struct {
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	Status       string      `db:"status" json:"status"`
+}
+
+// Which of the named transcripts are ALREADY live in one collective. Live means
+// the latest event of the (transcript, collective) pair is pending or approved,
+// which is exactly what makes a further submission a duplicate rather than the
+// next attempt.
+//
+// This statement reads the attempt LEDGER (transcript_share_attempts) and
+// nothing else. It deliberately never mentions the derived transcript_shares
+// row: a pair that was submitted, refused and then withdrawn has no derived row,
+// and a batch that consulted the projection would report an open submission as
+// absent and then be refused by the database instead of answering the person.
+func (q *Queries) ListLiveShareAttemptsForGroup(ctx context.Context, arg ListLiveShareAttemptsForGroupParams) ([]ListLiveShareAttemptsForGroupRow, error) {
+	rows, err := q.db.Query(ctx, listLiveShareAttemptsForGroup, arg.GroupID, arg.TranscriptIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLiveShareAttemptsForGroupRow{}
+	for rows.Next() {
+		var i ListLiveShareAttemptsForGroupRow
+		if err := rows.Scan(&i.TranscriptID, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOwnerCollectiveSubmissions = `-- name: ListOwnerCollectiveSubmissions :many
 SELECT latest.transcript_id, latest.group_id, latest.title, latest.event_num,
        latest.status, latest.recorded_at

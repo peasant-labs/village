@@ -1,0 +1,90 @@
+# Fixture corpus for the PATH tier of projectname.Resolve.
+#
+# The path tier answers "what is this project called" from the redacted local
+# path the publishing client recorded, when nothing better is known. It sits
+# between the remote tier and the privacy tier:
+#
+#   override > consented > remote > path > privacy
+#
+# Two invariants every row here exists to hold:
+#
+#   1. The stored path is displayed VERBATIM. It reaches storage already
+#      redacted by the publishing client, so the village neither re-derives a
+#      redaction nor masks the value, and every viewer sees the same string.
+#      Rows therefore carry canonical redacted paths ("/<PATH>/app"), never a
+#      raw home path.
+#   2. A repository label still beats a path. A label names the project to
+#      everyone who knows the repository; a redacted path names only its last
+#      folder.
+#
+# git_remote values (raw, unformatted) use the same mock RemoteLabeler as
+# resolution.yaml:
+#   recognized:   git@github.com:peasant-labs/village.git
+#     -> formats to github.com:peasant-labs/village
+#   unrecognized: not-a-real-remote  -> reported ok=false
+#
+# want_remote_label is asserted on every row because Resolved.RemoteLabel is
+# populated independently of which tier supplied the display name.
+
+cases:
+  - name: remote_beats_path
+    why: >-
+      A project that has BOTH a usable git remote and a recorded path must
+      render the repository label, not the path. This is the ordinary state of
+      an open-source project, and it is the row that fails if the path tier is
+      ever inserted above the remote tier.
+    project_hash: "1111111111111111111111111111111111111111111111111111111111111111"
+    git_remote: "git@github.com:peasant-labs/village.git"
+    project_path: "/<PATH>/village"
+    want_display_name: "github.com:peasant-labs/village"
+    want_source: "remote"
+    want_remote_label: "github.com:peasant-labs/village"
+
+  - name: path_when_no_remote
+    why: >-
+      The tier's whole reason to exist: no owner rename, no consented name and
+      no git remote, but the client recorded a redacted path. Without the path
+      tier this project renders as "project-<12hex>" and tells its owner
+      nothing. The expected name is the stored value byte for byte.
+    project_hash: "2222222222222222222222222222222222222222222222222222222222222222"
+    project_path: "/<PATH>/app"
+    want_display_name: "/<PATH>/app"
+    want_source: "path"
+    want_remote_label: ""
+
+  - name: override_beats_path
+    why: >-
+      An owner who has renamed their project has said what it is called; a
+      path is an inference. The rename wins even though a path is present.
+    project_hash: "3333333333333333333333333333333333333333333333333333333333333333"
+    override_name: "The Ledger"
+    project_path: "/<PATH>/ledger"
+    want_display_name: "The Ledger"
+    want_source: "override"
+    want_remote_label: ""
+
+  - name: consented_beats_path
+    why: >-
+      A project name the publisher chose to disclose is a name a person wrote;
+      a path is an inference from a directory. The consented name wins even
+      though a path is present.
+    project_hash: "4444444444444444444444444444444444444444444444444444444444444444"
+    consented_name: "ledger-service"
+    project_path: "/<PATH>/ledger"
+    want_display_name: "ledger-service"
+    want_source: "consented"
+    want_remote_label: ""
+
+  - name: no_path_privacy_label
+    why: >-
+      Adding the path tier must not change what happens when there is no path.
+      With no override, no consented name, no usable remote and no path, the
+      answer is still the row-carried privacy label under the privacy source —
+      an empty project_path must never be treated as a display name.
+    project_hash: "5555555555555555555555555555555555555555555555555555555555555555"
+    git_remote: "not-a-real-remote"
+    project_path: ""
+    privacy_label: "project-5555abcd1234"
+    want_display_name: "project-5555abcd1234"
+    want_source: "privacy"
+    want_remote_label: ""

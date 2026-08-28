@@ -449,6 +449,88 @@ func (q *Queries) GetTranscriptIDByOwnerAndLocalID(ctx context.Context, arg GetT
 	return id, err
 }
 
+const listOwnerContributableTranscripts = `-- name: ListOwnerContributableTranscripts :many
+SELECT t.id, t.local_id, t.title, t.visibility, t.project_hash, t.git_branch,
+       t.parent_session_id, t.session_origin, t.model_provider, t.published_at,
+       EXISTS (
+           SELECT 1
+           FROM transcript_share_attempts a
+           WHERE a.transcript_id = t.id
+             AND a.group_id = $1
+             AND a.status IN ('pending', 'approved')
+             AND a.event_num = (
+                 SELECT max(b.event_num)
+                 FROM transcript_share_attempts b
+                 WHERE b.transcript_id = t.id AND b.group_id = $1
+             )
+       )::boolean AS already_shared
+FROM transcripts t
+WHERE t.owner_id = $2
+ORDER BY t.published_at DESC, t.id ASC
+`
+
+type ListOwnerContributableTranscriptsParams struct {
+	GroupID pgtype.UUID `db:"group_id" json:"group_id"`
+	OwnerID pgtype.UUID `db:"owner_id" json:"owner_id"`
+}
+
+type ListOwnerContributableTranscriptsRow struct {
+	ID              pgtype.UUID        `db:"id" json:"id"`
+	LocalID         string             `db:"local_id" json:"local_id"`
+	Title           pgtype.Text        `db:"title" json:"title"`
+	Visibility      string             `db:"visibility" json:"visibility"`
+	ProjectHash     string             `db:"project_hash" json:"project_hash"`
+	GitBranch       pgtype.Text        `db:"git_branch" json:"git_branch"`
+	ParentSessionID pgtype.Text        `db:"parent_session_id" json:"parent_session_id"`
+	SessionOrigin   string             `db:"session_origin" json:"session_origin"`
+	ModelProvider   string             `db:"model_provider" json:"model_provider"`
+	PublishedAt     pgtype.Timestamptz `db:"published_at" json:"published_at"`
+	AlreadyShared   bool               `db:"already_shared" json:"already_shared"`
+}
+
+// Every transcript the caller owns, each carrying whether it is ALREADY live in
+// ONE collective. The contribute surface needs both halves at once: the corpus
+// it groups into projects and branches, and the per-row answer that decides
+// which rows it may still offer.
+//
+// already_shared is computed here, from the attempt LEDGER, and never from the
+// derived current-state row: a pair whose last event was a withdrawal has no
+// derived row at all, and a caller that read the projection would present a
+// withdrawn contribution as contributable while it is not, or the reverse.
+// Live means the LATEST event of the pair is pending or approved, which is the
+// same definition the single share path applies before it opens an attempt.
+func (q *Queries) ListOwnerContributableTranscripts(ctx context.Context, arg ListOwnerContributableTranscriptsParams) ([]ListOwnerContributableTranscriptsRow, error) {
+	rows, err := q.db.Query(ctx, listOwnerContributableTranscripts, arg.GroupID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnerContributableTranscriptsRow{}
+	for rows.Next() {
+		var i ListOwnerContributableTranscriptsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LocalID,
+			&i.Title,
+			&i.Visibility,
+			&i.ProjectHash,
+			&i.GitBranch,
+			&i.ParentSessionID,
+			&i.SessionOrigin,
+			&i.ModelProvider,
+			&i.PublishedAt,
+			&i.AlreadyShared,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOwnerProjectIdentities = `-- name: ListOwnerProjectIdentities :many
 SELECT
     t.owner_id,
@@ -464,6 +546,11 @@ SELECT
             FILTER (WHERE t.git_remote IS NOT NULL AND t.git_remote <> ''))[1],
         ''
     )::text AS git_remote,
+    COALESCE(
+        (array_agg(t.project_path ORDER BY t.published_at DESC, t.id)
+            FILTER (WHERE t.project_path IS NOT NULL AND t.project_path <> ''))[1],
+        ''
+    )::text AS project_path,
     count(*)::bigint AS transcript_count
 FROM transcripts t
 LEFT JOIN owner_overrides o
@@ -488,6 +575,7 @@ type ListOwnerProjectIdentitiesRow struct {
 	OverrideName    string      `db:"override_name" json:"override_name"`
 	ProjectNames    []string    `db:"project_names" json:"project_names"`
 	GitRemote       string      `db:"git_remote" json:"git_remote"`
+	ProjectPath     string      `db:"project_path" json:"project_path"`
 	TranscriptCount int64       `db:"transcript_count" json:"transcript_count"`
 }
 
@@ -502,6 +590,12 @@ type ListOwnerProjectIdentitiesRow struct {
 // must stay identical forever. The ordering (published_at DESC, then id) is the
 // deterministic pick the resolver's contract requires, so the caller only has to
 // walk the array and take the first name of each class.
+//
+// project_path is picked by the SAME deterministic idiom as git_remote — the
+// first non-empty value under (published_at DESC, then id) — so the two pieces of
+// evidence a project falls back to cannot disagree about which transcript they
+// came from. It is the path the publishing client recorded, ALREADY redacted when
+// it reached storage; this read neither re-derives nor masks it.
 //
 // The override join is narrowed to the single writable pair, ('project',
 // 'display_name'); the table reserves other pairs for later fields, and this read
@@ -521,8 +615,63 @@ func (q *Queries) ListOwnerProjectIdentities(ctx context.Context, arg ListOwnerP
 			&i.OverrideName,
 			&i.ProjectNames,
 			&i.GitRemote,
+			&i.ProjectPath,
 			&i.TranscriptCount,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOwnerProjectShareCandidates = `-- name: ListOwnerProjectShareCandidates :many
+
+SELECT t.id, t.local_id, t.visibility
+FROM transcripts t
+WHERE t.owner_id = $1
+  AND t.project_hash = $2
+ORDER BY t.published_at DESC, t.id ASC
+`
+
+type ListOwnerProjectShareCandidatesParams struct {
+	OwnerID     pgtype.UUID `db:"owner_id" json:"owner_id"`
+	ProjectHash string      `db:"project_hash" json:"project_hash"`
+}
+
+type ListOwnerProjectShareCandidatesRow struct {
+	ID         pgtype.UUID `db:"id" json:"id"`
+	LocalID    string      `db:"local_id" json:"local_id"`
+	Visibility string      `db:"visibility" json:"visibility"`
+}
+
+// Content-hash and pull-list queries live in the sibling source file
+// queries/transcripts_pull.sql, mirroring the
+// annotations_push convention so sqlc round-trips them into transcripts_pull.sql.go
+// without colliding with this file's generated transcripts.sql.go.
+// Every transcript of ONE owner in ONE project: the closed set a batch
+// contribution to a collective may name. The batch route resolves the request's
+// ids against this set BEFORE it opens a transaction, so a transcript belonging
+// to another project or another person is refused with nothing written.
+//
+// Ownership and project identity are both in the WHERE clause rather than being
+// checked afterwards in Go, so a row that reaches the caller is by construction
+// one the caller may contribute. The ordering is the deterministic pick the rest
+// of the identity surfaces already use (published_at DESC, then id), so the
+// receipt lists the transcripts in the same order the person sees them.
+func (q *Queries) ListOwnerProjectShareCandidates(ctx context.Context, arg ListOwnerProjectShareCandidatesParams) ([]ListOwnerProjectShareCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listOwnerProjectShareCandidates, arg.OwnerID, arg.ProjectHash)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnerProjectShareCandidatesRow{}
+	for rows.Next() {
+		var i ListOwnerProjectShareCandidatesRow
+		if err := rows.Scan(&i.ID, &i.LocalID, &i.Visibility); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sort"
 	"strings"
 	"testing"
 
@@ -18,11 +19,15 @@ import (
 var titleBackfillCasesYAML []byte
 
 type titleBackfillFixture struct {
-	Name                  string   `yaml:"name"`
-	Arm                   string   `yaml:"arm"`
-	Mode                  string   `yaml:"mode"`
-	Title                 string   `yaml:"title"`
-	Generated             string   `yaml:"generated"`
+	Name      string `yaml:"name"`
+	Arm       string `yaml:"arm"`
+	Mode      string `yaml:"mode"`
+	Title     string `yaml:"title"`
+	Generated string `yaml:"generated"`
+	// ProjectPath is the recorded project root the row's title is redacted
+	// against, empty when the row records no project. It lives on the row so
+	// the input that produces Expected travels with the expectation itself.
+	ProjectPath           string   `yaml:"project_path"`
 	LeadingNonUserTurns   int      `yaml:"leading_non_user_turns"`
 	FirstUserTurns        []string `yaml:"first_user_turns"`
 	Expected              string   `yaml:"expected"`
@@ -44,9 +49,6 @@ func loadTitleBackfillFixtures(data []byte) ([]titleBackfillFixture, error) {
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return nil, fmt.Errorf("strict title backfill fixture must contain exactly one YAML document")
 	}
-	if len(cases) != 17 {
-		return nil, fmt.Errorf("strict title backfill fixture has %d rows, want 17", len(cases))
-	}
 	names, arms := map[string]bool{}, map[string]bool{}
 	for _, c := range cases {
 		if c.Name == "" || c.Arm == "" {
@@ -65,8 +67,8 @@ func loadTitleBackfillFixtures(data []byte) ([]titleBackfillFixture, error) {
 			return nil, fmt.Errorf("strict title backfill fixture omits required arm %q", arm)
 		}
 	}
-	if !names["shared_project_path_parity"] {
-		return nil, fmt.Errorf("strict title backfill fixture omits shared_project_path_parity")
+	if err := assertExactTitleBackfillNames(names); err != nil {
+		return nil, err
 	}
 	// multiCandidateArms are the arms whose entire point is proving the
 	// selection loop visits a later candidate turn (injected-then-prose,
@@ -91,6 +93,68 @@ func loadTitleBackfillFixtures(data []byte) ([]titleBackfillFixture, error) {
 	return cases, nil
 }
 
+// requiredTitleBackfillCaseNames is the deletion-protection manifest for
+// title_backfill/cases.yaml, asserted as EXACT membership in both directions.
+//
+// It replaces a bare row count. A count cannot say WHICH behavior stopped being
+// covered when it moves, goes stale on every legitimate addition, and two
+// branches that each add a case collide on the same integer. These names say
+// what must not be lost: the keep/sanitize/derive decision arms, the whole
+// injected-then-prose turn-selection family, and the operational arms
+// (concurrent edit, idempotent re-apply, malformed content).
+var requiredTitleBackfillCaseNames = []string{
+	"safe_manual_preserved",
+	"unsafe_manual_sanitized",
+	"unsafe_generated_sanitized",
+	"missing_title_uses_generated",
+	"shared_project_path_parity",
+	"caveat_then_prose",
+	"bare_command_then_prose",
+	"malformed_then_prose",
+	"only_injected",
+	"assistant_turn_then_malformed_then_prose",
+	"bare_payload_derivation",
+	"raw_jsonl_derivation",
+	"malformed_content_continues",
+	"concurrent_edit_skips",
+	"second_apply_idempotent",
+	"markup_title_rederived",
+	"markup_generated_not_promoted",
+}
+
+// assertExactTitleBackfillNames holds the fixture's case names to exactly the
+// manifest. A missing name means a case was deleted; an unexpected name means a
+// case was added without recording why it must survive a later edit. Both are
+// reported by NAME so the failure says what changed.
+func assertExactTitleBackfillNames(present map[string]bool) error {
+	want := map[string]bool{}
+	for _, name := range requiredTitleBackfillCaseNames {
+		want[name] = true
+	}
+	var missing, unexpected []string
+	for name := range want {
+		if !present[name] {
+			missing = append(missing, name)
+		}
+	}
+	for name := range present {
+		if !want[name] {
+			unexpected = append(unexpected, name)
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(unexpected)
+	if len(missing) > 0 {
+		return fmt.Errorf("the title backfill fixture no longer contains %v. Each of those cases exists because "+
+			"losing it hides a real failure; restore the row rather than removing it from the manifest", missing)
+	}
+	if len(unexpected) > 0 {
+		return fmt.Errorf("the title backfill fixture carries %v, which the manifest does not list. Add each new "+
+			"case to requiredTitleBackfillCaseNames so a later deletion is caught by name", unexpected)
+	}
+	return nil
+}
+
 func TestTitleBackfillFixtureAndModeContract(t *testing.T) {
 	cases, err := loadTitleBackfillFixtures(titleBackfillCasesYAML)
 	if err != nil {
@@ -104,7 +168,7 @@ func TestTitleBackfillFixtureAndModeContract(t *testing.T) {
 		if tc.Name != "shared_project_path_parity" {
 			continue
 		}
-		result, err := pipeline.Generate(tc.FirstUserTurns[0], redact.TitleContext{Harness: schema.HarnessClaudeCode, ProjectPath: "/Users/developer/work/sample-app"})
+		result, err := pipeline.Generate(tc.FirstUserTurns[0], redact.TitleContext{Harness: schema.HarnessClaudeCode, ProjectPath: tc.ProjectPath})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -180,7 +244,6 @@ func TestDeriveTitleFromPayloadFixtures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := redact.TitleContext{Harness: schema.HarnessClaudeCode, ProjectPath: "/Users/developer/work/sample-app"}
 	ran := 0
 	for _, tc := range cases {
 		if len(tc.FirstUserTurns) == 0 {
@@ -189,6 +252,7 @@ func TestDeriveTitleFromPayloadFixtures(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			ran++
+			ctx := redact.TitleContext{Harness: schema.HarnessClaudeCode, ProjectPath: tc.ProjectPath}
 			payload := buildUserTurnsPayload(tc.LeadingNonUserTurns, tc.FirstUserTurns)
 			title, err := deriveTitleFromPayload(payload, pipeline, ctx, nil)
 			if tc.ExpectedErrorContains != "" {
@@ -235,7 +299,6 @@ func TestDeriveTitleFromPayloadLogsOriginalPayloadTurnIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := redact.TitleContext{Harness: schema.HarnessClaudeCode, ProjectPath: "/Users/developer/work/sample-app"}
 	ran := 0
 	for _, tc := range cases {
 		if tc.ExpectedWarnTurnIndex == nil {
@@ -246,6 +309,7 @@ func TestDeriveTitleFromPayloadLogsOriginalPayloadTurnIndex(t *testing.T) {
 			ran++
 			var logs bytes.Buffer
 			logger := slog.New(slog.NewTextHandler(&logs, nil))
+			ctx := redact.TitleContext{Harness: schema.HarnessClaudeCode, ProjectPath: tc.ProjectPath}
 			payload := buildUserTurnsPayload(tc.LeadingNonUserTurns, tc.FirstUserTurns)
 			title, err := deriveTitleFromPayload(payload, pipeline, ctx, logger)
 			if err != nil || title != tc.Expected {
@@ -297,7 +361,6 @@ func TestDeriveTitleFromPayloadVisitsEveryCandidateTurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := redact.TitleContext{Harness: schema.HarnessClaudeCode, ProjectPath: "/Users/developer/work/sample-app"}
 	ran := 0
 	for _, tc := range cases {
 		if len(tc.FirstUserTurns) == 0 || tc.ExpectedErrorContains != "" {
@@ -309,6 +372,7 @@ func TestDeriveTitleFromPayloadVisitsEveryCandidateTurn(t *testing.T) {
 				ran++
 			}
 			recorder := &callRecordingPipeline{TitlePipeline: real}
+			ctx := redact.TitleContext{Harness: schema.HarnessClaudeCode, ProjectPath: tc.ProjectPath}
 			payload := buildUserTurnsPayload(tc.LeadingNonUserTurns, tc.FirstUserTurns)
 			title, err := deriveTitleFromPayload(payload, recorder, ctx, nil)
 			if err != nil || title != tc.Expected {

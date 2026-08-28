@@ -64,6 +64,8 @@ export function describeNameSource(source: NameSource): string {
       return "From the transcript's stored project name";
     case "remote":
       return "From the transcript's git remote";
+    case "path":
+      return "From the project's redacted local path";
     case "privacy":
       return "Auto-generated from the project's privacy-safe identity";
     default:

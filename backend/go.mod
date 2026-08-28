@@ -14,7 +14,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/joho/godotenv v1.5.1
-	github.com/peasant-labs/redact v0.1.2
+	github.com/peasant-labs/redact v0.1.5
 	github.com/peasant-labs/schema v0.1.2
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	golang.org/x/oauth2 v0.35.0

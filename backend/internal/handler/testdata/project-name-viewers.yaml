@@ -1,0 +1,138 @@
+# One project, one name, every viewer, every surface.
+#
+# The village stores exactly ONE form of a project's evidence. A local path
+# arrives already redacted from the publishing client, and there is no raw
+# column beside it and no render-time mask, so the answer to "what is this
+# project called" cannot depend on who is asking. This fixture is what holds
+# that property: each case describes one project's evidence and ONE expected
+# display name, and the test renders it through every viewer on every surface
+# and requires the same string back each time.
+#
+# It runs against a real PostgreSQL (-tags=integration) because the evidence it
+# varies is stored evidence: the deterministic project_path pick, the owner
+# override join, and the visibility predicate each surface applies are database
+# behavior that a mocked querier would simply echo back.
+#
+# Most cases store their evidence as one row, because what they vary is what
+# the database holds. The case that sets `seed_through_publish` instead sends a
+# real publish through the mounted route, so it also proves the step before
+# storage: that the path a contributor sends reaches the column unchanged.
+#
+# `viewers` and `surfaces` are the matrix axes, declared here rather than in the
+# test so the coverage is readable and so deleting one is a fixture change the
+# name manifest catches.
+
+viewers:
+  - name: owner
+    why: >-
+      The person who published the project. If any viewer were shown a
+      different string it would be this one, so the owner is the control for
+      every other row.
+  - name: other_user
+    why: >-
+      A different signed-in person. This is the viewer a per-viewer masking rule
+      would diverge on, and the one whose answer proves no such rule exists.
+  - name: signed_out
+    why: >-
+      Nobody signed in. The public surfaces answer anonymous requests, so a name
+      resolved only for authenticated callers would surface here as a different
+      string or an empty one.
+
+surfaces:
+  - name: project_page
+    why: >-
+      The project's own page. It resolves a single project directly and is where
+      the name is the heading, so it is the surface a viewer reads the name from
+      most deliberately.
+    owner_only: false
+  - name: profile
+    why: >-
+      The owner's profile list. It renders through the same batched list path as
+      explore but scoped to one owner, so it proves the owner scoping does not
+      change the resolved name.
+    owner_only: false
+  - name: transcript_detail
+    why: >-
+      One transcript's detail response, which carries the project breadcrumb. It
+      resolves ONE identity rather than a batch, so it is the surface a
+      single-project code path could diverge on.
+    owner_only: false
+  - name: explore
+    why: >-
+      The public list, resolved as a batch across many owners. A batched resolve
+      that mixed rows up would show the wrong project's name here and nowhere
+      else.
+    owner_only: false
+  - name: override_response
+    why: >-
+      The answer the rename and reset routes send back. It exists so a client
+      never re-derives the name after a correction, which means it must agree
+      with the read surfaces; a divergence here shows up as a name that changes
+      when you save and changes back when you reload.
+    owner_only: true
+
+cases:
+  - name: path_only_renders_the_stored_path_to_everyone
+    why: >-
+      The path tier's whole point, proved end to end: a project with no owner
+      rename, no disclosed project name and no git remote renders the redacted
+      path the client recorded, and renders it identically to its owner, to a
+      stranger and to a signed-out reader. Before the path tier this project
+      rendered as "project-<12hex>" on every surface.
+    project_path: "/<PATH>/app"
+    want_display_name: "/<PATH>/app"
+    want_name_source: path
+
+  - name: remote_beats_path_for_everyone
+    why: >-
+      A repository label outranks a path for every viewer, not just for the
+      owner. This is the row that fails if the path tier is ever placed above
+      the remote tier, and it fails on every surface at once.
+    project_path: "/<PATH>/app"
+    git_remote: "git@github.com:peasant-labs/village.git"
+    want_display_name: "github.com:peasant-labs/village"
+    want_name_source: remote
+
+  - name: owner_rename_beats_path_for_everyone
+    why: >-
+      An owner rename is stored once and shown to everybody; it does not create
+      a private view for the owner. Without this row an implementation that
+      applied the override only for the owner would still pass every other case.
+    project_path: "/<PATH>/app"
+    owner_override_name: "The Ledger"
+    want_display_name: "The Ledger"
+    want_name_source: override
+
+  - name: wire_path_stored_verbatim
+    why: >-
+      A publish carries the project path in its canonical redacted form and the
+      village stores and renders it byte for byte. This is the only case seeded
+      through the mounted publish route rather than by writing the row, so it
+      covers both halves of the promise: the path a contributor sends reaches
+      the column unchanged, and the stored value is then read back identically
+      by every viewer on every surface. No village-side rewrite, truncation or
+      mask exists in this milestone, so a value that arrives with the marker in
+      the middle of a longer path must come back out identical. If a masking
+      rule is ever added, this row is what tells its author that the change is
+      user-visible everywhere.
+
+      It carries a privacy label as its published project name because the wire
+      contract requires a nonempty name: a contributor who has not disclosed
+      the real project name publishes the label in that field. So this is the
+      state a real unconsented publish actually reaches, and it is a state a
+      seeded row with a NULL project name cannot even represent.
+    seed_through_publish: true
+    project_path: "/<PATH>/peasant-labs/village"
+    published_project_name: "project-1a2b3c4d5e6f"
+    want_display_name: "/<PATH>/peasant-labs/village"
+    want_name_source: path
+
+  - name: no_path_falls_through_to_the_privacy_label
+    why: >-
+      Adding the path tier must not change a project that has no path. With only
+      Peasant's privacy-safe label stored, every viewer still reads that label
+      under the privacy tier — an empty project_path must never be rendered as a
+      name.
+    published_project_name: "project-abcdef123456"
+    want_display_name: "project-abcdef123456"
+    want_name_source: privacy

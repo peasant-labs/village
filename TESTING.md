@@ -248,13 +248,77 @@ ledger) and never mentions `transcript_shares` (the derived projection), so the
 guard's word-boundary match on the table name does not fire for it and it needs
 no entry there.
 
+### Contributing a whole project: refusals are asserted on the LEDGER
+
+`internal/handler/testdata/groups-batch-share.yaml` +
+`groups-contributable.yaml`, driven by
+`group_shares_integration_test.go` against real Postgres, cover
+`POST /groups/{id}/shares` and `GET /groups/{id}/contributable`. Every case -
+including every refusal - declares `expect_attempts`, the number of ledger rows
+each transcript should have afterwards, and the loader REFUSES a case that omits
+it: "nothing was written" is the promise this route exists to keep, and a status
+code alone cannot show it. Cases also pin the derived row, the transcripts'
+visibility, and `check_transcript_shares_drift()` = 0.
+
+`mid_tx_conflict_rolls_back_then_retry_succeeds` is the one case that can fail if
+the single share path's continue-on-conflict pattern is ever copied into the
+batch transaction. It holds the publish advisory lock for one transcript on its
+own connection (the key comes from the production helper
+`sessionPublishLockKey`, so a change to the key shape cannot leave the test
+holding a lock nothing contends for), starts the batch in a goroutine, waits for
+`pg_locks` to show a real waiter, inserts a competing `pending` attempt, releases
+the lock, and then asserts 409 naming that transcript, ZERO rows for the batch's
+other transcript, and a 200 retry reporting the conflicting one as already
+contributed. Its collective is CURATED on purpose: `uq_share_attempt_open` is
+partial over `status = 'pending'`, so that is the only state in which the
+database itself can refuse a second submission.
+
+`event_num_conflict_rolls_back_then_retry_succeeds` covers the OTHER conflict the
+ledger can raise. It gates the batch on the advisory lock the same way, then
+appends an ACCEPTED event for the same pair from an UNCOMMITTED transaction of
+its own, releases the lock, waits until `pg_locks` shows the batch blocked on
+that transaction inside the unique index, and only then commits - so the
+`UNIQUE (transcript_id, group_id, event_num)` violation is produced
+deterministically rather than by a hopeful sleep. The competing event is ACCEPTED
+so `uq_share_attempt_open` cannot fire and the answer can only have come from the
+ordering branch. Its twin for the single share path is
+`competing_event_ordinal_answers_409_not_an_unexplained_failure` in
+`share-attempts.yaml` (step `competing_event_ordinal`). Both assert the
+distinguishing wording, not just the 409: a duplicate is cleared by withdrawing
+the live submission and an ordering conflict by asking again, so one message for
+both tells half the callers the wrong thing.
+
+The acceptance-mode rule both share paths share has its own database-free corpus,
+`testdata/share-status-modes.yaml` + `group_shares_test.go`.
+
 **`transcripts.project_hash` is NOT NULL**, so every fixture that inserts a
 transcript with raw SQL must name one. Fixtures for the same project share a
 hash; unrelated fixtures must not collide.
 
-### Project identity: three fixture families
+### The contribute page: one frontend fixture for the tree, the run, and the preview
 
-A project is identified by its hash, never by its name, and three fixtures hold
+`frontend/src/testdata/groups-contribute-tree.yaml` +
+`frontend/src/test/groupsContributeTreeFixtures.ts` hold every case for the
+`/groups/{id}/contribute` surface that consumes the two endpoints above. A case
+declares its `kind`, which decides both the fields it must carry and the test
+that consumes it: `tree` (the pure tree/selection/filter modules), `post` (the
+sequential one-request-per-project run, always asserting the parsed request
+BODY - the project hash and the exact id set - never a call count alone), `page`
+(the REAL mounted route with `fetch` stubbed on the frozen JSON), and `preview`
+(the read-only preview variant). Every case carries a non-empty `why`, and the
+loader guards deletion with a required-NAME list, never a row count. Run it with
+`pnpm exec vitest run` from `frontend/`.
+
+The list itself is rendered to match the local tool's own share picker: a title
+line, one mono metadata line, filled tri-state parent checkboxes, and a single
+connector traced through the mounted checkbox anchors. The narrow (single
+column) layout and that connector are proven by
+`frontend/scripts/visual/probe-contribute-narrow.mjs` plus the
+`manage-contribute` captures, not in jsdom, because both are computed geometry.
+
+### Project identity: five fixture families
+
+A project is identified by its hash, never by its name, and five fixtures hold
 that line:
 
 - **`handler/testdata/publish-project-hash.yaml`** drives the publish boundary's
@@ -278,6 +342,28 @@ that line:
   discoverable; the viewer simply may see none of their transcripts). This
   boundary is asserted here in its own right - it does NOT inherit coverage from
   the public profile route, whose own boundary has no fixture behind it.
+- **`projectname/testdata/path-tier.yaml`** drives the tier that names a project
+  from the redacted local path its publisher recorded, when there is no owner
+  rename, no disclosed project name and no usable git remote. Its rows pin the
+  order `override > consented > remote > path > privacy` and the rule that a
+  stored path is rendered VERBATIM: the value arrives already redacted, so the
+  village neither re-derives nor masks it.
+- **`handler/testdata/project-name-viewers.yaml`** drives every viewer (owner, a
+  different signed-in user, signed out) across every surface that renders a
+  project name (the project page, the profile list, a transcript's detail, the
+  public explore list, and the answer the correction routes send back) against
+  real Postgres, and requires ONE string from all of them. Because the village
+  stores a single redacted form with no raw column beside it and no render-time
+  mask, a name that differs by viewer or by page is a defect, not a policy; the
+  viewers and surfaces are fixture rows so deleting one shrinks the matrix
+  loudly rather than silently. Most cases store their evidence as one row,
+  because what they vary is what the database holds. The case that sets
+  `seed_through_publish` instead sends a real publish through the mounted
+  publish route and then reads the column back before any surface renders, so
+  it also covers the step a seeded row has to assume: that the redacted path a
+  contributor sends reaches storage unchanged. That case needs object storage
+  like every other mounted publish test, so it runs under the encrypted
+  aggregate.
 
 ### Collectives surfaces: who may see a membership, and what the counters mean
 

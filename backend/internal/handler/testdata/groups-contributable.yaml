@@ -1,0 +1,56 @@
+# What one person may contribute to one collective, driven through the real HTTP
+# handler against a real PostgreSQL.
+#
+# The already_shared answer is computed from the attempt ledger by a database
+# statement, and the project display name is resolved by the same one-statement
+# path every other project surface uses, so both have to be asked of a real
+# database rather than recomputed in Go.
+
+- name: already_shared_flag_set
+  why: >
+    A transcript already live in this collective is marked, so the surface can
+    show it as contributed instead of offering it again and having the
+    submission refused. Losing this would let a listing that answered false for
+    every row pass.
+  transcripts:
+    - {key: a, project: p, pre: live}
+    - {key: b, project: p}
+  expect_status: 200
+  expect_rows: [a, b]
+  expect_already_shared: [a]
+
+- name: child_rows_included
+  why: >
+    A child session is a contributable transcript in its own right. The surface
+    groups it under its parent, which it can only do if the listing returns it;
+    a query narrowed to root sessions would hide whole sub-trees of a person's
+    own work from them.
+  transcripts:
+    - {key: parent, project: p}
+    - {key: child, project: p, parent: parent}
+  expect_status: 200
+  expect_rows: [parent, child]
+  expect_parent_of: {child: parent}
+
+- name: non_member_403
+  why: >
+    Membership is the gate on the read as well as the write. Losing it would let
+    anyone ask any collective what they could put into it.
+  member: false
+  transcripts:
+    - {key: a, project: p}
+  expect_status: 403
+
+- name: over_limit_413
+  why: >
+    The listing is whole rather than paged, so it needs a bound. An owner whose
+    corpus exceeds it is told so, instead of being served an answer no browser
+    can render or - worse - a silently truncated one they would read as
+    complete.
+  limit: 3
+  transcripts:
+    - {key: a, project: p}
+    - {key: b, project: p}
+    - {key: c, project: p}
+    - {key: d, project: p}
+  expect_status: 413

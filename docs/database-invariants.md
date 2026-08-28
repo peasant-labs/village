@@ -337,7 +337,61 @@ The audit triggers (migration 026) and the share-derivation triggers
   trigger refuses an in-place edit.
 - **No `app.actor_id` for sharing.** Sharing is not a licence or visibility
   change, so it does not cross the governance-audit axis; `decided_by` records
-  the moderator directly on the attempt row.
+  the moderator directly on the attempt row. A submission that ALSO moves a
+  private transcript to `shared` does cross it, and that write carries the actor
+  because it runs inside `inTxAs`/`inTxAsOnConn` like every other visibility
+  change.
+- **The ledger now has a SECOND application writer, and it writes the same
+  statement.** `POST /groups/{id}/shares` (`handler/group_shares.go`,
+  `BatchShareProject`) offers a whole project to one collective. It appends one
+  `transcript_share_attempts` row per transcript through the SAME sqlc statement
+  the single share uses (`ShareTranscriptWithStatus`) - there is no batch INSERT
+  and no second write path - and, for each transcript that was private,
+  `applyMetadataPatch` moves it to `shared`. It adds NO trigger, NO GUC, and no
+  new table.
+- **The whole batch is ONE transaction, and the single share's
+  continue-on-conflict pattern must NEVER be copied into it.** The single share
+  runs its inserts as autocommit statements, so recording a duplicate conflict
+  and carrying on to the next collective is safe there. Inside a transaction the
+  first error has already aborted it: continuing would run the remaining
+  statements against a dead transaction and commit nothing while reporting
+  success. The batch therefore returns the conflict, which rolls the WHOLE batch
+  back, and answers 409 naming the transcript. Every other refusal (ownership,
+  project membership, consent, an already-live selection) is decided BEFORE the
+  transaction opens, so a refused contribution leaves the ledger byte-identical.
+- **The ledger refuses a new attempt in TWO distinct ways, and they need
+  opposite advice.** `uq_share_attempt_open` refuses a second submission while
+  one is AWAITING REVIEW - a duplicate, cleared only by deciding or withdrawing
+  the live one; it is partial over `status = 'pending'`, so an accepted
+  contribution is live by construction rather than by this index.
+  `UNIQUE (transcript_id, group_id, event_num)` refuses two events claiming the
+  same ordinal, which happens when another writer appended an event a statement
+  could not yet see; ASKING AGAIN SUCCEEDS, because the next read sees the
+  committed event. Both are `23505` and are told apart only by the CONSTRAINT
+  NAME, so both names are constants in `handler/shares_attempts.go` and
+  `classifyShareAttemptConflict` maps them to the closed set
+  `shareAttemptConflict`. **Both share paths - the single transcript and the
+  whole project - classify through that one function**, and both answer either
+  kind with a 409 naming the transcript; they previously agreed only about the
+  open-attempt index and both fell through to an unexplained 500 for the
+  ordering conflict. A migration that renames either constraint silently
+  disables the mapping, so `TestShareAttemptConstraintNamesMatchTheCatalog` pins
+  both names against the live catalog.
+- **Sharing a whole project takes the SAME advisory locks as sharing one
+  transcript.** `withPublishLocksMany` holds one
+  `village:association-publish:<owner>:session:<local_id>` key per selected
+  transcript, deduplicated and sorted, on one pinned connection - the keys
+  `withPublishLocks` already held, built by the same helper - so a batch and a
+  concurrent single share contend rather than interleave, and no two callers can
+  take two keys in opposite orders.
+- **The contribute listing reads the LEDGER, never the projection.**
+  `GET /groups/{id}/contributable` answers `already_shared` from
+  `transcript_share_attempts` (the latest event of the pair being `pending` or
+  `approved`). It touches `transcript_shares` nowhere, which is why it needs no
+  entry in the write-fence inventory. Its row bound is an injected handler field
+  rather than a SQL `LIMIT`: the listing is deliberately whole, because the
+  surface builds a project tree over it and a page would let someone contribute
+  part of a project believing they contributed all of it.
 - **Normalization: `owner_overrides`, `transcript_share_attempts` and
   `transcript_shares` are each in BCNF**, audited against the live catalog.
   `owner_overrides` has one candidate key (its primary key) and every non-key
@@ -488,6 +542,29 @@ authenticating. Both are custom Postgres parameters read via
   policy matrix itself is owned by the external auth docs), so the pinned places
   (one Go predicate, two membership queries: the pull list and the skip-gate
   batch, plus `CountPullableTranscripts` for count-consistency) cannot drift.
+- **A project's transcripts are addressed by `(owner_id, project_hash)`, and the
+  boundary refuses anything else.** `ListOwnerProjectShareCandidates` puts both
+  ownership and project identity in its WHERE clause, so a row that reaches the
+  whole-project contribution route is by construction one the caller may
+  contribute; the route then refuses the WHOLE request when the selection names
+  an id that is not in that set. Contributing part of a selection while dropping
+  the rest would leave the person believing they had contributed all of it.
+- **`transcripts.project_path` holds ONE form - the redacted one - and every
+  viewer reads it.** The publishing client redacts a local path before it is
+  published (the canonical form keeps only the project's own folder, as in
+  `/<PATH>/app`), so what reaches this column is already safe to show. Village
+  therefore stores exactly that value, keeps no raw column beside it, applies no
+  render-time mask, and passes it through `ListOwnerProjectIdentities` (picked by
+  the same `published_at DESC, id` rule as `git_remote`) into the display-name
+  resolver, which ranks it `override > consented > remote > path > privacy`. The
+  consequence is user-visible and deliberate: an owner, a stranger and a
+  signed-out reader all see the same project name, and no surface can be made to
+  show more or less than another. **The condition that reverses this decision:**
+  Village does not police the FORMAT of an inbound `project_path`, because the
+  guarantee is enforced at the source rather than at ingest. If a publishing
+  client that does not redact is ever admitted to the publish contract, an
+  ingest-time refusal becomes necessary, and it must be decided BEFORE that
+  client is admitted - a stored raw path cannot be un-disclosed afterwards.
 - **sqlc generated code is never hand-edited** (`internal/database/sqlc/`);
   `emit_db_tags: true` exists so hand-built pool queries can use name-addressed
   scanning (`pgx.RowToStructByName`) - SELECT-list/scan-list pairs are a

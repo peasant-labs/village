@@ -22,26 +22,62 @@ import (
 // as an internal server failure.
 var ErrAssociationBinding = errors.New("association ledger binding rejected")
 
+// sessionPublishLockKey names the advisory lock that serializes work on ONE
+// owner's source session. It is the only key shape that guards a transcript, so
+// the single-transcript and whole-project paths contend on the same string
+// rather than each formatting their own and never seeing each other.
+func sessionPublishLockKey(ownerID pgtype.UUID, localID string) string {
+	return fmt.Sprintf("village:association-publish:%x:session:%s", ownerID.Bytes, localID)
+}
+
+// associationPublishLockKey names the advisory lock that serializes work on one
+// durable association.
+func associationPublishLockKey(ownerID pgtype.UUID, associationID schema.AssociationID) string {
+	return fmt.Sprintf("village:association-publish:%x:association:%s", ownerID.Bytes, associationID)
+}
+
 // withPublishLocks serializes publishes that could mutate the same source
 // transcript or durable association. The locks and callback share one pooled
 // connection so they span preflight validation, encrypted object storage, and persistence without
 // opening a transaction over network I/O. Sorted keys avoid lock cycles.
 func (h *Handler) withPublishLocks(ctx context.Context, ownerID pgtype.UUID, localID string, associations []schema.PublishedAssociation, fn func(conn *pgxpool.Conn) error) error {
+	keys := make([]string, 0, len(associations)+1)
+	keys = append(keys, sessionPublishLockKey(ownerID, localID))
+	for _, association := range associations {
+		keys = append(keys, associationPublishLockKey(ownerID, association.ID))
+	}
+	return h.withPublishLockKeys(ctx, keys, fn)
+}
+
+// withPublishLocksMany serializes work that spans SEVERAL of one owner's source
+// sessions - a whole project offered to a collective in one request. It holds
+// the same per-session keys the single-transcript path holds, acquired in the
+// same sorted order on one pinned connection, so a batch and a concurrent single
+// share contend rather than interleave, and no two callers can take two keys in
+// opposite orders.
+func (h *Handler) withPublishLocksMany(ctx context.Context, ownerID pgtype.UUID, localIDs []string, fn func(conn *pgxpool.Conn) error) error {
+	keys := make([]string, 0, len(localIDs))
+	for _, localID := range localIDs {
+		keys = append(keys, sessionPublishLockKey(ownerID, localID))
+	}
+	return h.withPublishLockKeys(ctx, keys, fn)
+}
+
+// withPublishLockKeys is the one implementation both entry points share: keys
+// are deduplicated and sorted, acquired on a single pinned pool connection, and
+// released - or the connection evicted - by the same cleanup path.
+func (h *Handler) withPublishLockKeys(ctx context.Context, keys []string, fn func(conn *pgxpool.Conn) error) error {
 	if h.pool == nil {
 		return fn(nil)
 	}
-	orderedKeys := make([]string, 0, len(associations)+1)
-	seenKeys := make(map[string]struct{}, len(associations)+1)
-	appendKey := func(key string) {
+	orderedKeys := make([]string, 0, len(keys))
+	seenKeys := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
 		if _, exists := seenKeys[key]; exists {
-			return
+			continue
 		}
 		seenKeys[key] = struct{}{}
 		orderedKeys = append(orderedKeys, key)
-	}
-	appendKey(fmt.Sprintf("village:association-publish:%x:session:%s", ownerID.Bytes, localID))
-	for _, association := range associations {
-		appendKey(fmt.Sprintf("village:association-publish:%x:association:%s", ownerID.Bytes, association.ID))
 	}
 	sort.Strings(orderedKeys)
 
