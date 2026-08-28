@@ -94,6 +94,13 @@ export interface MountedHomeBackend {
    */
   hold(): void;
   release(): void;
+  /**
+   * Serve a DIFFERENT signed-in person from `/auth/me`. The session query is an
+   * ordinary query with focus refetching left on, so the handle can change
+   * while this page stays mounted — which is the only way the owner-keyed
+   * failure memory is ever consulted before it is cleared.
+   */
+  setViewer(username: string): void;
 }
 
 /**
@@ -111,6 +118,7 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
   let failure: HomeRequestFailure = fixture.ownerRequestFailure ?? "never";
   const owner = userFixture(fixture.viewerUsername ?? "anon", chosen);
   let ownerAnswers = 0;
+  let viewer = fixture.viewerUsername;
   let held: Promise<void> | null = null;
   let releaseHeld: (() => void) | null = null;
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -119,9 +127,9 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
     requested.push(path);
 
     if (path === "/auth/me") {
-      return fixture.viewerUsername == null
+      return viewer == null
         ? json({ error: "not signed in" }, 401)
-        : json(userFixture(fixture.viewerUsername, chosen));
+        : json(userFixture(viewer, chosen));
     }
     if (path.startsWith("/tags/popular")) return json([]);
     if (path.startsWith("/groups/search")) return json({ collectives: [] });
@@ -167,6 +175,9 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
       held = new Promise<void>((resolve) => {
         releaseHeld = resolve;
       });
+    },
+    setViewer(username: string) {
+      viewer = username;
     },
     release() {
       const resolve = releaseHeld;

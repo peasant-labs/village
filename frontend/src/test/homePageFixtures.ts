@@ -84,6 +84,12 @@ export type LoadedHomeCase = HomeCase & {
   malformedCount: number;
 };
 
+export type HomeViewerChangeCase = {
+  name: string;
+  firstViewer: string;
+  secondViewer: string;
+};
+
 export type HomeSortRow = {
   id: string;
   publishedAt: string;
@@ -109,6 +115,7 @@ type ParsedHomePageFixtures = {
   navCases: HomeNavCase[];
   homeCases: HomeCase[];
   sortCases: HomeSortCase[];
+  viewerChangeCases: HomeViewerChangeCase[];
 };
 
 export type HomePageFixtures = {
@@ -116,6 +123,7 @@ export type HomePageFixtures = {
   navCases: HomeNavCase[];
   homeCases: LoadedHomeCase[];
   sortCases: HomeSortCase[];
+  viewerChangeCases: HomeViewerChangeCase[];
 };
 
 const requiredRouteCaseNames = [
@@ -202,6 +210,12 @@ const requiredSortCaseNames = [
 ] as const;
 
 const sortCaseKeys = ["name", "given", "expectOrder"];
+
+const requiredViewerChangeCaseNames = [
+  "a-new-handle-does-not-inherit-the-previous-handle-failure",
+] as const;
+
+const viewerChangeCaseKeys = ["name", "firstViewer", "secondViewer"];
 const sortRowKeys = ["id", "publishedAt"];
 
 export function loadHomePageFixtures(): HomePageFixtures {
@@ -212,7 +226,7 @@ export function loadHomePageFixtures(): HomePageFixtures {
   }
   assertExactKeys(
     parsed,
-    ["routeCases", "navCases", "homeCases", "sortCases"],
+    ["routeCases", "navCases", "homeCases", "sortCases", "viewerChangeCases"],
     "fixture root",
   );
   const fixtures = parsed as ParsedHomePageFixtures;
@@ -541,6 +555,27 @@ export function loadHomePageFixtures(): HomePageFixtures {
       `home-page sortCases: at least one case must supply a timestamp that does NOT parse. It is ` +
         `the only place the sort's bad-value handling can be reached.`,
     );
+  }
+
+  assertNamesMatch(
+    fixtures.viewerChangeCases.map((c) => c.name),
+    requiredViewerChangeCaseNames,
+    "home-page viewerChangeCases",
+  );
+  for (const c of fixtures.viewerChangeCases) {
+    assertExactKeys(c, viewerChangeCaseKeys, `viewer change case ${c.name}`);
+    if (c.firstViewer === c.secondViewer) {
+      throw new Error(
+        `viewer change case ${c.name}: the two handles must differ, or the case cannot tell a ` +
+          `memory keyed on its owner from one that is not`,
+      );
+    }
+    if (c.firstViewer === "" || c.secondViewer === "") {
+      throw new Error(
+        `viewer change case ${c.name}: both handles must be real; a blank one is answered by the ` +
+          `no-handle surface instead and never reaches the list request`,
+      );
+    }
   }
 
   return { ...fixtures, homeCases: loadedHomeCases };

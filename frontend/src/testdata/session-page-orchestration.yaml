@@ -235,3 +235,37 @@ scenarios:
           renders: errorSurface
           alert: true
           status: ""
+
+  # The keyed READ earns its place here, and only here. A first fetch of a NEW
+  # key retains nothing of its own, so `data` is null while the previously
+  # confirmed rows still render the filter control — which means the clear
+  # condition (`!isError && data != null`) cannot fire, and the memory is
+  # consulted un-cleared. Without the key comparison the previous filters'
+  # failure is announced over a request that has not failed.
+  - name: a-new-key-does-not-inherit-the-previous-key-failure
+    steps:
+      - name: page-1-confirmed
+        query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 1
+          alert: false
+      - name: new-key-fails-with-no-rows-of-its-own
+        setFiltersQuery: foo
+        query: { dataId: null, isLoading: false, isFetching: false, isPlaceholderData: false, isError: true }
+        expect:
+          renders: explore
+          displayedPage: 1
+          alert: true
+          retryLabel: retry page 1
+          retryBusy: false
+      # A THIRD key is loading. It has no data of its own either, so the clear
+      # cannot fire; only the keyed read stops the previous key's failure being
+      # announced over a request that is merely in flight.
+      - name: third-key-loading-must-not-announce-the-old-failure
+        setFiltersQuery: baz
+        query: { dataId: null, isLoading: true, isFetching: true, isPlaceholderData: false, isError: false }
+        expect:
+          renders: skeleton
+          alert: false
+          status: loading session list

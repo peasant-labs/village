@@ -107,14 +107,9 @@ export default function ExplorePage() {
   // filter change would silently produce no alert and no retry at all, with the
   // previous filters' rows still on screen as if they were the answer.
   //
-  // The read is keyed, and the keying itself is NOT covered: every state the
-  // mounted harness can reach clears the memory first (a request that is not
-  // failing, with rows to show, clears it on the same render), so removing the
-  // key comparison leaves the suite green. It is kept because a first load of a
-  // NEW key with no rows to fall back on was observed showing the previous
-  // key's cause, and that state needs a handle change without a remount, which
-  // the route does not currently allow. Recorded rather than dressed up as
-  // proven.
+  // The keyed READ is what stops a request that has merely not answered yet
+  // from inheriting the previous one's failure; `a-new-key-does-not-inherit-
+  // the-previous-key-failure` is the case that holds it.
   if (
     reportedFailure !== null &&
     (reportedFailure !== remembered?.message || requestKey !== remembered?.key)

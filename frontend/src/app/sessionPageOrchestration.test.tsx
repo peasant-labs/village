@@ -67,6 +67,7 @@ const fixtures = loadSessionPageOrchestrationFixtures();
 // The page the scenario has most recently asked for. A search-text change keeps
 // it, so the request key moves while the message does not.
 let currentPage = 1;
+let currentQuery = "";
 
 // One stable response object per data id, mirroring TanStack keeping a cached
 // object reference across renders.
@@ -188,6 +189,7 @@ afterEach(() => {
   h.query.current = null;
   h.onFiltersChange.current = null;
   currentPage = 1;
+  currentQuery = "";
   h.refetch.mockReset();
 });
 
@@ -209,8 +211,17 @@ describe("mounted / session page orchestration", () => {
           // pair that can tell a memory keyed on its REQUEST from one keyed on
           // its text. During an outage this is the ordinary case.
           const query = step.setFiltersQuery;
+          // The surface must be one that OFFERS the control. When the branch is
+          // the full error panel or the skeleton, `Explore` is unmounted and an
+          // optional call would do nothing while the step still asserted, so a
+          // filter change that could not be delivered has to fail here.
+          expect(
+            h.onFiltersChange.current,
+            `${step.name}: the rendered surface offers no filter control, so this step's change could not be delivered`,
+          ).not.toBeNull();
+          currentQuery = query;
           act(() => {
-            h.onFiltersChange.current?.({
+            h.onFiltersChange.current!({
               query,
               provider: "all",
               topics: [],
@@ -221,9 +232,16 @@ describe("mounted / session page orchestration", () => {
         } else if (step.setFiltersPage != null) {
           const page = step.setFiltersPage;
           currentPage = page;
+          // Carries the search text rather than resetting it: the loader
+          // refuses a step that changes both axes, and a harness that silently
+          // reset one would defeat that rule from below.
+          expect(
+            h.onFiltersChange.current,
+            `${step.name}: the rendered surface offers no filter control, so this step's change could not be delivered`,
+          ).not.toBeNull();
           act(() => {
-            h.onFiltersChange.current?.({
-              query: "",
+            h.onFiltersChange.current!({
+              query: currentQuery,
               provider: "all",
               topics: [],
               order: "recent",

@@ -36,6 +36,13 @@ function homeErrorSurface(): Element | null {
   return document.querySelector('[data-testid="home-page-error"]');
 }
 
+/** Every owner the recorded requests asked about, in order. */
+function requestedOwners(requested: string[]): string[] {
+  return requested
+    .filter((p) => p.includes("owner="))
+    .map((p) => new URLSearchParams(p.slice(p.indexOf("?") + 1)).get("owner") ?? "");
+}
+
 function noHandleSurface(): Element | null {
   return document.querySelector('[data-testid="home-page-no-handle"]');
 }
@@ -398,6 +405,59 @@ describe("recent-first ordering, including timestamps the server should never se
       // The sort does not mutate what it was given: the page groups the SAME
       // array afterwards, and a sort in place would reorder that too.
       expect(rows.map((r) => r.transcript.id)).toEqual(c.given.map((r) => r.id));
+    });
+  }
+});
+
+describe("mounted home route: a failure belongs to the handle it came from", () => {
+  for (const c of fixtures.viewerChangeCases) {
+    it(c.name, async () => {
+      const backend = installHomeRouteREST({
+        viewerUsername: c.firstViewer,
+        transcripts: [],
+        ownerRequestFailure: "always",
+      });
+      await renderAppRoute("/");
+      await settled();
+      expect(homeErrorSurface(), "the first person's list failed").not.toBeNull();
+
+      // The handle changes while the page stays mounted: the session query is
+      // an ordinary query with focus refetching left on. The next person's list
+      // request has no rows of its own, so the memory's clear condition cannot
+      // fire, and only the owner-keyed read stops them being shown a failure
+      // that belongs to somebody else's library.
+      backend.setViewer(c.secondViewer);
+      backend.hold();
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+      });
+      await waitFor(() =>
+        expect(
+          requestedOwners(backend.requested),
+          "the new handle's own list was requested",
+        ).toContain(c.secondViewer),
+      );
+
+      expect(
+        homeErrorSurface(),
+        "the previous handle's failure must not describe this one's first load",
+      ).toBeNull();
+      expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
+
+      // And when the new handle's own request fails with the SAME words, that
+      // failure is its own and must be announced. A memory that recorded on the
+      // message alone would keep the previous handle on the record, the keyed
+      // read would miss, and this person would be told their library is empty.
+      await act(async () => {
+        backend.release();
+      });
+      await waitFor(() =>
+        expect(
+          homeErrorSurface(),
+          "the new handle's own failure must be announced, not swallowed",
+        ).not.toBeNull(),
+      );
+      expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
     });
   }
 });

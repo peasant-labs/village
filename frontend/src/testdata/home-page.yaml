@@ -308,3 +308,14 @@ sortCases:
       - id: third-bad
         publishedAt: "nor is this one"
     expectOrder: [first-bad, second-bad, third-bad]
+
+# A failure remembered for one person's list must not describe the next one's.
+# The session query is an ordinary query with focus refetching left on, so the
+# handle CAN change while the page stays mounted; at that moment the new list
+# request has no rows of its own, so the memory's clear condition cannot fire
+# and only the owner-keyed read stops the previous person's failure being shown
+# over a request that has not failed.
+viewerChangeCases:
+  - name: a-new-handle-does-not-inherit-the-previous-handle-failure
+    firstViewer: alice-dev
+    secondViewer: beta-dev

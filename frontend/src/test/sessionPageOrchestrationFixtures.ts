@@ -58,6 +58,7 @@ const requiredScenarioNames = [
   "trust-boundary-error-without-prior-data-shows-error",
   "persistent-live-status-across-branches",
   "initial-load-error-shows-error-surface",
+  "a-new-key-does-not-inherit-the-previous-key-failure",
 ] as const;
 
 const rendersValues: readonly OrchestrationRenders[] = ["explore", "errorSurface", "skeleton"];

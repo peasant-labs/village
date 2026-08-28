@@ -330,7 +330,14 @@ the home surface renders for a given owner-scoped transcript list - the recent
 sessions in order, the project rows, their session counts and their hash-keyed
 links - and are consumed by the same file. `sortCases` pin the exported
 recent-first sort on its own, including timestamps that do not parse, which the
-mounted corpus rejects by design and so cannot reach. `navCases` pin which
+mounted corpus rejects by design and so cannot reach. `viewerChangeCases` pin
+that a remembered failure belongs to the handle it came from: the session query
+refetches on focus, so the handle can change while the page stays mounted, and
+at that moment the next person's list has no rows of its own, so the memory's
+clear condition cannot fire. Only the owner-keyed read stops the previous
+person's failure being shown over a request that has not failed - and when the
+new handle's own request fails with the same words, that failure is its own and
+must still be announced. `navCases` pin which
 top-nav entry is offered and which one is marked active, and are consumed by
 `frontend/src/lib/nav/sections.test.ts`.
 
@@ -374,7 +381,13 @@ with no skeleton in its place, the control reads "retrying" and carries
 document), focus is kept, the polite region announces, a second press is
 refused rather than stacking a request, and the surface clears once the server
 answers. The discovery route's two failure surfaces carry the same assertions
-through `session-page-orchestration.yaml`'s `retryLabel` / `retryBusy` fields. The stale case drives a real
+through `session-page-orchestration.yaml`'s `retryLabel` / `retryBusy` fields,
+and `a-new-key-does-not-inherit-the-previous-key-failure` holds the same
+request-keyed rule there: a first fetch of a new key retains nothing of its own,
+so the clear cannot fire and the keyed read is the only thing stopping a
+previous filter's failure from being announced over a request in flight. A step
+that declares a filter change fails if the rendered surface offers no filter
+control, so such a step can never pass without delivering its change. The stale case drives a real
 `visibilitychange` so TanStack's focus manager refetches, then asserts the rows
 survive, the notice appears, its retry re-issues the request, and the notice
 clears once the server answers again. `frontend/src/providers/queryDefaults.test.tsx`
