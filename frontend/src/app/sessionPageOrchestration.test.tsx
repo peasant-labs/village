@@ -59,7 +59,7 @@ vi.mock("@peasant-labs/fairtrade/commons", async () => {
 });
 
 // Imported after the mocks are declared (vi.mock is hoisted regardless).
-import ExplorePage from "@/app/page";
+import ExplorePage from "@/app/explore/ExplorePage";
 
 const fixtures = loadSessionPageOrchestrationFixtures();
 

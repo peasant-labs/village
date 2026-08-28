@@ -224,8 +224,9 @@ The Explore gate is a separate browse-focused harness for the shared `Explore` s
 
 - **Reference (left):** Fairtrade in-use demo capture `app-2-village.png` from
   the matching source checkout's `scripts/shootdemo.mjs`.
-- **Subject (right):** the village home route capture `cex-explore.png` from
-  `frontend/scripts/visual/explore-shoot.mjs`.
+- **Subject (right):** the village explore route capture `cex-explore.png` from
+  `frontend/scripts/visual/explore-shoot.mjs` (point `VILLAGE_URL` at `/explore`;
+  the root route serves discovery only to a signed-out visitor).
 - **Boot arm:** `frontend/scripts/visual/boot-explore.mjs` against
   `frontend/scripts/visual/mock-rest-explore.mjs`.
 
@@ -433,3 +434,32 @@ owner mode resets the override, or restart the mock first. For the other two sta
 `MOCK_PROJECT_VIEWER=other MOCK_PROJECT_ROLLUP=empty` and run with
 `PROJECT_SHOOT_MODE=viewer`, then point `VILLAGE_URL` at a hash the mock does not
 serve and run with `PROJECT_SHOOT_MODE=notfound`.
+
+## Signed-in home gate
+
+The root route serves the signed-in person's own home page, so its capture
+needs a backend that answers `GET /auth/me`:
+
+- **Subject:** `village-home.png` from `frontend/scripts/visual/home-shoot.mjs`,
+  which asserts build provenance — the two sections in order, and project links
+  keyed on the 64-character project hash — before it writes any PNG, so a stale
+  or wrong-worktree server fails instead of producing a misleading capture. It
+  also reports the session count's computed font family, numeric variant and
+  border radius, which a scaled PNG cannot distinguish.
+- **Backend:** `frontend/scripts/visual/mock-rest-home.mjs`. Set
+  `MOCK_SIGNED_OUT=1` for the signed-out arm, where the same root route must
+  serve discovery instead.
+
+Repeatable run:
+
+```sh
+CHROME=/path/to/google-chrome
+
+MOCK_REST_PORT=8791 node scripts/visual/mock-rest-home.mjs &
+NEXT_PUBLIC_API_URL=http://localhost:8791/api/v1 pnpm dev &
+
+CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3000/ \
+  node scripts/visual/home-shoot.mjs dark /tmp/village-home-dark
+CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3000/ \
+  node scripts/visual/home-shoot.mjs light /tmp/village-home-light
+```

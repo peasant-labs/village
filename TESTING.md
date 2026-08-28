@@ -316,6 +316,40 @@ column) layout and that connector are proven by
 `frontend/scripts/visual/probe-contribute-narrow.mjs` plus the
 `manage-contribute` captures, not in jsdom, because both are computed geometry.
 
+### The home page and the explore route: one frontend fixture for both
+
+`frontend/src/testdata/home-page.yaml` +
+`frontend/src/test/homePageFixtures.ts` hold every case for the two routes the
+root of the app resolves to: the signed-in person's home page at `/`, and the
+public discovery list, which now also has its own address at `/explore`. The
+file carries three groups. `routeCases` pin WHICH surface each (path, visitor)
+pair lands on, and are consumed by `frontend/src/homePage.test.tsx`, which
+mounts the REAL routes inside the real `AuthProvider` with `fetch` stubbed, so
+the session decides the answer rather than a stubbed hook. `homeCases` pin what
+the home surface renders for a given owner-scoped transcript list - the recent
+sessions in order, the project rows, their session counts and their hash-keyed
+links - and are consumed by the same file. `navCases` pin which top-nav entry
+is offered and which one is marked active, and are consumed by
+`frontend/src/lib/nav/sections.test.ts`.
+
+The loader guards deletion with required-NAME lists, never a row count, and it
+derives every consistency rule from the fixture's OWN data rather than from the
+page's constants: the expected recent order is the case's own rows sorted by
+their own timestamps, and the corpus is rejected unless at least one case
+supplies more sessions than its recent list shows (so dropping the cap fails)
+and at least one supplies its rows in an order that is not already
+most-recent-first (so never sorting fails).
+
+`frontend/src/test/transcriptRowFixture.ts` builds one complete `Transcript`
+wire row with every column filled in, so a fixture states only the fields its
+case is about. Both mounted-route harnesses use it; a new wire column is added
+there once.
+
+The mounted captures are `frontend/scripts/visual/mock-rest-home.mjs` (set
+`MOCK_SIGNED_OUT=1` for the signed-out arm) plus
+`frontend/scripts/visual/home-shoot.mjs`, which asserts build provenance - the
+two sections in order and hash-keyed project links - before it writes a PNG.
+
 ### Project identity: five fixture families
 
 A project is identified by its hash, never by its name, and five fixtures hold

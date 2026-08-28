@@ -126,7 +126,9 @@ describe("mounted production transcript route: routable breadcrumb", () => {
       // requires to navigate to /users/{username}/projects/{projectHash}.
       const crumbAnchors = [...nav!.querySelectorAll("a")];
       expect(crumbAnchors).toHaveLength(2);
-      expect(crumbAnchors[0]?.getAttribute("href")).toBe("/");
+      // Discovery has its own address. `/` is the signed-in person's home, so
+      // the crumb that says "explore" must lead to the explore route itself.
+      expect(crumbAnchors[0]?.getAttribute("href")).toBe("/explore");
       expect(crumbAnchors[0]?.textContent).toBe("explore");
 
       expect(crumbAnchors[1]?.getAttribute("href")).toBe(expectedProjectHref);

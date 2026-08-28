@@ -5,7 +5,7 @@ import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import ExplorePage from "@/app/page";
+import ExplorePage from "@/app/explore/ExplorePage";
 import type { TranscriptListItem, TranscriptListResponse } from "@/lib/types";
 import {
   loadSessionListPaginationFixtures,

@@ -710,3 +710,23 @@ textarea::placeholder {
   padding-left: var(--sp-5);
   min-width: 0;
 }
+
+/* Tailwind's `group` marker collides with a design-system layout class.
+   `group` carries no styles of its own in Tailwind — it only marks an ancestor
+   for `group-hover:` and friends — but the design system's stylesheet also
+   defines a bare `.group` rule for its documentation sections: a 1040 px cap,
+   an auto inline margin, and a large gutter. Its own neutraliser is scoped to
+   the documentation shell (`.docs-main .group`), which this app does not
+   render, so every element here that uses the marker was being centred inside
+   an invisible 1040 px column. That is visible wherever a row using the marker
+   sits in a container wider than 1040 px, which is every full-width list here.
+
+   Only the two properties that actually leak are reset. The gutter does not
+   need one: every marked element in this app sets its own padding, and a
+   Tailwind padding utility already wins over the design-system rule — while
+   an unlayered reset here would beat that utility and strip the padding
+   instead. Remove this once the design system stops styling the bare class. */
+.group {
+  max-width: none;
+  margin-inline: 0;
+}

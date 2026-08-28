@@ -1,0 +1,164 @@
+# Case corpus for `src/homePage.test.tsx` — the signed-in home route (`/`) and
+# the explore route (`/explore`).
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/homePageFixtures.ts`. A removed or renamed case fails the loader
+# because its name goes missing from the declared set.
+
+# Which surface each (path, viewer) pair must land on. `/` is the only route
+# whose answer depends on who is asking.
+routeCases:
+  - name: signed-out-visitor-at-the-root-still-gets-explore
+    path: "/"
+    viewerUsername: null
+    expectSurface: explore
+  - name: signed-in-visitor-at-the-root-gets-their-own-home
+    path: "/"
+    viewerUsername: alice-dev
+    expectSurface: home
+  - name: signed-in-visitor-at-explore-gets-explore
+    path: "/explore"
+    viewerUsername: alice-dev
+    expectSurface: explore
+  - name: signed-out-visitor-at-explore-gets-explore
+    path: "/explore"
+    viewerUsername: null
+    expectSurface: explore
+
+# Which top-nav entry is marked active for a given (signed-in, pathname) pair.
+# Discovery's entry moved off "/", so the entry a visitor sees highlighted is
+# the part of the move most likely to regress quietly.
+navCases:
+  - name: signed-in-visitor-at-the-root-highlights-home
+    isLoggedIn: true
+    pathname: "/"
+    expectLabels: [home, explore, collectives, publish, profile]
+    expectActiveLabel: home
+  - name: signed-in-visitor-at-explore-highlights-explore
+    isLoggedIn: true
+    pathname: "/explore"
+    expectLabels: [home, explore, collectives, publish, profile]
+    expectActiveLabel: explore
+  - name: signed-out-visitor-at-the-root-highlights-explore
+    isLoggedIn: false
+    pathname: "/"
+    expectLabels: [explore]
+    expectActiveLabel: explore
+  - name: signed-out-visitor-has-no-home-entry-at-explore
+    isLoggedIn: false
+    pathname: "/explore"
+    expectLabels: [explore]
+    expectActiveLabel: explore
+  - name: a-transcript-page-still-highlights-explore
+    isLoggedIn: true
+    pathname: "/transcripts/abc123"
+    expectLabels: [home, explore, collectives, publish, profile]
+    expectActiveLabel: explore
+
+# What the home surface renders for a given owner-scoped transcript list.
+#
+# `transcripts` is deliberately NOT written in published order: the page sorts
+# most-recent-first itself rather than trusting the response order, and a
+# corpus already in order could not tell the two apart.
+homeCases:
+  - name: recent-sessions-lead-and-projects-follow
+    viewerUsername: alice-dev
+    transcripts:
+      - id: t-oldest
+        title: first steps
+        projectHash: "1111111111111111111111111111111111111111111111111111111111111111"
+        projectDisplayName: village
+        publishedAt: "2026-08-01T10:00:00.000Z"
+      - id: t-newest
+        title: publish wizard rebuild
+        projectHash: "2222222222222222222222222222222222222222222222222222222222222222"
+        projectDisplayName: peasant
+        publishedAt: "2026-08-20T10:00:00.000Z"
+      - id: t-middle
+        title: license menu
+        projectHash: "1111111111111111111111111111111111111111111111111111111111111111"
+        projectDisplayName: village
+        publishedAt: "2026-08-10T10:00:00.000Z"
+    expectRecentTitles:
+      - publish wizard rebuild
+      - license menu
+      - first steps
+    # Most recently worked first: peasant's newest session is later than
+    # village's, so peasant leads even though village appears first in the
+    # rows above.
+    expectProjectRows:
+      - displayName: peasant
+        sessionCount: 1
+        href: /users/alice-dev/projects/2222222222222222222222222222222222222222222222222222222222222222
+      - displayName: village
+        sessionCount: 2
+        href: /users/alice-dev/projects/1111111111111111111111111111111111111111111111111111111111111111
+    expectEmptyState: false
+
+  - name: more-sessions-than-the-recent-list-shows-are-capped
+    viewerUsername: alice-dev
+    transcripts:
+      - id: t-1
+        title: session one
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-01T10:00:00.000Z"
+      - id: t-6
+        title: session six
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-06T10:00:00.000Z"
+      - id: t-2
+        title: session two
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-02T10:00:00.000Z"
+      - id: t-5
+        title: session five
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-05T10:00:00.000Z"
+      - id: t-3
+        title: session three
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-03T10:00:00.000Z"
+      - id: t-4
+        title: session four
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-04T10:00:00.000Z"
+    expectRecentTitles:
+      - session six
+      - session five
+      - session four
+      - session three
+      - session two
+    expectProjectRows:
+      - displayName: schema
+        sessionCount: 6
+        href: /users/alice-dev/projects/3333333333333333333333333333333333333333333333333333333333333333
+    expectEmptyState: false
+
+  - name: a-person-with-nothing-published-gets-the-teaching-empty-state
+    viewerUsername: newcomer
+    transcripts: []
+    expectRecentTitles: []
+    expectProjectRows: []
+    expectEmptyState: true
+
+  - name: a-username-needing-escaping-still-links-to-its-project
+    viewerUsername: a b
+    transcripts:
+      - id: t-escaped
+        title: only session
+        projectHash: "4444444444444444444444444444444444444444444444444444444444444444"
+        projectDisplayName: Mixed Case Project
+        publishedAt: "2026-08-05T10:00:00.000Z"
+    expectRecentTitles:
+      - only session
+    expectProjectRows:
+      - displayName: Mixed Case Project
+        sessionCount: 1
+        href: /users/a%20b/projects/4444444444444444444444444444444444444444444444444444444444444444
+    expectEmptyState: false
