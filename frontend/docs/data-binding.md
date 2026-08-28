@@ -2,8 +2,7 @@
 
 How data flows from the Go backend to the rendered UI in `village/frontend`, and
 back for mutations. Grounded in the code under `frontend/src` and the published
-`@peasant-labs/transcript-browser`, `@peasant-labs/fairtrade`, and
-`@peasant-labs/schema` package boundaries.
+`@peasant-labs/fairtrade` and `@peasant-labs/schema` package boundaries.
 
 This documents **what exists and why**. It does not propose new view-models or
 refactors.
@@ -37,19 +36,19 @@ Data moves through these layers, top (network) to bottom (pixels):
 3. **Adapter layer** — two distinct *kinds* of adapter (this is the central
    architectural fact, see §3):
    - **One cohesive wire→view-model projection** for the transcript trace:
-     `adaptTranscript()` → `TranscriptViewModel`. It lives in
-     `@peasant-labs/fairtrade/ui` and is called **inside** the shared
-     `transcript-browser` `<SessionDetail>` composer (not in village). Village's
-     `SessionDetailV2` is the **host-glue adapter** that feeds the REST payload,
-     auth, and mutations into that package.
+     `adaptTranscript()` → `TranscriptViewModel`. It is exported from
+     `@peasant-labs/fairtrade/ui`, but **called by village's own
+     `SessionDetailV2`** (the **host-glue adapter**), which feeds the REST
+     payload, auth, and mutations, and hands the built `TranscriptViewModel`
+     to fairtrade's `<TranscriptViewer>` composite via its `viewModel` prop.
    - **Distributed, tiny per-component prop-adapters** for the heterogeneous
      "chrome" (cards, rows, tables, tags, eyes). Each maps one backend wire
      field to one component prop, inline at the call site.
 
-4. **View-model / component layer** — the shared `<SessionDetail>` package
-   renders the trace from the cooked `TranscriptViewModel`; village's own
-   components (`TranscriptCard`, `CommitTimeline`, `VisibilityEye`, …) render
-   the chrome from village wire types.
+4. **View-model / component layer**: fairtrade's `<TranscriptViewer>`
+   composite renders the trace from the cooked `TranscriptViewModel` village
+   hands it; village's own components (`TranscriptCard`, `CommitTimeline`,
+   `VisibilityEye`, …) render the chrome from village wire types.
 
 The **write path** is uniform: a form/dialog calls a `useMutation` hook from
 `src/lib/queries/*`; the `mutationFn` issues the HTTP verb via `api()`; `onSuccess`
@@ -95,15 +94,19 @@ flowchart TD
   useT -- "t.visibility / title / owner.id / project_name" --> sdv
   useA -- "AnnotationSummary[] → buildSavedLabelsByEntry()" --> sdv
 
-  sdv -- "detail (raw SessionDetailPayload) + props/callbacks/capabilities" --> sd["&lt;SessionDetail&gt; (shared package)"]
-  sd -- "adaptTranscript(detail) — THE single wire-parse site" --> vm["TranscriptViewModel (cooked)<br/>turns, toolCallsById, diffs, files, highlights, filterIndex"]
-  vm --> render["header / canvas / graph / rails / tabs"]
+  sdv -- "detail (raw SessionDetailPayload)" --> adapt["adaptTranscript(detail) + computeAnalytics()<br/>THE single wire-parse site, called BY SessionDetailV2"]
+  adapt --> vm["TranscriptViewModel (cooked)<br/>turns, toolCallsById, diffs, files, highlights, filterIndex"]
+  sdv -- "viewModel + props/callbacks/capabilities" --> tv["&lt;TranscriptViewer&gt; (fairtrade/ui composite)"]
+  vm --> tv
+  tv --> render["header / canvas / graph / rails / tabs"]
 ```
 
-Key point: village hands the package the **raw** `SessionDetailPayload`. The
-*sole* wire→view-model projection (`adaptTranscript`, which `JSON.parse`s tool
-`arguments`/`result`, computes diffs, rolls up files) happens **once, inside the
-package** — `SessionDetail.tsx:218-221`.
+Key point: village calls fairtrade's exported `adaptTranscript` itself and
+hands the composite the **cooked** `TranscriptViewModel`, not the raw
+`SessionDetailPayload`. The *sole* wire→view-model projection
+(`adaptTranscript`, which `JSON.parse`s tool `arguments`/`result`, computes
+diffs, rolls up files) happens **once, in `SessionDetailV2.tsx`**, before the
+composite ever mounts.
 
 ### (b) WRITE / mutation flow
 
@@ -111,7 +114,7 @@ package** — `SessionDetail.tsx:218-221`.
 flowchart TD
   subgraph forms["village forms / dialogs / package callbacks"]
     edit["TranscriptEditDialog (title/visibility)"]
-    vis["SessionDetail onVisibilityChange callback"]
+    vis["TranscriptViewer onVisibilityChange callback"]
     contrib["ContributePicker → ConfirmContributeDialog"]
     label["TurnLabelPopover (per-turn) via renderTurnActions"]
     invite["GitHubUserSearch → invite form"]
@@ -168,8 +171,8 @@ flowchart LR
   subgraph shared["shared package boundary"]
     p1["ProviderTag (fairtrade/ui)"]
     p2["VisibilityEye (fairtrade/ui)"]
-    p3["adaptTranscript → TranscriptViewModel → &lt;SessionDetail&gt;"]
-    p4["savedLabelsByEntry prop on &lt;SessionDetail&gt;"]
+    p3["adaptTranscript → TranscriptViewModel → &lt;TranscriptViewer&gt;"]
+    p4["savedLabelsByEntry prop on &lt;TranscriptViewer&gt;"]
     p5["DataTable (fairtrade/ui)"]
   end
 
@@ -197,7 +200,8 @@ keep them straight:
   plus `transcriptId / transcriptVisibility / transcriptTitle /
   transcriptOwnerId / projectName / error` (from the `useTranscript` metadata
   record). (`SessionDetailV2.tsx:29-44`.)
-- **Output**: it renders the shared `<SessionDetail>` and wires:
+- **Output**: it calls `adaptTranscript` + `computeAnalytics` itself, renders
+  fairtrade's `<TranscriptViewer>` with the resulting `viewModel`, and wires:
   - host-derived props it computes — `phases = detectPhases(detail.turns)`
     (`:84`), `annotations = annotateTranscript(detail.turns)` (`:85-88`),
     `savedLabelsByEntry = buildSavedLabelsByEntry(annotationsQuery.data)`
@@ -217,8 +221,11 @@ keep them straight:
   data world and the framework-agnostic viewer's prop/callback contract.
 
 **`adaptTranscript` — the actual wire→view-model projection.** Exported from
-`@peasant-labs/fairtrade/ui`; called inside the shared
-`transcript-browser/.../SessionDetail.tsx:218-221`, **not** by village.
+`@peasant-labs/fairtrade/ui`; called by village's `SessionDetailV2`
+(`SessionDetailV2.tsx`, alongside `computeAnalytics`), **not** internally by
+the `<TranscriptViewer>` composite. The composite receives the already-built
+`TranscriptViewModel` via its `viewModel` prop and does no wire parsing of its
+own.
 
 - **Input**: `TranscriptWireInput` ≈ the raw `SessionDetailPayload`
   (`{ ...detail, turns }`).
@@ -226,12 +233,13 @@ keep them straight:
   component renders:
   `session`, `turns: TurnVM[]`, `toolCallsById: Map`, `diffs`, `files`, `tasks`,
   `highlights`, `filterIndex`, optional `analytics`
-  (`fairtrade/dist/lib/types/transcript/view-model.d.ts`).
-- **What it does**: per the docstring it is *"the SOLE wire-parse + git-drift
-  normalisation site"* — it parses each tool call's `arguments`/`result` JSON
-  **once**, derives previews, classifies `kind`/`group`, computes diffs/hunks,
-  aggregates per-file churn, and tolerates both git wire shapes. Components then
-  **never `JSON.parse`** (`SessionDetail.tsx:210-217`, `:222-228`).
+  (`node_modules/@peasant-labs/fairtrade/dist/lib/types/transcript/view-model.d.ts`).
+- **What it does**: it is the SOLE wire-parse + git-drift normalisation site:
+  it parses each tool call's `arguments`/`result` JSON **once**, derives
+  previews, classifies `kind`/`group`, computes diffs/hunks, aggregates
+  per-file churn, and tolerates both git wire shapes. Because village calls it
+  once in `SessionDetailV2` and passes the cooked model down, every rendering
+  component **never `JSON.parse`s** the wire itself.
 - **Why ONE cohesive adapter here**: the transcript trace is a single, large,
   homogeneous, deeply-nested document rendered by a whole subtree of components
   (canvas, graph, diffs, files, rails). Parsing the wire once into a shared
@@ -281,13 +289,18 @@ a unified view-model there would be ceremony with no shared consumer, so each
 mapping stays inline at its call site. The split is deliberate and matches where
 the data actually is homogeneous vs heterogeneous.
 
-**The view-model adapter lives in the shared package, not village.** Village's
-`SessionDetailV2` is *host glue* — it never transforms turns; it hands the raw
-`SessionDetailPayload` to `<SessionDetail>`, which calls `adaptTranscript`
-internally. This keeps the cooked shape identical for both village (REST) and
-peasant (WS), and keeps the single wire-parse site in one place. The package is
-strictly data-in-via-props / actions-out-via-callbacks; it reads no auth, no
-router, no env (`transcript-browser/.../index.ts:5-9`).
+**The view-model *projection* is exported by the shared package; each app
+calls it itself.** Village's `SessionDetailV2` is *host glue*, but it does
+call `adaptTranscript` (and `computeAnalytics`) directly: it hands the raw
+`SessionDetailPayload` to fairtrade's exported `adaptTranscript`, then passes
+the resulting `TranscriptViewModel` to `<TranscriptViewer>` via its
+`viewModel` prop. The `<TranscriptViewer>` composite itself does no wire
+parsing. Because both village and peasant call the SAME exported
+`adaptTranscript`, the cooked shape stays identical across REST (village) and
+WebSocket (peasant), and the parsing logic itself lives in one place (the
+package), even though the call site is each app's own host-glue component.
+The composite is strictly data-in-via-props / actions-out-via-callbacks; it
+reads no auth, no router, no env.
 
 **Where mutation wiring lives.** All mutations are `useMutation` hooks colocated
 by resource in `src/lib/queries/*` (not in components). Components/dialogs only
@@ -387,9 +400,10 @@ specifically to enable this branching (`api.ts:3-9`).
 - `src/components/transcript/{TranscriptEditDialog,ContributePicker,ConfirmContributeDialog,TurnLabelPopover}.tsx` — write-path dialogs.
 
 **Shared viewer (the cohesive view-model lives here)**
-- `@peasant-labs/transcript-browser` — `SessionDetail` composer; calls
-  `adaptTranscript` and renders the cooked view model.
-- `@peasant-labs/fairtrade/ui` — `adaptTranscript` and `TranscriptViewModel`.
+- `@peasant-labs/fairtrade/ui`: `TranscriptViewer` composite, `adaptTranscript`,
+  `computeAnalytics`, and `TranscriptViewModel`; renders the view model each
+  app builds and hands it via the `viewModel` prop.
+- `@peasant-labs/fairtrade/graph`: the trajectory-graph engine.
 - `@peasant-labs/schema` — generated `SessionDetailPayload`, enums, and runtime
   validation contracts consumed by both the app and viewer.
 

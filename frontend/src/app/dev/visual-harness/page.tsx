@@ -2,17 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { notFound } from "next/navigation";
-import {
-  TrajectoryGraph,
-  annotateTranscript,
-  type TurnLabel,
-} from "@peasant-labs/transcript-browser";
+import { TrajectoryGraph } from "@peasant-labs/fairtrade/graph";
 // The harness mounts what production mounts: fairtrade's TranscriptViewer
-// composite (the same surface the demo renders), not tb's retired composer.
+// composite (the same surface the demo renders).
 import {
   TranscriptViewer,
   adaptTranscript,
   computeAnalytics,
+  annotateTranscript,
+  type TurnLabel,
 } from "@peasant-labs/fairtrade/ui";
 import "@xyflow/react/dist/style.css";
 import { Moon, Sun } from "lucide-react";

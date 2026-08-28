@@ -3,7 +3,7 @@
    The capture harness (village-shoot.mjs) drives a backend-free dev FIXTURE route for determinism, so
    it bypasses village's REAL data path: the `/transcripts/[id]` route → React Query (`useTranscript` +
    `useTranscriptContent`) → REST `GET /transcripts/{id}` + `/transcripts/{id}/content` → the
-   SessionDetailV2 adapter → Fairtrade's canonical `<TranscriptViewer>` with transcript-browser's graph
+   SessionDetailV2 adapter → Fairtrade's canonical `<TranscriptViewer>` with fairtrade's own graph
    engine. This mock serves exactly those REST
    endpoints (a representative session) so `boot-village.mjs` can exercise that REAL route+adapter+
    React-Query path with no Postgres/MinIO/auth stack — village's analog of peasant's `--mock-data-store`.
@@ -129,7 +129,7 @@ const groupDetail = {
       git_worktree: null,
       project_hash: null,
       project_path: null,
-      project_name: 'transcript-browser',
+      project_name: 'fairtrade-design-system',
       tool_call_count: 0,
       subagent_count: 0,
       duration_ms: 480000,

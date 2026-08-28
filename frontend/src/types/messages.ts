@@ -115,18 +115,18 @@ export interface SessionCommit {
 }
 
 // SessionGitContext is now provided by the shared
-// @peasant-labs/transcript-browser package (as part of SessionDetailPayload);
-// the village-local duplicate was removed when SessionDetailPayload became a
+// @peasant-labs/schema package (as part of SessionDetailPayload); the
+// village-local duplicate was removed when SessionDetailPayload became a
 // re-export. SessionCommit is retained as a public type for callers.
 
 /**
  * Full session detail pushed on the "session_detail" channel / parsed from a
- * REST transcript fetch. Consumed from the shared
- * @peasant-labs/transcript-browser package (single source of truth), so the
- * village and the viewer agree on the shape — this is the type the package's
- * `<SessionDetail detail={...}>` prop expects, eliminating the previous
+ * REST transcript fetch. Consumed directly from the canonical
+ * @peasant-labs/schema wire contract (single source of truth), so the
+ * village and the viewer agree on the shape; this is the type fairtrade's
+ * `<TranscriptViewer detail={...}>` prop expects, eliminating the previous
  * village-local vs shared-viewer mismatch. The wire key is now `harness`
  * (flipped from `provider`); the village serves harness-keyed
  * payloads via migrate-on-read. The shape includes the optional `scorecard`.
  */
-export type { SessionDetailPayload, SessionScorecard } from '@peasant-labs/transcript-browser';
+export type { SessionDetailPayload, SessionScorecard } from '@peasant-labs/schema';

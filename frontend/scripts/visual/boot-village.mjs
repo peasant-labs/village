@@ -3,7 +3,7 @@
    The capture harness (village-shoot.mjs) drives a backend-free dev FIXTURE route for determinism, so it
    does NOT exercise village's REAL data path: the `/transcripts/[id]` route → React Query (`useTranscript`
    + `useTranscriptContent`) → REST `GET /transcripts/{id}` + `/transcripts/{id}/content` → the
-   SessionDetailV2 adapter → Fairtrade's canonical `<TranscriptViewer>` with transcript-browser's graph
+   SessionDetailV2 adapter → Fairtrade's canonical `<TranscriptViewer>` with fairtrade's own graph
    engine. This script is that missing arm: it
    boots each REAL viewer surface against a running REST backend and asserts the composite actually renders
    through the real adapter + REST/React-Query path — so a broken REST wiring / adapter / host shell fails
@@ -195,7 +195,7 @@ for (const s of SURFACES) {
     console.error(
       `ERROR [boot-village.mjs] mounted observed-model contract FAILED for "${s.id}".\n` +
       `  What failed: ${probeFailures.join('; ')}.\n` +
-      `  Why: the released Schema/Fairtrade/transcript-browser composition did not render the strict A, omission, B, omission fixture as A, A, B, B with one marker in the requested theme.\n` +
+      `  Why: the released Schema/Fairtrade composition did not render the strict A, omission, B, omission fixture as A, A, B, B with one marker in the requested theme.\n` +
       `  Where: ${s.url}, production REST → React Query → SessionDetailV2 → adaptTranscript → TranscriptViewer path.\n` +
       `  Means: Village would show incorrect or unproven model attribution to transcript readers.\n` +
       `  Fix: verify the exact installed package versions, preserve absent observedModel fields in mock-rest.mjs, rebuild the standalone app, and retry both themes.`,

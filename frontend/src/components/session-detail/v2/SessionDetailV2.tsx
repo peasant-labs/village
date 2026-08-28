@@ -2,15 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { TrajectoryGraph, annotateTranscript, type TurnLabel } from '@peasant-labs/transcript-browser';
-// The demo's drop-in composite + its one wire→view adapter. This viewer used
-// to mount transcript-browser's <SessionDetail> — a sibling implementation of
-// the same design that drifted from the demo with every DS change; the demo,
-// the tb example, and (now) both apps all render the SAME composite.
+import { TrajectoryGraph } from '@peasant-labs/fairtrade/graph';
+// The demo's drop-in composite + its one wire to view adapter. This viewer
+// mounts fairtrade's own graph engine and helpers directly; the demo and both
+// apps all render the SAME composite.
 import {
   TranscriptViewer,
   adaptTranscript,
   computeAnalytics,
+  annotateTranscript,
+  type TurnLabel,
 } from '@peasant-labs/fairtrade/ui';
 import '@xyflow/react/dist/style.css';
 import type { SessionDetailPayload } from '@/types/messages';
@@ -71,13 +72,13 @@ interface SessionDetailV2Props {
 }
 
 /**
- * Thin adapter around fairtrade's `<TranscriptViewer>` composite — the same
- * surface the design-system demo and the transcript-browser example render.
- * Village owns the *app glue* — the REST data layer (React Query
- * `useTranscriptContent`), auth/ownership, and the edit / contribute
- * mutations + dialogs — and feeds the composite via props/callbacks; the
- * composite owns all rendering + view state. transcript-browser remains only
- * as the trajectory-graph engine mounted through `graphSlot`.
+ * Thin adapter around fairtrade's `<TranscriptViewer>` composite, the same
+ * surface the design-system demo renders. Village owns the *app glue*: the
+ * REST data layer (React Query `useTranscriptContent`), auth/ownership, and
+ * the edit / contribute mutations + dialogs, and feeds the composite via
+ * props/callbacks; the composite owns all rendering + view state. The
+ * trajectory-graph engine is fairtrade's own `/graph` entry, mounted through
+ * `graphSlot`.
  */
 export function SessionDetailV2({
   sessionId,
@@ -298,8 +299,8 @@ export function SessionDetailV2({
               ? `/transcripts/${transcriptId}?turn=${turnIndex}`
               : `#turn-${turnIndex}`
           }
-          // The graph toggle mounts transcript-browser's @xyflow engine — the
-          // one piece tb still owns (graph topology/pan/zoom; visuals are DS).
+          // The graph toggle mounts fairtrade's @xyflow engine (graph
+          // topology/pan/zoom; node visuals are the design-system's own).
           graphSlot={() => (
             <TrajectoryGraph
               turns={turns}

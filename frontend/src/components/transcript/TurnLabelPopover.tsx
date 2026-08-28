@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Tag } from "lucide-react";
-import { type TurnLabel } from "@peasant-labs/transcript-browser";
+import { type TurnLabel } from "@peasant-labs/fairtrade/ui";
 import { Button, Select } from "@/lib/ft-ui";
 import { ANNOTATION_TYPES, annotationTypeName } from "@/lib/annotations";
 

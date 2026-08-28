@@ -2,7 +2,7 @@
 
 Capture the **real assembled village transcript view** across every transcript surface + both themes,
 for visual review. The village frontend wires a session payload through the shared
-`@peasant-labs/transcript-browser` composer:
+`<SessionDetail>` composer (now sourced from fairtrade, formerly a sibling package):
 
 ```
 wire SessionDetailPayload → <SessionDetail>   (+ @xyflow TrajectoryGraph in the graph slot)
@@ -17,9 +17,10 @@ blank/duplicate capture, so a vacuous "both empty → looks identical" can't sli
 
 ## Oracle — what the transcript captures are (and are NOT) judged against
 
-The village transcript view renders the **`@peasant-labs/transcript-browser` `<SessionDetail>` composer**
-(its own `.tb-*` markup), importing from fairtrade only the `adaptTranscript`/ViewModel data + token
-layer — **not** the fairtrade demo's `TranscriptViewer` (`.txn-*`). So the app `.tb-*` vs the demo
+The village transcript view renders the **shared `<SessionDetail>` composer**
+(its own `.tb-*` markup, now sourced from fairtrade), importing from fairtrade the
+`adaptTranscript`/ViewModel data + token layer, **not** the fairtrade demo's `TranscriptViewer`
+(`.txn-*`). So the app `.tb-*` vs the demo
 `.txn-*` is a **component difference, not a regression**: the design-system demo is the **wrong** surface
 oracle for transcript (unlike the chrome harness, where demo-parity **is** the gate).
 
@@ -32,8 +33,8 @@ oracle for transcript (unlike the chrome harness, where demo-parity **is** the g
    (the structural gates `die(4)`/`die(5)` + the non-empty `SurfaceGate`, incl. md5 duplicate-detection,
    enforce "it actually rendered" — no blank/duplicate surface slips through).
 3. **No-regression vs the same-component `<SessionDetail>` reference** — `stitch-sxs.mjs` pairs the
-   committed **transcript-browser `<SessionDetail>`** reference (`baseline/tb/`, an earlier capture
-   of the same `sess_demo_0001` session recorded before theme convergence) against the
+   committed **`<SessionDetail>`** reference (`baseline/tb/`, an earlier capture from before the fairtrade
+   graph fold, recorded before theme convergence) against the
    current village capture. Both are `.tb-*` and the same data. The SxS is **not** expected to be
    zero-diff; the theme-convergence delta is intentional and judged for **design-language
    cohesion + no host-integration regression**, not pixel-identity. (That frozen "before" is
@@ -87,7 +88,7 @@ mounted into the composer's `renderTurnActions` slot exactly as the production p
 | `explore-agent-group-shoot.mjs` | Capture the collapsed and expanded group of agent-driven sessions on the real Explore route, in one theme, from one live page. Asserts build provenance (the group's control, its counted label, and the expanded rows' labels) before writing any PNG, so a stale or wrong-worktree server fails instead of producing a misleading capture. |
 | `surface-gate.mjs` | The non-empty-surface gate (vendored, self-contained copy of the fairtrade `scripts/surface-gate.mjs`). Fails a capture that is blank / near-empty / byte-identical to another surface — closing the silent-blank hole a valid-but-empty bounding box leaves open (e.g. an empty graph). |
 | `stitch-sxs.mjs` | Compose labeled, **height-matched** side-by-side composites (`REFERENCE | SUBJECT`) per surface per theme. The shorter pane is padded (never scaled) with its own border-sampled background; a dashed hairline marks where the shorter capture ends. A surface missing a subject capture gets a labeled placeholder panel so the set stays complete. The reference side defaults to the **committed `baseline/tb/`** (the same-component `<SessionDetail>` "before"); `REF_DIR=demo` is the optional non-gating design-language sanity panel (see **Oracle**). |
-| `baseline/tb/{dark,light}/` | The **committed** same-component reference: an earlier transcript-browser `<SessionDetail>` capture of the same `sess_demo_0001` session, recorded before theme convergence. It is a **frozen, non-regenerable** snapshot, so unlike the regenerable `demo/` it is tracked in the repository. The default `stitch` reads it directly, so the oracle works on a clean checkout with no staging. |
+| `baseline/tb/{dark,light}/` | The **committed** same-component reference: an earlier `<SessionDetail>` capture of the same `sess_demo_0001` session, recorded before theme convergence. It is a **frozen, non-regenerable** snapshot, so unlike the regenerable `demo/` it is tracked in the repository. The default `stitch` reads it directly, so the oracle works on a clean checkout with no staging. |
 
 The **subject side** (`<base>/village/<theme>/`) is the current `village-shoot.mjs` run. The optional
 `demo` reference (`<base>/demo/<theme>/`) comes from the matching Fairtrade source checkout's own
