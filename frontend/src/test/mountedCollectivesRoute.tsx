@@ -221,14 +221,10 @@ function makeContribution(row: CollectiveBadgeRow): ContributedCollective {
 }
 
 /**
- * Resolves once the contributions endpoint has been served.
- *
- * The badges depend on TWO requests, and the cards render as soon as the first
- * one answers. A test that asserted then would find every "no contributed
- * badge" expectation true merely because the counters had not arrived yet, so
- * the render helper waits for this before any assertion runs.
+ * The rows the current `fetch` stub is serving. The render helper needs them to
+ * know which row proves the second request has landed.
  */
-let contributionsServed: Promise<void> = Promise.resolve();
+let servedRows: readonly CollectiveBadgeRow[] = [];
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -253,10 +249,7 @@ export function installCollectivesRouteREST(rows: readonly CollectiveBadgeRow[])
   const groups = rows.map(makeVisibleGroup);
   const contributions = rows.filter((r) => r.approved + r.pending > 0).map(makeContribution);
 
-  let markContributionsServed = () => {};
-  contributionsServed = new Promise<void>((resolve) => {
-    markContributionsServed = resolve;
-  });
+  servedRows = rows;
 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -265,10 +258,7 @@ export function installCollectivesRouteREST(rows: readonly CollectiveBadgeRow[])
     if (url.endsWith("/auth/me")) return json(makeUser("collectives-viewer"));
     if (url.endsWith("/auth/orgs")) return json([]);
     if (url.endsWith("/groups/visible")) return json(groups);
-    if (url.endsWith("/users/me/collectives/contributions")) {
-      markContributionsServed();
-      return json({ collectives: contributions });
-    }
+    if (url.endsWith("/users/me/collectives/contributions")) return json({ collectives: contributions });
     // A request to the membership-only list is a real failure here: the page
     // must ask the visible-collectives route, and answering both would let a
     // regression to the old hook pass unnoticed.
@@ -290,14 +280,40 @@ function Providers({ children }: { children: ReactNode }) {
   );
 }
 
+/** The standing slot of the card whose name is `name`, or null if it is absent. */
+function standingSlotFor(name: string): Element | null {
+  for (const card of document.querySelectorAll(".cmg-col-card")) {
+    if (card.querySelector(".cmg-col-name")?.textContent === name) {
+      return card.querySelector(".cmg-col-role");
+    }
+  }
+  return null;
+}
+
 /**
- * Renders the real `/groups` route and waits for the signed-in list to appear.
+ * Renders the real `/groups` route and waits until BOTH of its requests have
+ * landed and been rendered.
  *
- * The viewer's identity arrives over the same stubbed `fetch` as everything
- * else, and the page renders its signed-out invitation until it does, so a test
- * that asserted immediately would assert against the signed-out page.
+ * The viewer's identity and the contribution counters arrive over the same
+ * stubbed `fetch` as everything else, and the cards render as soon as the
+ * collectives answer, before the counters do. A test that asserted then would
+ * find every "shows no contributed badge" expectation true merely because the
+ * counters had not arrived, and would pass against a page that never reads them
+ * at all.
+ *
+ * So the wait is on a POSITIVE signal that can only be true after the counters
+ * are rendered: the one row the corpus guarantees must say "contributed". A
+ * page that never asks for the counters, or ignores them, times out here rather
+ * than passing.
  */
 export async function renderCollectivesRoute(): Promise<void> {
+  const contributing = servedRows.find((row) => row.expect.contributed_badge);
+  if (!contributing) {
+    throw new Error(
+      "the served corpus has no row expecting a contributed badge, so there is no signal that the " +
+        "contribution counters were ever rendered; restore that case rather than waiting on nothing",
+    );
+  }
   await act(async () => {
     render(
       <Providers>
@@ -309,11 +325,15 @@ export async function renderCollectivesRoute(): Promise<void> {
     if (document.querySelector(".cmg-col-card") == null) {
       throw new Error("the collectives route rendered no collective cards");
     }
+    const standing = standingSlotFor(collectiveNameFor(contributing))?.textContent ?? "";
+    if (!standing.includes("contributed")) {
+      throw new Error(
+        `the contribution counters have not reached the page: "${collectiveNameFor(contributing)}" ` +
+          `has ${contributing.approved} approved and ${contributing.pending} pending contributions but its ` +
+          `standing reads "${standing}"`,
+      );
+    }
   });
-  await contributionsServed;
-  // Flush the render the contributions answer schedules, so an assertion that
-  // a row shows NO contributed badge is a real answer rather than a race.
-  await act(async () => {});
 }
 
 /** Shared teardown: unmount, drop the `fetch` stub, reset the document theme. */
