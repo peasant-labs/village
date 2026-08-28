@@ -3,9 +3,11 @@
 import { useMemo } from "react";
 import { Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useGroups, useCreateGroup } from "@/lib/queries/groups";
+import { useVisibleGroups, useCreateGroup } from "@/lib/queries/groups";
+import { useMyCollectiveContributions } from "@/lib/queries/collectives";
 import { useMyOrgs } from "@/lib/queries/orgs";
 import { useAuth } from "@/providers/AuthProvider";
+import { collectiveStanding, contributedCollectiveIds } from "@/lib/collectiveBadges";
 import { CollectivesView } from "@peasant-labs/fairtrade/commons";
 
 // "Member for 5mo" / "Joined today" — mirrors the fairtrade demo fixture's
@@ -27,29 +29,42 @@ function formatMemberSince(iso: string | null): string | null {
 export default function GroupsPage() {
   const router = useRouter();
   const { isLoggedIn } = useAuth();
-  const { data: groups } = useGroups();
+  // Every collective the caller may SEE, not only the ones they belong to: a
+  // person browsing collectives is asking which ones exist for them, and the
+  // membership-only list answered a different question. Rows the caller does
+  // not belong to carry a null role.
+  const { data: groups } = useVisibleGroups();
+  const { data: contributions } = useMyCollectiveContributions(isLoggedIn);
   const createGroup = useCreateGroup();
 
   const { data: myOrgs } = useMyOrgs();
   const visibleOrgs = (myOrgs ?? []).filter((o) => o.visible);
 
-  const collectives = useMemo(
-    () =>
-      (groups ?? []).map((g) => ({
+  const collectives = useMemo(() => {
+    const contributed = contributedCollectiveIds(contributions);
+    return (groups ?? []).map((g) => {
+      const standing = collectiveStanding(g, contributed);
+      return {
         id: g.id,
         name: g.name,
         desc: g.description,
-        role: g.role,
+        // The card's one standing slot. It states the caller's role when they
+        // belong to the collective, and says "contributed" when the collective
+        // holds or is still reviewing something of theirs. A row that is
+        // neither carries nothing: the caller can see this collective, and
+        // there is nothing further to claim about them.
+        role: [standing.memberRole, standing.hasContributed ? "contributed" : null]
+          .filter(Boolean)
+          .join(" \u00b7 "),
+        // Only a member has a join date, so this is absent on the rows the
+        // caller only sees.
         since: formatMemberSince(g.member_since),
         mode: g.acceptance_mode,
-        // member_count/transcript_count are not yet returned by GET /groups
-        // (see the Group type comment) -- undefined here omits them from the
-        // card footer rather than showing a fabricated or wrong count.
         members: g.member_count,
         transcripts: g.transcript_count,
-      })),
-    [groups]
-  );
+      };
+    });
+  }, [groups, contributions]);
 
   if (!isLoggedIn) {
     return (

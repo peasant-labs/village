@@ -42,6 +42,35 @@ JOIN group_members gm ON g.id = gm.group_id
 WHERE gm.user_id = $1
 ORDER BY g.name;
 
+-- name: ListVisibleGroups :many
+-- Every collective the caller may SEE, under the same visibility rule as
+-- SearchCollectives: data_access = 'public', OR acceptance_mode = 'open', OR
+-- the caller is a member. ListUserGroups above answers a different question -
+-- which collectives the caller BELONGS to - and both are needed: a person
+-- browsing collectives wants the full visible set, while a person choosing
+-- where to contribute wants only their own memberships.
+--
+-- The join carries the caller's own membership only, so `role` and
+-- `member_since` are NULL for a collective the caller sees through the public
+-- or open rule alone. member_count excludes role='pending' to match
+-- ListUserGroups and the members roster; transcript_count counts approved
+-- shares, as it does there.
+-- $1 = caller user_id.
+SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at,
+       g.acceptance_mode, g.data_access, g.linked_github_org, g.display_members,
+       g.transcript_deletion_policy,
+       gm.role, gm.joined_at AS member_since,
+       (SELECT COUNT(*) FROM group_members gm2
+          WHERE gm2.group_id = g.id AND gm2.role != 'pending')::int AS member_count,
+       (SELECT COUNT(*) FROM transcript_shares ts
+          WHERE ts.group_id = g.id AND ts.status = 'approved')::int AS transcript_count
+FROM groups g
+LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $1
+WHERE g.data_access = 'public'
+   OR g.acceptance_mode = 'open'
+   OR gm.user_id IS NOT NULL
+ORDER BY g.name;
+
 -- name: AddGroupMember :exec
 INSERT INTO group_members (group_id, user_id, role)
 VALUES ($1, $2, $3)

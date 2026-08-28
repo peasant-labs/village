@@ -1,11 +1,32 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Group, GroupMember, GroupContributor, GroupTranscript, GroupTranscriptStats, GroupModelBreakdown, CollectiveSearchResponse, UserGroupShare } from "../types";
+import type { Group, VisibleGroup, GroupMember, GroupContributor, GroupTranscript, GroupTranscriptStats, GroupModelBreakdown, CollectiveSearchResponse, UserGroupShare } from "../types";
 
+/**
+ * The collectives the caller BELONGS to (`GET /groups`).
+ *
+ * This is the set to offer somebody who is choosing where to contribute: every
+ * row is a membership and carries a role. For the browse surface, which shows
+ * every collective a person may see, use {@link useVisibleGroups}.
+ */
 export function useGroups() {
   return useQuery({
     queryKey: ["groups"],
     queryFn: () => api<Group[]>("/groups"),
+  });
+}
+
+/**
+ * Every collective the caller may SEE (`GET /groups/visible`), whether or not
+ * they belong to it: the server admits a collective whose data is public, one
+ * that anybody may join, and one the caller is a member of.
+ *
+ * Rows the caller does not belong to carry a null role and a null member_since.
+ */
+export function useVisibleGroups() {
+  return useQuery({
+    queryKey: ["visible-groups"],
+    queryFn: () => api<VisibleGroup[]>("/groups/visible"),
   });
 }
 
@@ -61,6 +82,7 @@ export function useCreateGroup() {
       api<Group>("/groups", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["groups"] });
+      qc.invalidateQueries({ queryKey: ["visible-groups"] });
     },
   });
 }
@@ -102,6 +124,7 @@ export function useUpdateGroup() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["group", vars.id] });
       qc.invalidateQueries({ queryKey: ["groups"] });
+      qc.invalidateQueries({ queryKey: ["visible-groups"] });
     },
   });
 }
@@ -120,6 +143,7 @@ export function useDeleteGroup() {
     mutationFn: (id: string) => api(`/groups/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["groups"] });
+      qc.invalidateQueries({ queryKey: ["visible-groups"] });
     },
   });
 }
@@ -132,6 +156,7 @@ export function useJoinGroup() {
     onSuccess: (_, groupId) => {
       qc.invalidateQueries({ queryKey: ["group", groupId] });
       qc.invalidateQueries({ queryKey: ["groups"] });
+      qc.invalidateQueries({ queryKey: ["visible-groups"] });
     },
   });
 }
@@ -182,6 +207,7 @@ export function useRemoveGroupMember() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["group", vars.groupId] });
       qc.invalidateQueries({ queryKey: ["groups"] });
+      qc.invalidateQueries({ queryKey: ["visible-groups"] });
       qc.invalidateQueries({ queryKey: ["transcripts"] });
       qc.invalidateQueries({ queryKey: ["group-my-shares", vars.groupId] });
     },

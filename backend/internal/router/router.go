@@ -137,6 +137,10 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthOptional).Get("/groups/search", h.SearchCollectives)
 		r.With(h.AuthRequired).Post("/groups", h.CreateGroup)
 		r.With(h.AuthRequired).Get("/groups", h.ListGroups)
+		// The collectives a person may SEE, as distinct from the ones they belong
+		// to. Both routes exist because the browse surface and the contribute
+		// picker ask different questions.
+		r.With(h.AuthRequired).Get("/groups/visible", h.ListVisibleGroups)
 		r.With(h.AuthOptional).Get("/groups/{id}", h.GetGroup)
 		r.With(h.AuthRequired).Patch("/groups/{id}", h.UpdateGroup)
 		r.With(h.AuthRequired).Delete("/groups/{id}", h.DeleteGroup)

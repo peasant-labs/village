@@ -505,6 +505,9 @@ func (m *mockQuerier) DeleteGroup(ctx context.Context, id pgtype.UUID) error {
 func (m *mockQuerier) ListUserGroups(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
 	panic("ListUserGroups: not stubbed")
 }
+func (m *mockQuerier) ListVisibleGroups(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListVisibleGroupsRow, error) {
+	panic("ListVisibleGroups: not stubbed")
+}
 func (m *mockQuerier) AddGroupMember(ctx context.Context, arg sqlc.AddGroupMemberParams) error {
 	panic("AddGroupMember: not stubbed")
 }
