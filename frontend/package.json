@@ -31,7 +31,7 @@
     "shoot:project": "node scripts/visual/project-page-shoot.mjs"
   },
   "dependencies": {
-    "@peasant-labs/fairtrade": "0.0.16",
+    "@peasant-labs/fairtrade": "0.0.17",
     "@peasant-labs/schema": "0.1.1",
     "@peasant-labs/transcript-browser": "0.0.7",
     "@tanstack/react-query": "^5.90.21",
