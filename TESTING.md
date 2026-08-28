@@ -480,7 +480,13 @@ data rather than from a production constant:
 
 Group labels are written out in the YAML rather than derived from the code that
 renders them, so a change to the wording fails here instead of quietly agreeing
-with itself.
+with itself, and they are asserted as the EXACT text of the label element rather
+than as a substring of the whole control. The two collapsed groups word
+themselves differently -- the agent group announces itself with a leading `+`,
+and the chip of sessions one row started announces a bare count, because it
+hangs off its own parent's row where the count reads as part of that row -- so a
+containment check could not tell one group's wording from the other's, and would
+not notice one taking on the other's.
 
 ### Project identity: five fixture families
 

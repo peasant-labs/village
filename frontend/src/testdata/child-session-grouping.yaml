@@ -70,7 +70,7 @@
 # the field states an ORDER -- a group holding the person's newest session must
 # not be cut off the page while that session is only reachable from inside it.
 #
-# `label` is the literal text of a group's collapsed control, written out
+# `label` is the literal text of a chip's collapsed control, written out
 # rather than derived, so a change to the wording the code produces fails here
 # instead of quietly agreeing with itself. On an `explore` case it names what
 # was folded away, where no control renders.
@@ -98,7 +98,7 @@ cases:
     expectedHomeRows: []
     expectedGroups:
       - parent: parent-a
-        label: "+ 2 child sessions"
+        label: "2 child sessions"
         children: [child-a1, child-a2]
 
   # The viewer may not read the session that started this row, so it never
@@ -215,10 +215,10 @@ cases:
     expectedHomeRows: []
     expectedGroups:
       - parent: parent-d
-        label: "+ 1 child session"
+        label: "1 child session"
         children: [child-d1]
       - parent: parent-e
-        label: "+ 2 child sessions"
+        label: "2 child sessions"
         children: [child-e1, child-e2]
 
   # Two publishers used the same harness session id. The row owned by the second
@@ -247,7 +247,7 @@ cases:
     expectedHomeRows: []
     expectedGroups:
       - parent: parent-f
-        label: "+ 1 child session"
+        label: "1 child session"
         children: [child-f1]
 
   # A session started a session that started another session. Every started row
@@ -275,7 +275,7 @@ cases:
     expectedHomeRows: []
     expectedGroups:
       - parent: parent-g
-        label: "+ 2 child sessions"
+        label: "2 child sessions"
         children: [child-g1, grandchild-g2]
 
   # The top of the chain is on another page, so the row below it becomes the
@@ -300,7 +300,7 @@ cases:
     expectedHomeRows: []
     expectedGroups:
       - parent: middle-h1
-        label: "+ 1 child session"
+        label: "1 child session"
         children: [child-h2]
 
   # A malformed id must never cost a person their own session. A row that names
@@ -382,7 +382,7 @@ cases:
     expectedHomeRows: []
     expectedGroups:
       - parent: parent-k
-        label: "+ 4 child sessions"
+        label: "4 child sessions"
         children: [child-k1, child-k2, child-k3, child-k4]
 
   # A row whose parent chain runs INTO a ring it is not part of. The ring rows
@@ -441,7 +441,7 @@ cases:
     expectedHomeRows: []
     expectedGroups:
       - parent: parent-m
-        label: "+ 2 child sessions"
+        label: "2 child sessions"
         children: [child-m1, child-m2]
 
   # Both collapsed groups on one page. The agent group carries the rows no
@@ -470,7 +470,7 @@ cases:
     expectedHomeRows: []
     expectedGroups:
       - parent: parent-o
-        label: "+ 1 child session"
+        label: "1 child session"
         children: [child-o1]
 
   # ── home and a project page: the chip ──────────────────────────────────────
@@ -504,7 +504,7 @@ cases:
     expectedHomeRows: [run-the-migration, rename-a-column]
     expectedGroups:
       - parent: run-the-migration
-        label: "+ 2 child sessions"
+        label: "2 child sessions"
         children: [write-the-down-file, check-the-constraint]
 
   # One row names a session this surface does not carry. On an owner-scoped
@@ -584,5 +584,5 @@ cases:
        name-the-error-cases, draft-the-runbook]
     expectedGroups:
       - parent: harden-the-client
-        label: "+ 1 child session"
+        label: "1 child session"
         children: [wire-the-retry]

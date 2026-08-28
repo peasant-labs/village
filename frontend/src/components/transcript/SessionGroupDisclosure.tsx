@@ -4,8 +4,18 @@ import type { ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 interface SessionGroupDisclosureProps {
-  /** The group's own text, without the leading `+`. */
+  /** The group's text while it is OPEN. */
   label: string;
+  /**
+   * The group's text while it is CLOSED.
+   *
+   * Written out by the caller rather than decorated here, because the two
+   * groups no longer agree on it: the agent group announces itself with a
+   * leading `+`, and the chip of sessions one row started does not. A shell
+   * that added the mark would be deciding one group's wording from inside the
+   * other's, and the two would have to be kept apart by a flag.
+   */
+  collapsedLabel: string;
   expanded: boolean;
   onToggle: () => void;
   /**
@@ -37,6 +47,7 @@ interface SessionGroupDisclosureProps {
  */
 export default function SessionGroupDisclosure({
   label,
+  collapsedLabel,
   expanded,
   onToggle,
   rowsID,
@@ -66,8 +77,8 @@ export default function SessionGroupDisclosure({
         ) : (
           <ChevronRight size={12} strokeWidth={2} aria-hidden="true" />
         )}
-        <span className="tabular-nums">
-          {expanded ? label : `+ ${label}`}
+        <span className="tabular-nums" data-testid={`${testID}-label`}>
+          {expanded ? label : collapsedLabel}
         </span>
         <span className="flex-1" />
         <span className="text-ink-4">

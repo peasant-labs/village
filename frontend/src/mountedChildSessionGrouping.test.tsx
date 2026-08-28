@@ -138,9 +138,15 @@ async function assertChips(
     ).toContain(expectedGroup.parent);
 
     const toggle = within(chip).getByTestId("child-session-disclosure-toggle");
-    expect(toggle.textContent, `${testCase.name}: the collapsed label under ${expectedGroup.parent}`).toContain(
-      expectedGroup.label,
-    );
+    // The EXACT text, not a substring of it. The chip announces a bare count
+    // and the agent group beside it announces a leading `+`; a containment
+    // check would pass on either, so it could not tell the two apart and would
+    // not notice the `+` coming back.
+    const chipLabel = within(chip).getByTestId("child-session-disclosure-label");
+    expect(
+      chipLabel.textContent,
+      `${testCase.name}: the collapsed label under ${expectedGroup.parent}`,
+    ).toBe(expectedGroup.label);
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(within(chip).queryByTestId("child-session-disclosure-rows")).toBeNull();
     for (const id of expectedGroup.children) {
@@ -157,6 +163,12 @@ async function assertChips(
 
     const rows = within(chip).getByTestId("child-session-disclosure-rows");
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    // Opening it does not reword it: the chip reads the same either way, so the
+    // count a viewer decided to open is the count they still see.
+    expect(
+      chipLabel.textContent,
+      `${testCase.name}: the label under ${expectedGroup.parent} once it is open`,
+    ).toBe(expectedGroup.label);
     // The control names its own rows for assistive technology.
     expect(toggle.getAttribute("aria-controls")).toBe(rows.getAttribute("id"));
     expect(linkedIDs(rows).sort(), `${testCase.name}: the rows under ${expectedGroup.parent}`).toEqual(

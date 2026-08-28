@@ -57,6 +57,9 @@ export default function ChildSessionDisclosure({
     <div className="pl-5" data-parent-transcript-id={parentTranscriptID}>
       <SessionGroupDisclosure
         label={childSessionGroupLabel(childSessions.length)}
+        // No leading `+`. The chip hangs off its own parent's row, where the
+        // count reads as part of that row rather than as an item being offered.
+        collapsedLabel={childSessionGroupLabel(childSessions.length)}
         expanded={expanded}
         onToggle={() => setExpanded((open) => !open)}
         rowsID={rowsID}

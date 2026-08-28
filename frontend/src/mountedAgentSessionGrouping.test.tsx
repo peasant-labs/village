@@ -204,7 +204,13 @@ describe("mounted agent-session grouping", () => {
       }
 
       const toggle = screen.getByTestId("agent-session-group-toggle");
-      expect(toggle.textContent, `${testCase.name}: collapsed label`).toContain(testCase.expectedToggleLabel);
+      // The EXACT text. The agent group announces itself with a leading `+`
+      // and the chip of sessions one row started does not, so a containment
+      // check could not tell one group's wording from the other's.
+      expect(
+        screen.getByTestId("agent-session-group-label").textContent,
+        `${testCase.name}: collapsed label`,
+      ).toBe(testCase.expectedToggleLabel);
       expect(toggle.getAttribute("aria-expanded")).toBe("false");
 
       // The collapsed control's shape is shared with the child-session group,

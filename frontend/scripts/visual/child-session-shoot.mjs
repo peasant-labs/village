@@ -344,10 +344,21 @@ if (!toggle) {
     'the capture would show a chip nobody can open.',
     'rebuild from this worktree and retry.')
 }
-const collapsedLabel = (await page.evaluate((el) => el.textContent.trim(), toggle)).replace(/\s+/g, ' ')
-if (!/^\+ \d+ child session/.test(collapsedLabel)) {
+// Read from the label element itself, not the whole control: the control also
+// carries its show/hide affordance, and a check over that text could not tell a
+// bare count from one with a leading mark in front of it.
+const labelEl = await waitFor('[data-testid="child-session-disclosure-label"]')
+if (!labelEl) {
+  await stop(2, 'the chip rendered no label element.',
+    'the served build predates the shared collapsed-group control.',
+    'the capture would prove nothing about the chip.',
+    'rebuild from this worktree and retry.')
+}
+const collapsedLabel = (await page.evaluate((el) => el.textContent.trim(), labelEl)).replace(/\s+/g, ' ')
+if (!/^\d+ child session/.test(collapsedLabel)) {
   await stop(1, `the collapsed label reads ${JSON.stringify(collapsedLabel)}.`,
-    'the chip rendered without its count, so the served bytes are not the expected build.',
+    'the chip rendered without its count, or with something in front of it. It announces a bare count: the chip ' +
+      'hangs off its own parent row, so the count reads as part of that row rather than as an item being offered.',
     'the capture would show the wrong chrome.',
     'rebuild from this worktree and retry.')
 }

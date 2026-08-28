@@ -122,8 +122,11 @@ const caseKeys = [
 const rowKeys = ["name", "ownerID", "localID", "parentSessionID"];
 const groupKeys = ["parent", "label", "children"];
 
+/** The chip's collapsed text: a bare count, with no leading `+`. The agent
+ *  group beside it keeps its own `+`; the chip hangs off its own parent's row,
+ *  where the count reads as part of that row. */
 function expectedLabel(count: number): string {
-  return `+ ${count} child session${count === 1 ? "" : "s"}`;
+  return `${count} child session${count === 1 ? "" : "s"}`;
 }
 
 export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures {

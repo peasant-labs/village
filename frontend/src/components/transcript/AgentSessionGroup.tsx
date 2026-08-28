@@ -55,6 +55,8 @@ export default function AgentSessionGroup({
   return (
     <SessionGroupDisclosure
       label={label}
+      // The agent group keeps the `+` it has always announced itself with.
+      collapsedLabel={`+ ${label}`}
       expanded={expanded}
       onToggle={() => setExpanded((open) => !open)}
       rowsID={AGENT_SESSION_GROUP_ROWS_ID}
