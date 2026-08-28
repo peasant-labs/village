@@ -100,15 +100,31 @@ async function flush(): Promise<void> {
 }
 
 /**
- * Walks one case's chips: each is collapsed, names its own rows, hangs off its
- * own parent's row, and reveals exactly the sessions that row started.
+ * Walks one case's chips on a surface showing `visibleRows`, in that order:
+ * the list shows exactly those rows, each chip is collapsed, hangs off its own
+ * parent's row, and reveals exactly the sessions that row started.
+ *
+ * `visibleRows` is passed rather than derived because the two surfaces differ:
+ * a project page lists every row that kept its place, and home shows the first
+ * few groups. Each case states its own answer for the surface it is asserted
+ * on, so neither assertion has to re-implement the rule it is checking.
  */
-async function assertChips(testCase: ChildSessionGroupingCase, listRoot: HTMLElement): Promise<void> {
+async function assertChips(
+  testCase: ChildSessionGroupingCase,
+  listRoot: HTMLElement,
+  visibleRows: string[],
+): Promise<void> {
+  // Before any chip is opened, every link in the list is one of its rows, so
+  // this pins the rows AND their order, and fails on an extra row as well as a
+  // missing one.
+  expect(linkedIDs(listRoot), `${testCase.name}: the rows on screen, in order`).toEqual(visibleRows);
+
+  const shownGroups = testCase.expectedGroups.filter((group) => visibleRows.includes(group.parent));
   expect(chippedParentIDs(), `${testCase.name}: the chips on screen`).toEqual(
-    testCase.expectedGroups.map((group) => group.parent).sort(),
+    shownGroups.map((group) => group.parent).sort(),
   );
 
-  for (const expectedGroup of testCase.expectedGroups) {
+  for (const expectedGroup of shownGroups) {
     const chip = chipFor(expectedGroup.parent);
 
     // The chip needs no words to say whose children these are, so what it
@@ -148,15 +164,14 @@ async function assertChips(testCase: ChildSessionGroupingCase, listRoot: HTMLEle
     );
   }
 
-  // With every chip open, each row the surface was given is reachable exactly
-  // once: as a row of the list, or inside exactly one chip.
+  // With every chip open, the surface shows exactly its rows and the sessions
+  // they started, each once: nothing is duplicated, and nothing appears that
+  // the case did not put on screen.
   const reachable = linkedIDs(listRoot);
-  for (const row of testCase.rows) {
-    expect(
-      reachable.filter((seen) => seen === row.name).length,
-      `${testCase.name}: ${row.name} must appear exactly once, as a row or inside one chip`,
-    ).toBe(1);
-  }
+  const wanted = [...visibleRows, ...shownGroups.flatMap((group) => group.children)];
+  expect([...reachable].sort(), `${testCase.name}: everything reachable with the chips open`).toEqual(
+    [...wanted].sort(),
+  );
 }
 
 // ── /explore ─────────────────────────────────────────────────────────────────
@@ -371,14 +386,7 @@ describe("the home page lists a started session inside its parent's chip", () =>
       await flush();
 
       const panel = await screen.findByTestId("home-recent-sessions");
-
-      for (const id of testCase.expectedRootRows) {
-        expect(
-          linkedIDs(panel),
-          `${testCase.name}: ${id} is a session the viewer ran, so it is a row of its own`,
-        ).toContain(id);
-      }
-      await assertChips(testCase, panel);
+      await assertChips(testCase, panel, testCase.expectedHomeRows);
     });
   }
 });
@@ -407,17 +415,11 @@ describe("a project page lists a started session under the session that started 
       await renderProjectRoute("alice-dev", projectHash);
       await flush();
 
-      const panel = await screen.findByTestId("project-display-name");
-      expect(panel).toBeTruthy();
-      const canvas = document.body as HTMLElement;
-
-      for (const id of testCase.expectedRootRows) {
-        expect(
-          linkedIDs(canvas),
-          `${testCase.name}: ${id} was not started by anything in this project, so it is a row of its own`,
-        ).toContain(id);
-      }
-      await assertChips(testCase, canvas);
+      // The page has settled once its header is on screen; the rows below it
+      // come from the same payload.
+      await screen.findByTestId("project-display-name");
+      // A project page lists every row the fold left in place, in server order.
+      await assertChips(testCase, document.body, testCase.expectedRootRows);
     });
   }
 });

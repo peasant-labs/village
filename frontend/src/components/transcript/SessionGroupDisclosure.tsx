@@ -6,8 +6,6 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 interface SessionGroupDisclosureProps {
   /** The group's own text, without the leading `+`. */
   label: string;
-  /** Optional chrome after the label, such as the parent a group hangs under. */
-  afterLabel?: ReactNode;
   expanded: boolean;
   onToggle: () => void;
   /**
@@ -18,11 +16,6 @@ interface SessionGroupDisclosureProps {
   rowsID: string;
   /** Base for the wrapper and control test ids: `<base>` and `<base>-toggle`. */
   testID: string;
-  /** Extra `data-*` attributes for the wrapper, such as which row a group
-   *  belongs to. Narrowed to `data-` keys, and applied BEFORE the shell's own
-   *  attributes, so a caller can add to the wrapper but never take over its
-   *  chrome or its test id. */
-  dataAttributes?: Record<`data-${string}`, string>;
   /** Drop the outer panel border when the group sits inside a bordered panel. */
   bare?: boolean;
   /** The revealed element. Rendered only while expanded. */
@@ -44,12 +37,10 @@ interface SessionGroupDisclosureProps {
  */
 export default function SessionGroupDisclosure({
   label,
-  afterLabel,
   expanded,
   onToggle,
   rowsID,
   testID,
-  dataAttributes,
   bare = false,
   children,
 }: SessionGroupDisclosureProps) {
@@ -59,7 +50,6 @@ export default function SessionGroupDisclosure({
   // must take the width of the list it belongs to.
   return (
     <div
-      {...dataAttributes}
       className={bare ? "" : "border border-rule bg-surface"}
       data-testid={testID}
     >
@@ -79,7 +69,6 @@ export default function SessionGroupDisclosure({
         <span className="tabular-nums">
           {expanded ? label : `+ ${label}`}
         </span>
-        {afterLabel}
         <span className="flex-1" />
         <span className="text-ink-4">
           {expanded ? "hide" : "show"}

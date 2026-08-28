@@ -47,6 +47,42 @@ const RECENT_SESSION_LIMIT = 5;
  * `published_at` is an ISO-8601 UTC timestamp, so lexicographic comparison is
  * chronological; a value that does not parse sorts last instead of throwing.
  */
+/**
+ * The rows a list of parents is shown in, most recently ACTIVE first.
+ *
+ * A row's own `published_at` is not what "recent" means once a row can hold the
+ * sessions it started. A person's newest session is often one their last run
+ * spawned, and that row is inside its parent's chip; ranking the parents by
+ * their own timestamps alone would push that whole group down the list, and a
+ * capped list would then drop the newest thing the person did off the page
+ * entirely, with no chip left on screen to reach it from.
+ *
+ * So a group is as recent as the newest row in it: the parent, or any session
+ * it started. A row that started nothing is unaffected, and ranks exactly as it
+ * did before.
+ *
+ * The comparison goes through the shared `publishedAtDescending`, so a value
+ * that does not parse sorts last here for the same reason it does everywhere
+ * else rather than scrambling the rows around it.
+ */
+export function mostRecentGroupFirst(
+  rootItems: TranscriptListItem[],
+  childSessions: Map<string, TranscriptListItem[]>,
+): TranscriptListItem[] {
+  const groupPublishedAt = (item: TranscriptListItem): string => {
+    let newest = item.transcript.published_at;
+    for (const started of childSessions.get(item.transcript.id) ?? []) {
+      if (publishedAtDescending(started.transcript.published_at, newest) < 0) {
+        newest = started.transcript.published_at;
+      }
+    }
+    return newest;
+  };
+  return [...rootItems].sort((a, b) =>
+    publishedAtDescending(groupPublishedAt(a), groupPublishedAt(b)),
+  );
+}
+
 export function mostRecentFirst(
   items: TranscriptListItem[],
 ): TranscriptListItem[] {
@@ -143,11 +179,17 @@ export default function HomePage() {
   // started sessions are found in the whole list, not only among the first
   // five, so the count on the chip is every session that row started.
   const recentGrouping = groupChildSessions(mostRecentFirst(items));
-  const recent = recentGrouping.rootItems.slice(0, RECENT_SESSION_LIMIT);
   // A row whose own parent is somewhere in this list is not shown here at all;
   // it is inside its parent's chip. A row whose parent is absent keeps its
   // ordinary place, so nothing a person published can fall out of this list.
   const recentChildSessions = childSessionsByParentID(recentGrouping);
+  // Ranked by the newest row in each group BEFORE the cut, so a group holding
+  // the person's newest session cannot be cut off the page while that session
+  // is only reachable from inside it.
+  const recent = mostRecentGroupFirst(recentGrouping.rootItems, recentChildSessions).slice(
+    0,
+    RECENT_SESSION_LIMIT,
+  );
   const { groups, malformed } = groupByProject(items);
 
   // One teaching empty state serves both sections: a person with no sessions

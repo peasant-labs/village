@@ -468,7 +468,15 @@ data rather than from a production constant:
   server's own total otherwise, because the same number drives the pager;
 - all three reasons a named parent can be absent from a response (another page,
   a filter, the viewer may not read it) must be covered, since the page cannot
-  tell them apart and all three must leave the row in the list.
+  tell them apart and all three must leave the row in the list;
+- a `home` case states `expectedHomeRows`: the ordered rows home shows. Home
+  caps its list and ranks a group by the NEWEST row in it - a person's newest
+  session is often one their last run started, and that row lives inside its
+  parent's chip, so ranking parents by their own timestamps alone could cut the
+  whole group off the page and leave that session reachable from nowhere. The
+  corpus must therefore hold one case with more rows than home shows, and one
+  whose first shown row is not the first row the server sent. Both guards were
+  proven able to fire, not merely present.
 
 Group labels are written out in the YAML rather than derived from the code that
 renders them, so a change to the wording fails here instead of quietly agreeing

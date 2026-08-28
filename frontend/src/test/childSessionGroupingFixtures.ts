@@ -70,6 +70,12 @@ export type ChildSessionGroupingCase = {
   /** The number the list header must show above the grid. */
   expectedVisibleCount: number;
   expectedRootRows: string[];
+  /** The ordered rows the HOME list shows, on a `home` case; `[]` elsewhere.
+   *  Home caps its list, so what it shows is not always every row that kept its
+   *  place, and the ORDER is part of the answer: groups are ranked by the
+   *  newest row in each, so a group holding the person's newest session cannot
+   *  be cut off the page while that session is only reachable from inside it. */
+  expectedHomeRows: string[];
   expectedGroups: ChildSessionExpectedGroup[];
 };
 
@@ -98,6 +104,7 @@ const requiredCaseNames = [
   "the-agent-group-and-a-child-group-sit-together",
   "a-started-session-is-listed-inside-its-parents-chip",
   "a-row-whose-parent-is-not-in-the-list-keeps-its-place",
+  "home-shows-the-group-holding-the-newest-session",
 ] as const;
 
 const caseKeys = [
@@ -109,6 +116,7 @@ const caseKeys = [
   "serverTotal",
   "expectedVisibleCount",
   "expectedRootRows",
+  "expectedHomeRows",
   "expectedGroups",
 ];
 const rowKeys = ["name", "ownerID", "localID", "parentSessionID"];
@@ -140,6 +148,8 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
   let sawFoldCorrectingTheCount = false;
   let sawLongerResultKeepingTheServerCount = false;
   let sawBothGroupsTogether = false;
+  let sawHomeCappingItsList = false;
+  let sawHomeLedByAGroupsNewestRow = false;
 
   for (const c of fixtures.cases) {
     assertExactKeys(c, caseKeys, `case ${c.name}`);
@@ -295,6 +305,35 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
       sawLongerResultKeepingTheServerCount = true;
     }
 
+    // What home SHOWS is its own expectation, because home caps its list and
+    // ranks groups by the newest row in each. Only a `home` case may state it.
+    const onHome = c.surfaces.includes("home");
+    if (!onHome && c.expectedHomeRows.length > 0) {
+      throw new Error(
+        `case ${c.name}: expectedHomeRows names rows but the case is not asserted on home, so nothing reads it`,
+      );
+    }
+    if (onHome) {
+      if (c.expectedHomeRows.length === 0) {
+        throw new Error(
+          `case ${c.name} is asserted on home but names no rows for it; home's list is what the case is about`,
+        );
+      }
+      if (new Set(c.expectedHomeRows).size !== c.expectedHomeRows.length) {
+        throw new Error(`case ${c.name}: a row is named twice in expectedHomeRows`);
+      }
+      const notARootRow = c.expectedHomeRows.filter((name) => !c.expectedRootRows.includes(name));
+      if (notARootRow.length > 0) {
+        throw new Error(
+          `case ${c.name}: expectedHomeRows names ${notARootRow.join(", ")}, which ${
+            notARootRow.length === 1 ? "is" : "are"
+          } not among the rows that kept their place; home can only show a row the fold left in the list`,
+        );
+      }
+      if (c.expectedHomeRows.length < c.expectedRootRows.length) sawHomeCappingItsList = true;
+      if (c.expectedHomeRows[0] !== c.expectedRootRows[0]) sawHomeLedByAGroupsNewestRow = true;
+    }
+
     const agentIDs = new Set(c.agentSessions);
     if (agentIDs.size !== c.agentSessions.length) {
       throw new Error(`case ${c.name}: an agent-session id appears twice`);
@@ -348,6 +387,20 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
     throw new Error(
       "child-session-grouping fixtures cover no page carrying both collapsed groups: the agent group and a child " +
         "group render into the same column, and neither may take rows from the other",
+    );
+  }
+  if (!sawHomeCappingItsList) {
+    throw new Error(
+      "child-session-grouping fixtures cover no home case with more rows than home shows: the list is capped, so a " +
+        "corpus that never reaches the cap cannot tell a correct cut from one that drops the wrong rows",
+    );
+  }
+  if (!sawHomeLedByAGroupsNewestRow) {
+    throw new Error(
+      "child-session-grouping fixtures cover no home case whose first shown row is not the first row the server " +
+        "sent: home ranks a group by the NEWEST row in it, so without a case where that ranking moves a row, a " +
+        "build that ranked parents by their own timestamps alone would pass, and could cut the group holding the " +
+        "person's newest session off the page",
     );
   }
   for (const cause of ABSENT_PARENT_CAUSES) {

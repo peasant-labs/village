@@ -63,6 +63,13 @@
 # page renders them as their own collapsed group beside these ones, so a case
 # with both proves the two groups coexist.
 #
+# `expectedHomeRows` is the ordered list of rows the HOME list shows, and is
+# written only on a `home` case (every other case carries `[]`). Home caps its
+# list, so what it shows is not always every row that kept its place: it is the
+# first N groups, ranked by the newest row in each group. That ranking is why
+# the field states an ORDER -- a group holding the person's newest session must
+# not be cut off the page while that session is only reachable from inside it.
+#
 # `label` is the literal text of a group's collapsed control, written out
 # rather than derived, so a change to the wording the code produces fails here
 # instead of quietly agreeing with itself. On an `explore` case it names what
@@ -88,6 +95,7 @@ cases:
     serverTotal: 3
     expectedVisibleCount: 1
     expectedRootRows: [parent-a]
+    expectedHomeRows: []
     expectedGroups:
       - parent: parent-a
         label: "+ 2 child sessions"
@@ -112,6 +120,7 @@ cases:
     serverTotal: 2
     expectedVisibleCount: 2
     expectedRootRows: [plain-b, lone-child-b]
+    expectedHomeRows: []
     expectedGroups: []
 
   # The parent is a real row this viewer can open. It is simply on another page,
@@ -134,6 +143,7 @@ cases:
     serverTotal: 40
     expectedVisibleCount: 40
     expectedRootRows: [child-p1, plain-p2]
+    expectedHomeRows: []
     expectedGroups: []
 
   # The search matched the started session's content and not its parent's, so
@@ -151,6 +161,7 @@ cases:
     serverTotal: 1
     expectedVisibleCount: 1
     expectedRootRows: [child-s1]
+    expectedHomeRows: []
     expectedGroups: []
 
   # Nothing started these sessions, so the list is exactly what it was before.
@@ -170,6 +181,7 @@ cases:
     serverTotal: 2
     expectedVisibleCount: 2
     expectedRootRows: [plain-c1, plain-c2]
+    expectedHomeRows: []
     expectedGroups: []
 
   - name: two-parents-each-keep-their-own-group
@@ -200,6 +212,7 @@ cases:
     serverTotal: 5
     expectedVisibleCount: 2
     expectedRootRows: [parent-d, parent-e]
+    expectedHomeRows: []
     expectedGroups:
       - parent: parent-d
         label: "+ 1 child session"
@@ -231,6 +244,7 @@ cases:
     serverTotal: 3
     expectedVisibleCount: 2
     expectedRootRows: [parent-f, foreign-child-f]
+    expectedHomeRows: []
     expectedGroups:
       - parent: parent-f
         label: "+ 1 child session"
@@ -258,6 +272,7 @@ cases:
     serverTotal: 3
     expectedVisibleCount: 1
     expectedRootRows: [parent-g]
+    expectedHomeRows: []
     expectedGroups:
       - parent: parent-g
         label: "+ 2 child sessions"
@@ -282,6 +297,7 @@ cases:
     serverTotal: 30
     expectedVisibleCount: 30
     expectedRootRows: [middle-h1]
+    expectedHomeRows: []
     expectedGroups:
       - parent: middle-h1
         label: "+ 1 child session"
@@ -301,6 +317,7 @@ cases:
     serverTotal: 1
     expectedVisibleCount: 1
     expectedRootRows: [self-parented-i]
+    expectedHomeRows: []
     expectedGroups: []
 
   # A ring of three rows that name each other. Every row in the ring keeps its
@@ -325,6 +342,7 @@ cases:
     serverTotal: 3
     expectedVisibleCount: 3
     expectedRootRows: [ring-j1, ring-j2, ring-j3]
+    expectedHomeRows: []
     expectedGroups: []
 
   # The count above the grid must describe the cards under it. The server counts
@@ -361,6 +379,7 @@ cases:
     serverTotal: 6
     expectedVisibleCount: 2
     expectedRootRows: [parent-k, plain-k5]
+    expectedHomeRows: []
     expectedGroups:
       - parent: parent-k
         label: "+ 4 child sessions"
@@ -393,6 +412,7 @@ cases:
     serverTotal: 4
     expectedVisibleCount: 4
     expectedRootRows: [leads-into-ring-n0, ring-n1, ring-n2, ring-n3]
+    expectedHomeRows: []
     expectedGroups: []
 
   # The result set is longer than this response, and this page folded rows away.
@@ -418,6 +438,7 @@ cases:
     serverTotal: 40
     expectedVisibleCount: 40
     expectedRootRows: [parent-m]
+    expectedHomeRows: []
     expectedGroups:
       - parent: parent-m
         label: "+ 2 child sessions"
@@ -446,6 +467,7 @@ cases:
     serverTotal: 3
     expectedVisibleCount: 2
     expectedRootRows: [parent-o, plain-o2]
+    expectedHomeRows: []
     expectedGroups:
       - parent: parent-o
         label: "+ 1 child session"
@@ -479,6 +501,7 @@ cases:
     serverTotal: 4
     expectedVisibleCount: 2
     expectedRootRows: [run-the-migration, rename-a-column]
+    expectedHomeRows: [run-the-migration, rename-a-column]
     expectedGroups:
       - parent: run-the-migration
         label: "+ 2 child sessions"
@@ -503,4 +526,63 @@ cases:
     serverTotal: 2
     expectedVisibleCount: 2
     expectedRootRows: [fix-the-flaky-test, bisect-the-failure]
+    expectedHomeRows: [fix-the-flaky-test, bisect-the-failure]
     expectedGroups: []
+
+  # More rows than home shows, with the person's NEWEST session inside a chip.
+  #
+  # Rows arrive most-recent first, so `wire-the-retry` is the newest thing this
+  # person did and `harden-the-client` -- the session that started it -- is the
+  # OLDEST row here. Ranked by their own timestamps the parent would sit last,
+  # fall outside the cap, and take the newest session off the page with it,
+  # reachable from nowhere. Ranked by the newest row in each group the parent
+  # leads the list, and the row that drops off the end is the genuinely oldest
+  # group instead.
+  #
+  # This is also the only case where slicing the list BEFORE the fold and after
+  # it give different answers, so it is what holds that order in place.
+  - name: home-shows-the-group-holding-the-newest-session
+    surfaces: [home]
+    absentParentCause: none
+    rows:
+      - name: wire-the-retry
+        ownerID: owner-1
+        localID: sess-retry
+        parentSessionID: sess-harden
+      - name: read-the-timeout-defaults
+        ownerID: owner-1
+        localID: sess-timeouts
+        parentSessionID: null
+      - name: measure-the-backoff
+        ownerID: owner-1
+        localID: sess-backoff
+        parentSessionID: null
+      - name: name-the-error-cases
+        ownerID: owner-1
+        localID: sess-errors
+        parentSessionID: null
+      - name: draft-the-runbook
+        ownerID: owner-1
+        localID: sess-runbook
+        parentSessionID: null
+      - name: check-the-metrics-panel
+        ownerID: owner-1
+        localID: sess-metrics
+        parentSessionID: null
+      - name: harden-the-client
+        ownerID: owner-1
+        localID: sess-harden
+        parentSessionID: null
+    agentSessions: []
+    serverTotal: 7
+    expectedVisibleCount: 6
+    expectedRootRows:
+      [read-the-timeout-defaults, measure-the-backoff, name-the-error-cases,
+       draft-the-runbook, check-the-metrics-panel, harden-the-client]
+    expectedHomeRows:
+      [harden-the-client, read-the-timeout-defaults, measure-the-backoff,
+       name-the-error-cases, draft-the-runbook]
+    expectedGroups:
+      - parent: harden-the-client
+        label: "+ 1 child session"
+        children: [wire-the-retry]

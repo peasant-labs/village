@@ -52,7 +52,7 @@ const SURFACES = {
     prefix: 'village-home-child',
   },
   project: {
-    path: process.env.PROJECT_PATH || `/users/village-demo/projects/${'1'.repeat(64)}`,
+    path: process.env.PROJECT_PATH || `/users/alice-dev/projects/${'1'.repeat(64)}`,
     unmatched: null,
     listSelector: '[data-testid="project-display-name"]',
     prefix: 'village-project-child',
