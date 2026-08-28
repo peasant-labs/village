@@ -202,6 +202,12 @@ DELETE FROM transcripts WHERE id = $1;
 -- deterministic pick the resolver's contract requires, so the caller only has to
 -- walk the array and take the first name of each class.
 --
+-- project_path is picked by the SAME deterministic idiom as git_remote — the
+-- first non-empty value under (published_at DESC, then id) — so the two pieces of
+-- evidence a project falls back to cannot disagree about which transcript they
+-- came from. It is the path the publishing client recorded, ALREADY redacted when
+-- it reached storage; this read neither re-derives nor masks it.
+--
 -- The override join is narrowed to the single writable pair, ('project',
 -- 'display_name'); the table reserves other pairs for later fields, and this read
 -- must not start returning one the application does not implement.
@@ -219,6 +225,11 @@ SELECT
             FILTER (WHERE t.git_remote IS NOT NULL AND t.git_remote <> ''))[1],
         ''
     )::text AS git_remote,
+    COALESCE(
+        (array_agg(t.project_path ORDER BY t.published_at DESC, t.id)
+            FILTER (WHERE t.project_path IS NOT NULL AND t.project_path <> ''))[1],
+        ''
+    )::text AS project_path,
     count(*)::bigint AS transcript_count
 FROM transcripts t
 LEFT JOIN owner_overrides o
@@ -283,3 +294,50 @@ ORDER BY t.published_at DESC, t.id DESC;
 -- queries/transcripts_pull.sql, mirroring the
 -- annotations_push convention so sqlc round-trips them into transcripts_pull.sql.go
 -- without colliding with this file's generated transcripts.sql.go.
+
+-- name: ListOwnerProjectShareCandidates :many
+-- Every transcript of ONE owner in ONE project: the closed set a batch
+-- contribution to a collective may name. The batch route resolves the request's
+-- ids against this set BEFORE it opens a transaction, so a transcript belonging
+-- to another project or another person is refused with nothing written.
+--
+-- Ownership and project identity are both in the WHERE clause rather than being
+-- checked afterwards in Go, so a row that reaches the caller is by construction
+-- one the caller may contribute. The ordering is the deterministic pick the rest
+-- of the identity surfaces already use (published_at DESC, then id), so the
+-- receipt lists the transcripts in the same order the person sees them.
+SELECT t.id, t.local_id, t.visibility
+FROM transcripts t
+WHERE t.owner_id = @owner_id
+  AND t.project_hash = @project_hash
+ORDER BY t.published_at DESC, t.id ASC;
+
+-- name: ListOwnerContributableTranscripts :many
+-- Every transcript the caller owns, each carrying whether it is ALREADY live in
+-- ONE collective. The contribute surface needs both halves at once: the corpus
+-- it groups into projects and branches, and the per-row answer that decides
+-- which rows it may still offer.
+--
+-- already_shared is computed here, from the attempt LEDGER, and never from the
+-- derived current-state row: a pair whose last event was a withdrawal has no
+-- derived row at all, and a caller that read the projection would present a
+-- withdrawn contribution as contributable while it is not, or the reverse.
+-- Live means the LATEST event of the pair is pending or approved, which is the
+-- same definition the single share path applies before it opens an attempt.
+SELECT t.id, t.local_id, t.title, t.visibility, t.project_hash, t.git_branch,
+       t.parent_session_id, t.session_origin, t.model_provider, t.published_at,
+       EXISTS (
+           SELECT 1
+           FROM transcript_share_attempts a
+           WHERE a.transcript_id = t.id
+             AND a.group_id = @group_id
+             AND a.status IN ('pending', 'approved')
+             AND a.event_num = (
+                 SELECT max(b.event_num)
+                 FROM transcript_share_attempts b
+                 WHERE b.transcript_id = t.id AND b.group_id = @group_id
+             )
+       )::boolean AS already_shared
+FROM transcripts t
+WHERE t.owner_id = @owner_id
+ORDER BY t.published_at DESC, t.id ASC;

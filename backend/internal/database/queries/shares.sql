@@ -274,3 +274,25 @@ SELECT DISTINCT gm.user_id
 FROM transcript_shares ts
 JOIN group_members gm ON gm.group_id = ts.group_id
 WHERE ts.transcript_id = $1 AND gm.role = 'owner';
+
+-- name: ListLiveShareAttemptsForGroup :many
+-- Which of the named transcripts are ALREADY live in one collective. Live means
+-- the latest event of the (transcript, collective) pair is pending or approved,
+-- which is exactly what makes a further submission a duplicate rather than the
+-- next attempt.
+--
+-- This statement reads the attempt LEDGER (transcript_share_attempts) and
+-- nothing else. It deliberately never mentions the derived transcript_shares
+-- row: a pair that was submitted, refused and then withdrawn has no derived row,
+-- and a batch that consulted the projection would report an open submission as
+-- absent and then be refused by the database instead of answering the person.
+SELECT latest.transcript_id, latest.status
+FROM (
+    SELECT DISTINCT ON (a.transcript_id)
+           a.transcript_id, a.status
+    FROM transcript_share_attempts a
+    WHERE a.group_id = @group_id
+      AND a.transcript_id = ANY(@transcript_ids::uuid[])
+    ORDER BY a.transcript_id, a.event_num DESC
+) latest
+WHERE latest.status IN ('pending', 'approved');

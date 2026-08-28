@@ -7,18 +7,9 @@ import { SessionDetailV2 } from "@/components/session-detail/v2/SessionDetailV2"
 import PendingApprovalBar, {
   type PendingReview,
 } from "@/components/transcript/PendingApprovalBar";
+import { isSessionDetailPayload } from "@/lib/sessionDetailPayload";
 import type { SessionDetailPayload } from "@/types/messages";
 import { FileX2 } from "lucide-react";
-
-/** Narrowing guard: a SessionDetailPayload always carries a `turns` array. */
-function isSessionDetailPayload(value: unknown): value is SessionDetailPayload {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    Array.isArray((value as { turns?: unknown }).turns)
-  );
-}
 
 export default function TranscriptDetailPage({
   params,

@@ -357,8 +357,8 @@ gated by collective visibility and the owner's contributor opt-in.
 
 | Script | Role |
 |---|---|
-| `mock-rest-project.mjs` | REST stand-in for the project page. Serves the page payload and the two hash-keyed correction routes LIVE, so a reset is a real round-trip rather than a second frozen fixture. `MOCK_PROJECT_VIEWER=owner\|other\|anon` chooses who is looking; `MOCK_PROJECT_ROLLUP=empty` serves an empty roll-up. |
-| `project-page-shoot.mjs` | Captures the page per theme and asserts build provenance BEFORE writing any PNG: the served page must carry the project heading, the repository-label subtitle in `host:owner/repo` shape, and the correction control, and `VILLAGE_URL` must be the 64-hex hash-keyed route. It also prints a `getComputedStyle` probe (tokens, fonts, radius, tabular numerals, text-transform), because `--surface` vs `--canvas` and `--ink-2` vs `--ink-3` cannot be told apart in a scaled PNG. |
+| `mock-rest-project.mjs` | REST stand-in for the project page. Serves the page payload and the two hash-keyed correction routes LIVE, so a reset is a real round-trip rather than a second frozen fixture. `MOCK_PROJECT_VIEWER=owner\|other\|anon` chooses who is looking; `MOCK_PROJECT_ROLLUP=empty` serves an empty roll-up; `MOCK_PROJECT_IDENTITY=path` serves a project with NO git remote and no chosen or disclosed name, so its name is the redacted local path its publisher recorded. |
+| `project-page-shoot.mjs` | Captures the page per theme and asserts build provenance BEFORE writing any PNG: the served page must carry the project heading, the repository-label subtitle in `host:owner/repo` shape, and the correction control, and `VILLAGE_URL` must be the 64-hex hash-keyed route. `PROJECT_SHOOT_MODE=path` captures the path-named project instead: it requires the heading to carry the redacted-path shape, requires NO repository subtitle (there is no repository to label), and requires the correction control to explain the path tier - a sentence only a build that knows the tier serves, which is what makes a stale server fail instead of producing a misleading PNG. It also prints a `getComputedStyle` probe (tokens, fonts, radius, tabular numerals, text-transform), because `--surface` vs `--canvas` and `--ink-2` vs `--ink-3` cannot be told apart in a scaled PNG. |
 
 `PROJECT_SHOOT_MODE` selects which production state is captured:
 
@@ -411,6 +411,21 @@ CHROME_PATH=$CHROME PROJECT_SHOOT_MODE=profile \
   VILLAGE_URL="http://localhost:3000/users/alice-dev" \
   node scripts/visual/project-page-shoot.mjs light $BASE/light
 ```
+
+```sh
+# 6. capture the project whose name comes from its redacted local path
+MOCK_PROJECT_IDENTITY=path MOCK_REST_PORT=8790 node scripts/visual/mock-rest-project.mjs &
+CHROME_PATH=$CHROME PROJECT_SHOOT_MODE=path \
+  VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
+  node scripts/visual/project-page-shoot.mjs dark  $BASE/dark
+CHROME_PATH=$CHROME PROJECT_SHOOT_MODE=path \
+  VILLAGE_URL="http://localhost:3000/users/alice-dev/projects/$HASH" \
+  node scripts/visual/project-page-shoot.mjs light $BASE/light
+```
+
+The path mode needs its OWN mock process: the identity a mock serves is chosen
+at startup, and the app must be BUILT against that mock's port because
+`NEXT_PUBLIC_API_URL` is baked at build time.
 
 The owner mode consumes the override it resets, so restart the mock between
 themes. The profile mode reads the same identity state, so run it before the

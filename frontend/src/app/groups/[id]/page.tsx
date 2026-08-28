@@ -3,13 +3,13 @@
 import { use, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ChevronRight,
   Users,
   Lock,
   ExternalLink,
   Check,
   Minus,
   Trash2,
+  ShieldAlert,
 } from "lucide-react";
 import {
   useGroup,
@@ -21,20 +21,14 @@ import {
   useRemoveGroupTranscript,
   useMyGroupShares,
 } from "@/lib/queries/groups";
-import {
-  useTranscripts,
-  useBulkShareTranscripts,
-  useUnshareTranscript,
-} from "@/lib/queries/transcripts";
+import { useUnshareTranscript } from "@/lib/queries/transcripts";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
-import { groupByProject, resolveAttribution } from "@/lib/format";
+import { resolveAttribution } from "@/lib/format";
 import {
   Button,
-  ProviderTag,
   ProviderName,
-  Tag,
   ProviderBars,
   RailShell,
   RailSection,
@@ -42,8 +36,8 @@ import {
   RoleRoster,
 } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
+import ProviderBadge from "@/components/transcript/ProviderBadge";
 import GitHubUserSearch from "@/components/GitHubUserSearch";
-import ConfirmContributeDialog from "@/components/transcript/ConfirmContributeDialog";
 import LeaveCollectiveDialog from "@/components/group/LeaveCollectiveDialog";
 import JoinConsentDialog from "@/components/group/JoinConsentDialog";
 import CollectiveAnalytics from "@/components/group/CollectiveAnalytics";
@@ -54,18 +48,6 @@ import { Manage } from "@peasant-labs/fairtrade/commons";
 import { humanizeEnum } from "@/lib/adapters/manage";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-// In village, a transcript's `model_provider` carries the harness wire value
-// (the coding agent that produced the session), distinct from `model_name` (the
-// LLM). ProviderTag / ProviderName lead with the real brand mark for a known
-// harness; anything outside that set falls back to a neutral, plain-text tag.
-function ProviderBadge({ provider }: { provider: string }) {
-  return isHarness(provider) ? (
-    <ProviderTag harness={provider} />
-  ) : (
-    <Tag>{provider || "unknown"}</Tag>
-  );
-}
 
 function formatDuration(ms: number): string {
   const mins = Math.floor(ms / 60000);
@@ -96,21 +78,16 @@ export default function GroupDetailPage({
   const removeMember = useRemoveGroupMember();
   const joinGroup = useJoinGroup();
   const promoteMember = usePromoteMember();
-  const bulkShare = useBulkShareTranscripts();
   const removeGroupTranscript = useRemoveGroupTranscript();
   const unshareTranscript = useUnshareTranscript();
 
   const [inviteUsername, setInviteUsername] = useState("");
-  const [showContribute, setShowContribute] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [dataPage, setDataPage] = useState(0);
   const [showDataBrowser, setShowDataBrowser] = useState(false);
   const [contributorFilter, setContributorFilter] = useState<string>("");
   const [browseView, setBrowseView] = useState<"list" | "repos">("list");
   const [rowSelected, setRowSelected] = useState<Set<string>>(new Set());
   const [confirmingBulkRemove, setConfirmingBulkRemove] = useState(false);
-  const [confirmContributeOpen, setConfirmContributeOpen] = useState(false);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [showJoinConsent, setShowJoinConsent] = useState(false);
   const qc = useQueryClient();
@@ -157,10 +134,6 @@ export default function GroupDetailPage({
   });
 
   const { data: myShares } = useMyGroupShares(id, !!user);
-
-  const { data: myTranscripts } = useTranscripts(
-    showContribute && user ? { owner: user.github_username, limit: "100" } : undefined
-  );
 
   if (isLoading) {
     return (
@@ -268,19 +241,6 @@ export default function GroupDetailPage({
     },
   };
 
-  const alreadySharedIds = new Set((transcripts || []).map((t) => t.id));
-  const shareable =
-    myTranscripts?.transcripts?.filter((item) => {
-      if (alreadySharedIds.has(item.transcript.id)) return false;
-      if (item.shares?.some((s) => s.group_id === id)) return false;
-      return true;
-    }) || [];
-  // Malformed (no-project_hash) items are a rendering-only anomaly this
-  // secondary picker doesn't need its own notice for — groupByProject never
-  // crashes on them, it just omits them from `groups`, so the picker stays
-  // safe to use even if the anomaly ever occurs.
-  const { groups: shareableGroups } = groupByProject(shareable);
-
   const totalTranscripts = stats?.total_transcripts ?? 0;
   const totalPages = Math.ceil(totalTranscripts / DATA_PAGE_SIZE);
   const rawBrowserTranscripts = showDataBrowser
@@ -338,38 +298,6 @@ export default function GroupDetailPage({
     );
   };
 
-  function toggleProject(project: string) {
-    setExpandedProjects((prev) => {
-      const next = new Set(prev);
-      if (next.has(project)) next.delete(project);
-      else next.add(project);
-      return next;
-    });
-  }
-
-  function toggleSelect(tid: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(tid)) next.delete(tid);
-      else next.add(tid);
-      return next;
-    });
-  }
-
-  function toggleProjectGroup(items: typeof shareable) {
-    const ids = items.map((i) => i.transcript.id);
-    setSelected((prev) => {
-      const next = new Set(prev);
-      const allSelected = ids.every((id) => next.has(id));
-      if (allSelected) {
-        ids.forEach((id) => next.delete(id));
-      } else {
-        ids.forEach((id) => next.add(id));
-      }
-      return next;
-    });
-  }
-
   function toggleRow(tid: string) {
     setRowSelected((prev) => {
       const next = new Set(prev);
@@ -403,35 +331,6 @@ export default function GroupDetailPage({
     );
     setRowSelected(new Set());
     setConfirmingBulkRemove(false);
-  }
-
-  const selectedShareableItems = shareable.filter((item) =>
-    selected.has(item.transcript.id)
-  );
-  const selectedPrivateItems = selectedShareableItems.filter(
-    (item) => item.transcript.visibility === "private"
-  );
-
-  function runBulkShare() {
-    bulkShare.mutate(
-      { transcriptIds: Array.from(selected), groupId: id },
-      {
-        onSuccess: () => {
-          setSelected(new Set());
-          setShowContribute(false);
-          setConfirmContributeOpen(false);
-        },
-      }
-    );
-  }
-
-  function handleContribute() {
-    if (selected.size === 0) return;
-    if (selectedPrivateItems.length > 0) {
-      setConfirmContributeOpen(true);
-      return;
-    }
-    runBulkShare();
   }
 
   const roleOrder: Record<string, number> = { owner: 0, member: 1, contributor: 2 };
@@ -1083,183 +982,51 @@ export default function GroupDetailPage({
 
   return (
     <div className="cmg-root max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-      {/* Manage owns the single "village > collectives > name" breadcrumb. */}
 
-      <Manage
-        data={manageData}
-        actions={{
-          onJoin: user ? handleJoinClick : undefined,
-          onLeave: canLeave ? () => setConfirmingLeave(true) : undefined,
-          onContribute: isMember ? () => setShowContribute(true) : undefined,
-          onSettings: isOwner ? () => router.push(`/groups/${id}/settings`) : undefined,
-        }}
-      />
+      {/* Manage owns the single "village > collectives > name" breadcrumb.
 
-      {/* Contribute panel */}
-      {showContribute && (
-        <div className="border border-rule bg-surface animate-fade-up">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
-            <span className="text-sm font-medium text-ink">
-              Select transcripts to contribute
-            </span>
-            <button
-              onClick={() => {
-                setShowContribute(false);
-                setSelected(new Set());
-              }}
-              className="text-xs font-mono text-ink-3 hover:text-ink transition-colors cursor-pointer focus-mono"
+          An OWNER can contribute their own transcripts, but the shared manage
+          surface renders its contribute action only for a member or a
+          contributor, and exposes no header action slot -- so an owner had no
+          way to reach this collective's contribute route. Village renders the
+          same action itself, ONLY for an owner, so a member never sees two
+          contribute buttons. It is deliberately the same control the manage
+          surface renders for a member: fairtrade's primary small button, the
+          same glyph the shipped surface uses at the same size, the same
+          lowercase label. It is
+          placed in the header band beside the breadcrumb (static above it on a
+          small viewport, where an overlay could collide with a wrapped
+          breadcrumb). Rendering it INSIDE the manage header row is a fairtrade
+          change (a header action slot), not a village one. */}
+      <div className="relative">
+        {isOwner && (
+          <div className="flex items-center justify-end pb-4 sm:pb-0 sm:absolute sm:right-0 sm:top-0">
+            <Button
+              variant="primary"
+              size="sm"
+              icon={ShieldAlert}
+              onClick={() => router.push(`/groups/${id}/contribute`)}
             >
-              Cancel
-            </button>
+              contribute
+            </Button>
           </div>
-
-          {shareable.length === 0 ? (
-            <div className="px-5 py-8 text-center">
-              <p className="text-[13px] text-ink-3">
-                All your transcripts are already shared with this collective, or you have no
-                published transcripts.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="max-h-96 overflow-y-auto divide-y divide-rule">
-                {shareableGroups.map((pg) => {
-                  const pgIds = pg.items.map((i) => i.transcript.id);
-                  const allSelected = pgIds.every((pid) => selected.has(pid));
-                  const someSelected = pgIds.some((pid) => selected.has(pid));
-                  const isExpanded = expandedProjects.has(pg.project);
-                  return (
-                    <div key={pg.project}>
-                      <div className="flex items-center gap-2 px-5 py-2.5">
-                        <button
-                          type="button"
-                          onClick={() => toggleProject(pg.project)}
-                          aria-label={isExpanded ? "Collapse project" : "Expand project"}
-                          className="inline-flex size-5 items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-hover transition-colors cursor-pointer focus-mono"
-                        >
-                          <ChevronRight
-                            className={`size-3.5 transition-transform duration-150 ${
-                              isExpanded ? "rotate-90" : ""
-                            }`}
-                          />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => toggleProjectGroup(pg.items)}
-                          className="flex items-center gap-2.5 group/proj cursor-pointer focus-mono"
-                        >
-                          <span
-                            className={`size-3.5 border flex items-center justify-center shrink-0 transition-colors ${
-                              allSelected
-                                ? "bg-mark border-mark"
-                                : someSelected
-                                ? "bg-surface-hover border-rule-strong"
-                                : "border-rule-strong group-hover/proj:border-ink"
-                            }`}
-                          >
-                            {allSelected && (
-                              <Check className="size-2.5 text-mark-fg" strokeWidth={3} />
-                            )}
-                            {someSelected && !allSelected && (
-                              <Minus className="size-2.5 text-ink" strokeWidth={3} />
-                            )}
-                          </span>
-                          <span className="font-[family-name:var(--font-display)] text-sm text-ink tracking-tight">
-                            {pg.project}
-                          </span>
-                          <span className="text-[11px] font-mono text-ink-3 tabular-nums">
-                            {pg.items.length}
-                          </span>
-                        </button>
-                      </div>
-                      {isExpanded && (
-                        <div className="border-t border-rule divide-y divide-rule">
-                          {pg.items.map((item) => {
-                            const t = item.transcript;
-                            const isSelected = selected.has(t.id);
-                            return (
-                              <div
-                                key={t.id}
-                                className={`flex items-center gap-2.5 pl-12 pr-5 py-2 transition-colors ${
-                                  isSelected ? "bg-surface-hover" : "hover:bg-surface-hover"
-                                }`}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => toggleSelect(t.id)}
-                                  aria-label={
-                                    isSelected ? "Deselect transcript" : "Select transcript"
-                                  }
-                                  className="shrink-0 cursor-pointer focus-mono"
-                                >
-                                  <span
-                                    className={`size-3.5 border flex items-center justify-center transition-colors ${
-                                      isSelected
-                                        ? "bg-mark border-mark"
-                                        : "border-rule-strong hover:border-ink"
-                                    }`}
-                                  >
-                                    {isSelected && (
-                                      <Check
-                                        className="size-2.5 text-mark-fg"
-                                        strokeWidth={3}
-                                      />
-                                    )}
-                                  </span>
-                                </button>
-                                <ProviderBadge provider={t.model_provider} />
-                                <button
-                                  type="button"
-                                  onClick={() => toggleSelect(t.id)}
-                                  className="text-sm text-ink truncate text-left cursor-pointer min-w-0 focus-mono"
-                                >
-                                  {t.title || "Untitled"}
-                                </button>
-                                <span className="text-[11px] font-mono text-ink-3 tabular-nums shrink-0">
-                                  {new Date(t.published_at).toLocaleDateString("en-US", {
-                                    month: "short",
-                                    day: "numeric",
-                                  })}
-                                </span>
-                                <a
-                                  href={`/transcripts/${t.id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="ml-auto shrink-0 inline-flex size-6 items-center justify-center text-ink-4 hover:text-ink hover:bg-surface-hover transition-colors cursor-pointer focus-mono"
-                                  title="View transcript"
-                                >
-                                  <ExternalLink className="size-3.5" />
-                                </a>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center justify-between px-5 py-3 border-t border-rule">
-                <p className="text-xs font-mono text-ink-3 tabular-nums">
-                  {selected.size} selected
-                </p>
-                <Button
-                  variant="primary"
-                  loading={bulkShare.isPending}
-                  disabled={selected.size === 0 || bulkShare.isPending}
-                  onClick={handleContribute}
-                >
-                  {bulkShare.isPending
-                    ? "Sharing…"
-                    : `Contribute ${selected.size} Transcript${selected.size !== 1 ? "s" : ""}`}
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
+        )}
+        <Manage
+          data={manageData}
+          actions={{
+            onJoin: user ? handleJoinClick : undefined,
+            onLeave: canLeave ? () => setConfirmingLeave(true) : undefined,
+            // Owners get their own contribute button above (rendered
+            // unconditionally by village, not gated on Manage's internal
+            // role check), so this callback is withheld for owners here at
+            // the village boundary. That keeps the no-double-button
+            // guarantee village's own responsibility instead of depending
+            // on Manage never rendering a contribute action for an owner.
+            onContribute: isMember && !isOwner ? () => router.push(`/groups/${id}/contribute`) : undefined,
+            onSettings: isOwner ? () => router.push(`/groups/${id}/settings`) : undefined,
+          }}
+        />
+      </div>
 
       {/* Main layout — RailShell: main canvas + sticky right rail. NOT a duplicate of <Manage>
           above -- <Manage> only covers the governance summary (hero/GovTile/StatGrid, now
@@ -1276,24 +1043,6 @@ export default function GroupDetailPage({
       </RailShell>
 
       {/* Dialogs */}
-      <ConfirmContributeDialog
-        open={confirmContributeOpen}
-        onClose={() => setConfirmContributeOpen(false)}
-        onConfirm={runBulkShare}
-        transcripts={selectedPrivateItems.map((item) => ({
-          id: item.transcript.id,
-          title: item.transcript.title ?? "Untitled",
-        }))}
-        collectives={[
-          {
-            id: group.id,
-            name: group.name,
-            memberCount: members.length,
-          },
-        ]}
-        isSubmitting={bulkShare.isPending}
-      />
-
       {user && canLeave && (
         <LeaveCollectiveDialog
           open={confirmingLeave}

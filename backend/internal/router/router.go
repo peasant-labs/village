@@ -144,6 +144,11 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Post("/groups/{id}/members", h.AddGroupMember)
 		r.With(h.AuthRequired).Patch("/groups/{id}/members/{userID}/role", h.PromoteMember)
 		r.With(h.AuthRequired).Delete("/groups/{id}/members/{userID}", h.RemoveGroupMember)
+		// Contributing a whole project: one read that says what the caller may
+		// offer this collective, and one write that offers a project's
+		// transcripts in a single transaction. Both are member-only.
+		r.With(h.AuthRequired).Get("/groups/{id}/contributable", h.ListContributable)
+		r.With(h.AuthRequired).Post("/groups/{id}/shares", h.BatchShareProject)
 		r.With(h.AuthRequired).Get("/groups/{id}/pending", h.ListPendingShares)
 		r.With(h.AuthRequired).Get("/groups/{id}/my-shares", h.ListMyGroupShares)
 		r.With(h.AuthRequired).Patch("/groups/{id}/shares/{transcriptID}", h.ReviewShare)

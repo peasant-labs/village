@@ -1,0 +1,393 @@
+# Cases for the contribute tree page (village#66): the project > branch >
+# session tree, its selection/filter helpers, the sequential one-POST-per-
+# project batch-share run, and the preview column. Loaded by
+# src/test/groupsContributeTreeFixtures.ts.
+#
+# `rows` use a terse per-case shorthand (see `RowSpec` in the loader): only
+# the fields a case cares about are set, everything else defaults to a
+# realistic constant. `kind` tells the loader which case-specific fields to
+# expect and which test file consumes it — `tree` (pure tree/selection/filter
+# module tests), `post` (the sequential batch-share run, asserting the
+# request BODY, never a call count alone), and `preview` (the preview-variant
+# component tests).
+cases:
+  # --- kind: tree ------------------------------------------------------------
+
+  - name: two_branch_project_collapses_children
+    kind: tree
+    why: >-
+      a project with two branches must group its root sessions under their
+      OWN branch, and a root session's own child session must nest under
+      that root rather than appearing as a second flat row.
+    rows:
+      - id: s-main-1
+        local_id: local-main-1
+        title: fix the parser
+        project_hash: proj-a
+        project_display_name: web app
+        git_branch: main
+      - id: s-main-2
+        local_id: local-main-2
+        title: add retries
+        parent_session_id: local-main-1
+        project_hash: proj-a
+        project_display_name: web app
+        git_branch: main
+      - id: s-feature-1
+        local_id: local-feature-1
+        title: draft the feature
+        project_hash: proj-a
+        project_display_name: web app
+        git_branch: feature/new-ui
+    expect:
+      projectLabel: web app
+      branchLabels: [feature/new-ui, main]
+      mainRootIds: [s-main-1]
+      mainRootChildIds: [s-main-2]
+      featureRootIds: [s-feature-1]
+
+  - name: orphans_under_synthetic_node
+    kind: tree
+    why: >-
+      a row naming a parent_session_id that is not present anywhere in the
+      fetched corpus must not vanish -- it becomes a root under the project's
+      ONE synthetic orphans node instead of being silently dropped.
+    rows:
+      - id: s-root
+        local_id: local-root
+        title: known root
+        project_hash: proj-b
+        project_display_name: data pipeline
+        git_branch: main
+      - id: s-orphan
+        local_id: local-orphan
+        title: child of a session never fetched
+        parent_session_id: local-missing
+        project_hash: proj-b
+        project_display_name: data pipeline
+        git_branch: main
+    expect:
+      projectLabel: data pipeline
+      orphanLabel: orphaned transcripts
+      orphanSessionIds: [s-orphan]
+      branchLabels: [main]
+
+  - name: multi_harness_counts
+    kind: tree
+    why: >-
+      the harness facet's counts must be computed AFTER the search text
+      narrows the corpus, and must count every harness present, not just the
+      first one encountered.
+    rows:
+      - id: s-claude-1
+        local_id: local-claude-1
+        title: claude session one
+        model_provider: claude-code
+        project_hash: proj-c
+        project_display_name: multi harness project
+      - id: s-claude-2
+        local_id: local-claude-2
+        title: claude session two
+        model_provider: claude-code
+        project_hash: proj-c
+        project_display_name: multi harness project
+      - id: s-codex-1
+        local_id: local-codex-1
+        title: codex session
+        model_provider: codex
+        project_hash: proj-c
+        project_display_name: multi harness project
+      - id: s-gemini-1
+        local_id: local-gemini-1
+        title: gemini run, excluded from the search
+        model_provider: gemini-cli
+        project_hash: proj-c
+        project_display_name: multi harness project
+    expect:
+      search: session
+      countsAfterSearch: { claude-code: 2, codex: 1 }
+      excludedHarnessAfterSearch: gemini-cli
+
+  - name: search_narrows_rows
+    kind: tree
+    why: >-
+      typing a search term must narrow the tree to matching titles only, and
+      an untitled row must be matchable by its id so a viewer typing a short
+      id they saw elsewhere still finds it.
+    rows:
+      - id: s-parser-fix
+        local_id: local-parser-fix
+        title: fix the json parser
+        project_hash: proj-d
+        project_display_name: search project
+      - id: s-untitled
+        local_id: local-untitled
+        title: null
+        project_hash: proj-d
+        project_display_name: search project
+      - id: s-unrelated
+        local_id: local-unrelated
+        title: unrelated change
+        project_hash: proj-d
+        project_display_name: search project
+    expect:
+      searchByTitle: parser
+      matchedByTitle: [s-parser-fix]
+      searchById: s-untitled
+      matchedById: [s-untitled]
+
+  - name: already_shared_disabled
+    kind: tree
+    why: >-
+      a row already shared into this collective must be excluded from
+      leafIds (so it can never be selected or re-sent) even though it still
+      renders in the tree, disabled, with an "already contributed" tag.
+    rows:
+      - id: s-fresh
+        local_id: local-fresh
+        title: not yet shared
+        project_hash: proj-e
+        project_display_name: already-shared project
+        already_shared: false
+      - id: s-shared
+        local_id: local-shared
+        title: already shared
+        project_hash: proj-e
+        project_display_name: already-shared project
+        already_shared: true
+    expect:
+      selectableLeafIds: [s-fresh]
+      excludedLeafId: s-shared
+
+  # --- kind: post (the sequential one-POST-per-project run) ------------------
+
+  - name: one_post_per_project
+    kind: post
+    why: >-
+      selecting sessions across two projects must fire exactly one POST per
+      project, and each request body must carry exactly that project's
+      selected transcript ids -- never merged into one POST, never split into
+      two for the same project.
+    rows:
+      - id: s-p1-a
+        local_id: local-p1-a
+        project_hash: proj-one
+        project_display_name: project one
+      - id: s-p1-b
+        local_id: local-p1-b
+        project_hash: proj-one
+        project_display_name: project one
+      - id: s-p2-a
+        local_id: local-p2-a
+        project_hash: proj-two
+        project_display_name: project two
+    selectionIds: [s-p1-a, s-p1-b, s-p2-a]
+    failing: []
+    expect:
+      requestsByProject:
+        proj-one: [s-p1-a, s-p1-b]
+        proj-two: [s-p2-a]
+      finalResultProjects: [proj-one, proj-two]
+
+  - name: failure_continues_and_reports
+    kind: post
+    why: >-
+      one project's POST failing must not stop the run -- every remaining
+      project still gets its POST, and the completed state reports every
+      project's outcome, success or failure, by its own server message.
+    rows:
+      - id: s-fail-a
+        local_id: local-fail-a
+        project_hash: proj-fail
+        project_display_name: failing project
+      - id: s-ok-a
+        local_id: local-ok-a
+        project_hash: proj-ok
+        project_display_name: ok project
+    selectionIds: [s-fail-a, s-ok-a]
+    failing: [proj-fail]
+    failureMessage: "the collective refused this batch: visibility confirmation required"
+    expect:
+      requestsByProject:
+        proj-fail: [s-fail-a]
+        proj-ok: [s-ok-a]
+      finalResultProjects: [proj-fail, proj-ok]
+      failedProjectMessage: "the collective refused this batch: visibility confirmation required"
+
+  - name: failed_projects_stay_selected
+    kind: post
+    why: >-
+      after a run completes, a project whose POST failed must remain
+      selected (so retrying is one click), while a project that succeeded
+      must be cleared from the selection.
+    rows:
+      - id: s-fail-b
+        local_id: local-fail-b
+        project_hash: proj-fail-2
+        project_display_name: failing project two
+      - id: s-ok-b
+        local_id: local-ok-b
+        project_hash: proj-ok-2
+        project_display_name: ok project two
+    selectionIds: [s-fail-b, s-ok-b]
+    failing: [proj-fail-2]
+    failureMessage: "the collective refused this batch: visibility confirmation required"
+    expect:
+      selectionAfterRun: [s-fail-b]
+      clearedFromSelection: [s-ok-b]
+
+  - name: orphans_node_never_sent
+    kind: post
+    why: >-
+      an orphans synthetic node's own id (e.g. "<project_hash>::orphans")
+      must never appear in a POST body -- only the real transcript ids under
+      it, selected the same way any other leaf is.
+    rows:
+      - id: s-orphan-root
+        local_id: local-orphan-root
+        project_hash: proj-orphan-post
+        project_display_name: orphan post project
+      - id: s-orphan-child
+        local_id: local-orphan-child
+        parent_session_id: local-missing-parent
+        project_hash: proj-orphan-post
+        project_display_name: orphan post project
+    selectionIds: [s-orphan-root, s-orphan-child]
+    failing: []
+    expect:
+      requestsByProject:
+        proj-orphan-post: [s-orphan-root, s-orphan-child]
+      forbiddenBodyId: "proj-orphan-post::orphans"
+
+  # --- kind: page (mounted route: L4) -----------------------------------------
+
+  - name: private_selection_opens_confirm
+    kind: page
+    why: >-
+      selecting a private transcript and pressing contribute must open the
+      confirm dialog before any request fires; confirming then runs exactly
+      the batch the selection named.
+    rows:
+      - id: s-private-1
+        local_id: local-private-1
+        title: a private session
+        visibility: private
+        project_hash: proj-confirm
+        project_display_name: confirm project
+      - id: s-public-1
+        local_id: local-public-1
+        title: a public session
+        visibility: public
+        project_hash: proj-confirm
+        project_display_name: confirm project
+    expect:
+      privateSelectionId: s-private-1
+      requestsBeforeConfirm: 0
+      expectedBodyAfterConfirm:
+        project_hash: proj-confirm
+        transcript_ids: [s-private-1]
+        visibility_confirmed: true
+
+  - name: header_counts_selected_and_sessions
+    kind: page
+    why: >-
+      the tree header states how much of the visible list is selected. The
+      second figure counts SELECTABLE sessions (a row already contributed to
+      this collective can never be selected, so counting it would promise a
+      selection the viewer can never reach). The contributable wire rows
+      carry no token total, so this header counts sessions where the local
+      share picker counts tokens.
+    rows:
+      - id: s-tally-1
+        local_id: local-tally-1
+        title: first countable session
+        project_hash: proj-tally
+        project_display_name: tally project
+        git_branch: main
+      - id: s-tally-2
+        local_id: local-tally-2
+        title: second countable session
+        project_hash: proj-tally
+        project_display_name: tally project
+        git_branch: main
+      - id: s-tally-shared
+        local_id: local-tally-shared
+        title: already contributed session
+        project_hash: proj-tally
+        project_display_name: tally project
+        git_branch: main
+        already_shared: true
+    expect:
+      initialTally: 0 selected · 2 sessions
+      tickId: s-tally-1
+      tallyAfterTick: 1 selected · 2 sessions
+
+  - name: select_all_selects_every_leaf
+    kind: page
+    why: >-
+      "select all" must tick every selectable leaf across EVERY project in
+      the visible tree (not just the first one) and must skip an
+      already-contributed row; pressing the control again clears exactly
+      those leaves, returning the tally to zero.
+    rows:
+      - id: s-all-a
+        local_id: local-all-a
+        title: session in the first project
+        project_hash: proj-all-one
+        project_display_name: first project
+        git_branch: main
+      - id: s-all-b
+        local_id: local-all-b
+        title: session in the second project
+        project_hash: proj-all-two
+        project_display_name: second project
+        git_branch: main
+      - id: s-all-shared
+        local_id: local-all-shared
+        title: already contributed elsewhere
+        project_hash: proj-all-two
+        project_display_name: second project
+        git_branch: main
+        already_shared: true
+    expect:
+      tallyAfterSelectAll: 2 selected · 2 sessions
+      tallyAfterDeselectAll: 0 selected · 2 sessions
+      requestsByProject:
+        proj-all-one: [s-all-a]
+        proj-all-two: [s-all-b]
+      forbiddenBodyId: s-all-shared
+
+  # --- kind: preview (L3) -----------------------------------------------------
+
+  - name: preview_renders_on_click
+    kind: preview
+    why: >-
+      clicking a session row in the tree must render that session's preview
+      in the right column; the preview never renders on hover, and an empty
+      state shows before any session is clicked.
+    rows:
+      - id: s-preview-click
+        local_id: local-preview-click
+        title: click me to preview
+        project_hash: proj-preview
+        project_display_name: preview project
+    expect:
+      clickedId: s-preview-click
+      emptyStateText: select a session to preview it
+
+  - name: preview_hides_graph_and_owner_actions
+    kind: preview
+    why: >-
+      the preview variant must hide the trajectory graph slot, the edit
+      dialog trigger, the contribute picker, and every owner-only capability
+      -- a viewer previewing someone else's session must never see or reach
+      an owner action from inside the preview column.
+    rows:
+      - id: s-preview-full
+        local_id: local-preview-full
+        title: full transcript for compare
+        project_hash: proj-preview-2
+        project_display_name: preview hides project
+    expect:
+      previewedId: s-preview-full
+      openFullLinkHref: /transcripts/s-preview-full

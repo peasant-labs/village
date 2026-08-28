@@ -22,6 +22,12 @@ const (
 	// NameSourceRemote means no override or consented name exists, but the
 	// project's git remote could be formatted into a display label.
 	NameSourceRemote NameSource = "remote"
+	// NameSourcePath means no override, consented name or usable git remote
+	// exists, but the project carries a redacted local path (for example
+	// "/<PATH>/app"). The path is displayed verbatim: it reaches storage
+	// already redacted by the publishing client, and the village neither
+	// re-derives nor masks it.
+	NameSourcePath NameSource = "path"
 	// NameSourcePrivacy means the only evidence available is Peasant's own
 	// privacy-safe "project-<12hex>" label, whether that label was carried
 	// on a transcript row or synthesised here as a last resort from the
@@ -32,7 +38,7 @@ const (
 // Evidence is everything known about ONE (owner_id, project_hash) pair,
 // already aggregated across that owner's transcripts by a single query. It
 // is the caller's job (the project-identity list query, ListOwnerProjectIdentities) to pick
-// ConsentedName, GitRemote, and PrivacyLabel deterministically
+// ConsentedName, GitRemote, ProjectPath, and PrivacyLabel deterministically
 // (published_at DESC, id ASC) and to classify a transcript's stored
 // project_name into ConsentedName vs PrivacyLabel using IsPrivacyLabel.
 type Evidence struct {
@@ -52,6 +58,13 @@ type Evidence struct {
 	// "git@github.com:owner/repo.git"), or "" when unknown. It is NOT a
 	// formatted display label — see RemoteLabeler.
 	GitRemote string
+	// ProjectPath is the deterministically picked REDACTED local path the
+	// publishing client recorded for this project (for example
+	// "/<PATH>/app"), or "" when unknown. It is already redacted when it
+	// reaches storage, so Resolve displays it verbatim rather than
+	// re-deriving or masking it, and every viewer therefore sees the same
+	// string.
+	ProjectPath string
 	// PrivacyLabel is the row-carried "project-<12hex>" label, or "" when
 	// absent. This is distinct from the last-resort synthesis: it is a
 	// label that was actually stored on a transcript, not one Resolve
@@ -99,7 +112,7 @@ type Resolver struct {
 
 // Resolve applies the ratified precedence
 //
-//	override > consented > remote > privacy
+//	override > consented > remote > path > privacy
 //
 // and never returns an empty DisplayName or the literal "Other".
 //
@@ -108,8 +121,15 @@ type Resolver struct {
 // ultimately supplies DisplayName, because RemoteLabel is rendered as a
 // subtitle independent of Source.
 //
+// The path tier sits BELOW the remote tier: a repository label names the
+// project to everyone who knows the repository, while a redacted path names
+// only its last folder, so the label is the better answer whenever both are
+// known. It sits ABOVE the privacy tier because "/<PATH>/app" still tells a
+// reader which project they are looking at and "project-3fa9c2e1b0d4" does
+// not.
+//
 // Last-resort rule: when OverrideName, ConsentedName, GitRemote (or its
-// formatted label), and PrivacyLabel are all unusable but ProjectHash is
+// formatted label), ProjectPath, and PrivacyLabel are all unusable but ProjectHash is
 // non-empty, Resolve synthesises "project-" + ProjectHash[:12] with
 // Source = NameSourcePrivacy, matching Peasant's own privacySafeProjectLabel.
 // When even ProjectHash is empty — a case the publish boundary elsewhere in
@@ -131,6 +151,8 @@ func (r Resolver) Resolve(e Evidence) Resolved {
 		return Resolved{DisplayName: e.ConsentedName, Source: NameSourceConsented, RemoteLabel: remoteLabel}
 	case remoteLabel != "":
 		return Resolved{DisplayName: remoteLabel, Source: NameSourceRemote, RemoteLabel: remoteLabel}
+	case e.ProjectPath != "":
+		return Resolved{DisplayName: e.ProjectPath, Source: NameSourcePath, RemoteLabel: remoteLabel}
 	case e.PrivacyLabel != "":
 		return Resolved{DisplayName: e.PrivacyLabel, Source: NameSourcePrivacy, RemoteLabel: remoteLabel}
 	case e.ProjectHash != "":

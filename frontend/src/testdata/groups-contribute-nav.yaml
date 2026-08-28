@@ -1,0 +1,51 @@
+# Fixture rows for `groupContributeNav.test.tsx`. Each row's `name` is a
+# stable identifier the test's required-name manifest checks membership
+# against (never a bare count) — see the loader in
+# `src/test/mountedGroupRoute.tsx` and the test file itself for the exact
+# assertion each row drives.
+rows:
+  - name: member_navigates
+    why: >
+      A member (or contributor/owner) viewing the mounted /groups/{id} route
+      clicks the header contribute action. It must call router.push to the
+      dedicated /groups/{id}/contribute route, never toggle local state or
+      leave an inline panel on the page.
+    role: member
+  - name: owner_navigates_via_village_action
+    why: >
+      An OWNER viewing the mounted /groups/{id} route reaches the same
+      dedicated route through the action village renders itself, because the
+      shared manage surface offers its own contribute action only to a member
+      or a contributor. The action must call router.push, and a member must
+      never receive it as well (two contribute buttons in one header).
+    role: owner
+
+  - name: owner_no_double_button_even_if_manage_renders_its_own
+    why: >
+      An OWNER must never receive a working onContribute from the mounted
+      /groups/{id} route, even when the shared manage surface is stubbed to
+      render whatever contribute action it is handed instead of gating on
+      its own internal role check. The no-double-button guarantee must hold
+      at the village boundary (isMember && !isOwner), not depend on Manage's
+      own gate never firing for an owner.
+    role: owner
+
+  - name: non_member_no_button
+    why: >
+      A viewer with no role in the collective (your_role absent) must never
+      receive a working contribute action from the mounted /groups/{id}
+      route — Manage gets onContribute undefined, so there is no inert
+      click target left behind by the old inline-panel toggle.
+    role: null
+  - name: contribute_page_member_panel
+    why: >
+      A member opening the dedicated /groups/{id}/contribute route directly
+      sees the moved selection panel (their shareable transcripts), not a
+      membership notice.
+    role: member
+  - name: contribute_page_non_member_notice
+    why: >
+      A non-member (or signed-out visitor) opening the dedicated
+      /groups/{id}/contribute route directly sees a notice and a link back
+      to the collective, never the selection panel.
+    role: null

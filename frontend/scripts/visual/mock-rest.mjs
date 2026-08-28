@@ -15,7 +15,16 @@
      CHROME_PATH=... VILLAGE_TRANSCRIPT=demo node scripts/visual/boot-village.mjs
 
    env: MOCK_REST_PORT (default 8788), MOCK_TRANSCRIPT_ID (default `demo`), MOCK_TITLE_HERO_DIAGNOSTIC
-   (default off; set `1` for the title-hero + breadcrumb evidence case — see below). Runs until killed. */
+   (default off; set `1` for the title-hero + breadcrumb evidence case — see below), MOCK_ROLE
+   (`owner` | `member`, default `owner`). Runs until killed.
+
+   MOCK_ROLE decides what the signed-in viewer is IN THE COLLECTIVE, so a capture can show either
+   header-action path. It rewrites every role-derived field of the group payload together — the
+   viewer's `your_role`, the collective's own `role` mirror, and the viewer's row in `members` — so
+   the three can never disagree the way a single hand-edited field would:
+     MOCK_ROLE=owner  MOCK_REST_PORT=8788 node scripts/visual/mock-rest.mjs &   # default
+     MOCK_ROLE=member MOCK_REST_PORT=8788 node scripts/visual/mock-rest.mjs &
+   An unknown value is refused at startup rather than silently captured as the default. */
 import { createServer } from 'node:http'
 import { readFileSync } from 'node:fs'
 import { parse } from 'yaml'
@@ -62,6 +71,20 @@ const user = {
 
 const groupId = process.env.MOCK_GROUP_ID || 'demo-group'
 
+// The viewer's role in the collective. Closed set: an unrecognised value is a
+// typo that would otherwise be captured as a silently different surface.
+const VIEWER_ROLES = ['owner', 'member']
+const viewerRole = process.env.MOCK_ROLE || 'owner'
+if (!VIEWER_ROLES.includes(viewerRole)) {
+  console.error(
+    `ERROR [mock-rest.mjs] MOCK_ROLE="${viewerRole}" is not a role this mock can serve. ` +
+    `Valid values are ${VIEWER_ROLES.join(' | ')} (default owner); the value decides the signed-in ` +
+    `viewer's role in the collective, which decides which header contribute action renders. ` +
+    `Re-run with MOCK_ROLE=owner or MOCK_ROLE=member.`,
+  )
+  process.exit(1)
+}
+
 const groupDetail = {
   group: {
     id: groupId,
@@ -75,7 +98,7 @@ const groupDetail = {
     updated_at: '2026-06-28T12:00:00Z',
     acceptance_mode: 'open',
     data_access: 'members_only',
-    role: 'owner',
+    role: viewerRole,
     member_since: '2026-06-01T12:00:00Z',
     member_count: 12,
     transcript_count: 248,
@@ -83,7 +106,7 @@ const groupDetail = {
   members: [
     {
       id: 'member-1',
-      role: 'owner',
+      role: viewerRole,
       joined_at: '2026-06-01T12:00:00Z',
       github_username: 'alice-dev',
       display_name: 'Alice Developer',
@@ -200,13 +223,235 @@ const groupDetail = {
     { id: 'member-2', github_username: 'bob-ai', avatar_url: null, transcript_count: 1 },
   ],
   can_read: true,
-  your_role: 'owner',
+  your_role: viewerRole,
   pending_members: [],
 }
 
 const groupsList = [groupDetail.group]
 
+// One transcript the viewer (alice-dev) owns but has not yet shared with the
+// demo collective, so a `GET /transcripts?owner=alice-dev` (the contribute
+// page's own shareable-list query) has something to render for the
+// `manage-contribute` shot -- otherwise the panel would only ever capture
+// its empty state.
+const shareableTranscriptListResponse = {
+  transcripts: [
+    {
+      transcript: {
+        id: 'gt-3',
+        owner_id: 'member-1',
+        local_id: 'sess_demo_0003',
+        title: 'Draft the contribute route shell',
+        description: null,
+        visibility: 'private',
+        model_provider: 'claude-code',
+        model_name: 'claude-fable-5',
+        harness_version: '1.0.0',
+        session_start: '2026-06-19T09:12:00Z',
+        session_end: '2026-06-19T09:18:00Z',
+        turn_count: 3,
+        token_count: 800,
+        blob_size_bytes: 2048,
+        schema_version: '0.13.0',
+        published_at: '2026-06-19T09:20:00Z',
+        updated_at: '2026-06-19T09:20:00Z',
+        parent_session_id: null,
+        ingested_at: '2026-06-19T09:21:00Z',
+        source_format: 'json',
+        git_branch: 'main',
+        git_remote: null,
+        project_hash: 'a'.repeat(64),
+        project_name: 'village',
+        project_display_name: 'village',
+        project_name_source: 'consented',
+        project_remote_label: '',
+        tool_call_count: 0,
+        subagent_count: 0,
+        duration_ms: 360000,
+        tokens_in: 500,
+        tokens_out: 300,
+        subagents: [],
+        diagnostics_warnings: [],
+        diagnostics_partial: false,
+        session_origin: 'user',
+      },
+      tags: [],
+      owner: user,
+      shares: [],
+    },
+  ],
+  total: 1,
+  agent_total: 0,
+  page: 1,
+  limit: 100,
+}
+
+// The tree-based contribute page's own corpus (village#66): two projects (one
+// with two branches, so the two-column @container layout and the tree's
+// grouping both have something real to show), plus one orphaned row so the
+// synthetic "orphaned transcripts" node renders in the capture too.
+const contributableResponse = {
+  group_id: groupId,
+  transcripts: [
+    {
+      id: 'ct-main-1',
+      local_id: 'sess_ct_0001',
+      title: 'fix the redaction rule ordering',
+      visibility: 'public',
+      project_hash: 'b'.repeat(64),
+      project_display_name: 'peasant',
+      project_name_source: 'consented',
+      git_branch: 'main',
+      parent_session_id: null,
+      session_origin: 'user',
+      model_provider: 'claude-code',
+      published_at: '2026-06-20T09:00:00Z',
+      already_shared: false,
+    },
+    {
+      id: 'ct-feature-1',
+      local_id: 'sess_ct_0002',
+      title: 'draft the contribute tree page',
+      visibility: 'private',
+      project_hash: 'b'.repeat(64),
+      project_display_name: 'peasant',
+      project_name_source: 'consented',
+      git_branch: 'feature/contribute-tree',
+      parent_session_id: null,
+      session_origin: 'user',
+      model_provider: 'gemini-cli',
+      published_at: '2026-06-21T09:00:00Z',
+      already_shared: false,
+    },
+    {
+      id: 'ct-orphan-1',
+      local_id: 'sess_ct_0003',
+      title: 'a session whose parent was never fetched',
+      visibility: 'public',
+      project_hash: 'b'.repeat(64),
+      project_display_name: 'peasant',
+      project_name_source: 'consented',
+      git_branch: 'main',
+      parent_session_id: 'sess_ct_missing',
+      session_origin: 'user',
+      model_provider: 'codex',
+      published_at: '2026-06-22T09:00:00Z',
+      already_shared: false,
+    },
+    {
+      id: 'ct-shared-1',
+      local_id: 'sess_ct_0004',
+      title: 'already shared with this collective',
+      visibility: 'shared',
+      project_hash: 'c'.repeat(64),
+      project_display_name: 'village',
+      project_name_source: 'consented',
+      git_branch: 'main',
+      parent_session_id: null,
+      session_origin: 'user',
+      model_provider: 'claude-code',
+      published_at: '2026-06-18T09:00:00Z',
+      already_shared: true,
+    },
+  ],
+}
+
 const ts = (min) => new Date(Date.parse('2026-06-17T09:12:00Z') + min * 60_000).toISOString()
+
+// A small, realistic session detail for the contribute tree's OWN fixture ids
+// (`ct-*`) -- so the `manage-contribute-preview` capture shows real turns +
+// a tool call + a saved label chip in the preview column, not the harness's
+// unrelated demo transcript's shimmer/"not found" state. Keyed by id so a
+// future capture can distinguish rows if it needs to; every `ct-*` id
+// currently answers the SAME payload (content is not part of what any tree
+// case has to distinguish).
+const previewTranscriptDetail = (id) => ({
+  transcript: {
+    id,
+    local_id: `local-${id}`,
+    visibility: 'private',
+    title: 'draft the contribute tree page',
+    description: 'A small worked example for the visual capture.',
+    project_name: 'peasant',
+  },
+  owner: { id: 'owner-demo' },
+  enriched_shares: [],
+})
+
+const previewTranscriptContent = {
+  id: 'sess_ct_preview',
+  harness: 'gemini-cli',
+  startTime: ts(10),
+  endTime: ts(16),
+  durationMins: 6,
+  totalTokens: 640,
+  tokensIn: 400,
+  tokensOut: 240,
+  turnCount: 3,
+  toolCallCount: 1,
+  project: 'peasant',
+  model: 'gemini-2.5-pro',
+  workingDirectory: '/workspace/peasant',
+  outcome: 'resolved',
+  turns: [
+    {
+      index: 0,
+      role: 'user',
+      content: 'Draft the contribute tree page and wire the preview column.',
+      timestamp: ts(10),
+      depth: 0,
+      tokensIn: 60,
+      tokensOut: 0,
+    },
+    {
+      index: 1,
+      role: 'assistant',
+      content: 'Building the project > branch > session tree, then reading the existing page shell.',
+      timestamp: ts(12),
+      depth: 0,
+      tokensIn: 0,
+      tokensOut: 90,
+      toolCalls: [
+        {
+          id: 'tool-1',
+          name: 'Read',
+          arguments: '{"path":"src/app/groups/[id]/contribute/page.tsx"}',
+          result: 'read 344 lines',
+          durationMs: 40,
+          filePath: 'src/app/groups/[id]/contribute/page.tsx',
+          isError: false,
+          toolKind: 'read',
+        },
+      ],
+    },
+    {
+      index: 2,
+      role: 'assistant',
+      content: 'The tree groups sessions by project and branch, with a synthetic node for orphaned rows.',
+      timestamp: ts(15),
+      depth: 0,
+      tokensIn: 0,
+      tokensOut: 150,
+    },
+  ],
+}
+
+const previewAnnotations = {
+  annotations: [
+    {
+      annotatorKind: 'human',
+      annotatorName: 'alice-dev',
+      createdAt: Date.parse('2026-06-21T09:05:00Z'),
+      id: 'annotation-preview-1',
+      isPrimary: true,
+      targetEntryIndex: 1,
+      targetKind: 'entry',
+      typeId: 'outcome',
+      typeName: 'outcome',
+      value: 'good',
+    },
+  ],
+}
 
 // Preserve source omissions at the REST boundary. Fairtrade's adapter, not
 // Village, derives effective model carry-forward for rendering.
@@ -307,6 +552,16 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && p === `/transcripts/${ID}/content`) return send(res, 200, content)
   if (req.method === 'GET' && p === `/transcripts/${ID}/annotations`) return send(res, 200, { annotations: [] })
   if (req.method === 'GET' && p === `/transcripts/${ID}/attestations`) return send(res, 200, attestations)
+  // The contribute tree's own fixture ids (contributableResponse, above):
+  // real turns + a tool call + a saved label, so the preview column's
+  // capture shows actual content instead of a loading/not-found state.
+  const ctMatch = /^\/transcripts\/(ct-[a-z0-9-]+)(\/content|\/annotations)?$/.exec(p)
+  if (req.method === 'GET' && ctMatch) {
+    const [, ctId, suffix] = ctMatch
+    if (suffix === '/content') return send(res, 200, previewTranscriptContent)
+    if (suffix === '/annotations') return send(res, 200, previewAnnotations)
+    return send(res, 200, previewTranscriptDetail(ctId))
+  }
   if (req.method === 'POST' && p === `/transcripts/${ID}/attestations`) {
     let body = ''
     req.on('data', (chunk) => { body += chunk })
@@ -335,6 +590,27 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && p === `/groups/${groupId}/pending`) return send(res, 200, [])
   if (req.method === 'GET' && p === `/groups/${groupId}/transcripts`) return send(res, 200, { transcripts: groupDetail.transcripts })
   if (req.method === 'GET' && p === `/groups/${groupId}/settings`) return send(res, 200, groupDetail)
+  if (req.method === 'GET' && p === `/groups/${groupId}/contributable`) return send(res, 200, contributableResponse)
+  if (req.method === 'POST' && p === `/groups/${groupId}/shares`) {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk })
+    req.on('end', () => {
+      const { project_hash, transcript_ids } = JSON.parse(body || '{}')
+      // Artificial delay so the contribute page's progress bar has a real,
+      // screenshot-able "in flight" window instead of settling before the
+      // browser paints a frame -- a real backend round-trip has this window
+      // too, an instant mock just doesn't reproduce it by default.
+      setTimeout(() => {
+        send(res, 200, {
+          project_hash,
+          shared: (transcript_ids || []).map((id) => ({ transcript_id: id, status: 'approved' })),
+          already_shared: [],
+        })
+      }, 1200)
+    })
+    return
+  }
+  if (req.method === 'GET' && p === '/transcripts') return send(res, 200, shareableTranscriptListResponse)
   // /me (and anything else) → 401: an unauthenticated viewer still renders the transcript (auth only
   // gates the per-turn ACTIONS, not the render).
   return send(res, 401, { error: 'unauthenticated (mock)' })

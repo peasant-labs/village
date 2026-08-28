@@ -164,11 +164,17 @@ func (h *Handler) resolveProjectIdentities(ctx context.Context, keys []projectId
 // consented name and a privacy label happens HERE, through
 // projectname.IsPrivacyLabel, so the rule that tells those apart exists once in Go
 // and is never restated as a SQL regex.
+//
+// ProjectPath is copied straight across. It is the local path the publishing
+// client recorded, ALREADY redacted before it was published, and the village
+// stores exactly one form of it: there is no raw column to fall back to and no
+// render-time mask, so every viewer of every surface resolves the same string.
 func evidenceFromIdentityRow(row sqlc.ListOwnerProjectIdentitiesRow) projectname.Evidence {
 	evidence := projectname.Evidence{
 		ProjectHash:  row.ProjectHash,
 		OverrideName: row.OverrideName,
 		GitRemote:    row.GitRemote,
+		ProjectPath:  row.ProjectPath,
 	}
 	for _, name := range row.ProjectNames {
 		if projectname.IsPrivacyLabel(name) {

@@ -1,0 +1,264 @@
+# Offering a whole project to a collective, driven through the real HTTP handler
+# against a real PostgreSQL.
+#
+# Every case declares the world (who owns what, in which project, at which
+# visibility, and what was already submitted), the request, and what must be
+# true afterwards - the answer, the attempt ledger, the derived projection, and
+# the transcripts' visibility. A refusal case additionally asserts that the
+# ledger did not grow, because "nothing was written" is the promise this route
+# exists to keep and a status code alone cannot show it.
+
+- name: whole_project_share
+  why: >
+    The ordinary contribution: a project's transcripts offered with no id list at
+    all. Losing it would leave the whole-project shape - the one the button
+    sends - untested, and a server that quietly contributed nothing would pass.
+  acceptance: open
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+    - {key: b, project: p, visibility: shared}
+  request: {project: p, confirm: false}
+  expect_status: 200
+  expect_shared: [a, b]
+  expect_shared_status: approved
+  expect_attempts: {a: 1, b: 1}
+  expect_derived: {a: approved, b: approved}
+
+- name: explicit_ids_share
+  why: >
+    The person selected some of a project rather than all of it. Losing this
+    would let a server that ignored transcript_ids and contributed the whole
+    project pass, which is a disclosure the person did not ask for.
+  acceptance: open
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+    - {key: b, project: p, visibility: shared}
+    - {key: c, project: p, visibility: shared}
+  request: {project: p, ids: [a, c], confirm: false}
+  expect_status: 200
+  expect_shared: [a, c]
+  expect_shared_status: approved
+  expect_attempts: {a: 1, b: 0, c: 1}
+  expect_derived: {a: approved, c: approved}
+
+- name: mixed_project_id_refused
+  why: >
+    An id from another project refuses the WHOLE request. The person selected one
+    project; contributing part of the selection while dropping the rest would
+    leave them believing they had contributed all of it. The zero-row assertion
+    is the point of the case.
+  acceptance: open
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+    - {key: c, project: q, visibility: shared}
+  request: {project: p, ids: [a, c], confirm: false}
+  expect_status: 422
+  expect_message_names: [c]
+  expect_attempts: {a: 0, c: 0}
+
+- name: foreign_owner_id_refused
+  why: >
+    An id belonging to someone else is refused by the same rule, and refused
+    before any write. Losing it would let a batch contribute another person's
+    transcript on their behalf.
+  acceptance: open
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+    - {key: stranger, project: p, visibility: shared, owner: other}
+  request: {project: p, ids: [a, stranger], confirm: false}
+  expect_status: 422
+  expect_message_names: [stranger]
+  expect_attempts: {a: 0, stranger: 0}
+
+- name: private_without_confirm_refused
+  why: >
+    Contributing a private transcript makes it visible to the collective, and
+    that is the one consequence the person cannot undo. Without their answer the
+    batch is refused and the transcript stays private.
+  acceptance: open
+  transcripts:
+    - {key: a, project: p, visibility: private}
+    - {key: b, project: p, visibility: shared}
+  request: {project: p, confirm: false}
+  expect_status: 422
+  expect_message_names: [a]
+  expect_attempts: {a: 0, b: 0}
+  expect_visibility: {a: private}
+
+- name: private_with_confirm_flips_visibility
+  why: >
+    With the answer given, the submission and the visibility change happen
+    together. Losing this would let a server record the submission and leave the
+    transcript private, so the collective would hold a contribution nobody in it
+    can read.
+  acceptance: open
+  transcripts:
+    - {key: a, project: p, visibility: private}
+    - {key: b, project: p, visibility: shared}
+  request: {project: p, confirm: true}
+  expect_status: 200
+  expect_shared: [a, b]
+  expect_shared_status: approved
+  expect_attempts: {a: 1, b: 1}
+  expect_derived: {a: approved, b: approved}
+  expect_visibility: {a: shared, b: shared}
+
+- name: partial_reshare_records_attempt_only
+  why: >
+    One transcript of the project is already live in the collective. The rest are
+    contributed and the live one is named back as already contributed, rather
+    than the request failing or a duplicate attempt being opened.
+  acceptance: open
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+    - {key: b, project: p, visibility: shared, pre: live}
+  request: {project: p, confirm: false}
+  expect_status: 200
+  expect_shared: [a]
+  expect_shared_status: approved
+  expect_already_shared: [b]
+  expect_attempts: {a: 1, b: 1}
+  expect_derived: {a: approved, b: approved}
+
+- name: all_already_shared_409
+  why: >
+    Nothing is left to contribute. The person is told why rather than being shown
+    an empty success they would read as a contribution that happened.
+  acceptance: open
+  transcripts:
+    - {key: a, project: p, visibility: shared, pre: live}
+    - {key: b, project: p, visibility: shared, pre: live}
+  request: {project: p, confirm: false}
+  expect_status: 409
+  expect_attempts: {a: 1, b: 1}
+
+- name: curated_group_pending
+  why: >
+    A curated collective queues the submission instead of accepting it. Losing
+    this would let a batch bypass moderation that the single share path honours.
+  acceptance: curated
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+  request: {project: p, confirm: false}
+  expect_status: 200
+  expect_shared: [a]
+  expect_shared_status: pending
+  expect_attempts: {a: 1}
+  expect_derived: {a: pending}
+
+- name: verified_only_without_org_refused
+  why: >
+    A verified-only collective refuses a member with no visible organization, and
+    refuses the whole batch rather than silently contributing nothing. The single
+    share path skips such a collective; a batch names one, so it must answer.
+  acceptance: verified_only
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+  request: {project: p, confirm: false}
+  expect_status: 403
+  expect_attempts: {a: 0}
+
+- name: non_member_403
+  why: >
+    Membership is the gate. Losing this would let anyone push transcripts into
+    any collective they can name.
+  acceptance: open
+  member: false
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+  request: {project: p, confirm: false}
+  expect_status: 403
+  expect_attempts: {a: 0}
+
+- name: bad_project_hash_400
+  why: >
+    A project is identified by its hash. A value that is not one is refused at
+    the boundary with an actionable message rather than reaching a query that
+    would simply match nothing and read as an empty project.
+  acceptance: open
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+  request: {project_raw: "not-a-hash", confirm: false}
+  expect_status: 400
+  expect_attempts: {a: 0}
+
+- name: unknown_json_field_400
+  why: >
+    A misspelled field is refused instead of ignored. A client that sent
+    "visibility_confirm" would otherwise be told its private transcripts need
+    confirming while believing it had confirmed them.
+  acceptance: open
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+  request: {raw_body: '{"project_hash":"PROJECT_HASH_P","visibility_confirm":true}'}
+  expect_status: 400
+  expect_message_names: [visibility_confirm]
+  expect_attempts: {a: 0}
+
+- name: duplicate_ids_deduped
+  why: >
+    The same transcript named twice is one selection, not two submissions. It is
+    folded rather than refused, and it must open exactly ONE attempt: two would
+    be refused by the open-attempt index and turn an unambiguous request into a
+    failure.
+  acceptance: open
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+  request: {project: p, ids: [a, a], confirm: false}
+  expect_status: 200
+  expect_shared: [a]
+  expect_shared_status: approved
+  expect_attempts: {a: 1}
+  expect_derived: {a: approved}
+
+- name: mid_tx_conflict_rolls_back_then_retry_succeeds
+  why: >
+    A single share opens an attempt for one of the batch's transcripts while the
+    batch is between its checks and its writes. The database refuses the second
+    open attempt, and because the batch is ONE transaction the whole of it rolls
+    back - no transcript of the batch is left contributed. The retry then reports
+    the conflicting transcript as already contributed and submits the rest. This
+    is the case that fails if the single path's continue-on-conflict pattern is
+    ever copied into the transaction. The collective is curated because that is
+    the only state in which the database can refuse a second submission: the
+    open-attempt index covers submissions awaiting review, and an accepted one
+    is live by construction rather than by an index.
+  acceptance: curated
+  mechanism: mid_tx_conflict
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+    - {key: b, project: p, visibility: shared}
+  request: {project: p, confirm: false}
+  expect_status: 409
+  expect_shared_status: pending
+  expect_message_names: [b]
+  expect_attempts: {a: 0, b: 1}
+  expect_retry_shared: [a]
+  expect_retry_already_shared: [b]
+
+- name: event_num_conflict_rolls_back_then_retry_succeeds
+  why: >
+    The SECOND way the database can refuse a new submission, and the one that
+    needs the opposite advice. Another writer appends an event to the same pair
+    that this batch could not yet see, so the ordinal the batch computed is taken
+    by the time it writes and UNIQUE (transcript_id, group_id, event_num) refuses
+    it. That is not a duplicate the person must withdraw - asking again simply
+    succeeds - so it must reach them as a 409 naming the transcript and saying
+    so, not as an unexplained failure. The collective is OPEN and the competing
+    event is accepted rather than awaiting review, which is what makes the
+    open-attempt index unable to fire: this case can only be answered by the
+    ordering branch, so the two conflict kinds cannot be confused for one
+    another. The whole batch still rolls back.
+  acceptance: open
+  mechanism: event_num_conflict
+  transcripts:
+    - {key: a, project: p, visibility: shared}
+    - {key: b, project: p, visibility: shared}
+  request: {project: p, confirm: false}
+  expect_status: 409
+  expect_shared_status: approved
+  expect_message_names: [b]
+  expect_message_contains: ["lost the race"]
+  expect_attempts: {a: 0, b: 1}
+  expect_retry_shared: [a]
+  expect_retry_already_shared: [b]

@@ -32,6 +32,7 @@
 !project-page-shoot.mjs
 !png-diff.mjs
 !determinism.mjs
+!probe-contribute-narrow.mjs
 !manage-README.md
 !baseline/
 !baseline/**

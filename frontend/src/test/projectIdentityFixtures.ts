@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { assertExactKeys } from "@/test/fixtureAssertions";
+import type { NameSource } from "@/lib/types";
 
 export type ProjectIdentityGroupingItem = {
   projectHash: string;
@@ -34,10 +35,22 @@ export type RepoGroupLabelCase = {
   expectedName: string;
 };
 
+/**
+ * One tier of the closed {@link NameSource} union and the sentence
+ * `describeNameSource` must render for it.
+ */
+export type NameSourceDescriptionCase = {
+  name: string;
+  why: string;
+  source: NameSource;
+  expectedDescription: string;
+};
+
 export type ProjectIdentityFixtures = {
   groupingCases: ProjectIdentityGroupingCase[];
   breadcrumbHrefCases: ProjectIdentityBreadcrumbHrefCase[];
   repoGroupLabelCases: RepoGroupLabelCase[];
+  nameSourceDescriptionCases: NameSourceDescriptionCase[];
 };
 
 // Required-NAME manifests, not counts (this epoch bans count guards): a
@@ -56,6 +69,18 @@ const requiredBreadcrumbHrefCaseNames = [
   "username-with-reserved-url-characters-is-encoded",
 ] as const;
 
+// One row per member of the NameSource union. The union is closed, so this
+// manifest is the fixture-side half of the compile-time exhaustiveness proof:
+// `describeNameSource` fails to BUILD when a tier gains no case, and this list
+// fails the TEST when a tier gains no row explaining what it renders.
+const requiredNameSourceDescriptionCaseNames = [
+  "override-explains-an-owner-rename",
+  "consented-explains-a-disclosed-project-name",
+  "remote-explains-a-repository-label",
+  "path-explains-a-redacted-local-path",
+  "privacy-explains-the-generated-identity",
+] as const;
+
 const requiredRepoGroupLabelCaseNames = [
   "label-reads-project-remote-label-not-project-display-name",
   "missing-remote-label-falls-back-to-the-raw-remote",
@@ -72,6 +97,16 @@ const groupingCaseKeys = [
 ];
 const breadcrumbHrefCaseKeys = ["name", "ownerUsername", "projectHash", "expectedHref"];
 const repoGroupLabelCaseKeys = ["name", "gitRemote", "projectRemoteLabel", "projectDisplayName", "expectedName"];
+const nameSourceDescriptionCaseKeys = ["name", "why", "source", "expectedDescription"];
+
+/**
+ * Every member of the closed {@link NameSource} union, listed once. It is
+ * declared with an explicit `NameSource[]` annotation so widening the union
+ * without extending this array fails `tsc` at the `allNameSources` assignment
+ * below, keeping the fixture's tier coverage tied to the union itself rather
+ * than to a hand-count.
+ */
+const allNameSources: NameSource[] = ["override", "consented", "remote", "path", "privacy"];
 
 function assertNamesMatch(actual: string[], required: readonly string[], label: string): void {
   const got = [...actual].sort();
@@ -90,7 +125,11 @@ export function loadProjectIdentityFixtures(): ProjectIdentityFixtures {
   if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("project-identity fixture root must be an object");
   }
-  assertExactKeys(parsed, ["groupingCases", "breadcrumbHrefCases", "repoGroupLabelCases"], "fixture root");
+  assertExactKeys(
+    parsed,
+    ["groupingCases", "breadcrumbHrefCases", "repoGroupLabelCases", "nameSourceDescriptionCases"],
+    "fixture root",
+  );
   const fixtures = parsed as ProjectIdentityFixtures;
 
   assertNamesMatch(
@@ -159,6 +198,49 @@ export function loadProjectIdentityFixtures(): ProjectIdentityFixtures {
           `project_display_name — give expectedName and projectDisplayName different values`,
       );
     }
+  }
+
+  assertNamesMatch(
+    fixtures.nameSourceDescriptionCases.map((c) => c.name),
+    requiredNameSourceDescriptionCaseNames,
+    "project-identity nameSourceDescriptionCases",
+  );
+  const describedSources = new Set<string>();
+  for (const c of fixtures.nameSourceDescriptionCases) {
+    assertExactKeys(c, nameSourceDescriptionCaseKeys, `name-source-description case ${c.name}`);
+    if (!c.why.trim()) {
+      throw new Error(
+        `name-source-description case ${c.name} states no reason it exists; a case nobody can justify cannot be maintained`,
+      );
+    }
+    if (!allNameSources.includes(c.source)) {
+      throw new Error(
+        `name-source-description case ${c.name} names the tier ${JSON.stringify(c.source)}, which is not a member ` +
+          `of the NameSource union (${allNameSources.join(", ")}) — a description for a tier the resolver cannot ` +
+          `return would never be rendered`,
+      );
+    }
+    if (describedSources.has(c.source)) {
+      throw new Error(
+        `name-source-description cases describe the tier ${JSON.stringify(c.source)} twice; each tier renders one ` +
+          `sentence, so a second row would let the two disagree`,
+      );
+    }
+    describedSources.add(c.source);
+    if (!c.expectedDescription.trim()) {
+      throw new Error(
+        `name-source-description case ${c.name} expects an empty sentence; a tier with no explanation leaves a ` +
+          `viewer unable to tell a chosen project name from an inferred one`,
+      );
+    }
+  }
+  const undescribed = allNameSources.filter((source) => !describedSources.has(source));
+  if (undescribed.length > 0) {
+    throw new Error(
+      `the NameSource tiers ${undescribed.join(", ")} have no description case. Every tier the backend resolver ` +
+        `can return is rendered to a viewer, so every tier needs a row pinning the sentence it renders — add one ` +
+        `per missing tier rather than narrowing this check`,
+    );
   }
 
   return fixtures;

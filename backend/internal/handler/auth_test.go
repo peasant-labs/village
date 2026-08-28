@@ -49,6 +49,13 @@ type mockQuerier struct {
 	revokeAPIKey        func(ctx context.Context, arg sqlc.RevokeAPIKeyParams) error
 	touchAPIKeyLastUsed func(ctx context.Context, id pgtype.UUID) error
 
+	// Whole-project contribution stubs
+	hasUserVisibleOrg                 func(ctx context.Context, arg sqlc.HasUserVisibleOrgParams) (bool, error)
+	listUserVisibleOrgs               func(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserVisibleOrgsRow, error)
+	listLiveShareAttemptsForGroup     func(ctx context.Context, arg sqlc.ListLiveShareAttemptsForGroupParams) ([]sqlc.ListLiveShareAttemptsForGroupRow, error)
+	listOwnerProjectShareCandidates   func(ctx context.Context, arg sqlc.ListOwnerProjectShareCandidatesParams) ([]sqlc.ListOwnerProjectShareCandidatesRow, error)
+	listOwnerContributableTranscripts func(ctx context.Context, arg sqlc.ListOwnerContributableTranscriptsParams) ([]sqlc.ListOwnerContributableTranscriptsRow, error)
+
 	// Transcript stubs
 	getTranscriptIDByOwnerAndLocalID                                   func(ctx context.Context, arg sqlc.GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error)
 	updateTranscriptMetadata                                           func(ctx context.Context, arg sqlc.UpdateTranscriptMetadataParams) (sqlc.Transcript, error)
@@ -516,6 +523,24 @@ func (m *mockQuerier) ListGroupMembers(ctx context.Context, arg sqlc.ListGroupMe
 func (m *mockQuerier) ListGroupPendingMembers(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListGroupPendingMembersRow, error) {
 	return nil, nil
 }
+func (m *mockQuerier) ListLiveShareAttemptsForGroup(ctx context.Context, arg sqlc.ListLiveShareAttemptsForGroupParams) ([]sqlc.ListLiveShareAttemptsForGroupRow, error) {
+	if m.listLiveShareAttemptsForGroup != nil {
+		return m.listLiveShareAttemptsForGroup(ctx, arg)
+	}
+	panic("ListLiveShareAttemptsForGroup: not stubbed")
+}
+func (m *mockQuerier) ListOwnerProjectShareCandidates(ctx context.Context, arg sqlc.ListOwnerProjectShareCandidatesParams) ([]sqlc.ListOwnerProjectShareCandidatesRow, error) {
+	if m.listOwnerProjectShareCandidates != nil {
+		return m.listOwnerProjectShareCandidates(ctx, arg)
+	}
+	panic("ListOwnerProjectShareCandidates: not stubbed")
+}
+func (m *mockQuerier) ListOwnerContributableTranscripts(ctx context.Context, arg sqlc.ListOwnerContributableTranscriptsParams) ([]sqlc.ListOwnerContributableTranscriptsRow, error) {
+	if m.listOwnerContributableTranscripts != nil {
+		return m.listOwnerContributableTranscripts(ctx, arg)
+	}
+	panic("ListOwnerContributableTranscripts: not stubbed")
+}
 func (m *mockQuerier) GetLatestShareAttempt(ctx context.Context, arg sqlc.GetLatestShareAttemptParams) (sqlc.TranscriptShareAttempt, error) {
 	return sqlc.TranscriptShareAttempt{}, pgx.ErrNoRows
 }
@@ -559,6 +584,9 @@ func (m *mockQuerier) DeleteStaleUserOrgs(ctx context.Context, arg sqlc.DeleteSt
 	return nil
 }
 func (m *mockQuerier) ListUserVisibleOrgs(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserVisibleOrgsRow, error) {
+	if m.listUserVisibleOrgs != nil {
+		return m.listUserVisibleOrgs(ctx, userID)
+	}
 	return nil, nil
 }
 func (m *mockQuerier) ListUserAllOrgs(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error) {
@@ -634,6 +662,9 @@ func (m *mockQuerier) ListTranscriptCollectivesForViewer(ctx context.Context, ar
 	panic("ListTranscriptCollectivesForViewer: not stubbed")
 }
 func (m *mockQuerier) HasUserVisibleOrg(ctx context.Context, arg sqlc.HasUserVisibleOrgParams) (bool, error) {
+	if m.hasUserVisibleOrg != nil {
+		return m.hasUserVisibleOrg(ctx, arg)
+	}
 	return false, nil
 }
 func (m *mockQuerier) UpdateMemberRole(ctx context.Context, arg sqlc.UpdateMemberRoleParams) error {

@@ -636,3 +636,77 @@ textarea::placeholder {
   background: hsl(var(--diff-del));
   color: hsl(var(--diff-del-text));
 }
+
+/* ============================================
+   CONTRIBUTE TREE — partial selection + hierarchy connector
+   ============================================ */
+
+/* A partially-selected parent (some, not all, of its sessions ticked) needs a
+   visible SHAPE, not only an aria state: the filled square with a dash reads
+   as "some" at a glance and stays legible without colour. fairtrade's
+   Checkbox ships the checked fill only, so the indeterminate face is composed
+   here from the same tokens the checked face uses. */
+.check .check-box:indeterminate,
+.check .check-box[data-indeterminate='true'] {
+  background: var(--amber);
+  border-color: var(--amber-dim);
+}
+.check .check-box:indeterminate::after,
+.check .check-box[data-indeterminate='true']::after {
+  width: 10px;
+  height: 2px;
+  border: 0;
+  background: var(--on-amber);
+  transform: none;
+  opacity: 1;
+}
+.contribute-check {
+  position: relative;
+}
+/* Firefox paints no ::after on an indeterminate input, so the dash is also
+   drawn as a real element above the box. */
+.contribute-check__mixed {
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  width: 10px;
+  height: 2px;
+  background: var(--on-amber);
+  pointer-events: none;
+}
+
+/* Single-line hierarchy connector for the contribute tree.
+
+   The whole visible hierarchy is traced by ONE continuous connector: a single
+   SVG <path> behind the rows whose geometry is measured from the mounted
+   checkbox anchors, so wrapped rows on a narrow column are handled by
+   construction. At any y there is exactly one vertical segment - the path
+   stays vertical at the current depth column and takes ONE square step in
+   (deeper) or out (shallower) at the deeper of two adjacent rows. The
+   connector layer only paints; the rows sit above it, so every control sits
+   on the rail. */
+.contribute-rail {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 0;
+}
+.contribute-rail__path {
+  fill: none;
+  stroke: var(--rule);
+  stroke-width: 1px;
+}
+.contribute-rail-rows {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+/* One constant indentation step per nested list keeps the depth columns the
+   single rail traces uniform, and fits a narrow column. */
+.contribute-subtree {
+  padding-left: var(--sp-5);
+  min-width: 0;
+}

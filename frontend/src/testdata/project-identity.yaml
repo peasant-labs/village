@@ -123,3 +123,48 @@ repoGroupLabelCases:
     projectRemoteLabel: ""
     projectDisplayName: "should never be shown here"
     expectedName: "Unattributed"
+
+nameSourceDescriptionCases:
+  # Proves describeNameSource explains EVERY tier the resolver can answer with.
+  # The union is hand-declared (src/lib/types.ts), so a tier the backend starts
+  # returning without a case here would fall through to
+  # assertNameSourceExhaustive: the build breaks rather than the UI rendering an
+  # unexplained name, and these rows pin the wording each tier renders.
+  - name: override-explains-an-owner-rename
+    why: >-
+      An owner-chosen name is the only tier a person typed, so its description
+      has to say a person chose it rather than that it was derived.
+    source: override
+    expectedDescription: "Renamed by the project owner"
+
+  - name: consented-explains-a-disclosed-project-name
+    why: >-
+      A consented name came from the transcript the publisher chose to disclose,
+      which is a different provenance from an owner rename made afterwards.
+    source: consented
+    expectedDescription: "From the transcript's stored project name"
+
+  - name: remote-explains-a-repository-label
+    why: >-
+      The remote tier is the inference a reader can verify against a repository,
+      so its description names the git remote it came from.
+    source: remote
+    expectedDescription: "From the transcript's git remote"
+
+  - name: path-explains-a-redacted-local-path
+    why: >-
+      The path tier renders a redacted local path such as "/<PATH>/app" as the
+      project's name. Without a description that says the name came from a path
+      and that the path is redacted, a viewer cannot tell that string apart from
+      a name somebody chose, and an owner cannot tell whether their real folder
+      names were published.
+    source: path
+    expectedDescription: "From the project's redacted local path"
+
+  - name: privacy-explains-the-generated-identity
+    why: >-
+      The privacy tier is the last resort, where nothing about the project was
+      disclosed; the description must say the name is generated so nobody reads
+      "project-3fa9c2e1b0d4" as a chosen name.
+    source: privacy
+    expectedDescription: "Auto-generated from the project's privacy-safe identity"

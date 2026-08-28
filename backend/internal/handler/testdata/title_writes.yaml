@@ -3,7 +3,7 @@
   harness: claude-code
   project_path: /Users/developer/work/sample-app
   candidate: Fix /Users/developer/work/sample-app/src/auth.go
-  expected: Fix /Users/<USER>/<PATH>/sample-app/src/auth.go
+  expected: Fix /<PATH>/sample-app/src/auth.go
 - name: missing_candidate_fallback
   mode: fresh
   harness: gemini-cli
@@ -18,7 +18,7 @@
   harness: claude-code
   project_path: /Users/developer/work/sample-app
   candidate: Review /Users/developer/work/sample-app/src/session.go
-  expected: Review /Users/<USER>/<PATH>/sample-app/src/session.go
+  expected: Review /<PATH>/sample-app/src/session.go
 - name: raw_tag_generated_title_preserved_by_sanitize
   mode: fresh
   harness: claude-code

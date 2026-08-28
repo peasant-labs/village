@@ -31,6 +31,11 @@
             capital and the heading's computed text-transform must be `none`.
             The design system lowercases h1/h2/h3 as chrome, so a lowercase-only
             fixture could not tell a fixed page from a broken one.
+     path   the OWNER's view of a project that has no git remote, whose name is
+            therefore the redacted local path its publisher recorded. The
+            repository-label subtitle must be ABSENT (there is no repository to
+            label) and the correction control's hint must explain the path tier.
+            Pair it with MOCK_PROJECT_IDENTITY=path on the mock.
      viewer a viewer who is NOT the owner. The correction control must be ABSENT
             and the roll-up is expected empty, which is the ORDINARY answer once
             collective visibility and the contributor opt-in have applied. Pair
@@ -157,6 +162,16 @@ const waitForVisible = async (sel, timeoutMs = 12000) => {
 // The profile and not-found modes capture surfaces that carry no project
 // header, so the header markers below are asserted only for the project page.
 const isProjectSurface = MODE !== 'notfound' && MODE !== 'profile'
+// The sentence the path tier renders. It exists ONLY in a build that knows the
+// tier, so it is this capture's provenance marker: a served build that renders
+// the page without it is an older build, and the screenshot would document a
+// state this change did not produce.
+const PATH_TIER_HINT = "From the project's redacted local path"
+// A redacted path keeps the project's own folder and replaces everything above
+// it with one marker. A heading that does not have this shape means the served
+// payload carried something other than a redacted path, which is the one thing
+// a capture of this surface must never quietly show.
+const REDACTED_PATH_SHAPE = /^\/<PATH>\/[^/]/
 const heading = isProjectSurface ? await waitFor('[data-testid="project-display-name"]') : null
 if (isProjectSurface && !heading) {
   await browser.close()
@@ -168,7 +183,22 @@ if (isProjectSurface && !heading) {
 const headingText = heading ? await page.evaluate((el) => el.textContent.trim(), heading) : ''
 
 const subtitleEl = isProjectSurface ? await page.$('[data-testid="project-remote-label"]') : null
-if (isProjectSurface && !subtitleEl) {
+if (MODE === 'path') {
+  if (!REDACTED_PATH_SHAPE.test(headingText)) {
+    await browser.close()
+    die(1, `the project heading reads ${JSON.stringify(headingText)}.`,
+      'a project named from its path renders the redacted path its publisher recorded, which keeps only the project folder under one marker.',
+      'the capture would document a page showing something other than the redacted path — possibly a raw one.',
+      'serve MOCK_PROJECT_IDENTITY=path from the mock, rebuild from this worktree, and retry.')
+  }
+  if (subtitleEl) {
+    await browser.close()
+    die(1, 'a repository-label subtitle rendered for a project that has no git remote.',
+      'the resolved payload carries an empty project_remote_label here, so there is no label to render.',
+      'the capture would document a subtitle the page must not show.',
+      'confirm the page renders no subtitle for an empty project_remote_label and retry.')
+  }
+} else if (isProjectSurface && !subtitleEl) {
   await browser.close()
   die(2, 'the repository-label subtitle never rendered.',
     'the served payload carried an empty project_remote_label, or the served build predates the subtitle.',
@@ -201,10 +231,11 @@ if (NARROW && isProjectSurface) {
   }
 }
 
+const ownerModes = new Set(['owner', 'path'])
 const control = NARROW
   ? await waitForVisible('[data-testid="project-rename-control"]')
-  : (MODE === 'owner' ? await waitFor('[data-testid="project-rename-control"]') : await page.$('[data-testid="project-rename-control"]'))
-if (MODE === 'owner' && !control) {
+  : (ownerModes.has(MODE) ? await waitFor('[data-testid="project-rename-control"]') : await page.$('[data-testid="project-rename-control"]'))
+if (ownerModes.has(MODE) && !control) {
   await browser.close()
   die(2, 'the owner-only correction control never rendered.',
     'the capture is taken as the owner, so the control must be present; the mock may be serving a different viewer.',
@@ -425,6 +456,41 @@ if (MODE === 'notfound') {
   await pause(300)
   await shoot('vpp-project-not-found', 'body', { sparse: true })
   console.log('provenance', JSON.stringify({ url: TARGET_URL, mode: MODE, headingPresent: false }))
+  console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
+  await browser.close()
+  process.exit(0)
+}
+
+// ── The path-tier project ───────────────────────────────────────────────────
+// A project with no git remote is named from the redacted local path its
+// publisher recorded. The capture is gated on the served build actually knowing
+// that tier — the hint sentence below exists nowhere else — so a stale server
+// fails here instead of producing a screenshot of the old fallback name.
+if (MODE === 'path') {
+  const hintText = await page.evaluate((sentence) => {
+    const control = document.querySelector('[data-testid="project-rename-control"]')
+    if (!control) return null
+    const match = [...control.querySelectorAll('*')].find((el) => el.textContent.trim() === sentence)
+    return match ? match.textContent.trim() : control.textContent.trim()
+  }, PATH_TIER_HINT)
+  if (hintText !== PATH_TIER_HINT) {
+    await browser.close()
+    die(2, `the correction control does not explain the path tier; it reads ${JSON.stringify(hintText)}.`,
+      `the served build renders no ${JSON.stringify(PATH_TIER_HINT)}, so it predates the path tier or the payload named a different tier.`,
+      'the capture would document an older build rather than this change.',
+      'rebuild and restart the app from THIS worktree against MOCK_PROJECT_IDENTITY=path, and retry.')
+  }
+  await shoot('vpp-project-page-path-tier', 'body')
+  await shoot('vpp-project-path-tier-name', control, { sparse: true })
+  console.log('provenance', JSON.stringify({
+    url: TARGET_URL,
+    mode: MODE,
+    heading: headingText,
+    repositoryLabelPresent: false,
+    nameSourceHint: hintText,
+    rollupRows: probe.rollupRows,
+  }))
+  console.log('computed', JSON.stringify(probe, null, 2))
   console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
   await browser.close()
   process.exit(0)

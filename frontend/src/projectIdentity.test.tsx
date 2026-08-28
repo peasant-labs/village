@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupByProject, groupByRepo } from "@/lib/format";
+import { describeNameSource, groupByProject, groupByRepo } from "@/lib/format";
 import { buildProjectHref } from "@/components/session-detail/v2/transcriptChrome";
 import {
   loadProjectIdentityFixtures,
@@ -167,5 +167,23 @@ describe("groupByRepo: the git_remote axis's label must not read the resolved pr
     const [group] = groupByRepo([item]);
     expect(mutantName).not.toBe(group.name);
     expect(group.name).toBe(c.expectedName);
+  });
+});
+
+// `describeNameSource` is the one live consumer that must handle EVERY member
+// of the closed NameSource union — the tooltip a viewer reads next to a
+// rendered project name to tell an owner-chosen name from an inferred one.
+// The union's exhaustiveness is a COMPILE-time guarantee (a missing `case`
+// fails `assertNameSourceExhaustive`), so these cases add the thing a compiler
+// cannot check: that each tier renders the sentence it is supposed to render,
+// and that no tier is silently explained as another.
+describe("describeNameSource: every resolver tier explains itself", () => {
+  it.each(fixtures.nameSourceDescriptionCases)("$name", (c) => {
+    expect(describeNameSource(c.source)).toBe(c.expectedDescription);
+  });
+
+  it("gives each tier its own sentence, so no two tiers read the same", () => {
+    const sentences = fixtures.nameSourceDescriptionCases.map((c) => describeNameSource(c.source));
+    expect(new Set(sentences).size).toBe(sentences.length);
   });
 });

@@ -23,6 +23,16 @@
    MOCK_PROJECT_ROLLUP=empty serves an empty collectives roll-up, the ordinary
    answer for a viewer the visibility gate and the contributor opt-in exclude.
 
+   MOCK_PROJECT_IDENTITY selects which evidence the project's name is resolved
+   from:
+     remote (default) an owner rename over a project that also has a git remote,
+            so the heading carries a chosen name and the subtitle a repository
+            label
+     path   a project with NO git remote and no chosen or disclosed name, whose
+            name is therefore the redacted local path its publisher recorded
+            ("/<PATH>/sample-app"). There is no repository label to render, so
+            the subtitle is absent — that absence is the point of the capture.
+
    Usage:
      MOCK_REST_PORT=8790 node scripts/visual/mock-rest-project.mjs
 */
@@ -60,10 +70,24 @@ const otherViewer = makeUser('bob-reviewer', 'Bob Reviewer')
 // user content, and the design system lowercases h1/h2/h3 as chrome, so a
 // lowercase-only fixture cannot show whether the name survives as typed. Both
 // the project page heading and the profile project card render this string.
-let displayName = 'The Village'
-let nameSource = 'override'
-const REMOTE_LABEL = 'github.com:peasant-labs/village'
-const RESOLVED_DEFAULT = { displayName: 'village', nameSource: 'consented' }
+const IDENTITY = process.env.MOCK_PROJECT_IDENTITY || 'remote'
+
+// The path-tier project. Its name IS the redacted local path its publisher
+// recorded: no owner rename, no disclosed project name, and no git remote to
+// label. The path is served exactly as a publishing client would send it —
+// already redacted, with no account name and no folders above the project — so
+// the capture shows what a real reader of this page would see, and reviewing the
+// screenshot is a real check that Village renders that value verbatim.
+const PATH_TIER = { displayName: '/<PATH>/sample-app', nameSource: 'path' }
+
+let displayName = IDENTITY === 'path' ? PATH_TIER.displayName : 'The Village'
+let nameSource = IDENTITY === 'path' ? PATH_TIER.nameSource : 'override'
+// A project resolved from its path has no repository to label. The empty string
+// (never null) is what the wire carries for "no label"; the page must render no
+// subtitle at all rather than an empty one.
+const REMOTE_LABEL = IDENTITY === 'path' ? '' : 'github.com:peasant-labs/village'
+const RESOLVED_DEFAULT =
+  IDENTITY === 'path' ? PATH_TIER : { displayName: 'village', nameSource: 'consented' }
 
 const sessions = [
   { title: 'Wire the publish guard to the project hash', provider: 'claude-code', turns: 42, published: '2026-08-21T10:00:00Z' },
@@ -111,9 +135,11 @@ const transcript = (s, i) => ({
   ingested_at: null,
   source_format: null,
   git_branch: null,
-  git_remote: 'git@github.com:peasant-labs/village.git',
+  git_remote: IDENTITY === 'path' ? null : 'git@github.com:peasant-labs/village.git',
   project_hash: PROJECT_HASH,
-  project_name: 'village',
+  // A path-tier project disclosed no project name at all; that absence is why
+  // the resolver falls through to the path.
+  project_name: IDENTITY === 'path' ? null : 'village',
   project_display_name: displayName,
   project_name_source: nameSource,
   project_remote_label: REMOTE_LABEL,
@@ -257,6 +283,6 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(
     `mock-rest-project: serving project-page fixtures on http://localhost:${PORT}/api/v1 ` +
-      `(viewer=${VIEWER}, rollup=${ROLLUP}, hash=${PROJECT_HASH})`,
+      `(viewer=${VIEWER}, rollup=${ROLLUP}, identity=${IDENTITY}, hash=${PROJECT_HASH})`,
   )
 })

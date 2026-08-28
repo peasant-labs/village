@@ -45,6 +45,8 @@ type Querier interface {
 	ListOwnerProjectIdentities(ctx context.Context, arg sqlc.ListOwnerProjectIdentitiesParams) ([]sqlc.ListOwnerProjectIdentitiesRow, error)
 	CountOwnerTranscriptsInProject(ctx context.Context, arg sqlc.CountOwnerTranscriptsInProjectParams) (int64, error)
 	ListProjectTranscriptsForViewer(ctx context.Context, arg sqlc.ListProjectTranscriptsForViewerParams) ([]sqlc.Transcript, error)
+	ListOwnerProjectShareCandidates(ctx context.Context, arg sqlc.ListOwnerProjectShareCandidatesParams) ([]sqlc.ListOwnerProjectShareCandidatesRow, error)
+	ListOwnerContributableTranscripts(ctx context.Context, arg sqlc.ListOwnerContributableTranscriptsParams) ([]sqlc.ListOwnerContributableTranscriptsRow, error)
 
 	// Owner corrections to derived, published metadata
 	UpsertOwnerOverride(ctx context.Context, arg sqlc.UpsertOwnerOverrideParams) (sqlc.OwnerOverride, error)
@@ -106,6 +108,7 @@ type Querier interface {
 
 	// Share methods
 	GetLatestShareAttempt(ctx context.Context, arg sqlc.GetLatestShareAttemptParams) (sqlc.TranscriptShareAttempt, error)
+	ListLiveShareAttemptsForGroup(ctx context.Context, arg sqlc.ListLiveShareAttemptsForGroupParams) ([]sqlc.ListLiveShareAttemptsForGroupRow, error)
 	ListShareAttempts(ctx context.Context, arg sqlc.ListShareAttemptsParams) ([]sqlc.TranscriptShareAttempt, error)
 	ShareTranscriptWithStatus(ctx context.Context, arg sqlc.ShareTranscriptWithStatusParams) error
 	UnshareTranscript(ctx context.Context, arg sqlc.UnshareTranscriptParams) error
