@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { TranscriptListResponse } from "@/lib/types";
 import {
@@ -118,6 +119,17 @@ function assertStep(step: OrchestrationStep): void {
     expect(screen.queryByTestId("session-list-results")).toBeNull();
     expect(screen.queryByTestId("explore")).toBeNull();
     expect(screen.getByText("Failed to load transcripts")).toBeInTheDocument();
+    // The actionable body, not merely the heading: a panel that lost its
+    // message would still carry the title. It must name the endpoint and the
+    // cause the request reported.
+    const panel = screen.getAllByRole("alert")[0];
+    const text = (panel.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain(TRANSCRIPT_LIST_ENDPOINT);
+    expect(text).toContain("network unavailable");
+    // This surface's retry names the exact page it re-issues; the home page's
+    // panel says only "retry". The two share one component, so this is what
+    // notices if the lift ever collapsed their labels into one.
+    expect(screen.getByRole("button", { name: /^retry page \d+$/ })).toBeInTheDocument();
   } else {
     expect(screen.queryByTestId("session-list-results")).toBeNull();
     expect(screen.queryByTestId("explore")).toBeNull();

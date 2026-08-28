@@ -57,9 +57,17 @@ navCases:
 
 # What the home surface renders for a given owner-scoped transcript list.
 #
-# `requestFails` models the owner-scoped request FAILING rather than answering.
-# It is written on every case, never defaulted, so a case can never be silently
-# read as a success because a field was forgotten.
+# Three fields describe the REQUEST rather than the rows, and each is written on
+# every case, never defaulted, so a case can never be silently read as the happy
+# path because a field was forgotten.
+#
+#   usernameChosen     whether the account claims a chosen handle. A blank handle
+#                      on an unchosen account is on its way to `/welcome`; a
+#                      blank handle on a chosen one is a contract violation.
+#   requestFailure     `never`, `always`, or `after-first-answer` (the refresh
+#                      fails once rows have already been confirmed).
+#   expectHomeSurface  which of the page's six answers the case must land on.
+#                      A closed set, so a case cannot invent a seventh.
 #
 # `transcripts` is deliberately NOT written in published order: the page sorts
 # most-recent-first itself rather than trusting the response order, and a
@@ -97,8 +105,9 @@ homeCases:
       - displayName: village
         sessionCount: 2
         href: /users/alice-dev/projects/1111111111111111111111111111111111111111111111111111111111111111
-    requestFails: false
-    expectEmptyState: false
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
 
   - name: more-sessions-than-the-recent-list-shows-are-capped
     viewerUsername: alice-dev
@@ -143,16 +152,18 @@ homeCases:
       - displayName: schema
         sessionCount: 6
         href: /users/alice-dev/projects/3333333333333333333333333333333333333333333333333333333333333333
-    requestFails: false
-    expectEmptyState: false
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
 
   - name: a-person-with-nothing-published-gets-the-teaching-empty-state
     viewerUsername: newcomer
     transcripts: []
     expectRecentTitles: []
     expectProjectRows: []
-    requestFails: false
-    expectEmptyState: true
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: empty
 
   - name: a-username-needing-escaping-still-links-to-its-project
     viewerUsername: a b
@@ -168,8 +179,9 @@ homeCases:
       - displayName: Mixed Case Project
         sessionCount: 1
         href: /users/a%20b/projects/4444444444444444444444444444444444444444444444444444444444444444
-    requestFails: false
-    expectEmptyState: false
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
 
   - name: a-row-arriving-without-a-project-identity-is-reported-not-dropped
     viewerUsername: alice-dev
@@ -193,8 +205,9 @@ homeCases:
       - displayName: village
         sessionCount: 1
         href: /users/alice-dev/projects/5555555555555555555555555555555555555555555555555555555555555555
-    requestFails: false
-    expectEmptyState: false
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
 
   - name: a-failed-request-is-not-an-empty-library
     viewerUsername: alice-dev
@@ -202,7 +215,88 @@ homeCases:
     # well own hundreds. Telling them they have published nothing, and offering
     # them a link to publish their first, is the failure this case forbids.
     transcripts: []
-    requestFails: true
+    usernameChosen: true
+    requestFailure: always
     expectRecentTitles: []
     expectProjectRows: []
-    expectEmptyState: false
+    expectHomeSurface: failure
+
+  - name: a-failed-refresh-keeps-the-rows-it-already-had
+    viewerUsername: alice-dev
+    # The first answer arrives and is rendered; a later refresh fails. Replacing
+    # the whole library with an error panel because a LATER request failed is
+    # the same lie as calling it empty, so the rows stay and a notice says they
+    # could not be refreshed.
+    transcripts:
+      - id: t-confirmed
+        title: a confirmed session
+        projectHash: "6666666666666666666666666666666666666666666666666666666666666666"
+        projectDisplayName: village
+        publishedAt: "2026-08-19T10:00:00Z"
+    usernameChosen: true
+    requestFailure: after-first-answer
+    expectRecentTitles:
+      - a confirmed session
+    expectProjectRows:
+      - displayName: village
+        sessionCount: 1
+        href: /users/alice-dev/projects/6666666666666666666666666666666666666666666666666666666666666666
+    expectHomeSurface: stale
+
+  - name: a-handle-still-being-chosen-asks-for-nothing
+    # No handle yet, and the account has not claimed one, so the handle gate is
+    # already on its way to `/welcome`. A request now would carry a blank owner
+    # filter, which the list handler drops: the whole commons would arrive under
+    # a heading that says "your". The page holds still instead.
+    viewerUsername: ""
+    transcripts: []
+    usernameChosen: false
+    requestFailure: never
+    expectRecentTitles: []
+    expectProjectRows: []
+    expectHomeSurface: skeleton
+
+  - name: a-chosen-handle-that-is-blank-says-so
+    # The account claims a chosen handle and carries none, so nothing is coming
+    # to fix it: the redirect that rescues an unchosen handle never fires. The
+    # page cannot ask, and says so rather than shimmering forever.
+    viewerUsername: ""
+    transcripts: []
+    usernameChosen: true
+    requestFailure: never
+    expectRecentTitles: []
+    expectProjectRows: []
+    expectHomeSurface: no-handle
+
+# Ordering cases for the exported sort itself, including timestamps that do NOT
+# parse. The mounted corpus above rejects an unparseable timestamp on purpose (a
+# row that cannot be grouped teaches nothing about grouping), so the branch that
+# keeps a bad value from throwing has no other way to be reached.
+sortCases:
+  - name: newest-first-among-parseable-timestamps
+    given:
+      - id: middle
+        publishedAt: "2026-08-10T10:00:00Z"
+      - id: newest
+        publishedAt: "2026-08-20T10:00:00Z"
+      - id: oldest
+        publishedAt: "2026-08-01T10:00:00Z"
+    expectOrder: [newest, middle, oldest]
+
+  - name: an-unparseable-timestamp-sorts-last-instead-of-throwing
+    given:
+      - id: unparseable
+        publishedAt: "not a timestamp"
+      - id: older
+        publishedAt: "2026-08-01T10:00:00Z"
+      - id: newer
+        publishedAt: "2026-08-20T10:00:00Z"
+    expectOrder: [newer, older, unparseable]
+
+  - name: two-unparseable-timestamps-keep-the-order-they-arrived-in
+    given:
+      - id: first-bad
+        publishedAt: ""
+      - id: second-bad
+        publishedAt: "also not a timestamp"
+    expectOrder: [first-bad, second-bad]

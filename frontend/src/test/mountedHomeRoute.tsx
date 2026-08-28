@@ -4,7 +4,7 @@ import { afterEach, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import RootPage from "@/app/page";
 import ExploreRoute from "@/app/explore/page";
-import type { HomeTranscriptCase } from "@/test/homePageFixtures";
+import type { HomeRequestFailure, HomeTranscriptCase } from "@/test/homePageFixtures";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { TranscriptListItem, User } from "@/lib/types";
 
@@ -24,14 +24,18 @@ export interface MountedHomeFixture {
   /** The rows `GET /transcripts?owner=…` serves for the viewer. */
   transcripts: HomeTranscriptCase[];
   /**
-   * When true the owner-scoped list request FAILS with a 500 instead of
-   * answering. Discovery's own unscoped request still succeeds, so a failure
-   * on this page is observably the home request's and not the whole stub's.
+   * How the owner-scoped list request behaves. `always` fails every attempt;
+   * `after-first-answer` answers once and fails every later attempt, which is
+   * the failed-REFRESH case where rows are already on screen. Discovery's own
+   * unscoped request always succeeds, so a failure on this page is observably
+   * the home request's and not the whole stub's.
    */
-  ownerRequestFails?: boolean;
+  ownerRequestFailure?: HomeRequestFailure;
+  /** Whether the account claims a chosen handle. Defaults to true. */
+  usernameChosen?: boolean;
 }
 
-function userFixture(username: string): User {
+function userFixture(username: string, usernameChosen = true): User {
   return {
     id: `user-${username}`,
     github_id: 1,
@@ -41,7 +45,7 @@ function userFixture(username: string): User {
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     is_discoverable: true,
-    username_chosen: true,
+    username_chosen: usernameChosen,
     provider_username: username,
   };
 }
@@ -84,7 +88,10 @@ function json(body: unknown, status = 200): Response {
  */
 export function installHomeRouteREST(fixture: MountedHomeFixture): string[] {
   const requested: string[] = [];
-  const owner = userFixture(fixture.viewerUsername ?? "anon");
+  const chosen = fixture.usernameChosen ?? true;
+  const failure: HomeRequestFailure = fixture.ownerRequestFailure ?? "never";
+  const owner = userFixture(fixture.viewerUsername ?? "anon", chosen);
+  let ownerAnswers = 0;
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     const path = url.slice(url.indexOf("/api/v1") + "/api/v1".length);
@@ -93,7 +100,7 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): string[] {
     if (path === "/auth/me") {
       return fixture.viewerUsername == null
         ? json({ error: "not signed in" }, 401)
-        : json(userFixture(fixture.viewerUsername));
+        : json(userFixture(fixture.viewerUsername, chosen));
     }
     if (path.startsWith("/tags/popular")) return json([]);
     if (path.startsWith("/groups/search")) return json({ collectives: [] });
@@ -101,8 +108,13 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): string[] {
       // The owner-scoped request is the home page's; every other transcripts
       // request belongs to discovery, which these cases render empty.
       const isOwnerScoped = path.includes("owner=");
-      if (isOwnerScoped && fixture.ownerRequestFails) {
-        return json({ error: "the session list is unavailable" }, 500);
+      if (isOwnerScoped) {
+        const failsNow =
+          failure === "always" || (failure === "after-first-answer" && ownerAnswers > 0);
+        ownerAnswers += 1;
+        if (failsNow) {
+          return json({ error: "the session list is unavailable" }, 500);
+        }
       }
       const rows = isOwnerScoped ? fixture.transcripts.map((t) => listItem(t, owner)) : [];
       return json({

@@ -53,14 +53,24 @@ export default function HomePage() {
   const { user } = useAuth();
   const username = user?.github_username ?? "";
   // A blank owner filter is DROPPED by the list handler, which would answer
-  // with the whole commons under a heading that says "your". The request is
-  // therefore not issued at all until the viewer's handle is known; the handle
-  // gate is already redirecting a signed-in person who has not claimed one.
+  // with the whole commons under a heading that says "your", so the request is
+  // not issued at all until the viewer's handle is known.
+  //
+  // There are two ways it can be blank, and they end differently. Somebody who
+  // has not claimed a handle yet is on their way to `/welcome`: the handle gate
+  // reads `username_chosen`, so this page only has to hold still. An account
+  // that claims a chosen handle and still carries none is a server contract
+  // violation, and is told so rather than shown an endless skeleton.
   const hasUsername = username !== "";
+  const awaitingHandleChoice = user != null && !user.username_chosen;
   const { data, isLoading, isError, error, refetch } = useTranscripts(
     { owner: username },
     { enabled: hasUsername },
   );
+
+  // The reported cause is its own sentence wherever it is shown: it comes from
+  // the server and carries no guaranteed capital or full stop.
+  const failureCause = error instanceof Error ? error.message : "an unknown error";
 
   const items = data?.transcripts ?? [];
   const recent = mostRecentFirst(items).slice(0, RECENT_SESSION_LIMIT);
@@ -89,7 +99,7 @@ export default function HomePage() {
     </div>
   );
 
-  if (!hasUsername || isLoading) {
+  if (isLoading || (!hasUsername && awaitingHandleChoice)) {
     return (
       <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
         <div className="h-8 w-64 animate-shimmer" />
@@ -99,12 +109,43 @@ export default function HomePage() {
     );
   }
 
+  // A chosen handle that is blank cannot be asked about, and nothing is coming
+  // to fix it: the redirect that would rescue an unchosen handle does not fire
+  // for this account. Say so, rather than shimmer forever.
+  if (!hasUsername) {
+    return (
+      <div
+        className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
+        data-testid="home-page-no-handle"
+      >
+        <div
+          role="alert"
+          className="border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger"
+        >
+          <p className="font-medium">your account has no handle</p>
+          <p className="mt-1 text-[13px]">
+            Your sessions are stored under your handle, and this account is
+            recorded as having chosen one while carrying none, so they cannot be
+            looked up. Nothing has been lost. Sign out and back in; if the page
+            still says this, the account needs a maintainer.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // A failed request is NOT an empty library. Rendering the teaching empty
   // state here would tell somebody with a shelf full of published sessions
   // that they have published nothing, and send them off to publish another.
   // The shared failure panel says what failed and offers the same retry the
   // discovery list offers.
-  if (isError) {
+  //
+  // Only when there is nothing to keep on screen. A refresh that fails in the
+  // background still holds the rows it confirmed earlier, and replacing a
+  // person's whole library with an error panel because a later request failed
+  // is the same lie in a different shape; that case keeps the rows and says so
+  // in a notice above them.
+  if (isError && data == null) {
     return (
       <div
         className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
@@ -113,13 +154,10 @@ export default function HomePage() {
         <RequestFailureState
           title="Failed to load your sessions"
           message={
-            // The reported cause is its own sentence: it comes from the server
-            // and carries no guaranteed capital or full stop, so folding it
-            // into the surrounding prose produces a run-on.
             `Your own published sessions could not be loaded from ` +
-            `${TRANSCRIPT_LIST_ENDPOINT}. This is not an empty library, and ` +
-            `nothing has been deleted. Retry to load it again. The request ` +
-            `reported: ${error instanceof Error ? error.message : "an unknown error"}.`
+            `${TRANSCRIPT_LIST_ENDPOINT}. A failed request is not an empty ` +
+            `library, and nothing has been deleted. Retry to load it again. ` +
+            `The request reported: ${failureCause}.`
           }
           onRetry={() => refetch()}
           retryLabel="retry"
@@ -136,6 +174,28 @@ export default function HomePage() {
       <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-ink">
         home
       </h1>
+
+      {isError && (
+        // The rows below are the last ones the server confirmed. They are kept
+        // deliberately: a failed refresh is not news that the library shrank.
+        <div
+          role="alert"
+          data-testid="home-stale-notice"
+          className="border border-rule bg-surface px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        >
+          <p className="text-[13px] text-ink-3">
+            These sessions could not be refreshed, so they are the ones last
+            loaded and may be out of date. The request reported: {failureCause}.
+          </p>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm shrink-0"
+            onClick={() => refetch()}
+          >
+            retry
+          </button>
+        </div>
+      )}
 
       {malformed.length > 0 && (
         // `project_hash` is a required identity column, so a row without one is

@@ -13,6 +13,9 @@ import type { ReactNode } from "react";
  *
  * The markup is the discovery list's original failure surface, lifted so the
  * home page shows the same panel instead of growing a second dialect of it.
+ * This covers the FULL-SURFACE arm only. The inline notice shape, the one a
+ * surface shows above rows it is keeping, is still written out at each of its
+ * call sites; folding those together is a separate change.
  *
  * Fairtrade's `DataState` carries an error slot, but its panel is worded for a
  * program running on the reader's own computer ("lost connection to the local
@@ -30,8 +33,6 @@ export interface RequestFailureStateProps {
   onRetry: () => void;
   /** The retry control's label; names the exact request being re-issued. */
   retryLabel: ReactNode;
-  /** Marks this panel for the tests that assert WHICH surface failed. */
-  testId?: string;
 }
 
 export default function RequestFailureState({
@@ -39,13 +40,11 @@ export default function RequestFailureState({
   message,
   onRetry,
   retryLabel,
-  testId,
 }: RequestFailureStateProps) {
   return (
     <div className="flex flex-col gap-6 animate-fade-up">
       <div
         role="alert"
-        data-testid={testId}
         className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center"
       >
         <SearchX size={28} className="text-ink-4" />

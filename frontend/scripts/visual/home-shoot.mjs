@@ -112,24 +112,65 @@ if (MODE === 'failure') {
   const shape = await page.evaluate(() => {
     const panel = document.querySelector('[data-testid="home-page-error"]')
     const alert = panel?.querySelector('[role="alert"]')
+    const button = panel?.querySelector('button')
     const retry = [...(panel?.querySelectorAll('button') ?? [])].map((b) => (b.textContent ?? '').trim())
+    const alertStyle = alert ? getComputedStyle(alert) : null
+    const buttonStyle = button ? getComputedStyle(button) : null
     return {
       alertText: (alert?.textContent ?? '').replace(/\s+/g, ' ').trim(),
       retry,
       emptyState: document.querySelector('[data-testid="home-empty-state"]') != null,
       rows: document.querySelectorAll('[data-testid="home-project-row"]').length,
+      recentList: document.querySelector('[data-testid="home-recent-sessions"]') != null,
+      style: alertStyle && {
+        borderTopWidth: alertStyle.borderTopWidth,
+        borderRadius: alertStyle.borderRadius,
+        buttonFontFamily: buttonStyle?.fontFamily ?? null,
+        buttonBorderRadius: buttonStyle?.borderRadius ?? null,
+      },
     }
   })
   // The whole point of the surface: a failed request is NOT an empty library,
-  // and the person is offered a way to ask again.
-  if (shape.emptyState || !shape.alertText.includes('Failed to load your sessions') || shape.retry.length === 0) {
+  // and the person is offered a way to ask again. The row and list checks are
+  // the other half of it: this arm serves NO rows, so anything still listed
+  // would mean the capture is of a different state than the one named.
+  if (
+    shape.emptyState ||
+    shape.rows !== 0 ||
+    shape.recentList ||
+    !shape.alertText.includes('Failed to load your sessions') ||
+    !shape.alertText.includes('not an empty library') ||
+    shape.retry.length === 0
+  ) {
     await fail(
       `ERROR [home-shoot.mjs] the served build does not distinguish a failed request from an empty library.
   What failed: ${JSON.stringify(shape)}.
-  Why: the page rendered the teaching empty state, or the failure panel carries no heading or no retry control.
+  Why: the page rendered the teaching empty state or a session list, or the failure panel carries no heading, no reassurance, or no retry control.
   Where: home-shoot.mjs failure-arm build-provenance check.
   Means: the capture would evidence the very bug this change removes.
   Fix: rebuild and restart the server from this worktree, then retry.`,
+      2,
+    )
+  }
+  // A scaled PNG cannot tell an unstyled panel from a styled one, so the panel's
+  // own computed values are asserted: a real border, square corners, and the
+  // design system's mono on the control. A surface that shipped unstyled would
+  // otherwise still produce a plausible-looking capture.
+  const st = shape.style
+  if (
+    !st ||
+    st.borderTopWidth === '0px' ||
+    st.borderRadius !== '0px' ||
+    st.buttonBorderRadius !== '0px' ||
+    !/atkinson/i.test(st.buttonFontFamily ?? '')
+  ) {
+    await fail(
+      `ERROR [home-shoot.mjs] the failure panel's computed styles are not the design system's.
+  What failed: ${JSON.stringify(st)}.
+  Why: the panel rendered without its border, with rounded corners, or with the control in a fallback font, so the stylesheet did not reach it.
+  Where: home-shoot.mjs failure-arm computed-style probe.
+  Means: the PNG would look plausible while the surface ships unstyled.
+  Fix: confirm the served build includes the app stylesheet, then retry.`,
       2,
     )
   }
@@ -160,6 +201,7 @@ if (MODE === 'failure') {
   console.log('shot', 'village-home-failure-panel'.padEnd(28), `nonbg=${(panelGate.nonbgRatio * 100).toFixed(1)}% colors=${panelGate.distinctColors} ${(statSync(panelFile).size / 1024).toFixed(1)}KB`)
   console.log('shot', 'village-home-failure'.padEnd(28), `${Math.round(bodyBox.width)}x${Math.round(bodyBox.height)}`.padEnd(11), `nonbg=${(pageMeasure.nonbgRatio * 100).toFixed(2)}% colors=${pageMeasure.distinctColors} ${(statSync(failFile).size / 1024).toFixed(1)}KB (page measured, not gated: see note above)`)
   console.log('failure panel:', JSON.stringify(shape))
+  console.log('computed panel style:', JSON.stringify(st))
   console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
   await browser.close()
   process.exit(0)

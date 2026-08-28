@@ -40,15 +40,31 @@ export type HomeProjectRowCase = {
   href: string;
 };
 
+/** How the owner-scoped list request behaves for a case. */
+export type HomeRequestFailure = "never" | "always" | "after-first-answer";
+
+/**
+ * The answers the home page can land on. A closed set, so a case cannot name a
+ * seventh surface and quietly assert nothing.
+ */
+export type HomeSurface =
+  | "rows"
+  | "empty"
+  | "failure"
+  | "stale"
+  | "skeleton"
+  | "no-handle";
+
 export type HomeCase = {
   name: string;
   viewerUsername: string;
   transcripts: HomeTranscriptCase[];
-  /** The owner-scoped request fails instead of answering. */
-  requestFails: boolean;
+  /** Whether the account claims a chosen handle. */
+  usernameChosen: boolean;
+  requestFailure: HomeRequestFailure;
   expectRecentTitles: string[];
   expectProjectRows: HomeProjectRowCase[];
-  expectEmptyState: boolean;
+  expectHomeSurface: HomeSurface;
 };
 
 /**
@@ -68,6 +84,17 @@ export type LoadedHomeCase = HomeCase & {
   malformedCount: number;
 };
 
+export type HomeSortRow = {
+  id: string;
+  publishedAt: string;
+};
+
+export type HomeSortCase = {
+  name: string;
+  given: HomeSortRow[];
+  expectOrder: string[];
+};
+
 export type HomeNavCase = {
   name: string;
   isLoggedIn: boolean;
@@ -81,12 +108,14 @@ type ParsedHomePageFixtures = {
   routeCases: HomeRouteCase[];
   navCases: HomeNavCase[];
   homeCases: HomeCase[];
+  sortCases: HomeSortCase[];
 };
 
 export type HomePageFixtures = {
   routeCases: HomeRouteCase[];
   navCases: HomeNavCase[];
   homeCases: LoadedHomeCase[];
+  sortCases: HomeSortCase[];
 };
 
 const requiredRouteCaseNames = [
@@ -113,6 +142,9 @@ const requiredHomeCaseNames = [
   "a-username-needing-escaping-still-links-to-its-project",
   "a-row-arriving-without-a-project-identity-is-reported-not-dropped",
   "a-failed-request-is-not-an-empty-library",
+  "a-failed-refresh-keeps-the-rows-it-already-had",
+  "a-handle-still-being-chosen-asks-for-nothing",
+  "a-chosen-handle-that-is-blank-says-so",
 ] as const;
 
 const routeCaseKeys = ["name", "path", "viewerUsername", "expectSurface"];
@@ -122,13 +154,49 @@ const homeCaseKeys = [
   "name",
   "viewerUsername",
   "transcripts",
-  "requestFails",
+  "usernameChosen",
+  "requestFailure",
   "expectRecentTitles",
   "expectProjectRows",
-  "expectEmptyState",
+  "expectHomeSurface",
 ];
 
+const requestFailures: readonly HomeRequestFailure[] = [
+  "never",
+  "always",
+  "after-first-answer",
+];
+
+const homeSurfaces: readonly HomeSurface[] = [
+  "rows",
+  "empty",
+  "failure",
+  "stale",
+  "skeleton",
+  "no-handle",
+];
+
+/**
+ * The surface a case's OWN inputs entail. Derived here, so a case cannot claim
+ * an expectation its inputs do not support, and so each rule is stated once.
+ */
+function surfaceFor(c: HomeCase): HomeSurface {
+  if (c.viewerUsername === "") return c.usernameChosen ? "no-handle" : "skeleton";
+  if (c.requestFailure === "always") return "failure";
+  if (c.requestFailure === "after-first-answer") return "stale";
+  return c.transcripts.length === 0 ? "empty" : "rows";
+}
+
 const surfaces: readonly HomeRouteSurface[] = ["home", "explore"];
+
+const requiredSortCaseNames = [
+  "newest-first-among-parseable-timestamps",
+  "an-unparseable-timestamp-sorts-last-instead-of-throwing",
+  "two-unparseable-timestamps-keep-the-order-they-arrived-in",
+] as const;
+
+const sortCaseKeys = ["name", "given", "expectOrder"];
+const sortRowKeys = ["id", "publishedAt"];
 
 export function loadHomePageFixtures(): HomePageFixtures {
   const fixturePath = resolve(process.cwd(), "src/testdata/home-page.yaml");
@@ -136,7 +204,11 @@ export function loadHomePageFixtures(): HomePageFixtures {
   if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("home-page fixture root must be an object");
   }
-  assertExactKeys(parsed, ["routeCases", "navCases", "homeCases"], "fixture root");
+  assertExactKeys(
+    parsed,
+    ["routeCases", "navCases", "homeCases", "sortCases"],
+    "fixture root",
+  );
   const fixtures = parsed as ParsedHomePageFixtures;
 
   assertNamesMatch(
@@ -248,20 +320,47 @@ export function loadHomePageFixtures(): HomePageFixtures {
       );
     }
 
+    if (!requestFailures.includes(c.requestFailure)) {
+      throw new Error(
+        `home case ${c.name}: ${c.requestFailure} is not a request behaviour. The closed set is ` +
+          `${requestFailures.join(", ")}.`,
+      );
+    }
+    if (!homeSurfaces.includes(c.expectHomeSurface)) {
+      throw new Error(
+        `home case ${c.name}: ${c.expectHomeSurface} is not a home surface. The closed set is ` +
+          `${homeSurfaces.join(", ")}.`,
+      );
+    }
     // The distinction this corpus exists to hold: an answered request with no
     // rows is the empty library; a request that FAILED is not, and a page that
     // conflated them would tell somebody with a full shelf that it is bare.
-    if (c.expectEmptyState !== (c.transcripts.length === 0 && !c.requestFails)) {
+    // A refresh that fails after rows arrived is a third answer again: the rows
+    // stay, and only a notice above them changes.
+    const entailed = surfaceFor(c);
+    if (c.expectHomeSurface !== entailed) {
       throw new Error(
-        `home case ${c.name}: expectEmptyState must be true exactly when the case supplies no ` +
-          `transcripts AND its request succeeds. A failed request is a failure surface, never an ` +
-          `empty one.`,
+        `home case ${c.name}: expectHomeSurface is ${c.expectHomeSurface}, but the case's own ` +
+          `inputs entail ${entailed}. Fix the expectation rather than the rule.`,
       );
     }
-    if (c.requestFails && c.transcripts.length > 0) {
+    // A request that never answers cannot also deliver rows, and a refresh has
+    // nothing to keep unless rows arrived first.
+    if (c.requestFailure === "always" && c.transcripts.length > 0) {
       throw new Error(
-        `home case ${c.name}: a request that fails cannot also deliver rows; drop the transcripts ` +
-          `or set requestFails to false`,
+        `home case ${c.name}: a request that always fails cannot also deliver rows`,
+      );
+    }
+    if (c.requestFailure === "after-first-answer" && c.transcripts.length === 0) {
+      throw new Error(
+        `home case ${c.name}: a failed REFRESH is only distinguishable from a failed first ` +
+          `request when rows arrived first; supply at least one transcript`,
+      );
+    }
+    if (c.viewerUsername === "" && c.transcripts.length > 0) {
+      throw new Error(
+        `home case ${c.name}: no request is issued without a handle, so the case cannot supply ` +
+          `rows for one`,
       );
     }
 
@@ -354,17 +453,76 @@ export function loadHomePageFixtures(): HomePageFixtures {
         `shows. Without one, a page that dropped the cap and listed everything would still pass.`,
     );
   }
-  if (!loadedHomeCases.some((c) => c.requestFails)) {
-    throw new Error(
-      `home-page homeCases: at least one case must model the owner-scoped request FAILING. ` +
-        `Without one, a page that renders a failed request as the teaching empty state would ` +
-        `still pass, and would tell a person with a full library that it is empty.`,
-    );
+  // Each answer the page can give needs at least one case, or a page that
+  // collapsed two of them together would still pass. The reasons differ, so
+  // they are named one at a time rather than counted.
+  const requiredSurfaces: ReadonlyArray<readonly [HomeSurface, string]> = [
+    [
+      "failure",
+      `a page that rendered a failed request as the teaching empty state would still pass, and ` +
+        `would tell a person with a full library that it is empty`,
+    ],
+    [
+      "stale",
+      `a page that replaced the rows it already holds with an error panel, because a LATER ` +
+        `request failed, would still pass`,
+    ],
+    [
+      "skeleton",
+      `a page that issued a blank owner filter while the handle is still being chosen would still ` +
+        `pass, and the list handler drops that filter, so the whole commons would arrive under a ` +
+        `heading that says "your"`,
+    ],
+    [
+      "no-handle",
+      `a page that shimmered forever for an account whose chosen handle is blank would still pass`,
+    ],
+  ];
+  for (const [surface, why] of requiredSurfaces) {
+    if (!loadedHomeCases.some((c) => c.expectHomeSurface === surface)) {
+      throw new Error(
+        `home-page homeCases: at least one case must land on the ${surface} surface. Without one, ` +
+          `${why}.`,
+      );
+    }
   }
   if (!sawUnsortedInput) {
     throw new Error(
       `home-page homeCases: at least one case must supply its transcripts in an order that is ` +
         `NOT already most-recent-first. Without one, a page that never sorted would still pass.`,
+    );
+  }
+
+  assertNamesMatch(
+    fixtures.sortCases.map((c) => c.name),
+    requiredSortCaseNames,
+    "home-page sortCases",
+  );
+  let sawUnparseable = false;
+  for (const c of fixtures.sortCases) {
+    assertExactKeys(c, sortCaseKeys, `sort case ${c.name}`);
+    for (const row of c.given) {
+      assertExactKeys(row, sortRowKeys, `sort case ${c.name} row ${row.id}`);
+      if (Number.isNaN(Date.parse(row.publishedAt))) sawUnparseable = true;
+    }
+    const ids = c.given.map((r) => r.id);
+    if (new Set(ids).size !== ids.length) {
+      throw new Error(`sort case ${c.name}: row ids must be unique`);
+    }
+    if (JSON.stringify([...ids].sort()) !== JSON.stringify([...c.expectOrder].sort())) {
+      throw new Error(
+        `sort case ${c.name}: expectOrder must be a permutation of the rows the case supplies; ` +
+          `got ${c.expectOrder.join(", ")} for rows ${ids.join(", ")}`,
+      );
+    }
+  }
+  // The mounted corpus cannot carry a bad timestamp, so if this group loses its
+  // unparseable rows the branch that keeps one from throwing goes uncovered and
+  // nothing says so.
+  if (!sawUnparseable) {
+    throw new Error(
+      `home-page sortCases: at least one case must supply a timestamp that does NOT parse. It is ` +
+        `the only place the sort's bad-value handling can be reached.`,
     );
   }
 

@@ -112,13 +112,18 @@ export default function ExplorePage() {
     statusMessage = "";
   }
 
+  // One label for both ways the same failure is offered: the full surface and
+  // the notice above retained rows. Two literals sixteen lines apart would
+  // drift the moment one of them is reworded.
+  const retryLabel = `retry page ${requestedPage}`;
+
   const retryButton = (
     <button
       type="button"
       className="btn btn-secondary btn-sm shrink-0"
       onClick={() => refetch()}
     >
-      retry page {requestedPage}
+      {retryLabel}
     </button>
   );
 
@@ -134,7 +139,7 @@ export default function ExplorePage() {
         title="Failed to load transcripts"
         message={failureMessage}
         onRetry={() => refetch()}
-        retryLabel={`retry page ${requestedPage}`}
+        retryLabel={retryLabel}
       />
     );
   } else if (isLoading || !payload) {
