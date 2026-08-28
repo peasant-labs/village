@@ -3,5 +3,8 @@
   "private": true,
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.5.3",
+  "engines": {
+    "node": ">=26"
+  },
   "description": "pnpm workspace root: the village Manage frontend (@peasant-labs/fairtrade resolves from the registry). See pnpm-workspace.yaml. Backend (Go) and infra (docker-compose, Makefile) are not part of this JS workspace."
 }

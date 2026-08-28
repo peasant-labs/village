@@ -50,7 +50,7 @@
         ast-grep # structural code search and lint
         golangci-lint # linter suite
         sqlite # CLI for inspecting analytics store
-        nodejs_24 # Node.js runtime for frontend tooling
+        nodejs_26 # Node.js runtime for frontend tooling
         pnpm # frontend package manager and build tooling
         typescript
         typescript-language-server
