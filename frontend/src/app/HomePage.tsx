@@ -11,6 +11,7 @@ import RequestFailureState from "@/components/RequestFailureState";
 import MalformedProjectNotice from "@/components/MalformedProjectNotice";
 import RetryButton from "@/components/RetryButton";
 import { groupByProject, publishedAtDescending } from "@/lib/format";
+import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
 import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
 import type { TranscriptListItem } from "@/lib/types";
 
@@ -131,7 +132,22 @@ export default function HomePage() {
   const retryText = retrying ? "retrying" : "retry";
 
   const items = data?.transcripts ?? [];
-  const recent = mostRecentFirst(items).slice(0, RECENT_SESSION_LIMIT);
+  // Grouped BEFORE the slice, so the five rows this list shows are five
+  // sessions the viewer ran rather than five rows that may include the
+  // sessions those runs started. A session started from inside another one is
+  // published as its own transcript, so without the fold a single busy run
+  // could fill the whole list with its own offspring and push every other
+  // session the person ran off the page.
+  //
+  // Slicing after the grouping is also what lets a chip be complete: a row's
+  // started sessions are found in the whole list, not only among the first
+  // five, so the count on the chip is every session that row started.
+  const recentGrouping = groupChildSessions(mostRecentFirst(items));
+  const recent = recentGrouping.rootItems.slice(0, RECENT_SESSION_LIMIT);
+  // A row whose own parent is somewhere in this list is not shown here at all;
+  // it is inside its parent's chip. A row whose parent is absent keeps its
+  // ordinary place, so nothing a person published can fall out of this list.
+  const recentChildSessions = childSessionsByParentID(recentGrouping);
   const { groups, malformed } = groupByProject(items);
 
   // One teaching empty state serves both sections: a person with no sessions
@@ -295,7 +311,13 @@ export default function HomePage() {
                 your recent sessions
               </span>
             </div>
-            <TranscriptList items={recent} showOwnerActions hideOwner bare />
+            <TranscriptList
+              items={recent}
+              childSessions={recentChildSessions}
+              showOwnerActions
+              hideOwner
+              bare
+            />
           </div>
 
           <div

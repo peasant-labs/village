@@ -32,6 +32,13 @@ export type HomeTranscriptCase = {
   projectHash: string;
   projectDisplayName: string;
   publishedAt: string;
+  /** The session id the recording harness used. Defaults to the row's own id.
+   *  Only a case about started sessions has to say it. */
+  localID?: string;
+  /** The harness id of the session that started this one, or null when nothing
+   *  did. Absent in `home-page.yaml`, whose cases are not about parentage; the
+   *  started-session corpus supplies it. */
+  parentSessionID?: string | null;
 };
 
 export type HomeProjectRowCase = {

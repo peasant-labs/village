@@ -28,6 +28,7 @@ import {
   useUserProject,
 } from "@/lib/queries/transcripts";
 import { describeNameSource } from "@/lib/format";
+import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
 import { isApiErrorStatus } from "@/lib/api";
 import { EXPLORE_SECTION } from "@/lib/nav/sections";
 import type {
@@ -144,6 +145,17 @@ export default function UserProjectPage({
     owner: data.owner as User,
   }));
 
+  // A project page is where a person asks what a session did, so a session that
+  // another session started is listed under the one that started it rather than
+  // beside it. The rows are the same rows either way: a started session whose
+  // starter is not in this project's list keeps its own place in it.
+  //
+  // The panel's own count still counts every transcript in the project,
+  // including the ones inside a chip. It answers how much this project holds,
+  // which is not changed by where a row is drawn.
+  const grouping = groupChildSessions(items);
+  const childSessions = childSessionsByParentID(grouping);
+
   // Panels are <div>s, not <section>s. The design system styles the bare
   // `section` element itself (a capped max-width plus auto side margins), which
   // inside a flex column collapses a panel to its content width and centres it.
@@ -173,7 +185,13 @@ export default function UserProjectPage({
           </div>
         }
       >
-        <TranscriptList items={items} showOwnerActions={isOwner} hideOwner bare />
+        <TranscriptList
+          items={grouping.rootItems}
+          childSessions={childSessions}
+          showOwnerActions={isOwner}
+          hideOwner
+          bare
+        />
       </DataState>
     </div>
   );

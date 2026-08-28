@@ -1,0 +1,506 @@
+# Cases for the sessions that another session started, mounted on the REAL
+# routes with REST mocked. Loaded by src/test/childSessionGroupingFixtures.ts.
+#
+# `surfaces` names the mounted routes a case is asserted on. The three surfaces
+# answer the same question differently, and a case belongs where its rows make
+# sense:
+#   explore  /explore, public discovery. A started session is folded away and
+#            the browse grid keeps the parent row alone. Discovery offers NO
+#            control to reveal what was folded: a browse card names no parent,
+#            so a count hanging off one card would ask a visitor to guess which
+#            card it belonged to.
+#   home     `/` for a signed-in visitor. Its own recent sessions, where a
+#            started session hangs off its parent's row in an expandable chip.
+#   project  /users/{username}/projects/{projectHash}, the same chip.
+# home and project are owner-scoped, so a case asserted on either carries rows
+# from ONE owner and no agent sessions.
+#
+# `rows` are the transcripts one `/api/v1/transcripts` response carries, in the
+# order the server returned them. Each row's `name` is also its transcript id,
+# so an assertion failure names the case's own vocabulary rather than a uuid.
+# `localID` is the id the recording harness used (the `transcripts.local_id`
+# column), and `parentSessionID` is the harness id of the session that started
+# this one, or null when nothing started it.
+#
+# `ownerID` matters: `local_id` is unique per owner, not globally, so a parent
+# is matched on the owner AND the session id. A case that crosses owners proves
+# one publisher's row cannot capture another publisher's row.
+#
+# `absentParentCause` records WHY a row in this case names a parent the response
+# does not carry. One response is not the viewer's whole readable corpus, so a
+# parent can be missing for three different reasons, and the page cannot tell
+# them apart:
+#   another-page  the parent is a real, readable row, on a different page
+#   filtered-out  the parent exists but the active filters excluded it
+#   not-visible   the viewer may not read the parent at all
+# The page takes ONE code path for all three: it cannot tell them apart, which
+# is the whole reason it keeps the row. So these labels do not name three
+# branches to cover; they name the three real situations a reader must be able
+# to check the outcome against, and they keep a future contributor writing a
+# real situation rather than another copy of the same abstract case. All three
+# must produce the SAME outcome: the row keeps its ordinary browse row. To leave
+# it out on this evidence would make a session the viewer can open disappear
+# from browsing. `none` marks a case where every parent resolves.
+#
+# The two expectations partition the rows. `expectedRootRows` keep their place
+# in the list. `expectedGroups` are folded under a parent in the same response.
+# No row is left out of the expectations. On home and on a project page those
+# folded rows are reachable by expanding the parent's chip; on discovery they
+# are not shown, and are read under their parent on those two surfaces instead.
+#
+# `serverTotal` is the total the server reports for the active filters, which
+# counts every matching transcript including the ones this page folds away.
+# `expectedVisibleCount` is the number the list header must show above the grid.
+# When this response holds the whole result set (`serverTotal` equals the row
+# count) the header shows the browse rows on screen, so the count and the cards
+# agree. When the result set is longer, the header shows the server's own total
+# unchanged: this page's folds say nothing about another page's, the same number
+# drives the pager, and a total that shrank as the viewer paged could end the
+# pager early and put a page of real sessions out of reach.
+#
+# `agentSessions` are the ids the same endpoint returns for `origin=agent`. The
+# server keeps those rows out of the default list and reports how many, and the
+# page renders them as their own collapsed group beside these ones, so a case
+# with both proves the two groups coexist.
+#
+# `label` is the literal text of a group's collapsed control, written out
+# rather than derived, so a change to the wording the code produces fails here
+# instead of quietly agreeing with itself. On an `explore` case it names what
+# was folded away, where no control renders.
+cases:
+  - name: parent-with-children-folds-to-the-parent-row
+    surfaces: [explore]
+    absentParentCause: none
+    rows:
+      - name: parent-a
+        ownerID: owner-1
+        localID: sess-a
+        parentSessionID: null
+      - name: child-a1
+        ownerID: owner-1
+        localID: sess-a1
+        parentSessionID: sess-a
+      - name: child-a2
+        ownerID: owner-1
+        localID: sess-a2
+        parentSessionID: sess-a
+    agentSessions: []
+    serverTotal: 3
+    expectedVisibleCount: 1
+    expectedRootRows: [parent-a]
+    expectedGroups:
+      - parent: parent-a
+        label: "+ 2 child sessions"
+        children: [child-a1, child-a2]
+
+  # The viewer may not read the session that started this row, so it never
+  # arrives. The page cannot know that, and must not guess: the row keeps its
+  # own browse row, exactly as it did before the fold existed.
+  - name: child-whose-parent-the-viewer-cannot-read-keeps-its-own-row
+    surfaces: [explore]
+    absentParentCause: not-visible
+    rows:
+      - name: plain-b
+        ownerID: owner-1
+        localID: sess-b
+        parentSessionID: null
+      - name: lone-child-b
+        ownerID: owner-1
+        localID: sess-b9
+        parentSessionID: sess-the-viewer-cannot-read
+    agentSessions: []
+    serverTotal: 2
+    expectedVisibleCount: 2
+    expectedRootRows: [plain-b, lone-child-b]
+    expectedGroups: []
+
+  # The parent is a real row this viewer can open. It is simply on another page,
+  # because the list is paged at 24 and the two sessions were published apart.
+  # The child must still browse normally; to fold or drop it would remove a
+  # session the viewer can reach.
+  - name: parent-on-another-page-leaves-the-child-a-plain-row
+    surfaces: [explore]
+    absentParentCause: another-page
+    rows:
+      - name: child-p1
+        ownerID: owner-1
+        localID: sess-p1
+        parentSessionID: sess-p-on-page-two
+      - name: plain-p2
+        ownerID: owner-1
+        localID: sess-p2
+        parentSessionID: null
+    agentSessions: []
+    serverTotal: 40
+    expectedVisibleCount: 40
+    expectedRootRows: [child-p1, plain-p2]
+    expectedGroups: []
+
+  # The search matched the started session's content and not its parent's, so
+  # the server returned the child without the parent. The row the person
+  # searched for must appear in the results.
+  - name: search-matching-only-the-child-leaves-it-a-plain-row
+    surfaces: [explore]
+    absentParentCause: filtered-out
+    rows:
+      - name: child-s1
+        ownerID: owner-1
+        localID: sess-s1
+        parentSessionID: sess-s-did-not-match
+    agentSessions: []
+    serverTotal: 1
+    expectedVisibleCount: 1
+    expectedRootRows: [child-s1]
+    expectedGroups: []
+
+  # Nothing started these sessions, so the list is exactly what it was before.
+  - name: session-without-a-parent-renders-unchanged
+    surfaces: [explore]
+    absentParentCause: none
+    rows:
+      - name: plain-c1
+        ownerID: owner-1
+        localID: sess-c1
+        parentSessionID: null
+      - name: plain-c2
+        ownerID: owner-2
+        localID: sess-c2
+        parentSessionID: null
+    agentSessions: []
+    serverTotal: 2
+    expectedVisibleCount: 2
+    expectedRootRows: [plain-c1, plain-c2]
+    expectedGroups: []
+
+  - name: two-parents-each-keep-their-own-group
+    surfaces: [explore]
+    absentParentCause: none
+    rows:
+      - name: parent-d
+        ownerID: owner-1
+        localID: sess-d
+        parentSessionID: null
+      - name: parent-e
+        ownerID: owner-2
+        localID: sess-e
+        parentSessionID: null
+      - name: child-d1
+        ownerID: owner-1
+        localID: sess-d1
+        parentSessionID: sess-d
+      - name: child-e1
+        ownerID: owner-2
+        localID: sess-e1
+        parentSessionID: sess-e
+      - name: child-e2
+        ownerID: owner-2
+        localID: sess-e2
+        parentSessionID: sess-e
+    agentSessions: []
+    serverTotal: 5
+    expectedVisibleCount: 2
+    expectedRootRows: [parent-d, parent-e]
+    expectedGroups:
+      - parent: parent-d
+        label: "+ 1 child session"
+        children: [child-d1]
+      - parent: parent-e
+        label: "+ 2 child sessions"
+        children: [child-e1, child-e2]
+
+  # Two publishers used the same harness session id. The row owned by the second
+  # publisher must not be captured by the first publisher's session; its own
+  # parent is absent, so it keeps its browse row.
+  - name: a-session-id-from-another-owner-does-not-capture-a-row
+    surfaces: [explore]
+    absentParentCause: not-visible
+    rows:
+      - name: parent-f
+        ownerID: owner-1
+        localID: sess-shared
+        parentSessionID: null
+      - name: child-f1
+        ownerID: owner-1
+        localID: sess-f1
+        parentSessionID: sess-shared
+      - name: foreign-child-f
+        ownerID: owner-2
+        localID: sess-f9
+        parentSessionID: sess-shared
+    agentSessions: []
+    serverTotal: 3
+    expectedVisibleCount: 2
+    expectedRootRows: [parent-f, foreign-child-f]
+    expectedGroups:
+      - parent: parent-f
+        label: "+ 1 child session"
+        children: [child-f1]
+
+  # A session started a session that started another session. Every started row
+  # appears exactly once, under the topmost row of the chain in this response.
+  - name: a-session-started-two-levels-down-joins-the-topmost-group
+    surfaces: [explore]
+    absentParentCause: none
+    rows:
+      - name: parent-g
+        ownerID: owner-1
+        localID: sess-g
+        parentSessionID: null
+      - name: child-g1
+        ownerID: owner-1
+        localID: sess-g1
+        parentSessionID: sess-g
+      - name: grandchild-g2
+        ownerID: owner-1
+        localID: sess-g2
+        parentSessionID: sess-g1
+    agentSessions: []
+    serverTotal: 3
+    expectedVisibleCount: 1
+    expectedRootRows: [parent-g]
+    expectedGroups:
+      - parent: parent-g
+        label: "+ 2 child sessions"
+        children: [child-g1, grandchild-g2]
+
+  # The top of the chain is on another page, so the row below it becomes the
+  # browse row and the row below THAT folds under it. The chain still collapses,
+  # around the highest row the response actually carries.
+  - name: a-chain-folds-around-the-highest-row-in-this-response
+    surfaces: [explore]
+    absentParentCause: another-page
+    rows:
+      - name: middle-h1
+        ownerID: owner-1
+        localID: sess-h1
+        parentSessionID: sess-h-on-page-two
+      - name: child-h2
+        ownerID: owner-1
+        localID: sess-h2
+        parentSessionID: sess-h1
+    agentSessions: []
+    serverTotal: 30
+    expectedVisibleCount: 30
+    expectedRootRows: [middle-h1]
+    expectedGroups:
+      - parent: middle-h1
+        label: "+ 1 child session"
+        children: [child-h2]
+
+  # A malformed id must never cost a person their own session. A row that names
+  # itself as its parent keeps its place in the list.
+  - name: a-session-that-names-itself-as-its-parent-stays-in-the-list
+    surfaces: [explore]
+    absentParentCause: none
+    rows:
+      - name: self-parented-i
+        ownerID: owner-1
+        localID: sess-i
+        parentSessionID: sess-i
+    agentSessions: []
+    serverTotal: 1
+    expectedVisibleCount: 1
+    expectedRootRows: [self-parented-i]
+    expectedGroups: []
+
+  # A ring of three rows that name each other. Every row in the ring keeps its
+  # browse row, the same way a row that names itself does.
+  - name: a-ring-of-sessions-that-name-each-other-stays-in-the-list
+    surfaces: [explore]
+    absentParentCause: none
+    rows:
+      - name: ring-j1
+        ownerID: owner-1
+        localID: sess-j1
+        parentSessionID: sess-j3
+      - name: ring-j2
+        ownerID: owner-1
+        localID: sess-j2
+        parentSessionID: sess-j1
+      - name: ring-j3
+        ownerID: owner-1
+        localID: sess-j3
+        parentSessionID: sess-j2
+    agentSessions: []
+    serverTotal: 3
+    expectedVisibleCount: 3
+    expectedRootRows: [ring-j1, ring-j2, ring-j3]
+    expectedGroups: []
+
+  # The count above the grid must describe the cards under it. The server counts
+  # every matching transcript, including the four this page folds away.
+  - name: the-count-above-the-grid-excludes-folded-rows
+    surfaces: [explore]
+    absentParentCause: none
+    rows:
+      - name: parent-k
+        ownerID: owner-1
+        localID: sess-k
+        parentSessionID: null
+      - name: child-k1
+        ownerID: owner-1
+        localID: sess-k1
+        parentSessionID: sess-k
+      - name: child-k2
+        ownerID: owner-1
+        localID: sess-k2
+        parentSessionID: sess-k
+      - name: child-k3
+        ownerID: owner-1
+        localID: sess-k3
+        parentSessionID: sess-k
+      - name: child-k4
+        ownerID: owner-1
+        localID: sess-k4
+        parentSessionID: sess-k
+      - name: plain-k5
+        ownerID: owner-1
+        localID: sess-k5
+        parentSessionID: null
+    agentSessions: []
+    serverTotal: 6
+    expectedVisibleCount: 2
+    expectedRootRows: [parent-k, plain-k5]
+    expectedGroups:
+      - parent: parent-k
+        label: "+ 4 child sessions"
+        children: [child-k1, child-k2, child-k3, child-k4]
+
+  # A row whose parent chain runs INTO a ring it is not part of. The ring rows
+  # keep their own browse rows, and so must this one: folding it under an
+  # arbitrary member of the ring would take it out of the list it belongs in.
+  - name: a-session-chaining-into-a-ring-keeps-its-own-row
+    surfaces: [explore]
+    absentParentCause: none
+    rows:
+      - name: leads-into-ring-n0
+        ownerID: owner-1
+        localID: sess-n0
+        parentSessionID: sess-n1
+      - name: ring-n1
+        ownerID: owner-1
+        localID: sess-n1
+        parentSessionID: sess-n2
+      - name: ring-n2
+        ownerID: owner-1
+        localID: sess-n2
+        parentSessionID: sess-n3
+      - name: ring-n3
+        ownerID: owner-1
+        localID: sess-n3
+        parentSessionID: sess-n1
+    agentSessions: []
+    serverTotal: 4
+    expectedVisibleCount: 4
+    expectedRootRows: [leads-into-ring-n0, ring-n1, ring-n2, ring-n3]
+    expectedGroups: []
+
+  # The result set is longer than this response, and this page folded rows away.
+  # The header keeps the server's own count: the pager reads the same number, and
+  # a count that shrank per page could end it early.
+  - name: a-longer-result-set-keeps-the-server-count
+    surfaces: [explore]
+    absentParentCause: none
+    rows:
+      - name: parent-m
+        ownerID: owner-1
+        localID: sess-m
+        parentSessionID: null
+      - name: child-m1
+        ownerID: owner-1
+        localID: sess-m1
+        parentSessionID: sess-m
+      - name: child-m2
+        ownerID: owner-1
+        localID: sess-m2
+        parentSessionID: sess-m
+    agentSessions: []
+    serverTotal: 40
+    expectedVisibleCount: 40
+    expectedRootRows: [parent-m]
+    expectedGroups:
+      - parent: parent-m
+        label: "+ 2 child sessions"
+        children: [child-m1, child-m2]
+
+  # Both collapsed groups on one page. The agent group carries the rows no
+  # person prompted, the child group carries the rows another session started,
+  # and neither takes rows from the other.
+  - name: the-agent-group-and-a-child-group-sit-together
+    surfaces: [explore]
+    absentParentCause: none
+    rows:
+      - name: parent-o
+        ownerID: owner-1
+        localID: sess-o
+        parentSessionID: null
+      - name: child-o1
+        ownerID: owner-1
+        localID: sess-o1
+        parentSessionID: sess-o
+      - name: plain-o2
+        ownerID: owner-1
+        localID: sess-o2
+        parentSessionID: null
+    agentSessions: [agent-o8, agent-o9]
+    serverTotal: 3
+    expectedVisibleCount: 2
+    expectedRootRows: [parent-o, plain-o2]
+    expectedGroups:
+      - parent: parent-o
+        label: "+ 1 child session"
+        children: [child-o1]
+
+  # ── home and a project page: the chip ──────────────────────────────────────
+  # The same rows on the two owner-scoped surfaces. There a row DOES name its
+  # parent -- the chip hangs off the parent's own row -- so the started sessions
+  # are listed rather than only folded away.
+  - name: a-started-session-is-listed-inside-its-parents-chip
+    surfaces: [home, project]
+    absentParentCause: none
+    rows:
+      - name: run-the-migration
+        ownerID: owner-1
+        localID: sess-migration
+        parentSessionID: null
+      - name: write-the-down-file
+        ownerID: owner-1
+        localID: sess-down-file
+        parentSessionID: sess-migration
+      - name: check-the-constraint
+        ownerID: owner-1
+        localID: sess-constraint
+        parentSessionID: sess-migration
+      - name: rename-a-column
+        ownerID: owner-1
+        localID: sess-rename
+        parentSessionID: null
+    agentSessions: []
+    serverTotal: 4
+    expectedVisibleCount: 2
+    expectedRootRows: [run-the-migration, rename-a-column]
+    expectedGroups:
+      - parent: run-the-migration
+        label: "+ 2 child sessions"
+        children: [write-the-down-file, check-the-constraint]
+
+  # One row names a session this surface does not carry. On an owner-scoped
+  # list that is ordinary: the parent may be an unpublished session, or one in
+  # another project. It keeps its own row, and gets no chip of its own.
+  - name: a-row-whose-parent-is-not-in-the-list-keeps-its-place
+    surfaces: [home, project]
+    absentParentCause: another-page
+    rows:
+      - name: fix-the-flaky-test
+        ownerID: owner-1
+        localID: sess-flaky
+        parentSessionID: null
+      - name: bisect-the-failure
+        ownerID: owner-1
+        localID: sess-bisect
+        parentSessionID: sess-published-nowhere
+    agentSessions: []
+    serverTotal: 2
+    expectedVisibleCount: 2
+    expectedRootRows: [fix-the-flaky-test, bisect-the-failure]
+    expectedGroups: []

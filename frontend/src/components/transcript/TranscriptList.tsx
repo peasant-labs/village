@@ -6,6 +6,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { ProviderName, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import TranscriptEditDialog from "./TranscriptEditDialog";
+import ChildSessionDisclosure from "./ChildSessionDisclosure";
 import type { TranscriptListItem } from "@/lib/types";
 import { resolveAttribution } from "@/lib/format";
 import { isAgentSession } from "@/lib/sessionOrigin";
@@ -29,6 +30,17 @@ interface TranscriptListProps {
   /** When true, hide the owner avatar + username pill (e.g. on /publish where
    *  everything is the viewer's own). The visibility eye still renders. */
   hideOwner?: boolean;
+  /** The sessions each row started, keyed by that row's `transcript.id`.
+   *
+   *  A row named here renders an expandable chip beneath it holding those
+   *  sessions. Omitting this prop is what a list that has no answer to "whose
+   *  children are these" passes: discovery folds started sessions away without
+   *  offering them anywhere, so it passes nothing and no chip is drawn.
+   *
+   *  The caller owns the grouping because the caller owns the rows: a list that
+   *  shows only its five most recent parents still hangs every child off them,
+   *  which it can only do by grouping before it slices. */
+  childSessions?: Map<string, TranscriptListItem[]>;
 }
 
 export default function TranscriptList({
@@ -39,6 +51,7 @@ export default function TranscriptList({
   emptyState,
   bare = false,
   hideOwner = false,
+  childSessions,
 }: TranscriptListProps) {
   const { user } = useAuth();
   const viewerId = user?.id;
@@ -46,14 +59,32 @@ export default function TranscriptList({
   const rows =
     items.length > 0 ? (
       <div className="divide-y divide-rule">
-        {items.map((item) => (
-          <Row
-            key={item.transcript.id}
-            item={item}
-            canManage={showOwnerActions && viewerId === item.owner.id}
-            hideOwner={hideOwner}
-          />
-        ))}
+        {items.map((item) => {
+          const started = childSessions?.get(item.transcript.id);
+          const row = (
+            <Row
+              item={item}
+              canManage={showOwnerActions && viewerId === item.owner.id}
+              hideOwner={hideOwner}
+            />
+          );
+          // A row and the chip of sessions it started are ONE unit of the
+          // divided list, so the rule falls between a parent and the next
+          // parent rather than between a parent and its own chip.
+          return started === undefined || started.length === 0 ? (
+            <div key={item.transcript.id}>{row}</div>
+          ) : (
+            <div key={item.transcript.id}>
+              {row}
+              <ChildSessionDisclosure
+                parentTranscriptID={item.transcript.id}
+                childSessions={started}
+                showOwnerActions={showOwnerActions}
+                hideOwner={hideOwner}
+              />
+            </div>
+          );
+        })}
       </div>
     ) : (
       emptyState ?? null

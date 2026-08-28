@@ -86,6 +86,7 @@ mounted into the composer's `renderTurnActions` slot exactly as the production p
 | `probe-village.mjs` | Print the harness route's DOM shape — tab/view-toggle labels, `.tb-*` box sizes, and the page scroll metrics. Run first whenever the harness route or the shared composite changes, to confirm the capture selectors still resolve and the page overflows the viewport (`document.scrollHeight > innerHeight`). |
 | `village-shoot.mjs` | Drive the harness route with puppeteer and screenshot every transcript surface for one theme. Each capture is run through the non-empty-surface gate before it's accepted; each surface is wrapped in try/catch so one failure records a gap and the run continues. |
 | `explore-agent-group-shoot.mjs` | Capture the collapsed and expanded group of agent-driven sessions on the real Explore route, in one theme, from one live page. Asserts build provenance (the group's control, its counted label, and the expanded rows' labels) before writing any PNG, so a stale or wrong-worktree server fails instead of producing a misleading capture. |
+| `child-session-shoot.mjs` | Capture how one surface treats a session that another session started, in one theme, from one live page: `explore` (folded away, no control), `home` and `project` (collapsed and expanded chip). Asserts build provenance against the live DOM before writing any PNG — on discovery, that the started rows are off the grid, that a row whose parent the response does not carry still browses, that NO control rendered, and that the count above the grid matches the cards under it; on the other two, that the chip carries a counted label and sits in the same list unit as its own parent row. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the whole document inside the viewport, and the clip box covering the document — so the fixed app header cannot composite over the middle of the image and the bottom of the list cannot be cut. |
 | `surface-gate.mjs` | The non-empty-surface gate (vendored, self-contained copy of the fairtrade `scripts/surface-gate.mjs`). Fails a capture that is blank / near-empty / byte-identical to another surface — closing the silent-blank hole a valid-but-empty bounding box leaves open (e.g. an empty graph). |
 | `stitch-sxs.mjs` | Compose labeled, **height-matched** side-by-side composites (`REFERENCE | SUBJECT`) per surface per theme. The shorter pane is padded (never scaled) with its own border-sampled background; a dashed hairline marks where the shorter capture ends. A surface missing a subject capture gets a labeled placeholder panel so the set stays complete. The reference side defaults to the **committed `baseline/tb/`** (the same-component `<SessionDetail>` "before"); `REF_DIR=demo` is the optional non-gating design-language sanity panel (see **Oracle**). |
 | `baseline/tb/{dark,light}/` | The **committed** same-component reference: an earlier `<SessionDetail>` capture of the same `sess_demo_0001` session, recorded before theme convergence. It is a **frozen, non-regenerable** snapshot, so unlike the regenerable `demo/` it is tracked in the repository. The default `stitch` reads it directly, so the oracle works on a clean checkout with no staging. |
@@ -277,6 +278,13 @@ list plus `agent_total`, and `origin=agent` — the way the server does.
 
 ```sh
 MOCK_REST_PORT=8789 node scripts/visual/mock-rest-explore.mjs &
+# The mock refuses a busy port, but backgrounding it hides that from the shell:
+# wait for THIS mock to answer before booting the app, so a refused port aborts
+# the round instead of handing the capture to whatever else is listening.
+until curl -sf http://localhost:8789/api/v1/tags/popular >/dev/null; do
+  kill -0 %1 2>/dev/null || { echo 'mock-rest-explore did not start'; exit 2; }
+  sleep 0.2
+done
 NEXT_PUBLIC_API_URL=http://localhost:8789/api/v1 pnpm build
 NEXT_PUBLIC_API_URL=http://localhost:8789/api/v1 pnpm start &
 
@@ -294,6 +302,79 @@ Manual click-through checklist for the non-automated part of the gate:
 3. Switch between grid and list.
 4. Open transcript `d41a8e`, confirm the route changes to `/transcripts/d41a8e`, then open profile `alice-dev` and confirm `/users/alice-dev`.
 5. Search `ai` again, open `AI Research Team`, confirm `/groups/ai-research-team`, then back out and confirm the shell still renders the card grid.
+
+### Sessions started by another session
+
+`child-session-shoot.mjs` captures the one design on all three surfaces it
+reaches, because the three answers only make sense read together:
+
+- `explore` — the started sessions are folded away and the grid keeps the parent
+  card alone. There is NO control to reveal them: a browse card names no parent,
+  so a count hanging off one would ask a visitor to guess whose it was.
+- `home` — the recent-sessions list hangs an expandable chip off the row that
+  started them, collapsed and expanded.
+- `project` — the same chip on `/users/{username}/projects/{projectHash}`.
+
+Each surface asserts its own build provenance BEFORE it captures anything, read
+from the live DOM. Discovery must have the started rows off the grid, must still
+browse the mock's unmatched row (`c1a099`), whose parent that response does not
+carry, must render NO control, and must show a count equal to the cards under
+it. The other two must carry a chip with a counted label that sits in the SAME
+list unit as its own parent's row — what a chip belongs to is a fact about the
+DOM, not something a reader is asked to infer from the order. A stale server, or
+one serving another worktree, fails with a nonzero exit instead of producing a
+misleading PNG.
+
+The mocks serve the rows the way the server does, each parent and the sessions
+it started arriving in one response carrying `parent_session_id`:
+`mock-rest-explore.mjs` for discovery, and `mock-rest-home.mjs` with
+`MOCK_CHILD_SESSIONS=1` for home and the project page it links to. Both refuse a
+busy `MOCK_REST_PORT` with exit 2 rather than dying on an unhandled `error`
+event, because a stale copy of itself on that port serves an older fixture set
+that still passes every provenance check.
+
+Every surface also asserts **capture geometry**, which is what the provenance
+checks cannot see. The app header is `position: fixed`, so
+`captureBeyondViewport` rasters it at whatever scroll offset the page happens to
+hold; a capture taken after scrolling a control into view paints the nav across
+the middle of the image and cuts the bottom of the list. Every shot is therefore
+taken with the viewport grown to the whole document and the page parked at
+scroll 0, and each raster is bracketed by an assertion on the scroll offset, the
+viewport fit, and the clip box's coverage of the document. Note that the
+header's own rect top cannot fail on its own — a fixed element reads 0 at any
+offset — so the scroll offset and the fit are the load-bearing checks.
+
+```sh
+MOCK_REST_PORT=8789 node scripts/visual/mock-rest-explore.mjs &
+# The mock refuses a busy port, but backgrounding it hides that from the shell:
+# wait for THIS mock to answer before booting the app, so a refused port aborts
+# the round instead of handing the capture to whatever else is listening.
+until curl -sf http://localhost:8789/api/v1/tags/popular >/dev/null; do
+  kill -0 %1 2>/dev/null || { echo 'mock-rest-explore did not start'; exit 2; }
+  sleep 0.2
+done
+NEXT_PUBLIC_API_URL=http://localhost:8789/api/v1 pnpm build
+NEXT_PUBLIC_API_URL=http://localhost:8789/api/v1 pnpm start &
+
+VILLAGE_URL=http://localhost:3000 CHROME_PATH=$CHROME \
+  node scripts/visual/child-session-shoot.mjs explore dark  $BASE/explore/dark
+VILLAGE_URL=http://localhost:3000 CHROME_PATH=$CHROME \
+  node scripts/visual/child-session-shoot.mjs explore light $BASE/explore/light
+
+# home and the project page read the owner-scoped mock instead. It listens on
+# the SAME port, so the app keeps the API URL it was built with: stop the
+# discovery mock first.
+MOCK_REST_PORT=8789 MOCK_CHILD_SESSIONS=1 node scripts/visual/mock-rest-home.mjs &
+until curl -sf http://localhost:8789/api/v1/auth/me >/dev/null; do sleep 0.2; done
+
+for surface in home project; do
+  for theme in dark light; do
+    VILLAGE_URL=http://localhost:3000 CHROME_PATH=$CHROME \
+      PROJECT_PATH=/users/alice-dev/projects/$(printf '1%.0s' {1..64}) \
+      node scripts/visual/child-session-shoot.mjs $surface $theme $BASE/$surface/$theme
+  done
+done
+```
 
 ## Own-profile contributed-collectives gate (`profile-collectives`)
 

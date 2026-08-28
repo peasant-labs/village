@@ -157,6 +157,72 @@ const transcripts = [
   },
 ]
 
+// Sessions a harness started from inside another session. Each is published as
+// its own transcript that names the starting session, so the browse list would
+// otherwise show them beside it. Two name a session this response carries and
+// fold under it. The third names a session this response does not carry, so it
+// keeps its own browse row: one response is not the whole corpus, and the page
+// must never remove a session on that evidence.
+const childTranscripts = [
+  {
+    id: 'c1a001',
+    parent_session_id: 'd41a8e',
+    title: 'Draft the handler tests for the new endpoint',
+    visibility: 'public',
+    model_provider: 'claude-code',
+    model_name: 'Claude Opus 4.5',
+    harness_version: '2026.06',
+    session_start: '2026-06-15T00:30:00Z',
+    session_end: '2026-06-15T00:52:00Z',
+    turn_count: 22,
+    token_count: 61200,
+    tool_call_count: 8,
+    duration_ms: 1_320_000,
+    git_branch: 'main',
+    project_name: 'go-rest-api',
+    tags: ['claude-code'],
+    owner: owners['alice-dev'],
+  },
+  {
+    id: 'c1a002',
+    parent_session_id: 'd41a8e',
+    title: 'Check the migration ordering before the handler lands',
+    visibility: 'public',
+    model_provider: 'claude-code',
+    model_name: 'Claude Sonnet 4.5',
+    harness_version: '2026.06',
+    session_start: '2026-06-15T00:58:00Z',
+    session_end: '2026-06-15T01:11:00Z',
+    turn_count: 15,
+    token_count: 38700,
+    tool_call_count: 6,
+    duration_ms: 780_000,
+    git_branch: 'main',
+    project_name: 'go-rest-api',
+    tags: ['claude-code'],
+    owner: owners['alice-dev'],
+  },
+  {
+    id: 'c1a099',
+    parent_session_id: 'never-published-here',
+    title: 'Started by a session this response does not carry',
+    visibility: 'public',
+    model_provider: 'opencode',
+    model_name: 'OpenCode',
+    harness_version: '2026.06',
+    session_start: '2026-06-14T22:00:00Z',
+    session_end: '2026-06-14T22:19:00Z',
+    turn_count: 12,
+    token_count: 25100,
+    tool_call_count: 4,
+    duration_ms: 1_140_000,
+    git_branch: 'main',
+    project_name: 'go-rest-api',
+    tags: ['opencode'],
+    owner: owners['bob-ai'],
+  },
+]
+
 const collectives = [
   {
     id: 'ai-research-team',
@@ -223,7 +289,7 @@ const toListItem = (row, sessionOrigin) => ({
     schema_version: '0.1.0',
     published_at: row.session_start,
     updated_at: row.session_end,
-    parent_session_id: null,
+    parent_session_id: row.parent_session_id ?? null,
     ingested_at: row.session_end,
     source_file_path: null,
     source_format: 'json',
@@ -325,7 +391,7 @@ const agentTranscripts = [
   },
 ]
 
-const transcriptListItems = transcripts.map((row) => toListItem(row, 'user'))
+const transcriptListItems = [...transcripts, ...childTranscripts].map((row) => toListItem(row, 'user'))
 const agentListItems = agentTranscripts.map((row) => toListItem(row, 'agent'))
 
 const filterTranscripts = (url) => {
@@ -417,6 +483,27 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && path === '/auth/orgs') return send(res, 200, [])
 
   return send(res, 404, { error: `no mock route for ${req.method} ${url.pathname}` })
+})
+
+// A busy port is the failure most likely to produce a WRONG capture that still
+// looks right: a stale copy of THIS mock, left running by an earlier round or by
+// another worktree, serves an older fixture set, and the shoot's provenance
+// checks pass because the page really does carry the browse surface. Report it
+// as an actionable error instead of an unhandled 'error' event's stack trace.
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(
+      `ERROR [mock-rest-explore.mjs] port ${PORT} is already in use.
+  Why: a second capture run, another surface's mock, or a stale copy of this one
+       from an earlier round claimed it first.
+  Where: mock-rest-explore.mjs startup.
+  Means: the app would reach THAT server instead, and the capture would show its
+         fixture while still passing every provenance check.
+  Fix: choose a free port with MOCK_REST_PORT and point NEXT_PUBLIC_API_URL at the same one.`,
+    )
+    process.exit(2)
+  }
+  throw err
 })
 
 server.listen(PORT, () => {
