@@ -53,6 +53,7 @@ export default function RequestFailureState({
   return (
     <div className="flex flex-col gap-6 animate-fade-up">
       <div
+        data-failure-panel=""
         className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center"
       >
         <SearchX size={28} className="text-ink-4" aria-hidden="true" />

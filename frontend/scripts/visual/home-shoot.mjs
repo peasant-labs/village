@@ -163,6 +163,7 @@ if (MODE === 'no-handle') {
     const alert = panel?.querySelector('[role="alert"]')
     return {
       alertText: (alert?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      alertExcludesControl: alert != null && alert.querySelector('button') == null,
       shimmer: document.querySelectorAll('.animate-shimmer').length,
       emptyState: document.querySelector('[data-testid="home-empty-state"]') != null,
       rows: document.querySelectorAll('[data-testid="home-project-row"]').length,
@@ -237,6 +238,7 @@ if (MODE === 'failure') {
     const retry = [...(panel?.querySelectorAll('button') ?? [])].map((b) => (b.textContent ?? '').trim())
     return {
       alertText: (alert?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      alertExcludesControl: alert != null && alert.querySelector('button') == null,
       retry,
       emptyState: document.querySelector('[data-testid="home-empty-state"]') != null,
       rows: document.querySelectorAll('[data-testid="home-project-row"]').length,
@@ -253,12 +255,13 @@ if (MODE === 'failure') {
     shape.recentList ||
     !shape.alertText.includes('Failed to load your sessions') ||
     !shape.alertText.includes('not an empty library') ||
+    !shape.alertExcludesControl ||
     shape.retry.length === 0
   ) {
     await fail(
       `ERROR [home-shoot.mjs] the served build does not distinguish a failed request from an empty library.
   What failed: ${JSON.stringify(shape)}.
-  Why: the page rendered the teaching empty state or a session list, or the failure panel carries no heading, no reassurance, or no retry control.
+  Why: the page rendered the teaching empty state or a session list; or the failure panel carries no heading, no reassurance, or no retry control; or its alert wraps the control, which would re-announce the whole failure on every label change.
   Where: home-shoot.mjs failure-arm build-provenance check.
   Means: the capture would evidence the very bug this change removes.
   Fix: rebuild and restart the server from this worktree, then retry.`,
@@ -266,8 +269,11 @@ if (MODE === 'failure') {
     )
   }
   const st = {
+    // The bordered container, not the alert inside it: the alert wraps only
+    // the heading and message, because a control inside an alert re-announces
+    // the whole failure every time its label changes.
     panel: await assertComputed(
-      '[data-testid="home-page-error"] [role="alert"]',
+      '[data-testid="home-page-error"] [data-failure-panel]',
       { borderTopWidth: (v) => v !== '0px', borderRadius: isSquare },
       'the failure panel',
     ),
