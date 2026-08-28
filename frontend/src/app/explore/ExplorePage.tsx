@@ -115,13 +115,24 @@ export default function ExplorePage() {
   // One label for both ways the same failure is offered: the full surface and
   // the notice above retained rows. Written out in two places, it would drift
   // the moment one of them is reworded.
-  const retryLabel = `retry page ${requestedPage}`;
+  // While a retry is in flight the control says so and refuses further presses.
+  // A retry that fails again renders the same words, so without this it cannot
+  // be told from a button that did nothing. `aria-disabled` rather than
+  // `disabled`, so the reader who just pressed it keeps focus.
+  const retrying = isError && isFetching;
+  const retryLabel = retrying
+    ? `retrying page ${requestedPage}`
+    : `retry page ${requestedPage}`;
 
   const retryButton = (
     <button
       type="button"
       className="btn btn-secondary btn-sm shrink-0"
-      onClick={() => refetch()}
+      onClick={() => {
+        if (retrying) return;
+        refetch();
+      }}
+      aria-disabled={retrying || undefined}
     >
       {retryLabel}
     </button>
@@ -140,6 +151,7 @@ export default function ExplorePage() {
         message={failureMessage}
         onRetry={() => refetch()}
         retryLabel={retryLabel}
+        retryDisabled={retrying}
       />
     );
   } else if (isLoading || !payload) {

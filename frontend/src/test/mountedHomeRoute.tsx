@@ -156,6 +156,14 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
       failure = "never";
     },
     hold() {
+      // A second hold would overwrite the first without resolving it, stranding
+      // any request already waiting on it: the test would then die of a bare
+      // timeout with nothing saying why.
+      if (held != null) {
+        throw new Error(
+          "mounted home route fixture: a request is already held; release it before holding again",
+        );
+      }
       held = new Promise<void>((resolve) => {
         releaseHeld = resolve;
       });

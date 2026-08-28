@@ -16,6 +16,7 @@ import {
 } from "@/lib/ft-ui";
 import PublishImportDialog from "@/app/publish/PublishImportDialog";
 import ProfileCollectives from "@/components/collective/ProfileCollectives";
+import MalformedProjectNotice from "@/components/MalformedProjectNotice";
 import { groupByProject } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -168,27 +169,18 @@ export default function UserProfilePage({
         </div>
       ) : (
         <>
-          {malformedProjectItems.length > 0 && (
-            // A non-crashing, scoped notice: project_hash is a required
-            // identity column (migration 035_project_hash_required in
-            // village's backend), so a transcript reaching this page
-            // without one is a genuine backend contract violation, not a
-            // normal empty/loading state. Every OTHER, well-formed project
-            // group still renders below — one malformed row must not turn
-            // a cosmetic grouping problem into an outage for the rest of
-            // this person's library.
-            <div className="border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger mb-3">
-              <p className="font-medium">
-                {malformedProjectItems.length} transcript
-                {malformedProjectItems.length !== 1 ? "s" : ""} could not be grouped by project
-              </p>
-              <p className="mt-1 text-[13px]">
-                Each is missing the project identity the server is expected to always provide.
-                They are omitted from the project list below; the rest of the library is
-                unaffected.
-              </p>
-            </div>
-          )}
+          {/* project_hash is a required identity column, so a transcript
+              reaching this page without one is a backend contract violation,
+              not a normal empty state. Every OTHER, well-formed project group
+              still renders below: one malformed row must not turn a cosmetic
+              grouping problem into an outage for the rest of the library. The
+              notice is shared with the home page, which reports the same
+              violation, so the two cannot announce it differently. */}
+          <MalformedProjectNotice
+            count={malformedProjectItems.length}
+            testId="profile-malformed-notice"
+            className="mb-3"
+          />
           <DataState
             // A library made only of agent-driven sessions is not empty: the
             // collapsed group below is its whole content, so the teaching empty

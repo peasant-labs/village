@@ -141,10 +141,43 @@ describe("mounted home route: recent sessions, then projects", () => {
         const before = ownerRequests().length;
         expect(before).toBeGreaterThan(0);
         const retry = screen.getByRole("button", { name: /retry/i });
+
+        // The panel must SURVIVE its own retry. With no rows to fall back on
+        // the query returns to its pending state mid-flight, so a page reading
+        // the error flag directly would swap this whole surface for a loading
+        // skeleton the moment the button was pressed, taking the alert, the
+        // focus and the retry with it.
+        backend.hold();
+        retry.focus();
         await act(async () => {
           fireEvent.click(retry);
         });
+        const busyPanel = await waitFor(() => {
+          const b = screen.getByRole("button", { name: /retry/i });
+          expect(b.getAttribute("aria-disabled")).toBe("true");
+          return b;
+        });
+        expect(busyPanel.textContent).toContain("retrying");
+        expect(homeErrorSurface()).not.toBeNull();
+        expect(document.querySelector(".animate-shimmer")).toBeNull();
+        expect(document.activeElement).toBe(busyPanel);
+        expect(document.querySelector('[data-testid="home-status"]')?.textContent).toContain(
+          "reloading your sessions",
+        );
+        await act(async () => {
+          backend.release();
+        });
         await waitFor(() => expect(ownerRequests().length).toBeGreaterThan(before));
+
+        // Still failing, so the surface stays; and it recovers when the server
+        // does, rather than being a panel a person can never leave.
+        await waitFor(() => expect(homeErrorSurface()).not.toBeNull());
+        backend.heal();
+        await act(async () => {
+          fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+        });
+        await waitFor(() => expect(homeErrorSurface()).toBeNull());
+        expect(homeSurface()).not.toBeNull();
         return;
       }
 
@@ -173,7 +206,12 @@ describe("mounted home route: recent sessions, then projects", () => {
           expect(found).not.toBeNull();
           return found!;
         });
-        expect(notice.getAttribute("role")).toBe("alert");
+        // The SENTENCE is the alert, not the whole notice: the control's label
+        // changes while a retry runs, and an atomic alert would re-announce
+        // everything on that change.
+        const noticeAlert = notice.querySelector('[role="alert"]');
+        expect(noticeAlert).not.toBeNull();
+        expect(noticeAlert!.querySelector("button")).toBeNull();
         expect(notice.textContent).toContain("could not be refreshed");
         expect(notice.textContent).toContain("the session list is unavailable");
         // The rows the server did confirm are still on screen, and the failure
@@ -205,19 +243,36 @@ describe("mounted home route: recent sessions, then projects", () => {
         // presses. A retry that fails again renders the SAME words, so without
         // this a person cannot tell a working button from a dead one.
         backend.hold();
+        const pressed = document.querySelector<HTMLButtonElement>(
+          '[data-testid="home-stale-retry"]',
+        )!;
+        // Activated the way a keyboard user activates it, so the assertion
+        // below is about keeping focus rather than about never having it.
+        pressed.focus();
+        expect(document.activeElement).toBe(pressed);
         await act(async () => {
-          fireEvent.click(
-            document.querySelector<HTMLButtonElement>('[data-testid="home-stale-retry"]')!,
-          );
+          fireEvent.click(pressed);
         });
         const busy = await waitFor(() => {
           const b = document.querySelector<HTMLButtonElement>(
             '[data-testid="home-stale-retry"]',
           )!;
-          expect(b.disabled).toBe(true);
+          // `aria-disabled`, not `disabled`: a real disabled attribute on the
+          // control the reader just pressed hands focus back to the document.
+          expect(b.getAttribute("aria-disabled")).toBe("true");
+          expect(b.disabled).toBe(false);
           return b;
         });
         expect(busy.textContent).toContain("retrying");
+        // Focus survived the state change. A real `disabled` here would have
+        // handed it back to the document body and not returned it.
+        expect(document.activeElement).toBe(busy);
+        // And it refuses the press rather than stacking requests.
+        const whileBusy = ownerRequests().length;
+        await act(async () => {
+          fireEvent.click(busy);
+        });
+        expect(ownerRequests().length).toBe(whileBusy);
         expect(document.querySelector('[data-testid="home-status"]')?.textContent).toContain(
           "reloading your sessions",
         );
@@ -226,8 +281,10 @@ describe("mounted home route: recent sessions, then projects", () => {
         });
         await waitFor(() =>
           expect(
-            document.querySelector<HTMLButtonElement>('[data-testid="home-stale-retry"]')?.disabled,
-          ).toBe(false),
+            document
+              .querySelector('[data-testid="home-stale-retry"]')
+              ?.getAttribute("aria-disabled"),
+          ).toBeNull(),
         );
 
         // And it recovers: once the server answers again the notice goes, and

@@ -37,6 +37,12 @@ export interface RequestFailureStateProps {
    * The retry is already in flight. A retry that fails again renders the same
    * words, so without this the control is indistinguishable from one that did
    * nothing when it was pressed.
+   *
+   * Rendered as `aria-disabled`, not `disabled`: a real `disabled` on the
+   * control the reader just activated moves focus to the document body, and
+   * re-enabling does not give it back, so a keyboard user would have to tab
+   * from the top of the page after every attempt. The press is refused in the
+   * handler instead.
    */
   retryDisabled?: boolean;
 }
@@ -60,8 +66,11 @@ export default function RequestFailureState({
         <button
           type="button"
           className="btn btn-secondary btn-sm shrink-0"
-          onClick={onRetry}
-          disabled={retryDisabled}
+          onClick={() => {
+            if (retryDisabled) return;
+            onRetry();
+          }}
+          aria-disabled={retryDisabled || undefined}
         >
           {retryLabel}
         </button>

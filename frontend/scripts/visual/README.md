@@ -444,8 +444,10 @@ needs a backend that answers `GET /auth/me`:
   which asserts build provenance — the two sections in order, and project links
   keyed on the 64-character project hash — before it writes any PNG, so a stale
   or wrong-worktree server fails instead of producing a misleading capture. It
-  also reports the session count's computed font family, numeric variant and
-  border radius, which a scaled PNG cannot distinguish.
+  also ASSERTS the session count's computed font family and numeric variant,
+  which a scaled PNG cannot distinguish, through the same `assertComputed`
+  helper all three arms use. It fails rather than reporting: a surface that
+  ships unstyled must not produce a plausible-looking capture.
 - **Backend:** `frontend/scripts/visual/mock-rest-home.mjs`. Set
   `MOCK_SIGNED_OUT=1` for the signed-out arm, where the same root route must
   serve discovery instead, and `MOCK_OWNER_LIST_FAILS=1` for the failure arm,

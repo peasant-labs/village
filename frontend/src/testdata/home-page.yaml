@@ -294,9 +294,12 @@ sortCases:
     expectOrder: [newer, older, unparseable]
 
   - name: two-unparseable-timestamps-keep-the-order-they-arrived-in
-    # THREE rows, not two: for a two-element array a comparator that returns a
-    # positive number preserves the order just as returning zero does, so a
-    # pair could not tell "leave these alone" from "swap these".
+    # What this case can and cannot prove: it catches a comparator that returns
+    # a NEGATIVE number for two unparseable values, which would reorder them.
+    # It cannot tell zero from any other non-negative number, and no number of
+    # rows would, because a sort never moves a pair on a non-negative
+    # comparison. The extra row is here so the run is longer than a single
+    # pair, not because length discriminates anything.
     given:
       - id: first-bad
         publishedAt: ""

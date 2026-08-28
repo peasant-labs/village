@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { FolderOpen, Library, Plus } from "lucide-react";
 import { useTranscripts } from "@/lib/queries/transcripts";
@@ -7,7 +8,8 @@ import { useAuth } from "@/providers/AuthProvider";
 import TranscriptList from "@/components/transcript/TranscriptList";
 import { DataState, TeachingEmptyState } from "@/lib/ft-ui";
 import RequestFailureState from "@/components/RequestFailureState";
-import { groupByProject } from "@/lib/format";
+import MalformedProjectNotice from "@/components/MalformedProjectNotice";
+import { groupByProject, publishedAtDescending } from "@/lib/format";
 import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
 import type { TranscriptListItem } from "@/lib/types";
 
@@ -46,14 +48,9 @@ const RECENT_SESSION_LIMIT = 5;
 export function mostRecentFirst(
   items: TranscriptListItem[],
 ): TranscriptListItem[] {
-  return [...items].sort((a, b) => {
-    const at = Date.parse(a.transcript.published_at);
-    const bt = Date.parse(b.transcript.published_at);
-    if (Number.isNaN(at) && Number.isNaN(bt)) return 0;
-    if (Number.isNaN(at)) return 1;
-    if (Number.isNaN(bt)) return -1;
-    return bt - at;
-  });
+  return [...items].sort((a, b) =>
+    publishedAtDescending(a.transcript.published_at, b.transcript.published_at),
+  );
 }
 
 export default function HomePage() {
@@ -74,22 +71,41 @@ export default function HomePage() {
   // page without one, but the guard belongs with the state it describes rather
   // than with the only caller that happens to hold the line today.
   const handleState: HandleState =
-    username !== "" ? "known" : user?.username_chosen === true ? "missing" : "choosing";
+    username.trim() !== "" ? "known" : user?.username_chosen === true ? "missing" : "choosing";
   const hasUsername = handleState === "known";
   const { data, isLoading, isFetching, isError, error, refetch } = useTranscripts(
     { owner: username },
     { enabled: hasUsername },
   );
 
+  // The failure has to OUTLIVE its own retry. With no rows to fall back on,
+  // a refetch puts the query back into its pending state, so `isError` goes
+  // false while the retry is in flight: reading it directly would drop the
+  // panel for a loading skeleton the moment the button was pressed, taking the
+  // alert, the focus and the retry with it. The cause is therefore remembered
+  // until a request actually succeeds.
+  //
   // The reported cause is its own sentence wherever it is shown: it comes from
   // the server and carries no guaranteed capital or full stop.
-  const failureCause = error instanceof Error ? error.message : "an unknown error";
+  const reportedCause = isError
+    ? error instanceof Error
+      ? error.message
+      : "an unknown error"
+    : null;
+  const [failureCause, setFailureCause] = useState<string | null>(null);
+  if (reportedCause !== null && reportedCause !== failureCause) {
+    setFailureCause(reportedCause);
+  }
+  if (!isError && !isFetching && data != null && failureCause !== null) {
+    setFailureCause(null);
+  }
+  const failed = failureCause !== null;
 
   // A retry that fails again produces the SAME alert text, which a screen
   // reader will not announce a second time and a sighted reader cannot
   // distinguish from a button that did nothing. So the request being in flight
   // is its own visible state on the control, and its own polite announcement.
-  const retrying = isError && isFetching;
+  const retrying = failed && isFetching;
   const retryText = retrying ? "retrying" : "retry";
 
   const items = data?.transcripts ?? [];
@@ -119,9 +135,21 @@ export default function HomePage() {
     </div>
   );
 
-  if (isLoading || handleState === "choosing") {
+  // Mounted on every branch below, not inside one of them: a polite region has
+  // to exist BEFORE its content changes for the change to be announced, and the
+  // branch a person retries from is one that swaps its own content.
+  const statusRegion = (
+    <p role="status" aria-live="polite" className="sr-only" data-testid="home-status">
+      {retrying ? "reloading your sessions" : ""}
+    </p>
+  );
+
+  // A failure that is being retried keeps its surface rather than falling back
+  // to the skeleton, so the alert, the focus and the control all survive.
+  if ((isLoading && !failed) || handleState === "choosing") {
     return (
       <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
+        {statusRegion}
         <div className="h-8 w-64 animate-shimmer" />
         <div className="h-48 animate-shimmer" />
         <div className="h-48 animate-shimmer" />
@@ -137,6 +165,7 @@ export default function HomePage() {
         className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
         data-testid="home-page-no-handle"
       >
+        {statusRegion}
         <div
           role="alert"
           className="border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger"
@@ -164,12 +193,13 @@ export default function HomePage() {
   // person's whole library with an error panel because a later request failed
   // is the same lie in a different shape; that case keeps the rows and says so
   // in a notice above them.
-  if (isError && data == null) {
+  if (failed && data == null) {
     return (
       <div
         className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
         data-testid="home-page-error"
       >
+        {statusRegion}
         <RequestFailureState
           title="Failed to load your sessions"
           message={
@@ -191,36 +221,35 @@ export default function HomePage() {
       className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up"
       data-testid="home-page"
     >
-      <p
-        role="status"
-        aria-live="polite"
-        className="sr-only"
-        data-testid="home-status"
-      >
-        {retrying ? "reloading your sessions" : ""}
-      </p>
+      {statusRegion}
 
       <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-ink">
         home
       </h1>
 
-      {isError && (
+      {failed && (
         // The rows below are the last ones the server confirmed. They are kept
         // deliberately: a failed refresh is not news that the library shrank.
         <div
-          role="alert"
           data-testid="home-stale-notice"
           className="border border-rule bg-surface px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
         >
-          <p className="text-[13px] text-ink-3">
+          {/* Only the sentence is the alert. The control sits outside it
+              because its label changes while a retry is in flight, and an
+              atomic alert re-announces the whole notice on that change,
+              interrupting the polite region that already said it. */}
+          <p role="alert" className="text-[13px] text-ink-3">
             These sessions could not be refreshed, so they are the ones last
             loaded and may be out of date. The request reported: {failureCause}.
           </p>
           <button
             type="button"
             className="btn btn-secondary btn-sm shrink-0"
-            onClick={() => refetch()}
-            disabled={retrying}
+            onClick={() => {
+              if (retrying) return;
+              refetch();
+            }}
+            aria-disabled={retrying || undefined}
             data-testid="home-stale-retry"
           >
             {retryText}
@@ -228,26 +257,12 @@ export default function HomePage() {
         </div>
       )}
 
-      {malformed.length > 0 && (
-        // `project_hash` is a required identity column, so a row without one is
-        // a backend contract violation rather than an ordinary empty state. It
-        // is reported and skipped; every well-formed project still renders.
-        <div
-          role="alert"
-          data-testid="home-malformed-notice"
-          className="border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger"
-        >
-          <p className="font-medium">
-            {malformed.length} transcript{malformed.length !== 1 ? "s" : ""}{" "}
-            could not be grouped by project
-          </p>
-          <p className="mt-1 text-[13px]">
-            Each is missing the project identity the server is expected to
-            always provide. They are omitted from the project list below; the
-            rest of this page is unaffected.
-          </p>
-        </div>
-      )}
+      {/* A row without a project identity is a backend contract violation, so
+          it is reported and skipped rather than dropped or invented around. */}
+      <MalformedProjectNotice
+        count={malformed.length}
+        testId="home-malformed-notice"
+      />
 
       <DataState empty={items.length === 0} emptyState={emptyState}>
         {/* The two panels carry their own spacing: DataState wraps its children,
