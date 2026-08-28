@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import {
+  collectiveCard,
   collectiveNameFor,
   emptyStandingSelectors,
   installCollectivesRouteREST,
   installCollectivesRouteTeardown,
   loadCollectiveBadgeFixtures,
   renderCollectivesRoute,
-  type CollectiveBadgeRow,
+  standingTextFor,
 } from "@/test/mountedCollectivesRoute";
 
 /**
@@ -34,25 +35,6 @@ vi.mock("next/navigation", () => ({
 installCollectivesRouteTeardown();
 
 const { rows } = loadCollectiveBadgeFixtures();
-
-/** The card the design system renders for one fixture row. */
-function cardFor(row: CollectiveBadgeRow): HTMLElement {
-  const name = screen.getByText(collectiveNameFor(row));
-  const card = name.closest("button");
-  if (!card) {
-    throw new Error(`the collective "${collectiveNameFor(row)}" is on the page but not inside a card`);
-  }
-  return card;
-}
-
-/**
- * The text of the card's standing slot: what the row claims about the caller.
- * Read from the slot rather than from the whole card, because the card's
- * member COUNT ("4 members") would otherwise be mistaken for a member badge.
- */
-function standingText(card: HTMLElement): string {
-  return (card.querySelector(".cmg-col-role")?.textContent ?? "").trim();
-}
 
 describe("the mounted collectives route", () => {
   it("lists every collective the caller may see, not only their memberships", async () => {
@@ -83,7 +65,7 @@ describe("the mounted collectives route", () => {
       installCollectivesRouteREST(rows);
       await renderCollectivesRoute();
 
-      const standing = standingText(cardFor(row));
+      const standing = standingTextFor(row);
 
       if (row.expect.member_badge === null) {
         expect(standing, `${row.name} must claim no membership: ${row.why}`).not.toContain("member");
@@ -112,7 +94,7 @@ describe("the mounted collectives route", () => {
 
     const bare = rows.find((r) => r.expect.member_badge === null && !r.expect.contributed_badge);
     if (!bare) throw new Error("the corpus no longer carries a row with neither badge");
-    const card = cardFor(bare);
+    const card = collectiveCard(bare);
 
     // The shipped rule hides the empty standing slot AND the separator after
     // it. Both selectors must still find their element on this card, or the
@@ -135,7 +117,7 @@ describe("the mounted collectives route", () => {
     if (!bare) throw new Error("the corpus no longer carries a row with neither badge");
 
     expect(
-      standingText(cardFor(bare)),
+      standingTextFor(bare),
       "a collective the caller can merely see must make no claim about them",
     ).toBe("");
   });

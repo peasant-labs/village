@@ -157,12 +157,22 @@ export function loadCollectiveBadgeFixtures(): CollectiveBadgeFixtures {
         "deleting it from this manifest.",
     );
   }
-  // A row carrying ONLY past events is what proves refusals and withdrawals do
-  // not produce a badge. Without one, widening the rule to count them survives.
-  if (!rows.some((r) => r.approved + r.pending === 0 && r.rejected + r.withdrawn > 0)) {
+  // The row NAMED for a history of only past events must actually carry one.
+  // Checking "some row does" instead would let that row be zeroed out while an
+  // unrelated row kept the check green, leaving a case whose name and stated
+  // reason no longer describe what it exercises.
+  const pastEventsOnly = rows.find(
+    (r) => r.name === "visible_non_member_with_only_refused_and_withdrawn_attempts",
+  );
+  if (
+    pastEventsOnly &&
+    !(pastEventsOnly.approved + pastEventsOnly.pending === 0 && pastEventsOnly.rejected + pastEventsOnly.withdrawn > 0)
+  ) {
     throw new Error(
-      "collectives-visible-badges fixture has no row whose contributions are only refusals or withdrawals, " +
-        "so nothing would catch a badge rule widened to count past events",
+      `case "${pastEventsOnly.name}" is named for a contribution history of only refusals and withdrawals, ` +
+        `but carries approved ${pastEventsOnly.approved}, pending ${pastEventsOnly.pending}, rejected ` +
+        `${pastEventsOnly.rejected}, withdrawn ${pastEventsOnly.withdrawn}. It is the only case that can catch a ` +
+        "badge rule widened to count past events, so it must have some and no live contribution.",
     );
   }
   const unexpected = names.filter((n) => !(requiredRowNames as readonly string[]).includes(n));
@@ -319,12 +329,19 @@ function Providers({ children }: { children: ReactNode }) {
  * standing slot and the separator that follows it.
  *
  * They are READ FROM `globals.css` rather than restated here, so the test
- * cannot drift from the rule that actually ships. The test environment loads no
- * stylesheet, so a computed-style assertion is impossible; asserting that these
- * selectors still MATCH the rendered card is what proves the rule still has
- * something to act on. If the design system renames or reorders the footer, the
- * override goes inert and the stray separator returns, and this fails rather
- * than passing quietly.
+ * cannot drift from the rule that actually ships.
+ *
+ * Be precise about what this can prove. The test environment loads no
+ * stylesheet, so nothing here evaluates a declaration. It proves the rule still
+ * has a TARGET: the selectors still match an element on a card with no
+ * standing, so a design system that renames or reorders the footer fails here
+ * instead of leaving the override silently inert.
+ *
+ * It does NOT prove the rule still HIDES that element. Changing `display: none`
+ * to something else, or losing to a more specific rule elsewhere, brings the
+ * stray separator back with this still green. That residual risk needs a
+ * browser, and it is covered by the both-theme capture and the computed-style
+ * probe run against the real build before release, not here.
  */
 export function emptyStandingSelectors(): string[] {
   const cssPath = resolve(process.cwd(), "src/app/globals.css");
@@ -342,14 +359,42 @@ export function emptyStandingSelectors(): string[] {
   return selectors;
 }
 
-/** The standing slot of the card whose name is `name`, or null if it is absent. */
-function standingSlotFor(name: string): Element | null {
-  for (const card of document.querySelectorAll(".cmg-col-card")) {
-    if (card.querySelector(".cmg-col-name")?.textContent === name) {
-      return card.querySelector(".cmg-col-role");
-    }
+/** Every rendered card carrying this row's name. */
+function cardsNamed(name: string): Element[] {
+  return [...document.querySelectorAll(".cmg-col-card")].filter(
+    (card) => card.querySelector(".cmg-col-name")?.textContent === name,
+  );
+}
+
+/**
+ * The card the design system rendered for one fixture row.
+ *
+ * ONE way to reach a card, shared by the render helper's wait condition and by
+ * the assertions, so a change to the card markup breaks in one place instead of
+ * being fixed in one file and silently missed in the other. Two matches is a
+ * failure, not a coin toss: the page shows one list, and a duplicated row would
+ * otherwise be read as the row the test meant.
+ */
+export function collectiveCard(row: CollectiveBadgeRow): HTMLElement {
+  const name = collectiveNameFor(row);
+  const found = cardsNamed(name);
+  if (found.length === 0) {
+    throw new Error(`the collectives page shows no card named "${name}"`);
   }
-  return null;
+  if (found.length > 1) {
+    throw new Error(`the collectives page shows ${found.length} cards named "${name}"; it must show one`);
+  }
+  return found[0] as HTMLElement;
+}
+
+/**
+ * What one card claims about the caller.
+ *
+ * Read from the standing slot rather than the whole card, because the card's
+ * member COUNT ("4 members") would otherwise be mistaken for a member badge.
+ */
+export function standingTextFor(row: CollectiveBadgeRow): string {
+  return (collectiveCard(row).querySelector(".cmg-col-role")?.textContent ?? "").trim();
 }
 
 /**
@@ -387,7 +432,8 @@ export async function renderCollectivesRoute(): Promise<void> {
     if (document.querySelector(".cmg-col-card") == null) {
       throw new Error("the collectives route rendered no collective cards");
     }
-    const standing = standingSlotFor(collectiveNameFor(contributing))?.textContent ?? "";
+    const standing =
+      (cardsNamed(collectiveNameFor(contributing))[0]?.querySelector(".cmg-col-role")?.textContent ?? "").trim();
     if (!standing.includes("contributed")) {
       throw new Error(
         `the contribution counters have not reached the page: "${collectiveNameFor(contributing)}" ` +
