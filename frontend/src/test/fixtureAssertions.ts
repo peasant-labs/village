@@ -2,8 +2,13 @@
  * Shared assertions for YAML fixture loaders. `titleHeroAndBreadcrumbFixtures.ts`,
  * `finalContractCompatibilityFixtures.ts`, and `transcriptPageRequestFixtures.ts` each defined
  * their own byte-identical copy of the strict-shape check; kept in one place so a fourth fixture
- * loader does not add a fourth copy. The required-name check below went the same way: two loaders
- * had grown identical copies of it.
+ * loader does not add a fourth copy. The required-name check below went the same way, only further:
+ * FOUR loaders had grown identical copies of it before it was moved here.
+ *
+ * Of the thirteen fixture loaders in this folder, ten call the strict-shape check and four call the
+ * required-name check, so a change to either one's signature or message reaches every one of them.
+ * Count the call sites before changing a signature here; a corpus that stops guarding its own case
+ * names fails silently, by not failing at all.
  */
 
 /** Throws with the exact got/want field sets when `value`'s keys differ from `expected` — a
