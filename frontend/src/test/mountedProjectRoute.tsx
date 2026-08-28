@@ -179,6 +179,10 @@ export function installProfileRouteREST(
   username: string,
   viewer: string | null,
   projects: ProfileProjectFixture[],
+  /** When set, `GET /users/{username}` answers this status instead of a
+   *  profile. That is the only way to reach the route's own not-found state,
+   *  which renders its own crumbs and its own way back. */
+  profileStatus?: number,
 ): void {
   const owner = makeUser(username);
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -211,6 +215,9 @@ export function installProfileRouteREST(
       });
     }
     if (/\/users\/[^/?]+$/.test(url)) {
+      if (profileStatus != null && profileStatus >= 400) {
+        return json({ error: "not found" }, profileStatus);
+      }
       return json(owner);
     }
     throw new Error(`profile fixture received an unexpected ${method} request to ${url}`);

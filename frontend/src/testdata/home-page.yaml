@@ -94,7 +94,6 @@ homeCases:
         sessionCount: 2
         href: /users/alice-dev/projects/1111111111111111111111111111111111111111111111111111111111111111
     expectEmptyState: false
-    expectMalformedCount: 0
 
   - name: more-sessions-than-the-recent-list-shows-are-capped
     viewerUsername: alice-dev
@@ -140,7 +139,6 @@ homeCases:
         sessionCount: 6
         href: /users/alice-dev/projects/3333333333333333333333333333333333333333333333333333333333333333
     expectEmptyState: false
-    expectMalformedCount: 0
 
   - name: a-person-with-nothing-published-gets-the-teaching-empty-state
     viewerUsername: newcomer
@@ -148,7 +146,6 @@ homeCases:
     expectRecentTitles: []
     expectProjectRows: []
     expectEmptyState: true
-    expectMalformedCount: 0
 
   - name: a-username-needing-escaping-still-links-to-its-project
     viewerUsername: a b
@@ -165,7 +162,6 @@ homeCases:
         sessionCount: 1
         href: /users/a%20b/projects/4444444444444444444444444444444444444444444444444444444444444444
     expectEmptyState: false
-    expectMalformedCount: 0
 
   - name: a-row-arriving-without-a-project-identity-is-reported-not-dropped
     viewerUsername: alice-dev
@@ -190,4 +186,3 @@ homeCases:
         sessionCount: 1
         href: /users/alice-dev/projects/5555555555555555555555555555555555555555555555555555555555555555
     expectEmptyState: false
-    expectMalformedCount: 1

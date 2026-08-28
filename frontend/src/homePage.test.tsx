@@ -76,11 +76,11 @@ describe("mounted home route: recent sessions, then projects", () => {
       // violation. It is reported and left out of the project list; it is never
       // dropped from the page, and never folded into an invented project.
       const notice = document.querySelector('[data-testid="home-malformed-notice"]');
-      expect(notice !== null).toBe(c.expectMalformedCount > 0);
-      if (c.expectMalformedCount > 0) {
+      expect(notice !== null).toBe(c.malformedCount > 0);
+      if (c.malformedCount > 0) {
         const text = (notice!.textContent ?? "").replace(/\s+/g, " ");
         expect(text).toContain(
-          `${c.expectMalformedCount} transcript${c.expectMalformedCount !== 1 ? "s" : ""} could not be grouped by project`,
+          `${c.malformedCount} transcript${c.malformedCount !== 1 ? "s" : ""} could not be grouped by project`,
         );
         expect(notice!.getAttribute("role")).toBe("alert");
       }

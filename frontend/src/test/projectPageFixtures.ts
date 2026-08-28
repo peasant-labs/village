@@ -72,6 +72,20 @@ export type ProjectPageProfileLinkCase = {
   expectedHref: string;
 };
 
+export type CommonsCrumbRoute = "profile" | "project";
+
+/** Whether the route renders its ordinary state or its not-found state. Both
+ *  render a way back to the commons, and both have to point at the same place. */
+export type CommonsCrumbState = "found" | "missing";
+
+export type ProjectPageCommonsCrumbCase = {
+  name: string;
+  route: CommonsCrumbRoute;
+  state: CommonsCrumbState;
+  /** Every commons-labelled link this state renders, in render order. */
+  expectedLabels: string[];
+};
+
 export type ProjectPageFixtures = {
   viewerCases: ProjectPageViewerCase[];
   notFoundCases: ProjectPageNotFoundCase[];
@@ -79,6 +93,7 @@ export type ProjectPageFixtures = {
   renameCases: ProjectPageRenameCase[];
   headerCases: ProjectPageHeaderCase[];
   profileLinkCases: ProjectPageProfileLinkCase[];
+  commonsCrumbCases: ProjectPageCommonsCrumbCase[];
 };
 
 const requiredViewerCaseNames = [
@@ -115,6 +130,17 @@ const requiredProfileLinkCaseNames = [
   "profile-project-card-links-to-the-hash-keyed-project-page",
   "profile-project-card-href-encodes-a-reserved-username",
 ] as const;
+
+const requiredCommonsCrumbCaseNames = [
+  "the-profile-route-breadcrumb-leads-to-the-commons",
+  "a-profile-that-does-not-exist-still-offers-the-way-back",
+  "the-project-route-breadcrumb-leads-to-the-commons",
+  "a-project-that-does-not-exist-still-offers-the-way-back",
+] as const;
+
+const commonsCrumbCaseKeys = ["name", "route", "state", "expectedLabels"];
+const commonsCrumbRoutes: readonly CommonsCrumbRoute[] = ["profile", "project"];
+const commonsCrumbStates: readonly CommonsCrumbState[] = ["found", "missing"];
 
 const viewerCaseKeys = ["name", "ownerUsername", "viewerUsername", "expectRenameControl"];
 const notFoundCaseKeys = ["name", "serverMessage"];
@@ -176,7 +202,15 @@ export function loadProjectPageFixtures(): ProjectPageFixtures {
   }
   assertExactKeys(
     parsed,
-    ["viewerCases", "notFoundCases", "rollupCases", "renameCases", "headerCases", "profileLinkCases"],
+    [
+      "viewerCases",
+      "notFoundCases",
+      "rollupCases",
+      "renameCases",
+      "headerCases",
+      "profileLinkCases",
+      "commonsCrumbCases",
+    ],
     "fixture root",
   );
   const fixtures = parsed as ProjectPageFixtures;
@@ -325,6 +359,54 @@ export function loadProjectPageFixtures(): ProjectPageFixtures {
         `profile-link case ${c.name}: expectedHref must end in the project hash, or the case cannot ` +
           `distinguish a hash-keyed link from a name-keyed one`,
       );
+    }
+  }
+
+  assertNamesMatch(
+    fixtures.commonsCrumbCases.map((c) => c.name),
+    requiredCommonsCrumbCaseNames,
+    "project-page commonsCrumbCases",
+  );
+  for (const c of fixtures.commonsCrumbCases) {
+    assertExactKeys(c, commonsCrumbCaseKeys, `commons-crumb case ${c.name}`);
+    if (!commonsCrumbRoutes.includes(c.route)) {
+      throw new Error(
+        `commons-crumb case ${c.name}: ${c.route} is not a route. The closed set is ` +
+          `${commonsCrumbRoutes.join(", ")}.`,
+      );
+    }
+    if (!commonsCrumbStates.includes(c.state)) {
+      throw new Error(
+        `commons-crumb case ${c.name}: ${c.state} is not a state. The closed set is ` +
+          `${commonsCrumbStates.join(", ")}.`,
+      );
+    }
+    if (c.expectedLabels.length === 0) {
+      throw new Error(
+        `commons-crumb case ${c.name}: a case that names no link asserts nothing. Name every ` +
+          `commons-labelled link the state renders.`,
+      );
+    }
+    for (const label of c.expectedLabels) {
+      if (!/^(commons|back to commons)$/i.test(label)) {
+        throw new Error(
+          `commons-crumb case ${c.name}: ${label} does not read as a link to the commons, so a ` +
+            `case about commons links cannot be about it`,
+        );
+      }
+    }
+  }
+  // Both routes and BOTH states must appear. The not-found states carry three of
+  // the five links, so a corpus covering only the ordinary render would leave
+  // most of them free to regress.
+  for (const route of commonsCrumbRoutes) {
+    for (const state of commonsCrumbStates) {
+      if (!fixtures.commonsCrumbCases.some((c) => c.route === route && c.state === state)) {
+        throw new Error(
+          `project-page commonsCrumbCases: the ${route} route's ${state} state has no case. Every ` +
+            `state that renders a way back to the commons has to pin where it leads.`,
+        );
+      }
     }
   }
 

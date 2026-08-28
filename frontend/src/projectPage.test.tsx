@@ -290,39 +290,46 @@ describe("mounted profile page: project cards link into the project page", () =>
   }
 });
 
-describe("mounted routes: the commons crumb leads to the commons", () => {
-  // The root of the app serves the signed-in person's own home page, so a crumb
-  // labelled for the commons can no longer point at "/": for the very people who
-  // see these pages most, that address is their home, not discovery. The label
-  // and the destination have to agree, and they only do if both come from the
-  // one exported constant.
-  const cases = [
-    { name: "the profile route's commons crumb", render: () => renderProfileRoute("alice-dev") },
-    {
-      name: "the project route's commons crumb",
-      render: () => renderProjectRoute("alice-dev", HASH),
-    },
-  ];
-
-  for (const c of cases) {
+describe("mounted routes: every commons link leads to the commons", () => {
+  // The root of the app serves the signed-in person their own home page, so a
+  // link labelled for the commons can no longer point at "/": for the very
+  // people who see these pages most, that address is their home, not
+  // discovery. The label and the destination only agree if both come from the
+  // one exported constant. The not-found states carry most of these links, so
+  // they are exercised too.
+  for (const c of fixtures.commonsCrumbCases) {
     it(c.name, async () => {
-      installProfileRouteREST("alice-dev", "alice-dev", [
-        { projectHash: HASH, projectDisplayName: "village" },
-      ]);
-      if (c.name.includes("project route")) installProjectRouteREST(baseFixture());
-      await c.render();
+      const missing = c.state === "missing";
+      if (c.route === "profile") {
+        installProfileRouteREST(
+          "alice-dev",
+          // A viewer looking at somebody else's profile: the route shows its
+          // own not-found state only to someone who does not own it.
+          missing ? "someone-else" : "alice-dev",
+          [{ projectHash: HASH, projectDisplayName: "village" }],
+          missing ? 404 : undefined,
+        );
+        await renderProfileRoute("alice-dev");
+      } else {
+        installProjectRouteREST(
+          baseFixture(missing ? { errorStatus: 404, errorMessage: "no such project" } : {}),
+        );
+        await renderProjectRoute("alice-dev", HASH);
+      }
 
-      const crumb = await waitFor(() => {
-        const found = [...document.querySelectorAll("a")].find((a) =>
+      const links = await waitFor(() => {
+        const found = [...document.querySelectorAll("a")].filter((a) =>
           /^(commons|back to commons)$/i.test((a.textContent ?? "").trim()),
         );
-        expect(found).toBeDefined();
-        return found!;
+        expect(found.map((a) => (a.textContent ?? "").trim())).toEqual(c.expectedLabels);
+        return found;
       });
 
-      expect(crumb.getAttribute("href")).toBe(EXPLORE_SECTION.href);
-      // Not the bare root: that is somebody's home page now.
-      expect(crumb.getAttribute("href")).not.toBe("/");
+      for (const link of links) {
+        expect(link.getAttribute("href")).toBe(EXPLORE_SECTION.href);
+        // Not the bare root: that is somebody's home page now.
+        expect(link.getAttribute("href")).not.toBe("/");
+      }
     });
   }
 });

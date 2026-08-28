@@ -48,9 +48,10 @@ export type HomeCase = {
   expectProjectRows: HomeProjectRowCase[];
   expectEmptyState: boolean;
   /** How many supplied rows carry no project identity, and so are reported as
-   *  an anomaly rather than grouped. Not a guard on the corpus size — it is the
-   *  case's own claim about its own rows, checked against them below. */
-  expectMalformedCount: number;
+   *  an anomaly rather than grouped. DERIVED by the loader from the case's own
+   *  rows, never written in the fixture: a hand-written integer beside the rows
+   *  that already state the fact is a tally to keep in sync on every edit. */
+  malformedCount: number;
 };
 
 export type HomeNavCase = {
@@ -102,7 +103,6 @@ const homeCaseKeys = [
   "expectRecentTitles",
   "expectProjectRows",
   "expectEmptyState",
-  "expectMalformedCount",
 ];
 
 const surfaces: readonly HomeRouteSurface[] = ["home", "explore"];
@@ -270,13 +270,7 @@ export function loadHomePageFixtures(): HomePageFixtures {
     // Project rows are the distinct hashes, most recently worked first — the
     // order the page's grouping produces, and the order that answers "what was
     // I working on". Derived here from the case's own timestamps.
-    const malformed = c.transcripts.filter((t) => t.projectHash === "");
-    if (malformed.length !== c.expectMalformedCount) {
-      throw new Error(
-        `home case ${c.name}: expectMalformedCount is ${c.expectMalformedCount} but the case ` +
-          `supplies ${malformed.length} row(s) with no project identity`,
-      );
-    }
+    c.malformedCount = c.transcripts.filter((t) => t.projectHash === "").length;
 
     const counts = new Map<string, number>();
     const names = new Map<string, string>();
@@ -328,7 +322,7 @@ export function loadHomePageFixtures(): HomePageFixtures {
   // A page that dropped the anomaly notice, or silently folded an identity-less
   // row into a synthetic project, would pass a corpus in which every row is
   // well formed.
-  if (!fixtures.homeCases.some((c) => c.expectMalformedCount > 0)) {
+  if (!fixtures.homeCases.some((c) => c.malformedCount > 0)) {
     throw new Error(
       `home-page homeCases: at least one case must supply a row with NO project identity. Without ` +
         `one, a page that dropped the anomaly notice, or grouped the row under a made-up project, ` +
