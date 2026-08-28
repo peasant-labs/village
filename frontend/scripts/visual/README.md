@@ -19,7 +19,7 @@ blank/duplicate capture, so a vacuous "both empty → looks identical" can't sli
 
 The village transcript view renders the **shared `<SessionDetail>` composer**
 (its own `.tb-*` markup, now sourced from fairtrade), importing from fairtrade the
-`adaptTranscript`/ViewModel data + token layer — **not** the fairtrade demo's `TranscriptViewer`
+`adaptTranscript`/ViewModel data + token layer, **not** the fairtrade demo's `TranscriptViewer`
 (`.txn-*`). So the app `.tb-*` vs the demo
 `.txn-*` is a **component difference, not a regression**: the design-system demo is the **wrong** surface
 oracle for transcript (unlike the chrome harness, where demo-parity **is** the gate).

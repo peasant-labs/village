@@ -1,0 +1,14 @@
+# Cases for SessionDetailV2.mountedGraph.test.tsx (village-75 review round 1,
+# reviewer B IMPORTANT finding): the mounted production route, rendered with
+# NO mock of @peasant-labs/fairtrade, must actually mount the real
+# TrajectoryGraph engine (fairtrade's /graph entry) when a viewer switches to
+# the graph view. Loaded by src/test/mountedGraphFixtures.ts.
+cases:
+  - name: tool-bearing-turn-renders-graph-node
+    project: "fairtrade-design-system"
+    userTurnContent: "Read the config file."
+    assistantTurnContent: "Reading it now."
+    toolName: "Read"
+    toolFilePath: "src/config.ts"
+    expectedToolNodeCount: 1
+    expectedTurnNodeCount: 2
