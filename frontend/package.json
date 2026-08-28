@@ -28,7 +28,8 @@
     "shoot:profile:collectives": "node scripts/visual/profile-collectives-shoot.mjs",
     "mock:rest:profile": "node scripts/visual/mock-rest-profile.mjs",
     "mock:rest:project": "node scripts/visual/mock-rest-project.mjs",
-    "shoot:project": "node scripts/visual/project-page-shoot.mjs"
+    "shoot:project": "node scripts/visual/project-page-shoot.mjs",
+    "probe:collectives": "node scripts/visual/probe-collectives-standing.mjs"
   },
   "dependencies": {
     "@peasant-labs/fairtrade": "0.0.18",

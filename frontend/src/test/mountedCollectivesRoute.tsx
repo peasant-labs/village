@@ -339,9 +339,10 @@ function Providers({ children }: { children: ReactNode }) {
  *
  * It does NOT prove the rule still HIDES that element. Changing `display: none`
  * to something else, or losing to a more specific rule elsewhere, brings the
- * stray separator back with this still green. That residual risk needs a
- * browser, and it is covered by the both-theme capture and the computed-style
- * probe run against the real build before release, not here.
+ * stray separator back with this still green. That needs a browser, and it is
+ * what `scripts/visual/probe-collectives-standing.mjs` reads on a served build.
+ * No workflow runs the visual scripts, so that probe is manual: run it when
+ * this rule, the card, or the pinned design system changes.
  */
 export function emptyStandingSelectors(): string[] {
   const cssPath = resolve(process.cwd(), "src/app/globals.css");
@@ -429,11 +430,10 @@ export async function renderCollectivesRoute(): Promise<void> {
     );
   });
   await waitFor(() => {
-    if (document.querySelector(".cmg-col-card") == null) {
-      throw new Error("the collectives route rendered no collective cards");
-    }
-    const standing =
-      (cardsNamed(collectiveNameFor(contributing))[0]?.querySelector(".cmg-col-role")?.textContent ?? "").trim();
+    // standingTextFor throws while the card is absent, which waitFor treats as
+    // "not ready yet" and retries. Going through it rather than a second inline
+    // lookup is what makes collectiveCard the ONE way to reach a card.
+    const standing = standingTextFor(contributing);
     if (!standing.includes("contributed")) {
       throw new Error(
         `the contribution counters have not reached the page: "${collectiveNameFor(contributing)}" ` +
