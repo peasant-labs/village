@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import {
   collectiveNameFor,
+  emptyStandingSelectors,
   installCollectivesRouteREST,
   installCollectivesRouteTeardown,
   loadCollectiveBadgeFixtures,
@@ -104,6 +105,27 @@ describe("the mounted collectives route", () => {
       }
     },
   );
+
+  it("keeps the stylesheet's collapse rule pointed at the real card", async () => {
+    installCollectivesRouteREST(rows);
+    await renderCollectivesRoute();
+
+    const bare = rows.find((r) => r.expect.member_badge === null && !r.expect.contributed_badge);
+    if (!bare) throw new Error("the corpus no longer carries a row with neither badge");
+    const card = cardFor(bare);
+
+    // The shipped rule hides the empty standing slot AND the separator after
+    // it. Both selectors must still find their element on this card, or the
+    // rule has gone inert against a changed design system and the row has its
+    // stray leading separator back.
+    for (const selector of emptyStandingSelectors()) {
+      expect(
+        card.querySelector(selector),
+        `the stylesheet collapses "${selector}", but nothing on a card with no standing matches it any ` +
+          "more, so the stray leading separator is back",
+      ).not.toBeNull();
+    }
+  });
 
   it("says nothing at all about a collective the caller only sees", async () => {
     installCollectivesRouteREST(rows);

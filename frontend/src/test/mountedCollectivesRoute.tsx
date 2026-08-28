@@ -37,6 +37,10 @@ export interface CollectiveBadgeRow {
   approved: number;
   /** This caller's contributions to this collective still awaiting review. */
   pending: number;
+  /** Refusal EVENTS. A past event, never a standing. */
+  rejected: number;
+  /** Withdrawal EVENTS. A past event, never a standing. */
+  withdrawn: number;
   expect: CollectiveBadgeExpectation;
 }
 
@@ -46,8 +50,10 @@ export interface CollectiveBadgeFixtures {
 
 /**
  * Required-NAME manifest (never a bare count): the fixture must carry exactly
- * these four rows, which are the four combinations of the two independent
- * axes. Deleting one, or adding an unlisted one, fails the load rather than
+ * these rows. Four are the combinations of the two independent axes; the fifth
+ * is the collective whose every attempt ended in a refusal or a withdrawal,
+ * which is the only case that can catch a badge rule widened to count past
+ * events. Deleting one, or adding an unlisted one, fails the load rather than
  * silently changing which cases run.
  */
 const requiredRowNames = [
@@ -55,6 +61,7 @@ const requiredRowNames = [
   "member_without_contribution",
   "visible_non_member_with_pending_contribution",
   "visible_non_member_without_contribution",
+  "visible_non_member_with_only_refused_and_withdrawn_attempts",
 ] as const;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -99,6 +106,8 @@ export function loadCollectiveBadgeFixtures(): CollectiveBadgeFixtures {
     const role = assertNullableString(rawRow.role, `rows[${index}] ("${name}").role`);
     const approved = assertCount(rawRow.approved, `rows[${index}] ("${name}").approved`);
     const pending = assertCount(rawRow.pending, `rows[${index}] ("${name}").pending`);
+    const rejected = assertCount(rawRow.rejected, `rows[${index}] ("${name}").rejected`);
+    const withdrawn = assertCount(rawRow.withdrawn, `rows[${index}] ("${name}").withdrawn`);
     const rawExpect = rawRow.expect;
     if (!isPlainObject(rawExpect)) {
       throw new Error(`rows[${index}] ("${name}").expect must be an object`);
@@ -130,6 +139,8 @@ export function loadCollectiveBadgeFixtures(): CollectiveBadgeFixtures {
       role,
       approved,
       pending,
+      rejected,
+      withdrawn,
       expect: { member_badge: memberBadge, contributed_badge: rawExpect.contributed_badge },
     };
   });
@@ -144,6 +155,14 @@ export function loadCollectiveBadgeFixtures(): CollectiveBadgeFixtures {
       `collectives-visible-badges fixture is missing required row(s): ${missing.join(", ")}. ` +
         "Each is one of the four combinations of membership and contribution; restore it rather than " +
         "deleting it from this manifest.",
+    );
+  }
+  // A row carrying ONLY past events is what proves refusals and withdrawals do
+  // not produce a badge. Without one, widening the rule to count them survives.
+  if (!rows.some((r) => r.approved + r.pending === 0 && r.rejected + r.withdrawn > 0)) {
+    throw new Error(
+      "collectives-visible-badges fixture has no row whose contributions are only refusals or withdrawals, " +
+        "so nothing would catch a badge rule widened to count past events",
     );
   }
   const unexpected = names.filter((n) => !(requiredRowNames as readonly string[]).includes(n));
@@ -213,11 +232,24 @@ function makeContribution(row: CollectiveBadgeRow): ContributedCollective {
     linked_github_org: null,
     approved_count: row.approved,
     pending_count: row.pending,
-    // Past events, never a standing: a row that carried only these must show
-    // no contributed badge, which is why they are non-zero here.
-    rejected_attempt_count: 3,
-    withdrawn_attempt_count: 2,
+    // Past events, never a standing.
+    rejected_attempt_count: row.rejected,
+    withdrawn_attempt_count: row.withdrawn,
   };
+}
+
+/**
+ * Whether the real contributions endpoint would carry a row for this
+ * collective.
+ *
+ * It lists the collectives the caller has OFFERED transcripts to, so a
+ * collective whose every attempt ended in a refusal or a withdrawal IS listed,
+ * with approved and pending both zero. Filtering on a live contribution instead
+ * would make that row unreachable, and a badge rule widened to count past
+ * events would then pass unnoticed.
+ */
+function everOffered(row: CollectiveBadgeRow): boolean {
+  return row.approved + row.pending + row.rejected + row.withdrawn > 0;
 }
 
 /**
@@ -240,14 +272,16 @@ const json = (body: unknown, status = 200) =>
  * shows one list and the point of the change is that a person sees collectives
  * they do not belong to beside ones they do.
  *
- * The contributions body carries a row ONLY for a collective this caller
- * actually contributed to, which is what the real endpoint does. A collective
- * with no live contribution is absent from it, not present with zeroes, so a
- * page that keyed off mere presence would fail here.
+ * The contributions body carries a row for every collective this caller ever
+ * OFFERED something to, which is what the real endpoint does: a collective
+ * whose attempts all ended in a refusal or a withdrawal is listed with approved
+ * and pending both zero. A collective the caller never approached is absent
+ * entirely, not present with zeroes, so a page that keyed off mere presence
+ * fails here.
  */
 export function installCollectivesRouteREST(rows: readonly CollectiveBadgeRow[]): void {
   const groups = rows.map(makeVisibleGroup);
-  const contributions = rows.filter((r) => r.approved + r.pending > 0).map(makeContribution);
+  const contributions = rows.filter(everOffered).map(makeContribution);
 
   servedRows = rows;
 
@@ -278,6 +312,34 @@ function Providers({ children }: { children: ReactNode }) {
       </AuthProvider>
     </QueryClientProvider>
   );
+}
+
+/**
+ * The selectors the shipped stylesheet uses to collapse the card's empty
+ * standing slot and the separator that follows it.
+ *
+ * They are READ FROM `globals.css` rather than restated here, so the test
+ * cannot drift from the rule that actually ships. The test environment loads no
+ * stylesheet, so a computed-style assertion is impossible; asserting that these
+ * selectors still MATCH the rendered card is what proves the rule still has
+ * something to act on. If the design system renames or reorders the footer, the
+ * override goes inert and the stray separator returns, and this fails rather
+ * than passing quietly.
+ */
+export function emptyStandingSelectors(): string[] {
+  const cssPath = resolve(process.cwd(), "src/app/globals.css");
+  const css = readFileSync(cssPath, "utf8");
+  const selectors = [...css.matchAll(/^(\.cmg-col-foot [^{\n]*:empty[^{\n]*)\{/gm)].map((m) =>
+    m[1].trim(),
+  );
+  if (selectors.length === 0) {
+    throw new Error(
+      "globals.css no longer collapses the collectives card's empty standing slot. If the design system " +
+        "now draws its footer separators between items, delete this check with the rule; otherwise a row " +
+        "with no standing has regained its stray leading separator.",
+    );
+  }
+  return selectors;
 }
 
 /** The standing slot of the card whose name is `name`, or null if it is absent. */

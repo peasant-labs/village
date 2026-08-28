@@ -280,9 +280,9 @@ const visibleCollectives = [
   },
 ]
 
-// The caller's own contribution counters. Only two collectives appear, which is
-// what the real endpoint does: a collective the caller never offered anything
-// to has no row at all.
+// The caller's own contribution counters. Only the collectives the caller ever
+// OFFERED something to appear, which is what the real endpoint does; one the
+// caller never approached has no row at all.
 const myCollectiveContributions = [
   {
     id: groupId,

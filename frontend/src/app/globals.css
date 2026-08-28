@@ -724,8 +724,11 @@ textarea::placeholder {
    footer starting on the count.
 
    This belongs in the design system, where the separator would be drawn
-   between items rather than before each one. Remove this block once that
-   lands upstream. */
+   between items rather than before each one, and a card would carry an explicit
+   badge slot instead of consumers composing status into the role text. That is
+   peasant-labs/fairtrade-design-system#68. Remove this block, and the check
+   that guards it in src/test/mountedCollectivesRoute.tsx, once that lands and
+   this app re-pins. */
 .cmg-col-foot .cmg-col-role:empty {
   display: none;
 }

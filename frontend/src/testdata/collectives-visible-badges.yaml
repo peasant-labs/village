@@ -1,14 +1,18 @@
 # What each row of the collectives page says about the caller's own standing.
 #
-# The page lists every collective the caller may SEE, so a row is one of four
+# The page lists every collective the caller may SEE, so a row is one of several
 # kinds. The two axes are independent: belonging to a collective and having
-# offered it something are different facts, and each of the four combinations
-# renders differently.
+# offered it something are different facts, and each combination renders
+# differently.
 #
 # `role` is what GET /groups/visible reports for this row: null means the caller
-# only sees the collective, through the public or open rule. `approved` and
-# `pending` are this caller's counters from
-# GET /users/me/collectives/contributions.
+# only sees the collective, through the public or open rule.
+#
+# The four counters are this caller's own, from
+# GET /users/me/collectives/contributions. All four are stated on every case
+# rather than defaulted, because two of them (`rejected` and `withdrawn`) record
+# PAST EVENTS and must never produce a badge, and a case that silently inherited
+# zero for those could not show that.
 #
 # `expect.member_badge` is the role the row must show, or null for no member
 # badge. `expect.contributed_badge` is whether the row must say "contributed".
@@ -21,6 +25,8 @@ rows:
     role: member
     approved: 2
     pending: 0
+    rejected: 1
+    withdrawn: 0
     expect:
       member_badge: member
       contributed_badge: true
@@ -32,6 +38,8 @@ rows:
     role: owner
     approved: 0
     pending: 0
+    rejected: 0
+    withdrawn: 0
     expect:
       member_badge: owner
       contributed_badge: false
@@ -46,6 +54,8 @@ rows:
     role: null
     approved: 0
     pending: 1
+    rejected: 0
+    withdrawn: 0
     expect:
       member_badge: null
       contributed_badge: true
@@ -57,6 +67,25 @@ rows:
     role: null
     approved: 0
     pending: 0
+    rejected: 0
+    withdrawn: 0
+    expect:
+      member_badge: null
+      contributed_badge: false
+
+  - name: visible_non_member_with_only_refused_and_withdrawn_attempts
+    why: >
+      The contributions endpoint DOES list a collective whose every attempt
+      ended in a refusal or a withdrawal, with approved and pending both zero.
+      Those are past events, not a standing, so the row must read exactly like
+      one the caller never approached. Without this case a badge rule widened to
+      count refusals or withdrawals would go unnoticed, because no other case
+      serves a row carrying only past events.
+    role: null
+    approved: 0
+    pending: 0
+    rejected: 3
+    withdrawn: 2
     expect:
       member_badge: null
       contributed_badge: false
