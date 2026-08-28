@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
-import { assertExactKeys } from "@/test/fixtureAssertions";
+import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 
 /**
  * Loader for `src/testdata/home-page.yaml` — the case corpus behind
@@ -47,10 +47,22 @@ export type HomeCase = {
   expectRecentTitles: string[];
   expectProjectRows: HomeProjectRowCase[];
   expectEmptyState: boolean;
+};
+
+/**
+ * A case as tests consume it: the fixture's own fields plus what the loader
+ * derives from them.
+ *
+ * `malformedCount` is DERIVED, never written in the fixture — a hand-written
+ * integer beside the rows that already state the fact is a tally to keep in
+ * sync on every edit. It is a separate type rather than an optional field on
+ * {@link HomeCase} so the YAML shape stays honest: `HomeCase` describes what
+ * the file may contain, and the strict-key check is written against exactly
+ * that.
+ */
+export type LoadedHomeCase = HomeCase & {
   /** How many supplied rows carry no project identity, and so are reported as
-   *  an anomaly rather than grouped. DERIVED by the loader from the case's own
-   *  rows, never written in the fixture: a hand-written integer beside the rows
-   *  that already state the fact is a tally to keep in sync on every edit. */
+   *  an anomaly rather than grouped. */
   malformedCount: number;
 };
 
@@ -62,10 +74,17 @@ export type HomeNavCase = {
   expectActiveLabel: string;
 };
 
-export type HomePageFixtures = {
+/** The parsed file, before the loader derives anything. */
+type ParsedHomePageFixtures = {
   routeCases: HomeRouteCase[];
   navCases: HomeNavCase[];
   homeCases: HomeCase[];
+};
+
+export type HomePageFixtures = {
+  routeCases: HomeRouteCase[];
+  navCases: HomeNavCase[];
+  homeCases: LoadedHomeCase[];
 };
 
 const requiredRouteCaseNames = [
@@ -107,22 +126,6 @@ const homeCaseKeys = [
 
 const surfaces: readonly HomeRouteSurface[] = ["home", "explore"];
 
-function assertNamesMatch(actual: string[], required: readonly string[], label: string): void {
-  const got = [...actual].sort();
-  const want = [...required].sort();
-  if (JSON.stringify(got) !== JSON.stringify(want)) {
-    throw new Error(
-      `${label} case names differ: got ${got.join(", ")}; want ${want.join(", ")}. ` +
-        `A case was added, renamed or deleted without updating this loader's required-name ` +
-        `manifest, so the corpus no longer covers what the manifest claims. Add the new name ` +
-        `to the manifest, or restore the missing case.`,
-    );
-  }
-  if (new Set(actual).size !== actual.length) {
-    throw new Error(`${label} fixture case names must be unique`);
-  }
-}
-
 export function loadHomePageFixtures(): HomePageFixtures {
   const fixturePath = resolve(process.cwd(), "src/testdata/home-page.yaml");
   const parsed: unknown = parse(readFileSync(fixturePath, "utf8"), { strict: true });
@@ -130,7 +133,7 @@ export function loadHomePageFixtures(): HomePageFixtures {
     throw new Error("home-page fixture root must be an object");
   }
   assertExactKeys(parsed, ["routeCases", "navCases", "homeCases"], "fixture root");
-  const fixtures = parsed as HomePageFixtures;
+  const fixtures = parsed as ParsedHomePageFixtures;
 
   assertNamesMatch(
     fixtures.routeCases.map((c) => c.name),
@@ -204,6 +207,7 @@ export function loadHomePageFixtures(): HomePageFixtures {
     requiredHomeCaseNames,
     "home-page homeCases",
   );
+  const loadedHomeCases: LoadedHomeCase[] = [];
   let sawCappedCase = false;
   let sawUnsortedInput = false;
   for (const c of fixtures.homeCases) {
@@ -270,7 +274,8 @@ export function loadHomePageFixtures(): HomePageFixtures {
     // Project rows are the distinct hashes, most recently worked first — the
     // order the page's grouping produces, and the order that answers "what was
     // I working on". Derived here from the case's own timestamps.
-    c.malformedCount = c.transcripts.filter((t) => t.projectHash === "").length;
+    const malformedCount = c.transcripts.filter((t) => t.projectHash === "").length;
+    loadedHomeCases.push({ ...c, malformedCount });
 
     const counts = new Map<string, number>();
     const names = new Map<string, string>();
@@ -322,7 +327,7 @@ export function loadHomePageFixtures(): HomePageFixtures {
   // A page that dropped the anomaly notice, or silently folded an identity-less
   // row into a synthetic project, would pass a corpus in which every row is
   // well formed.
-  if (!fixtures.homeCases.some((c) => c.malformedCount > 0)) {
+  if (!loadedHomeCases.some((c) => c.malformedCount > 0)) {
     throw new Error(
       `home-page homeCases: at least one case must supply a row with NO project identity. Without ` +
         `one, a page that dropped the anomaly notice, or grouped the row under a made-up project, ` +
@@ -342,5 +347,5 @@ export function loadHomePageFixtures(): HomePageFixtures {
     );
   }
 
-  return fixtures;
+  return { ...fixtures, homeCases: loadedHomeCases };
 }

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
-import { assertExactKeys } from "@/test/fixtureAssertions";
+import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 import type { NameSource } from "@/lib/types";
 
 /**
@@ -177,22 +177,6 @@ const profileLinkCaseKeys = [
 ];
 
 const nameSources: readonly NameSource[] = ["override", "consented", "remote", "privacy"];
-
-function assertNamesMatch(actual: string[], required: readonly string[], label: string): void {
-  const got = [...actual].sort();
-  const want = [...required].sort();
-  if (JSON.stringify(got) !== JSON.stringify(want)) {
-    throw new Error(
-      `${label} case names differ: got ${got.join(", ")}; want ${want.join(", ")}. ` +
-        `A case was added, renamed or deleted without updating this loader's required-name ` +
-        `manifest, so the corpus no longer covers what the manifest claims. Add the new name ` +
-        `to the manifest, or restore the missing case.`,
-    );
-  }
-  if (new Set(actual).size !== actual.length) {
-    throw new Error(`${label} fixture case names must be unique`);
-  }
-}
 
 export function loadProjectPageFixtures(): ProjectPageFixtures {
   const fixturePath = resolve(process.cwd(), "src/testdata/project-page.yaml");
