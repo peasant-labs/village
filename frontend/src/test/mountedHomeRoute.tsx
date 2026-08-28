@@ -86,6 +86,14 @@ export interface MountedHomeBackend {
    * test prove a surface recovers rather than only that it can be reached.
    */
   heal(): void;
+  /**
+   * Hold every owner-scoped answer open until {@link release} is called. A
+   * request that resolves immediately passes through its in-flight state in a
+   * frame no assertion can catch, so a surface that reports "working on it"
+   * needs the request to actually still be working.
+   */
+  hold(): void;
+  release(): void;
 }
 
 /**
@@ -103,6 +111,8 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
   let failure: HomeRequestFailure = fixture.ownerRequestFailure ?? "never";
   const owner = userFixture(fixture.viewerUsername ?? "anon", chosen);
   let ownerAnswers = 0;
+  let held: Promise<void> | null = null;
+  let releaseHeld: (() => void) | null = null;
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     const path = url.slice(url.indexOf("/api/v1") + "/api/v1".length);
@@ -119,6 +129,7 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
       // The owner-scoped request is the home page's; every other transcripts
       // request belongs to discovery, which these cases render empty.
       const isOwnerScoped = path.includes("owner=");
+      if (isOwnerScoped && held != null) await held;
       if (isOwnerScoped) {
         const failsNow =
           failure === "always" || (failure === "after-first-answer" && ownerAnswers > 0);
@@ -143,6 +154,17 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
     requested,
     heal() {
       failure = "never";
+    },
+    hold() {
+      held = new Promise<void>((resolve) => {
+        releaseHeld = resolve;
+      });
+    },
+    release() {
+      const resolve = releaseHeld;
+      held = null;
+      releaseHeld = null;
+      resolve?.();
     },
   };
 }

@@ -201,6 +201,35 @@ describe("mounted home route: recent sessions, then projects", () => {
           expect(ownerRequests().length).toBeGreaterThan(beforeNoticeRetry),
         );
 
+        // While a retry is in flight the control says so and refuses further
+        // presses. A retry that fails again renders the SAME words, so without
+        // this a person cannot tell a working button from a dead one.
+        backend.hold();
+        await act(async () => {
+          fireEvent.click(
+            document.querySelector<HTMLButtonElement>('[data-testid="home-stale-retry"]')!,
+          );
+        });
+        const busy = await waitFor(() => {
+          const b = document.querySelector<HTMLButtonElement>(
+            '[data-testid="home-stale-retry"]',
+          )!;
+          expect(b.disabled).toBe(true);
+          return b;
+        });
+        expect(busy.textContent).toContain("retrying");
+        expect(document.querySelector('[data-testid="home-status"]')?.textContent).toContain(
+          "reloading your sessions",
+        );
+        await act(async () => {
+          backend.release();
+        });
+        await waitFor(() =>
+          expect(
+            document.querySelector<HTMLButtonElement>('[data-testid="home-stale-retry"]')?.disabled,
+          ).toBe(false),
+        );
+
         // And it recovers: once the server answers again the notice goes, and
         // the rows are the refreshed ones rather than a permanent warning.
         backend.heal();
