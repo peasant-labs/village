@@ -12,7 +12,14 @@
    load-bearing beside a name of any length) and border-radius (the design
    system is square everywhere).
 
+   The `failure` mode captures the OTHER answer the page owes: the owner-scoped
+   list request failed, so the page must show the failure surface and a retry,
+   never the teaching empty state. Its provenance check is that surface and its
+   retry control, plus the absence of the empty state, so a build that still
+   renders "nothing published yet" on a failed request cannot produce a PNG.
+
    env:
+     HOME_SHOOT_MODE surface arm: `home` (default) or `failure`
      VILLAGE_URL     app URL (default http://localhost:3000/)
      CHROME_PATH     Chrome/Chromium binary (required)
      PUPPETEER_CORE  explicit module path to puppeteer-core (optional)
@@ -26,6 +33,12 @@ const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core'))
 const CHROME = process.env.CHROME_PATH
 const URL = process.env.VILLAGE_URL || 'http://localhost:3000/'
 const theme = process.argv[2] || 'dark'
+const MODE = process.env.HOME_SHOOT_MODE || 'home'
+const MODES = ['home', 'failure']
+if (!MODES.includes(MODE)) {
+  console.error(`ERROR [home-shoot.mjs] HOME_SHOOT_MODE=${MODE} is not one of ${MODES.join(', ')}.`)
+  process.exit(1)
+}
 const out = process.argv[3] || `/tmp/village-home-${theme}`
 mkdirSync(out, { recursive: true })
 
@@ -81,6 +94,75 @@ const waitFor = async (sel, timeoutMs = 12000) => {
     await pause(100)
   }
   return null
+}
+
+if (MODE === 'failure') {
+  const panel = await waitFor('[data-testid="home-page-error"]')
+  if (!panel) {
+    await fail(
+      `ERROR [home-shoot.mjs] the home failure surface never mounted at ${URL}.
+  What failed: no [data-testid="home-page-error"] element appeared after the app loaded.
+  Why: the served build predates the failure branch, or the mock answered the owner-scoped list instead of failing it.
+  Where: home-shoot.mjs failure-arm readiness wait.
+  Means: the capture would not show the surface under review.
+  Fix: restart the mock with MOCK_OWNER_LIST_FAILS=1, rebuild from this worktree, and retry.`,
+      2,
+    )
+  }
+  const shape = await page.evaluate(() => {
+    const panel = document.querySelector('[data-testid="home-page-error"]')
+    const alert = panel?.querySelector('[role="alert"]')
+    const retry = [...(panel?.querySelectorAll('button') ?? [])].map((b) => (b.textContent ?? '').trim())
+    return {
+      alertText: (alert?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+      retry,
+      emptyState: document.querySelector('[data-testid="home-empty-state"]') != null,
+      rows: document.querySelectorAll('[data-testid="home-project-row"]').length,
+    }
+  })
+  // The whole point of the surface: a failed request is NOT an empty library,
+  // and the person is offered a way to ask again.
+  if (shape.emptyState || !shape.alertText.includes('Failed to load your sessions') || shape.retry.length === 0) {
+    await fail(
+      `ERROR [home-shoot.mjs] the served build does not distinguish a failed request from an empty library.
+  What failed: ${JSON.stringify(shape)}.
+  Why: the page rendered the teaching empty state, or the failure panel carries no heading or no retry control.
+  Where: home-shoot.mjs failure-arm build-provenance check.
+  Means: the capture would evidence the very bug this change removes.
+  Fix: rebuild and restart the server from this worktree, then retry.`,
+      2,
+    )
+  }
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await pause(150)
+  const body = await page.$('body')
+  const bodyBox = await body.boundingBox()
+  if (!bodyBox || bodyBox.width < 4 || bodyBox.height < 4) {
+    await fail(`ERROR [home-shoot.mjs] body resolved to a blank box at ${URL}.`, 1)
+  }
+  // The non-empty gate runs on the PANEL, not on the page. This surface is
+  // deliberately sparse: the whole point is that the page shows one calm panel
+  // instead of a library, so most of the page is intentionally background and a
+  // whole-page non-background floor would be measuring the emptiness the design
+  // intends. The panel is what must have painted, so that is what is asserted;
+  // the full page is captured beside it for review, with its own measurement
+  // reported.
+  const panelEl = await page.$('[data-testid="home-page-error"]')
+  const panelFile = `${out}/village-home-failure-panel.png`
+  await panelEl.screenshot({ path: panelFile })
+  const panelGate = await gate.assert('village-home-failure-panel', panelFile, {
+    sel: '[data-testid="home-page-error"]',
+    where: 'home-shoot.mjs',
+  })
+  const failFile = `${out}/village-home-failure.png`
+  await body.screenshot({ path: failFile, captureBeyondViewport: true })
+  const pageMeasure = await gate.measure(failFile)
+  console.log('shot', 'village-home-failure-panel'.padEnd(28), `nonbg=${(panelGate.nonbgRatio * 100).toFixed(1)}% colors=${panelGate.distinctColors} ${(statSync(panelFile).size / 1024).toFixed(1)}KB`)
+  console.log('shot', 'village-home-failure'.padEnd(28), `${Math.round(bodyBox.width)}x${Math.round(bodyBox.height)}`.padEnd(11), `nonbg=${(pageMeasure.nonbgRatio * 100).toFixed(2)}% colors=${pageMeasure.distinctColors} ${(statSync(failFile).size / 1024).toFixed(1)}KB (page measured, not gated: see note above)`)
+  console.log('failure panel:', JSON.stringify(shape))
+  console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
+  await browser.close()
+  process.exit(0)
 }
 
 const ready = await waitFor('[data-testid="home-page"]')

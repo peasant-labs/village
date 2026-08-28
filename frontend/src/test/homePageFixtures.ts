@@ -44,6 +44,8 @@ export type HomeCase = {
   name: string;
   viewerUsername: string;
   transcripts: HomeTranscriptCase[];
+  /** The owner-scoped request fails instead of answering. */
+  requestFails: boolean;
   expectRecentTitles: string[];
   expectProjectRows: HomeProjectRowCase[];
   expectEmptyState: boolean;
@@ -110,6 +112,7 @@ const requiredHomeCaseNames = [
   "a-person-with-nothing-published-gets-the-teaching-empty-state",
   "a-username-needing-escaping-still-links-to-its-project",
   "a-row-arriving-without-a-project-identity-is-reported-not-dropped",
+  "a-failed-request-is-not-an-empty-library",
 ] as const;
 
 const routeCaseKeys = ["name", "path", "viewerUsername", "expectSurface"];
@@ -119,6 +122,7 @@ const homeCaseKeys = [
   "name",
   "viewerUsername",
   "transcripts",
+  "requestFails",
   "expectRecentTitles",
   "expectProjectRows",
   "expectEmptyState",
@@ -244,10 +248,20 @@ export function loadHomePageFixtures(): HomePageFixtures {
       );
     }
 
-    if (c.expectEmptyState !== (c.transcripts.length === 0)) {
+    // The distinction this corpus exists to hold: an answered request with no
+    // rows is the empty library; a request that FAILED is not, and a page that
+    // conflated them would tell somebody with a full shelf that it is bare.
+    if (c.expectEmptyState !== (c.transcripts.length === 0 && !c.requestFails)) {
       throw new Error(
         `home case ${c.name}: expectEmptyState must be true exactly when the case supplies no ` +
-          `transcripts`,
+          `transcripts AND its request succeeds. A failed request is a failure surface, never an ` +
+          `empty one.`,
+      );
+    }
+    if (c.requestFails && c.transcripts.length > 0) {
+      throw new Error(
+        `home case ${c.name}: a request that fails cannot also deliver rows; drop the transcripts ` +
+          `or set requestFails to false`,
       );
     }
 
@@ -338,6 +352,13 @@ export function loadHomePageFixtures(): HomePageFixtures {
     throw new Error(
       `home-page homeCases: at least one case must supply MORE transcripts than its recent list ` +
         `shows. Without one, a page that dropped the cap and listed everything would still pass.`,
+    );
+  }
+  if (!loadedHomeCases.some((c) => c.requestFails)) {
+    throw new Error(
+      `home-page homeCases: at least one case must model the owner-scoped request FAILING. ` +
+        `Without one, a page that renders a failed request as the teaching empty state would ` +
+        `still pass, and would tell a person with a full library that it is empty.`,
     );
   }
   if (!sawUnsortedInput) {

@@ -23,6 +23,12 @@ export interface MountedHomeFixture {
   viewerUsername: string | null;
   /** The rows `GET /transcripts?owner=…` serves for the viewer. */
   transcripts: HomeTranscriptCase[];
+  /**
+   * When true the owner-scoped list request FAILS with a 500 instead of
+   * answering. Discovery's own unscoped request still succeeds, so a failure
+   * on this page is observably the home request's and not the whole stub's.
+   */
+  ownerRequestFails?: boolean;
 }
 
 function userFixture(username: string): User {
@@ -95,6 +101,9 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): string[] {
       // The owner-scoped request is the home page's; every other transcripts
       // request belongs to discovery, which these cases render empty.
       const isOwnerScoped = path.includes("owner=");
+      if (isOwnerScoped && fixture.ownerRequestFails) {
+        return json({ error: "the session list is unavailable" }, 500);
+      }
       const rows = isOwnerScoped ? fixture.transcripts.map((t) => listItem(t, owner)) : [];
       return json({
         transcripts: rows,

@@ -57,6 +57,10 @@ navCases:
 
 # What the home surface renders for a given owner-scoped transcript list.
 #
+# `requestFails` models the owner-scoped request FAILING rather than answering.
+# It is written on every case, never defaulted, so a case can never be silently
+# read as a success because a field was forgotten.
+#
 # `transcripts` is deliberately NOT written in published order: the page sorts
 # most-recent-first itself rather than trusting the response order, and a
 # corpus already in order could not tell the two apart.
@@ -93,6 +97,7 @@ homeCases:
       - displayName: village
         sessionCount: 2
         href: /users/alice-dev/projects/1111111111111111111111111111111111111111111111111111111111111111
+    requestFails: false
     expectEmptyState: false
 
   - name: more-sessions-than-the-recent-list-shows-are-capped
@@ -138,6 +143,7 @@ homeCases:
       - displayName: schema
         sessionCount: 6
         href: /users/alice-dev/projects/3333333333333333333333333333333333333333333333333333333333333333
+    requestFails: false
     expectEmptyState: false
 
   - name: a-person-with-nothing-published-gets-the-teaching-empty-state
@@ -145,6 +151,7 @@ homeCases:
     transcripts: []
     expectRecentTitles: []
     expectProjectRows: []
+    requestFails: false
     expectEmptyState: true
 
   - name: a-username-needing-escaping-still-links-to-its-project
@@ -161,6 +168,7 @@ homeCases:
       - displayName: Mixed Case Project
         sessionCount: 1
         href: /users/a%20b/projects/4444444444444444444444444444444444444444444444444444444444444444
+    requestFails: false
     expectEmptyState: false
 
   - name: a-row-arriving-without-a-project-identity-is-reported-not-dropped
@@ -185,4 +193,16 @@ homeCases:
       - displayName: village
         sessionCount: 1
         href: /users/alice-dev/projects/5555555555555555555555555555555555555555555555555555555555555555
+    requestFails: false
+    expectEmptyState: false
+
+  - name: a-failed-request-is-not-an-empty-library
+    viewerUsername: alice-dev
+    # The request never answers, so the page has no rows — but the person may
+    # well own hundreds. Telling them they have published nothing, and offering
+    # them a link to publish their first, is the failure this case forbids.
+    transcripts: []
+    requestFails: true
+    expectRecentTitles: []
+    expectProjectRows: []
     expectEmptyState: false

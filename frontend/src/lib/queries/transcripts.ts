@@ -87,7 +87,16 @@ function assertTranscriptListResponseMatchesRequest(
  * superseded page request is cancelled instead of racing to commit. Previous
  * confirmed rows are retained via `placeholderData` while a new page loads.
  */
-export function useTranscripts(params?: Record<string, string>) {
+/**
+ * @param options.enabled withhold the request until the caller's parameters are
+ *   real. A filter value that is not yet known is dropped by the list handler
+ *   rather than narrowing anything, so an unconditional request would answer a
+ *   narrow question with the whole commons.
+ */
+export function useTranscripts(
+  params?: Record<string, string>,
+  options?: { enabled?: boolean },
+) {
   const searchParams = new URLSearchParams(params);
   return useQuery({
     queryKey: ["transcripts", params],
@@ -100,6 +109,7 @@ export function useTranscripts(params?: Record<string, string>) {
       return response;
     },
     placeholderData: (previousData) => previousData,
+    enabled: options?.enabled ?? true,
   });
 }
 

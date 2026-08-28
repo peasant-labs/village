@@ -12,6 +12,7 @@
    Usage:
      MOCK_REST_PORT=8791 node scripts/visual/mock-rest-home.mjs
      MOCK_REST_PORT=8791 MOCK_SIGNED_OUT=1 node scripts/visual/mock-rest-home.mjs
+     MOCK_REST_PORT=8791 MOCK_OWNER_LIST_FAILS=1 node scripts/visual/mock-rest-home.mjs
 */
 import { createServer } from 'node:http'
 
@@ -20,6 +21,11 @@ const PORT = Number(process.env.MOCK_REST_PORT || 8791)
 // home. That is the signed-out arm of the same capture, and it cannot be taken
 // against a mock that answers `/auth/me` for everyone.
 const SIGNED_OUT = process.env.MOCK_SIGNED_OUT === '1'
+// When set, the OWNER-SCOPED list request fails while everything else still
+// answers, so the capture shows the home page's failure surface rather than a
+// whole broken app. The distinction is the point: a failed list is not an empty
+// library, and only a capture where the rest of the page works can show that.
+const OWNER_LIST_FAILS = process.env.MOCK_OWNER_LIST_FAILS === '1'
 
 const user = {
   id: 'user-demo',
@@ -119,6 +125,9 @@ const server = createServer((req, res) => {
     // The home page asks for its own rows. An unscoped request is discovery's,
     // and is answered empty so a capture cannot silently pass on the wrong list.
     const owner = url.searchParams.get('owner')
+    if (owner === user.github_username && OWNER_LIST_FAILS) {
+      return send(res, 500, { error: 'the session list is unavailable' })
+    }
     const rows = owner === user.github_username ? sessions.map(toListItem) : []
     return send(res, 200, {
       transcripts: rows,

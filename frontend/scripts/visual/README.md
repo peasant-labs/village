@@ -448,18 +448,42 @@ needs a backend that answers `GET /auth/me`:
   border radius, which a scaled PNG cannot distinguish.
 - **Backend:** `frontend/scripts/visual/mock-rest-home.mjs`. Set
   `MOCK_SIGNED_OUT=1` for the signed-out arm, where the same root route must
-  serve discovery instead.
+  serve discovery instead, and `MOCK_OWNER_LIST_FAILS=1` for the failure arm,
+  where only the owner-scoped list request fails.
+- **Failure arm:** `HOME_SHOOT_MODE=failure` captures the answer the page owes
+  when the owner-scoped request fails: the shared failure panel and its retry,
+  and NOT the teaching empty state. Its provenance check refuses to write a PNG
+  from a build that still renders "nothing published yet" on a failed request.
+  The non-empty gate runs on the panel rather than the page, because this
+  surface is deliberately sparse: a whole-page floor would be measuring the
+  emptiness the design intends. The full page is captured beside it and its
+  measurement reported.
 
 Repeatable run:
+
+The capture is taken against the SERVED PRODUCTION BUILD, never `pnpm dev`: the
+development server paints its own overlay bubbles over the surface, which then
+sit in the review artefact on top of the controls under review.
 
 ```sh
 CHROME=/path/to/google-chrome
 
 MOCK_REST_PORT=8791 node scripts/visual/mock-rest-home.mjs &
-NEXT_PUBLIC_API_URL=http://localhost:8791/api/v1 pnpm dev &
+NEXT_PUBLIC_API_URL=http://localhost:8791/api/v1 pnpm build
+NEXT_PUBLIC_API_URL=http://localhost:8791/api/v1 pnpm start -p 3000 &
 
 CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3000/ \
   node scripts/visual/home-shoot.mjs dark /tmp/village-home-dark
 CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3000/ \
   node scripts/visual/home-shoot.mjs light /tmp/village-home-light
+```
+
+For the failure arm, restart the mock with `MOCK_OWNER_LIST_FAILS=1` on the same
+port the build was pointed at, then:
+
+```sh
+CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3000/ HOME_SHOOT_MODE=failure \
+  node scripts/visual/home-shoot.mjs dark /tmp/village-home-failure-dark
+CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3000/ HOME_SHOOT_MODE=failure \
+  node scripts/visual/home-shoot.mjs light /tmp/village-home-failure-light
 ```

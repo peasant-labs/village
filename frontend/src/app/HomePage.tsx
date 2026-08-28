@@ -6,7 +6,9 @@ import { useTranscripts } from "@/lib/queries/transcripts";
 import { useAuth } from "@/providers/AuthProvider";
 import TranscriptList from "@/components/transcript/TranscriptList";
 import { DataState, TeachingEmptyState } from "@/lib/ft-ui";
+import RequestFailureState from "@/components/RequestFailureState";
 import { groupByProject } from "@/lib/format";
+import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
 import type { TranscriptListItem } from "@/lib/types";
 
 /**
@@ -50,7 +52,15 @@ export function mostRecentFirst(
 export default function HomePage() {
   const { user } = useAuth();
   const username = user?.github_username ?? "";
-  const { data, isLoading } = useTranscripts({ owner: username });
+  // A blank owner filter is DROPPED by the list handler, which would answer
+  // with the whole commons under a heading that says "your". The request is
+  // therefore not issued at all until the viewer's handle is known; the handle
+  // gate is already redirecting a signed-in person who has not claimed one.
+  const hasUsername = username !== "";
+  const { data, isLoading, isError, error, refetch } = useTranscripts(
+    { owner: username },
+    { enabled: hasUsername },
+  );
 
   const items = data?.transcripts ?? [];
   const recent = mostRecentFirst(items).slice(0, RECENT_SESSION_LIMIT);
@@ -73,18 +83,47 @@ export default function HomePage() {
           className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer"
         >
           <Plus size={14} />
-          Publish your first transcript
+          publish your first transcript
         </Link>
       </div>
     </div>
   );
 
-  if (isLoading) {
+  if (!hasUsername || isLoading) {
     return (
       <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
         <div className="h-8 w-64 animate-shimmer" />
         <div className="h-48 animate-shimmer" />
         <div className="h-48 animate-shimmer" />
+      </div>
+    );
+  }
+
+  // A failed request is NOT an empty library. Rendering the teaching empty
+  // state here would tell somebody with a shelf full of published sessions
+  // that they have published nothing, and send them off to publish another.
+  // The shared failure panel says what failed and offers the same retry the
+  // discovery list offers.
+  if (isError) {
+    return (
+      <div
+        className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
+        data-testid="home-page-error"
+      >
+        <RequestFailureState
+          title="Failed to load your sessions"
+          message={
+            // The reported cause is its own sentence: it comes from the server
+            // and carries no guaranteed capital or full stop, so folding it
+            // into the surrounding prose produces a run-on.
+            `Your own published sessions could not be loaded from ` +
+            `${TRANSCRIPT_LIST_ENDPOINT}. This is not an empty library, and ` +
+            `nothing has been deleted. Retry to load it again. The request ` +
+            `reported: ${error instanceof Error ? error.message : "an unknown error"}.`
+          }
+          onRetry={() => refetch()}
+          retryLabel="retry"
+        />
       </div>
     );
   }

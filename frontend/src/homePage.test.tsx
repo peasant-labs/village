@@ -1,4 +1,4 @@
-import { waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   installHomeRouteREST,
@@ -29,11 +29,17 @@ function exploreSurface(): Element | null {
   return document.querySelector('[data-testid="session-list-results"]');
 }
 
+function homeErrorSurface(): Element | null {
+  return document.querySelector('[data-testid="home-page-error"]');
+}
+
 async function settled(): Promise<void> {
   await waitFor(() =>
     expect(document.querySelector('[data-testid="root-route-pending"]')).toBeNull(),
   );
-  await waitFor(() => expect(homeSurface() ?? exploreSurface()).not.toBeNull());
+  await waitFor(() =>
+    expect(homeSurface() ?? exploreSurface() ?? homeErrorSurface()).not.toBeNull(),
+  );
 }
 
 describe("mounted routes: which surface each visitor lands on", () => {
@@ -56,12 +62,42 @@ describe("mounted home route: recent sessions, then projects", () => {
       const requested = installHomeRouteREST({
         viewerUsername: c.viewerUsername,
         transcripts: c.transcripts,
+        ownerRequestFails: c.requestFails,
       });
       await renderAppRoute("/");
       await settled();
 
+      // A request that FAILED is not an empty library. The page owes the
+      // person a surface that says so and a way to ask again; the teaching
+      // empty state and its "publish your first transcript" invitation would
+      // tell somebody with a full shelf that it is bare.
+      if (c.requestFails) {
+        const failure = homeErrorSurface();
+        expect(failure).not.toBeNull();
+        expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
+        expect(homeSurface()).toBeNull();
+        const alert = failure!.querySelector('[role="alert"]');
+        expect(alert).not.toBeNull();
+        expect((alert!.textContent ?? "")).toContain("Failed to load your sessions");
+
+        // Retry must re-issue the SAME owner-scoped request, not merely
+        // re-render: a button that only cleared the panel would leave the
+        // person on a page that can never recover.
+        const before = requested.filter((p) => p.includes("owner=")).length;
+        expect(before).toBeGreaterThan(0);
+        const retry = screen.getByRole("button", { name: /retry/i });
+        await act(async () => {
+          fireEvent.click(retry);
+        });
+        await waitFor(() =>
+          expect(requested.filter((p) => p.includes("owner=")).length).toBeGreaterThan(before),
+        );
+        return;
+      }
+
       const home = homeSurface();
       expect(home).not.toBeNull();
+      expect(homeErrorSurface()).toBeNull();
 
       // The page reads the viewer's OWN transcripts. A request without the
       // owner filter would list the whole commons on a page titled "your".

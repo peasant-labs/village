@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Loader2, SearchX } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranscripts } from "@/lib/queries/transcripts";
 import { useSearchCollectives } from "@/lib/queries/groups";
@@ -16,6 +16,7 @@ import {
 import type { TranscriptListResponse } from "@/lib/types";
 import { Explore } from "@peasant-labs/fairtrade/commons";
 import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
+import RequestFailureState from "@/components/RequestFailureState";
 
 const DEFAULT_FILTERS: ExploreFilters = {
   query: "",
@@ -125,19 +126,16 @@ export default function ExplorePage() {
   if (failureMessage != null && payload == null) {
     // A failure with no rows to retain (initial-load error, or a first-response
     // mismatch): the full error surface owns the announcement and offers an
-    // exact-key retry instead of stalling on an endless skeleton.
+    // exact-key retry instead of stalling on an endless skeleton. It is the
+    // SHARED panel, so the home page cannot describe the same failure in
+    // different words.
     content = (
-      <div className="flex flex-col gap-6 animate-fade-up">
-        <div
-          role="alert"
-          className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center"
-        >
-          <SearchX size={28} className="text-ink-4" />
-          <p className="text-sm font-medium text-ink">Failed to load transcripts</p>
-          <p className="text-[13px] text-ink-3 max-w-sm">{failureMessage}</p>
-          {retryButton}
-        </div>
-      </div>
+      <RequestFailureState
+        title="Failed to load transcripts"
+        message={failureMessage}
+        onRetry={() => refetch()}
+        retryLabel={`retry page ${requestedPage}`}
+      />
     );
   } else if (isLoading || !payload) {
     content = (

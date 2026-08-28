@@ -340,6 +340,15 @@ supplies more sessions than its recent list shows (so dropping the cap fails)
 and at least one supplies its rows in an order that is not already
 most-recent-first (so never sorting fails).
 
+One `homeCases` field is about the request rather than the rows: `requestFails`
+models the owner-scoped list request FAILING instead of answering. The corpus
+is rejected unless at least one case sets it, because a page that rendered a
+failed request as the teaching empty state would otherwise pass, and would tell
+a person with a full library that they have published nothing. `expectEmptyState`
+is therefore only true when the case supplies no rows AND its request succeeds.
+The failure case asserts the shared failure panel, the absence of the empty
+state, and that clicking retry re-issues the same owner-scoped request.
+
 `frontend/src/test/transcriptRowFixture.ts` builds one complete `Transcript`
 wire row with every column filled in, so a fixture states only the fields its
 case is about. Both mounted-route harnesses use it; a new wire column is added
@@ -349,6 +358,9 @@ The mounted captures are `frontend/scripts/visual/mock-rest-home.mjs` (set
 `MOCK_SIGNED_OUT=1` for the signed-out arm) plus
 `frontend/scripts/visual/home-shoot.mjs`, which asserts build provenance - the
 two sections in order and hash-keyed project links - before it writes a PNG.
+Take that capture against the served production build (`pnpm build` then
+`pnpm start`), never `pnpm dev`, whose overlay bubbles land on the surface under
+review.
 
 ### Project identity: five fixture families
 
