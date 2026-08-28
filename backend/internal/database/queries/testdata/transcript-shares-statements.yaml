@@ -11,6 +11,7 @@
 # Adding a statement: add its name, its file, and kind: read.
 
 - {name: ListUserGroups, file: groups.sql, kind: read}
+- {name: ListVisibleGroups, file: groups.sql, kind: read}
 - {name: ListAllGroups, file: groups.sql, kind: read}
 - {name: SearchCollectives, file: groups.sql, kind: read}
 - {name: ListCollectivesByGitHubOrg, file: groups.sql, kind: read}

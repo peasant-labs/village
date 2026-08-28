@@ -219,14 +219,25 @@ export interface Group {
   data_access: "members_only" | "contributors" | "public";
   role: string;
   member_since: string | null;
-  // Optional aggregate counts. NOT populated by the current `GET /groups`
-  // handler (`ListUserGroups` / `ListAllGroups` select group + membership
-  // columns only, no member/transcript aggregate -- only `SearchCollectives`
-  // computes these today). Declared optional so the collectives-list card
-  // can render them once a future backend change adds them, without a
-  // frontend change; until then they are simply omitted (see groups/page.tsx).
+  // Aggregate counts. `ListUserGroups` and `ListVisibleGroups` both compute
+  // them; `ListAllGroups` (GET /groups/public) selects group columns only, so
+  // they stay optional and are simply omitted where a surface does not carry
+  // them.
   member_count?: number;
   transcript_count?: number;
+}
+
+/**
+ * A collective the caller may SEE, as served by `GET /groups/visible`.
+ *
+ * It is a different question from {@link Group}, which is the set the caller
+ * BELONGS to. A collective admitted by the public or open rule alone carries a
+ * NULL role and a NULL member_since, and a consumer must read those as "you are
+ * not a member of this one" rather than as a value that failed to load.
+ */
+export interface VisibleGroup extends Omit<Group, "role" | "member_since"> {
+  role: string | null;
+  member_since: string | null;
 }
 
 export interface UserGroupShare {

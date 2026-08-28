@@ -229,6 +229,83 @@ const groupDetail = {
 
 const groupsList = [groupDetail.group]
 
+// The four kinds of row the collectives page (`GET /groups/visible`) can show,
+// so a capture of that surface carries every combination of the two badges
+// rather than only the membership rows the old list could produce.
+const visibleCollectives = [
+  {
+    ...groupDetail.group,
+    id: groupId,
+    name: 'AI Research Collective',
+    role: viewerRole,
+    member_since: '2026-03-01T00:00:00Z',
+    member_count: 12,
+    transcript_count: 340,
+  },
+  {
+    ...groupDetail.group,
+    id: 'collective-open-contributed',
+    name: 'Prompt Engineering Guild',
+    description: 'Patterns that survive contact with a real codebase.',
+    acceptance_mode: 'open',
+    data_access: 'public',
+    role: null,
+    member_since: null,
+    member_count: 48,
+    transcript_count: 912,
+  },
+  {
+    ...groupDetail.group,
+    id: 'collective-member-plain',
+    name: 'Agent Tooling Workshop',
+    description: 'Harness and tool-call transcripts, reviewed weekly.',
+    acceptance_mode: 'curated',
+    data_access: 'members_only',
+    role: 'member',
+    member_since: '2026-05-20T00:00:00Z',
+    member_count: 7,
+    transcript_count: 61,
+  },
+  {
+    ...groupDetail.group,
+    id: 'collective-public-plain',
+    name: 'Open Transcript Archive',
+    description: 'Everything published under a permissive license.',
+    acceptance_mode: 'open',
+    data_access: 'public',
+    role: null,
+    member_since: null,
+    member_count: 213,
+    transcript_count: 5400,
+  },
+]
+
+// The caller's own contribution counters. Only two collectives appear, which is
+// what the real endpoint does: a collective the caller never offered anything
+// to has no row at all.
+const myCollectiveContributions = [
+  {
+    id: groupId,
+    name: 'AI Research Collective',
+    description: null,
+    linked_github_org: null,
+    approved_count: 4,
+    pending_count: 0,
+    rejected_attempt_count: 1,
+    withdrawn_attempt_count: 0,
+  },
+  {
+    id: 'collective-open-contributed',
+    name: 'Prompt Engineering Guild',
+    description: null,
+    linked_github_org: null,
+    approved_count: 0,
+    pending_count: 2,
+    rejected_attempt_count: 0,
+    withdrawn_attempt_count: 0,
+  },
+]
+
 // One transcript the viewer (alice-dev) owns but has not yet shared with the
 // demo collective, so a `GET /transcripts?owner=alice-dev` (the contribute
 // page's own shareable-list query) has something to render for the
@@ -585,6 +662,8 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && p === '/auth/me') return send(res, 200, user)
   if (req.method === 'GET' && p === '/auth/orgs') return send(res, 200, [{ org_id: 1, org_login: 'anthropic-labs', avatar_url: null, visible: true, fetched_at: '2026-06-28T12:00:00Z' }])
   if (req.method === 'GET' && p === '/groups') return send(res, 200, groupsList)
+  if (req.method === 'GET' && p === '/groups/visible') return send(res, 200, visibleCollectives)
+  if (req.method === 'GET' && p === '/users/me/collectives/contributions') return send(res, 200, { collectives: myCollectiveContributions })
   if (req.method === 'GET' && p === `/groups/${groupId}`) return send(res, 200, groupDetail)
   if (req.method === 'GET' && p === `/groups/${groupId}/my-shares`) return send(res, 200, [])
   if (req.method === 'GET' && p === `/groups/${groupId}/pending`) return send(res, 200, [])
