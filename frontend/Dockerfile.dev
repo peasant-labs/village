@@ -3,8 +3,8 @@
 # resolves from the npm registry, so the image needs no sibling worktrees. (The previous version copied the paired
 # fairtrade-design-system worktree and ran a source prebuild on every start;
 # that dev-link machinery is retired — published packages only.)
-FROM node:24-alpine
-RUN corepack enable && corepack prepare pnpm@11.5.3 --activate
+FROM node:26-alpine
+RUN npm install -g pnpm@11.5.3
 WORKDIR /workspace
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY frontend/package.json frontend/
