@@ -50,7 +50,7 @@ export function loadMountedGraphFixtures(): MountedGraphFixtures {
   for (const c of fixtures.cases) {
     assertExactKeys(c, caseKeys, `case ${c.name}`);
     if (c.expectedToolNodeCount < 1) {
-      throw new Error(`case ${c.name}: expectedToolNodeCount must be >= 1 — this test exists to prove a tool node mounts`);
+      throw new Error(`case ${c.name}: expectedToolNodeCount must be >= 1, this test exists to prove a tool node mounts`);
     }
   }
   return fixtures;

@@ -12,7 +12,7 @@ import { loadMountedGraphFixtures, type MountedGraphCase } from "@/test/mountedG
 
 // Mounts the REAL production route (TranscriptDetailPage -> SessionDetailV2 ->
 // fairtrade's TranscriptViewer -> TrajectoryGraph) with REST mocked and NO
-// mock of @peasant-labs/fairtrade — the only way to prove the trajectory
+// mock of @peasant-labs/fairtrade: the only way to prove the trajectory
 // graph engine village-75 rewired onto fairtrade's `/graph` entry actually
 // mounts in the live DOM, rather than trusting a screenshot alone (village#75
 // review round 1, reviewer B).
@@ -123,7 +123,7 @@ describe("mounted production transcript route: real fairtrade trajectory graph",
         const mounted = document.querySelector(".tb-graph");
         if (!mounted) {
           throw new Error(
-            `${c.name}: .tb-graph did not mount in SessionDetailV2.mountedGraph.test.tsx after the user selected graph mode; the real fairtrade trajectory-graph engine is not being exercised — verify graphSlot still wires TrajectoryGraph from @peasant-labs/fairtrade/graph and that fairtrade's packed graph.css/graph.js still export it`,
+            `${c.name}: .tb-graph did not mount in SessionDetailV2.mountedGraph.test.tsx after the user selected graph mode; the real fairtrade trajectory-graph engine is not being exercised. Verify graphSlot still wires TrajectoryGraph from @peasant-labs/fairtrade/graph and that fairtrade's packed graph.css/graph.js still export it`,
           );
         }
         return mounted;

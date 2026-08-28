@@ -45,7 +45,7 @@ Data moves through these layers, top (network) to bottom (pixels):
      "chrome" (cards, rows, tables, tags, eyes). Each maps one backend wire
      field to one component prop, inline at the call site.
 
-4. **View-model / component layer** — fairtrade's `<TranscriptViewer>`
+4. **View-model / component layer**: fairtrade's `<TranscriptViewer>`
    composite renders the trace from the cooked `TranscriptViewModel` village
    hands it; village's own components (`TranscriptCard`, `CommitTimeline`,
    `VisibilityEye`, …) render the chrome from village wire types.
@@ -94,7 +94,7 @@ flowchart TD
   useT -- "t.visibility / title / owner.id / project_name" --> sdv
   useA -- "AnnotationSummary[] → buildSavedLabelsByEntry()" --> sdv
 
-  sdv -- "detail (raw SessionDetailPayload)" --> adapt["adaptTranscript(detail) + computeAnalytics()<br/>— THE single wire-parse site, called BY SessionDetailV2"]
+  sdv -- "detail (raw SessionDetailPayload)" --> adapt["adaptTranscript(detail) + computeAnalytics()<br/>THE single wire-parse site, called BY SessionDetailV2"]
   adapt --> vm["TranscriptViewModel (cooked)<br/>turns, toolCallsById, diffs, files, highlights, filterIndex"]
   sdv -- "viewModel + props/callbacks/capabilities" --> tv["&lt;TranscriptViewer&gt; (fairtrade/ui composite)"]
   vm --> tv
@@ -223,7 +223,7 @@ keep them straight:
 **`adaptTranscript` — the actual wire→view-model projection.** Exported from
 `@peasant-labs/fairtrade/ui`; called by village's `SessionDetailV2`
 (`SessionDetailV2.tsx`, alongside `computeAnalytics`), **not** internally by
-the `<TranscriptViewer>` composite — the composite receives the already-built
+the `<TranscriptViewer>` composite. The composite receives the already-built
 `TranscriptViewModel` via its `viewModel` prop and does no wire parsing of its
 own.
 
@@ -234,7 +234,7 @@ own.
   `session`, `turns: TurnVM[]`, `toolCallsById: Map`, `diffs`, `files`, `tasks`,
   `highlights`, `filterIndex`, optional `analytics`
   (`node_modules/@peasant-labs/fairtrade/dist/lib/types/transcript/view-model.d.ts`).
-- **What it does**: it is the SOLE wire-parse + git-drift normalisation site —
+- **What it does**: it is the SOLE wire-parse + git-drift normalisation site:
   it parses each tool call's `arguments`/`result` JSON **once**, derives
   previews, classifies `kind`/`group`, computes diffs/hunks, aggregates
   per-file churn, and tolerates both git wire shapes. Because village calls it
@@ -291,7 +291,7 @@ the data actually is homogeneous vs heterogeneous.
 
 **The view-model *projection* is exported by the shared package; each app
 calls it itself.** Village's `SessionDetailV2` is *host glue*, but it does
-call `adaptTranscript` (and `computeAnalytics`) directly — it hands the raw
+call `adaptTranscript` (and `computeAnalytics`) directly: it hands the raw
 `SessionDetailPayload` to fairtrade's exported `adaptTranscript`, then passes
 the resulting `TranscriptViewModel` to `<TranscriptViewer>` via its
 `viewModel` prop. The `<TranscriptViewer>` composite itself does no wire
