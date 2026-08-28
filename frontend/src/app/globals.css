@@ -725,7 +725,12 @@ textarea::placeholder {
    need one: every marked element in this app sets its own padding, and a
    Tailwind padding utility already wins over the design-system rule — while
    an unlayered reset here would beat that utility and strip the padding
-   instead. Remove this once the design system stops styling the bare class. */
+   instead.
+
+   The durable fix belongs upstream, in the design system: it is tracked as
+   peasant-labs/fairtrade-design-system#66. Remove this reset once that lands.
+   Any other app that composes the design system and uses the marker will hit
+   the same collapse until then. */
 .group {
   max-width: none;
   margin-inline: 0;

@@ -47,6 +47,10 @@ export type HomeCase = {
   expectRecentTitles: string[];
   expectProjectRows: HomeProjectRowCase[];
   expectEmptyState: boolean;
+  /** How many supplied rows carry no project identity, and so are reported as
+   *  an anomaly rather than grouped. Not a guard on the corpus size — it is the
+   *  case's own claim about its own rows, checked against them below. */
+  expectMalformedCount: number;
 };
 
 export type HomeNavCase = {
@@ -85,6 +89,7 @@ const requiredHomeCaseNames = [
   "more-sessions-than-the-recent-list-shows-are-capped",
   "a-person-with-nothing-published-gets-the-teaching-empty-state",
   "a-username-needing-escaping-still-links-to-its-project",
+  "a-row-arriving-without-a-project-identity-is-reported-not-dropped",
 ] as const;
 
 const routeCaseKeys = ["name", "path", "viewerUsername", "expectSurface"];
@@ -97,6 +102,7 @@ const homeCaseKeys = [
   "expectRecentTitles",
   "expectProjectRows",
   "expectEmptyState",
+  "expectMalformedCount",
 ];
 
 const surfaces: readonly HomeRouteSurface[] = ["home", "explore"];
@@ -204,9 +210,14 @@ export function loadHomePageFixtures(): HomePageFixtures {
     assertExactKeys(c, homeCaseKeys, `home case ${c.name}`);
     for (const t of c.transcripts) {
       assertExactKeys(t, transcriptKeys, `home case ${c.name} transcript ${t.id}`);
-      if (!/^[0-9a-f]{64}$/.test(t.projectHash)) {
+      // An EMPTY hash is the malformed row this corpus deliberately models: the
+      // wire contract guarantees the column, so a row without it is a server
+      // contract violation the page must report rather than drop. Any other
+      // shape is a typo in the fixture.
+      if (t.projectHash !== "" && !/^[0-9a-f]{64}$/.test(t.projectHash)) {
         throw new Error(
-          `home case ${c.name}: projectHash must be 64 lowercase hex chars, got ${t.projectHash}`,
+          `home case ${c.name}: projectHash must be 64 lowercase hex chars, or empty to model a ` +
+            `row that arrived without a project identity; got ${t.projectHash}`,
         );
       }
       if (Number.isNaN(Date.parse(t.publishedAt))) {
@@ -259,10 +270,19 @@ export function loadHomePageFixtures(): HomePageFixtures {
     // Project rows are the distinct hashes, most recently worked first — the
     // order the page's grouping produces, and the order that answers "what was
     // I working on". Derived here from the case's own timestamps.
+    const malformed = c.transcripts.filter((t) => t.projectHash === "");
+    if (malformed.length !== c.expectMalformedCount) {
+      throw new Error(
+        `home case ${c.name}: expectMalformedCount is ${c.expectMalformedCount} but the case ` +
+          `supplies ${malformed.length} row(s) with no project identity`,
+      );
+    }
+
     const counts = new Map<string, number>();
     const names = new Map<string, string>();
     const latest = new Map<string, number>();
     for (const t of c.transcripts) {
+      if (t.projectHash === "") continue;
       const at = Date.parse(t.publishedAt);
       if (!counts.has(t.projectHash)) names.set(t.projectHash, t.projectDisplayName);
       counts.set(t.projectHash, (counts.get(t.projectHash) ?? 0) + 1);
@@ -305,6 +325,16 @@ export function loadHomePageFixtures(): HomePageFixtures {
     });
   }
 
+  // A page that dropped the anomaly notice, or silently folded an identity-less
+  // row into a synthetic project, would pass a corpus in which every row is
+  // well formed.
+  if (!fixtures.homeCases.some((c) => c.expectMalformedCount > 0)) {
+    throw new Error(
+      `home-page homeCases: at least one case must supply a row with NO project identity. Without ` +
+        `one, a page that dropped the anomaly notice, or grouped the row under a made-up project, ` +
+        `would still pass.`,
+    );
+  }
   if (!sawCappedCase) {
     throw new Error(
       `home-page homeCases: at least one case must supply MORE transcripts than its recent list ` +

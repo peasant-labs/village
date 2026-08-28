@@ -94,6 +94,7 @@ homeCases:
         sessionCount: 2
         href: /users/alice-dev/projects/1111111111111111111111111111111111111111111111111111111111111111
     expectEmptyState: false
+    expectMalformedCount: 0
 
   - name: more-sessions-than-the-recent-list-shows-are-capped
     viewerUsername: alice-dev
@@ -139,6 +140,7 @@ homeCases:
         sessionCount: 6
         href: /users/alice-dev/projects/3333333333333333333333333333333333333333333333333333333333333333
     expectEmptyState: false
+    expectMalformedCount: 0
 
   - name: a-person-with-nothing-published-gets-the-teaching-empty-state
     viewerUsername: newcomer
@@ -146,6 +148,7 @@ homeCases:
     expectRecentTitles: []
     expectProjectRows: []
     expectEmptyState: true
+    expectMalformedCount: 0
 
   - name: a-username-needing-escaping-still-links-to-its-project
     viewerUsername: a b
@@ -162,3 +165,29 @@ homeCases:
         sessionCount: 1
         href: /users/a%20b/projects/4444444444444444444444444444444444444444444444444444444444444444
     expectEmptyState: false
+    expectMalformedCount: 0
+
+  - name: a-row-arriving-without-a-project-identity-is-reported-not-dropped
+    viewerUsername: alice-dev
+    transcripts:
+      - id: t-well-formed
+        title: a groupable session
+        projectHash: "5555555555555555555555555555555555555555555555555555555555555555"
+        projectDisplayName: village
+        publishedAt: "2026-08-15T10:00:00Z"
+      - id: t-no-identity
+        title: a session with no project identity
+        projectHash: ""
+        projectDisplayName: village
+        publishedAt: "2026-08-16T10:00:00Z"
+    # Both rows still reach the recent list: only the PROJECT grouping needs an
+    # identity, so a malformed row is never hidden from the person who owns it.
+    expectRecentTitles:
+      - a session with no project identity
+      - a groupable session
+    expectProjectRows:
+      - displayName: village
+        sessionCount: 1
+        href: /users/alice-dev/projects/5555555555555555555555555555555555555555555555555555555555555555
+    expectEmptyState: false
+    expectMalformedCount: 1

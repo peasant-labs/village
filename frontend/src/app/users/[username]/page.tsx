@@ -30,6 +30,7 @@ import {
   Upload,
 } from "lucide-react";
 import Link from "next/link";
+import { EXPLORE_SECTION } from "@/lib/nav/sections";
 
 export default function UserProfilePage({
   params,
@@ -72,7 +73,7 @@ export default function UserProfilePage({
       <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
         <nav className="flex items-center gap-1.5 text-xs">
           <Link
-            href="/"
+            href={EXPLORE_SECTION.href}
             className="text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
           >
             Commons
@@ -84,7 +85,7 @@ export default function UserProfilePage({
           <EyeOff size={28} className="text-ink-4" />
           <p className="text-sm font-medium text-ink">User not found</p>
           <Link
-            href="/"
+            href={EXPLORE_SECTION.href}
             className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
           >
             Back to Commons
@@ -312,7 +313,7 @@ export default function UserProfilePage({
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-xs">
         <Link
-          href="/"
+          href={EXPLORE_SECTION.href}
           className="text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
         >
           Commons

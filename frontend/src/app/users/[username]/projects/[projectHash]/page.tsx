@@ -29,6 +29,7 @@ import {
 } from "@/lib/queries/transcripts";
 import { describeNameSource } from "@/lib/format";
 import { isApiErrorStatus } from "@/lib/api";
+import { EXPLORE_SECTION } from "@/lib/nav/sections";
 import type {
   ProjectCollectiveRollupEntry,
   Transcript,
@@ -90,7 +91,7 @@ export default function UserProjectPage({
             message="Village has no project page here that you can open."
             action={
               <Link
-                href="/"
+                href={EXPLORE_SECTION.href}
                 className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
               >
                 back to commons
@@ -382,7 +383,7 @@ function Crumbs({ username, current }: { username: string; current: string | nul
   return (
     <nav aria-label="breadcrumb" className="flex items-center gap-1.5 text-xs">
       <Link
-        href="/"
+        href={EXPLORE_SECTION.href}
         className="text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
       >
         Commons

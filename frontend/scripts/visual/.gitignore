@@ -30,6 +30,8 @@
 !profile-collectives-shoot.mjs
 !mock-rest-project.mjs
 !project-page-shoot.mjs
+!mock-rest-home.mjs
+!home-shoot.mjs
 !png-diff.mjs
 !determinism.mjs
 !probe-contribute-narrow.mjs

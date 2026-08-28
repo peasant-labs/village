@@ -9,6 +9,7 @@ import {
   type ProjectRouteFixture,
 } from "@/test/mountedProjectRoute";
 import { loadProjectPageFixtures } from "@/test/projectPageFixtures";
+import { EXPLORE_SECTION } from "@/lib/nav/sections";
 
 // Mounts the REAL production routes: the project page
 // (`/users/{username}/projects/{projectHash}`) and the profile page whose
@@ -285,6 +286,43 @@ describe("mounted profile page: project cards link into the project page", () =>
         (b.textContent ?? "").trim().toLowerCase(),
       );
       expect(labels).not.toContain("rename");
+    });
+  }
+});
+
+describe("mounted routes: the commons crumb leads to the commons", () => {
+  // The root of the app serves the signed-in person's own home page, so a crumb
+  // labelled for the commons can no longer point at "/": for the very people who
+  // see these pages most, that address is their home, not discovery. The label
+  // and the destination have to agree, and they only do if both come from the
+  // one exported constant.
+  const cases = [
+    { name: "the profile route's commons crumb", render: () => renderProfileRoute("alice-dev") },
+    {
+      name: "the project route's commons crumb",
+      render: () => renderProjectRoute("alice-dev", HASH),
+    },
+  ];
+
+  for (const c of cases) {
+    it(c.name, async () => {
+      installProfileRouteREST("alice-dev", "alice-dev", [
+        { projectHash: HASH, projectDisplayName: "village" },
+      ]);
+      if (c.name.includes("project route")) installProjectRouteREST(baseFixture());
+      await c.render();
+
+      const crumb = await waitFor(() => {
+        const found = [...document.querySelectorAll("a")].find((a) =>
+          /^(commons|back to commons)$/i.test((a.textContent ?? "").trim()),
+        );
+        expect(found).toBeDefined();
+        return found!;
+      });
+
+      expect(crumb.getAttribute("href")).toBe(EXPLORE_SECTION.href);
+      // Not the bare root: that is somebody's home page now.
+      expect(crumb.getAttribute("href")).not.toBe("/");
     });
   }
 });
