@@ -324,3 +324,54 @@ describe("mounted profile route: the per-collective history is a full event log"
     });
   }
 });
+
+// The malformed-project notice is SHARED with the home page. It was lifted
+// because the two pages had drifted apart on it — one announced the violation
+// to assistive technology and the other did not — so the surface that motivated
+// the extraction is the one that most needs holding.
+describe("mounted profile route: a row with no project identity is reported", () => {
+  const HASH = "7".repeat(64);
+
+  it("reports the count, announces it, and still renders the well-formed project", async () => {
+    installProfileRESTFixture({
+      profileUsername: OWNER,
+      viewerUsername: OWNER,
+      contributions: [],
+      // Two rows cannot be grouped; one can. The count is the page's own claim
+      // about the wire it received, so it is asserted exactly.
+      library: [
+        ["groupable", HASH],
+        ["no-identity-a", ""],
+        ["no-identity-b", ""],
+      ],
+    });
+    await renderProfileRoute(OWNER);
+
+    const notice = await waitFor(() => {
+      const found = document.querySelector('[data-testid="profile-malformed-notice"]');
+      expect(found, "the profile page must report a row it could not group").not.toBeNull();
+      return found!;
+    });
+    expect(notice.getAttribute("role")).toBe("alert");
+    const text = (notice.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("2 transcripts could not be grouped by project");
+    expect(text).toContain("omitted from the project list below");
+  });
+
+  it("says nothing when every row carries its project identity", async () => {
+    installProfileRESTFixture({
+      profileUsername: OWNER,
+      viewerUsername: OWNER,
+      contributions: [],
+      library: [["groupable", HASH]],
+    });
+    await renderProfileRoute(OWNER);
+
+    // Wait for the same request the other case waits on, so the absence below
+    // is an answered page rather than one that simply has not loaded yet.
+    await waitFor(() =>
+      expect(document.body.textContent ?? "").toContain(OWNER),
+    );
+    expect(document.querySelector('[data-testid="profile-malformed-notice"]')).toBeNull();
+  });
+});

@@ -133,28 +133,6 @@ export interface ProjectGroupingResult<T> {
  * Returns groups sorted by most recent transcript, with transcripts within
  * each group sorted by `published_at` descending.
  */
-/**
- * Most recently published first, for two `published_at` values off the wire.
- *
- * One comparator, because the home page sorted its recent list one way while
- * this file grouped the SAME rows another: a timestamp that does not parse
- * sorted last in one place and produced an unspecified order in the other. A
- * value that does not parse sorts last rather than throwing or scrambling the
- * rows around it.
- *
- * Two unparseable values keep the order they arrived in. That arm cannot be
- * told from returning any other non-negative number, because a sort never moves
- * a pair on a non-negative comparison; only a negative return would reorder.
- */
-export function publishedAtDescending(a: string, b: string): number {
-  const at = Date.parse(a);
-  const bt = Date.parse(b);
-  if (Number.isNaN(at) && Number.isNaN(bt)) return 0;
-  if (Number.isNaN(at)) return 1;
-  if (Number.isNaN(bt)) return -1;
-  return bt - at;
-}
-
 export function groupByProject<
   T extends {
     transcript: {
@@ -206,6 +184,28 @@ export function groupByProject<
     );
 
   return { groups: sortedGroups, malformed };
+}
+
+/**
+ * Most recently published first, for two `published_at` values off the wire.
+ *
+ * One comparator, because the home page sorted its recent list one way while
+ * this file grouped the SAME rows another: a timestamp that does not parse
+ * sorted last in one place and produced an unspecified order in the other. A
+ * value that does not parse sorts last rather than throwing or scrambling the
+ * rows around it.
+ *
+ * Two unparseable values keep the order they arrived in. That arm cannot be
+ * told from returning any other non-negative number, because a sort never moves
+ * a pair on a non-negative comparison; only a negative return would reorder.
+ */
+export function publishedAtDescending(a: string, b: string): number {
+  const at = Date.parse(a);
+  const bt = Date.parse(b);
+  if (Number.isNaN(at) && Number.isNaN(bt)) return 0;
+  if (Number.isNaN(at)) return 1;
+  if (Number.isNaN(bt)) return -1;
+  return bt - at;
 }
 
 /**

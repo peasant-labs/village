@@ -9,6 +9,7 @@ import TranscriptList from "@/components/transcript/TranscriptList";
 import { DataState, TeachingEmptyState } from "@/lib/ft-ui";
 import RequestFailureState from "@/components/RequestFailureState";
 import MalformedProjectNotice from "@/components/MalformedProjectNotice";
+import RetryButton from "@/components/RetryButton";
 import { groupByProject, publishedAtDescending } from "@/lib/format";
 import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
 import type { TranscriptListItem } from "@/lib/types";
@@ -92,13 +93,23 @@ export default function HomePage() {
       ? error.message
       : "an unknown error"
     : null;
-  const [failureCause, setFailureCause] = useState<string | null>(null);
-  if (reportedCause !== null && reportedCause !== failureCause) {
-    setFailureCause(reportedCause);
+  // Remembered WITH the handle it belongs to. A failure recorded for one
+  // person's list must not describe the next one's first load.
+  const [remembered, setRemembered] = useState<{ owner: string; cause: string } | null>(
+    null,
+  );
+  if (reportedCause !== null && reportedCause !== remembered?.cause) {
+    setRemembered({ owner: username, cause: reportedCause });
   }
-  if (!isError && !isFetching && data != null && failureCause !== null) {
-    setFailureCause(null);
+  // Cleared only by a request that actually answered. `!isError` is the load-
+  // bearing half; `data != null` is what stops a clear on the pending window of
+  // a retry that has no rows to fall back on. A third condition on `isFetching`
+  // was here and is deliberately gone: no reachable state distinguished it, and
+  // a guard nothing can reach is a guard nobody can maintain.
+  if (!isError && data != null && remembered !== null) {
+    setRemembered(null);
   }
+  const failureCause = remembered?.owner === username ? remembered.cause : null;
   const failed = failureCause !== null;
 
   // A retry that fails again produces the SAME alert text, which a screen
@@ -242,23 +253,15 @@ export default function HomePage() {
             These sessions could not be refreshed, so they are the ones last
             loaded and may be out of date. The request reported: {failureCause}.
           </p>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm shrink-0"
-            onClick={() => {
-              if (retrying) return;
-              refetch();
-            }}
-            aria-disabled={retrying || undefined}
-            data-testid="home-stale-retry"
-          >
-            {retryText}
-          </button>
+          <RetryButton
+            label={retryText}
+            busy={retrying}
+            onRetry={() => refetch()}
+            testId="home-stale-retry"
+          />
         </div>
       )}
 
-      {/* A row without a project identity is a backend contract violation, so
-          it is reported and skipped rather than dropped or invented around. */}
       <MalformedProjectNotice
         count={malformed.length}
         testId="home-malformed-notice"

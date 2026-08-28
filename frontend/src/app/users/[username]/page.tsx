@@ -169,13 +169,8 @@ export default function UserProfilePage({
         </div>
       ) : (
         <>
-          {/* project_hash is a required identity column, so a transcript
-              reaching this page without one is a backend contract violation,
-              not a normal empty state. Every OTHER, well-formed project group
-              still renders below: one malformed row must not turn a cosmetic
-              grouping problem into an outage for the rest of the library. The
-              notice is shared with the home page, which reports the same
-              violation, so the two cannot announce it differently. */}
+          {/* Shared with the home page, which reports the same violation; the
+              component's own doc carries the reasoning. */}
           <MalformedProjectNotice
             count={malformedProjectItems.length}
             testId="profile-malformed-notice"

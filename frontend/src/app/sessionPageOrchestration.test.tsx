@@ -87,6 +87,9 @@ function buildQueryReturn(query: OrchestrationQuery) {
 
 function assertStep(step: OrchestrationStep): void {
   const expectation = step.expect;
+  // Names the step in every message: these scenarios run several phases inside
+  // one test, so a bare assertion failure would not say which phase broke.
+  const location = step.name;
 
   const alerts = screen.queryAllByRole("alert");
   expect(alerts.length > 0).toBe(expectation.alert);
@@ -129,11 +132,40 @@ function assertStep(step: OrchestrationStep): void {
     // This surface's retry names the exact page it re-issues; the home page's
     // panel says only "retry". The two share one component, so this is what
     // notices if the lift ever collapsed their labels into one.
-    expect(screen.getByRole("button", { name: /^retry page \d+$/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^retry(ing)? page \d+$/ }),
+    ).toBeInTheDocument();
   } else {
     expect(screen.queryByTestId("session-list-results")).toBeNull();
     expect(screen.queryByTestId("explore")).toBeNull();
     expect(screen.queryAllByRole("alert").length).toBe(0);
+  }
+
+  if (expectation.retryLabel !== undefined || expectation.retryBusy !== undefined) {
+    const retry = screen.getByRole("button", { name: /^retry(ing)? page \d+$/ });
+    if (expectation.retryLabel !== undefined) {
+      expect((retry.textContent ?? "").trim(), `${location}: retry label`).toBe(
+        expectation.retryLabel,
+      );
+    }
+    if (expectation.retryBusy !== undefined) {
+      expect(retry.getAttribute("aria-disabled"), `${location}: retry busy`).toBe(
+        expectation.retryBusy ? "true" : null,
+      );
+      // Never a real `disabled`: it would hand focus back to the document and
+      // not return it, so the reader who pressed would lose their place.
+      expect(retry.hasAttribute("disabled"), `${location}: retry not truly disabled`).toBe(
+        false,
+      );
+      if (expectation.retryBusy) {
+        // Busy REFUSES the press rather than merely announcing it.
+        const before = h.refetch.mock.calls.length;
+        act(() => {
+          fireEvent.click(retry);
+        });
+        expect(h.refetch.mock.calls.length, `${location}: busy press refused`).toBe(before);
+      }
+    }
   }
 
   if (step.action === "clickRetry") {

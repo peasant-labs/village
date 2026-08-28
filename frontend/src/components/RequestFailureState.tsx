@@ -2,6 +2,7 @@
 
 import { SearchX } from "lucide-react";
 import type { ReactNode } from "react";
+import RetryButton from "@/components/RetryButton";
 
 /**
  * The one full-surface "this request failed" panel: a heading, the actionable
@@ -37,12 +38,7 @@ export interface RequestFailureStateProps {
    * The retry is already in flight. A retry that fails again renders the same
    * words, so without this the control is indistinguishable from one that did
    * nothing when it was pressed.
-   *
-   * Rendered as `aria-disabled`, not `disabled`: a real `disabled` on the
-   * control the reader just activated moves focus to the document body, and
-   * re-enabling does not give it back, so a keyboard user would have to tab
-   * from the top of the page after every attempt. The press is refused in the
-   * handler instead.
+   * Carried by the shared retry control, which explains how it is rendered.
    */
   retryDisabled?: boolean;
 }
@@ -57,23 +53,19 @@ export default function RequestFailureState({
   return (
     <div className="flex flex-col gap-6 animate-fade-up">
       <div
-        role="alert"
         className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center"
       >
-        <SearchX size={28} className="text-ink-4" />
-        <p className="text-sm font-medium text-ink">{title}</p>
-        <p className="text-[13px] text-ink-3 max-w-sm">{message}</p>
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm shrink-0"
-          onClick={() => {
-            if (retryDisabled) return;
-            onRetry();
-          }}
-          aria-disabled={retryDisabled || undefined}
-        >
-          {retryLabel}
-        </button>
+        <SearchX size={28} className="text-ink-4" aria-hidden="true" />
+        {/* The heading and the message are the alert; the control is not. An
+            alert is atomic, so a control inside it re-announces the whole
+            failure assertively every time its label changes — which is exactly
+            what a busy state does, and it would interrupt the polite region
+            that already says the request is going out again. */}
+        <div role="alert" className="flex flex-col items-center gap-3">
+          <p className="text-sm font-medium text-ink">{title}</p>
+          <p className="text-[13px] text-ink-3 max-w-sm">{message}</p>
+        </div>
+        <RetryButton label={retryLabel} busy={retryDisabled} onRetry={onRetry} />
       </div>
     </div>
   );

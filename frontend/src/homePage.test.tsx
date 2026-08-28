@@ -157,10 +157,26 @@ describe("mounted home route: recent sessions, then projects", () => {
           expect(b.getAttribute("aria-disabled")).toBe("true");
           return b;
         });
-        expect(busyPanel.textContent).toContain("retrying");
-        expect(homeErrorSurface()).not.toBeNull();
+        expect(busyPanel.textContent, "panel retry: busy label").toContain("retrying");
+        expect(homeErrorSurface(), "panel survives its own retry").not.toBeNull();
         expect(document.querySelector(".animate-shimmer")).toBeNull();
-        expect(document.activeElement).toBe(busyPanel);
+        // A real `disabled` would hand focus back to the document, and jsdom
+        // does NOT model that blur, so asserting the attribute's absence is
+        // what actually holds the line; activeElement only says the node was
+        // neither unmounted nor replaced.
+        expect(busyPanel.hasAttribute("disabled"), "panel retry: not truly disabled").toBe(
+          false,
+        );
+        expect(document.activeElement, "panel retry: node kept").toBe(busyPanel);
+        // Busy means the press is REFUSED, not merely announced: a control that
+        // only looked busy would stack a request on every press.
+        const whileBusyPanel = ownerRequests().length;
+        await act(async () => {
+          fireEvent.click(busyPanel);
+        });
+        expect(ownerRequests().length, "panel retry: press refused while busy").toBe(
+          whileBusyPanel,
+        );
         expect(document.querySelector('[data-testid="home-status"]')?.textContent).toContain(
           "reloading your sessions",
         );
@@ -260,7 +276,7 @@ describe("mounted home route: recent sessions, then projects", () => {
           // `aria-disabled`, not `disabled`: a real disabled attribute on the
           // control the reader just pressed hands focus back to the document.
           expect(b.getAttribute("aria-disabled")).toBe("true");
-          expect(b.disabled).toBe(false);
+          expect(b.hasAttribute("disabled"), "notice retry: not truly disabled").toBe(false);
           return b;
         });
         expect(busy.textContent).toContain("retrying");

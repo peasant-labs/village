@@ -367,12 +367,26 @@ the case supplies no rows AND its request succeeds AND the handle is known.
 The failure case asserts the shared failure panel, the absence of the empty
 state, the whole message (the endpoint, the sentence saying a failure is not an
 emptiness, and the server's own reported cause), and that clicking retry
-re-issues the same owner-scoped request. The stale case drives a real
+re-issues the same owner-scoped request. It then holds the retry open and
+asserts what the surface owes while it runs: the panel survives its own retry
+with no skeleton in its place, the control reads "retrying" and carries
+`aria-disabled` but never a real `disabled` (which would hand focus back to the
+document), focus is kept, the polite region announces, a second press is
+refused rather than stacking a request, and the surface clears once the server
+answers. The discovery route's two failure surfaces carry the same assertions
+through `session-page-orchestration.yaml`'s `retryLabel` / `retryBusy` fields. The stale case drives a real
 `visibilitychange` so TanStack's focus manager refetches, then asserts the rows
 survive, the notice appears, its retry re-issues the request, and the notice
 clears once the server answers again. `frontend/src/providers/queryDefaults.test.tsx`
 holds the production side of that path: the app's own client must not disable
 refetch-on-focus, or the surface could never be reached outside the tests.
+
+The malformed-project notice is shared by the home and profile pages, and both
+call sites are held: `homePage.test.tsx` through the `home-malformed-notice`
+case, and `profileCollectives.test.tsx` through a mounted profile route serving
+rows without a project identity. It is shared BECAUSE the two had drifted (one
+announced the violation, the other did not), so neither call site is left
+uncovered.
 
 `frontend/src/test/transcriptRowFixture.ts` builds one complete `Transcript`
 wire row with every column filled in, so a fixture states only the fields its

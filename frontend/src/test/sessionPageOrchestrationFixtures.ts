@@ -24,6 +24,10 @@ export type OrchestrationExpect = {
   status?: string;
   refetchCalled?: boolean;
   visibleLoading?: boolean;
+  /** The retry control's exact accessible name at this step. */
+  retryLabel?: string;
+  /** Whether the retry reports itself busy and refuses further presses. */
+  retryBusy?: boolean;
 };
 
 export type OrchestrationStep = {
@@ -153,7 +157,7 @@ export function loadSessionPageOrchestrationFixtures(): SessionPageOrchestration
       assertKeys(
         rawExpect,
         ["renders", "alert"],
-        ["displayedPage", "ariaBusy", "status", "refetchCalled", "visibleLoading"],
+        ["displayedPage", "ariaBusy", "status", "refetchCalled", "visibleLoading", "retryLabel", "retryBusy"],
         `${location}.expect`,
       );
       const renders = assertString(rawExpect.renders, `${location}.expect.renders`) as OrchestrationRenders;
@@ -175,6 +179,16 @@ export function loadSessionPageOrchestrationFixtures(): SessionPageOrchestration
       }
       if ("refetchCalled" in rawExpect) {
         expectation.refetchCalled = assertBoolean(rawExpect.refetchCalled, `${location}.expect.refetchCalled`);
+      }
+      if ("retryLabel" in rawExpect) {
+        const raw = rawExpect.retryLabel;
+        if (typeof raw !== "string") {
+          throw new Error(`${location}.expect.retryLabel must be a string`);
+        }
+        expectation.retryLabel = raw;
+      }
+      if ("retryBusy" in rawExpect) {
+        expectation.retryBusy = assertBoolean(rawExpect.retryBusy, `${location}.expect.retryBusy`);
       }
       if ("visibleLoading" in rawExpect) {
         expectation.visibleLoading = assertBoolean(rawExpect.visibleLoading, `${location}.expect.visibleLoading`);
