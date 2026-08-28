@@ -64,6 +64,10 @@ import ExplorePage from "@/app/explore/ExplorePage";
 
 const fixtures = loadSessionPageOrchestrationFixtures();
 
+// The page the scenario has most recently asked for. A search-text change keeps
+// it, so the request key moves while the message does not.
+let currentPage = 1;
+
 // One stable response object per data id, mirroring TanStack keeping a cached
 // object reference across renders.
 const dataObjects = new Map<string, TranscriptListResponse>(
@@ -101,7 +105,7 @@ function assertStep(step: OrchestrationStep): void {
   if (expectation.visibleLoading != null) {
     const loadingCue = screen.queryByTestId("session-list-loading");
     if (expectation.visibleLoading) {
-      expect(loadingCue).not.toBeNull();
+      expect(loadingCue, `${location}: visible loading cue`).not.toBeNull();
       // The cue must be a visible, sighted-user affordance, not a screen-reader
       // only region, and must carry the concise loading text.
       expect(loadingCue!.className).not.toContain("sr-only");
@@ -183,6 +187,7 @@ afterEach(() => {
   cleanup();
   h.query.current = null;
   h.onFiltersChange.current = null;
+  currentPage = 1;
   h.refetch.mockReset();
 });
 
@@ -198,8 +203,24 @@ describe("mounted / session page orchestration", () => {
         if (index === 0) {
           const view = render(<ExplorePage />);
           rerenderPage = view.rerender;
+        } else if (step.setFiltersQuery != null) {
+          // Same page, different search text: the request key changes while the
+          // failure message stays word-for-word identical, which is the only
+          // pair that can tell a memory keyed on its REQUEST from one keyed on
+          // its text. During an outage this is the ordinary case.
+          const query = step.setFiltersQuery;
+          act(() => {
+            h.onFiltersChange.current?.({
+              query,
+              provider: "all",
+              topics: [],
+              order: "recent",
+              page: currentPage,
+            });
+          });
         } else if (step.setFiltersPage != null) {
           const page = step.setFiltersPage;
+          currentPage = page;
           act(() => {
             h.onFiltersChange.current?.({
               query: "",

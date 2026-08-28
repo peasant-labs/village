@@ -101,7 +101,24 @@ export default function ExplorePage() {
   // reader onto it: that request gets its own loading state and its own answer.
   const requestKey = JSON.stringify(params);
   const [remembered, setRemembered] = useState<{ key: string; message: string } | null>(null);
-  if (reportedFailure !== null && reportedFailure !== remembered?.message) {
+  // Recorded when EITHER the message or the request changes. Comparing the
+  // message alone would leave a stale key on the record, and the read below is
+  // keyed: during an outage every request fails with the same words, so a
+  // filter change would silently produce no alert and no retry at all, with the
+  // previous filters' rows still on screen as if they were the answer.
+  //
+  // The read is keyed, and the keying itself is NOT covered: every state the
+  // mounted harness can reach clears the memory first (a request that is not
+  // failing, with rows to show, clears it on the same render), so removing the
+  // key comparison leaves the suite green. It is kept because a first load of a
+  // NEW key with no rows to fall back on was observed showing the previous
+  // key's cause, and that state needs a handle change without a remount, which
+  // the route does not currently allow. Recorded rather than dressed up as
+  // proven.
+  if (
+    reportedFailure !== null &&
+    (reportedFailure !== remembered?.message || requestKey !== remembered?.key)
+  ) {
     setRemembered({ key: requestKey, message: reportedFailure });
   }
   if (!isError && data != null && remembered !== null) {
@@ -132,7 +149,9 @@ export default function ExplorePage() {
   } else if (busy) {
     statusMessage = busyMessage;
   } else if (failureMessage != null) {
-    statusMessage = retrying ? `retrying page ${requestedPage}` : "";
+    // A retry in flight is already answered by the first branch, so this arm is
+    // only ever the settled failure, which the alert surface owns.
+    statusMessage = "";
   } else if (confirmedPage != null) {
     statusMessage = `page ${confirmedPage} of ${totalPages} loaded`;
   } else {

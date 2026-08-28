@@ -35,6 +35,12 @@ export type OrchestrationStep = {
   query: OrchestrationQuery;
   expect: OrchestrationExpect;
   setFiltersPage?: number;
+  /**
+   * Change the SEARCH TEXT while keeping the page, so the request key changes
+   * but the failure message does not. That pair is what tells a remembered
+   * failure keyed on its request from one keyed on its text.
+   */
+  setFiltersQuery?: string;
   action?: "clickRetry";
 };
 
@@ -134,7 +140,7 @@ export function loadSessionPageOrchestrationFixtures(): SessionPageOrchestration
     const steps: OrchestrationStep[] = rawScenario.steps.map((rawStep, stepIndex) => {
       const location = `scenario ${name} step[${stepIndex}]`;
       if (!isPlainObject(rawStep)) throw new Error(`${location} must be an object`);
-      assertKeys(rawStep, ["name", "query", "expect"], ["setFiltersPage", "action"], location);
+      assertKeys(rawStep, ["name", "query", "expect"], ["setFiltersPage", "setFiltersQuery", "action"], location);
       const stepName = assertString(rawStep.name, `${location}.name`);
 
       const rawQuery = rawStep.query;
@@ -209,6 +215,19 @@ export function loadSessionPageOrchestrationFixtures(): SessionPageOrchestration
       }
 
       const step: OrchestrationStep = { name: stepName, query, expect: expectation };
+      if ("setFiltersPage" in rawStep && "setFiltersQuery" in rawStep) {
+        throw new Error(
+          `${location}: a step changes either the page or the search text, not both; changing ` +
+            `both cannot tell a request-keyed memory from a text-keyed one`,
+        );
+      }
+      if ("setFiltersQuery" in rawStep) {
+        const raw = rawStep.setFiltersQuery;
+        if (typeof raw !== "string") {
+          throw new Error(`${location}.setFiltersQuery must be a string`);
+        }
+        step.setFiltersQuery = raw;
+      }
       if ("setFiltersPage" in rawStep) {
         step.setFiltersPage = assertInteger(rawStep.setFiltersPage, `${location}.setFiltersPage`);
       }

@@ -98,7 +98,23 @@ export default function HomePage() {
   const [remembered, setRemembered] = useState<{ owner: string; cause: string } | null>(
     null,
   );
-  if (reportedCause !== null && reportedCause !== remembered?.cause) {
+  // Recorded when EITHER the cause or the handle changes. Comparing the cause
+  // alone would leave a stale handle on the record, and the read below is keyed
+  // on the handle, so a second account failing with the same words would show
+  // no failure at all and fall through to "nothing published yet".
+  //
+  // The read is keyed, and the keying itself is NOT covered: every state the
+  // mounted harness can reach clears the memory first (a request that is not
+  // failing, with rows to show, clears it on the same render), so removing the
+  // key comparison leaves the suite green. It is kept because a first load of a
+  // NEW key with no rows to fall back on was observed showing the previous
+  // key's cause, and that state needs a handle change without a remount, which
+  // the route does not currently allow. Recorded rather than dressed up as
+  // proven.
+  if (
+    reportedCause !== null &&
+    (reportedCause !== remembered?.cause || username !== remembered?.owner)
+  ) {
     setRemembered({ owner: username, cause: reportedCause });
   }
   // Cleared only by a request that actually answered. `!isError` is the load-

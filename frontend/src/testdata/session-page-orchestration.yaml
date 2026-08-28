@@ -67,6 +67,35 @@ scenarios:
           retryLabel: retrying page 2
           retryBusy: true
           visibleLoading: true
+      # An outage answers every request with the same words. Changing the search
+      # text keeps the page, so the request key moves while the message does
+      # not: a memory that recorded on the message alone would keep the OLD
+      # key, the read would miss, and the alert and its retry would vanish while
+      # the previous filters' rows stayed on screen as if they were the answer.
+      - name: the-same-failure-under-new-filters-still-announces
+        setFiltersQuery: bar
+        query: { dataId: page1, isLoading: false, isFetching: false, isPlaceholderData: true, isError: true }
+        expect:
+          renders: explore
+          displayedPage: 1
+          alert: true
+          retryLabel: retry page 2
+          retryBusy: false
+          visibleLoading: false
+      # Asking for a DIFFERENT page is not a retry of the one that failed. That
+      # request has not failed; it is loading. A memory that was not keyed on
+      # its request would follow the reader onto it and announce a failure that
+      # belongs to a page they have left.
+      - name: a-different-page-does-not-inherit-the-old-failure
+        setFiltersPage: 3
+        query: { dataId: page1, isLoading: false, isFetching: true, isPlaceholderData: true, isError: false }
+        expect:
+          renders: explore
+          displayedPage: 1
+          ariaBusy: true
+          alert: false
+          visibleLoading: true
+          status: "loading page 3; showing page 1 until it arrives"
       - name: retry-settles-valid-page-2
         query: { dataId: page2, isLoading: false, isFetching: false, isPlaceholderData: false, isError: false }
         expect:
