@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ExploreRoute from "@/app/explore/page";
@@ -21,6 +21,16 @@ import {
   type ChildSessionRow,
   type ChildSessionSurface,
 } from "@/test/childSessionGroupingFixtures";
+import {
+  installProfileRESTFixture,
+  renderProfileRoute,
+} from "@/test/mountedProfileRoute";
+import {
+  assertDisclosures,
+  chippedParentIDs,
+  flush,
+  linkedIDs,
+} from "@/test/childSessionDom";
 
 /**
  * Mounted evidence for a session that another session started.
@@ -36,6 +46,13 @@ import {
  *   /          a signed-in visitor's own home. Its recent-sessions list hangs
  *              an expandable chip off the row that started them.
  *   /users/{username}/projects/{projectHash}   the same chip.
+ *   /users/{username}   a person's library, where the chip hangs off the row
+ *              inside the project group both sessions belong to.
+ *
+ * The collective surfaces -- a collective's contributions read as a list and by
+ * repository, the review queue of a curated collective, a member's own
+ * contributions and the contribute selection tree -- are mounted in
+ * src/mountedChildSessionGroupingCollective.test.tsx, from this same corpus.
  *
  * The permutations live in src/testdata/child-session-grouping.yaml, and each
  * case names the surfaces it is asserted on.
@@ -67,45 +84,16 @@ afterEach(() => {
   localStorage.clear();
 });
 
-// ── shared DOM readers ───────────────────────────────────────────────────────
-
-/** Every transcript id the given root currently links to. */
-function linkedIDs(root: ParentNode = document): string[] {
-  return [...root.querySelectorAll<HTMLAnchorElement>('a[href^="/transcripts/"]')].map((anchor) =>
-    anchor.getAttribute("href")!.replace("/transcripts/", ""),
-  );
-}
-
-/** The expandable chip hanging under one row. */
-function chipFor(parentID: string): HTMLElement {
-  const chip = document.querySelector<HTMLElement>(`[data-parent-transcript-id="${parentID}"]`);
-  if (chip == null) throw new Error(`no chip of started sessions is rendered under ${parentID}`);
-  return chip;
-}
-
-/** Ids of every chip on screen, so a surface can be held to exactly the chips
- *  its case expects and no others. */
-function chippedParentIDs(): string[] {
-  return [...document.querySelectorAll<HTMLElement>("[data-parent-transcript-id]")]
-    .map((chip) => chip.getAttribute("data-parent-transcript-id")!)
-    .sort();
-}
-
-async function flush(): Promise<void> {
-  await act(async () => {
-    for (let i = 0; i < 4; i += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    }
-  });
-}
-
 /**
- * Walks one case's chips on a surface showing `visibleRows`, in that order:
- * the list shows exactly those rows, each chip is collapsed, hangs off its own
- * parent's row, and reveals exactly the sessions that row started.
+ * One case's chips on a surface drawn by the shared transcript list.
  *
- * `visibleRows` is passed rather than derived because the two surfaces differ:
- * a project page lists every row that kept its place, and home shows the first
+ * The shared walk in `@/test/childSessionDom` holds the rows, the labels and
+ * what each control reveals -- every surface answers to that. What is asserted
+ * HERE is what only a transcript list can be held to: the chip and its parent's
+ * row are one unit, and the row closes up underneath it.
+ *
+ * `visibleRows` is passed rather than derived because the surfaces differ: a
+ * project page lists every row that kept its place, and home shows the first
  * few groups. Each case states its own answer for the surface it is asserted
  * on, so neither assertion has to re-implement the rule it is checking.
  */
@@ -114,18 +102,13 @@ async function assertChips(
   listRoot: HTMLElement,
   visibleRows: string[],
 ): Promise<void> {
-  // Before any chip is opened, every link in the list is one of its rows, so
-  // this pins the rows AND their order, and fails on an extra row as well as a
-  // missing one.
-  expect(linkedIDs(listRoot), `${testCase.name}: the rows on screen, in order`).toEqual(visibleRows);
-
   const shownGroups = testCase.expectedGroups.filter((group) => visibleRows.includes(group.parent));
-  expect(chippedParentIDs(), `${testCase.name}: the chips on screen`).toEqual(
-    shownGroups.map((group) => group.parent).sort(),
-  );
 
   for (const expectedGroup of shownGroups) {
-    const chip = chipFor(expectedGroup.parent);
+    const chip = document.querySelector<HTMLElement>(
+      `[data-parent-transcript-id="${expectedGroup.parent}"]`,
+    );
+    if (chip == null) throw new Error(`no chip of started sessions is rendered under ${expectedGroup.parent}`);
 
     // The chip needs no words to say whose children these are, so what it
     // hangs off has to be true of the DOM: the chip and its parent's row are
@@ -155,44 +138,15 @@ async function assertChips(
       `${testCase.name}: the row carrying the chip under ${expectedGroup.parent} keeps its space above`,
     ).toContain("pt-[var(--sp-3)]");
 
-    const toggle = within(chip).getByTestId("child-session-disclosure-toggle");
-    // The EXACT text, not a substring of it. The chip announces a bare count
-    // and the agent group beside it announces a leading `+`; a containment
-    // check would pass on either, so it could not tell the two apart and would
-    // not notice the `+` coming back.
-    const chipLabel = within(chip).getByTestId("child-session-disclosure-label");
-    expect(
-      chipLabel.textContent,
-      `${testCase.name}: the collapsed label under ${expectedGroup.parent}`,
-    ).toBe(expectedGroup.label);
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(within(chip).queryByTestId("child-session-disclosure-rows")).toBeNull();
     for (const id of expectedGroup.children) {
       expect(
         linkedIDs(listRoot),
         `${testCase.name}: ${id} is inside a collapsed chip, so it must not be on screen yet`,
       ).not.toContain(id);
     }
-
-    await act(async () => {
-      await userEvent.click(toggle);
-    });
-    await flush();
-
-    const rows = within(chip).getByTestId("child-session-disclosure-rows");
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    // Opening it does not reword it: the chip reads the same either way, so the
-    // count a viewer decided to open is the count they still see.
-    expect(
-      chipLabel.textContent,
-      `${testCase.name}: the label under ${expectedGroup.parent} once it is open`,
-    ).toBe(expectedGroup.label);
-    // The control names its own rows for assistive technology.
-    expect(toggle.getAttribute("aria-controls")).toBe(rows.getAttribute("id"));
-    expect(linkedIDs(rows).sort(), `${testCase.name}: the rows under ${expectedGroup.parent}`).toEqual(
-      [...expectedGroup.children].sort(),
-    );
   }
+
+  await assertDisclosures(testCase, listRoot, visibleRows, linkedIDs);
 
   // A row that carries no chip keeps its ordinary rhythm. Without this, giving
   // EVERY row the tighter spacing would satisfy the assertion above while
@@ -206,15 +160,6 @@ async function assertChips(
       `${testCase.name}: ${row} carries no chip, so it keeps an ordinary row's spacing`,
     ).toContain("py-3");
   }
-
-  // With every chip open, the surface shows exactly its rows and the sessions
-  // they started, each once: nothing is duplicated, and nothing appears that
-  // the case did not put on screen.
-  const reachable = linkedIDs(listRoot);
-  const wanted = [...visibleRows, ...shownGroups.flatMap((group) => group.children)];
-  expect([...reachable].sort(), `${testCase.name}: everything reachable with the chips open`).toEqual(
-    [...wanted].sort(),
-  );
 }
 
 // ── /explore ─────────────────────────────────────────────────────────────────
@@ -462,6 +407,36 @@ describe("a project page lists a started session under the session that started 
       // come from the same payload.
       await screen.findByTestId("project-display-name");
       // A project page lists every row the fold left in place, in server order.
+      await assertChips(testCase, document.body, testCase.expectedRootRows);
+    });
+  }
+});
+
+// ── a person's library ───────────────────────────────────────────────────────
+
+describe("a profile library lists a started session under the session that started it", () => {
+  for (const testCase of casesFor("profile")) {
+    it(testCase.name, async () => {
+      // An anonymous visitor, so the page draws the library and nothing that
+      // belongs to one's own profile. The fold is not about who is looking.
+      installProfileRESTFixture({
+        profileUsername: "alice-dev",
+        viewerUsername: null,
+        contributions: [],
+        libraryIdentities: testCase.rows.map((row) => ({
+          id: row.name,
+          // ONE project hash across every row, so the page's own per-project
+          // bucketing puts them in a single group and what is asserted here is
+          // the fold inside it.
+          projectHash: "3".repeat(64),
+          localID: row.localID,
+          parentSessionID: row.parentSessionID,
+        })),
+      });
+      await renderProfileRoute("alice-dev");
+      await flush();
+
+      // A library lists every row the fold left in place, in server order.
       await assertChips(testCase, document.body, testCase.expectedRootRows);
     });
   }

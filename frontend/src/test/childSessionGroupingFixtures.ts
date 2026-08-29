@@ -23,19 +23,53 @@ const ABSENT_PARENT_CAUSES: readonly AbsentParentCause[] = [
 /**
  * A mounted route a case is asserted on.
  *
- * A closed set, so a case cannot name a fourth surface and quietly assert
- * nothing. The three answer the same question differently: discovery folds a
- * started session away and offers no control, because a browse card names no
- * parent for a count to hang off; the two owner-scoped surfaces list it under
- * the row that started it.
+ * A closed set, so a case cannot name a surface this corpus does not assert and
+ * quietly prove nothing. Every one of these lists folds with the SAME
+ * implementation, and they still answer the question differently: discovery
+ * folds a started session away and offers no control, because a browse card
+ * names no parent for a count to hang off, while every other surface reveals
+ * the started sessions from a control on the row that started them.
  */
-export type ChildSessionSurface = "explore" | "home" | "project";
+export type ChildSessionSurface =
+  | "explore"
+  | "home"
+  | "project"
+  | "profile"
+  | "collective-browse"
+  | "collective-repos"
+  | "pending-queue"
+  | "my-contributions"
+  | "contribute";
 
-const CHILD_SESSION_SURFACES: readonly ChildSessionSurface[] = ["explore", "home", "project"];
+const CHILD_SESSION_SURFACES: readonly ChildSessionSurface[] = [
+  "explore",
+  "home",
+  "project",
+  "profile",
+  "collective-browse",
+  "collective-repos",
+  "pending-queue",
+  "my-contributions",
+  "contribute",
+];
 
-/** The surfaces whose list is scoped to one person, and so cannot carry rows
- *  from two owners or the discovery-only agent scope. */
-const OWNER_SCOPED_SURFACES: readonly ChildSessionSurface[] = ["home", "project"];
+/**
+ * The surfaces whose list is scoped to one person, and so cannot carry rows
+ * from two owners or the discovery-only agent scope.
+ *
+ * A person's library, their own contributions to a collective and the
+ * contribute listing all answer with the caller's OWN transcripts. The
+ * collective browse list, the repository view and the review queue hold
+ * everybody's, which is exactly where a session id from one publisher must be
+ * proven unable to capture another publisher's row.
+ */
+const OWNER_SCOPED_SURFACES: readonly ChildSessionSurface[] = [
+  "home",
+  "project",
+  "profile",
+  "my-contributions",
+  "contribute",
+];
 
 /** One transcript in a mocked `/api/v1/transcripts` response. `name` is also
  *  the transcript id, so a failure names the case's own vocabulary. */
@@ -105,6 +139,14 @@ const requiredCaseNames = [
   "a-started-session-is-listed-inside-its-parents-chip",
   "a-row-whose-parent-is-not-in-the-list-keeps-its-place",
   "home-shows-the-group-holding-the-newest-session",
+  "a-collectives-contributions-read-a-started-session-under-its-starter",
+  "a-collective-row-naming-a-session-this-page-omits-keeps-its-row",
+  "a-review-queue-reads-a-started-submission-under-its-starter",
+  "a-submission-whose-starter-was-not-offered-keeps-its-queue-row",
+  "your-contributions-read-a-started-contribution-under-its-starter",
+  "a-contribution-whose-starter-is-not-in-this-collective-keeps-its-row",
+  "the-contribute-tree-nests-a-started-session-under-its-starter",
+  "a-contributable-row-naming-an-unlisted-parent-keeps-its-own-place",
 ] as const;
 
 const caseKeys = [
@@ -147,6 +189,7 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
   const causes = new Set<string>();
   const surfacesCovered = new Set<ChildSessionSurface>();
   const surfacesShowingAGroup = new Set<ChildSessionSurface>();
+  const surfacesKeepingARowWithAnAbsentParent = new Set<ChildSessionSurface>();
   let sawCrossOwnerRows = false;
   let sawFoldCorrectingTheCount = false;
   let sawLongerResultKeepingTheServerCount = false;
@@ -172,6 +215,7 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
       }
       surfacesCovered.add(surface);
       if (c.expectedGroups.length > 0) surfacesShowingAGroup.add(surface);
+      if (c.absentParentCause !== "none") surfacesKeepingARowWithAnAbsentParent.add(surface);
     }
     const ownerScoped = c.surfaces.filter((surface) => OWNER_SCOPED_SURFACES.includes(surface));
     if (ownerScoped.length > 0) {
@@ -362,8 +406,15 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
     if (!surfacesShowingAGroup.has(surface)) {
       throw new Error(
         `child-session-grouping fixtures cover no case on ${surface} where a session started another: on discovery ` +
-          `that is the fold itself, and on the owner-scoped surfaces it is the chip, so a corpus without one proves ` +
-          `nothing about ${surface}`,
+          `that is the fold itself, and on every other surface it is the control on the parent's row, so a corpus ` +
+          `without one proves nothing about ${surface}`,
+      );
+    }
+    if (!surfacesKeepingARowWithAnAbsentParent.has(surface)) {
+      throw new Error(
+        `child-session-grouping fixtures cover no case on ${surface} where a row names a session the response does ` +
+          `not carry: that row must keep its ordinary place, and a build that folded it into nothing -- or dropped ` +
+          `it -- would take a readable session off ${surface} with nothing failing`,
       );
     }
   }

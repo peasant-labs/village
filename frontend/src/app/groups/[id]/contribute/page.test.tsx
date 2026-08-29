@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Group } from "@/lib/types";
 import type { ContributableResponse } from "@/lib/contribute/types";
@@ -222,5 +222,62 @@ describe("the tree header's select-all control (select_all_selects_every_leaf)",
     for (const body of bodies) {
       expect(body.transcript_ids).not.toContain(c.expect.forbiddenBodyId as string);
     }
+  });
+});
+
+describe("a session started by another session (starter_selection_takes_its_started_session)", () => {
+  it("reads behind the shared control, and is contributed with the session that started it", async () => {
+    const c = caseByName(cases, "page", "starter_selection_takes_its_started_session");
+    const rows = c.rows.map(toContributableTranscript);
+    const groupId = "group-nesting";
+    installContributeRouteREST(groupId, { group_id: groupId, transcripts: rows });
+
+    await act(async () => {
+      renderRoute(groupId);
+    });
+
+    const starterId = c.expect.starterId as string;
+    const startedId = c.expect.startedId as string;
+    await waitFor(() =>
+      expect(screen.getByTestId(`contribute-session-row-${starterId}`)).toBeInTheDocument(),
+    );
+
+    // The started session is inside a collapsed control, so it is not a second
+    // flat row of the tree.
+    expect(screen.queryByTestId(`contribute-session-row-${startedId}`)).toBeNull();
+
+    // The control hangs off the row that started it, and is the SAME control
+    // every other session list in this app draws -- the marker attribute and
+    // the test ids are the shared ones, not a second control of the tree's own.
+    const chip = document.querySelector<HTMLElement>(
+      `[data-parent-transcript-id="${starterId}"]`,
+    );
+    expect(chip, "the tree draws the shared control under the session that started it").not.toBeNull();
+    // The EXACT text. A containment check would still pass on the leading `+`
+    // the tree announced while it ran a fold of its own.
+    expect(within(chip!).getByTestId("child-session-disclosure-label").textContent).toBe(
+      c.expect.disclosureLabel as string,
+    );
+    expect(tallyText()).toBe(c.expect.initialTally as string);
+
+    act(() => {
+      fireEvent.click(within(chip!).getByTestId("child-session-disclosure-toggle"));
+    });
+    const revealed = within(chip!).getByTestId("child-session-disclosure-rows");
+    expect(within(revealed).getByTestId(`contribute-session-row-${startedId}`)).toBeInTheDocument();
+
+    // Ticking the session that started it takes the started session too: a
+    // person choosing a session is choosing the work it did.
+    const starterRow = screen.getByTestId(`contribute-session-row-${starterId}`);
+    act(() => {
+      fireEvent.click(starterRow.querySelector('input[type="checkbox"]')!);
+    });
+
+    expect(tallyText()).toBe(c.expect.tallyAfterStarterTick as string);
+    const startedRow = screen.getByTestId(`contribute-session-row-${startedId}`);
+    expect(
+      (startedRow.querySelector('input[type="checkbox"]') as HTMLInputElement).checked,
+      "the started session is selected with the session that started it",
+    ).toBe(true);
   });
 });
