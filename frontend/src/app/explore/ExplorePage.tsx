@@ -16,6 +16,7 @@ import {
 import type { TranscriptListResponse } from "@/lib/types";
 import { Explore } from "@peasant-labs/fairtrade/commons";
 import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
+import { groupChildSessions, visibleTranscriptTotal } from "@/lib/childSessions";
 import RequestFailureState from "@/components/RequestFailureState";
 import RetryButton from "@/components/RetryButton";
 
@@ -61,19 +62,50 @@ export default function ExplorePage() {
 
   const displayData: TranscriptListResponse | null = data ?? lastConfirmed;
 
+  // A session that a harness started from inside another session arrives in
+  // this same response and would otherwise sit beside the session that started
+  // it. Discovery shows the session a person ran, so a started session is
+  // folded away under it and the browse grid keeps the parent row alone.
+  //
+  // Discovery offers no control to reveal what was folded, by design: a browse
+  // card names no parent, so a count of rows hanging off one card here would
+  // ask a visitor to guess which card it belonged to. The rows are listed where
+  // that question has an answer -- under their own parent row on the home page
+  // and on the project page.
+  //
+  // The fold is done on the client because the response already carries every
+  // field it needs (`parent_session_id`, `owner_id`, `local_id`), with no second
+  // request and no change to the list contract. It only ever folds a row whose
+  // parent is in this same response; a row whose parent is absent keeps its
+  // ordinary browse row, so nothing is ever lost from browsing (see
+  // `groupChildSessions`).
+  const grouping = useMemo(
+    () => groupChildSessions(displayData?.transcripts ?? []),
+    [displayData],
+  );
+
+  // The count above the grid and the pager beneath it both read this one total.
+  // It is corrected for the rows this page folded away only when this response
+  // is the whole result set; on a longer one the server's own total stands, so
+  // the pager cannot end early (see `visibleTranscriptTotal`).
+  const visibleTotal = displayData
+    ? visibleTranscriptTotal(displayData.total, displayData.transcripts.length, grouping)
+    : 0;
+
   const payload = useMemo(() => {
     if (!displayData) return null;
     return adaptExplore(
-      displayData,
+      { ...displayData, transcripts: grouping.rootItems, total: visibleTotal },
       collData ?? { collectives: [] },
       popularTags ?? []
     );
-  }, [collData, displayData, popularTags]);
+  }, [collData, displayData, grouping, popularTags, visibleTotal]);
 
   const confirmedPage = displayData?.page ?? null;
-  const total = displayData?.total ?? 0;
   const agentTotal = displayData?.agent_total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / TRANSCRIPT_PAGE_SIZE));
+  // The page count the status text reports describes the same visible set the
+  // grid and the pager describe.
+  const totalPages = Math.max(1, Math.ceil(visibleTotal / TRANSCRIPT_PAGE_SIZE));
 
   // aria-busy reflects active work only. On a terminal error, or on a settled
   // rejection that is now awaiting a user retry, no request is in flight, so this

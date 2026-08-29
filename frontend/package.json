@@ -13,6 +13,7 @@
     "probe:explore": "node scripts/visual/probe-explore.mjs",
     "probe:village": "node scripts/visual/probe-village.mjs",
     "shoot:explore": "node scripts/visual/explore-shoot.mjs",
+    "shoot:child-sessions": "node scripts/visual/child-session-shoot.mjs",
     "shoot:village": "node scripts/visual/village-shoot.mjs",
     "shoot:manage": "node scripts/visual/manage-shoot.mjs",
     "sxs": "node scripts/visual/stitch-sxs.mjs",

@@ -11,6 +11,7 @@ import RequestFailureState from "@/components/RequestFailureState";
 import MalformedProjectNotice from "@/components/MalformedProjectNotice";
 import RetryButton from "@/components/RetryButton";
 import { groupByProject, publishedAtDescending } from "@/lib/format";
+import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
 import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
 import type { TranscriptListItem } from "@/lib/types";
 
@@ -46,6 +47,42 @@ const RECENT_SESSION_LIMIT = 5;
  * `published_at` is an ISO-8601 UTC timestamp, so lexicographic comparison is
  * chronological; a value that does not parse sorts last instead of throwing.
  */
+/**
+ * The rows a list of parents is shown in, most recently ACTIVE first.
+ *
+ * A row's own `published_at` is not what "recent" means once a row can hold the
+ * sessions it started. A person's newest session is often one their last run
+ * spawned, and that row is inside its parent's chip; ranking the parents by
+ * their own timestamps alone would push that whole group down the list, and a
+ * capped list would then drop the newest thing the person did off the page
+ * entirely, with no chip left on screen to reach it from.
+ *
+ * So a group is as recent as the newest row in it: the parent, or any session
+ * it started. A row that started nothing is unaffected, and ranks exactly as it
+ * did before.
+ *
+ * The comparison goes through the shared `publishedAtDescending`, so a value
+ * that does not parse sorts last here for the same reason it does everywhere
+ * else rather than scrambling the rows around it.
+ */
+export function mostRecentGroupFirst(
+  rootItems: TranscriptListItem[],
+  childSessions: Map<string, TranscriptListItem[]>,
+): TranscriptListItem[] {
+  const groupPublishedAt = (item: TranscriptListItem): string => {
+    let newest = item.transcript.published_at;
+    for (const started of childSessions.get(item.transcript.id) ?? []) {
+      if (publishedAtDescending(started.transcript.published_at, newest) < 0) {
+        newest = started.transcript.published_at;
+      }
+    }
+    return newest;
+  };
+  return [...rootItems].sort((a, b) =>
+    publishedAtDescending(groupPublishedAt(a), groupPublishedAt(b)),
+  );
+}
+
 export function mostRecentFirst(
   items: TranscriptListItem[],
 ): TranscriptListItem[] {
@@ -131,7 +168,28 @@ export default function HomePage() {
   const retryText = retrying ? "retrying" : "retry";
 
   const items = data?.transcripts ?? [];
-  const recent = mostRecentFirst(items).slice(0, RECENT_SESSION_LIMIT);
+  // Grouped BEFORE the slice, so the five rows this list shows are five
+  // sessions the viewer ran rather than five rows that may include the
+  // sessions those runs started. A session started from inside another one is
+  // published as its own transcript, so without the fold a single busy run
+  // could fill the whole list with its own offspring and push every other
+  // session the person ran off the page.
+  //
+  // Slicing after the grouping is also what lets a chip be complete: a row's
+  // started sessions are found in the whole list, not only among the first
+  // five, so the count on the chip is every session that row started.
+  const recentGrouping = groupChildSessions(mostRecentFirst(items));
+  // A row whose own parent is somewhere in this list is not shown here at all;
+  // it is inside its parent's chip. A row whose parent is absent keeps its
+  // ordinary place, so nothing a person published can fall out of this list.
+  const recentChildSessions = childSessionsByParentID(recentGrouping);
+  // Ranked by the newest row in each group BEFORE the cut, so a group holding
+  // the person's newest session cannot be cut off the page while that session
+  // is only reachable from inside it.
+  const recent = mostRecentGroupFirst(recentGrouping.rootItems, recentChildSessions).slice(
+    0,
+    RECENT_SESSION_LIMIT,
+  );
   const { groups, malformed } = groupByProject(items);
 
   // One teaching empty state serves both sections: a person with no sessions
@@ -295,7 +353,13 @@ export default function HomePage() {
                 your recent sessions
               </span>
             </div>
-            <TranscriptList items={recent} showOwnerActions hideOwner bare />
+            <TranscriptList
+              items={recent}
+              childSessions={recentChildSessions}
+              showOwnerActions
+              hideOwner
+              bare
+            />
           </div>
 
           <div

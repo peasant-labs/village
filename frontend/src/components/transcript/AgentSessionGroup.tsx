@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import TranscriptList from "./TranscriptList";
+import SessionGroupDisclosure from "./SessionGroupDisclosure";
 import { useTranscripts } from "@/lib/queries/transcripts";
 import { AGENT_ORIGIN, agentSessionGroupLabel } from "@/lib/sessionOrigin";
 import { TRANSCRIPT_PAGE_SIZE } from "@/lib/transcriptPageRequest";
@@ -22,6 +22,9 @@ interface AgentSessionGroupProps {
   /** Drop the outer panel border when the group sits inside a bordered panel. */
   bare?: boolean;
 }
+
+/** The id the group's control names and its rows element carries. */
+const AGENT_SESSION_GROUP_ROWS_ID = "agent-session-group-rows";
 
 /**
  * The collapsed group of agent-driven sessions that sits at the end of a
@@ -49,46 +52,24 @@ export default function AgentSessionGroup({
 
   const label = agentSessionGroupLabel(agentTotal);
 
-  // A div, not a section element: the design system styles a bare section as a
-  // page band, centred inside its own max-width and gutters. That is right for
-  // a top-level page region and wrong for a row at the end of a list, which
-  // must take the width of the list it belongs to.
   return (
-    <div
-      className={bare ? "" : "border border-rule bg-surface"}
-      data-testid="agent-session-group"
+    <SessionGroupDisclosure
+      label={label}
+      // The agent group keeps the `+` it has always announced itself with.
+      collapsedLabel={`+ ${label}`}
+      expanded={expanded}
+      onToggle={() => setExpanded((open) => !open)}
+      rowsID={AGENT_SESSION_GROUP_ROWS_ID}
+      testID="agent-session-group"
+      bare={bare}
     >
-      <button
-        type="button"
-        aria-expanded={expanded}
-        aria-controls="agent-session-group-rows"
-        data-testid="agent-session-group-toggle"
-        onClick={() => setExpanded((open) => !open)}
-        className="w-full flex items-center gap-2 px-5 py-3 min-h-[44px] text-left font-mono text-xs text-ink-3 hover:text-ink hover:bg-surface-hover focus-mono transition-colors cursor-pointer"
-      >
-        {expanded ? (
-          <ChevronDown size={12} strokeWidth={2} aria-hidden="true" />
-        ) : (
-          <ChevronRight size={12} strokeWidth={2} aria-hidden="true" />
-        )}
-        <span className="tabular-nums">
-          {expanded ? label : `+ ${label}`}
-        </span>
-        <span className="flex-1" />
-        <span className="text-ink-4">
-          {expanded ? "hide" : "show"}
-        </span>
-      </button>
-
-      {expanded && (
-        <AgentSessionRows
-          agentTotal={agentTotal}
-          baseParams={baseParams}
-          label={label}
-          showOwnerActions={showOwnerActions}
-        />
-      )}
-    </div>
+      <AgentSessionRows
+        agentTotal={agentTotal}
+        baseParams={baseParams}
+        label={label}
+        showOwnerActions={showOwnerActions}
+      />
+    </SessionGroupDisclosure>
   );
 }
 
@@ -126,7 +107,7 @@ function AgentSessionRows({
   const totalPages = Math.max(1, Math.ceil(agentTotal / TRANSCRIPT_PAGE_SIZE));
 
   return (
-    <div id="agent-session-group-rows" data-testid="agent-session-group-rows">
+    <div id={AGENT_SESSION_GROUP_ROWS_ID} data-testid="agent-session-group-rows">
       {isError ? (
         <div
           role="alert"

@@ -424,6 +424,77 @@ surface that ships unstyled cannot produce a plausible-looking capture. The two
 sparse arms gate the non-empty check on their PANEL rather than the page, whose
 emptiness is the intended design.
 
+### Sessions started by another session: one corpus, three mounted routes
+
+A harness can start a session from inside another session. The started session
+is published as its own transcript naming its starter in `parent_session_id`,
+so without a fold a list shows a person's session and everything it spawned as
+equal neighbours. Three routes answer that differently, and ONE corpus holds
+every case for all three: `frontend/src/testdata/child-session-grouping.yaml`
+with `frontend/src/test/childSessionGroupingFixtures.ts`, driven by
+`frontend/src/mountedChildSessionGrouping.test.tsx`.
+
+Each case names the `surfaces` it is asserted on, from a closed set:
+
+- `explore` - discovery folds a started session away and the grid keeps the
+  parent card alone. It offers NO control to reveal what was folded: a browse
+  card names no parent, so a count hanging off one would ask a visitor to guess
+  which card it belonged to. Every explore case asserts that absence, whether or
+  not it folded anything.
+- `home` - the signed-in root, whose recent-sessions list hangs an expandable
+  chip off the row that started them.
+- `project` - `/users/{username}/projects/{projectHash}`, the same chip.
+
+All three are mounted as the app mounts them, with only `fetch` stubbed, reusing
+the existing route harnesses (`mountedHomeRoute.tsx`, `mountedProjectRoute.tsx`)
+rather than rendering components with hand-built props.
+
+The loader is the corpus's own guard, and every rule is derived from the fixture
+data rather than from a production constant:
+
+- a required-NAME manifest, never a tally, so a deleted case fails by name;
+- strict key checks on cases, rows and groups;
+- `UNIQUE (owner_id, local_id)` respected per case, because a fixture that broke
+  it would describe a response the server cannot return;
+- the expectations must PARTITION the rows: every row is a list row or is folded
+  under exactly one parent, and no row is left out;
+- an owner-scoped case (`home` or `project`) must carry rows from one owner and
+  no discovery-only agent sessions;
+- each of the three surfaces must be covered by at least one case, and by at
+  least one case where a session started another - the fold itself on discovery,
+  the chip on the other two;
+- the header count is checked against the rule it must follow: corrected to the
+  rows on screen only when the response holds the whole result set, and the
+  server's own total otherwise, because the same number drives the pager;
+- all three reasons a named parent can be absent from a response (another page,
+  a filter, the viewer may not read it) must be covered, since the page cannot
+  tell them apart and all three must leave the row in the list;
+- a `home` case states `expectedHomeRows`: the ordered rows home shows. Home
+  caps its list and ranks a group by the NEWEST row in it - a person's newest
+  session is often one their last run started, and that row lives inside its
+  parent's chip, so ranking parents by their own timestamps alone could cut the
+  whole group off the page and leave that session reachable from nowhere. The
+  corpus must therefore hold one case with more rows than home shows, and one
+  whose first shown row is not the first row the server sent. Both guards were
+  proven able to fire, not merely present.
+
+The chip's spacing is guarded in two places, because neither alone is enough.
+The mounted tests assert the WIRING - the row that carries a chip closes up
+underneath it, and a row that carries none keeps an ordinary row's rhythm - since
+jsdom applies no stylesheet and cannot measure a rendered distance. The served
+build asserts the DISTANCE, as computed style, in
+`frontend/scripts/visual/child-session-shoot.mjs`.
+
+Group labels are written out in the YAML rather than derived from the code that
+renders them, so a change to the wording fails here instead of quietly agreeing
+with itself, and they are asserted as the EXACT text of the label element rather
+than as a substring of the whole control. The two collapsed groups word
+themselves differently -- the agent group announces itself with a leading `+`,
+and the chip of sessions one row started announces a bare count, because it
+hangs off its own parent's row where the count reads as part of that row -- so a
+containment check could not tell one group's wording from the other's, and would
+not notice one taking on the other's.
+
 ### Project identity: five fixture families
 
 A project is identified by its hash, never by its name, and five fixtures hold

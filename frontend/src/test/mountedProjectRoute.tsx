@@ -31,6 +31,24 @@ export interface RecordedRequest {
   body: unknown;
 }
 
+/**
+ * One transcript row in the project payload.
+ *
+ * `title` is all most cases say. A case about a session another session started
+ * also names the harness session ids, because the fold matches a row's
+ * `parentSessionID` against another row's `localID`.
+ */
+export interface ProjectTranscriptRow {
+  title: string;
+  /** The transcript's own id, which its row links to. Defaults to
+   *  `transcript-N`; a case whose assertions name rows sets it. */
+  id?: string;
+  /** The id the recording harness used. Defaults to a per-index `local-N`. */
+  localID?: string;
+  /** The harness id of the session that started this one, or null. */
+  parentSessionID?: string | null;
+}
+
 export interface ProjectRouteFixture {
   /** Signed-in viewer, or `null` for an anonymous one (`/auth/me` answers 401). */
   viewer: string | null;
@@ -40,7 +58,7 @@ export interface ProjectRouteFixture {
   nameSource: NameSource;
   /** `""` when the project has no known git remote. */
   remoteLabel: string;
-  transcriptTitles: string[];
+  transcripts: ProjectTranscriptRow[];
   collectives: ProjectCollectiveRollupEntry[];
   /** When set, the project route answers this status instead of a payload. */
   errorStatus?: number;
@@ -68,14 +86,19 @@ function makeUser(username: string): User {
   };
 }
 
-function makeTranscript(title: string, index: number, fixture: ProjectRouteFixture): Transcript {
+function makeTranscript(
+  row: ProjectTranscriptRow,
+  index: number,
+  fixture: ProjectRouteFixture,
+): Transcript {
   // Only the fields this route's cases are about; the rest of the wire row
   // comes from the shared fixture builder.
   return makeTranscriptFixture({
-    id: `transcript-${index}`,
+    id: row.id ?? `transcript-${index}`,
     owner_id: `user-${fixture.ownerUsername}`,
-    local_id: `local-${index}`,
-    title,
+    local_id: row.localID ?? `local-${index}`,
+    parent_session_id: row.parentSessionID ?? null,
+    title: row.title,
     project_hash: fixture.projectHash,
     project_name: fixture.displayName,
     project_display_name: fixture.displayName,
@@ -109,8 +132,8 @@ export function installProjectRouteREST(fixture: ProjectRouteFixture): RecordedR
       project_remote_label: fixture.remoteLabel,
     },
     owner,
-    transcripts: fixture.transcriptTitles.map((t, i) =>
-      makeTranscript(t, i, { ...fixture, displayName, nameSource }),
+    transcripts: fixture.transcripts.map((row, i) =>
+      makeTranscript(row, i, { ...fixture, displayName, nameSource }),
     ),
     collectives: fixture.collectives,
   });
@@ -195,14 +218,14 @@ export function installProfileRouteREST(
     if (url.includes("/transcripts?")) {
       return json({
         transcripts: projects.map((p, i) => ({
-          transcript: makeTranscript(`session ${i}`, i, {
+          transcript: makeTranscript({ title: `session ${i}` }, i, {
             viewer,
             ownerUsername: username,
             projectHash: p.projectHash,
             displayName: p.projectDisplayName,
             nameSource: "consented",
             remoteLabel: "",
-            transcriptTitles: [],
+            transcripts: [],
             collectives: [],
           }),
           tags: [],

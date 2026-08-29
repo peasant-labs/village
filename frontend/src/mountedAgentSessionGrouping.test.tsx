@@ -29,6 +29,13 @@ import {
 
 const PROFILE_USERNAME = "octocat";
 
+/** The collapsed control's frozen class list. Written out rather than read from
+ *  the component, so a change to the shared disclosure shell shows up here as a
+ *  failure instead of passing silently. */
+const AGENT_GROUP_TOGGLE_CLASS =
+  "w-full flex items-center gap-2 px-5 py-3 min-h-[44px] text-left font-mono text-xs text-ink-3 " +
+  "hover:text-ink hover:bg-surface-hover focus-mono transition-colors cursor-pointer";
+
 const fixtures = loadAgentSessionGroupingFixtures();
 
 function wireItem(id: string, sessionOrigin: SessionOrigin): TranscriptListItem {
@@ -197,8 +204,27 @@ describe("mounted agent-session grouping", () => {
       }
 
       const toggle = screen.getByTestId("agent-session-group-toggle");
-      expect(toggle.textContent, `${testCase.name}: collapsed label`).toContain(testCase.expectedToggleLabel);
+      // The EXACT text. The agent group announces itself with a leading `+`
+      // and the chip of sessions one row started does not, so a containment
+      // check could not tell one group's wording from the other's.
+      expect(
+        screen.getByTestId("agent-session-group-label").textContent,
+        `${testCase.name}: collapsed label`,
+      ).toBe(testCase.expectedToggleLabel);
       expect(toggle.getAttribute("aria-expanded")).toBe("false");
+
+      // The collapsed control's shape is shared with the child-session group,
+      // so it is asserted here rather than trusted: this group shipped first,
+      // and lifting the shell out of it must not move a class, a test id, or
+      // the id the control names.
+      // The profile library passes `bare`, because the group sits inside a
+      // bordered panel there; explore does not. The shared shell must still
+      // make that choice the same way.
+      expect(screen.getByTestId("agent-session-group").className, "the group's own chrome").toBe(
+        testCase.surface === "profile" ? "" : "border border-rule bg-surface",
+      );
+      expect(toggle.className, "the control's own chrome").toBe(AGENT_GROUP_TOGGLE_CLASS);
+      expect(toggle.getAttribute("aria-controls"), "the control names its rows").toBe("agent-session-group-rows");
       expect(screen.queryByTestId("agent-session-group-rows")).toBeNull();
 
       if (testCase.surface === "profile" && testCase.listedSessions.length > 0) {

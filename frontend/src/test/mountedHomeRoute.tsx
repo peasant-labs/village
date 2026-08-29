@@ -56,7 +56,8 @@ function listItem(t: HomeTranscriptCase, owner: User): TranscriptListItem {
     // from the shared fixture builder.
     transcript: makeTranscriptFixture({
       id: t.id,
-      local_id: t.id,
+      local_id: t.localID ?? t.id,
+      parent_session_id: t.parentSessionID ?? null,
       owner_id: owner.id,
       title: t.title,
       project_name: t.projectDisplayName,

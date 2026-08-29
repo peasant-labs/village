@@ -29,7 +29,7 @@ function baseFixture(overrides: Partial<ProjectRouteFixture> = {}): ProjectRoute
     displayName: "village",
     nameSource: "consented",
     remoteLabel: "github.com:peasant-labs/village",
-    transcriptTitles: ["first session", "second session"],
+    transcripts: [{ title: "first session" }, { title: "second session" }],
     collectives: [],
     ...overrides,
   };

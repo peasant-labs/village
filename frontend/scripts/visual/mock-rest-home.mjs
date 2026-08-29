@@ -4,6 +4,9 @@
      - GET /api/v1/auth/me                     (who is looking; decides `/` serves home, not explore)
      - GET /api/v1/transcripts?owner=...       (the caller's own sessions, grouped into projects)
 
+   It also serves the project page the home list links to:
+     - GET /api/v1/users/{username}/projects/{projectHash}
+
    The dataset exercises what the page has to get right in one capture: several
    sessions across THREE projects with different session counts and different
    most-recent timestamps, so both orders on the page are visible — recent
@@ -14,6 +17,7 @@
      MOCK_REST_PORT=8791 MOCK_SIGNED_OUT=1 node scripts/visual/mock-rest-home.mjs
      MOCK_REST_PORT=8791 MOCK_OWNER_LIST_FAILS=1 node scripts/visual/mock-rest-home.mjs
      MOCK_REST_PORT=8791 MOCK_BLANK_HANDLE=1 node scripts/visual/mock-rest-home.mjs
+     MOCK_REST_PORT=8791 MOCK_CHILD_SESSIONS=1 node scripts/visual/mock-rest-home.mjs
 */
 import { createServer } from 'node:http'
 
@@ -31,6 +35,11 @@ const OWNER_LIST_FAILS = process.env.MOCK_OWNER_LIST_FAILS === '1'
 // The handle gate reads `username_chosen`, so it does not rescue this account:
 // it is the contract violation the page has to name rather than shimmer on.
 const BLANK_HANDLE = process.env.MOCK_BLANK_HANDLE === '1'
+
+// Serve two sessions that another session started, so a capture can show the
+// expandable chip a parent row carries. Off by default: the other home captures
+// are about the page's own panels and must keep the list they were taken with.
+const CHILD_SESSIONS = process.env.MOCK_CHILD_SESSIONS === '1'
 
 const baseUser = {
   id: 'user-demo',
@@ -65,7 +74,27 @@ const sessions = [
   ['a7', 'Contract freshness gate', HASH_SCHEMA, 'schema', '2026-08-18T13:20:00Z', 'claude-code'],
 ]
 
-const toListItem = ([id, title, hash, project, publishedAt, provider]) => ({
+// Sessions a harness started from inside `a1`, published as their own
+// transcripts and naming it in `parent_session_id`. They are the rows the
+// parent's chip holds.
+const startedSessions = [
+  ['a1c1', 'Write the down migration', HASH_VILLAGE, 'village', '2026-08-27T14:40:00Z', 'claude-code', 'a1'],
+  ['a1c2', 'Check the audit trigger constraint', HASH_VILLAGE, 'village', '2026-08-27T14:25:00Z', 'claude-code', 'a1'],
+]
+
+// One row naming a session this list does not carry. It must keep its ordinary
+// place, so a capture shows that the fold never removes a session.
+// Recent enough to be one of the rows the home list shows, so a capture can
+// show it keeping its ordinary place beside the folded ones.
+const unmatchedChild = [
+  ['a8', 'Bisect the flaky publish test', HASH_PEASANT, 'peasant', '2026-08-26T20:00:00Z', 'opencode', 'never-published-here'],
+]
+
+const servedSessions = CHILD_SESSIONS
+  ? [...sessions, ...startedSessions, ...unmatchedChild]
+  : sessions
+
+const toListItem = ([id, title, hash, project, publishedAt, provider, parentSessionID = null]) => ({
   transcript: {
     id,
     owner_id: user.id,
@@ -84,7 +113,7 @@ const toListItem = ([id, title, hash, project, publishedAt, provider]) => ({
     schema_version: '0.13.0',
     published_at: publishedAt,
     updated_at: publishedAt,
-    parent_session_id: null,
+    parent_session_id: parentSessionID,
     ingested_at: publishedAt,
     source_format: 'json',
     git_branch: 'develop',
@@ -137,7 +166,7 @@ const server = createServer((req, res) => {
     if (owner === user.github_username && OWNER_LIST_FAILS) {
       return send(res, 500, { error: 'the session list is unavailable' })
     }
-    const rows = owner === user.github_username ? sessions.map(toListItem) : []
+    const rows = owner === user.github_username ? servedSessions.map(toListItem) : []
     return send(res, 200, {
       transcripts: rows,
       total: rows.length,
@@ -147,6 +176,27 @@ const server = createServer((req, res) => {
     })
   }
   if (/^\/users\/[^/]+$/.test(path)) return send(res, 200, user)
+
+  // The project page the home list links to. It serves the same rows, narrowed
+  // to one project hash, so a started session is under the session that started
+  // it on both surfaces or on neither.
+  const projectMatch = path.match(/^\/users\/([^/]+)\/projects\/([0-9a-f]{64})$/)
+  if (projectMatch) {
+    const hash = projectMatch[2]
+    const rows = servedSessions.filter(([, , rowHash]) => rowHash === hash)
+    if (rows.length === 0) return send(res, 404, { error: 'no such project page' })
+    return send(res, 200, {
+      project: {
+        project_hash: hash,
+        project_display_name: rows[0][3],
+        project_name_source: 'consented',
+        project_remote_label: `github.com:peasant-labs/${rows[0][3]}`,
+      },
+      owner: user,
+      transcripts: rows.map((row) => toListItem(row).transcript),
+      collectives: [],
+    })
+  }
 
   return send(res, 404, { error: `no mock route for ${req.method} ${url.pathname}` })
 })

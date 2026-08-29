@@ -6,6 +6,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { ProviderName, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import TranscriptEditDialog from "./TranscriptEditDialog";
+import ChildSessionDisclosure from "./ChildSessionDisclosure";
 import type { TranscriptListItem } from "@/lib/types";
 import { resolveAttribution } from "@/lib/format";
 import { isAgentSession } from "@/lib/sessionOrigin";
@@ -29,6 +30,17 @@ interface TranscriptListProps {
   /** When true, hide the owner avatar + username pill (e.g. on /publish where
    *  everything is the viewer's own). The visibility eye still renders. */
   hideOwner?: boolean;
+  /** The sessions each row started, keyed by that row's `transcript.id`.
+   *
+   *  A row named here renders an expandable chip beneath it holding those
+   *  sessions. Omitting this prop is what a list that has no answer to "whose
+   *  children are these" passes: discovery folds started sessions away without
+   *  offering them anywhere, so it passes nothing and no chip is drawn.
+   *
+   *  The caller owns the grouping because the caller owns the rows: a list that
+   *  shows only its five most recent parents still hangs every child off them,
+   *  which it can only do by grouping before it slices. */
+  childSessions?: Map<string, TranscriptListItem[]>;
 }
 
 export default function TranscriptList({
@@ -39,6 +51,7 @@ export default function TranscriptList({
   emptyState,
   bare = false,
   hideOwner = false,
+  childSessions,
 }: TranscriptListProps) {
   const { user } = useAuth();
   const viewerId = user?.id;
@@ -46,14 +59,34 @@ export default function TranscriptList({
   const rows =
     items.length > 0 ? (
       <div className="divide-y divide-rule">
-        {items.map((item) => (
-          <Row
-            key={item.transcript.id}
-            item={item}
-            canManage={showOwnerActions && viewerId === item.owner.id}
-            hideOwner={hideOwner}
-          />
-        ))}
+        {items.map((item) => {
+          const started = childSessions?.get(item.transcript.id);
+          const carriesChip = started !== undefined && started.length > 0;
+          const row = (
+            <Row
+              item={item}
+              canManage={showOwnerActions && viewerId === item.owner.id}
+              hideOwner={hideOwner}
+              bottomSpace={carriesChip ? "tight" : "default"}
+            />
+          );
+          // A row and the chip of sessions it started are ONE unit of the
+          // divided list, so the rule falls between a parent and the next
+          // parent rather than between a parent and its own chip.
+          return !carriesChip ? (
+            <div key={item.transcript.id}>{row}</div>
+          ) : (
+            <div key={item.transcript.id}>
+              {row}
+              <ChildSessionDisclosure
+                parentTranscriptID={item.transcript.id}
+                childSessions={started}
+                showOwnerActions={showOwnerActions}
+                hideOwner={hideOwner}
+              />
+            </div>
+          );
+        })}
       </div>
     ) : (
       emptyState ?? null
@@ -74,14 +107,28 @@ export default function TranscriptList({
   );
 }
 
+/**
+ * How much room a row leaves under itself.
+ *
+ * `default` is an ordinary row. `tight` is a row whose own chip of started
+ * sessions follows it: at the full gap the chip reads as a break between two
+ * separate things, rather than as one row and what hangs off it.
+ *
+ * A closed set rather than a boolean, so a third rhythm has to be named and
+ * described here instead of arriving as a second flag to combine at each row.
+ */
+type RowBottomSpace = "default" | "tight";
+
 function Row({
   item,
   canManage,
   hideOwner,
+  bottomSpace = "default",
 }: {
   item: TranscriptListItem;
   canManage: boolean;
   hideOwner: boolean;
+  bottomSpace?: RowBottomSpace;
 }) {
   const { transcript: t, owner, shares } = item;
   const { user: viewer } = useAuth();
@@ -99,7 +146,28 @@ function Row({
   }
 
   return (
-    <div className="group relative flex items-center gap-3 px-5 py-3 transition-colors hover:bg-surface-hover">
+    <div
+      className={cn(
+        "group relative flex items-center gap-3 px-5 transition-colors hover:bg-surface-hover",
+        // One design-system spacing step closer when the row's own chip follows
+        // it. The chip's control cannot close the gap from its own side: it
+        // carries a 44px minimum for its hit target, which its content does not
+        // fill, so its padding is not what decides where its label sits.
+        //
+        // The top is restated at its ORIGINAL value rather than left to the
+        // shorthand, so only the bottom moves and the row still opens the same
+        // distance below the row above it.
+        //
+        // These two are design-system tokens where the rest of this file uses
+        // Tailwind's own scale. The two scales are NOT interchangeable: `py-3`
+        // and `var(--sp-3)` are both 12px, which is why the top can be restated
+        // in either, but `px-5` here is 20px while `var(--sp-5)` is 24px. Do not
+        // convert the rest of this row to tokens on the strength of these two.
+        bottomSpace === "tight"
+          ? "pt-[var(--sp-3)] pb-[var(--sp-2)]"
+          : "py-3",
+      )}
+    >
       {/* The whole row is a link to the detail page, except for the action
           area on the right. The link is absolutely positioned over the row
           and the action cluster sits in front with z-index. */}
