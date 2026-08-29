@@ -24,8 +24,10 @@ export function linkedIDs(root: ParentNode = document): string[] {
   );
 }
 
-/** The expandable control hanging under one row. */
-export function chipFor(parentID: string): HTMLElement {
+/** The expandable control hanging under one row. Not exported: every surface
+ *  reaches it through {@link disclosureFor}, which also hands back the two
+ *  elements an assertion actually reads. */
+function chipFor(parentID: string): HTMLElement {
   const chip = document.querySelector<HTMLElement>(`[data-parent-transcript-id="${parentID}"]`);
   if (chip == null) throw new Error(`no chip of started sessions is rendered under ${parentID}`);
   return chip;
@@ -141,10 +143,17 @@ export async function assertDisclosures(
       label.textContent,
       `${testCase.name}: the label under ${expectedGroup.parent} once it is open`,
     ).toBe(expectedGroup.label);
+    // IN ORDER, not merely the same set. `SessionGroup` says the rows it
+    // carries are in server order, and this is the only place that says so of
+    // the DOM: the browse rows around the control are order-asserted above, so
+    // sorting here would leave the rows INSIDE it the one part of the list a
+    // reordering could reach without failing. A viewer opening a control reads
+    // the sessions in the order the server sent them, the same order the rows
+    // beside them are in.
     expect(
-      readRowIDs(rows).sort(),
-      `${testCase.name}: the rows revealed under ${expectedGroup.parent}`,
-    ).toEqual([...expectedGroup.children].sort());
+      readRowIDs(rows),
+      `${testCase.name}: the rows revealed under ${expectedGroup.parent}, in server order`,
+    ).toEqual(expectedGroup.children);
   }
 
   // With every control open, the surface shows exactly its rows and the

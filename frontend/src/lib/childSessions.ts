@@ -92,6 +92,30 @@ export function childSessionGroupLabel(count: number): string {
   return `${count} child session${count === 1 ? "" : "s"}`;
 }
 
+/**
+ * The same count, plus how many of the rows this control HIDES are selected.
+ *
+ * A list whose rows carry checkboxes has a failure this wording exists to
+ * close: selecting a parent reaches the rows folded under it, and a fold
+ * starts CLOSED, so a viewer can select a group, untick every box they can
+ * see, and still be holding a selection made entirely of rows that are off
+ * screen. Where the action on that selection cannot be taken back - approving
+ * or rejecting a contribution, removing one from a collective - a count they
+ * cannot see is not good enough.
+ *
+ * `selectedCount` of zero reads as the bare label: a "0 selected" hanging off
+ * every unselected fold in a long list is noise, and the thing worth saying is
+ * that a hidden row IS selected.
+ *
+ * It lives here, beside {@link childSessionGroupLabel}, because this module is
+ * the one place that decides how this app names the sessions a session started
+ * - a second module composing these words is exactly what that rule forbids.
+ */
+export function childSessionGroupSelectionLabel(count: number, selectedCount: number): string {
+  const hidden = childSessionGroupLabel(count);
+  return selectedCount > 0 ? `${hidden}, ${selectedCount} selected` : hidden;
+}
+
 // A NUL separator: neither an owner id nor a session id can contain it, so
 // two different pairs can never collide on one key.
 const KEY_SEPARATOR = "\u0000";
@@ -100,9 +124,26 @@ function sessionKey(ownerID: string, sessionID: string): string {
   return `${ownerID}${KEY_SEPARATOR}${sessionID}`;
 }
 
-/** The parent a row names, or null when it names none. A blank string is an
- *  absence: some of these wire shapes carry "no parent" that way. */
-function namedParent(identity: SessionIdentity): string | null {
+/**
+ * The parent a row names, or null when it names none.
+ *
+ * A blank string is an absence: some of these wire shapes carry "no parent"
+ * that way (`pgtype.Text` marshals a present-but-empty column as `""`, not as
+ * null). Exported because a caller that ALSO branches on "does this row name a
+ * parent" must reach the same answer -- the contribute tree asks exactly that
+ * to tell a branch root from an orphan, and testing the raw column there would
+ * file an ordinary root session under "orphaned transcripts" the moment a
+ * publisher sent a blank.
+ */
+export function namesAParent(row: {
+  parentSessionID: string | null | undefined;
+}): boolean {
+  return namedParent(row) !== null;
+}
+
+function namedParent(identity: {
+  parentSessionID: string | null | undefined;
+}): string | null {
   const raw = identity.parentSessionID;
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();

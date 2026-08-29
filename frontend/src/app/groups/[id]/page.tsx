@@ -322,6 +322,18 @@ export default function GroupDetailPage({
   const canLeave = !!yourRole && yourRole !== "owner";
   const pendingMembers = pendingMembersRaw ?? [];
 
+  // The preview is cut to five BEFORE the fold, unlike the home page, which
+  // groups first so its list is five sessions a person ran rather than five
+  // rows. The difference is deliberate: this cut IS the summary the manage
+  // surface renders above -- both read this one value, so the two cannot say
+  // different things about the same five contributions -- and a preview that
+  // folded first could show one row where the collective's five most recent
+  // contributions were one busy session and what it started. Nothing is lost
+  // either way -- a folded row is inside the control under its parent -- and
+  // "browse data" pages the whole set.
+  const rawBrowserTranscripts = showDataBrowser
+    ? (pagedData ?? [])
+    : (transcripts || []).slice(0, 5);
   const manageData = {
     collective: {
       name: group.name,
@@ -356,7 +368,7 @@ export default function GroupDetailPage({
     // shared component or affecting the demo's own illustrative rendering.
     members: [],
     redactions: [],
-    browseRows: (showDataBrowser ? (pagedData ?? []) : (transcripts || []).slice(0, 5)).map((transcript) => ({
+    browseRows: rawBrowserTranscripts.map((transcript) => ({
       title: transcript.title ?? "untitled transcript",
       contributor: `@${transcript.owner_username}`,
       providerId: transcript.model_provider,
@@ -381,17 +393,6 @@ export default function GroupDetailPage({
 
   const totalTranscripts = stats?.total_transcripts ?? 0;
   const totalPages = Math.ceil(totalTranscripts / DATA_PAGE_SIZE);
-  // The preview is cut to five BEFORE the fold, unlike the home page, which
-  // groups first so its list is five sessions a person ran rather than five
-  // rows. The difference is deliberate: this cut is shared with the summary
-  // rows the manage surface renders from the same five, and a preview that
-  // folded first could show one row where the collective's five most recent
-  // contributions were one busy session and what it started. Nothing is lost
-  // either way -- a folded row is inside the control under its parent -- and
-  // "browse data" pages the whole set.
-  const rawBrowserTranscripts = showDataBrowser
-    ? (pagedData ?? [])
-    : (transcripts || []).slice(0, 5);
   const ANON_FILTER_KEY = "__anon__";
   const browserTranscripts = contributorFilter
     ? rawBrowserTranscripts.filter((t) => {

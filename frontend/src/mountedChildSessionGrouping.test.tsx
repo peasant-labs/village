@@ -81,7 +81,7 @@ function casesFor(surface: ChildSessionSurface): ChildSessionGroupingCase[] {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-  localStorage.clear();
+  globalThis.localStorage?.clear();
 });
 
 /**
