@@ -478,6 +478,13 @@ data rather than from a production constant:
   whose first shown row is not the first row the server sent. Both guards were
   proven able to fire, not merely present.
 
+The chip's spacing is guarded in two places, because neither alone is enough.
+The mounted tests assert the WIRING - the row that carries a chip closes up
+underneath it, and a row that carries none keeps an ordinary row's rhythm - since
+jsdom applies no stylesheet and cannot measure a rendered distance. The served
+build asserts the DISTANCE, as computed style, in
+`frontend/scripts/visual/child-session-shoot.mjs`.
+
 Group labels are written out in the YAML rather than derived from the code that
 renders them, so a change to the wording fails here instead of quietly agreeing
 with itself, and they are asserted as the EXACT text of the label element rather

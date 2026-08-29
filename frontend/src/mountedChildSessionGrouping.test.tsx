@@ -137,6 +137,16 @@ async function assertChips(
       `${testCase.name}: the chip under ${expectedGroup.parent} must sit with that row`,
     ).toContain(expectedGroup.parent);
 
+    // A row that carries a chip closes up underneath it by one design-system
+    // step, so the chip reads as part of that row rather than as the next thing
+    // in the list. jsdom applies no stylesheet, so this asserts the WIRING; the
+    // rendered distance is asserted as computed style on the served build by
+    // scripts/visual/child-session-shoot.mjs.
+    expect(
+      (unit.firstElementChild as HTMLElement).className,
+      `${testCase.name}: the row carrying the chip under ${expectedGroup.parent} closes up underneath it`,
+    ).toContain("pb-[var(--sp-2)]");
+
     const toggle = within(chip).getByTestId("child-session-disclosure-toggle");
     // The EXACT text, not a substring of it. The chip announces a bare count
     // and the agent group beside it announces a leading `+`; a containment
@@ -174,6 +184,19 @@ async function assertChips(
     expect(linkedIDs(rows).sort(), `${testCase.name}: the rows under ${expectedGroup.parent}`).toEqual(
       [...expectedGroup.children].sort(),
     );
+  }
+
+  // A row that carries no chip keeps its ordinary rhythm. Without this, giving
+  // EVERY row the tighter spacing would satisfy the assertion above while
+  // changing every list in the app.
+  const chipParents = new Set(shownGroups.map((group) => group.parent));
+  for (const row of visibleRows.filter((name) => !chipParents.has(name))) {
+    const anchor = listRoot.querySelector<HTMLAnchorElement>(`a[href="/transcripts/${row}"]`);
+    if (anchor == null) throw new Error(`${testCase.name}: ${row} is not on screen`);
+    expect(
+      anchor.parentElement!.className,
+      `${testCase.name}: ${row} carries no chip, so it keeps an ordinary row's spacing`,
+    ).toContain("py-3");
   }
 
   // With every chip open, the surface shows exactly its rows and the sessions

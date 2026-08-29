@@ -378,6 +378,61 @@ if (!sitsWithItsParent) {
     'render the chip inside the same list unit as its parent row and rebuild.')
 }
 
+/* The vertical rhythm between a parent row and its own chip.
+
+   Asserted as COMPUTED style on the served page, not as a class name: the gap a
+   reader complained about is a rendered distance, and a class that stopped
+   resolving to any padding would still be present in the markup.
+
+   Three readings, because one alone can pass while the design is wrong: the row
+   that carries a chip must be one design-system step tighter underneath, an
+   ordinary row in the same list must be UNCHANGED (so the tightening did not
+   leak into every row), and the chip's indentation must be untouched. */
+const RHYTHM = { tightRowPaddingBottom: 8, ordinaryRowPaddingBottom: 12, maxDetailToLabelGap: 22, chipIndent: 20 }
+const rhythm = await page.evaluate((el) => {
+  const unit = el.parentElement
+  const row = unit.firstElementChild
+  const label = el.querySelector('[data-testid="child-session-disclosure-label"]')
+  const detail = row.querySelectorAll('.min-w-0 > span')[1]
+  // A row in the same list that carries no chip: its unit holds the row alone.
+  const ordinary = [...unit.parentElement.children].find(
+    (sibling) => sibling !== unit && sibling.children.length === 1,
+  )
+  const px = (value) => Math.round(parseFloat(value))
+  return {
+    tightRowPaddingBottom: px(getComputedStyle(row).paddingBottom),
+    ordinaryRowPaddingBottom: ordinary ? px(getComputedStyle(ordinary.firstElementChild).paddingBottom) : null,
+    detailToLabelGap: Math.round(label.getBoundingClientRect().top - detail.getBoundingClientRect().bottom),
+    chipIndent: px(getComputedStyle(el).paddingLeft),
+  }
+}, chip)
+const rhythmFaults = []
+if (rhythm.tightRowPaddingBottom !== RHYTHM.tightRowPaddingBottom) {
+  rhythmFaults.push(
+    `the row carrying the chip leaves ${rhythm.tightRowPaddingBottom}px under itself, not ${RHYTHM.tightRowPaddingBottom}px`)
+}
+if (rhythm.ordinaryRowPaddingBottom === null) {
+  rhythmFaults.push('no ordinary row was found in the list to compare against')
+} else if (rhythm.ordinaryRowPaddingBottom !== RHYTHM.ordinaryRowPaddingBottom) {
+  rhythmFaults.push(
+    `an ordinary row leaves ${rhythm.ordinaryRowPaddingBottom}px under itself, not ${RHYTHM.ordinaryRowPaddingBottom}px, ` +
+      'so the tightening leaked out of the rows that carry a chip')
+}
+if (rhythm.detailToLabelGap > RHYTHM.maxDetailToLabelGap) {
+  rhythmFaults.push(
+    `${rhythm.detailToLabelGap}px sits between the row's detail line and the chip's label, over the ` +
+      `${RHYTHM.maxDetailToLabelGap}px this surface is held to`)
+}
+if (rhythm.chipIndent !== RHYTHM.chipIndent) {
+  rhythmFaults.push(`the chip is indented ${rhythm.chipIndent}px, not the ${RHYTHM.chipIndent}px it has always been`)
+}
+if (rhythmFaults.length > 0) {
+  await stop(1, `the chip's vertical rhythm is wrong: ${rhythmFaults.join('; ')}.`,
+    'the served page does not lay the chip out under its parent row the way this surface is held to.',
+    'the capture would show spacing a reader has already asked to have corrected, or an indentation change nobody asked for.',
+    'rebuild from this worktree, and check the row spacing that applies when a row carries a chip.')
+}
+
 if (UNMATCHED && !(await linkedIDs()).includes(UNMATCHED)) {
   await stop(1, `the served list does not show ${UNMATCHED}, whose parent it does not carry.`,
     'the fold removed a row instead of leaving it in the list.',
@@ -405,6 +460,7 @@ if (UNMATCHED && expandedIDs.includes(UNMATCHED)) {
 await pause(400)
 await shoot(`${config.prefix}-expanded`)
 
+console.log('rhythm', JSON.stringify(rhythm))
 console.log('provenance', `chip-under=${parentID}`, `collapsed-label=${JSON.stringify(collapsedLabel)}`,
   `expanded-rows=${expandedIDs.join(',')}`, `unmatched-row-listed=${UNMATCHED ?? 'n/a'}`)
 console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
