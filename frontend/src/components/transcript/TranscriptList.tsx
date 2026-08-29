@@ -290,8 +290,12 @@ function Row({
 
   const displayTitle = t.title || "Untitled";
   // Only the facts this row can actually state, paired with the fact that
-  // produced each, so the separators fall between them and a duplicated fact
-  // name cannot collide as a React key.
+  // produced each, so the separators fall between the ones that survive rather
+  // than before each one.
+  //
+  // `facts` is an ordinary array and nothing forbids a caller repeating a
+  // member, so the key below pairs the fact with its POSITION. Keying on the
+  // fact alone would collide on a repeat.
   const statedFacts = facts
     .map((fact) => ({ fact, node: factNode(fact, t) }))
     .filter((stated) => stated.node !== null);
@@ -393,7 +397,7 @@ function Row({
           {/* The separator falls BETWEEN facts, so a row that cannot state one
               of them does not open with a stray mark or end with one. */}
           {statedFacts.map(({ fact, node }, i) => (
-            <Fragment key={fact}>
+            <Fragment key={`${fact}-${i}`}>
               {i > 0 && <span className="text-rule">&middot;</span>}
               {node}
             </Fragment>

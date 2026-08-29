@@ -1,4 +1,4 @@
-import { groupSessionRows, type SessionIdentity } from "@/lib/childSessions";
+import { groupSessionRows, namesAParent, type SessionIdentity } from "@/lib/childSessions";
 import type { ContributableTranscript } from "./types";
 
 /**
@@ -120,8 +120,17 @@ function branchSortKey(label: string): string {
  * nothing to separate. It is still stated, because the fold matches a parent on
  * the owner AND the session id, and a constant is the honest way to say "these
  * all belong to the same person" rather than leaving the field to be guessed.
+ *
+ * The constant is named for its PRECONDITION, because that precondition is
+ * load-bearing: per-owner scoping is what stops one publisher's session id
+ * capturing another publisher's row, and a single owner switches it off. If
+ * that endpoint ever answers with more than one person's rows -- an owner
+ * selecting on someone's behalf, an organisation-scoped listing -- this
+ * silently merges them and no test goes red. Widening it means giving
+ * `ContributableTranscript` a real `owner_id` and reading it here, and the
+ * wire-contract note in `./types.ts` says so at the other end.
  */
-const CONTRIBUTABLE_OWNER = "the caller";
+const SINGLE_OWNER_ENDPOINT = "the caller";
 
 /**
  * How the fold identifies ONE row's owner. A list that can hold several
@@ -145,14 +154,24 @@ function identityOf<Row extends TreeRowFacts>(ownerOf: OwnerOf<Row>) {
  *
  * Grouping key is `project_hash` (label `project_display_name`); within a
  * project, branch key is `git_branch` (label falls back to
- * {@link UNKNOWN_BRANCH_LABEL}, sorted last). A row is a branch ROOT when its
- * `parent_session_id` is `null`; every other row nests under the row whose
- * `local_id` it names, scoped to the SAME project — `local_id` is a
- * per-project value, so matching across projects would be a false attach. A
- * row whose named parent does not exist anywhere in this project's rows (not
- * fetched, foreign, or already shared off the list) becomes an ORPHAN root
- * under that project's single synthetic {@link OrphansNode} instead of being
- * silently dropped.
+ * {@link UNKNOWN_BRANCH_LABEL}, sorted last).
+ *
+ * Which row hangs under which is the SHARED fold's answer, not one written
+ * here, and it is not the same rule this function used to apply: a row hangs
+ * under the TOPMOST row of its parent chain present in this project, so a
+ * session started two levels down appears once, directly under that row, and
+ * never nested a second time inside its own immediate starter. `SessionNode`
+ * documents that shape.
+ *
+ * A row is a branch ROOT when it names no parent. A row that kept its own
+ * place while still naming one is an ORPHAN, and there are two ways to be one:
+ * the row it names is not in this project's corpus (not fetched, foreign, or
+ * already shared off the list), or the chain it names is a ring. Both go under
+ * that project's single synthetic {@link OrphansNode} rather than being
+ * silently dropped — the ring case used to vanish from this tree entirely.
+ *
+ * The fold runs per project because `local_id` is a per-project value here;
+ * matching across projects would be a false attach.
  */
 export function buildSessionTree<Row extends TreeRowFacts>(
   rows: Row[],
@@ -185,7 +204,8 @@ export function buildSessionTree<Row extends TreeRowFacts>(
     // place, which row hangs under another, and what happens to a row that
     // names itself or a ring of rows that name each other -- is the shared
     // fold's answer, not a second one written here.
-    const fold = groupSessionRows(projectRows, identityOf(ownerOf));
+    const identify = identityOf(ownerOf);
+    const fold = groupSessionRows(projectRows, identify);
     const startedBy = new Map(
       fold.groups.map((group) => [group.parent.id, group.children]),
     );
@@ -198,7 +218,11 @@ export function buildSessionTree<Row extends TreeRowFacts>(
       // foreign, already shared off the list) or the chain it names is a ring.
       // It is shown under the project's synthetic orphans grouping rather than
       // dropped, so it stays selectable.
-      if (row.parent_session_id == null) branchRoots.push(row);
+      // Asked through the fold's OWN reading, not by testing the raw column:
+      // the fold treats a blank string as naming nobody, and a second reading
+      // here that disagreed would file an ordinary root session under
+      // "orphaned transcripts" and tell the person their starter is missing.
+      if (!namesAParent(identify(row))) branchRoots.push(row);
       else orphanRoots.push(row);
     }
 
@@ -247,7 +271,7 @@ export function buildContributeTree(rows: ContributableTranscript[]): ProjectNod
       mark: row.already_shared ? "already contributed" : null,
       locked: row.already_shared,
     }),
-    () => CONTRIBUTABLE_OWNER,
+    () => SINGLE_OWNER_ENDPOINT,
   );
 }
 

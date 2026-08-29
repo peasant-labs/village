@@ -54,16 +54,6 @@ const CHILD_SESSION_SURFACES: readonly ChildSessionSurface[] = [
 ];
 
 /**
- * The surfaces whose list is scoped to one person, and so cannot carry rows
- * from two owners or the discovery-only agent scope.
- *
- * A person's library, their own contributions to a collective and the
- * contribute listing all answer with the caller's OWN transcripts. The
- * collective browse list, the repository view and the review queue hold
- * everybody's, which is exactly where a session id from one publisher must be
- * proven unable to capture another publisher's row.
- */
-/**
  * The surfaces that deliberately do NOT read a started session under the
  * session that started it.
  *
@@ -82,6 +72,16 @@ const CHILD_SESSION_SURFACES: readonly ChildSessionSurface[] = [
  */
 const UNFOLDED_SURFACES: readonly ChildSessionSurface[] = ["pending-queue"];
 
+/**
+ * The surfaces whose list is scoped to one person, and so cannot carry rows
+ * from two owners or the discovery-only agent scope.
+ *
+ * A person's library, their own contributions to a collective and the
+ * contribute listing all answer with the caller's OWN transcripts. The
+ * collective browse list, the repository view and the review queue hold
+ * everybody's, which is exactly where a session id from one publisher must be
+ * proven unable to capture another publisher's row.
+ */
 const OWNER_SCOPED_SURFACES: readonly ChildSessionSurface[] = [
   "home",
   "project",
@@ -238,7 +238,7 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
     }
     const ownerScoped = c.surfaces.filter((surface) => OWNER_SCOPED_SURFACES.includes(surface));
     if (ownerScoped.length > 0) {
-      // Both owner-scoped surfaces read ONE person's sessions, so a case that
+      // Every owner-scoped surface reads ONE person's sessions, so a case that
       // crossed owners there would describe a response the app cannot receive.
       if (new Set(c.rows.map((row) => row.ownerID)).size > 1) {
         throw new Error(

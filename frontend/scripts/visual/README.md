@@ -87,7 +87,7 @@ mounted into the composer's `renderTurnActions` slot exactly as the production p
 | `village-shoot.mjs` | Drive the harness route with puppeteer and screenshot every transcript surface for one theme. Each capture is run through the non-empty-surface gate before it's accepted; each surface is wrapped in try/catch so one failure records a gap and the run continues. |
 | `explore-agent-group-shoot.mjs` | Capture the collapsed and expanded group of agent-driven sessions on the real Explore route, in one theme, from one live page. Asserts build provenance (the group's control, its counted label, and the expanded rows' labels) before writing any PNG, so a stale or wrong-worktree server fails instead of producing a misleading capture. |
 | `review-shoot.mjs` | Capture the collective review route `/groups/{id}/review` in one theme: the pending queue read as a project > branch > session tree with the transcript preview column and the decide-a-selection bottom bar. Two images per theme — the queue with nothing selected, and the queue with a project ticked AND the preview column open on a real submission. Asserts build provenance against the live DOM before writing any PNG: the review panel mounted, the queue grouped into more than one project (a flat list is the surface this route replaces), at least one child-session disclosure present, and BOTH bottom-bar decisions available. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the header at the top, and the clip box covering the whole document. The viewport is only grown to the document for the queue-alone image; with the preview open the shared contribute/review composition measures a constant 202px taller than any viewport it is given (the same is true of the shipped `/groups/{id}/contribute` route), so that state is rastered whole from the base viewport instead. |
-| `child-session-shoot.mjs` | Capture how one surface treats a session that another session started, in one theme, from one live page: `explore` (folded away, no control), `home` and `project` (collapsed and expanded chip). Asserts build provenance against the live DOM before writing any PNG — on discovery, that the started rows are off the grid, that a row whose parent the response does not carry still browses, that NO control rendered, and that the count above the grid matches the cards under it; on the other two, that the chip carries a bare counted label with nothing in front of it (it is read from the label element, not the whole control, so a leading mark cannot hide inside the show/hide affordance), that it sits in the same list unit as its own parent row, and that its VERTICAL RHYTHM holds as computed style — the row carrying a chip one design-system step tighter underneath, still opening its original distance above, an ordinary row in the same list unchanged, the indentation untouched, and the rendered gap within its band. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the whole document inside the viewport, and the clip box covering the document — so the fixed app header cannot composite over the middle of the image and the bottom of the list cannot be cut. |
+| `child-session-shoot.mjs` | Capture how one surface treats a session that another session started, in one theme, from one live page: `explore` (folded away, no control), `home` and `project` (collapsed and expanded chip), and the six lists sharing that same design — `profile`, `collective-data`, `collective-repos`, `collective-contributions`, `contribute-tree` (each closed and open), plus `collective-pending`, which does NOT fold and is captured once, flat (see "The six lists that fold behind the same control"). Asserts build provenance against the live DOM before writing any PNG — on discovery, that the started rows are off the grid, that a row whose parent the response does not carry still browses, that NO control rendered, and that the count above the grid matches the cards under it; on the other two, that the chip carries a bare counted label with nothing in front of it (it is read from the label element, not the whole control, so a leading mark cannot hide inside the show/hide affordance), that it sits in the same list unit as its own parent row, and that its VERTICAL RHYTHM holds as computed style — the row carrying a chip one design-system step tighter underneath, still opening its original distance above, an ordinary row in the same list unchanged, the indentation untouched, and the rendered gap within its band. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the whole document inside the viewport, and the clip box covering the document — so the fixed app header cannot composite over the middle of the image and the bottom of the list cannot be cut. |
 | `surface-gate.mjs` | The non-empty-surface gate (vendored, self-contained copy of the fairtrade `scripts/surface-gate.mjs`). Fails a capture that is blank / near-empty / byte-identical to another surface — closing the silent-blank hole a valid-but-empty bounding box leaves open (e.g. an empty graph). |
 | `stitch-sxs.mjs` | Compose labeled, **height-matched** side-by-side composites (`REFERENCE | SUBJECT`) per surface per theme. The shorter pane is padded (never scaled) with its own border-sampled background; a dashed hairline marks where the shorter capture ends. A surface missing a subject capture gets a labeled placeholder panel so the set stays complete. The reference side defaults to the **committed `baseline/tb/`** (the same-component `<SessionDetail>` "before"); `REF_DIR=demo` is the optional non-gating design-language sanity panel (see **Oracle**). |
 | `baseline/tb/{dark,light}/` | The **committed** same-component reference: an earlier `<SessionDetail>` capture of the same `sess_demo_0001` session, recorded before theme convergence. It is a **frozen, non-regenerable** snapshot, so unlike the regenerable `demo/` it is tracked in the repository. The default `stitch` reads it directly, so the oracle works on a clean checkout with no staging. |
@@ -397,6 +397,77 @@ for surface in home project; do
 done
 ```
 
+### The six lists that fold behind the same control
+
+The same design reaches every other transcript list in the app, and
+`child-session-shoot.mjs` captures each one, in both themes. Five of the six
+fold behind a shared collapsed control and are captured closed AND open;
+`collective-pending` is the exception below — it does not fold, and is
+captured once, flat:
+
+- `profile` — `/users/{username}`, the fold within a project of the person's own
+  library.
+- `collective-data` — `/groups/{id}`, the collective's contributions. They were a
+  table of their own until they had to fold here as well; a second renderer would
+  have needed a second fold and the two would have drifted. The capture asserts
+  what the move must not lose: no table remains on that panel, the row still
+  states its title, contributor, provider, turns, tokens and date, the owner's
+  per-row selection box is drawn, and the toolbar carries the `all` select-all.
+- `collective-repos` — the same page read by repository. EVERY repository is
+  opened first, because the parent and the row naming a starter this response
+  does not carry belong to different ones and the contrast between them is the
+  point of the image.
+- `collective-pending` — the same page's review queue. It does **not** fold:
+  every submission the mock serves is its own row, drawn flat and side by side
+  in the one `ModerationQueue`, each keeping its own approve and reject
+  actions. The capture asserts there is exactly one row per submission, that no
+  element carries `data-parent-transcript-id` inside the queue (that attribute
+  is the fold's own marker, so its presence would mean the removed
+  nested-disclosure design came back), and that every row still has both its
+  approve and reject action: folding a submission under another made it harder
+  to decide, which is why the fold was removed from this surface.
+- `collective-contributions` — the same page's "your contributions", where each
+  revealed row must keep its remove action.
+- `contribute-tree` — `/groups/{id}/contribute`. The label is a bare count here
+  now; it read `+ N child sessions` before.
+
+Every one of the five that still fold asserts, from the live DOM and before any
+PNG is written, that a control hangs under the expected row, that its label is
+a bare count with nothing in front of it, that opening it reveals exactly the
+rows this response folded, and that the row naming a starter the response does
+not carry keeps its own place both before and after opening.
+
+They read `mock-rest-child-sessions.mjs`, which serves all six datasets from one
+process: a `curated` collective whose viewer is its owner (so the review queue
+and the owner-only selection render), and, in every dataset, a parent with two
+started sessions plus one row naming a starter the response does not carry. It
+refuses a busy `MOCK_REST_PORT` with a nonzero exit rather than letting another
+server's fixtures reach the capture.
+
+`collective-data` and `collective-repos` share one route with `collective-pending`,
+so their CLOSED captures come out byte-identical per theme. That is honest
+rather than a fault: with both controls closed, those two surfaces are one
+image on that route. `collective-pending`'s own capture is a different image on
+the same route, because it never has a closed state to share.
+
+```sh
+MOCK_REST_PORT=8846 node scripts/visual/mock-rest-child-sessions.mjs &
+until curl -sf http://localhost:8846/api/v1/auth/me >/dev/null; do
+  kill -0 %1 2>/dev/null || { echo 'mock-rest-child-sessions did not start'; exit 2; }
+  sleep 0.2
+done
+NEXT_PUBLIC_API_URL=http://localhost:8846/api/v1 pnpm build
+PORT=4317 NEXT_PUBLIC_API_URL=http://localhost:8846/api/v1 pnpm start &
+
+for theme in dark light; do
+  for surface in profile collective-data collective-repos \
+                 collective-pending collective-contributions contribute-tree; do
+    VILLAGE_URL=http://localhost:4317 CHROME_PATH=$CHROME \
+      node scripts/visual/child-session-shoot.mjs $surface $theme $BASE/$theme
+  done
+done
+```
+
 ## Own-profile contributed-collectives gate (`profile-collectives`)
 
 `profile-collectives-shoot.mjs` captures the own-profile contributed-collectives
@@ -460,6 +531,7 @@ gated by collective visibility and the owner's contributor opt-in.
 
 | Script | Role |
 |---|---|
+| `mock-rest-child-sessions.mjs` | REST stand-in for the six lists that fold behind the shared control. One process serves the profile library, a `curated` collective whose viewer is its owner (browse rows, review queue, the caller's own contributions) and the contribute tree. Every dataset carries a parent with two started sessions AND one row naming a starter the response does not carry, because that contrast is what the captures are evidence for. Refuses a busy `MOCK_REST_PORT` with a nonzero exit rather than letting another server's fixtures reach the capture. |
 | `mock-rest-project.mjs` | REST stand-in for the project page. Serves the page payload and the two hash-keyed correction routes LIVE, so a reset is a real round-trip rather than a second frozen fixture. `MOCK_PROJECT_VIEWER=owner\|other\|anon` chooses who is looking; `MOCK_PROJECT_ROLLUP=empty` serves an empty roll-up; `MOCK_PROJECT_IDENTITY=path` serves a project with NO git remote and no chosen or disclosed name, so its name is the redacted local path its publisher recorded. |
 | `project-page-shoot.mjs` | Captures the page per theme and asserts build provenance BEFORE writing any PNG: the served page must carry the project heading, the repository-label subtitle in `host:owner/repo` shape, and the correction control, and `VILLAGE_URL` must be the 64-hex hash-keyed route. `PROJECT_SHOOT_MODE=path` captures the path-named project instead: it requires the heading to carry the redacted-path shape, requires NO repository subtitle (there is no repository to label), and requires the correction control to explain the path tier - a sentence only a build that knows the tier serves, which is what makes a stale server fail instead of producing a misleading PNG. It also prints a `getComputedStyle` probe (tokens, fonts, radius, tabular numerals, text-transform), because `--surface` vs `--canvas` and `--ink-2` vs `--ink-3` cannot be told apart in a scaled PNG. |
 

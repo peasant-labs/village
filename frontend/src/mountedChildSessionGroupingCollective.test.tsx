@@ -75,7 +75,7 @@ function casesFor(surface: ChildSessionSurface): ChildSessionGroupingCase[] {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-  localStorage.clear();
+  globalThis.localStorage?.clear();
 });
 
 // ── the wire rows a case's transcripts arrive as ─────────────────────────────

@@ -128,9 +128,26 @@ function sessionKey(ownerID: string, sessionID: string): string {
   return `${ownerID}${KEY_SEPARATOR}${sessionID}`;
 }
 
-/** The parent a row names, or null when it names none. A blank string is an
- *  absence: some of these wire shapes carry "no parent" that way. */
-function namedParent(identity: SessionIdentity): string | null {
+/**
+ * The parent a row names, or null when it names none.
+ *
+ * A blank string is an absence: some of these wire shapes carry "no parent"
+ * that way (`pgtype.Text` marshals a present-but-empty column as `""`, not as
+ * null). Exported because a caller that ALSO branches on "does this row name a
+ * parent" must reach the same answer -- the contribute tree asks exactly that
+ * to tell a branch root from an orphan, and testing the raw column there would
+ * file an ordinary root session under "orphaned transcripts" the moment a
+ * publisher sent a blank.
+ */
+export function namesAParent(row: {
+  parentSessionID: string | null | undefined;
+}): boolean {
+  return namedParent(row) !== null;
+}
+
+function namedParent(identity: {
+  parentSessionID: string | null | undefined;
+}): string | null {
   const raw = identity.parentSessionID;
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
