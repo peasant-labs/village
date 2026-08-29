@@ -166,76 +166,6 @@ function MyContributionChildren({
   );
 }
 
-/**
- * The submissions one pending submission started, behind the shared collapsed
- * control, inside the review queue.
- *
- * The revealed rows are their own {@link ModerationQueue} so each keeps the
- * queue's approve and reject actions: this fold changes WHERE a submission is
- * read, never whether a moderator can decide it.
- */
-function PendingShareChildren<Share extends { transcript_id: string }>({
-  parentShareID,
-  startedShares,
-  renderItem,
-  onReview,
-}: {
-  parentShareID: string;
-  startedShares: Share[];
-  renderItem: (share: Share) => {
-    id: string;
-    kind: "share";
-    who: React.ReactNode;
-    detail: React.ReactNode;
-  };
-  onReview: (input: { transcriptId: string; status: string }) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const rowsID = `pending-share-children-${parentShareID}`;
-  if (startedShares.length === 0) return null;
-  return (
-    <div className="mt-2" data-parent-transcript-id={parentShareID}>
-      <SessionGroupDisclosure
-        label={childSessionGroupLabel(startedShares.length)}
-        collapsedLabel={childSessionGroupLabel(startedShares.length)}
-        expanded={expanded}
-        onToggle={() => setExpanded((open) => !open)}
-        rowsID={rowsID}
-        testID="child-session-disclosure"
-        bare
-      >
-        <div id={rowsID} data-testid="child-session-disclosure-rows">
-          <ModerationQueue
-            title={null}
-            items={startedShares.map(renderItem)}
-            onApprove={(item: { id: string }) => {
-              onReview({ transcriptId: item.id, status: "approved" });
-            }}
-            onReject={(item: { id: string }) => {
-              onReview({ transcriptId: item.id, status: "rejected" });
-            }}
-          />
-        </div>
-      </SessionGroupDisclosure>
-    </div>
-  );
-}
-
-/** The shared fold's four facts, read out of one pending submission. */
-function pendingShareIdentity(share: {
-  transcript_id: string;
-  owner_id: string;
-  local_id: string;
-  parent_session_id: string | null;
-}): SessionIdentity {
-  return {
-    rowID: share.transcript_id,
-    ownerID: share.owner_id,
-    sessionID: share.local_id,
-    parentSessionID: share.parent_session_id,
-  };
-}
-
 /** The shared fold's four facts, read out of one of the caller's own
  *  contributions. Its row identity is the transcript id under a different
  *  name -- this response calls it `id` where the pending queue calls it
@@ -661,54 +591,8 @@ export default function GroupDetailPage({
   // in this app uses, over each list's own row shape. A submission another
   // session started is read under the submission that started it; a submission
   // whose starter was not offered to this collective keeps its ordinary row.
-  const pendingFold = groupSessionRows(pendingSharesList, pendingShareIdentity);
   const myShareFold = groupSessionRows(mySharesList, myShareIdentity);
   const myShareChildren = childSessionsByRowID(myShareFold, myShareIdentity);
-  const pendingChildrenByParentID = childSessionsByRowID(pendingFold, pendingShareIdentity);
-
-  /**
-   * One pending submission as the review queue reads it, with the submissions
-   * it started behind the shared collapsed control.
-   *
-   * The started submissions are a nested queue rather than a plain list, so
-   * every one of them keeps its OWN approve and reject actions: folding a
-   * submission under another must never make it harder to decide, and a
-   * moderator who cannot act on a row cannot clear their queue.
-   */
-  function pendingQueueItem(ps: PendingShare, started: PendingShare[]) {
-    return {
-      id: ps.transcript_id,
-      kind: "share" as const,
-      who: ps.title || "Untitled",
-      detail: (
-        <>
-          <span className="inline-flex items-center gap-1.5">
-            by @
-            {ps.owner_is_discoverable === false && !isOwner ? "anon" : ps.owner_username}
-            {" · "}
-            <Link
-              href={`/transcripts/${ps.transcript_id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 text-ink-4 hover:text-ink transition-colors focus-mono"
-              onClick={(e) => e.stopPropagation()}
-              title="Preview transcript"
-            >
-              preview <ExternalLink size={10} className="inline-block" />
-            </Link>
-          </span>
-          {started.length > 0 && (
-            <PendingShareChildren
-              parentShareID={ps.transcript_id}
-              startedShares={started}
-              renderItem={(child) => pendingQueueItem(child, [])}
-              onReview={reviewShare.mutate}
-            />
-          )}
-        </>
-      ),
-    };
-  }
   const currentUserId = user?.id;
 
   const railContent = (
@@ -1070,11 +954,45 @@ export default function GroupDetailPage({
         group.acceptance_mode === "curated" &&
         pendingSharesList.length > 0 && (
           <div style={{ overflow: "auto", maxWidth: "100%" }}>
+            {/* The ONE transcript list in this app that does NOT read a started
+                submission under the submission that started it.
+                `ModerationQueue` offers no way to nest a row, and every way of
+                forcing one from here makes the queue worse to work in: the
+                revealed rows truncate their own titles inside the row they hang
+                under, and this row's approve and reject drift away from the
+                title they decide. On a surface where a person makes an
+                irreversible decision per row, that is worse than a flat list.
+                The rows carry `parent_session_id` already, so whoever draws the
+                grouping has what it needs; the review page that replaces this
+                queue shows it in a tree that folds natively. See
+                peasant-labs/fairtrade-design-system#75 for the affordance this
+                component is missing. */}
             <ModerationQueue
               title="pending review"
-              items={pendingFold.rootItems.map((ps) =>
-                pendingQueueItem(ps, pendingChildrenByParentID.get(ps.transcript_id) ?? []),
-              )}
+              items={pendingSharesList.map((ps) => ({
+                id: ps.transcript_id,
+                kind: "share" as const,
+                who: ps.title || "Untitled",
+                detail: (
+                  <span className="inline-flex items-center gap-1.5">
+                    by @
+                    {ps.owner_is_discoverable === false && !isOwner
+                      ? "anon"
+                      : ps.owner_username}
+                    {" · "}
+                    <Link
+                      href={`/transcripts/${ps.transcript_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-0.5 text-ink-4 hover:text-ink transition-colors focus-mono"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Preview transcript"
+                    >
+                      preview <ExternalLink size={10} className="inline-block" />
+                    </Link>
+                  </span>
+                ),
+              }))}
               onApprove={(item: { id: string }) => {
                 reviewShare.mutate({ transcriptId: item.id, status: "approved" });
               }}

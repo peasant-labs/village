@@ -63,6 +63,25 @@ const CHILD_SESSION_SURFACES: readonly ChildSessionSurface[] = [
  * everybody's, which is exactly where a session id from one publisher must be
  * proven unable to capture another publisher's row.
  */
+/**
+ * The surfaces that deliberately do NOT read a started session under the
+ * session that started it.
+ *
+ * A closed set with one member, stated here rather than left as an absence in
+ * the corpus. The review queue's component offers no way to nest a row, and
+ * forcing one made the queue worse to work in: a revealed submission truncated
+ * its own title, and a row's approve and reject drifted away from the title
+ * they decide. Each row there is an irreversible decision, so a flat list is
+ * the better answer until the component can nest a row
+ * (peasant-labs/fairtrade-design-system#75). The review page that replaces this
+ * queue folds natively.
+ *
+ * Being on this list INVERTS the corpus guard below: such a surface must have
+ * no case declaring a group, so a fold arriving there fails here until someone
+ * deliberately removes the surface from this set.
+ */
+const UNFOLDED_SURFACES: readonly ChildSessionSurface[] = ["pending-queue"];
+
 const OWNER_SCOPED_SURFACES: readonly ChildSessionSurface[] = [
   "home",
   "project",
@@ -141,7 +160,7 @@ const requiredCaseNames = [
   "home-shows-the-group-holding-the-newest-session",
   "a-collectives-contributions-read-a-started-session-under-its-starter",
   "a-collective-row-naming-a-session-this-page-omits-keeps-its-row",
-  "a-review-queue-reads-a-started-submission-under-its-starter",
+  "a-review-queue-lists-a-started-submission-beside-its-starter",
   "a-submission-whose-starter-was-not-offered-keeps-its-queue-row",
   "your-contributions-read-a-started-contribution-under-its-starter",
   "a-contribution-whose-starter-is-not-in-this-collective-keeps-its-row",
@@ -403,7 +422,18 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
           `question differently, so each needs its own evidence`,
       );
     }
-    if (!surfacesShowingAGroup.has(surface)) {
+    if (UNFOLDED_SURFACES.includes(surface)) {
+      // The inverse guard. This surface lists every row side by side on
+      // purpose, so a case that expects a group there is either a fold nobody
+      // meant to add or a decision nobody recorded.
+      if (surfacesShowingAGroup.has(surface)) {
+        throw new Error(
+          `child-session-grouping fixtures expect a group on ${surface}, which deliberately does not fold: every row ` +
+            `there keeps its own place because each one is an irreversible decision and the queue cannot nest a row. ` +
+            `If ${surface} should fold now, take it out of UNFOLDED_SURFACES and say why`,
+        );
+      }
+    } else if (!surfacesShowingAGroup.has(surface)) {
       throw new Error(
         `child-session-grouping fixtures cover no case on ${surface} where a session started another: on discovery ` +
           `that is the fold itself, and on every other surface it is the control on the parent's row, so a corpus ` +

@@ -24,8 +24,17 @@
 #   collective-repos    /groups/{id}, the same rows read by repository. Folded
 #                       WITHIN each repository.
 #   pending-queue       /groups/{id} for the owner of a curated collective. The
-#                       revealed submissions are a nested review queue, so each
-#                       keeps its own approve and reject actions.
+#                       ONE surface here that does NOT fold: every submission
+#                       keeps its own queue row. The queue component offers no
+#                       way to nest a row, and forcing one made the queue worse
+#                       to work in -- a revealed submission truncated its own
+#                       title, and a row's approve and reject drifted away from
+#                       the title they decide. On a surface where each row is an
+#                       irreversible decision, that is worse than a flat list.
+#                       The cases below assert the rows stay UNGROUPED, so the
+#                       omission is a state this fixture states out loud rather
+#                       than a silence, and a fold arriving here has to be a
+#                       deliberate edit to these cases.
 #   my-contributions    /groups/{id}, a member's own contributions to it.
 #   contribute          /groups/{id}/contribute, the project > branch > session
 #                       selection tree.
@@ -666,11 +675,12 @@ cases:
     expectedGroups: []
 
   # ── the review queue of a curated collective ──────────────────────────────
-  # A moderator reads a submission that another submission started under the one
-  # that started it. The revealed submissions stay a review queue of their own,
-  # so folding changes WHERE a submission is read and never whether it can be
-  # decided.
-  - name: a-review-queue-reads-a-started-submission-under-its-starter
+  # The rows carry everything a fold needs -- this submission was started by
+  # that one -- and the queue still lists all three side by side. That is the
+  # deliberate outcome, not a gap in the corpus: see the surface note at the top
+  # of this file. A moderator can still reach and decide every submission, which
+  # is the property this surface must never lose.
+  - name: a-review-queue-lists-a-started-submission-beside-its-starter
     surfaces: [pending-queue]
     absentParentCause: none
     rows:
@@ -688,13 +698,10 @@ cases:
         parentSessionID: null
     agentSessions: []
     serverTotal: 3
-    expectedVisibleCount: 2
-    expectedRootRows: [offer-the-refactor, offer-a-second-opinion]
+    expectedVisibleCount: 3
+    expectedRootRows: [offer-the-refactor, offer-the-follow-up, offer-a-second-opinion]
     expectedHomeRows: []
-    expectedGroups:
-      - parent: offer-the-refactor
-        label: "1 child session"
-        children: [offer-the-follow-up]
+    expectedGroups: []
 
   # A person offered one session to this collective and kept the session that
   # started it to themselves. The moderator may not read the starter at all, so

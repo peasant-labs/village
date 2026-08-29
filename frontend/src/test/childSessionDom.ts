@@ -34,10 +34,26 @@ export function chipFor(parentID: string): HTMLElement {
 /** Ids of every control on screen, so a surface can be held to exactly the
  *  controls its case expects and no others -- an EXTRA control is a failure
  *  just as a missing one is. */
-export function chippedParentIDs(): string[] {
-  return [...document.querySelectorAll<HTMLElement>("[data-parent-transcript-id]")]
+export function chippedParentIDs(root: ParentNode = document): string[] {
+  return [...root.querySelectorAll<HTMLElement>("[data-parent-transcript-id]")]
     .map((chip) => chip.getAttribute("data-parent-transcript-id")!)
     .sort();
+}
+
+/**
+ * The list row that links to one transcript.
+ *
+ * A row is found through its own link rather than by position, so an assertion
+ * about a row keeps naming the same row when the order around it changes. The
+ * `listitem` ancestor is what a queue draws its per-row actions into, so this
+ * is the element to scope an action lookup to.
+ */
+export function rowFor(root: ParentNode, transcriptID: string): HTMLElement {
+  const link = root.querySelector<HTMLAnchorElement>(`a[href^="/transcripts/${transcriptID}"]`);
+  if (link == null) throw new Error(`no row links to ${transcriptID}`);
+  const row = link.closest("li") ?? link.parentElement;
+  if (row == null) throw new Error(`the row linking to ${transcriptID} has no element to scope to`);
+  return row as HTMLElement;
 }
 
 /** Lets React Query settle its fetches and re-renders. */

@@ -19,6 +19,7 @@ import {
   expandDisclosure,
   flush,
   linkedIDs,
+  rowFor,
 } from "@/test/childSessionDom";
 import {
   loadChildSessionGroupingFixtures,
@@ -431,40 +432,66 @@ async function renderCuratedQueue(
   return requests;
 }
 
-describe("a review queue reads a started submission under the submission that started it", () => {
+/**
+ * The review queue is the ONE list here that does not read a started submission
+ * under the submission that started it.
+ *
+ * That is a decision, not an oversight, so it is asserted rather than left as
+ * an absence of assertions. The queue component cannot nest a row, and forcing
+ * one made the queue worse to work in: a revealed submission truncated its own
+ * title, and a row's approve and reject drifted away from the title they
+ * decide. Every row here is an irreversible decision, so a flat list is the
+ * better answer until the component gains the affordance
+ * (peasant-labs/fairtrade-design-system#75); the review page that replaces this
+ * queue folds natively.
+ *
+ * What must hold is the property the fold could have taken away: every
+ * submission is listed, and every one can still be decided.
+ */
+describe("a review queue lists every submission side by side, each still decidable", () => {
   for (const testCase of casesFor("pending-queue")) {
     it(testCase.name, async () => {
       await renderCuratedQueue(testCase);
-      await assertDisclosures(testCase, reviewQueue(), testCase.expectedRootRows, linkedIDs);
+
+      // Every row, in server order -- including the ones another submission
+      // started. A build that folded them would list fewer.
+      expect(
+        linkedIDs(reviewQueue()),
+        `${testCase.name}: the submissions on screen, in order`,
+      ).toEqual(testCase.rows.map((row) => row.name));
+
+      // And no collapsed control anywhere on the queue. Asserted positively so
+      // a fold arriving here fails, rather than passing unnoticed because
+      // nothing looked for one.
+      expect(
+        chippedParentIDs(reviewQueue()),
+        `${testCase.name}: the review queue draws no collapsed control`,
+      ).toEqual([]);
     });
   }
 
-  it("keeps a revealed submission's own approve and reject actions, and sends its decision", async () => {
+  it("gives every submission its own approve and reject, and sends the decision for the row clicked", async () => {
     const testCase = fixtures.cases.find(
-      (c) => c.name === "a-review-queue-reads-a-started-submission-under-its-starter",
+      (c) => c.name === "a-review-queue-lists-a-started-submission-beside-its-starter",
     )!;
     const requests = await renderCuratedQueue(testCase);
 
-    const group = testCase.expectedGroups[0];
-    const { chip, toggle } = disclosureFor(group.parent);
-    const revealed = await expandDisclosure(toggle, chip);
-
-    const childID = group.children[0];
-    expect(linkedIDs(revealed), "the revealed submission").toEqual([childID]);
-
-    // Folding changes WHERE a submission is read and never whether a moderator
-    // can decide it: a submission that lost its actions on the way into a group
-    // could never be cleared from the queue.
-    const reject = within(revealed).getByRole("button", { name: /reject/i });
-    expect(reject, `${childID} keeps its reject action`).toBeTruthy();
-    const approve = within(revealed).getByRole("button", { name: /approve/i });
+    // The started submission, the one a fold would have moved. It is reachable
+    // where it is, and carries both decisions.
+    const startedID = testCase.rows.find((row) => row.parentSessionID !== null)!.name;
+    const row = rowFor(reviewQueue(), startedID);
+    expect(
+      within(row).getByRole("button", { name: /reject/i }),
+      `${startedID} keeps its reject action`,
+    ).toBeTruthy();
+    const approve = within(row).getByRole("button", { name: /approve/i });
 
     await act(async () => {
       await userEvent.click(approve);
     });
     await flush();
 
-    // The decision must name the CHILD, not the submission it was folded under.
+    // The decision must name the row that was clicked, never its starter.
     const decisions = requests.filter((request) => request.method === "PATCH");
     expect(
       decisions.map((request) => ({
@@ -474,7 +501,7 @@ describe("a review queue reads a started submission under the submission that st
       "the decision a moderator's click sent",
     ).toEqual([
       {
-        path: `/api/v1/groups/${GROUP_ID}/shares/${childID}`,
+        path: `/api/v1/groups/${GROUP_ID}/shares/${startedID}`,
         body: { status: "approved" },
       },
     ]);
