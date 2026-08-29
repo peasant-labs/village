@@ -24,6 +24,10 @@ export type OrchestrationExpect = {
   status?: string;
   refetchCalled?: boolean;
   visibleLoading?: boolean;
+  /** The retry control's exact accessible name at this step. */
+  retryLabel?: string;
+  /** Whether the retry reports itself busy and refuses further presses. */
+  retryBusy?: boolean;
 };
 
 export type OrchestrationStep = {
@@ -31,6 +35,12 @@ export type OrchestrationStep = {
   query: OrchestrationQuery;
   expect: OrchestrationExpect;
   setFiltersPage?: number;
+  /**
+   * Change the SEARCH TEXT while keeping the page, so the request key changes
+   * but the failure message does not. That pair is what tells a remembered
+   * failure keyed on its request from one keyed on its text.
+   */
+  setFiltersQuery?: string;
   action?: "clickRetry";
 };
 
@@ -48,6 +58,7 @@ const requiredScenarioNames = [
   "trust-boundary-error-without-prior-data-shows-error",
   "persistent-live-status-across-branches",
   "initial-load-error-shows-error-surface",
+  "a-new-key-does-not-inherit-the-previous-key-failure",
 ] as const;
 
 const rendersValues: readonly OrchestrationRenders[] = ["explore", "errorSurface", "skeleton"];
@@ -130,7 +141,7 @@ export function loadSessionPageOrchestrationFixtures(): SessionPageOrchestration
     const steps: OrchestrationStep[] = rawScenario.steps.map((rawStep, stepIndex) => {
       const location = `scenario ${name} step[${stepIndex}]`;
       if (!isPlainObject(rawStep)) throw new Error(`${location} must be an object`);
-      assertKeys(rawStep, ["name", "query", "expect"], ["setFiltersPage", "action"], location);
+      assertKeys(rawStep, ["name", "query", "expect"], ["setFiltersPage", "setFiltersQuery", "action"], location);
       const stepName = assertString(rawStep.name, `${location}.name`);
 
       const rawQuery = rawStep.query;
@@ -153,7 +164,7 @@ export function loadSessionPageOrchestrationFixtures(): SessionPageOrchestration
       assertKeys(
         rawExpect,
         ["renders", "alert"],
-        ["displayedPage", "ariaBusy", "status", "refetchCalled", "visibleLoading"],
+        ["displayedPage", "ariaBusy", "status", "refetchCalled", "visibleLoading", "retryLabel", "retryBusy"],
         `${location}.expect`,
       );
       const renders = assertString(rawExpect.renders, `${location}.expect.renders`) as OrchestrationRenders;
@@ -176,6 +187,16 @@ export function loadSessionPageOrchestrationFixtures(): SessionPageOrchestration
       if ("refetchCalled" in rawExpect) {
         expectation.refetchCalled = assertBoolean(rawExpect.refetchCalled, `${location}.expect.refetchCalled`);
       }
+      if ("retryLabel" in rawExpect) {
+        const raw = rawExpect.retryLabel;
+        if (typeof raw !== "string") {
+          throw new Error(`${location}.expect.retryLabel must be a string`);
+        }
+        expectation.retryLabel = raw;
+      }
+      if ("retryBusy" in rawExpect) {
+        expectation.retryBusy = assertBoolean(rawExpect.retryBusy, `${location}.expect.retryBusy`);
+      }
       if ("visibleLoading" in rawExpect) {
         expectation.visibleLoading = assertBoolean(rawExpect.visibleLoading, `${location}.expect.visibleLoading`);
       }
@@ -195,6 +216,19 @@ export function loadSessionPageOrchestrationFixtures(): SessionPageOrchestration
       }
 
       const step: OrchestrationStep = { name: stepName, query, expect: expectation };
+      if ("setFiltersPage" in rawStep && "setFiltersQuery" in rawStep) {
+        throw new Error(
+          `${location}: a step changes either the page or the search text, not both; changing ` +
+            `both cannot tell a request-keyed memory from a text-keyed one`,
+        );
+      }
+      if ("setFiltersQuery" in rawStep) {
+        const raw = rawStep.setFiltersQuery;
+        if (typeof raw !== "string") {
+          throw new Error(`${location}.setFiltersQuery must be a string`);
+        }
+        step.setFiltersQuery = raw;
+      }
       if ("setFiltersPage" in rawStep) {
         step.setFiltersPage = assertInteger(rawStep.setFiltersPage, `${location}.setFiltersPage`);
       }

@@ -174,3 +174,28 @@ profileLinkCases:
     projectHash: "4444444444444444444444444444444444444444444444444444444444444444"
     projectDisplayName: "second project"
     expectedHref: "/users/a%20b/projects/4444444444444444444444444444444444444444444444444444444444444444"
+
+# Every link labelled for the commons, on both routes, in both the ordinary and
+# the not-found state. The root of the app now serves the signed-in person their
+# own home page, so a link that SAYS commons must not lead there. Each case
+# names every such link the state renders, so a second one added later without a
+# destination is caught rather than skipped.
+commonsCrumbCases:
+  - name: the-profile-route-breadcrumb-leads-to-the-commons
+    route: profile
+    state: found
+    expectedLabels: [Commons]
+  - name: a-profile-that-does-not-exist-still-offers-the-way-back
+    route: profile
+    state: missing
+    expectedLabels: [Commons, Back to Commons]
+  - name: the-project-route-breadcrumb-leads-to-the-commons
+    route: project
+    state: found
+    expectedLabels: [Commons]
+  - name: a-project-that-does-not-exist-still-offers-the-way-back
+    route: project
+    state: missing
+    # This state keeps its breadcrumb AND adds an explicit way back, so both
+    # have to lead to the same place.
+    expectedLabels: [Commons, back to commons]

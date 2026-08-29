@@ -78,16 +78,29 @@ function assertTranscriptListResponseMatchesRequest(
 }
 
 /**
- * Discovery list query for the `/` Explore surface.
+ * The transcript list query, shared by discovery at `/explore` and by the
+ * owner-scoped list the signed-in home page and the profile page read.
  *
  * `params` already carries every server-affecting value (page, limit, sort,
- * search, provider, tags — see {@link buildTranscriptListParams}), so the whole
- * record is the query key: distinct page/filter intents never collide on one
- * cache entry. The fetch receives TanStack's per-request {@link AbortSignal} so a
- * superseded page request is cancelled instead of racing to commit. Previous
- * confirmed rows are retained via `placeholderData` while a new page loads.
+ * search, provider, tags, owner — see {@link buildTranscriptListParams}), so the
+ * whole record is the query key: distinct page/filter intents never collide on
+ * one cache entry. The fetch receives TanStack's per-request {@link AbortSignal}
+ * so a superseded page request is cancelled instead of racing to commit.
+ * Previous confirmed rows are retained via `placeholderData` while a new page
+ * loads, and are retained on a failed refetch OF THE SAME KEY, so a caller that
+ * renders a failure must decide whether it still holds rows worth keeping on
+ * screen. A first fetch of a NEW key that fails retains nothing, which is why a
+ * caller that changes page or filter still needs its no-rows failure surface.
+ *
+ * @param options.enabled withhold the request until the caller's parameters are
+ *   real. A filter value that is not yet known is dropped by the list handler
+ *   rather than narrowing anything, so an unconditional request would answer a
+ *   narrow question with the whole commons.
  */
-export function useTranscripts(params?: Record<string, string>) {
+export function useTranscripts(
+  params?: Record<string, string>,
+  options?: { enabled?: boolean },
+) {
   const searchParams = new URLSearchParams(params);
   return useQuery({
     queryKey: ["transcripts", params],
@@ -100,6 +113,7 @@ export function useTranscripts(params?: Record<string, string>) {
       return response;
     },
     placeholderData: (previousData) => previousData,
+    enabled: options?.enabled ?? true,
   });
 }
 

@@ -1,0 +1,463 @@
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import {
+  installHomeRouteREST,
+  installHomeRouteTeardown,
+  renderAppRoute,
+} from "@/test/mountedHomeRoute";
+import { loadHomePageFixtures } from "@/test/homePageFixtures";
+import { mostRecentFirst } from "@/app/HomePage";
+import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import type { TranscriptListItem } from "@/lib/types";
+
+// Mounts the REAL production routes: the root route (`/`), which serves the
+// signed-in person's home page or the public discovery list depending on who
+// is asking, and the explore route (`/explore`). Every assertion is on what
+// lands in the DOM and on the requests the routes actually issue, so a
+// regression cannot hide behind a prop snapshot.
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+const fixtures = loadHomePageFixtures();
+
+installHomeRouteTeardown();
+
+function homeSurface(): Element | null {
+  return document.querySelector('[data-testid="home-page"]');
+}
+
+function exploreSurface(): Element | null {
+  return document.querySelector('[data-testid="session-list-results"]');
+}
+
+function homeErrorSurface(): Element | null {
+  return document.querySelector('[data-testid="home-page-error"]');
+}
+
+/** Every owner the recorded requests asked about, in order. */
+function requestedOwners(requested: string[]): string[] {
+  return requested
+    .filter((p) => p.includes("owner="))
+    .map((p) => new URLSearchParams(p.slice(p.indexOf("?") + 1)).get("owner") ?? "");
+}
+
+function noHandleSurface(): Element | null {
+  return document.querySelector('[data-testid="home-page-no-handle"]');
+}
+
+function skeletonSurface(): Element | null {
+  // The pending shell carries no testid of its own; it is the only shimmer the
+  // route renders once the session is known.
+  return document.querySelector(".animate-shimmer");
+}
+
+/** The endpoint the failure message must name, as the page names it. */
+const LIST_ENDPOINT = "/api/v1/transcripts";
+
+async function settled(): Promise<void> {
+  await waitFor(() =>
+    expect(document.querySelector('[data-testid="root-route-pending"]')).toBeNull(),
+  );
+  await waitFor(() =>
+    expect(
+      homeSurface() ?? exploreSurface() ?? homeErrorSurface() ?? noHandleSurface(),
+    ).not.toBeNull(),
+  );
+}
+
+describe("mounted routes: which surface each visitor lands on", () => {
+  for (const c of fixtures.routeCases) {
+    it(c.name, async () => {
+      installHomeRouteREST({ viewerUsername: c.viewerUsername, transcripts: [] });
+      await renderAppRoute(c.path);
+      await settled();
+
+      expect(homeSurface() !== null).toBe(c.expectSurface === "home");
+      expect(exploreSurface() !== null).toBe(c.expectSurface === "explore");
+    });
+  }
+
+});
+
+describe("mounted home route: recent sessions, then projects", () => {
+  for (const c of fixtures.homeCases) {
+    it(c.name, async () => {
+      const backend = installHomeRouteREST({
+        viewerUsername: c.viewerUsername,
+        transcripts: c.transcripts,
+        ownerRequestFailure: c.requestFailure,
+        usernameChosen: c.usernameChosen,
+      });
+      await renderAppRoute("/");
+
+      const requested = backend.requested;
+      const ownerRequests = () => requested.filter((p) => p.includes("owner="));
+
+      // Without a handle the page must ask NOTHING. A blank owner filter is
+      // dropped by the list handler, so the request would answer a narrow
+      // question with the whole commons, under a heading that says "your".
+      if (c.expectHomeSurface === "skeleton" || c.expectHomeSurface === "no-handle") {
+        if (c.expectHomeSurface === "no-handle") {
+          await waitFor(() => expect(noHandleSurface()).not.toBeNull());
+          const alert = noHandleSurface()!.querySelector('[role="alert"]');
+          expect(alert).not.toBeNull();
+          expect(alert!.textContent).toContain("your account has no handle");
+        } else {
+          // Still on its way to the handle step: the page holds still, and in
+          // particular does not fall through to any terminal answer.
+          await waitFor(() => expect(skeletonSurface()).not.toBeNull());
+          expect(noHandleSurface()).toBeNull();
+        }
+        expect(homeSurface()).toBeNull();
+        expect(homeErrorSurface()).toBeNull();
+        expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
+        expect(requested.filter((p) => p.startsWith("/transcripts"))).toEqual([]);
+        return;
+      }
+
+      await settled();
+
+      // A request that FAILED is not an empty library. The page owes the
+      // person a surface that says so and a way to ask again; the teaching
+      // empty state and its "publish your first transcript" invitation would
+      // tell somebody with a full shelf that it is bare.
+      if (c.expectHomeSurface === "failure") {
+        const failure = homeErrorSurface();
+        expect(failure).not.toBeNull();
+        expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
+        expect(homeSurface()).toBeNull();
+        const alert = failure!.querySelector('[role="alert"]');
+        expect(alert).not.toBeNull();
+        // The whole message, not merely its heading. The sentence that says a
+        // failure is not an emptiness IS the fix; a body that regressed to
+        // nothing would otherwise pass.
+        const text = (alert!.textContent ?? "").replace(/\s+/g, " ");
+        expect(text).toContain("Failed to load your sessions");
+        expect(text).toContain(LIST_ENDPOINT);
+        expect(text).toContain("A failed request is not an empty library");
+        expect(text).toContain("nothing has been deleted");
+        // The server's own reported cause reaches the reader, rather than a
+        // fixed string that would read identically for every failure.
+        expect(text).toContain("the session list is unavailable");
+
+        // Retry must re-issue the SAME owner-scoped request, not merely
+        // re-render: a button that only cleared the panel would leave the
+        // person on a page that can never recover.
+        const before = ownerRequests().length;
+        expect(before).toBeGreaterThan(0);
+        const retry = screen.getByRole("button", { name: /retry/i });
+
+        // The panel must SURVIVE its own retry. With no rows to fall back on
+        // the query returns to its pending state mid-flight, so a page reading
+        // the error flag directly would swap this whole surface for a loading
+        // skeleton the moment the button was pressed, taking the alert, the
+        // focus and the retry with it.
+        backend.hold();
+        retry.focus();
+        await act(async () => {
+          fireEvent.click(retry);
+        });
+        const busyPanel = await waitFor(() => {
+          const b = screen.getByRole("button", { name: /retry/i });
+          expect(b.getAttribute("aria-disabled")).toBe("true");
+          return b;
+        });
+        expect(busyPanel.textContent, "panel retry: busy label").toContain("retrying");
+        expect(homeErrorSurface(), "panel survives its own retry").not.toBeNull();
+        expect(document.querySelector(".animate-shimmer")).toBeNull();
+        // A real `disabled` would hand focus back to the document, and jsdom
+        // does NOT model that blur, so asserting the attribute's absence is
+        // what actually holds the line; activeElement only says the node was
+        // neither unmounted nor replaced.
+        expect(busyPanel.hasAttribute("disabled"), "panel retry: not truly disabled").toBe(
+          false,
+        );
+        expect(document.activeElement, "panel retry: node kept").toBe(busyPanel);
+        // Busy means the press is REFUSED, not merely announced: a control that
+        // only looked busy would stack a request on every press.
+        const whileBusyPanel = ownerRequests().length;
+        await act(async () => {
+          fireEvent.click(busyPanel);
+        });
+        expect(ownerRequests().length, "panel retry: press refused while busy").toBe(
+          whileBusyPanel,
+        );
+        expect(document.querySelector('[data-testid="home-status"]')?.textContent).toContain(
+          "reloading your sessions",
+        );
+        await act(async () => {
+          backend.release();
+        });
+        await waitFor(() => expect(ownerRequests().length).toBeGreaterThan(before));
+
+        // Still failing, so the surface stays; and it recovers when the server
+        // does, rather than being a panel a person can never leave.
+        await waitFor(() => expect(homeErrorSurface()).not.toBeNull());
+        backend.heal();
+        await act(async () => {
+          fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+        });
+        await waitFor(() => expect(homeErrorSurface()).toBeNull());
+        expect(homeSurface()).not.toBeNull();
+        return;
+      }
+
+      const home = homeSurface();
+      expect(home).not.toBeNull();
+      expect(homeErrorSurface()).toBeNull();
+
+      // A refresh that fails AFTER rows arrived must keep them. Replacing a
+      // person's whole library with an error panel because a later request
+      // failed is the same lie as calling it empty, one shape over.
+      if (c.expectHomeSurface === "stale") {
+        const answered = ownerRequests().length;
+        // TanStack's focus manager really does listen for this event, so the
+        // refetch is triggered the way the browser triggers it rather than by
+        // reaching into the cache. What makes it fire IMMEDIATELY here is this
+        // harness's own `staleTime: 0`; in the app a refresh within the stale
+        // window is skipped, and arrives on the next focus after it. The
+        // separate check below is what holds the production side of that: the
+        // app must not have turned focus refetching off.
+        await act(async () => {
+          document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+        });
+        await waitFor(() => expect(ownerRequests().length).toBeGreaterThan(answered));
+        const notice = await waitFor(() => {
+          const found = document.querySelector('[data-testid="home-stale-notice"]');
+          expect(found).not.toBeNull();
+          return found!;
+        });
+        // The SENTENCE is the alert, not the whole notice: the control's label
+        // changes while a retry runs, and an atomic alert would re-announce
+        // everything on that change.
+        const noticeAlert = notice.querySelector('[role="alert"]');
+        expect(noticeAlert).not.toBeNull();
+        expect(noticeAlert!.querySelector("button")).toBeNull();
+        expect(notice.textContent).toContain("could not be refreshed");
+        expect(notice.textContent).toContain("the session list is unavailable");
+        // The rows the server did confirm are still on screen, and the failure
+        // panel did not take the page.
+        expect(homeSurface()).not.toBeNull();
+        expect(homeErrorSurface()).toBeNull();
+        expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
+        const stillListed = [
+          ...document.querySelectorAll('[data-testid="home-recent-sessions"] a[aria-label]'),
+        ].map((a) => (a.getAttribute("aria-label") ?? "").replace(/^Open transcript /, ""));
+        expect(stillListed).toEqual(c.expectRecentTitles);
+
+        // The notice's OWN retry is a second control, and the only way back
+        // from a failed refresh. A dead handler here would leave a person
+        // pressing a button that never asks again.
+        const noticeRetry = document.querySelector<HTMLButtonElement>(
+          '[data-testid="home-stale-retry"]',
+        );
+        expect(noticeRetry).not.toBeNull();
+        const beforeNoticeRetry = ownerRequests().length;
+        await act(async () => {
+          fireEvent.click(noticeRetry!);
+        });
+        await waitFor(() =>
+          expect(ownerRequests().length).toBeGreaterThan(beforeNoticeRetry),
+        );
+
+        // While a retry is in flight the control says so and refuses further
+        // presses. A retry that fails again renders the SAME words, so without
+        // this a person cannot tell a working button from a dead one.
+        backend.hold();
+        const pressed = document.querySelector<HTMLButtonElement>(
+          '[data-testid="home-stale-retry"]',
+        )!;
+        // Activated the way a keyboard user activates it, so the assertion
+        // below is about keeping focus rather than about never having it.
+        pressed.focus();
+        expect(document.activeElement).toBe(pressed);
+        await act(async () => {
+          fireEvent.click(pressed);
+        });
+        const busy = await waitFor(() => {
+          const b = document.querySelector<HTMLButtonElement>(
+            '[data-testid="home-stale-retry"]',
+          )!;
+          // `aria-disabled`, not `disabled`: a real disabled attribute on the
+          // control the reader just pressed hands focus back to the document.
+          expect(b.getAttribute("aria-disabled")).toBe("true");
+          expect(b.hasAttribute("disabled"), "notice retry: not truly disabled").toBe(false);
+          return b;
+        });
+        expect(busy.textContent).toContain("retrying");
+        // Focus survived the state change. A real `disabled` here would have
+        // handed it back to the document body and not returned it.
+        expect(document.activeElement).toBe(busy);
+        // And it refuses the press rather than stacking requests.
+        const whileBusy = ownerRequests().length;
+        await act(async () => {
+          fireEvent.click(busy);
+        });
+        expect(ownerRequests().length).toBe(whileBusy);
+        expect(document.querySelector('[data-testid="home-status"]')?.textContent).toContain(
+          "reloading your sessions",
+        );
+        await act(async () => {
+          backend.release();
+        });
+        await waitFor(() =>
+          expect(
+            document
+              .querySelector('[data-testid="home-stale-retry"]')
+              ?.getAttribute("aria-disabled"),
+          ).toBeNull(),
+        );
+
+        // And it recovers: once the server answers again the notice goes, and
+        // the rows are the refreshed ones rather than a permanent warning.
+        backend.heal();
+        await act(async () => {
+          fireEvent.click(
+            document.querySelector<HTMLButtonElement>('[data-testid="home-stale-retry"]')!,
+          );
+        });
+        await waitFor(() =>
+          expect(document.querySelector('[data-testid="home-stale-notice"]')).toBeNull(),
+        );
+        expect(homeSurface()).not.toBeNull();
+        expect(homeErrorSurface()).toBeNull();
+      }
+
+      // The page reads the viewer's OWN transcripts. A request without the
+      // owner filter would list the whole commons on a page titled "your".
+      const listRequests = requested.filter((p) => p.startsWith("/transcripts"));
+      expect(listRequests.length).toBeGreaterThan(0);
+      for (const p of listRequests) {
+        const query = new URLSearchParams(p.slice(p.indexOf("?") + 1));
+        expect(query.get("owner")).toBe(c.viewerUsername);
+      }
+
+      // A row that arrived with no project identity is a server contract
+      // violation. It is reported and left out of the project list; it is never
+      // dropped from the page, and never folded into an invented project.
+      const notice = document.querySelector('[data-testid="home-malformed-notice"]');
+      expect(notice !== null).toBe(c.malformedCount > 0);
+      if (c.malformedCount > 0) {
+        const text = (notice!.textContent ?? "").replace(/\s+/g, " ");
+        expect(text).toContain(
+          `${c.malformedCount} transcript${c.malformedCount !== 1 ? "s" : ""} could not be grouped by project`,
+        );
+        expect(notice!.getAttribute("role")).toBe("alert");
+      }
+
+      const empty = document.querySelector('[data-testid="home-empty-state"]');
+      expect(empty !== null).toBe(c.expectHomeSurface === "empty");
+
+      const recentSection = document.querySelector('[data-testid="home-recent-sessions"]');
+      if (c.expectHomeSurface === "empty") {
+        expect(recentSection).toBeNull();
+        expect(document.querySelector('[data-testid="home-projects"]')).toBeNull();
+        return;
+      }
+
+      const recentTitles = [...recentSection!.querySelectorAll("a[aria-label]")].map((a) =>
+        (a.getAttribute("aria-label") ?? "").replace(/^Open transcript /, ""),
+      );
+      expect(recentTitles).toEqual(c.expectRecentTitles);
+
+      const rows = [...document.querySelectorAll('[data-testid="home-project-row"]')];
+      expect(rows.map((r) => r.getAttribute("href"))).toEqual(
+        c.expectProjectRows.map((r) => r.href),
+      );
+      expect(
+        rows.map((r) => [...r.children].map((child) => (child.textContent ?? "").trim())),
+      ).toEqual(
+        c.expectProjectRows.map((r) => [
+          r.displayName,
+          `${r.sessionCount} session${r.sessionCount !== 1 ? "s" : ""}`,
+        ]),
+      );
+
+      // Recent sessions come FIRST. Order is part of the acceptance, and a
+      // page that rendered both sections in the other order would otherwise
+      // satisfy every assertion above.
+      const sections = [...home!.querySelectorAll("[data-testid]")]
+        .map((e) => e.getAttribute("data-testid"))
+        .filter((id) => id === "home-recent-sessions" || id === "home-projects");
+      expect(sections).toEqual(["home-recent-sessions", "home-projects"]);
+    });
+  }
+});
+
+describe("recent-first ordering, including timestamps the server should never send", () => {
+  for (const c of fixtures.sortCases) {
+    it(c.name, () => {
+      // Built through the shared wire-row builder, so the sort is exercised on
+      // the same shape the page receives rather than on a hand-made stub.
+      const rows = c.given.map((row) => ({
+        transcript: makeTranscriptFixture({
+          id: row.id,
+          local_id: row.id,
+          published_at: row.publishedAt,
+        }),
+        tags: [],
+        owner: null,
+      })) as unknown as TranscriptListItem[];
+
+      expect(mostRecentFirst(rows).map((r) => r.transcript.id)).toEqual(c.expectOrder);
+      // The sort does not mutate what it was given: the page groups the SAME
+      // array afterwards, and a sort in place would reorder that too.
+      expect(rows.map((r) => r.transcript.id)).toEqual(c.given.map((r) => r.id));
+    });
+  }
+});
+
+describe("mounted home route: a failure belongs to the handle it came from", () => {
+  for (const c of fixtures.viewerChangeCases) {
+    it(c.name, async () => {
+      const backend = installHomeRouteREST({
+        viewerUsername: c.firstViewer,
+        transcripts: [],
+        ownerRequestFailure: "always",
+      });
+      await renderAppRoute("/");
+      await settled();
+      expect(homeErrorSurface(), "the first person's list failed").not.toBeNull();
+
+      // The handle changes while the page stays mounted: the session query is
+      // an ordinary query with focus refetching left on. The next person's list
+      // request has no rows of its own, so the memory's clear condition cannot
+      // fire, and only the owner-keyed read stops them being shown a failure
+      // that belongs to somebody else's library.
+      backend.setViewer(c.secondViewer);
+      backend.hold();
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+      });
+      await waitFor(() =>
+        expect(
+          requestedOwners(backend.requested),
+          "the new handle's own list was requested",
+        ).toContain(c.secondViewer),
+      );
+
+      expect(
+        homeErrorSurface(),
+        "the previous handle's failure must not describe this one's first load",
+      ).toBeNull();
+      expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
+
+      // And when the new handle's own request fails with the SAME words, that
+      // failure is its own and must be announced. A memory that recorded on the
+      // message alone would keep the previous handle on the record, the keyed
+      // read would miss, and this person would be told their library is empty.
+      await act(async () => {
+        backend.release();
+      });
+      await waitFor(() =>
+        expect(
+          homeErrorSurface(),
+          "the new handle's own failure must be announced, not swallowed",
+        ).not.toBeNull(),
+      );
+      expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
+    });
+  }
+});

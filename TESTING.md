@@ -316,6 +316,114 @@ column) layout and that connector are proven by
 `frontend/scripts/visual/probe-contribute-narrow.mjs` plus the
 `manage-contribute` captures, not in jsdom, because both are computed geometry.
 
+### The home page and the explore route: one frontend fixture for both
+
+`frontend/src/testdata/home-page.yaml` +
+`frontend/src/test/homePageFixtures.ts` hold every case for the two routes the
+root of the app resolves to: the signed-in person's home page at `/`, and the
+public discovery list, which now also has its own address at `/explore`. The
+file carries four groups. `routeCases` pin WHICH surface each (path, visitor)
+pair lands on, and are consumed by `frontend/src/homePage.test.tsx`, which
+mounts the REAL routes inside the real `AuthProvider` with `fetch` stubbed, so
+the session decides the answer rather than a stubbed hook. `homeCases` pin what
+the home surface renders for a given owner-scoped transcript list - the recent
+sessions in order, the project rows, their session counts and their hash-keyed
+links - and are consumed by the same file. `sortCases` pin the exported
+recent-first sort on its own, including timestamps that do not parse, which the
+mounted corpus rejects by design and so cannot reach. `viewerChangeCases` pin
+that a remembered failure belongs to the handle it came from: the session query
+refetches on focus, so the handle can change while the page stays mounted, and
+at that moment the next person's list has no rows of its own, so the memory's
+clear condition cannot fire. Only the owner-keyed read stops the previous
+person's failure being shown over a request that has not failed - and when the
+new handle's own request fails with the same words, that failure is its own and
+must still be announced. `navCases` pin which
+top-nav entry is offered and which one is marked active, and are consumed by
+`frontend/src/lib/nav/sections.test.ts`.
+
+The loader guards deletion with required-NAME lists, never a row count, and it
+derives every consistency rule from the fixture's OWN data rather than from the
+page's constants: the expected recent order is the case's own rows sorted by
+their own timestamps, and the corpus is rejected unless at least one case
+supplies more sessions than its recent list shows (so dropping the cap fails)
+and at least one supplies its rows in an order that is not already
+most-recent-first (so never sorting fails).
+
+Three `homeCases` fields describe the REQUEST rather than the rows, and each is
+written on every case so none is silently read as the happy path.
+`usernameChosen` says whether the account claims a chosen handle;
+`requestFailure` is `never`, `always`, or `after-first-answer`; and
+`expectHomeSurface` names which of the page's six answers the case must land on
+(`rows`, `empty`, `failure`, `stale`, `skeleton`, `no-handle`).
+
+The loader DERIVES the surface a case's own inputs entail and rejects any case
+whose written expectation disagrees, so a case cannot be edited into agreement
+with a broken page. That derivation mirrors the page's branch order on purpose;
+the mounted assertions are what catch a mismatch between the two.
+
+The corpus is rejected unless a case lands on each of `failure`, `stale`,
+`skeleton` and `no-handle`, and the loader names what each absence would let
+through: a failed request rendered as the teaching empty state (telling a person
+with a full library they have published nothing); a failed REFRESH replacing
+rows the app already holds; a blank owner filter issued while the handle is
+still being chosen (which the list handler drops, so the whole commons arrives
+under a heading that says "your"); and an endless skeleton for an account whose
+chosen handle is blank. `expectHomeSurface: empty` is therefore legal only when
+the case supplies no rows AND its request succeeds AND the handle is known.
+
+The failure case asserts the shared failure panel, the absence of the empty
+state, the whole message (the endpoint, the sentence saying a failure is not an
+emptiness, and the server's own reported cause), and that clicking retry
+re-issues the same owner-scoped request. It then holds the retry open and
+asserts what the surface owes while it runs: the panel survives its own retry
+with no skeleton in its place, the control reads "retrying" and carries
+`aria-disabled` but never a real `disabled` (which would hand focus back to the
+document), focus is kept, the polite region announces, a second press is
+refused rather than stacking a request, and the surface clears once the server
+answers. The discovery route's two failure surfaces carry the same assertions
+through `session-page-orchestration.yaml`'s `retryLabel` / `retryBusy` fields,
+and `a-new-key-does-not-inherit-the-previous-key-failure` holds the same
+request-keyed rule there: a first fetch of a new key retains nothing of its own,
+so the clear cannot fire and the keyed read is the only thing stopping a
+previous filter's failure from being announced over a request in flight. A step
+that declares a filter change fails if the rendered surface offers no filter
+control, so such a step can never pass without delivering its change. The stale case drives a real
+`visibilitychange` so TanStack's focus manager refetches, then asserts the rows
+survive, the notice appears, its retry re-issues the request, and the notice
+clears once the server answers again. `frontend/src/providers/queryDefaults.test.tsx`
+holds the production side of that path: the app's own client must not disable
+refetch-on-focus, or the surface could never be reached outside the tests.
+
+The malformed-project notice is shared by the home and profile pages, and both
+call sites are held: `homePage.test.tsx` through the `home-malformed-notice`
+case, and `profileCollectives.test.tsx` through a mounted profile route serving
+rows without a project identity. It is shared BECAUSE the two had drifted (one
+announced the violation, the other did not), so neither call site is left
+uncovered.
+
+`frontend/src/test/transcriptRowFixture.ts` builds one complete `Transcript`
+wire row with every column filled in, so a fixture states only the fields its
+case is about. Both mounted-route harnesses use it; a new wire column is added
+there once.
+
+The mounted captures are `frontend/scripts/visual/mock-rest-home.mjs` (set
+`MOCK_SIGNED_OUT=1` for the signed-out arm) plus
+`frontend/scripts/visual/home-shoot.mjs`, which asserts build provenance - the
+two sections in order and hash-keyed project links - before it writes a PNG.
+Take that capture against the served production build (`pnpm build` then the
+standalone server), never `pnpm dev`, whose overlay bubbles land on the surface
+under review.
+
+`HOME_SHOOT_MODE` selects the arm: `home` (default), `failure`
+(with `MOCK_OWNER_LIST_FAILS=1`), or `no-handle` (with `MOCK_BLANK_HANDLE=1`).
+Each arm refuses to write a PNG from a build that does not render its surface -
+the failure arm requires the panel, the reassurance sentence, a retry, and no
+empty state or rows; the no-handle arm requires a terminated surface with no
+shimmer left. All three assert computed styles through one shared helper, so a
+surface that ships unstyled cannot produce a plausible-looking capture. The two
+sparse arms gate the non-empty check on their PANEL rather than the page, whose
+emptiness is the intended design.
+
 ### Project identity: five fixture families
 
 A project is identified by its hash, never by its name, and five fixtures hold

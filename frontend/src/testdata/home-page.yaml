@@ -1,0 +1,321 @@
+# Case corpus for `src/homePage.test.tsx` — the signed-in home route (`/`) and
+# the explore route (`/explore`).
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/homePageFixtures.ts`. A removed or renamed case fails the loader
+# because its name goes missing from the declared set.
+
+# Which surface each (path, viewer) pair must land on. `/` is the only route
+# whose answer depends on who is asking.
+routeCases:
+  - name: signed-out-visitor-at-the-root-still-gets-explore
+    path: "/"
+    viewerUsername: null
+    expectSurface: explore
+  - name: signed-in-visitor-at-the-root-gets-their-own-home
+    path: "/"
+    viewerUsername: alice-dev
+    expectSurface: home
+  - name: signed-in-visitor-at-explore-gets-explore
+    path: "/explore"
+    viewerUsername: alice-dev
+    expectSurface: explore
+  - name: signed-out-visitor-at-explore-gets-explore
+    path: "/explore"
+    viewerUsername: null
+    expectSurface: explore
+
+# Which top-nav entry is marked active for a given (signed-in, pathname) pair.
+# Discovery's entry moved off "/", so the entry a visitor sees highlighted is
+# the part of the move most likely to regress quietly.
+navCases:
+  - name: signed-in-visitor-at-the-root-highlights-home
+    isLoggedIn: true
+    pathname: "/"
+    expectLabels: [home, explore, collectives, publish, profile]
+    expectActiveLabel: home
+  - name: signed-in-visitor-at-explore-highlights-explore
+    isLoggedIn: true
+    pathname: "/explore"
+    expectLabels: [home, explore, collectives, publish, profile]
+    expectActiveLabel: explore
+  - name: signed-out-visitor-at-the-root-highlights-explore
+    isLoggedIn: false
+    pathname: "/"
+    expectLabels: [explore]
+    expectActiveLabel: explore
+  - name: signed-out-visitor-has-no-home-entry-at-explore
+    isLoggedIn: false
+    pathname: "/explore"
+    expectLabels: [explore]
+    expectActiveLabel: explore
+  - name: a-transcript-page-still-highlights-explore
+    isLoggedIn: true
+    pathname: "/transcripts/abc123"
+    expectLabels: [home, explore, collectives, publish, profile]
+    expectActiveLabel: explore
+
+# What the home surface renders for a given owner-scoped transcript list.
+#
+# Three fields describe the REQUEST rather than the rows, and each is written on
+# every case, never defaulted, so a case can never be silently read as the happy
+# path because a field was forgotten.
+#
+#   usernameChosen     whether the account claims a chosen handle. A blank handle
+#                      on an unchosen account is on its way to `/welcome`; a
+#                      blank handle on a chosen one is a contract violation.
+#   requestFailure     `never`, `always`, or `after-first-answer` (the refresh
+#                      fails once rows have already been confirmed).
+#   expectHomeSurface  which of the page's six answers the case must land on.
+#                      A closed set, so a case cannot invent a seventh.
+#
+# `transcripts` is deliberately NOT written in published order: the page sorts
+# most-recent-first itself rather than trusting the response order, and a
+# corpus already in order could not tell the two apart.
+homeCases:
+  - name: recent-sessions-lead-and-projects-follow
+    viewerUsername: alice-dev
+    transcripts:
+      - id: t-oldest
+        title: first steps
+        projectHash: "1111111111111111111111111111111111111111111111111111111111111111"
+        projectDisplayName: village
+        publishedAt: "2026-08-01T10:00:00.000Z"
+      - id: t-newest
+        title: publish wizard rebuild
+        projectHash: "2222222222222222222222222222222222222222222222222222222222222222"
+        projectDisplayName: peasant
+        publishedAt: "2026-08-20T10:00:00.000Z"
+      - id: t-middle
+        title: license menu
+        projectHash: "1111111111111111111111111111111111111111111111111111111111111111"
+        projectDisplayName: village
+        publishedAt: "2026-08-10T10:00:00.000Z"
+    expectRecentTitles:
+      - publish wizard rebuild
+      - license menu
+      - first steps
+    # Most recently worked first: peasant's newest session is later than
+    # village's, so peasant leads even though village appears first in the
+    # rows above.
+    expectProjectRows:
+      - displayName: peasant
+        sessionCount: 1
+        href: /users/alice-dev/projects/2222222222222222222222222222222222222222222222222222222222222222
+      - displayName: village
+        sessionCount: 2
+        href: /users/alice-dev/projects/1111111111111111111111111111111111111111111111111111111111111111
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+
+  - name: more-sessions-than-the-recent-list-shows-are-capped
+    viewerUsername: alice-dev
+    transcripts:
+      - id: t-1
+        title: session one
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-01T10:00:00.000Z"
+      - id: t-6
+        title: session six
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-06T10:00:00.000Z"
+      - id: t-2
+        title: session two
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-02T10:00:00.000Z"
+      - id: t-5
+        title: session five
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-05T10:00:00.000Z"
+      - id: t-3
+        title: session three
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-03T10:00:00.000Z"
+      - id: t-4
+        title: session four
+        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
+        projectDisplayName: schema
+        publishedAt: "2026-07-04T10:00:00.000Z"
+    expectRecentTitles:
+      - session six
+      - session five
+      - session four
+      - session three
+      - session two
+    expectProjectRows:
+      - displayName: schema
+        sessionCount: 6
+        href: /users/alice-dev/projects/3333333333333333333333333333333333333333333333333333333333333333
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+
+  - name: a-person-with-nothing-published-gets-the-teaching-empty-state
+    viewerUsername: newcomer
+    transcripts: []
+    expectRecentTitles: []
+    expectProjectRows: []
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: empty
+
+  - name: a-username-needing-escaping-still-links-to-its-project
+    viewerUsername: a b
+    transcripts:
+      - id: t-escaped
+        title: only session
+        projectHash: "4444444444444444444444444444444444444444444444444444444444444444"
+        projectDisplayName: Mixed Case Project
+        publishedAt: "2026-08-05T10:00:00.000Z"
+    expectRecentTitles:
+      - only session
+    expectProjectRows:
+      - displayName: Mixed Case Project
+        sessionCount: 1
+        href: /users/a%20b/projects/4444444444444444444444444444444444444444444444444444444444444444
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+
+  - name: a-row-arriving-without-a-project-identity-is-reported-not-dropped
+    viewerUsername: alice-dev
+    transcripts:
+      - id: t-well-formed
+        title: a groupable session
+        projectHash: "5555555555555555555555555555555555555555555555555555555555555555"
+        projectDisplayName: village
+        publishedAt: "2026-08-15T10:00:00Z"
+      - id: t-no-identity
+        title: a session with no project identity
+        projectHash: ""
+        projectDisplayName: village
+        publishedAt: "2026-08-16T10:00:00Z"
+    # Both rows still reach the recent list: only the PROJECT grouping needs an
+    # identity, so a malformed row is never hidden from the person who owns it.
+    expectRecentTitles:
+      - a session with no project identity
+      - a groupable session
+    expectProjectRows:
+      - displayName: village
+        sessionCount: 1
+        href: /users/alice-dev/projects/5555555555555555555555555555555555555555555555555555555555555555
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+
+  - name: a-failed-request-is-not-an-empty-library
+    viewerUsername: alice-dev
+    # The request never answers, so the page has no rows — but the person may
+    # well own hundreds. Telling them they have published nothing, and offering
+    # them a link to publish their first, is the failure this case forbids.
+    transcripts: []
+    usernameChosen: true
+    requestFailure: always
+    expectRecentTitles: []
+    expectProjectRows: []
+    expectHomeSurface: failure
+
+  - name: a-failed-refresh-keeps-the-rows-it-already-had
+    viewerUsername: alice-dev
+    # The first answer arrives and is rendered; a later refresh fails. Replacing
+    # the whole library with an error panel because a LATER request failed is
+    # the same lie as calling it empty, so the rows stay and a notice says they
+    # could not be refreshed.
+    transcripts:
+      - id: t-confirmed
+        title: a confirmed session
+        projectHash: "6666666666666666666666666666666666666666666666666666666666666666"
+        projectDisplayName: village
+        publishedAt: "2026-08-19T10:00:00Z"
+    usernameChosen: true
+    requestFailure: after-first-answer
+    expectRecentTitles:
+      - a confirmed session
+    expectProjectRows:
+      - displayName: village
+        sessionCount: 1
+        href: /users/alice-dev/projects/6666666666666666666666666666666666666666666666666666666666666666
+    expectHomeSurface: stale
+
+  - name: a-handle-still-being-chosen-asks-for-nothing
+    # No handle yet, and the account has not claimed one, so the handle gate is
+    # already on its way to `/welcome`. A request now would carry a blank owner
+    # filter, which the list handler drops: the whole commons would arrive under
+    # a heading that says "your". The page holds still instead.
+    viewerUsername: ""
+    transcripts: []
+    usernameChosen: false
+    requestFailure: never
+    expectRecentTitles: []
+    expectProjectRows: []
+    expectHomeSurface: skeleton
+
+  - name: a-chosen-handle-that-is-blank-says-so
+    # The account claims a chosen handle and carries none, so nothing is coming
+    # to fix it: the redirect that rescues an unchosen handle never fires. The
+    # page cannot ask, and says so rather than shimmering forever.
+    viewerUsername: ""
+    transcripts: []
+    usernameChosen: true
+    requestFailure: never
+    expectRecentTitles: []
+    expectProjectRows: []
+    expectHomeSurface: no-handle
+
+# Ordering cases for the exported sort itself, including timestamps that do NOT
+# parse. The mounted corpus above rejects an unparseable timestamp on purpose (a
+# row that cannot be grouped teaches nothing about grouping), so the branch that
+# keeps a bad value from throwing has no other way to be reached.
+sortCases:
+  - name: newest-first-among-parseable-timestamps
+    given:
+      - id: middle
+        publishedAt: "2026-08-10T10:00:00Z"
+      - id: newest
+        publishedAt: "2026-08-20T10:00:00Z"
+      - id: oldest
+        publishedAt: "2026-08-01T10:00:00Z"
+    expectOrder: [newest, middle, oldest]
+
+  - name: an-unparseable-timestamp-sorts-last-instead-of-throwing
+    given:
+      - id: unparseable
+        publishedAt: "not a timestamp"
+      - id: older
+        publishedAt: "2026-08-01T10:00:00Z"
+      - id: newer
+        publishedAt: "2026-08-20T10:00:00Z"
+    expectOrder: [newer, older, unparseable]
+
+  - name: two-unparseable-timestamps-keep-the-order-they-arrived-in
+    # What this case can and cannot prove: it catches a comparator that returns
+    # a NEGATIVE number for two unparseable values, which would reorder them.
+    # It cannot tell zero from any other non-negative number, and no number of
+    # rows would, because a sort never moves a pair on a non-negative
+    # comparison. The extra row is here so the run is longer than a single
+    # pair, not because length discriminates anything.
+    given:
+      - id: first-bad
+        publishedAt: ""
+      - id: second-bad
+        publishedAt: "also not a timestamp"
+      - id: third-bad
+        publishedAt: "nor is this one"
+    expectOrder: [first-bad, second-bad, third-bad]
+
+# A failure remembered for one person's list must not describe the next one's.
+# The session query is an ordinary query with focus refetching left on, so the
+# handle CAN change while the page stays mounted; at that moment the new list
+# request has no rows of its own, so the memory's clear condition cannot fire
+# and only the owner-keyed read stops the previous person's failure being shown
+# over a request that has not failed.
+viewerChangeCases:
+  - name: a-new-handle-does-not-inherit-the-previous-handle-failure
+    firstViewer: alice-dev
+    secondViewer: beta-dev

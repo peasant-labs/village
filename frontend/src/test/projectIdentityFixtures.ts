@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
-import { assertExactKeys } from "@/test/fixtureAssertions";
+import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 import type { NameSource } from "@/lib/types";
 
 export type ProjectIdentityGroupingItem = {
@@ -107,17 +107,6 @@ const nameSourceDescriptionCaseKeys = ["name", "why", "source", "expectedDescrip
  * than to a hand-count.
  */
 const allNameSources: NameSource[] = ["override", "consented", "remote", "path", "privacy"];
-
-function assertNamesMatch(actual: string[], required: readonly string[], label: string): void {
-  const got = [...actual].sort();
-  const want = [...required].sort();
-  if (JSON.stringify(got) !== JSON.stringify(want)) {
-    throw new Error(`${label} case names differ: got ${got.join(", ")}; want ${want.join(", ")}`);
-  }
-  if (new Set(actual).size !== actual.length) {
-    throw new Error(`${label} fixture case names must be unique`);
-  }
-}
 
 export function loadProjectIdentityFixtures(): ProjectIdentityFixtures {
   const fixturePath = resolve(process.cwd(), "src/testdata/project-identity.yaml");

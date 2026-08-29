@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
-import { assertExactKeys } from "@/test/fixtureAssertions";
+import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 import { shareEventLabel, submissionPairChip } from "@/lib/shareEvents";
 import type { ShareEventActor, ShareEventStatus } from "@/lib/types";
 
@@ -183,17 +183,6 @@ const STATUSES: readonly ShareEventStatus[] = [
   "revoked",
 ];
 const ACTORS: readonly ShareEventActor[] = ["", "owner", "collective", "moderator"];
-
-function assertNamesMatch(actual: string[], required: readonly string[], label: string): void {
-  const got = [...actual].sort();
-  const want = [...required].sort();
-  if (JSON.stringify(got) !== JSON.stringify(want)) {
-    throw new Error(`${label} case names differ: got ${got.join(", ")}; want ${want.join(", ")}`);
-  }
-  if (new Set(actual).size !== actual.length) {
-    throw new Error(`${label} fixture case names must be unique`);
-  }
-}
 
 export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
   const fixturePath = resolve(process.cwd(), "src/testdata/profile-collectives.yaml");

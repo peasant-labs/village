@@ -164,10 +164,8 @@ export function groupByProject<
 
   // Sort transcripts within each group by published_at desc
   for (const group of groups.values()) {
-    group.items.sort(
-      (a, b) =>
-        new Date(b.transcript.published_at).getTime() -
-        new Date(a.transcript.published_at).getTime()
+    group.items.sort((a, b) =>
+      publishedAtDescending(a.transcript.published_at, b.transcript.published_at)
     );
   }
 
@@ -178,13 +176,36 @@ export function groupByProject<
       project_hash,
       items: group.items,
     }))
-    .sort(
-      (a, b) =>
-        new Date(b.items[0].transcript.published_at).getTime() -
-        new Date(a.items[0].transcript.published_at).getTime()
+    .sort((a, b) =>
+      publishedAtDescending(
+        a.items[0].transcript.published_at,
+        b.items[0].transcript.published_at
+      )
     );
 
   return { groups: sortedGroups, malformed };
+}
+
+/**
+ * Most recently published first, for two `published_at` values off the wire.
+ *
+ * One comparator, because the home page sorted its recent list one way while
+ * this file grouped the SAME rows another: a timestamp that does not parse
+ * sorted last in one place and produced an unspecified order in the other. A
+ * value that does not parse sorts last rather than throwing or scrambling the
+ * rows around it.
+ *
+ * Two unparseable values keep the order they arrived in. That arm cannot be
+ * told from returning any other non-negative number, because a sort never moves
+ * a pair on a non-negative comparison; only a negative return would reorder.
+ */
+export function publishedAtDescending(a: string, b: string): number {
+  const at = Date.parse(a);
+  const bt = Date.parse(b);
+  if (Number.isNaN(at) && Number.isNaN(bt)) return 0;
+  if (Number.isNaN(at)) return 1;
+  if (Number.isNaN(bt)) return -1;
+  return bt - at;
 }
 
 /**

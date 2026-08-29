@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { TranscriptListResponse } from "@/lib/types";
 import {
@@ -59,9 +60,14 @@ vi.mock("@peasant-labs/fairtrade/commons", async () => {
 });
 
 // Imported after the mocks are declared (vi.mock is hoisted regardless).
-import ExplorePage from "@/app/page";
+import ExplorePage from "@/app/explore/ExplorePage";
 
 const fixtures = loadSessionPageOrchestrationFixtures();
+
+// The page the scenario has most recently asked for. A search-text change keeps
+// it, so the request key moves while the message does not.
+let currentPage = 1;
+let currentQuery = "";
 
 // One stable response object per data id, mirroring TanStack keeping a cached
 // object reference across renders.
@@ -86,6 +92,9 @@ function buildQueryReturn(query: OrchestrationQuery) {
 
 function assertStep(step: OrchestrationStep): void {
   const expectation = step.expect;
+  // Names the step in every message: these scenarios run several phases inside
+  // one test, so a bare assertion failure would not say which phase broke.
+  const location = step.name;
 
   const alerts = screen.queryAllByRole("alert");
   expect(alerts.length > 0).toBe(expectation.alert);
@@ -97,7 +106,7 @@ function assertStep(step: OrchestrationStep): void {
   if (expectation.visibleLoading != null) {
     const loadingCue = screen.queryByTestId("session-list-loading");
     if (expectation.visibleLoading) {
-      expect(loadingCue).not.toBeNull();
+      expect(loadingCue, `${location}: visible loading cue`).not.toBeNull();
       // The cue must be a visible, sighted-user affordance, not a screen-reader
       // only region, and must carry the concise loading text.
       expect(loadingCue!.className).not.toContain("sr-only");
@@ -118,10 +127,50 @@ function assertStep(step: OrchestrationStep): void {
     expect(screen.queryByTestId("session-list-results")).toBeNull();
     expect(screen.queryByTestId("explore")).toBeNull();
     expect(screen.getByText("Failed to load transcripts")).toBeInTheDocument();
+    // The actionable body, not merely the heading: a panel that lost its
+    // message would still carry the title. It must name the endpoint and the
+    // cause the request reported.
+    const panel = screen.getAllByRole("alert")[0];
+    const text = (panel.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain(TRANSCRIPT_LIST_ENDPOINT);
+    expect(text).toContain("network unavailable");
+    // This surface's retry names the exact page it re-issues; the home page's
+    // panel says only "retry". The two share one component, so this is what
+    // notices if the lift ever collapsed their labels into one.
+    expect(
+      screen.getByRole("button", { name: /^retry(ing)? page \d+$/ }),
+    ).toBeInTheDocument();
   } else {
     expect(screen.queryByTestId("session-list-results")).toBeNull();
     expect(screen.queryByTestId("explore")).toBeNull();
     expect(screen.queryAllByRole("alert").length).toBe(0);
+  }
+
+  if (expectation.retryLabel !== undefined || expectation.retryBusy !== undefined) {
+    const retry = screen.getByRole("button", { name: /^retry(ing)? page \d+$/ });
+    if (expectation.retryLabel !== undefined) {
+      expect((retry.textContent ?? "").trim(), `${location}: retry label`).toBe(
+        expectation.retryLabel,
+      );
+    }
+    if (expectation.retryBusy !== undefined) {
+      expect(retry.getAttribute("aria-disabled"), `${location}: retry busy`).toBe(
+        expectation.retryBusy ? "true" : null,
+      );
+      // Never a real `disabled`: it would hand focus back to the document and
+      // not return it, so the reader who pressed would lose their place.
+      expect(retry.hasAttribute("disabled"), `${location}: retry not truly disabled`).toBe(
+        false,
+      );
+      if (expectation.retryBusy) {
+        // Busy REFUSES the press rather than merely announcing it.
+        const before = h.refetch.mock.calls.length;
+        act(() => {
+          fireEvent.click(retry);
+        });
+        expect(h.refetch.mock.calls.length, `${location}: busy press refused`).toBe(before);
+      }
+    }
   }
 
   if (step.action === "clickRetry") {
@@ -139,6 +188,8 @@ afterEach(() => {
   cleanup();
   h.query.current = null;
   h.onFiltersChange.current = null;
+  currentPage = 1;
+  currentQuery = "";
   h.refetch.mockReset();
 });
 
@@ -154,11 +205,43 @@ describe("mounted / session page orchestration", () => {
         if (index === 0) {
           const view = render(<ExplorePage />);
           rerenderPage = view.rerender;
+        } else if (step.setFiltersQuery != null) {
+          // Same page, different search text: the request key changes while the
+          // failure message stays word-for-word identical, which is the only
+          // pair that can tell a memory keyed on its REQUEST from one keyed on
+          // its text. During an outage this is the ordinary case.
+          const query = step.setFiltersQuery;
+          // The surface must be one that OFFERS the control. When the branch is
+          // the full error panel or the skeleton, `Explore` is unmounted and an
+          // optional call would do nothing while the step still asserted, so a
+          // filter change that could not be delivered has to fail here.
+          expect(
+            h.onFiltersChange.current,
+            `${step.name}: the rendered surface offers no filter control, so this step's change could not be delivered`,
+          ).not.toBeNull();
+          currentQuery = query;
+          act(() => {
+            h.onFiltersChange.current!({
+              query,
+              provider: "all",
+              topics: [],
+              order: "recent",
+              page: currentPage,
+            });
+          });
         } else if (step.setFiltersPage != null) {
           const page = step.setFiltersPage;
+          currentPage = page;
+          // Carries the search text rather than resetting it: the loader
+          // refuses a step that changes both axes, and a harness that silently
+          // reset one would defeat that rule from below.
+          expect(
+            h.onFiltersChange.current,
+            `${step.name}: the rendered surface offers no filter control, so this step's change could not be delivered`,
+          ).not.toBeNull();
           act(() => {
-            h.onFiltersChange.current?.({
-              query: "",
+            h.onFiltersChange.current!({
+              query: currentQuery,
               provider: "all",
               topics: [],
               order: "recent",

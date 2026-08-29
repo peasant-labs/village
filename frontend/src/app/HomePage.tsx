@@ -1,0 +1,339 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { FolderOpen, Library, Plus } from "lucide-react";
+import { useTranscripts } from "@/lib/queries/transcripts";
+import { useAuth } from "@/providers/AuthProvider";
+import TranscriptList from "@/components/transcript/TranscriptList";
+import { DataState, TeachingEmptyState } from "@/lib/ft-ui";
+import RequestFailureState from "@/components/RequestFailureState";
+import MalformedProjectNotice from "@/components/MalformedProjectNotice";
+import RetryButton from "@/components/RetryButton";
+import { groupByProject, publishedAtDescending } from "@/lib/format";
+import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
+import type { TranscriptListItem } from "@/lib/types";
+
+/**
+ * The signed-in landing surface: the caller's own recent sessions, then the
+ * projects those sessions belong to.
+ *
+ * It reads the SAME owner-scoped list the profile page reads
+ * (`useTranscripts({ owner })`) and groups it with the SAME `groupByProject`,
+ * so a person's projects can never be described one way here and another way
+ * on their profile. No new backend route is involved.
+ *
+ * Deliberately carries no stat tiles: this page answers "what was I working
+ * on, and where do I continue" — a count of transcripts answers neither.
+ */
+
+/**
+ * Whether the viewer's handle is known, still being chosen, or recorded as
+ * chosen while blank. The page owes each a different answer, so they are a
+ * closed set rather than a pair of booleans combined at each branch.
+ */
+type HandleState = "known" | "choosing" | "missing";
+
+/** How many recent sessions the top list shows before the project list takes over. */
+const RECENT_SESSION_LIMIT = 5;
+
+/**
+ * Most recently published first.
+ *
+ * The order is applied here rather than trusted from the response because the
+ * owner-scoped list request carries no explicit order parameter, so "recent"
+ * would otherwise be a server default this page silently depends on.
+ * `published_at` is an ISO-8601 UTC timestamp, so lexicographic comparison is
+ * chronological; a value that does not parse sorts last instead of throwing.
+ */
+export function mostRecentFirst(
+  items: TranscriptListItem[],
+): TranscriptListItem[] {
+  return [...items].sort((a, b) =>
+    publishedAtDescending(a.transcript.published_at, b.transcript.published_at),
+  );
+}
+
+export default function HomePage() {
+  const { user } = useAuth();
+  const username = user?.github_username ?? "";
+  // A blank owner filter is DROPPED by the list handler, which would answer
+  // with the whole commons under a heading that says "your", so the request is
+  // not issued at all until the viewer's handle is known.
+  //
+  // The three states are named rather than derived from two booleans at each
+  // use, because they are answered differently and only one of them is a
+  // waiting state. `choosing` is on its way to `/welcome` — the handle gate
+  // reads `username_chosen`, so this page only has to hold still. `missing` is
+  // an account that records having chosen a handle while carrying none: a
+  // server contract violation nothing will resolve on its own.
+  // A null user is not an account with a bad handle, it is no answer yet, and
+  // it must never reach the accusation below. `RootPage` does not mount this
+  // page without one, but the guard belongs with the state it describes rather
+  // than with the only caller that happens to hold the line today.
+  const handleState: HandleState =
+    username.trim() !== "" ? "known" : user?.username_chosen === true ? "missing" : "choosing";
+  const hasUsername = handleState === "known";
+  const { data, isLoading, isFetching, isError, error, refetch } = useTranscripts(
+    { owner: username },
+    { enabled: hasUsername },
+  );
+
+  // The failure has to OUTLIVE its own retry. With no rows to fall back on,
+  // a refetch puts the query back into its pending state, so `isError` goes
+  // false while the retry is in flight: reading it directly would drop the
+  // panel for a loading skeleton the moment the button was pressed, taking the
+  // alert, the focus and the retry with it. The cause is therefore remembered
+  // until a request actually succeeds.
+  //
+  // The reported cause is its own sentence wherever it is shown: it comes from
+  // the server and carries no guaranteed capital or full stop.
+  const reportedCause = isError
+    ? error instanceof Error
+      ? error.message
+      : "an unknown error"
+    : null;
+  // Remembered WITH the handle it belongs to. A failure recorded for one
+  // person's list must not describe the next one's first load.
+  const [remembered, setRemembered] = useState<{ owner: string; cause: string } | null>(
+    null,
+  );
+  // Recorded when EITHER the cause or the handle changes. Comparing the cause
+  // alone would leave a stale handle on the record, and the read below is keyed
+  // on the handle, so a second account failing with the same words would show
+  // no failure at all and fall through to "nothing published yet".
+  //
+  // The keyed READ is what stops a request that has merely not answered yet
+  // from inheriting the previous one's failure; the discovery corpus holds the
+  // same rule for the same machine.
+  if (
+    reportedCause !== null &&
+    (reportedCause !== remembered?.cause || username !== remembered?.owner)
+  ) {
+    setRemembered({ owner: username, cause: reportedCause });
+  }
+  // Cleared only by a request that actually answered. `!isError` is the load-
+  // bearing half; `data != null` is what stops a clear on the pending window of
+  // a retry that has no rows to fall back on. A third condition on `isFetching`
+  // was here and is deliberately gone: no reachable state distinguished it, and
+  // a guard nothing can reach is a guard nobody can maintain.
+  if (!isError && data != null && remembered !== null) {
+    setRemembered(null);
+  }
+  const failureCause = remembered?.owner === username ? remembered.cause : null;
+  const failed = failureCause !== null;
+
+  // A retry that fails again produces the SAME alert text, which a screen
+  // reader will not announce a second time and a sighted reader cannot
+  // distinguish from a button that did nothing. So the request being in flight
+  // is its own visible state on the control, and its own polite announcement.
+  const retrying = failed && isFetching;
+  const retryText = retrying ? "retrying" : "retry";
+
+  const items = data?.transcripts ?? [];
+  const recent = mostRecentFirst(items).slice(0, RECENT_SESSION_LIMIT);
+  const { groups, malformed } = groupByProject(items);
+
+  // One teaching empty state serves both sections: a person with no sessions
+  // has no projects either, so two empty panels would say the same thing twice.
+  const emptyState = (
+    <div data-testid="home-empty-state">
+      <TeachingEmptyState
+        icon={FolderOpen}
+        title="nothing published yet"
+        body="publish a redacted transcript to start your library. your sessions and the projects they belong to appear here."
+        privacy={null}
+        style={{ border: "none", background: "transparent" }}
+      />
+      <div className="px-6 pb-6">
+        <Link
+          href="/publish"
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer"
+        >
+          <Plus size={14} />
+          publish your first transcript
+        </Link>
+      </div>
+    </div>
+  );
+
+  // Mounted on every branch below, not inside one of them: a polite region has
+  // to exist BEFORE its content changes for the change to be announced, and the
+  // branch a person retries from is one that swaps its own content.
+  const statusRegion = (
+    <p role="status" aria-live="polite" className="sr-only" data-testid="home-status">
+      {retrying ? "reloading your sessions" : ""}
+    </p>
+  );
+
+  // A failure that is being retried keeps its surface rather than falling back
+  // to the skeleton, so the alert, the focus and the control all survive.
+  if ((isLoading && !failed) || handleState === "choosing") {
+    return (
+      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
+        {statusRegion}
+        <div className="h-8 w-64 animate-shimmer" />
+        <div className="h-48 animate-shimmer" />
+        <div className="h-48 animate-shimmer" />
+      </div>
+    );
+  }
+
+  // Nothing is coming to fix this one: the redirect that rescues an unchosen
+  // handle does not fire for an account that records having chosen one.
+  if (handleState === "missing") {
+    return (
+      <div
+        className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
+        data-testid="home-page-no-handle"
+      >
+        {statusRegion}
+        <div
+          role="alert"
+          className="border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger"
+        >
+          <p className="font-medium">your account has no handle</p>
+          <p className="mt-1 text-[13px]">
+            Your sessions are stored under your handle, and this account is
+            recorded as having chosen one while carrying none, so they cannot be
+            looked up. Nothing has been lost. Sign out and back in; if the page
+            still says this, the account needs a maintainer.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // A failed request is NOT an empty library. Rendering the teaching empty
+  // state here would tell somebody with a shelf full of published sessions
+  // that they have published nothing, and send them off to publish another.
+  // The shared failure panel says what failed and offers the same retry the
+  // discovery list offers.
+  //
+  // Only when there is nothing to keep on screen. A refresh that fails in the
+  // background still holds the rows it confirmed earlier, and replacing a
+  // person's whole library with an error panel because a later request failed
+  // is the same lie in a different shape; that case keeps the rows and says so
+  // in a notice above them.
+  if (failed && data == null) {
+    return (
+      <div
+        className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
+        data-testid="home-page-error"
+      >
+        {statusRegion}
+        <RequestFailureState
+          title="Failed to load your sessions"
+          message={
+            `Your own published sessions could not be loaded from ` +
+            `${TRANSCRIPT_LIST_ENDPOINT}. A failed request is not an empty ` +
+            `library, and nothing has been deleted. Retry to load it again. ` +
+            `The request reported: ${failureCause}.`
+          }
+          onRetry={() => refetch()}
+          retryLabel={retryText}
+          retryDisabled={retrying}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up"
+      data-testid="home-page"
+    >
+      {statusRegion}
+
+      <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-ink">
+        home
+      </h1>
+
+      {failed && (
+        // The rows below are the last ones the server confirmed. They are kept
+        // deliberately: a failed refresh is not news that the library shrank.
+        <div
+          data-testid="home-stale-notice"
+          className="border border-rule bg-surface px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        >
+          {/* Only the sentence is the alert. The control sits outside it
+              because its label changes while a retry is in flight, and an
+              atomic alert re-announces the whole notice on that change,
+              interrupting the polite region that already said it. */}
+          <p role="alert" className="text-[13px] text-ink-3">
+            These sessions could not be refreshed, so they are the ones last
+            loaded and may be out of date. The request reported: {failureCause}.
+          </p>
+          <RetryButton
+            label={retryText}
+            busy={retrying}
+            onRetry={() => refetch()}
+            testId="home-stale-retry"
+          />
+        </div>
+      )}
+
+      <MalformedProjectNotice
+        count={malformed.length}
+        testId="home-malformed-notice"
+      />
+
+      <DataState empty={items.length === 0} emptyState={emptyState}>
+        {/* The two panels carry their own spacing: DataState wraps its children,
+            so the page column's gap does not fall between them. */}
+        <div className="flex flex-col gap-6">
+          {/* Plain `div`s, not `section`s: the design system styles a bare
+            `section` with its own max-width and centring, which would inset
+            these panels inside the page's own width instead of filling it. */}
+          <div
+            className="border border-rule bg-surface"
+            data-testid="home-recent-sessions"
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
+              <span className="inline-flex items-center gap-2 text-sm font-medium text-ink">
+                <Library size={14} className="text-ink-3" />
+                your recent sessions
+              </span>
+            </div>
+            <TranscriptList items={recent} showOwnerActions hideOwner bare />
+          </div>
+
+          <div
+            className="border border-rule bg-surface"
+            data-testid="home-projects"
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
+              <span className="inline-flex items-center gap-2 text-sm font-medium text-ink">
+                <FolderOpen size={14} className="text-ink-3" />
+                your projects
+              </span>
+            </div>
+            <ul className="divide-y divide-rule">
+              {groups.map((group) => (
+                <li key={group.project_hash}>
+                  {/* Routed on `project_hash`: a project's identity is the hash,
+                    never a display name that could be re-derived. */}
+                  <Link
+                    href={`/users/${encodeURIComponent(username)}/projects/${group.project_hash}`}
+                    data-testid="home-project-row"
+                    className="flex items-center gap-3 px-5 py-3 hover:bg-surface-hover transition-colors focus-mono cursor-pointer"
+                  >
+                    {/* A project's display name is USER CONTENT, so `normal-case`
+                      overrides the design system's chrome lowercasing. */}
+                    <span className="font-[family-name:var(--font-display)] text-sm font-semibold text-ink truncate normal-case">
+                      {group.project}
+                    </span>
+                    <span className="font-mono text-xs text-ink-3 tabular-nums shrink-0">
+                      {group.items.length} session
+                      {group.items.length !== 1 ? "s" : ""}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </DataState>
+    </div>
+  );
+}

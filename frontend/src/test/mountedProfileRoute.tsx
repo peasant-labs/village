@@ -4,6 +4,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import UserProfilePage from "@/app/users/[username]/page";
+import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type {
   CollectiveSubmissionPair,
   ContributedCollective,
@@ -44,6 +45,12 @@ export interface MountedProfileFixture {
   submissionsByGroupId?: Record<string, CollectiveSubmissionPair[]>;
   /** `GET /users/me/collectives/{groupId}/transcripts/{transcriptId}/events`. */
   eventsByGroupAndTranscript?: Record<string, ShareEvent[]>;
+  /**
+   * Rows for `GET /transcripts?owner=…`, as `[id, projectHash]`. An EMPTY hash
+   * models the backend contract violation the page must report: `project_hash`
+   * is a required identity column, so a row without one cannot be grouped.
+   */
+  library?: Array<[string, string]>;
 }
 
 function userFixture(username: string): User {
@@ -114,7 +121,26 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
       return json(pairs);
     }
     if (path.startsWith("/transcripts?")) {
-      return json({ transcripts: [], total: 0, agent_total: 0, page: 1, limit: 24 });
+      const rows = (fixture.library ?? []).map(([id, projectHash]) => ({
+        transcript: makeTranscriptFixture({
+          id,
+          local_id: id,
+          owner_id: `user-${fixture.profileUsername}`,
+          title: id,
+          project_hash: projectHash,
+          project_name: "village",
+          project_display_name: "village",
+        }),
+        tags: [],
+        owner: userFixture(fixture.profileUsername),
+      }));
+      return json({
+        transcripts: rows,
+        total: rows.length,
+        agent_total: 0,
+        page: 1,
+        limit: 24,
+      });
     }
     if (path.startsWith("/users/")) {
       return json(userFixture(fixture.profileUsername));
