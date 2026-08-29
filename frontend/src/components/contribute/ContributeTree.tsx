@@ -194,10 +194,11 @@ function SessionRow({
         <div className="pl-4" data-parent-transcript-id={session.id}>
           <SessionGroupDisclosure
             // Open, the rows are on screen and their own ticks say what is
-            // selected. CLOSED, they are not, so the control has to carry the
-            // count itself - otherwise selecting this row's parent and then
-            // unticking every visible box leaves a selection nobody can see,
-            // which the bar would still offer to decide.
+            // selected. CLOSED, they are not, so the control carries the count
+            // itself. A session's checkbox governs its whole subtree, so a
+            // selected hidden row does leave this row ticked or part-ticked --
+            // but an indeterminate mark is something a reader has to infer,
+            // and a count is something the control states.
             label={childSessionGroupLabel(session.children.length)}
             collapsedLabel={childSessionGroupSelectionLabel(
               session.children.length,

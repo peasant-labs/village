@@ -63,6 +63,10 @@ export interface ReviewPageCase {
   /** `your_role` the `/groups/{id}` payload reports. */
   role: "member" | "owner";
   pending: PendingShareSpec[];
+  /** The queue as a REFETCH answers it, when a case needs the list to change
+   *  under the reviewer. Omitted means the queue answers the same rows every
+   *  time. */
+  pendingAfterRefetch?: string[];
   /** The transcript ids the reviewer ticks before acting. */
   select: string[];
   /** What the batch endpoint answers. */
@@ -77,6 +81,7 @@ const CASE_KEYS = [
   "viewer",
   "role",
   "pending",
+  "pendingAfterRefetch",
   "select",
   "decided",
   "alreadyDecided",
@@ -98,6 +103,8 @@ const requiredCaseNames = [
   "child_session_folds_under_its_parent",
   "two_publishers_sharing_a_session_id_do_not_fold",
   "hidden_child_selection_is_never_invisible",
+  "a_row_that_leaves_the_queue_leaves_the_selection",
+  "a_filtered_row_keeps_its_selection",
   "approve_selection_sends_one_request",
   "reject_selection_sends_the_reject_decision",
   "already_decided_row_is_marked_stale",
@@ -123,7 +130,13 @@ export function loadGroupsReviewPageFixtures(): ReviewPageCase[] {
   }
 
   for (const testCase of cases) {
-    assertExactKeys(testCase as unknown as object, CASE_KEYS, `case ${testCase.name}`);
+    // pendingAfterRefetch is optional: only a case that needs the queue to
+    // change under the reviewer carries it. Its presence must still be EXACT,
+    // so the wanted key set is computed per case rather than allowed blindly.
+    const wantedKeys = CASE_KEYS.filter(
+      (key) => key !== "pendingAfterRefetch" || "pendingAfterRefetch" in testCase,
+    );
+    assertExactKeys(testCase as unknown as object, wantedKeys, `case ${testCase.name}`);
     if (testCase.why.trim() === "") {
       throw new Error(`case ${testCase.name}: states no reason it exists`);
     }

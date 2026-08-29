@@ -52,7 +52,28 @@ export default function GroupReviewPage({
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
   const tree = useMemo(() => buildReviewTree(filteredRows), [filteredRows]);
   const counts = useMemo(() => harnessCounts(rows, filters.search), [rows, filters.search]);
-  const selectedCount = selection.size;
+
+  /**
+   * The selection, narrowed to the rows the QUEUE still holds.
+   *
+   * A selection is a set of ids and the queue is refetched, so a row a
+   * reviewer ticked can disappear from under them - another owner decided it -
+   * and leave its id behind. Counting that id would state a number no ticked
+   * row on screen accounts for, and send it on the next decision. Reconciling
+   * here rather than pruning in an effect means the count is DERIVED from the
+   * queue and cannot drift from it.
+   *
+   * It narrows against every fetched row, NOT against the filtered tree: a row
+   * hidden by the search or harness filter has not left the queue and
+   * deliberately keeps its selection, which is the same rule select-all
+   * follows.
+   */
+  const queuedIds = useMemo(() => new Set(rows.map((row) => row.id)), [rows]);
+  const selected = useMemo(
+    () => new Set([...selection].filter((id) => queuedIds.has(id))),
+    [selection, queuedIds],
+  );
+  const selectedCount = selected.size;
 
   if (groupLoading || (isOwner && pendingLoading)) {
     return (
@@ -107,7 +128,7 @@ export default function GroupReviewPage({
 
   async function decide(status: ReviewDecision) {
     if (selectedCount === 0) return;
-    const ids = [...selection];
+    const ids = [...selected];
     const outcome = await review.mutateAsync({ transcript_ids: ids, status });
     // Every id the server answered about leaves the selection: a decided row
     // is done, and a stale row can never be decided from here — leaving it
@@ -154,7 +175,7 @@ export default function GroupReviewPage({
             <div className="border-b @[880px]:border-b-0 @[880px]:border-r border-rule min-h-[20rem] @[880px]:min-h-[32rem]">
               <ContributeTree
                 tree={tree}
-                selection={selection}
+                selection={selected}
                 onToggleNode={handleToggle}
                 onToggleAll={handleToggleAll}
                 onPreview={setPreviewId}

@@ -100,6 +100,59 @@ cases:
       untickVisible: parent
       selectedAfterUntickingVisible: 0
 
+  - name: a_row_that_leaves_the_queue_leaves_the_selection
+    why: >
+      A selection is a set of ids; the queue is refetched. So a row a reviewer
+      ticked can disappear from under them - another owner decided it - and
+      leave its id behind in the selection, where the bar goes on counting a
+      row that is nowhere on screen. That is the same invisible selection a
+      fold could cause, arriving by refetch instead, and it makes the count
+      lie about what a decision would reach. The count is therefore taken
+      from the rows the queue still holds. A row hidden by a FILTER is not
+      the same thing and deliberately keeps its selection, which the
+      select-all comment already states.
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: stays, local_id: s, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: vanishes, local_id: v, project_hash: pa, project_name: alpha, owner_username: pat}
+    # The refetched queue no longer holds `vanishes`: someone else decided it.
+    pendingAfterRefetch: [stays]
+    select: [stays, vanishes]
+    # The server answered about neither, so nothing leaves the selection by
+    # the decision path - only the refetch can drop the vanished row.
+    decided: []
+    alreadyDecided: []
+    expect:
+      selectedBeforeRefetch: 2
+      selectedAfterRefetch: 1
+      # What the bar counts and what a decision SENDS are the same set. A
+      # count reconciled against the queue while the request still carried the
+      # vanished id would be a number that told the truth about nothing.
+      requestIdsAfterRefetch: [stays]
+
+  - name: a_filtered_row_keeps_its_selection
+    why: >
+      A row hidden by the search filter has NOT left the queue, so it keeps
+      its selection and stays in the count - the opposite of a row the queue
+      no longer holds. Both rules live in one place, so without a case for
+      this one a fix for the other could quietly start discarding a
+      reviewer's selection every time they typed in the search box.
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: alpha-one, title: alpha one, local_id: a, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: beta-two, title: beta two, local_id: b, project_hash: pa, project_name: alpha, owner_username: pat}
+    select: [alpha-one, beta-two]
+    decided: []
+    alreadyDecided: []
+    expect:
+      selectedBeforeFilter: 2
+      # Typing this hides `beta-two` from the tree, and only from the tree.
+      search: alpha
+      hiddenByFilter: beta-two
+      selectedAfterFilter: 2
+
   - name: approve_selection_sends_one_request
     why: >
       Three submissions across two projects are approved in ONE PATCH carrying

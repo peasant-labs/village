@@ -33,6 +33,13 @@ const json = (body: unknown, status = 200) =>
 function installReviewRouteREST(testCase: ReviewPageCase): RecordedRequest[] {
   const requests: RecordedRequest[] = [];
   const pending = testCase.pending.map(toPendingShare);
+  // A case may ask the queue to CHANGE under the reviewer: the first read
+  // answers the full list, every later read answers only the named rows.
+  const afterRefetch =
+    testCase.pendingAfterRefetch == null
+      ? null
+      : pending.filter((row) => testCase.pendingAfterRefetch!.includes(row.transcript_id));
+  let pendingReads = 0;
 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -55,7 +62,8 @@ function installReviewRouteREST(testCase: ReviewPageCase): RecordedRequest[] {
       });
     }
     if (url.includes(`/groups/${GROUP_ID}/pending`)) {
-      return json(pending);
+      pendingReads += 1;
+      return json(afterRefetch != null && pendingReads > 1 ? afterRefetch : pending);
     }
     if (url.endsWith(`/groups/${GROUP_ID}/shares`) && method === "PATCH") {
       return json({ decided: testCase.decided, already_decided: testCase.alreadyDecided });
@@ -93,7 +101,12 @@ function installReviewRouteREST(testCase: ReviewPageCase): RecordedRequest[] {
   return requests;
 }
 
-async function mountReviewRoute(testCase: ReviewPageCase): Promise<RecordedRequest[]> {
+/** Mounts the real route and hands back BOTH the recorded requests (so a test
+ *  asserts a parsed body) and the query client (so a test can force the
+ *  refetch that a real queue does on its own). */
+async function mountReviewRoute(
+  testCase: ReviewPageCase,
+): Promise<{ client: QueryClient; requests: RecordedRequest[] }> {
   const requests = installReviewRouteREST(testCase);
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -109,7 +122,7 @@ async function mountReviewRoute(testCase: ReviewPageCase): Promise<RecordedReque
       </QueryClientProvider>,
     );
   });
-  return requests;
+  return { client, requests };
 }
 
 /** Ticks the checkbox of each named session row, through the row's own
@@ -230,9 +243,39 @@ describe("/groups/{id}/review", () => {
     expect(label.textContent).toBe(testCase.expect.collapsedControlLabelWhenNoneSelected as string);
   });
 
+  it("drops a ticked row from the count once the queue no longer holds it", async () => {
+    const testCase = reviewCaseByName(cases, "a_row_that_leaves_the_queue_leaves_the_selection");
+    const { client } = await mountReviewRoute(testCase);
+    await screen.findByTestId("review-panel");
+
+    await select(testCase.select);
+    expect(screen.getByTestId("review-selection-count").textContent).toBe(
+      `${testCase.expect.selectedBeforeRefetch as number} selected`,
+    );
+
+    // Someone else decides one of them. The queue is refetched and no longer
+    // holds that row, so it is gone from the tree — but its id is still in
+    // the reviewer's selection, where a naive count would go on counting a
+    // row that is nowhere on screen.
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ["group-pending", GROUP_ID] });
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId(`contribute-session-row-${testCase.select[1]}`)).toBeNull(),
+    );
+
+    expect(screen.getByTestId("review-selection-count").textContent).toBe(
+      `${testCase.expect.selectedAfterRefetch as number} selected`,
+    );
+    // The row that survived is still ticked: reconciling the count must not
+    // quietly clear a selection the reviewer still holds.
+    const survivor = screen.getByTestId(`contribute-session-row-${testCase.select[0]}`);
+    expect((within(survivor).getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
+  });
+
   it("approves a selection spanning two projects in ONE request", async () => {
     const testCase = reviewCaseByName(cases, "approve_selection_sends_one_request");
-    const requests = await mountReviewRoute(testCase);
+    const { requests } = await mountReviewRoute(testCase);
 
     await screen.findByTestId("review-panel");
     await select(testCase.select);
@@ -249,7 +292,7 @@ describe("/groups/{id}/review", () => {
 
   it("sends the reject decision when the reject action is used", async () => {
     const testCase = reviewCaseByName(cases, "reject_selection_sends_the_reject_decision");
-    const requests = await mountReviewRoute(testCase);
+    const { requests } = await mountReviewRoute(testCase);
 
     await screen.findByTestId("review-panel");
     await select(testCase.select);
