@@ -393,11 +393,11 @@ if (!sitsWithItsParent) {
 
    A fifth reading corroborates them: the rendered gap the reader actually
    complained about. It is the only one held to a band rather than a number,
-   because it is measured from laid-out boxes and moves with font metrics. The
-   band has a floor as well as a ceiling so an over-tightening is caught too,
-   but it is not what guards this design: the four exact readings above are,
-   and a build that still carried the old spacing would fail them whatever its
-   own font metrics did to the gap. */
+   because it is measured from laid-out boxes and moves with font metrics, and
+   it has a floor as well as a ceiling so an over-tightening is caught too. It
+   is not what guards this design, though. The four exact readings are, and a
+   build still carrying the old spacing fails them whatever its own font
+   metrics do to the gap. */
 const RHYTHM = {
   tightRowPaddingTop: 12,
   tightRowPaddingBottom: 8,

@@ -86,7 +86,7 @@ mounted into the composer's `renderTurnActions` slot exactly as the production p
 | `probe-village.mjs` | Print the harness route's DOM shape — tab/view-toggle labels, `.tb-*` box sizes, and the page scroll metrics. Run first whenever the harness route or the shared composite changes, to confirm the capture selectors still resolve and the page overflows the viewport (`document.scrollHeight > innerHeight`). |
 | `village-shoot.mjs` | Drive the harness route with puppeteer and screenshot every transcript surface for one theme. Each capture is run through the non-empty-surface gate before it's accepted; each surface is wrapped in try/catch so one failure records a gap and the run continues. |
 | `explore-agent-group-shoot.mjs` | Capture the collapsed and expanded group of agent-driven sessions on the real Explore route, in one theme, from one live page. Asserts build provenance (the group's control, its counted label, and the expanded rows' labels) before writing any PNG, so a stale or wrong-worktree server fails instead of producing a misleading capture. |
-| `child-session-shoot.mjs` | Capture how one surface treats a session that another session started, in one theme, from one live page: `explore` (folded away, no control), `home` and `project` (collapsed and expanded chip). Asserts build provenance against the live DOM before writing any PNG — on discovery, that the started rows are off the grid, that a row whose parent the response does not carry still browses, that NO control rendered, and that the count above the grid matches the cards under it; on the other two, that the chip carries a bare counted label with nothing in front of it (it is read from the label element, not the whole control, so a leading mark cannot hide inside the show/hide affordance), that it sits in the same list unit as its own parent row, and that its VERTICAL RHYTHM holds as computed style — the row carrying a chip one design-system step tighter underneath, an ordinary row in the same list unchanged, the rendered gap within its bound, and the indentation untouched. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the whole document inside the viewport, and the clip box covering the document — so the fixed app header cannot composite over the middle of the image and the bottom of the list cannot be cut. |
+| `child-session-shoot.mjs` | Capture how one surface treats a session that another session started, in one theme, from one live page: `explore` (folded away, no control), `home` and `project` (collapsed and expanded chip). Asserts build provenance against the live DOM before writing any PNG — on discovery, that the started rows are off the grid, that a row whose parent the response does not carry still browses, that NO control rendered, and that the count above the grid matches the cards under it; on the other two, that the chip carries a bare counted label with nothing in front of it (it is read from the label element, not the whole control, so a leading mark cannot hide inside the show/hide affordance), that it sits in the same list unit as its own parent row, and that its VERTICAL RHYTHM holds as computed style — the row carrying a chip one design-system step tighter underneath, still opening its original distance above, an ordinary row in the same list unchanged, the indentation untouched, and the rendered gap within its band. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the whole document inside the viewport, and the clip box covering the document — so the fixed app header cannot composite over the middle of the image and the bottom of the list cannot be cut. |
 | `surface-gate.mjs` | The non-empty-surface gate (vendored, self-contained copy of the fairtrade `scripts/surface-gate.mjs`). Fails a capture that is blank / near-empty / byte-identical to another surface — closing the silent-blank hole a valid-but-empty bounding box leaves open (e.g. an empty graph). |
 | `stitch-sxs.mjs` | Compose labeled, **height-matched** side-by-side composites (`REFERENCE | SUBJECT`) per surface per theme. The shorter pane is padded (never scaled) with its own border-sampled background; a dashed hairline marks where the shorter capture ends. A surface missing a subject capture gets a labeled placeholder panel so the set stays complete. The reference side defaults to the **committed `baseline/tb/`** (the same-component `<SessionDetail>` "before"); `REF_DIR=demo` is the optional non-gating design-language sanity panel (see **Oracle**). |
 | `baseline/tb/{dark,light}/` | The **committed** same-component reference: an earlier `<SessionDetail>` capture of the same `sess_demo_0001` session, recorded before theme convergence. It is a **frozen, non-regenerable** snapshot, so unlike the regenerable `demo/` it is tracked in the repository. The default `stitch` reads it directly, so the oracle works on a clean checkout with no staging. |
@@ -330,12 +330,20 @@ misleading PNG.
 Those two surfaces also assert the chip's VERTICAL RHYTHM as COMPUTED style,
 because the gap a reader complained about is a rendered distance and a class
 that stopped resolving to any padding would still be present in the markup.
-Three readings together, since any one alone can pass while the design is wrong:
-the row that carries a chip is one design-system spacing step tighter
-underneath, an ordinary row in the same list is UNCHANGED (so the tightening did
-not leak into every row in the app), and the chip's indentation is untouched.
-Both directions were proven able to fail: reverting the tightening, and letting
-it reach every row.
+Four exact readings together, since any one alone can pass while the design is
+wrong: the row that carries a chip is one design-system spacing step tighter
+UNDERNEATH, it still opens its original distance ABOVE (so the step cannot come
+off the wrong side and close it up against the row above it), an ordinary row in
+the same list is UNCHANGED (so the tightening cannot leak into every row in the
+app), and the chip's indentation is untouched. A fifth reading corroborates
+them: the rendered gap itself, the only one held to a band rather than a number,
+because it is measured from laid-out boxes and moves with font metrics.
+
+Three of those were proven able to fail rather than merely present: reverting
+the tightening, letting it reach every row, and taking the step off the top
+instead of the bottom. The four exact readings are what guard the design -- a
+build still carrying the old spacing fails them whatever its own font metrics do
+to the gap.
 
 The mocks serve the rows the way the server does, each parent and the sessions
 it started arriving in one response carrying `parent_session_id`:
