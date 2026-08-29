@@ -51,6 +51,20 @@ export interface MountedProfileFixture {
    * is a required identity column, so a row without one cannot be grouped.
    */
   library?: Array<[string, string]>;
+  /**
+   * Rows for the same endpoint, stated with the identity the library's fold
+   * reads: the id the recording harness used and the harness id of the session
+   * that started this one. `library` cannot say either, so a case about a
+   * session another session started supplies these instead. Supplying both is
+   * refused, because two answers to "what is in this person's library" could
+   * disagree.
+   */
+  libraryIdentities?: Array<{
+    id: string;
+    projectHash: string;
+    localID: string;
+    parentSessionID: string | null;
+  }>;
 }
 
 function userFixture(username: string): User {
@@ -121,10 +135,25 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
       return json(pairs);
     }
     if (path.startsWith("/transcripts?")) {
-      const rows = (fixture.library ?? []).map(([id, projectHash]) => ({
+      if (fixture.library != null && fixture.libraryIdentities != null) {
+        throw new Error(
+          "mounted profile route fixture states the library twice (library and libraryIdentities); one response " +
+            "cannot have two answers",
+        );
+      }
+      const specs =
+        fixture.libraryIdentities ??
+        (fixture.library ?? []).map(([id, projectHash]) => ({
+          id,
+          projectHash,
+          localID: id,
+          parentSessionID: null,
+        }));
+      const rows = specs.map(({ id, projectHash, localID, parentSessionID }) => ({
         transcript: makeTranscriptFixture({
           id,
-          local_id: id,
+          local_id: localID,
+          parent_session_id: parentSessionID,
           owner_id: `user-${fixture.profileUsername}`,
           title: id,
           project_hash: projectHash,
@@ -174,7 +203,7 @@ export function installMountedProfileTeardown(): void {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
-    localStorage.clear();
+    globalThis.localStorage?.clear();
     document.documentElement.setAttribute("data-theme", "dark");
   });
 }

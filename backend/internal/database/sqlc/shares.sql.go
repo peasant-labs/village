@@ -525,6 +525,7 @@ func (q *Queries) ListOwnerCollectiveSubmissions(ctx context.Context, arg ListOw
 
 const listPendingGroupShares = `-- name: ListPendingGroupShares :many
 SELECT ts.transcript_id, t.title, t.model_provider,
+       t.owner_id, t.local_id, t.parent_session_id,
        u.github_username as owner_username,
        u.is_discoverable as owner_is_discoverable,
        ts.shared_at
@@ -539,6 +540,9 @@ type ListPendingGroupSharesRow struct {
 	TranscriptID        pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
 	Title               pgtype.Text        `db:"title" json:"title"`
 	ModelProvider       string             `db:"model_provider" json:"model_provider"`
+	OwnerID             pgtype.UUID        `db:"owner_id" json:"owner_id"`
+	LocalID             string             `db:"local_id" json:"local_id"`
+	ParentSessionID     pgtype.Text        `db:"parent_session_id" json:"parent_session_id"`
 	OwnerUsername       string             `db:"owner_username" json:"owner_username"`
 	OwnerIsDiscoverable bool               `db:"owner_is_discoverable" json:"owner_is_discoverable"`
 	SharedAt            pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
@@ -557,6 +561,9 @@ func (q *Queries) ListPendingGroupShares(ctx context.Context, groupID pgtype.UUI
 			&i.TranscriptID,
 			&i.Title,
 			&i.ModelProvider,
+			&i.OwnerID,
+			&i.LocalID,
+			&i.ParentSessionID,
 			&i.OwnerUsername,
 			&i.OwnerIsDiscoverable,
 			&i.SharedAt,
@@ -695,6 +702,7 @@ func (q *Queries) ListTranscriptShares(ctx context.Context, transcriptID pgtype.
 const listUserSharesInGroup = `-- name: ListUserSharesInGroup :many
 SELECT t.id, t.title, t.model_provider, t.model_name, t.visibility,
        t.published_at, t.turn_count, t.tokens_in, t.tokens_out,
+       t.owner_id, t.local_id, t.parent_session_id,
        ts.status, ts.shared_at
 FROM transcript_shares ts
 JOIN transcripts t ON ts.transcript_id = t.id
@@ -708,17 +716,20 @@ type ListUserSharesInGroupParams struct {
 }
 
 type ListUserSharesInGroupRow struct {
-	ID            pgtype.UUID        `db:"id" json:"id"`
-	Title         pgtype.Text        `db:"title" json:"title"`
-	ModelProvider string             `db:"model_provider" json:"model_provider"`
-	ModelName     pgtype.Text        `db:"model_name" json:"model_name"`
-	Visibility    string             `db:"visibility" json:"visibility"`
-	PublishedAt   pgtype.Timestamptz `db:"published_at" json:"published_at"`
-	TurnCount     pgtype.Int4        `db:"turn_count" json:"turn_count"`
-	TokensIn      pgtype.Int8        `db:"tokens_in" json:"tokens_in"`
-	TokensOut     pgtype.Int8        `db:"tokens_out" json:"tokens_out"`
-	Status        string             `db:"status" json:"status"`
-	SharedAt      pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
+	ID              pgtype.UUID        `db:"id" json:"id"`
+	Title           pgtype.Text        `db:"title" json:"title"`
+	ModelProvider   string             `db:"model_provider" json:"model_provider"`
+	ModelName       pgtype.Text        `db:"model_name" json:"model_name"`
+	Visibility      string             `db:"visibility" json:"visibility"`
+	PublishedAt     pgtype.Timestamptz `db:"published_at" json:"published_at"`
+	TurnCount       pgtype.Int4        `db:"turn_count" json:"turn_count"`
+	TokensIn        pgtype.Int8        `db:"tokens_in" json:"tokens_in"`
+	TokensOut       pgtype.Int8        `db:"tokens_out" json:"tokens_out"`
+	OwnerID         pgtype.UUID        `db:"owner_id" json:"owner_id"`
+	LocalID         string             `db:"local_id" json:"local_id"`
+	ParentSessionID pgtype.Text        `db:"parent_session_id" json:"parent_session_id"`
+	Status          string             `db:"status" json:"status"`
+	SharedAt        pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
 }
 
 // Returns the caller's own transcripts shared with a given collective
@@ -743,6 +754,9 @@ func (q *Queries) ListUserSharesInGroup(ctx context.Context, arg ListUserSharesI
 			&i.TurnCount,
 			&i.TokensIn,
 			&i.TokensOut,
+			&i.OwnerID,
+			&i.LocalID,
+			&i.ParentSessionID,
 			&i.Status,
 			&i.SharedAt,
 		); err != nil {

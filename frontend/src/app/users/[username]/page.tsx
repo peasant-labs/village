@@ -18,6 +18,7 @@ import PublishImportDialog from "@/app/publish/PublishImportDialog";
 import ProfileCollectives from "@/components/collective/ProfileCollectives";
 import MalformedProjectNotice from "@/components/MalformedProjectNotice";
 import { groupByProject } from "@/lib/format";
+import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -184,7 +185,20 @@ export default function UserProfilePage({
             emptyState={libraryEmptyState}
           >
           <div className="divide-y divide-rule">
-            {groups.map((group, gi) => (
+            {groups.map((group, gi) => {
+              // A person's library is where they ask what a session did, so a
+              // session another session started is listed under the one that
+              // started it rather than beside it. Grouped WITHIN the project,
+              // which is the only place a starter and what it started can both
+              // be: `local_id` names a session of this owner's, and the rows
+              // are already bucketed by project here.
+              //
+              // The project's own count still counts every transcript in it,
+              // including the ones inside a chip. It answers how much the
+              // project holds, which is not changed by where a row is drawn.
+              const grouping = groupChildSessions(group.items);
+              const childSessions = childSessionsByParentID(grouping);
+              return (
               <div
                 key={group.project_hash}
                 className={`animate-fade-up stagger-${Math.min(gi + 1, 6)}`}
@@ -212,12 +226,14 @@ export default function UserProfilePage({
                   <div className="flex-1" />
                 </div>
                 <TranscriptList
-                  items={group.items}
+                  items={grouping.rootItems}
+                  childSessions={childSessions}
                   showOwnerActions={isOwnProfile}
                   bare
                 />
               </div>
-            ))}
+              );
+            })}
             {/* Agent-driven sessions are never mixed into the project groups:
                 they are not the work this person wrote, and grouping them by
                 project would bury the sessions that are. They sit after every

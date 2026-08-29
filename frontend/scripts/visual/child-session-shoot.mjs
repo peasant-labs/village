@@ -1,7 +1,7 @@
 /* Screenshot how each surface treats a session that another session started.
 
-   One script, three surfaces, because the three answers are one design and a
-   reviewer has to read them together:
+   One script, every surface, because the answers are one design and a reviewer
+   has to read them together:
 
      explore  /explore. The started session is folded away and the grid keeps
               the parent card alone. NO control reveals it here: a browse card
@@ -12,6 +12,44 @@
               Captures: village-home-child-{collapsed,expanded}.
      project  /users/{username}/projects/{projectHash}. The same chip.
               Captures: village-project-child-{collapsed,expanded}.
+
+   The lists below fold behind the SAME collapsed control, and each is captured
+   closed and open. They read a fixture mock of their own,
+   `mock-rest-child-sessions.mjs`, whose every dataset carries the two cases the
+   contrast needs: a parent with two started sessions, and a row naming a
+   starter the response does not carry, which must keep its ordinary row.
+
+     profile                   /users/{username}. The fold within a project of
+                               the person's own library.
+                               Captures: village-profile-child-*.
+     collective-data           /groups/{id}. The collective's contributions,
+                               now drawn by the shared transcript list rather
+                               than a table of their own: the owner's per-row
+                               selection and the "all" select-all are asserted
+                               here, and so is the absence of a table.
+                               Captures: village-collective-data-child-*.
+     collective-repos          the same page, read by repository. Every
+                               repository is opened, because the parent and the
+                               unplaceable row are in different ones.
+                               Captures: village-collective-repos-child-*.
+     collective-pending        the same page's review queue. It does NOT fold:
+                               every submission is drawn flat, side by side, in
+                               the one `ModerationQueue`, each keeping its own
+                               approve and reject actions.
+                               Captures: village-collective-pending-child-flat.
+     collective-contributions  the same page's "your contributions", where each
+                               revealed row keeps its remove action.
+                               Captures: village-collective-contributions-child-*.
+     contribute-tree           /groups/{id}/contribute. The label is a bare
+                               count here now; it read "+ N child sessions"
+                               before.
+                               Captures: village-contribute-child-*.
+
+   The three collective entries share one route. `collective-data` and
+   `collective-repos` still fold, so their CLOSED captures are the same page
+   and come out byte-identical; that is honest, not a fault. `collective-pending`
+   does not fold at all, so it produces one flat capture rather than a
+   closed/open pair.
 
    Build provenance is asserted before any PNG is written, per surface, against
    the LIVE DOM. A stale server, or a build from another worktree, fails here
@@ -31,12 +69,17 @@
                          it must keep an ordinary row on every surface, never be
                          folded away (default per surface)
      PROJECT_PATH    the project route to shoot (project surface only)
+     MOCK_GROUP_ID   the collective the fixture mock serves (default demo-group)
+     MOCK_USERNAME   the profile to shoot (default alice-dev)
    usage: VILLAGE_URL=... CHROME_PATH=... node child-session-shoot.mjs <surface> <theme> <outdir>
 */
 import { mkdirSync, statSync } from 'node:fs'
 import { SurfaceGate } from './surface-gate.mjs'
 import { applyDeterminism } from './determinism.mjs'
 const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core')).default
+
+// The collective the fixture mock serves. Every collective surface reads it.
+const GROUP_ID = process.env.MOCK_GROUP_ID || 'demo-group'
 
 const SURFACES = {
   explore: {
@@ -57,6 +100,95 @@ const SURFACES = {
     listSelector: '[data-testid="project-display-name"]',
     prefix: 'village-project-child',
   },
+  /* ── The lists that fold behind one collapsed control ────────────────────
+
+     Each of these entries names, in the mock's own ids and words, what the
+     served page must show before a PNG is written: the row a control hangs
+     under, the rows it reveals, and the row naming a starter this response
+     does NOT carry, which must keep its ordinary place. A build that folds
+     differently fails here rather than producing a plausible-looking image.
+
+     The three collective entries share one route: a collective's page draws
+     its contributions, its review queue and the caller's own contributions
+     together, so each entry names the control it is evidence for rather than
+     the page they sit on. */
+
+  profile: {
+    path: `/users/${process.env.MOCK_USERNAME || 'alice-dev'}`,
+    prefix: 'village-profile-child',
+    mountSelector: '[data-testid="child-session-disclosure"]',
+    parentID: 'lib-parent',
+    revealed: ['Search the rule table for the git-context rules', 'Write the activation-level table test'],
+    unmatchedText: 'A session whose starter is not on this page',
+  },
+
+  'collective-data': {
+    path: `/groups/${GROUP_ID}`,
+    prefix: 'village-collective-data-child',
+    mountSelector: '[aria-label="Select every transcript on this page"]',
+    parentID: 'gt-parent',
+    revealed: ['Read the collapsed-group control', 'Draw the selection box on a folded row'],
+    unmatchedText: 'A contribution whose starter this collective does not hold',
+    verify: 'browse-panel-is-a-list',
+  },
+
+  'collective-repos': {
+    path: `/groups/${GROUP_ID}`,
+    prefix: 'village-collective-repos-child',
+    mountSelector: '[aria-label="Select every transcript on this page"]',
+    // The repository view is a choice on the same panel, so the capture makes
+    // it before asserting anything about what the panel then shows.
+    openView: 'repos',
+    // Every repository is opened, not only the one the view opens by default:
+    // the row naming a starter this response does not carry belongs to the
+    // OTHER repository, and the contrast between the two is what this capture
+    // is for.
+    openEveryRepository: true,
+    parentID: 'gt-parent',
+    revealed: ['Read the collapsed-group control', 'Draw the selection box on a folded row'],
+    unmatchedText: 'A contribution whose starter this collective does not hold',
+    // Read INSIDE the repository panel. The page draws the same rows elsewhere,
+    // and a reading over the whole page would be satisfied by one of those
+    // rather than by the view this capture is evidence for.
+    unmatchedWithin: 'Repositories',
+    verify: 'fold-sits-under-a-repository',
+  },
+
+  // The pending-review queue does NOT fold: it is a flat `ModerationQueue`
+  // listing every submission side by side, each with its own approve/reject.
+  // It has no `parentID`/`mountSelector`, so it never enters the generic
+  // fold-behind-one-control branch below; it is handled in its own branch.
+  'collective-pending': {
+    path: `/groups/${GROUP_ID}`,
+    prefix: 'village-collective-pending-child',
+    queueLabel: 'pending review',
+    rows: [
+      'Rebuild the push wizard on the shared kit',
+      'Read the consent copy the wizard shows',
+      'Draft the published-transcript preview',
+      'A submission whose starter was never offered here',
+    ],
+  },
+
+  'collective-contributions': {
+    path: `/groups/${GROUP_ID}`,
+    prefix: 'village-collective-contributions-child',
+    mountSelector: '[data-parent-transcript-id="ms-parent"]',
+    parentID: 'ms-parent',
+    revealed: ['Read the profile library grouping', 'Check the queue keeps approve and reject'],
+    unmatchedText: 'A contribution whose starter stayed private',
+    verifyExpanded: 'revealed-contributions-keep-their-remove-action',
+  },
+
+  'contribute-tree': {
+    path: `/groups/${GROUP_ID}/contribute`,
+    prefix: 'village-contribute-child',
+    mountSelector: '[data-parent-transcript-id="ct-parent"]',
+    parentID: 'ct-parent',
+    revealed: ['Read the tree builder', 'Swap the label onto the shared control'],
+    unmatchedText: 'A session whose starter was never fetched',
+  },
+
 }
 
 const surface = process.argv[2]
@@ -315,6 +447,378 @@ if (surface === 'explore') {
   await shoot('cex-explore-child-folded')
   console.log('provenance', `folded-off-the-grid=${FOLDED.join(',')}`, `unmatched-row-browsing=${UNMATCHED}`,
     `controls=${controls}`, `header-count=${headerCount}`, `browse-cards=${browseCards}`)
+  console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
+  await browser.close()
+  process.exit(0)
+}
+
+// ── collective-pending: a flat queue, no fold ────────────────────────────────
+
+if (surface === 'collective-pending') {
+  // Scoped to `.rs-canvas` (the RailShell canvas village's own hand-authored
+  // block renders into), NOT a bare `.mod-queue[aria-label="pending review"]`.
+  // The fairtrade `<Manage>` component this page also mounts (the `.cmg-*`
+  // governance summary) independently reads the SAME `pendingReview` data and
+  // draws its OWN queue under the identical aria-label -- a pre-existing,
+  // unrelated duplicate render this gate does not own. Scoping keeps this
+  // gate evidence about the block this change actually touched.
+  const queueSelector = `.rs-canvas .mod-queue[aria-label=${JSON.stringify(config.queueLabel)}]`
+
+  if (!(await waitFor(queueSelector))) {
+    await stop(2, `the "${config.queueLabel}" review queue never mounted.`,
+      'the route did not render, or the mock served no pending shares for it.',
+      'the capture would be blank or a loading skeleton.',
+      'start mock-rest-child-sessions.mjs, point NEXT_PUBLIC_API_URL at it, rebuild, and retry.')
+  }
+
+  // The ruling this capture is evidence for: the queue does not fold. NO
+  // element carrying `data-parent-transcript-id` may exist inside it -- that
+  // attribute is the fold's own marker, so its presence here means the old
+  // nested-disclosure design leaked back in.
+  const foldMarkers = await page.$$eval(
+    `${queueSelector} [data-parent-transcript-id]`, (els) => els.length)
+  if (foldMarkers > 0) {
+    await stop(1, `the review queue still carries ${foldMarkers} fold marker(s) (data-parent-transcript-id).`,
+      'a submission was nested under another instead of being drawn flat.',
+      'the capture would show the queue this change removed, not the flat one that replaced it.',
+      'confirm the served build is this worktree, where the queue no longer folds, and retry.')
+  }
+
+  // Every submission the mock serves must be its own row, side by side, each
+  // keeping its own approve and reject. A row with either action missing (or
+  // resolved into a pill by a stray click) fails closed rather than passing on
+  // a queue a moderator could not actually clear.
+  const rows = await page.$$eval(`${queueSelector} .mod-row`, (els) =>
+    els.map((el) => ({
+      who: (el.querySelector('.mod-row-who')?.textContent || '').trim(),
+      approve: !!el.querySelector('.mod-act-approve'),
+      reject: !!el.querySelector('.mod-act-reject'),
+    })))
+
+  const missingRows = config.rows.filter((title) => !rows.some((r) => r.who === title))
+  if (missingRows.length > 0) {
+    await stop(1, `the review queue lists no row for ${missingRows.map((t) => JSON.stringify(t)).join(', ')}.`,
+      'a submission the mock served is not drawn as its own row in the flat queue.',
+      'the capture would show fewer submissions than the fixture serves.',
+      'rebuild from this worktree and retry.')
+  }
+  if (rows.length !== config.rows.length) {
+    await stop(1, `the review queue lists ${rows.length} row(s), not the ${config.rows.length} the fixture serves.`,
+      'the queue drew a different set of rows than the mock serves -- extra, duplicated, or merged rows.',
+      'the capture would misstate what a moderator sees.',
+      'rebuild from this worktree and retry.')
+  }
+  const rowsWithoutActions = rows.filter((r) => !r.approve || !r.reject)
+  if (rowsWithoutActions.length > 0) {
+    await stop(1, `${rowsWithoutActions.length} of ${rows.length} row(s) are missing their own approve or reject action.`,
+      'a row lost its own decision controls -- the defect this flat queue exists to fix.',
+      'the capture would show a moderator unable to decide every submission.',
+      'rebuild from this worktree and retry.')
+  }
+
+  await shoot(`${config.prefix}-flat`)
+  console.log('provenance', `queue=${JSON.stringify(config.queueLabel)}`,
+    `fold-markers=${foldMarkers}`, `rows=${rows.length}`,
+    `every-row-has-approve-and-reject=${rowsWithoutActions.length === 0}`)
+  console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
+  await browser.close()
+  process.exit(0)
+}
+
+// ── The lists that fold behind one collapsed control ─────────────────────────
+
+/* Every surface below states the same three things, so they are asserted once
+   here rather than six times: the row a control hangs under, the rows it
+   reveals, and the row naming a starter this response does not carry, which
+   must keep its ordinary place. A surface adds only what is true of IT alone
+   -- that a collective's contributions are a LIST and no longer a table, that
+   a revealed submission still carries its approve and reject actions -- and
+   those extras are named in the surface's own entry. */
+
+if (config.parentID) {
+  const chipSelector = `[data-parent-transcript-id="${config.parentID}"]`
+  const rowsSelector = `${chipSelector} [data-testid="child-session-disclosure-rows"]`
+
+  if (!(await waitFor(config.mountSelector))) {
+    await stop(2, `the ${surface} surface never mounted (${config.mountSelector} is absent).`,
+      'the route did not render, or the mock served no rows for it.',
+      'the capture would be blank or a loading skeleton.',
+      'start mock-rest-child-sessions.mjs, point NEXT_PUBLIC_API_URL at it, rebuild, and retry.')
+  }
+
+  /* A view the viewer chooses on the same panel. Clicked from inside the page
+     rather than through the browser's own click, which scrolls its target into
+     view: this capture is taken at scroll offset zero and a scroll here would
+     put the fixed header across the middle of the raster. */
+  const clickInPage = (selectorOrText) => page.evaluate((wanted) => {
+    const buttons = [...document.querySelectorAll('button')]
+    const target = buttons.find((b) => (b.textContent || '').trim() === wanted)
+    if (!target) return false
+    target.click()
+    return true
+  }, selectorOrText)
+
+  if (config.openView) {
+    if (!(await clickInPage(config.openView))) {
+      await stop(2, `the ${surface} surface offers no "${config.openView}" view to open.`,
+        'the served build does not carry that view control.',
+        'the capture would show the wrong view.',
+        'rebuild from this worktree and retry.')
+    }
+    await pause(500)
+  }
+
+  if (config.openEveryRepository) {
+    const openedRepositories = await page.evaluate(() => {
+      const heading = [...document.querySelectorAll('span')].find(
+        (el) => el.children.length === 0 && (el.textContent || '').trim() === 'Repositories')
+      const panel = heading && heading.closest('div.border')
+      if (!panel) return null
+      // The collapsed-group control is also an aria-expanded button; it is
+      // opened later, by the step that captures the opened state, so it is
+      // left alone here.
+      const closed = [...panel.querySelectorAll('button[aria-expanded="false"]')]
+        .filter((button) => button.dataset.testid !== 'child-session-disclosure-toggle')
+      closed.forEach((button) => button.click())
+      return closed.length
+    })
+    if (openedRepositories === null) {
+      await stop(2, 'the repository view never rendered its panel.',
+        'the served build does not draw a repository view on this panel.',
+        'the capture would be evidence about the wrong view.',
+        'rebuild from this worktree and retry.')
+    }
+    await pause(500)
+  }
+
+  const chip = await waitFor(chipSelector)
+  if (!chip) {
+    await stop(2, `no collapsed control hangs under ${config.parentID}.`,
+      'the served build predates the fold on this surface, or the mock served no row naming a visible parent.',
+      'the capture would prove nothing about this change.',
+      'rebuild and restart the app from THIS worktree, and retry.')
+  }
+
+  const labelEl = await waitFor(`${chipSelector} [data-testid="child-session-disclosure-label"]`)
+  if (!labelEl) {
+    await stop(2, `the control under ${config.parentID} rendered no label element.`,
+      'the served build predates the shared collapsed-group control.',
+      'the capture would prove nothing about the control.',
+      'rebuild from this worktree and retry.')
+  }
+  const collapsedLabel = (await page.evaluate((el) => el.textContent.trim(), labelEl)).replace(/\s+/g, ' ')
+  // A bare count, read off the label element alone: the control also carries a
+  // show/hide affordance, and a check over the whole control could not tell a
+  // bare count from one with a leading mark in front of it. The contribute tree
+  // read "+ N child sessions" before this change, so the mark is what a stale
+  // build shows here.
+  if (!/^\d+ child sessions?$/.test(collapsedLabel)) {
+    await stop(1, `the collapsed label reads ${JSON.stringify(collapsedLabel)}.`,
+      'the control rendered without its bare count, or with a mark in front of it.',
+      'the capture would show the wrong chrome.',
+      'rebuild from this worktree and retry.')
+  }
+
+  /* The row this response cannot place. It names a starter the response does
+     not carry, so it must keep its own ordinary place in the list -- never be
+     folded under a parent nobody sent, and never disappear. */
+  const readUnmatched = () => page.evaluate(({ text, within }) => {
+    const scope = within
+      ? [...document.querySelectorAll('span')]
+          .find((el) => el.children.length === 0 && (el.textContent || '').trim() === within)
+          ?.closest('div.border')
+      : document.body
+    if (!scope) return { found: false, insideAControl: false }
+    const leaves = [...scope.querySelectorAll('*')].filter(
+      (el) => el.children.length === 0 && (el.textContent || '').trim() === text)
+    return {
+      found: leaves.length > 0,
+      insideAControl: leaves.length > 0 &&
+        leaves.every((el) => el.closest('[data-testid="child-session-disclosure-rows"]') !== null),
+    }
+  }, { text: config.unmatchedText, within: config.unmatchedWithin ?? null })
+
+  const unmatchedBefore = await readUnmatched()
+  if (!unmatchedBefore.found) {
+    await stop(1, `the ${surface} surface does not show ${JSON.stringify(config.unmatchedText)}, whose starter this response does not carry.`,
+      'the fold removed a row instead of leaving it in the list.',
+      'the capture would show a session disappearing, which this change forbids.',
+      'confirm the served build is this worktree and that an unmatched row keeps its own row.')
+  }
+  if (unmatchedBefore.insideAControl) {
+    await stop(1, `${JSON.stringify(config.unmatchedText)} is inside a collapsed control while every control is closed.`,
+      'a row was folded under a parent this response never held.',
+      'the capture would show behavior this change forbids.',
+      'rebuild from this worktree and retry.')
+  }
+
+  // ── What is true of this surface alone ────────────────────────────────────
+
+  const readBrowsePanel = () => page.evaluate(() => {
+    const box = document.querySelector('[aria-label="Select every transcript on this page"]')
+    const panel = box && box.closest('div.border')
+    if (!panel) return null
+    const chipEl = panel.querySelector('[data-parent-transcript-id="gt-parent"]')
+    const row = chipEl && chipEl.parentElement && chipEl.parentElement.firstElementChild
+    return {
+      tables: panel.querySelectorAll('table').length,
+      rowText: row ? (row.innerText || '').replace(/\s+/g, ' ').trim() : null,
+      rowSelectionBoxes: panel.querySelectorAll('input[type="checkbox"][aria-label^="Select "]').length,
+    }
+  })
+
+  const readReposPanel = () => page.evaluate(() => {
+    const heading = [...document.querySelectorAll('span')].find(
+      (el) => el.children.length === 0 && (el.textContent || '').trim() === 'Repositories')
+    const panel = heading && heading.closest('div.border')
+    const chipEl = document.querySelector('[data-parent-transcript-id="gt-parent"]')
+    if (!panel || !chipEl) return null
+    return {
+      chipIsInside: panel.contains(chipEl),
+      repositories: panel.querySelectorAll('button[aria-expanded]').length,
+    }
+  })
+
+  const readRevealedContributions = () => page.evaluate((sel) => {
+    const rows = document.querySelector(sel)
+    if (!rows) return null
+    return {
+      rows: rows.children.length,
+      removeActions: rows.querySelectorAll('button[title="Unshare from this collective"]').length,
+    }
+  }, rowsSelector)
+
+  let panelReading = null
+  if (config.verify === 'browse-panel-is-a-list') {
+    panelReading = await readBrowsePanel()
+    if (panelReading === null) {
+      await stop(2, 'the collective browse panel rendered without its select-all control.',
+        'the served build predates the shared list on this panel.',
+        'the capture would prove nothing about the change.',
+        'rebuild from this worktree and retry.')
+    }
+    if (panelReading.tables > 0) {
+      await stop(1, `the collective browse panel still draws ${panelReading.tables} table(s).`,
+        'the panel was not moved onto the shared transcript list.',
+        'the capture would show the surface this change replaces.',
+        'rebuild from this worktree and retry.')
+    }
+    // Every column the dropped table stated must still be stated by the row.
+    const states = {
+      contributor: /alice-dev/,
+      provider: /claude-code/,
+      turns: /\d+ turns/,
+      tokens: /tok\b/,
+      date: /\w{3} \d{1,2}, \d{4}/,
+    }
+    const missing = Object.entries(states)
+      .filter(([, pattern]) => !pattern.test(panelReading.rowText || ''))
+      .map(([name]) => name)
+    if (missing.length > 0) {
+      await stop(1, `a row on the collective browse panel states no ${missing.join(', ')}: ${JSON.stringify(panelReading.rowText)}.`,
+        'the shared list was given fewer facts than the table it replaced.',
+        'the capture would show a list that lost information the table carried.',
+        'pass every fact the table stated to the list, rebuild, and retry.')
+    }
+    if (panelReading.rowSelectionBoxes < 1) {
+      await stop(1, 'no row on the collective browse panel carries a selection box.',
+        "the owner's per-row selection did not survive the move onto the shared list.",
+        'the capture would show an owner unable to pick rows out.',
+        'rebuild from this worktree and retry.')
+    }
+  }
+
+  if (config.verify === 'fold-sits-under-a-repository') {
+    panelReading = await readReposPanel()
+    if (panelReading === null || !panelReading.chipIsInside) {
+      await stop(1, 'the collapsed control does not sit inside the repository view.',
+        'the repository view did not open, or it does not fold the sessions one session started.',
+        'the capture would be evidence about the wrong view.',
+        'rebuild from this worktree and retry.')
+    }
+    if (panelReading.repositories < 2) {
+      await stop(1, `the repository view lists ${panelReading.repositories} repositor(y/ies).`,
+        'the fixture served too few repositories for this view to be worth capturing.',
+        'the capture would not show a fold WITHIN a repository.',
+        'serve rows on at least two repositories and retry.')
+    }
+  }
+
+  await shoot(`${config.prefix}-collapsed`)
+
+  // ── Opened ────────────────────────────────────────────────────────────────
+
+  const opened = await page.evaluate((sel) => {
+    const toggle = document.querySelector(`${sel} [data-testid="child-session-disclosure-toggle"]`)
+    if (!toggle) return false
+    toggle.click()
+    return true
+  }, chipSelector)
+  if (!opened) {
+    await stop(2, `the control under ${config.parentID} rendered without its button.`,
+      'the shared collapsed-group control did not render.',
+      'the capture would show a control nobody can open.',
+      'rebuild from this worktree and retry.')
+  }
+  await pause(500)
+
+  const revealedText = await page.evaluate((sel) => {
+    const rows = document.querySelector(sel)
+    return rows ? (rows.innerText || '').replace(/\s+/g, ' ') : null
+  }, rowsSelector)
+  if (revealedText === null) {
+    await stop(1, 'opening the control produced no rows.',
+      'the rows folded out of the list were not handed to the control.',
+      'the opened capture would show an empty control.',
+      'rebuild from this worktree and retry.')
+  }
+  const unrevealed = config.revealed.filter((title) => !revealedText.includes(title))
+  if (unrevealed.length > 0) {
+    await stop(1, `opening the control did not reveal ${unrevealed.map((t) => JSON.stringify(t)).join(', ')}.`,
+      'the control does not hold the rows this response folded under its parent.',
+      'the capture would show a count that disagrees with what opening it produces.',
+      'rebuild from this worktree and retry.')
+  }
+  if (revealedText.includes(config.unmatchedText)) {
+    await stop(1, `opening the control revealed ${JSON.stringify(config.unmatchedText)}, whose starter this response does not carry.`,
+      'a row was folded under a parent the response never held.',
+      'the capture would show behavior this change forbids.',
+      'rebuild from this worktree and retry.')
+  }
+
+  let openedReading = null
+  if (config.verifyExpanded === 'revealed-contributions-keep-their-remove-action') {
+    openedReading = await readRevealedContributions()
+    if (openedReading === null || openedReading.rows < 1) {
+      await stop(1, 'the opened control holds no contribution rows.',
+        'the revealed contributions did not render.',
+        'the capture would show an empty control.',
+        'rebuild from this worktree and retry.')
+    }
+    if (openedReading.removeActions !== openedReading.rows) {
+      await stop(1, `${openedReading.rows} revealed contribution(s) carry ${openedReading.removeActions} remove action(s).`,
+        'folding a contribution under another took its remove action away.',
+        'the capture would show a person unable to withdraw a contribution.',
+        'rebuild from this worktree and retry.')
+    }
+  }
+
+  const unmatchedAfter = await readUnmatched()
+  if (!unmatchedAfter.found || unmatchedAfter.insideAControl) {
+    await stop(1, `${JSON.stringify(config.unmatchedText)} left its own place when the control opened.`,
+      'a row whose starter this response does not carry was moved into a control.',
+      'the capture would show behavior this change forbids.',
+      'rebuild from this worktree and retry.')
+  }
+
+  await shoot(`${config.prefix}-expanded`)
+
+  console.log('provenance', `control-under=${config.parentID}`,
+    `collapsed-label=${JSON.stringify(collapsedLabel)}`,
+    `revealed=${JSON.stringify(config.revealed)}`,
+    `unmatched-row-kept=${JSON.stringify(config.unmatchedText)}`,
+    panelReading ? `panel=${JSON.stringify(panelReading)}` : '',
+    openedReading ? `opened=${JSON.stringify(openedReading)}` : '')
   console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
   await browser.close()
   process.exit(0)

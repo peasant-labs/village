@@ -23,6 +23,13 @@ export interface ContributableTranscript {
   project_name_source: NameSource;
   git_branch: string | null;
   parent_session_id: string | null;
+  /* There is deliberately NO `owner_id` here: this endpoint answers with the
+     caller's own transcripts only, and the tree relies on that -- it folds a
+     started session under its starter by session id alone, which is safe for
+     one owner and WRONG for several, because a session id is unique per owner
+     rather than globally. If this endpoint is ever widened to answer with more
+     than one person's rows, add `owner_id` here and read it in
+     `./tree.ts` (see `SINGLE_OWNER_ENDPOINT` there) in the SAME change. */
   session_origin: SessionOrigin;
   model_provider: string;
   published_at: string;

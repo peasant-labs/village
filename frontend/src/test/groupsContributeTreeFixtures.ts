@@ -105,6 +105,7 @@ const requiredCaseNames = [
   "failed_projects_stay_selected",
   "header_counts_selected_and_sessions",
   "select_all_selects_every_leaf",
+  "starter_selection_takes_its_started_session",
   "preview_renders_on_click",
   "preview_hides_graph_and_owner_actions",
 ] as const;

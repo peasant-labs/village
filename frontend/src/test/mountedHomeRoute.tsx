@@ -214,7 +214,7 @@ export function installHomeRouteTeardown(): void {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
-    localStorage.clear();
+    globalThis.localStorage?.clear();
     document.documentElement.setAttribute("data-theme", "dark");
   });
 }

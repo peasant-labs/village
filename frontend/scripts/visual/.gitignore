@@ -27,6 +27,7 @@
 !explore-pagination-shoot.mjs
 !explore-agent-group-shoot.mjs
 !child-session-shoot.mjs
+!mock-rest-child-sessions.mjs
 !mock-rest-profile.mjs
 !profile-collectives-shoot.mjs
 !mock-rest-project.mjs

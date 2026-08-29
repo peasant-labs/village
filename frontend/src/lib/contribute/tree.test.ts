@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildContributeTree } from "@/lib/contribute/tree";
-import { leafIds, nodeState } from "@/lib/contribute/selection";
+import { childSessionGroupLabel } from "@/lib/childSessions";
+import { leafIds, nodeState, toggleNode } from "@/lib/contribute/selection";
 import { applyFilters, harnessCounts } from "@/lib/contribute/filter";
 import {
   caseByName,
@@ -42,6 +43,46 @@ describe("buildContributeTree", () => {
     // The synthetic node's own id must never look like a transcript id a
     // selection or a POST body could name.
     expect(orphans!.id).toBe(`${project.id}::orphans`);
+  });
+});
+
+describe("a session nested under the session that started it", () => {
+  it("is selected with its starter, so contributing a session contributes what it started", () => {
+    const c = caseByName(cases, "tree", "two_branch_project_collapses_children");
+    const tree = buildContributeTree(c.rows.map(toContributableTranscript));
+    const [project] = tree;
+    const main = project.children.filter((n) => n.kind === "branch").find((b) => b.label === "main")!;
+    const starter = main.children[0];
+    const startedIds = c.expect.mainRootChildIds as string[];
+    expect(starter.id).toBe((c.expect.mainRootIds as string[])[0]);
+    expect(starter.children.map((s) => s.id)).toEqual(startedIds);
+
+    // Ticking the starter takes the sessions it started with it. A person
+    // choosing a session is choosing the work it did, and a started session
+    // left behind would be published apart from the session that explains it.
+    const selection = toggleNode(new Set<string>(), starter);
+    expect([...selection].sort()).toEqual([starter.id, ...startedIds].sort());
+    expect(nodeState(selection, starter)).toBe("all");
+
+    // And untick clears both again, so the pair cannot be half-selected by
+    // clicking twice.
+    expect([...toggleNode(selection, starter)]).toEqual([]);
+  });
+
+  it("is announced by the ONE label helper, with no leading mark", () => {
+    const c = caseByName(cases, "tree", "two_branch_project_collapses_children");
+    const tree = buildContributeTree(c.rows.map(toContributableTranscript));
+    const main = tree[0].children
+      .filter((n) => n.kind === "branch")
+      .find((b) => b.label === "main")!;
+    const starter = main.children[0];
+
+    // The literal text, written out here rather than derived, and with no
+    // leading `+`: the control hangs off its own starter's row, where the
+    // count reads as part of that row rather than as an item being offered.
+    // The tree announced `+ 1 child session` while it ran a fold of its own.
+    expect(childSessionGroupLabel(starter.children.length)).toBe("1 child session");
+    expect(childSessionGroupLabel(2)).toBe("2 child sessions");
   });
 });
 

@@ -8,7 +8,14 @@ import { parse } from "yaml";
 import { AuthProvider } from "@/providers/AuthProvider";
 import GroupDetailPage from "@/app/groups/[id]/page";
 import GroupContributePage from "@/app/groups/[id]/contribute/page";
-import type { Group, GroupMember, GroupTranscript, User } from "@/lib/types";
+import type {
+  Group,
+  GroupMember,
+  GroupTranscript,
+  User,
+  UserGroupShare,
+} from "@/lib/types";
+import type { ContributableTranscript } from "@/lib/contribute/types";
 
 /**
  * Mount support for the REAL `/groups/{id}` and `/groups/{id}/contribute`
@@ -107,6 +114,24 @@ export function loadGroupsContributeNavFixtures(): ContributeNavFixtures {
 
 // ── Route fixture ────────────────────────────────────────────────────────
 
+/**
+ * One pending submission as `GET /groups/{id}/pending` answers it. The three
+ * identity columns are what the review queue folds on: a queue holds rows from
+ * several publishers, and a session id is unique per owner rather than
+ * globally, so the owner is part of the match.
+ */
+export interface PendingShareFixtureRow {
+  transcript_id: string;
+  title: string | null;
+  model_provider: string;
+  owner_id: string;
+  local_id: string;
+  parent_session_id: string | null;
+  owner_username: string;
+  owner_is_discoverable: boolean;
+  shared_at: string;
+}
+
 export interface GroupRouteFixture {
   /** Signed-in viewer's GitHub username, or `null` for an anonymous one (`/auth/me` answers 401). */
   viewer: string | null;
@@ -114,6 +139,20 @@ export interface GroupRouteFixture {
   groupName: string;
   /** `your_role` the `/groups/{id}` payload reports, or `null` for a non-member. */
   role: "contributor" | "member" | "owner" | null;
+  /** How the collective accepts contributions. `curated` is what opens the
+   *  owner's review queue; the default keeps every existing case's `open`
+   *  collective unchanged. */
+  acceptanceMode?: "open" | "verified_only" | "curated";
+  /** The collective's contributions, served on `/groups/{id}` and read by both
+   *  the browse list and the repository view. */
+  transcripts?: GroupTranscript[];
+  /** `GET /groups/{id}/pending`, the owner's review queue of a curated
+   *  collective. */
+  pendingShares?: PendingShareFixtureRow[];
+  /** `GET /groups/{id}/my-shares`, this person's own contributions. */
+  myShares?: UserGroupShare[];
+  /** `GET /groups/{id}/contributable`, what the contribute tree offers. */
+  contributable?: ContributableTranscript[];
 }
 
 function makeUser(username: string): User {
@@ -142,7 +181,7 @@ function makeGroup(fixture: GroupRouteFixture): Group {
     created_by: "user-owner",
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
-    acceptance_mode: "open",
+    acceptance_mode: fixture.acceptanceMode ?? "open",
     data_access: "members_only",
     role: fixture.role ?? "",
     member_since: fixture.role ? "2026-01-02T00:00:00Z" : null,
@@ -167,26 +206,57 @@ const json = (body: unknown, status = 200) =>
     headers: { "content-type": "application/json" },
   });
 
+/** One request the mounted route made, with its parsed body, so a test asserts
+ *  WHAT was sent rather than only that something was. */
+export interface RecordedGroupRequest {
+  method: string;
+  url: string;
+  body: unknown;
+}
+
 /**
  * Stubs `fetch` for one group-route fixture: `/auth/me`, `/groups/{id}`,
  * `/groups/{id}/my-shares` (fired unconditionally for a signed-in viewer by
- * `useMyGroupShares`), and `/transcripts?owner=...` (fired by the
- * contribute page's `useTranscripts` for a member).
+ * `useMyGroupShares`), `/groups/{id}/pending` (the owner's review queue of a
+ * curated collective), `/groups/{id}/repositories`, `/groups/{id}/contributable`,
+ * the `PATCH /groups/{id}/shares/{transcriptId}` a moderator's decision sends,
+ * and `/transcripts?owner=...` (fired by the contribute page's `useTranscripts`
+ * for a member).
+ *
+ * Answers with the array it RECORDS every request into, so a test can assert
+ * the decision a moderator's click actually sent, and for which submission.
  */
-export function installGroupRouteREST(fixture: GroupRouteFixture): void {
+export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroupRequest[] {
   const group = makeGroup(fixture);
   const members = [makeMember(fixture)];
+  const requests: RecordedGroupRequest[] = [];
 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = (init?.method ?? "GET").toUpperCase();
+    requests.push({
+      method,
+      url,
+      body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
+    });
+    if (method === "PATCH" && /\/shares\/[^/]+$/.test(url)) {
+      return json({ ok: true });
+    }
 
     if (url.endsWith("/auth/me")) {
       if (fixture.viewer == null) return json({ error: "unauthenticated" }, 401);
       return json(makeUser(fixture.viewer));
     }
     if (url.includes("/my-shares")) {
-      return json([]);
+      return json(fixture.myShares ?? []);
+    }
+    if (url.includes("/pending")) {
+      return json(fixture.pendingShares ?? []);
+    }
+    if (url.includes("/repositories")) {
+      // The repository-link feature is optional server-side and answers 501
+      // when it is not configured, which the panel renders as its own notice.
+      return json({ error: "not configured" }, 501);
     }
     if (url.includes("/transcripts?")) {
       return json({ transcripts: [], total: 0, agent_total: 0, page: 1, limit: 100 });
@@ -196,16 +266,20 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): void {
     // your transcripts are already shared...") covers this fixture's
     // member-view assertion the same way the interim single-panel shell did.
     if (url.includes("/contributable")) {
-      return json({ group_id: fixture.groupId, transcripts: [] });
+      return json({ group_id: fixture.groupId, transcripts: fixture.contributable ?? [] });
     }
-    if (new RegExp(`/groups/${fixture.groupId}$`).test(url)) {
+    // The detail payload, with or without the paging query the "browse all"
+    // control adds; both answer from the same list, which is what the real
+    // endpoint does.
+    if (new RegExp(`/groups/${fixture.groupId}(\\?|$)`).test(url)) {
+      const groupTranscripts = fixture.transcripts ?? [];
       return json({
         group,
         members,
-        transcripts: [] as GroupTranscript[],
+        transcripts: groupTranscripts,
         stats: {
-          total_transcripts: 0,
-          contributor_count: 0,
+          total_transcripts: groupTranscripts.length,
+          contributor_count: new Set(groupTranscripts.map((t) => t.owner_id)).size,
           total_turns: 0,
           total_duration_ms: 0,
           total_tokens: 0,
@@ -220,6 +294,7 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): void {
     throw new Error(`group-route fixture received an unexpected ${method} request to ${url}`);
   });
   vi.stubGlobal("fetch", fetchMock);
+  return requests;
 }
 
 function Providers({ children }: { children: ReactNode }) {
@@ -262,7 +337,7 @@ export function installGroupRouteTeardown(): void {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
-    localStorage.clear();
+    globalThis.localStorage?.clear();
     document.documentElement.setAttribute("data-theme", "dark");
   });
 }

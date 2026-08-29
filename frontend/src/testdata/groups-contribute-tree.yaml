@@ -357,6 +357,37 @@ cases:
         proj-all-two: [s-all-b]
       forbiddenBodyId: s-all-shared
 
+  - name: starter_selection_takes_its_started_session
+    kind: page
+    why: >-
+      a session started by another session is read behind the SAME collapsed
+      control every other session list in this app uses, announced by the one
+      label helper (a bare count, with no leading "+" -- the tree announced
+      "+ 1 child session" while it ran a fold of its own). Ticking the session
+      that started it must take it along: a person choosing a session is
+      choosing the work it did, and a started session left behind would be
+      published apart from the session that explains it.
+    rows:
+      - id: s-starter
+        local_id: local-starter
+        title: run the migration
+        project_hash: proj-nest
+        project_display_name: nesting project
+        git_branch: main
+      - id: s-started
+        local_id: local-started
+        title: write the down file
+        parent_session_id: local-starter
+        project_hash: proj-nest
+        project_display_name: nesting project
+        git_branch: main
+    expect:
+      starterId: s-starter
+      startedId: s-started
+      disclosureLabel: 1 child session
+      initialTally: 0 selected · 2 sessions
+      tallyAfterStarterTick: 2 selected · 2 sessions
+
   # --- kind: preview (L3) -----------------------------------------------------
 
   - name: preview_renders_on_click

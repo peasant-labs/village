@@ -1,19 +1,47 @@
 # Cases for the sessions that another session started, mounted on the REAL
 # routes with REST mocked. Loaded by src/test/childSessionGroupingFixtures.ts.
 #
-# `surfaces` names the mounted routes a case is asserted on. The three surfaces
-# answer the same question differently, and a case belongs where its rows make
-# sense:
-#   explore  /explore, public discovery. A started session is folded away and
-#            the browse grid keeps the parent row alone. Discovery offers NO
-#            control to reveal what was folded: a browse card names no parent,
-#            so a count hanging off one card would ask a visitor to guess which
-#            card it belonged to.
-#   home     `/` for a signed-in visitor. Its own recent sessions, where a
-#            started session hangs off its parent's row in an expandable chip.
-#   project  /users/{username}/projects/{projectHash}, the same chip.
-# home and project are owner-scoped, so a case asserted on either carries rows
-# from ONE owner and no agent sessions.
+# `surfaces` names the mounted routes a case is asserted on. Every session list
+# in this app folds with the same implementation, but the lists do not agree on
+# what a row looks like or on what a viewer may do with one, so a case belongs
+# where its rows make sense:
+#   explore             /explore, public discovery. A started session is folded
+#                       away and the browse grid keeps the parent row alone.
+#                       Discovery offers NO control to reveal what was folded: a
+#                       browse card names no parent, so a count hanging off one
+#                       card would ask a visitor to guess which card it belonged
+#                       to.
+#   home                `/` for a signed-in visitor. Its own recent sessions,
+#                       where a started session hangs off its parent's row in an
+#                       expandable chip.
+#   project             /users/{username}/projects/{projectHash}, the same chip.
+#   profile             /users/{username}, a person's library. Folded WITHIN each
+#                       project group, which is the only place a starter and what
+#                       it started can both be.
+#   collective-browse   /groups/{id}, the collective's contributions. Rows carry
+#                       a title, a contributor handle, a provider, turns, tokens
+#                       and a date, and an owner picks rows out to remove them.
+#   collective-repos    /groups/{id}, the same rows read by repository. Folded
+#                       WITHIN each repository.
+#   pending-queue       /groups/{id} for the owner of a curated collective. The
+#                       ONE surface here that does NOT fold: every submission
+#                       keeps its own queue row. The queue component offers no
+#                       way to nest a row, and forcing one made the queue worse
+#                       to work in -- a revealed submission truncated its own
+#                       title, and a row's approve and reject drifted away from
+#                       the title they decide. On a surface where each row is an
+#                       irreversible decision, that is worse than a flat list.
+#                       The cases below assert the rows stay UNGROUPED, so the
+#                       omission is a state this fixture states out loud rather
+#                       than a silence, and a fold arriving here has to be a
+#                       deliberate edit to these cases.
+#   my-contributions    /groups/{id}, a member's own contributions to it.
+#   contribute          /groups/{id}/contribute, the project > branch > session
+#                       selection tree.
+# explore, collective-browse, collective-repos and pending-queue can each carry
+# rows from several publishers. home, project, profile, my-contributions and
+# contribute read ONE person's own sessions, so a case asserted on any of those
+# carries rows from one owner and no agent sessions.
 #
 # `rows` are the transcripts one `/api/v1/transcripts` response carries, in the
 # order the server returned them. Each row's `name` is also its transcript id,
@@ -44,9 +72,9 @@
 #
 # The two expectations partition the rows. `expectedRootRows` keep their place
 # in the list. `expectedGroups` are folded under a parent in the same response.
-# No row is left out of the expectations. On home and on a project page those
-# folded rows are reachable by expanding the parent's chip; on discovery they
-# are not shown, and are read under their parent on those two surfaces instead.
+# No row is left out of the expectations. On every surface but discovery those
+# folded rows are reachable by expanding the control on their parent's row; on
+# discovery they are not shown, and are read under their parent elsewhere.
 #
 # `serverTotal` is the total the server reports for the active filters, which
 # counts every matching transcript including the ones this page folds away.
@@ -478,7 +506,7 @@ cases:
   # parent -- the chip hangs off the parent's own row -- so the started sessions
   # are listed rather than only folded away.
   - name: a-started-session-is-listed-inside-its-parents-chip
-    surfaces: [home, project]
+    surfaces: [home, project, profile]
     absentParentCause: none
     rows:
       - name: run-the-migration
@@ -511,7 +539,7 @@ cases:
   # list that is ordinary: the parent may be an unpublished session, or one in
   # another project. It keeps its own row, and gets no chip of its own.
   - name: a-row-whose-parent-is-not-in-the-list-keeps-its-place
-    surfaces: [home, project]
+    surfaces: [home, project, profile]
     absentParentCause: another-page
     rows:
       - name: fix-the-flaky-test
@@ -586,3 +614,221 @@ cases:
       - parent: harden-the-client
         label: "1 child session"
         children: [wire-the-retry]
+
+  # ── a collective's contributions, read as a list and by repository ─────────
+  # The same rows answer both views of /groups/{id}, because they are the same
+  # response: the list draws them in server order and the repository view draws
+  # them under the repository they share. Two publishers, because a collective
+  # holds everybody's contributions and one publisher's session id must never
+  # capture another publisher's row.
+  - name: a-collectives-contributions-read-a-started-session-under-its-starter
+    surfaces: [collective-browse, collective-repos]
+    absentParentCause: none
+    rows:
+      - name: ship-the-parser
+        ownerID: owner-ada
+        localID: sess-parser
+        parentSessionID: null
+      - name: widen-the-lexer
+        ownerID: owner-ada
+        localID: sess-lexer
+        parentSessionID: sess-parser
+      - name: add-a-golden-file
+        ownerID: owner-ada
+        localID: sess-golden
+        parentSessionID: sess-parser
+      - name: tune-the-cache
+        ownerID: owner-bo
+        localID: sess-cache
+        parentSessionID: null
+    agentSessions: []
+    serverTotal: 4
+    expectedVisibleCount: 2
+    expectedRootRows: [ship-the-parser, tune-the-cache]
+    expectedHomeRows: []
+    expectedGroups:
+      - parent: ship-the-parser
+        label: "2 child sessions"
+        children: [widen-the-lexer, add-a-golden-file]
+
+  # A collective's browse list is paged and filtered, so the session that
+  # started a contribution is often simply not on the page a reader is looking
+  # at. The contribution keeps its ordinary row; removing it would take a
+  # transcript the reader can open out of the collective they are browsing.
+  - name: a-collective-row-naming-a-session-this-page-omits-keeps-its-row
+    surfaces: [collective-browse, collective-repos]
+    absentParentCause: another-page
+    rows:
+      - name: audit-the-indexes
+        ownerID: owner-ada
+        localID: sess-indexes
+        parentSessionID: null
+      - name: rerun-the-import
+        ownerID: owner-bo
+        localID: sess-import
+        parentSessionID: sess-on-an-earlier-page
+    agentSessions: []
+    serverTotal: 2
+    expectedVisibleCount: 2
+    expectedRootRows: [audit-the-indexes, rerun-the-import]
+    expectedHomeRows: []
+    expectedGroups: []
+
+  # ── the review queue of a curated collective ──────────────────────────────
+  # The rows carry everything a fold needs -- this submission was started by
+  # that one -- and the queue still lists all three side by side. That is the
+  # deliberate outcome, not a gap in the corpus: see the surface note at the top
+  # of this file. A moderator can still reach and decide every submission, which
+  # is the property this surface must never lose.
+  - name: a-review-queue-lists-a-started-submission-beside-its-starter
+    surfaces: [pending-queue]
+    absentParentCause: none
+    rows:
+      - name: offer-the-refactor
+        ownerID: owner-ada
+        localID: sess-refactor
+        parentSessionID: null
+      - name: offer-the-follow-up
+        ownerID: owner-ada
+        localID: sess-follow-up
+        parentSessionID: sess-refactor
+      - name: offer-a-second-opinion
+        ownerID: owner-bo
+        localID: sess-opinion
+        parentSessionID: null
+    agentSessions: []
+    serverTotal: 3
+    expectedVisibleCount: 3
+    expectedRootRows: [offer-the-refactor, offer-the-follow-up, offer-a-second-opinion]
+    expectedHomeRows: []
+    expectedGroups: []
+
+  # A person offered one session to this collective and kept the session that
+  # started it to themselves. The moderator may not read the starter at all, so
+  # the offered submission keeps its own queue row: a submission a moderator
+  # cannot see is a submission they cannot decide, and the queue never clears.
+  - name: a-submission-whose-starter-was-not-offered-keeps-its-queue-row
+    surfaces: [pending-queue]
+    absentParentCause: not-visible
+    rows:
+      - name: offer-the-migration
+        ownerID: owner-ada
+        localID: sess-migration-offer
+        parentSessionID: null
+      - name: offer-the-cleanup
+        ownerID: owner-bo
+        localID: sess-cleanup
+        parentSessionID: sess-kept-out-of-this-collective
+    agentSessions: []
+    serverTotal: 2
+    expectedVisibleCount: 2
+    expectedRootRows: [offer-the-migration, offer-the-cleanup]
+    expectedHomeRows: []
+    expectedGroups: []
+
+  # ── a member's own contributions to a collective ──────────────────────────
+  # This list answers "what did I give this collective", so a contribution
+  # another contribution started reads under the one that started it, with the
+  # unshare action still on every row.
+  - name: your-contributions-read-a-started-contribution-under-its-starter
+    surfaces: [my-contributions]
+    absentParentCause: none
+    rows:
+      - name: draft-the-schema
+        ownerID: owner-ada
+        localID: sess-schema
+        parentSessionID: null
+      - name: generate-the-types
+        ownerID: owner-ada
+        localID: sess-types
+        parentSessionID: sess-schema
+      - name: write-the-adapter
+        ownerID: owner-ada
+        localID: sess-adapter
+        parentSessionID: null
+    agentSessions: []
+    serverTotal: 3
+    expectedVisibleCount: 2
+    expectedRootRows: [draft-the-schema, write-the-adapter]
+    expectedHomeRows: []
+    expectedGroups:
+      - parent: draft-the-schema
+        label: "1 child session"
+        children: [generate-the-types]
+
+  # A contribution whose starter was never offered to THIS collective. The list
+  # holds only what this person gave this collective, so the starter is filtered
+  # out of it by definition, and the contribution keeps its ordinary row.
+  - name: a-contribution-whose-starter-is-not-in-this-collective-keeps-its-row
+    surfaces: [my-contributions]
+    absentParentCause: filtered-out
+    rows:
+      - name: trim-the-payload
+        ownerID: owner-ada
+        localID: sess-payload
+        parentSessionID: null
+      - name: retry-the-upload
+        ownerID: owner-ada
+        localID: sess-upload
+        parentSessionID: sess-never-contributed
+    agentSessions: []
+    serverTotal: 2
+    expectedVisibleCount: 2
+    expectedRootRows: [trim-the-payload, retry-the-upload]
+    expectedHomeRows: []
+    expectedGroups: []
+
+  # ── the contribute selection tree ─────────────────────────────────────────
+  # Choosing what to contribute is where the fold matters most: a person picks a
+  # session, and the sessions it started come with it. The tree used to run its
+  # own private fold; it runs the shared one now, so the count on the control is
+  # the number of rows the control reveals.
+  - name: the-contribute-tree-nests-a-started-session-under-its-starter
+    surfaces: [contribute]
+    absentParentCause: none
+    rows:
+      - name: pick-the-encoding
+        ownerID: owner-ada
+        localID: sess-encoding
+        parentSessionID: null
+      - name: benchmark-the-decoder
+        ownerID: owner-ada
+        localID: sess-decoder
+        parentSessionID: sess-encoding
+      - name: document-the-format
+        ownerID: owner-ada
+        localID: sess-format
+        parentSessionID: null
+    agentSessions: []
+    serverTotal: 3
+    expectedVisibleCount: 2
+    expectedRootRows: [pick-the-encoding, document-the-format]
+    expectedHomeRows: []
+    expectedGroups:
+      - parent: pick-the-encoding
+        label: "1 child session"
+        children: [benchmark-the-decoder]
+
+  # The listing answers with what is still contributable, so the session that
+  # started this row can be missing because it was already contributed and is no
+  # longer offered. The row keeps its own place in the tree -- under the
+  # project's orphaned-transcripts grouping -- so it stays selectable rather
+  # than disappearing from the only page that can contribute it.
+  - name: a-contributable-row-naming-an-unlisted-parent-keeps-its-own-place
+    surfaces: [contribute]
+    absentParentCause: filtered-out
+    rows:
+      - name: list-the-endpoints
+        ownerID: owner-ada
+        localID: sess-endpoints
+        parentSessionID: null
+      - name: probe-the-timeouts
+        ownerID: owner-ada
+        localID: sess-timeouts
+        parentSessionID: sess-already-contributed
+    agentSessions: []
+    serverTotal: 2
+    expectedVisibleCount: 2
+    expectedRootRows: [list-the-endpoints, probe-the-timeouts]
+    expectedHomeRows: []
+    expectedGroups: []

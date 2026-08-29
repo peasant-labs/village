@@ -6,8 +6,6 @@ import {
   Users,
   Lock,
   ExternalLink,
-  Check,
-  Minus,
   Trash2,
   ShieldAlert,
 } from "lucide-react";
@@ -22,20 +20,32 @@ import {
   useMyGroupShares,
 } from "@/lib/queries/groups";
 import { useUnshareTranscript } from "@/lib/queries/transcripts";
+import type { UserGroupShare } from "@/lib/types";
+import SessionGroupDisclosure from "@/components/transcript/SessionGroupDisclosure";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
-import { resolveAttribution } from "@/lib/format";
+import { collectiveTranscriptRow, formatCompact, resolveAttribution } from "@/lib/format";
+import {
+  type SessionIdentity,
+  childSessionGroupLabel,
+  childSessionsByParentID,
+  childSessionsByRowID,
+  groupChildSessions,
+  groupSessionRows,
+} from "@/lib/childSessions";
+import TranscriptList, {
+  type TranscriptRowFact,
+  type TranscriptRowSelection,
+} from "@/components/transcript/TranscriptList";
 import {
   Button,
-  ProviderName,
   ProviderBars,
   RailShell,
   RailSection,
   ModerationQueue,
   RoleRoster,
 } from "@/lib/ft-ui";
-import { isHarness } from "@/lib/harness";
 import ProviderBadge from "@/components/transcript/ProviderBadge";
 import GitHubUserSearch from "@/components/GitHubUserSearch";
 import LeaveCollectiveDialog from "@/components/group/LeaveCollectiveDialog";
@@ -57,11 +67,129 @@ function formatDuration(ms: number): string {
   return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
 }
 
-function formatCompact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
-  return n.toLocaleString();
+/** One of the caller's own contributions to a collective. */
+function MyContributionRow({
+  share,
+  groupID,
+  onUnshare,
+  unsharing,
+}: {
+  share: UserGroupShare;
+  groupID: string;
+  onUnshare: (input: { transcriptId: string; groupId: string }) => void;
+  unsharing: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-5 py-2.5 hover:bg-surface-hover transition-colors">
+      <ProviderBadge provider={share.model_provider} />
+      <Link
+        href={`/transcripts/${share.id}`}
+        className="text-sm text-ink truncate min-w-0 flex-1 hover:underline focus-mono cursor-pointer"
+      >
+        {share.title || "Untitled"}
+      </Link>
+      {share.status === "pending" && (
+        <span className="text-[10px] font-mono text-ink-3 uppercase tracking-wider shrink-0">
+          pending
+        </span>
+      )}
+      <span className="text-[11px] font-mono text-ink-3 tabular-nums shrink-0">
+        {new Date(share.shared_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })}
+      </span>
+      <button
+        type="button"
+        onClick={() => onUnshare({ transcriptId: share.id, groupId: groupID })}
+        disabled={unsharing}
+        title="Unshare from this collective"
+        className="inline-flex size-7 items-center justify-center border border-rule bg-surface text-ink-3 hover:bg-danger-soft hover:text-danger focus-mono transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+      >
+        <Trash2 className="size-3.5" />
+      </button>
+    </div>
+  );
 }
+
+/**
+ * The contributions one contribution started, behind the shared collapsed
+ * control. Nothing renders when the row above started nothing in this response.
+ *
+ * Collapse state lives here, one instance per parent row, because a group is an
+ * aside: a person who opened one has not asked for every one to be open.
+ */
+function MyContributionChildren({
+  parentShareID,
+  startedShares,
+  groupID,
+  onUnshare,
+  unsharing,
+}: {
+  parentShareID: string;
+  startedShares: UserGroupShare[];
+  groupID: string;
+  onUnshare: (input: { transcriptId: string; groupId: string }) => void;
+  unsharing: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const rowsID = `my-contribution-children-${parentShareID}`;
+  if (startedShares.length === 0) return null;
+  return (
+    <div className="pl-5" data-parent-transcript-id={parentShareID}>
+      <SessionGroupDisclosure
+        label={childSessionGroupLabel(startedShares.length)}
+        collapsedLabel={childSessionGroupLabel(startedShares.length)}
+        expanded={expanded}
+        onToggle={() => setExpanded((open) => !open)}
+        rowsID={rowsID}
+        testID="child-session-disclosure"
+        bare
+      >
+        <div
+          id={rowsID}
+          data-testid="child-session-disclosure-rows"
+          className="border-t border-rule divide-y divide-rule"
+        >
+          {startedShares.map((child) => (
+            <MyContributionRow
+              key={child.id}
+              share={child}
+              groupID={groupID}
+              onUnshare={onUnshare}
+              unsharing={unsharing}
+            />
+          ))}
+        </div>
+      </SessionGroupDisclosure>
+    </div>
+  );
+}
+
+/** The shared fold's four facts, read out of one of the caller's own
+ *  contributions. Its row identity is the transcript id under a different
+ *  name -- this response calls it `id` where the pending queue calls it
+ *  `transcript_id` -- which is exactly why each list states its own reading
+ *  instead of the fold guessing at a field name. */
+function myShareIdentity(share: UserGroupShare): SessionIdentity {
+  return {
+    rowID: share.id,
+    ownerID: share.owner_id,
+    sessionID: share.local_id,
+    parentSessionID: share.parent_session_id,
+  };
+}
+
+/**
+ * What a row states on a collective's browse list: everything its table stated
+ * as a column, in the order every other transcript list in this app reads.
+ */
+const COLLECTIVE_BROWSE_FACTS: readonly TranscriptRowFact[] = [
+  "provider",
+  "date",
+  "turns",
+  "tokens",
+];
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
@@ -110,6 +238,16 @@ export default function GroupDetailPage({
     transcript_id: string;
     title: string | null;
     model_provider: string;
+    /** The publisher and the id the recording harness used, which is how a
+     *  submission that another session started is matched to the submission
+     *  that started it. A queue can hold rows from several publishers, and
+     *  `local_id` is unique per owner rather than globally, so both are
+     *  needed: matching on the session id alone would let one publisher's
+     *  submission capture another publisher's. */
+    owner_id: string;
+    local_id: string;
+    /** The harness id of the session that started this one, or null. */
+    parent_session_id: string | null;
     owner_username: string;
     owner_is_discoverable: boolean;
     shared_at: string;
@@ -184,6 +322,18 @@ export default function GroupDetailPage({
   const canLeave = !!yourRole && yourRole !== "owner";
   const pendingMembers = pendingMembersRaw ?? [];
 
+  // The preview is cut to five BEFORE the fold, unlike the home page, which
+  // groups first so its list is five sessions a person ran rather than five
+  // rows. The difference is deliberate: this cut IS the summary the manage
+  // surface renders above -- both read this one value, so the two cannot say
+  // different things about the same five contributions -- and a preview that
+  // folded first could show one row where the collective's five most recent
+  // contributions were one busy session and what it started. Nothing is lost
+  // either way -- a folded row is inside the control under its parent -- and
+  // "browse data" pages the whole set.
+  const rawBrowserTranscripts = showDataBrowser
+    ? (pagedData ?? [])
+    : (transcripts || []).slice(0, 5);
   const manageData = {
     collective: {
       name: group.name,
@@ -218,7 +368,7 @@ export default function GroupDetailPage({
     // shared component or affecting the demo's own illustrative rendering.
     members: [],
     redactions: [],
-    browseRows: (showDataBrowser ? (pagedData ?? []) : (transcripts || []).slice(0, 5)).map((transcript) => ({
+    browseRows: rawBrowserTranscripts.map((transcript) => ({
       title: transcript.title ?? "untitled transcript",
       contributor: `@${transcript.owner_username}`,
       providerId: transcript.model_provider,
@@ -243,9 +393,6 @@ export default function GroupDetailPage({
 
   const totalTranscripts = stats?.total_transcripts ?? 0;
   const totalPages = Math.ceil(totalTranscripts / DATA_PAGE_SIZE);
-  const rawBrowserTranscripts = showDataBrowser
-    ? (pagedData ?? [])
-    : (transcripts || []).slice(0, 5);
   const ANON_FILTER_KEY = "__anon__";
   const browserTranscripts = contributorFilter
     ? rawBrowserTranscripts.filter((t) => {
@@ -289,6 +436,29 @@ export default function GroupDetailPage({
       })
     ).values()
   ).sort((a, b) => a.label.localeCompare(b.label));
+
+  // A session another session started is listed under the session that started
+  // it. The rows are the same rows either way: a started session whose starter
+  // is not on this page keeps its own place in the list.
+  //
+  // Grouped AFTER the contributor filter, so a chip hangs only off a row the
+  // filter left on screen. Filtering to one contributor can leave a started
+  // session whose starter belongs to someone else, and that row then keeps its
+  // ordinary place rather than disappearing with its parent.
+  const browserRows = browserTranscripts.map(collectiveTranscriptRow);
+  const browserGrouping = groupChildSessions(browserRows);
+  const browserChildSessions = childSessionsByParentID(browserGrouping);
+  // The owner picks rows out in order to remove them from the collective. The
+  // set is keyed on the transcript id, which every row carries whether it kept
+  // its place or was folded under another row, so a folded row is selected and
+  // removed exactly like any other.
+  const browserSelection: TranscriptRowSelection = {
+    selectedIDs: rowSelected,
+    onToggle: toggleRow,
+  };
+  const allBrowserRowsSelected =
+    browserTranscripts.length > 0 && browserTranscripts.every((t) => rowSelected.has(t.id));
+  const someBrowserRowsSelected = browserTranscripts.some((t) => rowSelected.has(t.id));
 
   const handleInvite = (e: React.FormEvent) => {
     e.preventDefault();
@@ -418,6 +588,12 @@ export default function GroupDetailPage({
   // ── Rail: right-rail composition ───────────────────────────────────────────
   const pendingSharesList = pendingShares ?? [];
   const mySharesList = myShares ?? [];
+  // Both of these lists fold with the SAME implementation every transcript list
+  // in this app uses, over each list's own row shape. A submission another
+  // session started is read under the submission that started it; a submission
+  // whose starter was not offered to this collective keeps its ordinary row.
+  const myShareFold = groupSessionRows(mySharesList, myShareIdentity);
+  const myShareChildren = childSessionsByRowID(myShareFold, myShareIdentity);
   const currentUserId = user?.id;
 
   const railContent = (
@@ -604,17 +780,36 @@ export default function GroupDetailPage({
             </div>
           ) : browseView === "repos" ? (
             <div className="p-5">
-              <CollectiveRepos
-                transcripts={browserTranscripts}
-                viewerId={user?.id}
-                viewerIsOwner={isOwner}
-              />
+              <CollectiveRepos transcripts={browserTranscripts} viewerIsOwner={isOwner} />
             </div>
           ) : transcripts && transcripts.length > 0 ? (
             <>
               {(visibleContributors.length > 1 || isOwner) && (
                 <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-b border-rule">
                   <div className="flex items-center gap-2">
+                    {/* Select-all, which the dropped table carried in its
+                        header. It ticks EVERY row of the page including the
+                        ones folded under another row, so "select everything"
+                        means everything the page holds rather than only the
+                        rows that happen to be drawn at the top level. */}
+                    {isOwner && browserTranscripts.length > 0 && (
+                      <label className="inline-flex items-center gap-1.5 text-[12px] font-mono text-ink-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={allBrowserRowsSelected}
+                          ref={(box) => {
+                            if (box != null) {
+                              box.indeterminate =
+                                someBrowserRowsSelected && !allBrowserRowsSelected;
+                            }
+                          }}
+                          onChange={() => toggleAllRows(browserTranscripts)}
+                          aria-label="Select every transcript on this page"
+                          className="size-3.5 cursor-pointer accent-[var(--mark)] focus-mono"
+                        />
+                        all
+                      </label>
+                    )}
                     <select
                       id="contributor-filter"
                       aria-label="Filter by contributor"
@@ -673,156 +868,24 @@ export default function GroupDetailPage({
                   )}
                 </div>
               )}
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-rule">
-                      {isOwner && (
-                        <th className="v2-eyebrow px-5 py-2.5 w-8">
-                          <span
-                            className={`size-3.5 border inline-flex items-center justify-center cursor-pointer transition-colors ${
-                              browserTranscripts.length > 0 &&
-                              browserTranscripts.every((t) => rowSelected.has(t.id))
-                                ? "bg-mark border-mark"
-                                : browserTranscripts.some((t) => rowSelected.has(t.id))
-                                ? "bg-surface-hover border-rule-strong"
-                                : "border-rule-strong hover:border-ink"
-                            }`}
-                            onClick={() => toggleAllRows(browserTranscripts)}
-                            role="checkbox"
-                            aria-checked={
-                              browserTranscripts.length > 0 &&
-                              browserTranscripts.every((t) => rowSelected.has(t.id))
-                            }
-                            tabIndex={0}
-                          >
-                            {browserTranscripts.length > 0 &&
-                              browserTranscripts.every((t) => rowSelected.has(t.id)) && (
-                                <Check className="size-2.5 text-mark-fg" strokeWidth={3} />
-                              )}
-                            {browserTranscripts.some((t) => rowSelected.has(t.id)) &&
-                              !browserTranscripts.every((t) => rowSelected.has(t.id)) && (
-                                <Minus className="size-2.5 text-ink" strokeWidth={3} />
-                              )}
-                          </span>
-                        </th>
-                      )}
-                      <th className="text-left v2-eyebrow px-5 py-2.5">Title</th>
-                      <th className="text-left v2-eyebrow px-5 py-2.5">Contributor</th>
-                      <th className="text-left v2-eyebrow px-5 py-2.5">Provider</th>
-                      <th className="text-right v2-eyebrow px-5 py-2.5">Turns</th>
-                      <th className="text-right v2-eyebrow px-5 py-2.5">Tokens</th>
-                      <th className="text-right v2-eyebrow px-5 py-2.5">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-rule">
-                    {browserTranscripts.map((t) => {
-                      const isSelected = rowSelected.has(t.id);
-                      return (
-                        <tr
-                          key={t.id}
-                          className={`transition-colors ${
-                            isSelected ? "bg-surface-hover" : "hover:bg-surface-hover"
-                          }`}
-                        >
-                          {isOwner && (
-                            <td className="px-5 py-2.5">
-                              <button
-                                type="button"
-                                onClick={() => toggleRow(t.id)}
-                                aria-label={
-                                  isSelected ? "Deselect transcript" : "Select transcript"
-                                }
-                                className="shrink-0 cursor-pointer focus-mono"
-                              >
-                                <span
-                                  className={`size-3.5 border flex items-center justify-center transition-colors ${
-                                    isSelected
-                                      ? "bg-mark border-mark"
-                                      : "border-rule-strong hover:border-ink"
-                                  }`}
-                                >
-                                  {isSelected && (
-                                    <Check
-                                      className="size-2.5 text-mark-fg"
-                                      strokeWidth={3}
-                                    />
-                                  )}
-                                </span>
-                              </button>
-                            </td>
-                          )}
-                          <td className="px-5 py-2.5">
-                            <Link
-                              href={`/transcripts/${t.id}`}
-                              className="text-ink hover:underline transition-colors truncate block max-w-xs focus-mono cursor-pointer"
-                            >
-                              {t.title || "Untitled"}
-                            </Link>
-                          </td>
-                          <td className="px-5 py-2.5">
-                            {t.owner_is_discoverable === false &&
-                            t.owner_id !== user?.id &&
-                            !isOwner ? (
-                              <span className="inline-flex items-center gap-1.5">
-                                <span className="size-4 border border-rule bg-surface-hover flex items-center justify-center text-[8px] font-mono font-semibold text-ink-3">
-                                  ?
-                                </span>
-                                <span className="text-[12px] text-ink-3">anon</span>
-                              </span>
-                            ) : (
-                              <Link
-                                href={`/users/${t.owner_username}`}
-                                className="inline-flex items-center gap-1.5 focus-mono cursor-pointer hover:underline"
-                              >
-                                {t.owner_avatar_url ? (
-                                  <img
-                                    src={t.owner_avatar_url}
-                                    alt=""
-                                    className="size-4 border border-rule object-cover"
-                                  />
-                                ) : (
-                                  <span className="size-4 border border-rule bg-surface-hover flex items-center justify-center text-[8px] font-mono font-semibold text-ink-2">
-                                    {t.owner_username[0].toUpperCase()}
-                                  </span>
-                                )}
-                                <span className="text-[12px] text-ink-2">
-                                  {t.owner_username}
-                                </span>
-                              </Link>
-                            )}
-                          </td>
-                          <td className="px-5 py-2.5">
-                            {isHarness(t.model_provider) ? (
-                              <ProviderName harness={t.model_provider} />
-                            ) : (
-                              <span className="text-xs font-mono text-ink-3">
-                                {t.model_provider}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-5 py-2.5 text-right font-mono text-xs text-ink-3 tabular-nums">
-                            {t.turn_count != null ? t.turn_count : "—"}
-                          </td>
-                          <td className="px-5 py-2.5 text-right font-mono text-xs text-ink-3 tabular-nums">
-                            {t.token_count != null
-                              ? formatCompact(t.token_count)
-                              : t.tokens_in != null || t.tokens_out != null
-                              ? formatCompact((t.tokens_in ?? 0) + (t.tokens_out ?? 0))
-                              : "—"}
-                          </td>
-                          <td className="px-5 py-2.5 text-right font-mono text-xs text-ink-3 tabular-nums whitespace-nowrap">
-                            {new Date(t.published_at).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              {/* The collective's contributions, drawn by the SAME list every
+                  other transcript surface in this app uses. It was a table of
+                  its own until a session that another session started needed to
+                  fold under the session that started it here as well: a second
+                  renderer would have needed a second fold, and the two would
+                  have drifted. Every column the table stated is stated here --
+                  the title, the contributor, the provider, the turns, the
+                  tokens and the date -- and the owner's selection box is on
+                  each row, folded rows included. */}
+              <TranscriptList
+                items={browserGrouping.rootItems}
+                childSessions={browserChildSessions}
+                facts={COLLECTIVE_BROWSE_FACTS}
+                selection={isOwner ? browserSelection : undefined}
+                viewerIsPrivileged={isOwner}
+                linkOwner
+                bare
+              />
 
               {showDataBrowser && totalPages > 1 && (
                 <div className="flex items-center justify-between px-5 py-3 border-t border-rule">
@@ -892,6 +955,19 @@ export default function GroupDetailPage({
         group.acceptance_mode === "curated" &&
         pendingSharesList.length > 0 && (
           <div style={{ overflow: "auto", maxWidth: "100%" }}>
+            {/* The ONE transcript list in this app that does NOT read a started
+                submission under the submission that started it.
+                `ModerationQueue` offers no way to nest a row, and every way of
+                forcing one from here makes the queue worse to work in: the
+                revealed rows truncate their own titles inside the row they hang
+                under, and this row's approve and reject drift away from the
+                title they decide. On a surface where a person makes an
+                irreversible decision per row, that is worse than a flat list.
+                The rows carry `parent_session_id` already, so whoever draws the
+                grouping has what it needs; the review page that replaces this
+                queue shows it in a tree that folds natively. See
+                peasant-labs/fairtrade-design-system#75 for the affordance this
+                component is missing. */}
             <ModerationQueue
               title="pending review"
               items={pendingSharesList.map((ps) => ({
@@ -937,41 +1013,26 @@ export default function GroupDetailPage({
               {mySharesList.length}
             </span>
           </div>
+          {/* A contribution another contribution started is read under the one
+              that started it, behind the same control every other list in this
+              app uses. A contribution whose starter was not offered to this
+              collective keeps its ordinary row. */}
           <div className="divide-y divide-rule">
-            {mySharesList.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center gap-3 px-5 py-2.5 hover:bg-surface-hover transition-colors"
-              >
-                <ProviderBadge provider={s.model_provider} />
-                <Link
-                  href={`/transcripts/${s.id}`}
-                  className="text-sm text-ink truncate min-w-0 flex-1 hover:underline focus-mono cursor-pointer"
-                >
-                  {s.title || "Untitled"}
-                </Link>
-                {s.status === "pending" && (
-                  <span className="text-[10px] font-mono text-ink-3 uppercase tracking-wider shrink-0">
-                    pending
-                  </span>
-                )}
-                <span className="text-[11px] font-mono text-ink-3 tabular-nums shrink-0">
-                  {new Date(s.shared_at).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    unshareTranscript.mutate({ transcriptId: s.id, groupId: id })
-                  }
-                  disabled={unshareTranscript.isPending}
-                  title="Unshare from this collective"
-                  className="inline-flex size-7 items-center justify-center border border-rule bg-surface text-ink-3 hover:bg-danger-soft hover:text-danger focus-mono transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
+            {myShareFold.rootItems.map((s) => (
+              <div key={s.id}>
+                <MyContributionRow
+                  share={s}
+                  groupID={id}
+                  onUnshare={unshareTranscript.mutate}
+                  unsharing={unshareTranscript.isPending}
+                />
+                <MyContributionChildren
+                  parentShareID={s.id}
+                  startedShares={myShareChildren.get(s.id) ?? []}
+                  groupID={id}
+                  onUnshare={unshareTranscript.mutate}
+                  unsharing={unshareTranscript.isPending}
+                />
               </div>
             ))}
           </div>
