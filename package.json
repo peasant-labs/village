@@ -2,7 +2,7 @@
   "name": "fairtrade-village-manage-workspace",
   "private": true,
   "license": "Apache-2.0",
-  "packageManager": "pnpm@11.5.3",
+  "packageManager": "pnpm@11.24.0",
   "engines": {
     "node": ">=26"
   },

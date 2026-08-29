@@ -4,7 +4,7 @@
 # fairtrade-design-system worktree and ran a source prebuild on every start;
 # that dev-link machinery is retired — published packages only.)
 FROM node:26-alpine
-RUN npm install -g pnpm@11.5.3
+RUN npm install -g pnpm@11.24.0
 WORKDIR /workspace
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY frontend/package.json frontend/

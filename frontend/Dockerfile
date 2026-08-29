@@ -1,5 +1,5 @@
 FROM node:26-alpine AS deps
-RUN npm install -g pnpm@11.5.3
+RUN npm install -g pnpm@11.24.0
 ENV CI=true
 WORKDIR /app
 
@@ -9,7 +9,7 @@ COPY frontend/package.json frontend/package.json
 RUN pnpm install --frozen-lockfile
 
 FROM node:26-alpine AS builder
-RUN npm install -g pnpm@11.5.3
+RUN npm install -g pnpm@11.24.0
 ENV CI=true
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
