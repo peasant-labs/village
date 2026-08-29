@@ -153,6 +153,16 @@ function Row({
         // it. The chip's control cannot close the gap from its own side: it
         // carries a 44px minimum for its hit target, which its content does not
         // fill, so its padding is not what decides where its label sits.
+        //
+        // The top is restated at its ORIGINAL value rather than left to the
+        // shorthand, so only the bottom moves and the row still opens the same
+        // distance below the row above it.
+        //
+        // These two are design-system tokens where the rest of this file uses
+        // Tailwind's own scale. The two scales are NOT interchangeable: `py-3`
+        // and `var(--sp-3)` are both 12px, which is why the top can be restated
+        // in either, but `px-5` here is 20px while `var(--sp-5)` is 24px. Do not
+        // convert the rest of this row to tokens on the strength of these two.
         bottomSpace === "tight"
           ? "pt-[var(--sp-3)] pb-[var(--sp-2)]"
           : "py-3",

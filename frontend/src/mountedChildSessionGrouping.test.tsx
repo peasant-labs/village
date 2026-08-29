@@ -142,10 +142,18 @@ async function assertChips(
     // in the list. jsdom applies no stylesheet, so this asserts the WIRING; the
     // rendered distance is asserted as computed style on the served build by
     // scripts/visual/child-session-shoot.mjs.
+    const parentRowClasses = (unit.firstElementChild as HTMLElement).className;
     expect(
-      (unit.firstElementChild as HTMLElement).className,
+      parentRowClasses,
       `${testCase.name}: the row carrying the chip under ${expectedGroup.parent} closes up underneath it`,
     ).toContain("pb-[var(--sp-2)]");
+    // Only the BOTTOM moves. Without this the shorthand could be dropped for a
+    // bottom-only padding and the row would lose the distance it opens below
+    // the row above it, with nothing failing.
+    expect(
+      parentRowClasses,
+      `${testCase.name}: the row carrying the chip under ${expectedGroup.parent} keeps its space above`,
+    ).toContain("pt-[var(--sp-3)]");
 
     const toggle = within(chip).getByTestId("child-session-disclosure-toggle");
     // The EXACT text, not a substring of it. The chip announces a bare count

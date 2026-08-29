@@ -388,7 +388,19 @@ if (!sitsWithItsParent) {
    that carries a chip must be one design-system step tighter underneath, an
    ordinary row in the same list must be UNCHANGED (so the tightening did not
    leak into every row), and the chip's indentation must be untouched. */
-const RHYTHM = { tightRowPaddingBottom: 8, ordinaryRowPaddingBottom: 12, maxDetailToLabelGap: 22, chipIndent: 20 }
+const RHYTHM = {
+  tightRowPaddingTop: 12,
+  tightRowPaddingBottom: 8,
+  ordinaryRowPaddingBottom: 12,
+  // A BAND, not a single number. The three padding readings above are exact and
+  // are what the change actually controls; this one is measured from rendered
+  // boxes and so moves with font metrics, so a pinned value would fail a
+  // healthy build on a machine where the face loads differently. The band is
+  // still far below the distance this started at, so the regression it exists
+  // to catch cannot hide inside it.
+  detailToLabelGap: { min: 20, max: 23 },
+  chipIndent: 20,
+}
 const rhythm = await page.evaluate((el) => {
   const unit = el.parentElement
   const row = unit.firstElementChild
@@ -400,6 +412,7 @@ const rhythm = await page.evaluate((el) => {
   )
   const px = (value) => Math.round(parseFloat(value))
   return {
+    tightRowPaddingTop: px(getComputedStyle(row).paddingTop),
     tightRowPaddingBottom: px(getComputedStyle(row).paddingBottom),
     ordinaryRowPaddingBottom: ordinary ? px(getComputedStyle(ordinary.firstElementChild).paddingBottom) : null,
     detailToLabelGap: Math.round(label.getBoundingClientRect().top - detail.getBoundingClientRect().bottom),
@@ -407,6 +420,11 @@ const rhythm = await page.evaluate((el) => {
   }
 }, chip)
 const rhythmFaults = []
+if (rhythm.tightRowPaddingTop !== RHYTHM.tightRowPaddingTop) {
+  rhythmFaults.push(
+    `the row carrying the chip opens ${rhythm.tightRowPaddingTop}px above itself, not ${RHYTHM.tightRowPaddingTop}px, ` +
+      'so the step came off the wrong side and the row has closed up against the row above it')
+}
 if (rhythm.tightRowPaddingBottom !== RHYTHM.tightRowPaddingBottom) {
   rhythmFaults.push(
     `the row carrying the chip leaves ${rhythm.tightRowPaddingBottom}px under itself, not ${RHYTHM.tightRowPaddingBottom}px`)
@@ -418,10 +436,13 @@ if (rhythm.ordinaryRowPaddingBottom === null) {
     `an ordinary row leaves ${rhythm.ordinaryRowPaddingBottom}px under itself, not ${RHYTHM.ordinaryRowPaddingBottom}px, ` +
       'so the tightening leaked out of the rows that carry a chip')
 }
-if (rhythm.detailToLabelGap > RHYTHM.maxDetailToLabelGap) {
+if (
+  rhythm.detailToLabelGap < RHYTHM.detailToLabelGap.min ||
+  rhythm.detailToLabelGap > RHYTHM.detailToLabelGap.max
+) {
   rhythmFaults.push(
-    `${rhythm.detailToLabelGap}px sits between the row's detail line and the chip's label, over the ` +
-      `${RHYTHM.maxDetailToLabelGap}px this surface is held to`)
+    `${rhythm.detailToLabelGap}px sits between the row's detail line and the chip's label, outside the ` +
+      `${RHYTHM.detailToLabelGap.min}px to ${RHYTHM.detailToLabelGap.max}px this surface is held to`)
 }
 if (rhythm.chipIndent !== RHYTHM.chipIndent) {
   rhythmFaults.push(`the chip is indented ${rhythm.chipIndent}px, not the ${RHYTHM.chipIndent}px it has always been`)
