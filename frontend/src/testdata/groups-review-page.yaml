@@ -64,6 +64,42 @@ cases:
     expect:
       topLevelSessionIds: [pats, sams]
 
+  - name: hidden_child_selection_is_never_invisible
+    why: >
+      Select-all reaches the submissions folded under another, and a fold
+      starts CLOSED, so a selection can hold rows that are off screen. On a
+      page where every action is irreversible, such a selection must never be
+      invisible. Two things keep it visible here and both are asserted,
+      because either one alone would be silent evidence: a session's checkbox
+      governs its whole subtree, so a selected hidden row always leaves its
+      own visible row ticked or part-ticked (and unticking that visible row
+      clears the hidden one with it), AND the collapsed control names how many
+      of the rows it hides are selected rather than leaving a viewer to read
+      an indeterminate mark. The bar counts the hidden row too, so what it
+      offers to decide is what a decision would actually reach.
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: parent, local_id: p, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: child, local_id: c, parent_session_id: p, project_hash: pa, project_name: alpha, owner_username: pat}
+    select: []
+    decided: []
+    alreadyDecided: []
+    expect:
+      # With nothing selected the control says only what it hides: a count of
+      # zero selected rows is noise on every unselected fold in the tree.
+      collapsedControlLabelWhenNoneSelected: 1 child session
+      # Ticking the project reaches the folded child. The bar counts BOTH
+      # rows, the control names the hidden one, and the visible parent row
+      # reads fully ticked rather than empty.
+      selectedAfterSelectingProject: 2
+      collapsedControlLabel: 1 child session, 1 selected
+      visibleParentRowState: all
+      # Unticking the one visible session row takes its hidden child with it,
+      # so no selection survives off screen.
+      untickVisible: parent
+      selectedAfterUntickingVisible: 0
+
   - name: approve_selection_sends_one_request
     why: >
       Three submissions across two projects are approved in ONE PATCH carrying

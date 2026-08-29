@@ -271,6 +271,29 @@ if (firstProjectBox) {
       'the capture would show a selected tree beside a bar claiming nothing is selected.',
       'confirm the tree and the bar read one selection and retry.')
   }
+  // Provenance, read from the LIVE DOM rather than from the served HTML: the
+  // route's code is in a lazily-loaded chunk, so the initial document names
+  // none of this change's strings and a static grep of it proves nothing.
+  // With a selection held and the fold still SHUT, the collapsed control must
+  // name the hidden rows it has selected - wording this change introduces, so
+  // a build without it fails here instead of producing a plausible image.
+  const foldLabel = await page.$eval('[data-testid="child-session-disclosure-label"]',
+    (el) => (el.textContent || '').trim())
+  const foldOpen = await page.$eval('[data-testid="child-session-disclosure-toggle"]',
+    (el) => el.getAttribute('aria-expanded'))
+  if (foldOpen !== 'false') {
+    await stop(1, `the child-session fold reads aria-expanded="${foldOpen}" before the selected capture.`,
+      'the fold was opened, so its rows are on screen.',
+      'the capture would not show what a CLOSED fold says about a selection nobody can see.',
+      'leave the fold shut for this capture.')
+  }
+  if (!/, \d+ selected$/.test(foldLabel)) {
+    await stop(2, `the collapsed fold reads ${JSON.stringify(foldLabel)} while a selection is held.`,
+      'the served build does not name the selected rows a shut fold hides.',
+      'the capture would show a selection resting on rows nobody can see, which this page forbids.',
+      'rebuild and restart the app from THIS worktree and retry.')
+  }
+
   // Open the preview column on a real submission. The column is half of what
   // this page is for - a reviewer decides work they can read - so a capture
   // showing only its empty state would be evidence for half the surface.
@@ -292,7 +315,7 @@ if (firstProjectBox) {
   }
   await shoot(`village-review-selected-${theme}`, { fit: false })
   console.log('provenance', `projects=${projects.join(',')}`, `disclosures=${disclosures}`,
-    `tally-empty="${tally}"`, `tally-selected="${selected}"`, 'preview=open')
+    `tally-empty="${tally}"`, `tally-selected="${selected}"`, `fold-label="${foldLabel}"`, 'preview=open')
 } else {
   await stop(2, 'the tree rendered no project checkbox to tick.',
     'the served build does not draw the selection controls.',

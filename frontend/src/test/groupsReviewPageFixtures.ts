@@ -87,7 +87,8 @@ const CASE_KEYS = [
  * Deletion guard: the fixture must carry exactly these cases, by exact NAME
  * (never a bare count). Each one exists because losing it hides a distinct
  * real failure: a flat queue nobody can navigate, a child submission read as
- * unrelated work, one publisher's submission captured under another's, one request per project instead of one per action, a page
+ * unrelated work, one publisher's submission captured under another's, a
+ * selection made entirely of rows nobody can see, one request per project instead of one per action, a page
  * that can only approve, a stale row that vanishes without explanation, a
  * non-owner shown a reviewer's controls, and an empty queue that looks like a
  * failed load.
@@ -96,6 +97,7 @@ const requiredCaseNames = [
   "owner_reads_the_queue_grouped_by_project",
   "child_session_folds_under_its_parent",
   "two_publishers_sharing_a_session_id_do_not_fold",
+  "hidden_child_selection_is_never_invisible",
   "approve_selection_sends_one_request",
   "reject_selection_sends_the_reject_decision",
   "already_decided_row_is_marked_stale",

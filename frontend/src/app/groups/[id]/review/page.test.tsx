@@ -179,6 +179,57 @@ describe("/groups/{id}/review", () => {
     expect(document.querySelector("[data-parent-transcript-id]")).toBeNull();
   });
 
+  it("never lets a selection consist of rows nobody can see", async () => {
+    const testCase = reviewCaseByName(cases, "hidden_child_selection_is_never_invisible");
+    await mountReviewRoute(testCase);
+    await screen.findByTestId("review-panel");
+
+    const disclosure = document.querySelector("[data-parent-transcript-id]") as HTMLElement;
+    expect(disclosure).not.toBeNull();
+    const control = within(disclosure).getByTestId("child-session-disclosure-toggle");
+    // The LABEL element, not the whole control: the control also carries its
+    // show/hide affordance, so a substring match against it cannot tell
+    // "1 child session" from "1 child session, 0 selected".
+    const label = within(disclosure).getByTestId("child-session-disclosure-label");
+
+    // Before anything is ticked the control says only what it HIDES: a
+    // "0 selected" on every unselected fold would be noise.
+    expect(label.textContent).toBe(testCase.expect.collapsedControlLabelWhenNoneSelected as string);
+
+    // Ticking the project reaches the folded child, which stays off screen.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("checkbox", { name: /^select project / }));
+    });
+    expect(control.getAttribute("aria-expanded")).toBe("false");
+
+    // The bar counts the hidden row, so what it offers to decide is what a
+    // decision would actually reach.
+    expect(screen.getByTestId("review-selection-count").textContent).toBe(
+      `${testCase.expect.selectedAfterSelectingProject as number} selected`,
+    );
+    // The control names the hidden selected row rather than leaving a viewer
+    // to infer it from an indeterminate mark somewhere else.
+    expect(label.textContent).toBe(testCase.expect.collapsedControlLabel as string);
+    // And the hidden row's own visible ancestor is ticked, so the selection
+    // is legible even with the fold shut.
+    const parentRow = screen.getByTestId(
+      `contribute-session-row-${testCase.expect.untickVisible as string}`,
+    );
+    expect(within(parentRow).getByRole("checkbox").getAttribute("data-state")).toBe(
+      testCase.expect.visibleParentRowState,
+    );
+
+    // Unticking that visible row takes its hidden child with it: a session's
+    // checkbox governs its whole subtree, so no selection survives off screen.
+    await act(async () => {
+      fireEvent.click(within(parentRow).getByRole("checkbox"));
+    });
+    expect(screen.getByTestId("review-selection-count").textContent).toBe(
+      `${testCase.expect.selectedAfterUntickingVisible as number} selected`,
+    );
+    expect(label.textContent).toBe(testCase.expect.collapsedControlLabelWhenNoneSelected as string);
+  });
+
   it("approves a selection spanning two projects in ONE request", async () => {
     const testCase = reviewCaseByName(cases, "approve_selection_sends_one_request");
     const requests = await mountReviewRoute(testCase);

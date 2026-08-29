@@ -7,7 +7,7 @@ import { leafIds, nodeState, type NodeState, type Selection } from "@/lib/contri
 import type { ContributeFilters } from "@/lib/contribute/filter";
 import { Button, Input, Select, Tag } from "@/lib/ft-ui";
 import SessionGroupDisclosure from "@/components/transcript/SessionGroupDisclosure";
-import { childSessionGroupLabel } from "@/lib/childSessions";
+import { childSessionGroupLabel, childSessionGroupSelectionLabel } from "@/lib/childSessions";
 
 interface ContributeTreeProps {
   tree: ProjectNode<TreeRowFacts>[];
@@ -193,8 +193,16 @@ function SessionRow({
       {session.children.length > 0 && (
         <div className="pl-4" data-parent-transcript-id={session.id}>
           <SessionGroupDisclosure
+            // Open, the rows are on screen and their own ticks say what is
+            // selected. CLOSED, they are not, so the control has to carry the
+            // count itself - otherwise selecting this row's parent and then
+            // unticking every visible box leaves a selection nobody can see,
+            // which the bar would still offer to decide.
             label={childSessionGroupLabel(session.children.length)}
-            collapsedLabel={childSessionGroupLabel(session.children.length)}
+            collapsedLabel={childSessionGroupSelectionLabel(
+              session.children.length,
+              session.children.filter((child) => selection.has(child.id)).length,
+            )}
             expanded={childrenOpen}
             onToggle={() => onToggleChildren(session.id)}
             rowsID={`contribute-child-sessions-${session.id}`}
