@@ -659,6 +659,90 @@ func (q *Queries) ListUserGroups(ctx context.Context, userID pgtype.UUID) ([]Lis
 	return items, nil
 }
 
+const listVisibleGroups = `-- name: ListVisibleGroups :many
+SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at,
+       g.acceptance_mode, g.data_access, g.linked_github_org, g.display_members,
+       g.transcript_deletion_policy,
+       gm.role, gm.joined_at AS member_since,
+       (SELECT COUNT(*) FROM group_members gm2
+          WHERE gm2.group_id = g.id AND gm2.role != 'pending')::int AS member_count,
+       (SELECT COUNT(*) FROM transcript_shares ts
+          WHERE ts.group_id = g.id AND ts.status = 'approved')::int AS transcript_count
+FROM groups g
+LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $1
+WHERE g.data_access = 'public'
+   OR g.acceptance_mode = 'open'
+   OR gm.user_id IS NOT NULL
+ORDER BY g.name
+`
+
+type ListVisibleGroupsRow struct {
+	ID                       pgtype.UUID        `db:"id" json:"id"`
+	Name                     string             `db:"name" json:"name"`
+	Description              pgtype.Text        `db:"description" json:"description"`
+	CreatedBy                pgtype.UUID        `db:"created_by" json:"created_by"`
+	CreatedAt                pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt                pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	AcceptanceMode           string             `db:"acceptance_mode" json:"acceptance_mode"`
+	DataAccess               string             `db:"data_access" json:"data_access"`
+	LinkedGithubOrg          pgtype.Text        `db:"linked_github_org" json:"linked_github_org"`
+	DisplayMembers           bool               `db:"display_members" json:"display_members"`
+	TranscriptDeletionPolicy string             `db:"transcript_deletion_policy" json:"transcript_deletion_policy"`
+	Role                     pgtype.Text        `db:"role" json:"role"`
+	MemberSince              pgtype.Timestamptz `db:"member_since" json:"member_since"`
+	MemberCount              int32              `db:"member_count" json:"member_count"`
+	TranscriptCount          int32              `db:"transcript_count" json:"transcript_count"`
+}
+
+// Every collective the caller may SEE, under the same visibility rule as
+// SearchCollectives: data_access = 'public', OR acceptance_mode = 'open', OR
+// the caller is a member. ListUserGroups above answers a different question -
+// which collectives the caller BELONGS to - and both are needed: a person
+// browsing collectives wants the full visible set, while a person choosing
+// where to contribute wants only their own memberships.
+//
+// The join carries the caller's own membership only, so `role` and
+// `member_since` are NULL for a collective the caller sees through the public
+// or open rule alone. member_count excludes role='pending' to match
+// ListUserGroups and the members roster; transcript_count counts approved
+// shares, as it does there.
+// $1 = caller user_id.
+func (q *Queries) ListVisibleGroups(ctx context.Context, userID pgtype.UUID) ([]ListVisibleGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listVisibleGroups, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListVisibleGroupsRow{}
+	for rows.Next() {
+		var i ListVisibleGroupsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AcceptanceMode,
+			&i.DataAccess,
+			&i.LinkedGithubOrg,
+			&i.DisplayMembers,
+			&i.TranscriptDeletionPolicy,
+			&i.Role,
+			&i.MemberSince,
+			&i.MemberCount,
+			&i.TranscriptCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const removeGroupMember = `-- name: RemoveGroupMember :exec
 DELETE FROM group_members WHERE group_id = $1 AND user_id = $2
 `

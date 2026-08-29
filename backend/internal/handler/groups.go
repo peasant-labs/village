@@ -115,6 +115,36 @@ func (h *Handler) ListGroups(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, groups)
 }
 
+// ListVisibleGroups returns every collective the caller may see, whether or not
+// they belong to it. GET /groups/visible (AuthRequired).
+//
+// It is deliberately a separate route from GET /groups rather than a widening
+// of it. The two answer different questions and both have callers: this one
+// answers "which collectives may I see", which is what a person browsing
+// collectives is asking, while GET /groups answers "which collectives do I
+// belong to", which is what a person choosing where to contribute is asking.
+// Widening the older route would have silently offered non-members' collectives
+// to the contribute picker.
+//
+// Rows for a collective the caller only sees through the public or open rule
+// carry a null role and a null member_since. A consumer must treat those as
+// "not a member" rather than as a missing value.
+func (h *Handler) ListVisibleGroups(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized,
+			"Cannot list the collectives you can see: this request carries no signed-in identity, and the visible set "+
+				"depends on which collectives you belong to. Sign in and retry.")
+		return
+	}
+	groups, err := h.queries.ListVisibleGroups(r.Context(), user.PgID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to list groups")
+		return
+	}
+	writeJSON(w, http.StatusOK, groups)
+}
+
 func (h *Handler) ListPublicGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := h.queries.ListAllGroups(r.Context())
 	if err != nil {

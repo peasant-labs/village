@@ -735,3 +735,28 @@ textarea::placeholder {
   max-width: none;
   margin-inline: 0;
 }
+
+/* ============================================
+   COLLECTIVES CARD — the standing slot when there is no standing
+   ============================================ */
+
+/* The collectives page lists every collective a person may see, so a card can
+   have nothing to say about them: they are not a member, and the collective
+   holds nothing of theirs. The shared card always emits its standing slot, and
+   each following footer item draws its separator BEFORE its own value, so such
+   a card would open with a stray separator ahead of the member count.
+   Collapsing the empty slot and the separator that follows it leaves the
+   footer starting on the count.
+
+   This belongs in the design system, where the separator would be drawn
+   between items rather than before each one, and a card would carry an explicit
+   badge slot instead of consumers composing status into the role text. That is
+   peasant-labs/fairtrade-design-system#68. Remove this block, and the check
+   that guards it in src/test/mountedCollectivesRoute.tsx, once that lands and
+   this app re-pins. */
+.cmg-col-foot .cmg-col-role:empty {
+  display: none;
+}
+.cmg-col-foot .cmg-col-role:empty + .cmg-dot {
+  display: none;
+}

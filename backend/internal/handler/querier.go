@@ -92,6 +92,7 @@ type Querier interface {
 	UpdateGroup(ctx context.Context, arg sqlc.UpdateGroupParams) (sqlc.Group, error)
 	DeleteGroup(ctx context.Context, id pgtype.UUID) error
 	ListUserGroups(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserGroupsRow, error)
+	ListVisibleGroups(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListVisibleGroupsRow, error)
 	ListAllGroups(ctx context.Context) ([]sqlc.ListAllGroupsRow, error)
 	SearchCollectives(ctx context.Context, arg sqlc.SearchCollectivesParams) ([]sqlc.SearchCollectivesRow, error)
 	ListCollectivesByGitHubOrg(ctx context.Context, arg sqlc.ListCollectivesByGitHubOrgParams) ([]sqlc.ListCollectivesByGitHubOrgRow, error)

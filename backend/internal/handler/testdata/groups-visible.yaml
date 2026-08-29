@@ -1,0 +1,60 @@
+# Which collectives GET /groups/visible lists, and what role each row carries.
+#
+# Every case builds one collective with the declared data access and acceptance
+# mode, optionally puts the caller in it with the declared role, then asks the
+# real handler as that caller.
+#
+# `expect.listed` is whether the collective appears at all. `expect.role` is the
+# role the row reports: an empty role means the row carries a null role, which
+# is how a collective seen through the public or open rule alone must answer.
+#
+# `expect.oracle_visible` states what the shipped SearchCollectives says about
+# the same collective for the same caller. The new query carries a copy of that
+# predicate, and a copy drifts, so every case compares the two. A case where
+# they disagree is a finding.
+#
+# data_access and acceptance_mode are stated on every case rather than
+# defaulted: they are the two independent halves of the visibility rule, and a
+# case that silently inherited one would hide which half decided.
+
+- name: member_of_members_only_collective_is_listed_with_their_role
+  why: the member branch of the predicate must still list what the old membership-only query listed
+  collective: {data_access: members_only, acceptance_mode: curated}
+  caller_membership: member
+  expect: {listed: true, role: member, oracle_visible: true}
+
+- name: owner_of_members_only_collective_is_listed_with_owner_role
+  why: the row reports the caller's own role, not a fixed "member" label
+  collective: {data_access: members_only, acceptance_mode: curated}
+  caller_membership: owner
+  expect: {listed: true, role: owner, oracle_visible: true}
+
+- name: pending_member_of_members_only_collective_is_listed_with_pending_role
+  why: a request to join is a membership row, and the caller must be able to see the collective they asked to join
+  collective: {data_access: members_only, acceptance_mode: curated}
+  caller_membership: pending
+  expect: {listed: true, role: pending, oracle_visible: true}
+
+- name: members_only_curated_collective_is_hidden_from_a_non_member
+  why: the predicate is a visibility rule, not a list of everything; a closed collective stays closed
+  collective: {data_access: members_only, acceptance_mode: curated}
+  caller_membership: none
+  expect: {listed: false, role: "", oracle_visible: false}
+
+- name: public_collective_is_listed_for_a_non_member_with_no_role
+  why: the public branch is the reason the page shows more than one row, and such a row is not a membership
+  collective: {data_access: public, acceptance_mode: curated}
+  caller_membership: none
+  expect: {listed: true, role: "", oracle_visible: true}
+
+- name: open_collective_is_listed_for_a_non_member_with_no_role
+  why: the open branch is independent of data access, so it is proven on a collective whose data is not public
+  collective: {data_access: members_only, acceptance_mode: open}
+  caller_membership: none
+  expect: {listed: true, role: "", oracle_visible: true}
+
+- name: member_of_a_public_collective_is_listed_with_their_role
+  why: when both branches admit the same collective the row must still carry the membership, not lose it
+  collective: {data_access: public, acceptance_mode: open}
+  caller_membership: member
+  expect: {listed: true, role: member, oracle_visible: true}
