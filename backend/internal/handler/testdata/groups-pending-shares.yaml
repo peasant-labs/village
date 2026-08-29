@@ -1,0 +1,37 @@
+# What a curated collective's owner sees while reviewing pending submissions,
+# driven through the real ListPendingShares HTTP handler against a real
+# PostgreSQL.
+#
+# The frontend folds a submitted child session under its parent by matching
+# (owner_id, local_id) - local_id alone is only unique per owner - so every
+# row here has to carry owner_id, local_id, and parent_session_id, not just
+# enough to render one line.
+
+- name: parent_and_child_pending
+  why: >
+    A parent transcript and a child session it spawned are both offered to the
+    same collective. The moderator's queue has to carry each row's owner_id,
+    local_id, and parent_session_id so the review UI can fold the child under
+    its parent instead of listing it as an unrelated submission.
+  transcripts:
+    - {key: parent, project: p}
+    - {key: child, project: p, parent: parent}
+  submit: [parent, child]
+  expect_status: 200
+  expect_rows: [parent, child]
+  expect_parent_of: {child: parent}
+
+- name: lone_child_parent_absent
+  why: >
+    A child session can be offered to a collective on its own, with its parent
+    never submitted there. The row still names the parent's local_id even
+    though no row in this response matches it, so the frontend can decide - on
+    its own data, not a guess - to render the child as a root because its
+    parent genuinely is not present.
+  transcripts:
+    - {key: parent, project: p}
+    - {key: child, project: p, parent: parent}
+  submit: [child]
+  expect_status: 200
+  expect_rows: [child]
+  expect_parent_of: {child: parent}

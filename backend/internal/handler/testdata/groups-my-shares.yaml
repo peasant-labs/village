@@ -1,0 +1,33 @@
+# What one person's own "Your contributions" card shows for a collective,
+# driven through the real ListMyGroupShares HTTP handler against a real
+# PostgreSQL.
+#
+# The frontend folds a submitted child session under its parent by matching
+# (owner_id, local_id) - local_id alone is only unique per owner - so every
+# row here has to carry owner_id, local_id, and parent_session_id.
+
+- name: parent_and_child_shared
+  why: >
+    The caller offered both a parent transcript and a child session it
+    spawned to the same collective. The card has to carry each row's
+    owner_id, local_id, and parent_session_id so it can fold the child under
+    its parent instead of listing two unrelated contributions.
+  transcripts:
+    - {key: parent, project: p}
+    - {key: child, project: p, parent: parent}
+  submit: [parent, child]
+  expect_rows: [parent, child]
+  expect_parent_of: {child: parent}
+
+- name: lone_child_parent_absent
+  why: >
+    The caller offered only a child session; its parent was never submitted
+    to this collective. The row still names the parent's local_id so the
+    card can tell "no matching row" apart from "no parent at all" using its
+    own data rather than guessing.
+  transcripts:
+    - {key: parent, project: p}
+    - {key: child, project: p, parent: parent}
+  submit: [child]
+  expect_rows: [child]
+  expect_parent_of: {child: parent}

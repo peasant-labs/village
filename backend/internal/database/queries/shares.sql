@@ -111,6 +111,7 @@ WHERE ts.transcript_id = ANY($1::uuid[]) AND ts.status = 'approved';
 
 -- name: ListPendingGroupShares :many
 SELECT ts.transcript_id, t.title, t.model_provider,
+       t.owner_id, t.local_id, t.parent_session_id,
        u.github_username as owner_username,
        u.is_discoverable as owner_is_discoverable,
        ts.shared_at
@@ -227,6 +228,7 @@ ORDER BY transcript_count DESC;
 -- on the collective page.
 SELECT t.id, t.title, t.model_provider, t.model_name, t.visibility,
        t.published_at, t.turn_count, t.tokens_in, t.tokens_out,
+       t.owner_id, t.local_id, t.parent_session_id,
        ts.status, ts.shared_at
 FROM transcript_shares ts
 JOIN transcripts t ON ts.transcript_id = t.id
