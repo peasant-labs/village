@@ -79,6 +79,14 @@ function defaultManageImpl(props: { actions: CapturedManageActions }): ReactElem
 const fixtures = loadGroupsContributeNavFixtures();
 const rowNames = new Set(fixtures.rows.map((r) => r.name));
 
+/** Reads one fixture row by name so a test asserts the row's OWN values
+ *  (the queue size, the role) rather than repeating them inline. */
+function rowByName(name: string) {
+  const row = fixtures.rows.find((r) => r.name === name);
+  if (!row) throw new Error(`groups-contribute-nav fixture has no row named ${name}`);
+  return row;
+}
+
 describe("groups contribute navigation", () => {
   it("member_navigates: header contribute action navigates to the dedicated route", async () => {
     expect(rowNames.has("member_navigates")).toBe(true);
@@ -190,6 +198,41 @@ describe("groups contribute navigation", () => {
     await waitFor(() => expect(currentManageActions()).not.toBeNull());
 
     expect(currentManageActions()?.onContribute).toBeUndefined();
+  });
+
+  it("owner_reaches_the_review_page_from_the_queue: the queue block links to the review page", async () => {
+    const row = rowByName("owner_reaches_the_review_page_from_the_queue");
+    // Only a CURATED collective has a review queue, and the link's own text
+    // counts the queue, so the row's count decides how many submissions the
+    // fixture serves rather than a constant written here.
+    installGroupRouteREST({
+      viewer: "mod",
+      groupId: "g-review",
+      groupName: "review collective",
+      role: row.role,
+      acceptanceMode: "curated",
+      pendingShares: Array.from({ length: row.pendingCount ?? 0 }, (_unused, index) => ({
+        transcript_id: `pending-${index}`,
+        title: `pending ${index}`,
+        model_provider: "claude-code",
+        owner_id: "user-contributor",
+        local_id: `pending-${index}`,
+        parent_session_id: null,
+        project_hash: "project-hash",
+        project_name: "project",
+        branch: "main",
+        owner_username: "contributor",
+        owner_is_discoverable: true,
+        shared_at: "2026-01-03T00:00:00Z",
+      })),
+    });
+    await renderGroupDetailRoute("g-review");
+
+    const link = await screen.findByTestId("group-review-page-link");
+    expect(link.getAttribute("href")).toBe("/groups/g-review/review");
+    // The count is the queue's real size, so the control says how much work
+    // the page would open rather than a fixed label.
+    expect(link.textContent).toBe(`review all ${row.pendingCount} contributions`);
   });
 
   it("contribute_page_member_panel: a member sees the moved selection panel", async () => {

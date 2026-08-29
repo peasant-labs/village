@@ -577,6 +577,9 @@ func (m *mockQuerier) ListPendingGroupShares(ctx context.Context, groupID pgtype
 func (m *mockQuerier) UpdateShareStatus(ctx context.Context, arg sqlc.UpdateShareStatusParams) error {
 	return nil
 }
+func (m *mockQuerier) BatchUpdateShareStatus(ctx context.Context, arg sqlc.BatchUpdateShareStatusParams) ([]pgtype.UUID, error) {
+	return nil, nil
+}
 
 // ---- GitHub org methods --------------------------------------------------
 

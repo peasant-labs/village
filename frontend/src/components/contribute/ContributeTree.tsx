@@ -2,18 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
-import type { ContributableTranscript } from "@/lib/contribute/types";
-import type { ContributeNode, ProjectNode, SessionNode } from "@/lib/contribute/tree";
+import type { ContributeNode, ProjectNode, SessionNode, TreeRowFacts } from "@/lib/contribute/tree";
 import { leafIds, nodeState, type NodeState, type Selection } from "@/lib/contribute/selection";
 import type { ContributeFilters } from "@/lib/contribute/filter";
 import { Button, Input, Select, Tag } from "@/lib/ft-ui";
 import SessionGroupDisclosure from "@/components/transcript/SessionGroupDisclosure";
-import { childSessionGroupLabel } from "@/lib/childSessions";
+import { childSessionGroupLabel, childSessionGroupSelectionLabel } from "@/lib/childSessions";
 
 interface ContributeTreeProps {
-  tree: ProjectNode[];
+  tree: ProjectNode<TreeRowFacts>[];
   selection: Selection;
-  onToggleNode: (node: ContributeNode) => void;
+  onToggleNode: (node: ContributeNode<TreeRowFacts>) => void;
   /** Select or clear EVERY selectable leaf currently visible in the tree. */
   onToggleAll: (ids: string[], selectAll: boolean) => void;
   onPreview: (transcriptId: string) => void;
@@ -21,6 +20,11 @@ interface ContributeTreeProps {
   filters: ContributeFilters;
   onFiltersChange: (next: ContributeFilters) => void;
   harnessCounts: Map<string, number>;
+  /** The tally line under the filter bar, and the empty-filter message.
+   *  A contributor is choosing what to OFFER; a moderator is choosing what to
+   *  DECIDE, so the two pages count the same rows in different words. */
+  countNoun?: string;
+  emptyLabel?: string;
 }
 
 /** Depth column each row type occupies in the connector: project 0, branch (or
@@ -71,22 +75,6 @@ function buildRailPath(anchors: RailAnchor[]): string {
   const last = anchors[anchors.length - 1];
   parts.push(`L ${last.x} ${last.y + RAIL_CAP}`);
   return parts.join(" ");
-}
-
-function formatDate(iso: string): string {
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return "unknown date";
-  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-/**
- * The secondary metadata line under a session's title: the harness that
- * produced it, the date it was published, and its stored visibility. A single
- * mono line keeps every row the same height, so the column reads as one list
- * instead of a ragged stack of pills.
- */
-function sessionMeta(row: ContributableTranscript): string {
-  return [row.model_provider || "unknown harness", formatDate(row.published_at), row.visibility].join(" · ");
 }
 
 /**
@@ -146,10 +134,10 @@ function SessionRow({
   openChildren,
   onToggleChildren,
 }: {
-  session: SessionNode;
+  session: SessionNode<TreeRowFacts>;
   depth: number;
   selection: Selection;
-  onToggleNode: (node: ContributeNode) => void;
+  onToggleNode: (node: ContributeNode<TreeRowFacts>) => void;
   onPreview: (transcriptId: string) => void;
   previewId: string | null;
   setRowElement: (key: string, element: HTMLElement | null) => void;
@@ -158,7 +146,6 @@ function SessionRow({
 }) {
   const childrenOpen = openChildren.has(session.id);
   const state = nodeState(selection, session);
-  const row = session.row;
   const isActive = previewId === session.id;
   const rowRef = useCallback(
     (element: HTMLDivElement | null) => setRowElement(`s:${session.id}`, element),
@@ -176,7 +163,7 @@ function SessionRow({
       >
         <TriStateCheckbox
           state={state}
-          disabled={row.already_shared}
+          disabled={session.locked}
           onChange={() => onToggleNode(session)}
           label={`select session ${session.label}`}
         />
@@ -193,9 +180,9 @@ function SessionRow({
             >
               {session.label}
             </button>
-            {row.already_shared && <Tag className="shrink-0">already contributed</Tag>}
+            {session.mark != null && <Tag className="shrink-0">{session.mark}</Tag>}
           </div>
-          <div className="font-mono text-xs text-ink-3 tabular-nums [overflow-wrap:anywhere]">{sessionMeta(row)}</div>
+          <div className="font-mono text-xs text-ink-3 tabular-nums [overflow-wrap:anywhere]">{session.meta}</div>
         </div>
       </div>
       {/* The sessions this one started, behind the SAME control the home page
@@ -206,8 +193,17 @@ function SessionRow({
       {session.children.length > 0 && (
         <div className="pl-4" data-parent-transcript-id={session.id}>
           <SessionGroupDisclosure
+            // Open, the rows are on screen and their own ticks say what is
+            // selected. CLOSED, they are not, so the control carries the count
+            // itself. A session's checkbox governs its whole subtree, so a
+            // selected hidden row does leave this row ticked or part-ticked --
+            // but an indeterminate mark is something a reader has to infer,
+            // and a count is something the control states.
             label={childSessionGroupLabel(session.children.length)}
-            collapsedLabel={childSessionGroupLabel(session.children.length)}
+            collapsedLabel={childSessionGroupSelectionLabel(
+              session.children.length,
+              session.children.filter((child) => selection.has(child.id)).length,
+            )}
             expanded={childrenOpen}
             onToggle={() => onToggleChildren(session.id)}
             rowsID={`contribute-child-sessions-${session.id}`}
@@ -252,9 +248,9 @@ function GroupRow({
   openChildren,
   onToggleChildren,
 }: {
-  node: ContributeNode & { children: SessionNode[] };
+  node: ContributeNode<TreeRowFacts> & { children: SessionNode<TreeRowFacts>[] };
   selection: Selection;
-  onToggleNode: (node: ContributeNode) => void;
+  onToggleNode: (node: ContributeNode<TreeRowFacts>) => void;
   onPreview: (transcriptId: string) => void;
   previewId: string | null;
   setRowElement: (key: string, element: HTMLElement | null) => void;
@@ -315,11 +311,11 @@ function ProjectRow({
   openChildren,
   onToggleChildren,
 }: {
-  project: ProjectNode;
+  project: ProjectNode<TreeRowFacts>;
   open: boolean;
   onToggleOpen: () => void;
   selection: Selection;
-  onToggleNode: (node: ContributeNode) => void;
+  onToggleNode: (node: ContributeNode<TreeRowFacts>) => void;
   onPreview: (transcriptId: string) => void;
   previewId: string | null;
   setRowElement: (key: string, element: HTMLElement | null) => void;
@@ -396,6 +392,8 @@ export default function ContributeTree({
   filters,
   onFiltersChange,
   harnessCounts,
+  countNoun = "session",
+  emptyLabel = "no contributable sessions match this filter.",
 }: ContributeTreeProps) {
   const [collapsedProjects, setCollapsedProjects] = useState<ReadonlySet<string>>(new Set());
   const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(new Set());
@@ -423,7 +421,7 @@ export default function ContributeTree({
   // own row, so the connector never traces a row nobody can see.
   const orderedRows = useMemo<RailRow[]>(() => {
     const rows: RailRow[] = [];
-    const walkSession = (session: SessionNode, depth: number) => {
+    const walkSession = (session: SessionNode<TreeRowFacts>, depth: number) => {
       rows.push({ key: `s:${session.id}`, depth });
       if (!openChildren.has(session.id)) return;
       for (const child of session.children) walkSession(child, depth + 1);
@@ -522,7 +520,7 @@ export default function ContributeTree({
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-rule shrink-0">
         <div className="min-w-0 font-mono text-sm tabular-nums text-ink-2" data-testid="contribute-selection-tally">
-          {selectedVisibleCount} selected · {selectableIds.length} session
+          {selectedVisibleCount} selected · {selectableIds.length} {countNoun}
           {selectableIds.length !== 1 ? "s" : ""}
         </div>
         <Button
@@ -537,7 +535,7 @@ export default function ContributeTree({
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto">
         {tree.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-ink-3">no contributable sessions match this filter.</p>
+          <p className="px-4 py-8 text-center text-sm text-ink-3">{emptyLabel}</p>
         ) : (
           <div ref={containerRef} className="relative">
             <svg className="contribute-rail" aria-hidden="true">

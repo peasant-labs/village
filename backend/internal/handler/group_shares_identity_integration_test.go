@@ -58,6 +58,17 @@ type identityListCase struct {
 	ExpectStatus   int                          `yaml:"expect_status"`
 	ExpectRows     []string                     `yaml:"expect_rows"`
 	ExpectParentOf map[string]string            `yaml:"expect_parent_of"`
+	// Which project and branch each row must state, keyed by transcript key.
+	// Only the pending queue asserts this: it is the listing the review page
+	// groups by project > branch > session.
+	ExpectGrouping map[string]expectedGrouping `yaml:"expect_grouping"`
+}
+
+// expectedGrouping names a row's project by the case's own project KEY (the
+// world resolves it to that case's 64-hex hash) and its branch literally.
+type expectedGrouping struct {
+	Project string `yaml:"project"`
+	Branch  string `yaml:"branch"`
 }
 
 // requiredGroupsPendingSharesCases and requiredGroupsMySharesCases each name
@@ -69,6 +80,7 @@ type identityListCase struct {
 var requiredGroupsPendingSharesCases = []string{
 	"parent_and_child_pending",
 	"lone_child_parent_absent",
+	"two_projects_carry_grouping",
 }
 
 var requiredGroupsMySharesCases = []string{
@@ -175,6 +187,35 @@ func TestListPendingSharesCarriesParentIdentity(t *testing.T) {
 				}
 				return identityRow{}, false
 			})
+
+			// The grouping facts the review page reads. project_name is the
+			// publisher's own optional label, so the identity a case pins is
+			// project_hash - the value the page groups by - and the branch.
+			for key, want := range testCase.ExpectGrouping {
+				wantHash := world.projectHash(want.Project)
+				transcriptID := uuid.UUID(world.transcripts[key].Bytes).String()
+				found := false
+				for _, row := range rows {
+					if uuid.UUID(row.TranscriptID.Bytes).String() != transcriptID {
+						continue
+					}
+					found = true
+					if row.ProjectHash != wantHash {
+						t.Errorf("pending row %q names project hash %q, want %q (%s). A queue that cannot say which "+
+							"project a submission came from cannot be grouped by project.", key, row.ProjectHash, wantHash, testCase.Why)
+					}
+					gotBranch := ""
+					if row.Branch.Valid {
+						gotBranch = row.Branch.String
+					}
+					if gotBranch != want.Branch {
+						t.Errorf("pending row %q names branch %q, want %q (%s)", key, gotBranch, want.Branch, testCase.Why)
+					}
+				}
+				if !found {
+					t.Errorf("the pending listing omits row %q entirely (%s)", key, testCase.Why)
+				}
+			}
 		})
 	}
 }

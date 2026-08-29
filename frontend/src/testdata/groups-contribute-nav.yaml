@@ -49,3 +49,11 @@ rows:
       /groups/{id}/contribute route directly sees a notice and a link back
       to the collective, never the selection panel.
     role: null
+  - name: owner_reaches_the_review_page_from_the_queue
+    why: >
+      The queue block on /groups/{id} decides one submission per click. An
+      owner with several waiting submissions must be offered the review page
+      from that block, so multi-select review is reachable from where the
+      queue is actually read rather than only by typing the URL.
+    role: owner
+    pendingCount: 3

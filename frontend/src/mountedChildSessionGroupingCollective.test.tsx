@@ -165,6 +165,12 @@ function pendingShare(row: ChildSessionRow, index: number): PendingShareFixtureR
     owner_id: row.ownerID,
     local_id: row.localID,
     parent_session_id: row.parentSessionID,
+    // Every row of this fixture is one project on one branch: these cases ask
+    // how a STARTED session is read, not how the queue groups by project, so
+    // the grouping columns are held constant rather than left to vary.
+    project_hash: "commons-project",
+    project_name: "commons",
+    branch: ROW_BRANCH,
     owner_username: row.ownerID,
     owner_is_discoverable: true,
     shared_at: publishedAt(index),

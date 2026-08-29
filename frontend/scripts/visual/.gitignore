@@ -38,6 +38,7 @@
 !determinism.mjs
 !probe-contribute-narrow.mjs
 !probe-collectives-standing.mjs
+!review-shoot.mjs
 !manage-README.md
 !baseline/
 !baseline/**

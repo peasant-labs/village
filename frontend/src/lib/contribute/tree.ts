@@ -2,6 +2,43 @@ import { groupSessionRows, namesAParent, type SessionIdentity } from "@/lib/chil
 import type { ContributableTranscript } from "./types";
 
 /**
+ * The facts the project > branch > session fold reads from ONE row, whichever
+ * list the row came from. The contribute page folds transcripts the caller may
+ * OFFER; the review page folds submissions a moderator must DECIDE. They are
+ * different wire shapes answering different questions, and both state these
+ * seven facts, so the fold is written once against them rather than twice
+ * against each list's own row.
+ */
+export interface TreeRowFacts {
+  /** The transcript id - the leaf identity a selection and a request body name. */
+  id: string;
+  /** The id the recording harness used. Unique per owner, not globally. */
+  local_id: string;
+  title: string | null;
+  project_hash: string;
+  project_display_name: string;
+  git_branch: string | null;
+  parent_session_id: string | null;
+}
+
+/**
+ * What a session row SAYS, decided by the page that owns the list rather than
+ * by the fold. The two pages describe the same session differently - a
+ * contributor reads "claude-code, a date, private", a moderator reads "by
+ * @someone, a date" - and neither meaning belongs inside a shared fold.
+ */
+export interface SessionPresentation {
+  /** The mono metadata line under the title. */
+  meta: string;
+  /** A short mark beside the title, or null for no mark. */
+  mark: string | null;
+  /** The row is drawn but can never enter a selection: already offered to
+   *  this collective on the contribute tree, already decided by another
+   *  moderator on the review tree. */
+  locked: boolean;
+}
+
+/**
  * The closed set of node shapes the contribute tree renders. `orphans` is a
  * DISPLAY-ONLY synthetic grouping node — see {@link OrphansNode} — never a
  * real transcript, so it never carries an `id` a POST body can reference.
@@ -10,22 +47,22 @@ export type ContributeNodeKind = "project" | "branch" | "session" | "orphans";
 
 /** Project > branch > session tree root. Grouped by `project_hash` (the
  *  project's identity); `label` is the resolved `project_display_name`. */
-export interface ProjectNode {
+export interface ProjectNode<Row extends TreeRowFacts = ContributableTranscript> {
   kind: "project";
   /** `project_hash` — the stable grouping key. */
   id: string;
   label: string;
-  children: (BranchNode | OrphansNode)[];
+  children: (BranchNode<Row> | OrphansNode<Row>)[];
 }
 
 /** One branch within a project. `git_branch ?? null` is the grouping key;
  *  `label` degrades to `"(unknown branch)"` for a null branch, and unknown
  *  branches sort last among a project's branches. */
-export interface BranchNode {
+export interface BranchNode<Row extends TreeRowFacts = ContributableTranscript> {
   kind: "branch";
   id: string;
   label: string;
-  children: SessionNode[];
+  children: SessionNode<Row>[];
 }
 
 /** A single contributable transcript. `id` is the transcript id — the leaf
@@ -36,12 +73,13 @@ export interface BranchNode {
  *  fold's answer, and it is what makes the count on the disclosure the number
  *  of rows the control actually reveals. A session node inside `children` is
  *  therefore always a leaf. */
-export interface SessionNode {
+export interface SessionNode<Row extends TreeRowFacts = ContributableTranscript>
+  extends SessionPresentation {
   kind: "session";
   id: string;
   label: string;
-  row: ContributableTranscript;
-  children: SessionNode[];
+  row: Row;
+  children: SessionNode<Row>[];
 }
 
 /** Synthetic per-project grouping for rows whose `parent_session_id` names no
@@ -52,14 +90,18 @@ export interface SessionNode {
  *  visible instead of silently vanishing from the tree. Ticking it ticks
  *  every session under it (via {@link toggleNode}); it can never itself be a
  *  leaf id. */
-export interface OrphansNode {
+export interface OrphansNode<Row extends TreeRowFacts = ContributableTranscript> {
   kind: "orphans";
   id: string;
   label: "orphaned transcripts";
-  children: SessionNode[];
+  children: SessionNode<Row>[];
 }
 
-export type ContributeNode = ProjectNode | BranchNode | SessionNode | OrphansNode;
+export type ContributeNode<Row extends TreeRowFacts = ContributableTranscript> =
+  | ProjectNode<Row>
+  | BranchNode<Row>
+  | SessionNode<Row>
+  | OrphansNode<Row>;
 
 const UNKNOWN_BRANCH_LABEL = "(unknown branch)";
 
@@ -90,23 +132,21 @@ function branchSortKey(label: string): string {
  */
 const SINGLE_OWNER_ENDPOINT = "the caller";
 
-function contributableIdentity(row: ContributableTranscript): SessionIdentity {
-  return {
+/**
+ * How the fold identifies ONE row's owner. A list that can hold several
+ * publishers' rows (the review queue) must state the real owner, because
+ * `local_id` is unique per owner and matching on the session id alone would
+ * let one publisher's submission capture another publisher's.
+ */
+export type OwnerOf<Row> = (row: Row) => string;
+
+function identityOf<Row extends TreeRowFacts>(ownerOf: OwnerOf<Row>) {
+  return (row: Row): SessionIdentity => ({
     rowID: row.id,
-    ownerID: SINGLE_OWNER_ENDPOINT,
+    ownerID: ownerOf(row),
     sessionID: row.local_id,
     parentSessionID: row.parent_session_id,
-  };
-}
-
-function sessionNode(row: ContributableTranscript, children: ContributableTranscript[]): SessionNode {
-  return {
-    kind: "session",
-    id: row.id,
-    label: row.title ?? row.id,
-    row,
-    children: children.map((child) => sessionNode(child, [])),
-  };
+  });
 }
 
 /**
@@ -133,15 +173,30 @@ function sessionNode(row: ContributableTranscript, children: ContributableTransc
  * The fold runs per project because `local_id` is a per-project value here;
  * matching across projects would be a false attach.
  */
-export function buildContributeTree(rows: ContributableTranscript[]): ProjectNode[] {
-  const byProject = new Map<string, ContributableTranscript[]>();
+export function buildSessionTree<Row extends TreeRowFacts>(
+  rows: Row[],
+  present: (row: Row) => SessionPresentation,
+  ownerOf: OwnerOf<Row>,
+): ProjectNode<Row>[] {
+  function sessionNode(row: Row, children: Row[]): SessionNode<Row> {
+    return {
+      kind: "session",
+      id: row.id,
+      label: row.title ?? row.id,
+      row,
+      ...present(row),
+      children: children.map((child) => sessionNode(child, [])),
+    };
+  }
+
+  const byProject = new Map<string, Row[]>();
   for (const row of rows) {
     const bucket = byProject.get(row.project_hash);
     if (bucket) bucket.push(row);
     else byProject.set(row.project_hash, [row]);
   }
 
-  const projects: ProjectNode[] = [];
+  const projects: ProjectNode<Row>[] = [];
   for (const [projectHash, projectRows] of byProject) {
     // ONE fold, shared with every transcript list in this app. It is run per
     // project because `local_id` is a per-project value here: matching across
@@ -149,13 +204,14 @@ export function buildContributeTree(rows: ContributableTranscript[]): ProjectNod
     // place, which row hangs under another, and what happens to a row that
     // names itself or a ring of rows that name each other -- is the shared
     // fold's answer, not a second one written here.
-    const fold = groupSessionRows(projectRows, contributableIdentity);
+    const identify = identityOf(ownerOf);
+    const fold = groupSessionRows(projectRows, identify);
     const startedBy = new Map(
       fold.groups.map((group) => [group.parent.id, group.children]),
     );
 
-    const branchRoots: ContributableTranscript[] = [];
-    const orphanRoots: ContributableTranscript[] = [];
+    const branchRoots: Row[] = [];
+    const orphanRoots: Row[] = [];
     for (const row of fold.rootItems) {
       // A row that kept its place while still naming a parent is an ORPHAN: the
       // session that started it is not in this project's corpus (not fetched,
@@ -166,19 +222,19 @@ export function buildContributeTree(rows: ContributableTranscript[]): ProjectNod
       // the fold treats a blank string as naming nobody, and a second reading
       // here that disagreed would file an ordinary root session under
       // "orphaned transcripts" and tell the person their starter is missing.
-      if (!namesAParent(contributableIdentity(row))) branchRoots.push(row);
+      if (!namesAParent(identify(row))) branchRoots.push(row);
       else orphanRoots.push(row);
     }
 
-    const branchesByKey = new Map<string, ContributableTranscript[]>();
+    const branchesByKey = new Map<string, Row[]>();
     for (const row of branchRoots) {
       const key = row.git_branch ?? "";
       const bucket = branchesByKey.get(key);
       if (bucket) bucket.push(row);
       else branchesByKey.set(key, [row]);
     }
-    const branches: BranchNode[] = [...branchesByKey.entries()]
-      .map(([key, branchRows]): BranchNode => ({
+    const branches: BranchNode<Row>[] = [...branchesByKey.entries()]
+      .map(([key, branchRows]): BranchNode<Row> => ({
         kind: "branch",
         id: `${projectHash}::branch::${key || "__unknown__"}`,
         label: key || UNKNOWN_BRANCH_LABEL,
@@ -186,7 +242,7 @@ export function buildContributeTree(rows: ContributableTranscript[]): ProjectNod
       }))
       .sort((a, b) => branchSortKey(a.label).localeCompare(branchSortKey(b.label)));
 
-    const children: (BranchNode | OrphansNode)[] = [...branches];
+    const children: (BranchNode<Row> | OrphansNode<Row>)[] = [...branches];
     if (orphanRoots.length > 0) {
       children.push({
         kind: "orphans",
@@ -202,3 +258,37 @@ export function buildContributeTree(rows: ContributableTranscript[]): ProjectNod
 
   return projects.sort((a, b) => a.label.localeCompare(b.label));
 }
+
+/**
+ * The contribute page's tree: the caller's OWN transcripts, so every row has
+ * one owner and a row already offered here is locked out of the selection.
+ */
+export function buildContributeTree(rows: ContributableTranscript[]): ProjectNode<ContributableTranscript>[] {
+  return buildSessionTree(
+    rows,
+    (row) => ({
+      meta: contributableMeta(row),
+      mark: row.already_shared ? "already contributed" : null,
+      locked: row.already_shared,
+    }),
+    () => SINGLE_OWNER_ENDPOINT,
+  );
+}
+
+function formatDate(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return "unknown date";
+  return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/**
+ * The secondary metadata line under a contributable session's title: the
+ * harness that produced it, the date it was published, and its stored
+ * visibility. A single mono line keeps every row the same height, so the
+ * column reads as one list instead of a ragged stack of pills.
+ */
+export function contributableMeta(row: ContributableTranscript): string {
+  return [row.model_provider || "unknown harness", formatDate(row.published_at), row.visibility].join(" · ");
+}
+
+export { formatDate as formatSessionDate };

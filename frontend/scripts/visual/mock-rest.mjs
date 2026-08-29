@@ -367,6 +367,11 @@ const shareableTranscriptListResponse = {
 // with two branches, so the two-column @container layout and the tree's
 // grouping both have something real to show), plus one orphaned row so the
 // synthetic "orphaned transcripts" node renders in the capture too.
+// The one submission the batch endpoint reports as already decided, so a
+// capture shows the stale mark and the disabled row rather than only the
+// happy path.
+const ALREADY_DECIDED_ID = 'ct-village-1'
+
 const contributableResponse = {
   group_id: groupId,
   transcripts: [
@@ -617,6 +622,69 @@ const send = (res, code, body) => {
 }
 
 // Attestations created via the mock POST below, held in-memory for the life of the process —
+// The review page's own corpus: the pending queue a curated collective's owner
+// decides. Two projects, two publishers, and one submission started by another
+// so the capture shows the project > branch > session grouping, the child
+// disclosure, and a queue that is not one person's work.
+const pendingShares = [
+  {
+    transcript_id: 'ct-main-1',
+    title: 'fix the redaction rule ordering',
+    model_provider: 'claude-code',
+    owner_id: 'user-pat',
+    local_id: 'sess_ct_0001',
+    parent_session_id: null,
+    project_hash: 'b'.repeat(64),
+    project_name: 'peasant',
+    branch: 'main',
+    owner_username: 'pat-reviewer',
+    owner_is_discoverable: true,
+    shared_at: '2026-06-22T09:00:00Z',
+  },
+  {
+    transcript_id: 'ct-main-child',
+    title: 'run the redaction fixtures again',
+    model_provider: 'claude-code',
+    owner_id: 'user-pat',
+    local_id: 'sess_ct_0001_child',
+    parent_session_id: 'sess_ct_0001',
+    project_hash: 'b'.repeat(64),
+    project_name: 'peasant',
+    branch: 'main',
+    owner_username: 'pat-reviewer',
+    owner_is_discoverable: true,
+    shared_at: '2026-06-22T10:00:00Z',
+  },
+  {
+    transcript_id: 'ct-feature-1',
+    title: 'draft the contribute tree page',
+    model_provider: 'gemini-cli',
+    owner_id: 'user-pat',
+    local_id: 'sess_ct_0002',
+    parent_session_id: null,
+    project_hash: 'b'.repeat(64),
+    project_name: 'peasant',
+    branch: 'feature/contribute-tree',
+    owner_username: 'pat-reviewer',
+    owner_is_discoverable: true,
+    shared_at: '2026-06-23T09:00:00Z',
+  },
+  {
+    transcript_id: 'ct-village-1',
+    title: 'widen the pending queue wire',
+    model_provider: 'claude-code',
+    owner_id: 'user-sam',
+    local_id: 'sess_ct_0003',
+    parent_session_id: null,
+    project_hash: 'c'.repeat(64),
+    project_name: 'village',
+    branch: 'main',
+    owner_username: 'sam-contributor',
+    owner_is_discoverable: true,
+    shared_at: '2026-06-24T09:00:00Z',
+  },
+]
+
 // enough for AttestButton's create-then-refetch flow to round-trip against a real REST shape.
 const attestations = []
 
@@ -666,7 +734,23 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && p === '/users/me/collectives/contributions') return send(res, 200, { collectives: myCollectiveContributions })
   if (req.method === 'GET' && p === `/groups/${groupId}`) return send(res, 200, groupDetail)
   if (req.method === 'GET' && p === `/groups/${groupId}/my-shares`) return send(res, 200, [])
-  if (req.method === 'GET' && p === `/groups/${groupId}/pending`) return send(res, 200, [])
+  if (req.method === 'GET' && p === `/groups/${groupId}/pending`) return send(res, 200, pendingShares)
+  // The batch review decision. Every id is decided except a designated one,
+  // so a capture can show BOTH outcomes the page has to render: rows that
+  // leave the queue, and a row another reviewer already decided.
+  if (req.method === 'PATCH' && p === `/groups/${groupId}/shares`) {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk })
+    req.on('end', () => {
+      const { transcript_ids } = JSON.parse(body || '{}')
+      const ids = transcript_ids || []
+      send(res, 200, {
+        decided: ids.filter((id) => id !== ALREADY_DECIDED_ID),
+        already_decided: ids.filter((id) => id === ALREADY_DECIDED_ID),
+      })
+    })
+    return
+  }
   if (req.method === 'GET' && p === `/groups/${groupId}/transcripts`) return send(res, 200, { transcripts: groupDetail.transcripts })
   if (req.method === 'GET' && p === `/groups/${groupId}/settings`) return send(res, 200, groupDetail)
   if (req.method === 'GET' && p === `/groups/${groupId}/contributable`) return send(res, 200, contributableResponse)
@@ -695,4 +779,21 @@ const server = createServer((req, res) => {
   return send(res, 401, { error: 'unauthenticated (mock)' })
 })
 
+// Fail closed on a taken port. A mock that logged the failure and stayed up
+// would leave every later capture pointed at WHATEVER already owns the port -
+// a different fixture, or another worktree's server - and the images would
+// look plausible while showing the wrong thing.
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(
+      `ERROR [mock-rest.mjs] port ${PORT} is already in use.\n` +
+        `  why: another process is listening there, so this mock never bound.\n` +
+        `  means: a capture pointed at this port would screenshot that other process's data.\n` +
+        `  fix: stop the process holding the port, or set MOCK_REST_PORT to a free one.`,
+    )
+  } else {
+    console.error(`ERROR [mock-rest.mjs] could not listen on ${PORT}: ${err.message}`)
+  }
+  process.exit(1)
+})
 server.listen(PORT, () => console.log(`mock-rest: serving transcript "${ID}" on http://localhost:${PORT}/api/v1 (point NEXT_PUBLIC_API_URL here)`))

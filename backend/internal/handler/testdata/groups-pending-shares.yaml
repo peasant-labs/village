@@ -35,3 +35,20 @@
   expect_status: 200
   expect_rows: [child]
   expect_parent_of: {child: parent}
+
+- name: two_projects_carry_grouping
+  why: >
+    The review page groups the queue the same way the contribute tree groups a
+    contributor's own sessions: project > branch > session. That is only
+    possible if every pending row states which project and branch it was
+    recorded in, so a queue holding two projects has to come back with two
+    distinct project hashes rather than one flat list the page cannot split.
+  transcripts:
+    - {key: a1, project: p}
+    - {key: b1, project: q}
+  submit: [a1, b1]
+  expect_status: 200
+  expect_rows: [a1, b1]
+  expect_grouping:
+    a1: {project: p, branch: main}
+    b1: {project: q, branch: main}

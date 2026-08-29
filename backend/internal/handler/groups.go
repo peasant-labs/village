@@ -577,6 +577,112 @@ func (h *Handler) ReviewShare(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": req.Status})
 }
 
+// batchReviewRequest is the body of PATCH /groups/{id}/shares: the ids the
+// reviewer decided in one action, and the single decision applied to all of
+// them. One request carries ONE decision - approving some rows and rejecting
+// others is two actions, and mixing them in one body would make the response's
+// two lists ambiguous about which decision a row received.
+type batchReviewRequest struct {
+	TranscriptIDs []string `json:"transcript_ids"`
+	Status        string   `json:"status"`
+}
+
+// batchReviewResponse tells the reviewer what their action actually did.
+// Decided names the submissions this request moved out of the queue.
+// AlreadyDecided names every requested id that did not move: another reviewer
+// decided it between the page loading and this click, it was never submitted
+// to this collective, or it belongs to a different collective entirely. The
+// three read the same way to the caller - the row is stale, refetch - and
+// keeping them one list is deliberate: telling them apart would answer
+// questions about other collectives' contents to someone who only proved they
+// own THIS one.
+type batchReviewResponse struct {
+	Decided        []string `json:"decided"`
+	AlreadyDecided []string `json:"already_decided"`
+}
+
+// BatchReviewShares approves or rejects many pending submissions in one action.
+// PATCH /groups/{id}/shares (AuthRequired, owner only)
+//
+// This is the review counterpart of BatchShareProject (which submits). It
+// decides attempts and nothing else: a decision is not a licence or visibility
+// change, so - exactly as in the single-row ReviewShare - it does not cross the
+// governance-audit axis, needs no actor GUC, and never mutates transcript
+// visibility. The decision is attributed on each attempt row by decided_by.
+func (h *Handler) BatchReviewShares(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid group ID")
+		return
+	}
+	pgID := toPgUUID(id)
+	if !h.requireGroupOwner(w, r, pgID) {
+		return
+	}
+
+	var req batchReviewRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.Status != "approved" && req.Status != "rejected" {
+		writeError(w, http.StatusBadRequest, "Status must be 'approved' or 'rejected'")
+		return
+	}
+
+	// Every id is parsed before anything is decided, so a single malformed id
+	// is refused as a bad request rather than silently dropped from a batch the
+	// reviewer believes they applied in full.
+	requested := make([]pgtype.UUID, 0, len(req.TranscriptIDs))
+	for _, raw := range req.TranscriptIDs {
+		parsed, err := uuid.Parse(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid transcript ID: "+raw)
+			return
+		}
+		requested = append(requested, toPgUUID(parsed))
+	}
+
+	// An empty selection is a no-op, not an error: the client's own guard is
+	// the primary one, and answering the empty question honestly is cheaper
+	// and clearer than a refusal the UI would have to explain.
+	if len(requested) == 0 {
+		writeJSON(w, http.StatusOK, batchReviewResponse{Decided: []string{}, AlreadyDecided: []string{}})
+		return
+	}
+
+	decidedIDs, err := h.queries.BatchUpdateShareStatus(r.Context(), sqlc.BatchUpdateShareStatusParams{
+		Status:        req.Status,
+		DecidedBy:     user.PgID(),
+		TranscriptIds: requested,
+		GroupID:       pgID,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to update share statuses")
+		return
+	}
+
+	decidedSet := make(map[string]bool, len(decidedIDs))
+	decided := make([]string, 0, len(decidedIDs))
+	for _, pgUUID := range decidedIDs {
+		asString := uuid.UUID(pgUUID.Bytes).String()
+		decidedSet[asString] = true
+		decided = append(decided, asString)
+	}
+	// The response echoes the CALLER's ids in the caller's own order, so a row
+	// the client sent can always be matched back by string equality without
+	// the client having to normalise a UUID's spelling.
+	alreadyDecided := make([]string, 0)
+	for i, pgUUID := range requested {
+		if !decidedSet[uuid.UUID(pgUUID.Bytes).String()] {
+			alreadyDecided = append(alreadyDecided, req.TranscriptIDs[i])
+		}
+	}
+
+	writeJSON(w, http.StatusOK, batchReviewResponse{Decided: decided, AlreadyDecided: alreadyDecided})
+}
+
 // JoinGroup allows a logged-in user to self-join an open-acceptance collective
 // as a contributor. POST /groups/{id}/join (AuthRequired)
 func (h *Handler) JoinGroup(w http.ResponseWriter, r *http.Request) {

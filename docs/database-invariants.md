@@ -256,6 +256,19 @@ The audit triggers (migration 026) and the share-derivation triggers
   writes it - a source guard over `queries/*.sql` parses each statement's write
   targets, and the fail-closed trigger refuses the write even if a statement
   slips past review.
+- **A decision only ever moves an OPEN attempt, one statement or many rows.**
+  Both review writers - `UpdateShareStatus` (one submission) and
+  `BatchUpdateShareStatus` (a whole selection, `transcript_id = ANY(...)`) -
+  carry the same `group_id` scope and the same `status = 'pending'` guard, so a
+  decided attempt is never re-decided and an id belonging to another collective
+  is never touched. The batch writer RETURNS the ids it actually moved; a caller
+  reads every requested id missing from that set as already decided rather than
+  as an error, which is what lets a stale queue be acted on optimistically
+  instead of being refused whole. Neither writer changes transcript visibility
+  and neither crosses the governance-audit axis: the decision is attributed on
+  the attempt row by `decided_by`, so no `app.actor_id` is required. Widening
+  either writer beyond the open attempt would break
+  `trg_share_attempt_immutable`, which holds decided attempts as history.
 - **`transcript_shares.shared_at` is the `recorded_at` of the CURRENT LATEST
   event** for that (transcript, collective) pair - when the submission behind
   the present state was made. It is NOT the first-ever submission for the pair:

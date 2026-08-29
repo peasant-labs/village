@@ -155,6 +155,10 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Post("/groups/{id}/shares", h.BatchShareProject)
 		r.With(h.AuthRequired).Get("/groups/{id}/pending", h.ListPendingShares)
 		r.With(h.AuthRequired).Get("/groups/{id}/my-shares", h.ListMyGroupShares)
+		// Reviewing submissions: one route decides ONE submission, the other
+		// decides a whole selection in one action. Both are owner-only and
+		// neither touches transcript visibility.
+		r.With(h.AuthRequired).Patch("/groups/{id}/shares", h.BatchReviewShares)
 		r.With(h.AuthRequired).Patch("/groups/{id}/shares/{transcriptID}", h.ReviewShare)
 		r.With(h.AuthRequired).Delete("/groups/{id}/transcripts/{transcriptID}", h.RemoveGroupTranscript)
 

@@ -107,9 +107,13 @@ export function childSessionGroupLabel(count: number): string {
  * every unselected fold in a long list is noise, and the thing worth saying is
  * that a hidden row IS selected.
  *
- * It lives here, beside {@link childSessionGroupLabel}, because this module is
- * the one place that decides how this app names the sessions a session started
- * - a second module composing these words is exactly what that rule forbids.
+ * It lives here, beside {@link childSessionGroupLabel}, by CHOICE rather than
+ * by force. The source guard forbids the words "child session" in a literal
+ * outside this module, and a caller composing `${label}, ${n} selected` would
+ * satisfy it -- so the guard does not decide this. What decides it is that
+ * every list showing this count wants the same answer, including the
+ * zero-suppression below; put it at one call site and the second caller either
+ * imports from a component or quietly picks different words.
  */
 export function childSessionGroupSelectionLabel(count: number, selectedCount: number): string {
   const hidden = childSessionGroupLabel(count);

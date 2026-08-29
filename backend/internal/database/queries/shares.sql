@@ -110,8 +110,14 @@ JOIN groups g ON ts.group_id = g.id
 WHERE ts.transcript_id = ANY($1::uuid[]) AND ts.status = 'approved';
 
 -- name: ListPendingGroupShares :many
+-- The review queue's rows. Alongside each submission's identity, the row
+-- carries the project and branch it was recorded in so a reviewer reads the
+-- queue grouped the same way a contributor reads the contribute tree:
+-- project > branch > session. project_name is the publisher's own label for
+-- the project and may be absent, so a reader falls back to project_hash.
 SELECT ts.transcript_id, t.title, t.model_provider,
        t.owner_id, t.local_id, t.parent_session_id,
+       t.project_hash, t.project_name, t.git_branch as branch,
        u.github_username as owner_username,
        u.is_discoverable as owner_is_discoverable,
        ts.shared_at
@@ -130,6 +136,22 @@ SET status = $3, decided_at = now(), decided_by = $4
 WHERE transcript_id = $1
   AND group_id = $2
   AND status = 'pending';
+
+-- name: BatchUpdateShareStatus :many
+-- A moderator decides MANY open attempts in one statement. The status =
+-- 'pending' guard is what makes the batch safe to send optimistically: an
+-- attempt another moderator already decided is history and is simply not
+-- matched, so it is neither re-decided nor an error for the whole batch. The
+-- caller reads the returned ids as the decisions that happened, and treats
+-- every requested id missing from them as already decided. group_id scopes
+-- the statement to ONE collective, so an id belonging to another collective
+-- can never be decided from here.
+UPDATE transcript_share_attempts
+SET status = sqlc.arg(status), decided_at = now(), decided_by = sqlc.arg(decided_by)
+WHERE transcript_id = ANY(sqlc.arg(transcript_ids)::uuid[])
+  AND group_id = sqlc.arg(group_id)
+  AND status = 'pending'
+RETURNING transcript_id;
 
 -- name: ShareTranscriptWithStatus :exec
 -- The owner submits the transcript to a collective, opening the next attempt.

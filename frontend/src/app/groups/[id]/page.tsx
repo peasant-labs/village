@@ -56,6 +56,8 @@ import LinkedRepositories from "@/components/group/LinkedRepositories";
 import Link from "next/link";
 import { Manage } from "@peasant-labs/fairtrade/commons";
 import { humanizeEnum } from "@/lib/adapters/manage";
+import { usePendingShares } from "@/lib/queries/groupReview";
+import type { PendingShare } from "@/lib/review/types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -234,30 +236,13 @@ export default function GroupDetailPage({
     id, dataPage, DATA_PAGE_SIZE, showDataBrowser
   );
 
-  interface PendingShare {
-    transcript_id: string;
-    title: string | null;
-    model_provider: string;
-    /** The publisher and the id the recording harness used, which is how a
-     *  submission that another session started is matched to the submission
-     *  that started it. A queue can hold rows from several publishers, and
-     *  `local_id` is unique per owner rather than globally, so both are
-     *  needed: matching on the session id alone would let one publisher's
-     *  submission capture another publisher's. */
-    owner_id: string;
-    local_id: string;
-    /** The harness id of the session that started this one, or null. */
-    parent_session_id: string | null;
-    owner_username: string;
-    owner_is_discoverable: boolean;
-    shared_at: string;
-  }
-
-  const { data: pendingShares } = useQuery({
-    queryKey: ["group-pending", id],
-    queryFn: () => api<PendingShare[]>(`/groups/${id}/pending`),
-    enabled: !!data && data.group?.acceptance_mode === "curated" && data.your_role === "owner",
-  });
+  // The pending queue is read here and on the dedicated review route through
+  // ONE query under ONE key, so a decision made on either surface refreshes
+  // the other.
+  const { data: pendingShares } = usePendingShares(
+    id,
+    !!data && data.group?.acceptance_mode === "curated" && data.your_role === "owner",
+  );
 
   const reviewShare = useMutation({
     mutationFn: ({ transcriptId, status }: { transcriptId: string; status: string }) =>
@@ -954,7 +939,23 @@ export default function GroupDetailPage({
       {isOwner &&
         group.acceptance_mode === "curated" &&
         pendingSharesList.length > 0 && (
-          <div style={{ overflow: "auto", maxWidth: "100%" }}>
+          <div className="flex flex-col gap-2">
+            {/* Deciding one submission at a time is what this block does. The
+                review page reads the SAME queue with the contribute page's
+                tree and transcript preview, so a reviewer can read the work
+                and decide a whole selection at once. Both stay: a queue of one
+                should not need a second page. */}
+            <div className="flex justify-end">
+              <Link
+                href={`/groups/${id}/review`}
+                className="text-sm text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
+                data-testid="group-review-page-link"
+              >
+                review all {pendingSharesList.length} contribution
+                {pendingSharesList.length !== 1 ? "s" : ""}
+              </Link>
+            </div>
+            <div style={{ overflow: "auto", maxWidth: "100%" }}>
             {/* The ONE transcript list in this app that does NOT read a started
                 submission under the submission that started it.
                 `ModerationQueue` offers no way to nest a row, and every way of
@@ -964,8 +965,8 @@ export default function GroupDetailPage({
                 title they decide. On a surface where a person makes an
                 irreversible decision per row, that is worse than a flat list.
                 The rows carry `parent_session_id` already, so whoever draws the
-                grouping has what it needs; the review page that replaces this
-                queue shows it in a tree that folds natively. See
+                grouping has what it needs; the review page linked above shows
+                it in a tree that folds natively. See
                 peasant-labs/fairtrade-design-system#75 for the affordance this
                 component is missing. */}
             <ModerationQueue
@@ -1001,6 +1002,7 @@ export default function GroupDetailPage({
                 reviewShare.mutate({ transcriptId: item.id, status: "rejected" });
               }}
             />
+            </div>
           </div>
         )}
 
