@@ -384,20 +384,27 @@ if (!sitsWithItsParent) {
    reader complained about is a rendered distance, and a class that stopped
    resolving to any padding would still be present in the markup.
 
-   Three readings, because one alone can pass while the design is wrong: the row
-   that carries a chip must be one design-system step tighter underneath, an
-   ordinary row in the same list must be UNCHANGED (so the tightening did not
-   leak into every row), and the chip's indentation must be untouched. */
+   Four readings, because one alone can pass while the design is wrong. The row
+   that carries a chip must be one design-system step tighter UNDERNEATH, and
+   must still open its original distance ABOVE, so the step cannot come off the
+   wrong side and close the row up against the row above it. An ordinary row in
+   the same list must be UNCHANGED, so the tightening cannot leak into every row
+   in the app. And the chip's indentation must be untouched.
+
+   A fifth reading corroborates them: the rendered gap the reader actually
+   complained about. It is the only one held to a band rather than a number,
+   because it is measured from laid-out boxes and moves with font metrics. The
+   band has a floor as well as a ceiling so an over-tightening is caught too,
+   but it is not what guards this design: the four exact readings above are,
+   and a build that still carried the old spacing would fail them whatever its
+   own font metrics did to the gap. */
 const RHYTHM = {
   tightRowPaddingTop: 12,
   tightRowPaddingBottom: 8,
   ordinaryRowPaddingBottom: 12,
-  // A BAND, not a single number. The three padding readings above are exact and
-  // are what the change actually controls; this one is measured from rendered
-  // boxes and so moves with font metrics, so a pinned value would fail a
-  // healthy build on a machine where the face loads differently. The band is
-  // still far below the distance this started at, so the regression it exists
-  // to catch cannot hide inside it.
+  // A BAND, not a single number: see the note above. Its edges were measured on
+  // this design at 22px, not derived, so a run that lands outside them is a
+  // reason to re-measure and re-justify rather than to widen it again.
   detailToLabelGap: { min: 20, max: 23 },
   chipIndent: 20,
 }
