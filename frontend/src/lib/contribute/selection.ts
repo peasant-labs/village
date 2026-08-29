@@ -1,4 +1,5 @@
-import type { ContributeNode, ProjectNode, SessionNode } from "./tree";
+import type { ContributableTranscript } from "./types";
+import type { ContributeNode, ProjectNode, SessionNode, TreeRowFacts } from "./tree";
 
 /** The selection is the set of selected LEAF transcript ids — never a
  *  set of node ids, so a project/branch/orphans node id can never leak into
@@ -9,7 +10,7 @@ export type Selection = ReadonlySet<string>;
  *  eligible descendant selected, or something in between. */
 export type NodeState = "none" | "some" | "all";
 
-function isSessionNode(node: ContributeNode): node is SessionNode {
+function isSessionNode<Row extends TreeRowFacts>(node: ContributeNode<Row>): node is SessionNode<Row> {
   return node.kind === "session";
 }
 
@@ -17,26 +18,27 @@ function isSessionNode(node: ContributeNode): node is SessionNode {
  *  when it is already a session. Walks through project/branch/orphans
  *  grouping nodes transparently — the orphans synthetic node is never itself
  *  returned, only the real sessions nested under it. */
-function sessionNodes(node: ContributeNode): SessionNode[] {
+function sessionNodes<Row extends TreeRowFacts>(node: ContributeNode<Row>): SessionNode<Row>[] {
   if (isSessionNode(node)) {
-    return [node, ...node.children.flatMap(sessionNodes)];
+    return [node, ...node.children.flatMap((child) => sessionNodes<Row>(child))];
   }
-  return node.children.flatMap(sessionNodes);
+  return node.children.flatMap((child) => sessionNodes<Row>(child));
 }
 
-/** Leaf transcript ids under `node`, EXCLUDING any row already shared into
- *  this collective — an already-shared row is rendered disabled and can
- *  never enter a selection (see `already_shared_disabled`). */
-export function leafIds(node: ContributeNode): string[] {
+/** Leaf transcript ids under `node`, EXCLUDING every LOCKED row — one already
+ *  offered to this collective on the contribute tree, or one another moderator
+ *  already decided on the review tree. A locked row is rendered disabled and
+ *  can never enter a selection. */
+export function leafIds<Row extends TreeRowFacts>(node: ContributeNode<Row>): string[] {
   return sessionNodes(node)
-    .filter((session) => !session.row.already_shared)
+    .filter((session) => !session.locked)
     .map((session) => session.id);
 }
 
 /** The tri-state a node's checkbox row should render, per {@link NodeState}.
  *  A node with no selectable descendant (every row already shared, or an
  *  empty grouping) reads `"none"` — there is nothing to tick "all" of. */
-export function nodeState(selection: Selection, node: ContributeNode): NodeState {
+export function nodeState<Row extends TreeRowFacts>(selection: Selection, node: ContributeNode<Row>): NodeState {
   const eligible = leafIds(node);
   if (eligible.length === 0) return "none";
   const selectedCount = eligible.filter((id) => selection.has(id)).length;
@@ -48,7 +50,7 @@ export function nodeState(selection: Selection, node: ContributeNode): NodeState
 /** Flips `node`'s tri-state: `"all"` clears every eligible descendant leaf,
  *  `"none"`/`"some"` selects every eligible descendant leaf. Returns a NEW
  *  `Selection` (selections are immutable — see {@link Selection}). */
-export function toggleNode(selection: Selection, node: ContributeNode): Selection {
+export function toggleNode<Row extends TreeRowFacts>(selection: Selection, node: ContributeNode<Row>): Selection {
   const eligible = leafIds(node);
   const next = new Set(selection);
   if (nodeState(selection, node) === "all") {
@@ -60,14 +62,14 @@ export function toggleNode(selection: Selection, node: ContributeNode): Selectio
 }
 
 /** Every selectable (not-already-shared) leaf id across the whole tree. */
-export function selectAll(tree: ProjectNode[]): Selection {
+export function selectAll<Row extends TreeRowFacts>(tree: ProjectNode<Row>[]): Selection {
   return new Set(tree.flatMap(leafIds));
 }
 
 /** The selected ids whose stored `visibility` is `"private"` — the
  *  confirm-before-share gate fires on a non-empty result. `tree` supplies the
  *  row lookup; a selection can only ever name ids the tree produced. */
-export function privateIds(selection: Selection, tree: ProjectNode[]): string[] {
+export function privateIds(selection: Selection, tree: ProjectNode<ContributableTranscript>[]): string[] {
   const rows = tree.flatMap((project) => sessionNodes(project));
   return rows
     .filter((session) => selection.has(session.id) && session.row.visibility === "private")
@@ -80,7 +82,10 @@ export function privateIds(selection: Selection, tree: ProjectNode[]): string[] 
  *  ids must never appear as an empty-array entry. Node ids (branch/orphans)
  *  never leak in: every array here is exclusively transcript ids from
  *  {@link leafIds}. */
-export function groupByProject(selection: Selection, tree: ProjectNode[]): Map<string, string[]> {
+export function groupByProject<Row extends TreeRowFacts>(
+  selection: Selection,
+  tree: ProjectNode<Row>[],
+): Map<string, string[]> {
   const grouped = new Map<string, string[]>();
   for (const project of tree) {
     const ids = leafIds(project).filter((id) => selection.has(id));
@@ -92,6 +97,6 @@ export function groupByProject(selection: Selection, tree: ProjectNode[]): Map<s
 /** Every distinct harness (`model_provider`) among a node's leaf sessions —
  *  used by the filter UI's per-harness counts. Exported here (rather than
  *  duplicated in `filter.ts`) because it walks the same tree structure. */
-export function sessionRows(node: ContributeNode) {
+export function sessionRows<Row extends TreeRowFacts>(node: ContributeNode<Row>): Row[] {
   return sessionNodes(node).map((session) => session.row);
 }

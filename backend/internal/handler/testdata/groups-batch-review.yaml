@@ -1,0 +1,118 @@
+# What PATCH /groups/{id}/shares does, driven through the real
+# BatchReviewShares HTTP handler against a real PostgreSQL.
+#
+# Every case builds transcripts, offers some of them to a curated collective
+# through the shipped single-share handler, optionally decides some of them
+# ahead of the batch, and then sends ONE batch as a named actor.
+#
+# `request` names transcripts by key. `foreign` names a transcript that was
+# offered to a DIFFERENT collective, so the case can ask whether a batch scoped
+# to one collective can reach another collective's submission.
+
+- name: mixed_projects_one_action
+  why: >
+    The whole point of the route. An owner selects submissions belonging to
+    two different projects and decides them in ONE request. Every selected
+    submission is decided and the derived share row carries the decision, so a
+    reviewer never has to send one request per project the way the contribute
+    path has to.
+  transcripts:
+    - {key: a1, project: p}
+    - {key: a2, project: p}
+    - {key: b1, project: q}
+  submit: [a1, a2, b1]
+  actor: owner
+  status: approved
+  request: [a1, a2, b1]
+  expect_status: 200
+  expect_decided: [a1, a2, b1]
+  expect_already_decided: []
+  expect_derived: {a1: approved, a2: approved, b1: approved}
+
+- name: partial_already_decided
+  why: >
+    A row another moderator decided between the page loading and this click is
+    reported in already_decided while the rest of the batch still succeeds. A
+    stale selection must never refuse the whole action, because the reviewer
+    cannot tell which of their rows went stale before they click.
+  transcripts:
+    - {key: fresh, project: p}
+    - {key: stale, project: p}
+  submit: [fresh, stale]
+  pre_decide: {stale: rejected}
+  actor: owner
+  status: approved
+  request: [fresh, stale]
+  expect_status: 200
+  expect_decided: [fresh]
+  expect_already_decided: [stale]
+  expect_derived: {fresh: approved, stale: rejected}
+
+- name: reject_selection
+  why: >
+    Rejection travels the same path as approval, so the route cannot be one
+    that only works in the permissive direction. The derived row reads
+    'rejected' and the submission leaves the pending queue.
+  transcripts:
+    - {key: a1, project: p}
+    - {key: a2, project: p}
+  submit: [a1, a2]
+  actor: owner
+  status: rejected
+  request: [a1, a2]
+  expect_status: 200
+  expect_decided: [a1, a2]
+  expect_already_decided: []
+  expect_derived: {a1: rejected, a2: rejected}
+
+- name: non_owner_refused
+  why: >
+    A member of the collective is not a reviewer. The route answers 403 and
+    decides nothing, so the pending submission is still pending afterwards.
+    Asserting the row as well as the status is what separates a real refusal
+    from one that answers 403 after already writing.
+  transcripts:
+    - {key: a1, project: p}
+  submit: [a1]
+  actor: member
+  status: approved
+  request: [a1]
+  expect_status: 403
+  expect_derived: {a1: pending}
+
+- name: cross_collective_id_not_decided
+  why: >
+    A transcript submitted to a DIFFERENT collective cannot be decided from
+    this collective's batch, even by this collective's owner. It comes back in
+    already_decided (the caller learns only that their row did not move) and
+    its own submission is untouched.
+  transcripts:
+    - {key: mine, project: p}
+    - {key: foreign, project: p}
+  submit: [mine]
+  submit_foreign: [foreign]
+  actor: owner
+  status: approved
+  request: [mine, foreign]
+  expect_status: 200
+  expect_decided: [mine]
+  expect_already_decided: [foreign]
+  expect_derived: {mine: approved}
+  expect_foreign_derived: {foreign: pending}
+
+- name: empty_selection_is_a_no_op
+  why: >
+    An empty selection is answered honestly rather than refused: both lists are
+    empty, nothing is decided, and the pending submission the collective holds
+    is still pending. A 400 here would make the client explain a refusal for an
+    action the user never took.
+  transcripts:
+    - {key: a1, project: p}
+  submit: [a1]
+  actor: owner
+  status: approved
+  request: []
+  expect_status: 200
+  expect_decided: []
+  expect_already_decided: []
+  expect_derived: {a1: pending}

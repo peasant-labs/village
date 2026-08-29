@@ -11,6 +11,55 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const batchUpdateShareStatus = `-- name: BatchUpdateShareStatus :many
+UPDATE transcript_share_attempts
+SET status = $1, decided_at = now(), decided_by = $2
+WHERE transcript_id = ANY($3::uuid[])
+  AND group_id = $4
+  AND status = 'pending'
+RETURNING transcript_id
+`
+
+type BatchUpdateShareStatusParams struct {
+	Status        string        `db:"status" json:"status"`
+	DecidedBy     pgtype.UUID   `db:"decided_by" json:"decided_by"`
+	TranscriptIds []pgtype.UUID `db:"transcript_ids" json:"transcript_ids"`
+	GroupID       pgtype.UUID   `db:"group_id" json:"group_id"`
+}
+
+// A moderator decides MANY open attempts in one statement. The status =
+// 'pending' guard is what makes the batch safe to send optimistically: an
+// attempt another moderator already decided is history and is simply not
+// matched, so it is neither re-decided nor an error for the whole batch. The
+// caller reads the returned ids as the decisions that happened, and treats
+// every requested id missing from them as already decided. group_id scopes
+// the statement to ONE collective, so an id belonging to another collective
+// can never be decided from here.
+func (q *Queries) BatchUpdateShareStatus(ctx context.Context, arg BatchUpdateShareStatusParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, batchUpdateShareStatus,
+		arg.Status,
+		arg.DecidedBy,
+		arg.TranscriptIds,
+		arg.GroupID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var transcript_id pgtype.UUID
+		if err := rows.Scan(&transcript_id); err != nil {
+			return nil, err
+		}
+		items = append(items, transcript_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGroupTranscriptStats = `-- name: GetGroupTranscriptStats :one
 SELECT
   COUNT(*)::int AS total_transcripts,
@@ -526,6 +575,7 @@ func (q *Queries) ListOwnerCollectiveSubmissions(ctx context.Context, arg ListOw
 const listPendingGroupShares = `-- name: ListPendingGroupShares :many
 SELECT ts.transcript_id, t.title, t.model_provider,
        t.owner_id, t.local_id, t.parent_session_id,
+       t.project_hash, t.project_name, t.git_branch as branch,
        u.github_username as owner_username,
        u.is_discoverable as owner_is_discoverable,
        ts.shared_at
@@ -543,11 +593,19 @@ type ListPendingGroupSharesRow struct {
 	OwnerID             pgtype.UUID        `db:"owner_id" json:"owner_id"`
 	LocalID             string             `db:"local_id" json:"local_id"`
 	ParentSessionID     pgtype.Text        `db:"parent_session_id" json:"parent_session_id"`
+	ProjectHash         string             `db:"project_hash" json:"project_hash"`
+	ProjectName         pgtype.Text        `db:"project_name" json:"project_name"`
+	Branch              pgtype.Text        `db:"branch" json:"branch"`
 	OwnerUsername       string             `db:"owner_username" json:"owner_username"`
 	OwnerIsDiscoverable bool               `db:"owner_is_discoverable" json:"owner_is_discoverable"`
 	SharedAt            pgtype.Timestamptz `db:"shared_at" json:"shared_at"`
 }
 
+// The review queue's rows. Alongside each submission's identity, the row
+// carries the project and branch it was recorded in so a reviewer reads the
+// queue grouped the same way a contributor reads the contribute tree:
+// project > branch > session. project_name is the publisher's own label for
+// the project and may be absent, so a reader falls back to project_hash.
 func (q *Queries) ListPendingGroupShares(ctx context.Context, groupID pgtype.UUID) ([]ListPendingGroupSharesRow, error) {
 	rows, err := q.db.Query(ctx, listPendingGroupShares, groupID)
 	if err != nil {
@@ -564,6 +622,9 @@ func (q *Queries) ListPendingGroupShares(ctx context.Context, groupID pgtype.UUI
 			&i.OwnerID,
 			&i.LocalID,
 			&i.ParentSessionID,
+			&i.ProjectHash,
+			&i.ProjectName,
+			&i.Branch,
 			&i.OwnerUsername,
 			&i.OwnerIsDiscoverable,
 			&i.SharedAt,

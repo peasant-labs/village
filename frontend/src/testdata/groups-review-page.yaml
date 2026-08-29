@@ -1,0 +1,145 @@
+# The owner-only collective review route, /groups/{id}/review.
+#
+# Every case mounts the REAL route inside the real AuthProvider with REST
+# stubbed at fetch. `pending` is the queue the server answers with; `select`
+# names the rows a reviewer ticks; `decided` and `alreadyDecided` are what the
+# batch endpoint answers.
+#
+# Row shorthand: only the fields a case cares about are set; the loader fills
+# the rest with a realistic constant.
+
+cases:
+  - name: owner_reads_the_queue_grouped_by_project
+    why: >
+      The whole reason this page exists. A queue holding submissions from two
+      projects is read as a project > branch > session tree, the same way a
+      contributor reads their own sessions on the contribute page, instead of
+      one flat list a reviewer cannot navigate.
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: a1, local_id: a1, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: b1, local_id: b1, project_hash: pb, project_name: beta, owner_username: sam}
+    select: []
+    decided: []
+    alreadyDecided: []
+    expect:
+      projectLabels: [alpha, beta]
+      sessionIds: [a1, b1]
+
+  - name: child_session_folds_under_its_parent
+    why: >
+      A submission that another session started is read UNDER the submission
+      that started it, behind the same disclosure every transcript list in this
+      app uses, so a reviewer sees the shape of the work rather than two
+      unrelated rows.
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: parent, local_id: p, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: child, local_id: c, parent_session_id: p, project_hash: pa, project_name: alpha, owner_username: pat}
+    select: []
+    decided: []
+    alreadyDecided: []
+    expect:
+      projectLabels: [alpha]
+      sessionIds: [parent]
+      childrenOf: {parent: [child]}
+
+  - name: two_publishers_sharing_a_session_id_do_not_fold
+    why: >
+      The queue holds several publishers' work, and the harness session id is
+      unique only per publisher. Two publishers who happen to have used the
+      same session id must stay separate rows: folding on the session id alone
+      would let one publisher's submission capture another publisher's, and a
+      reviewer would decide work under a heading that is not theirs.
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: pats, local_id: shared-id, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: sams, local_id: sams, parent_session_id: shared-id, project_hash: pa, project_name: alpha, owner_username: sam}
+    select: []
+    decided: []
+    alreadyDecided: []
+    expect:
+      topLevelSessionIds: [pats, sams]
+
+  - name: approve_selection_sends_one_request
+    why: >
+      Three submissions across two projects are approved in ONE PATCH carrying
+      all three ids. The contribute path has to send one POST per project; the
+      review path must not, because a reviewer decides submissions, not
+      projects.
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: a1, local_id: a1, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: a2, local_id: a2, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: b1, local_id: b1, project_hash: pb, project_name: beta, owner_username: sam}
+    select: [a1, a2, b1]
+    decided: [a1, a2, b1]
+    alreadyDecided: []
+    expect:
+      requestCount: 1
+      requestIds: [a1, a2, b1]
+      requestStatus: approved
+
+  - name: reject_selection_sends_the_reject_decision
+    why: >
+      Rejection travels the same single request as approval. A page that could
+      only approve would make the reject action a lie.
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: a1, local_id: a1, project_hash: pa, project_name: alpha, owner_username: pat}
+    select: [a1]
+    decided: [a1]
+    alreadyDecided: []
+    expect:
+      requestCount: 1
+      requestIds: [a1]
+      requestStatus: rejected
+
+  - name: already_decided_row_is_marked_stale
+    why: >
+      A row another reviewer decided between the page loading and this click
+      comes back in already_decided. It stays on screen marked "already
+      decided" and leaves the selection, so the reviewer sees WHY their
+      selection shrank instead of watching a row vanish.
+    viewer: mod
+    role: owner
+    pending:
+      - {transcript_id: fresh, local_id: fresh, project_hash: pa, project_name: alpha, owner_username: pat}
+      - {transcript_id: stale, local_id: stale, project_hash: pa, project_name: alpha, owner_username: pat}
+    select: [fresh, stale]
+    decided: [fresh]
+    alreadyDecided: [stale]
+    expect:
+      staleNotice: 1 already decided by someone else
+      selectedAfter: 0
+
+  - name: non_owner_sees_the_owner_only_notice
+    why: >
+      A plain member is not a reviewer. The route says so and offers a way back
+      rather than rendering an empty tree that looks like an empty queue.
+    viewer: rando
+    role: member
+    pending: []
+    select: []
+    decided: []
+    alreadyDecided: []
+    expect:
+      ownerOnlyNotice: true
+
+  - name: empty_queue_says_nothing_is_waiting
+    why: >
+      An owner whose collective has no pending submission must read "nothing is
+      waiting", not an empty panel that looks like a failed load.
+    viewer: mod
+    role: owner
+    pending: []
+    select: []
+    decided: []
+    alreadyDecided: []
+    expect:
+      emptyQueue: true

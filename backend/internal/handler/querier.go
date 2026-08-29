@@ -119,6 +119,7 @@ type Querier interface {
 	ListSharesByTranscriptIDs(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListSharesByTranscriptIDsRow, error)
 	ListPendingGroupShares(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListPendingGroupSharesRow, error)
 	UpdateShareStatus(ctx context.Context, arg sqlc.UpdateShareStatusParams) error
+	BatchUpdateShareStatus(ctx context.Context, arg sqlc.BatchUpdateShareStatusParams) ([]pgtype.UUID, error)
 	ListUserSharesInGroup(ctx context.Context, arg sqlc.ListUserSharesInGroupParams) ([]sqlc.ListUserSharesInGroupRow, error)
 	RetractUserSharesInGroup(ctx context.Context, arg sqlc.RetractUserSharesInGroupParams) error
 	ListGroupOwnersForTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)

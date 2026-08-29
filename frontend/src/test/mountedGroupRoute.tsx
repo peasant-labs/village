@@ -16,6 +16,7 @@ import type {
   UserGroupShare,
 } from "@/lib/types";
 import type { ContributableTranscript } from "@/lib/contribute/types";
+import type { PendingShare } from "@/lib/review/types";
 
 /**
  * Mount support for the REAL `/groups/{id}` and `/groups/{id}/contribute`
@@ -37,6 +38,11 @@ export interface ContributeNavRow {
   name: string;
   why: string;
   role: ContributeNavRole;
+  /** How many submissions the collective's review queue holds. A row that
+   *  sets this also makes the collective CURATED, because only a curated
+   *  collective has a queue at all. Omitted means an open collective with no
+   *  queue, which is what every navigation row wants. */
+  pendingCount?: number;
 }
 
 export interface ContributeNavFixtures {
@@ -56,6 +62,7 @@ const requiredRowNames = [
   "non_member_no_button",
   "contribute_page_member_panel",
   "contribute_page_non_member_notice",
+  "owner_reaches_the_review_page_from_the_queue",
 ] as const;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -91,7 +98,18 @@ export function loadGroupsContributeNavFixtures(): ContributeNavFixtures {
         `rows[${index}] ("${name}").role must be "owner", "member" or null, got ${JSON.stringify(rawRole)}`
       );
     }
-    return { name, why, role: rawRole as ContributeNavRole };
+    const rawPending = rawRow.pendingCount;
+    if (rawPending !== undefined && (typeof rawPending !== "number" || !Number.isInteger(rawPending) || rawPending < 0)) {
+      throw new Error(
+        `rows[${index}] ("${name}").pendingCount must be a non-negative integer when present, got ${JSON.stringify(rawPending)}`,
+      );
+    }
+    return {
+      name,
+      why,
+      role: rawRole as ContributeNavRole,
+      ...(rawPending === undefined ? {} : { pendingCount: rawPending as number }),
+    };
   });
 
   const names = rows.map((r) => r.name);
@@ -115,22 +133,16 @@ export function loadGroupsContributeNavFixtures(): ContributeNavFixtures {
 // ── Route fixture ────────────────────────────────────────────────────────
 
 /**
- * One pending submission as `GET /groups/{id}/pending` answers it. The three
- * identity columns are what the review queue folds on: a queue holds rows from
- * several publishers, and a session id is unique per owner rather than
- * globally, so the owner is part of the match.
+ * One pending submission as `GET /groups/{id}/pending` answers it.
+ *
+ * This is the WIRE type, not a second copy of it, so a fixture row cannot
+ * drift from what the route actually serves. The three identity columns are
+ * what the review queue folds on: a queue holds rows from several publishers,
+ * and a session id is unique per owner rather than globally, so the owner is
+ * part of the match. The project and branch columns are what the review page
+ * groups by.
  */
-export interface PendingShareFixtureRow {
-  transcript_id: string;
-  title: string | null;
-  model_provider: string;
-  owner_id: string;
-  local_id: string;
-  parent_session_id: string | null;
-  owner_username: string;
-  owner_is_discoverable: boolean;
-  shared_at: string;
-}
+export type PendingShareFixtureRow = PendingShare;
 
 export interface GroupRouteFixture {
   /** Signed-in viewer's GitHub username, or `null` for an anonymous one (`/auth/me` answers 401). */
