@@ -8,24 +8,29 @@ import {
   FolderGit2,
   HelpCircle,
 } from "lucide-react";
-import Link from "next/link";
 import type { GroupTranscript } from "@/lib/types";
-import { groupByRepo, formatModelName, resolveAttribution } from "@/lib/format";
+import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
+import { collectiveTranscriptRow, formatCompact, groupByRepo } from "@/lib/format";
+import TranscriptList, {
+  type TranscriptRowFact,
+} from "@/components/transcript/TranscriptList";
 
 interface CollectiveReposProps {
   /** Transcripts visible to the current viewer (recent page or full browse). */
   transcripts: GroupTranscript[];
-  /** Current viewer id, for attribution (hides handles of non-discoverable authors). */
-  viewerId?: string;
-  /** Whether the viewer is a collective owner (sees real handles regardless of discoverability). */
+  /** Whether the viewer is a collective owner (sees real handles regardless of
+   *  discoverability). Who the viewer IS is not passed: the rows are drawn by
+   *  the shared transcript list, which reads the signed-in person itself, and
+   *  two answers to "who is looking" could disagree. */
   viewerIsOwner?: boolean;
 }
 
-function formatCompact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
-  return n.toLocaleString();
-}
+/**
+ * What a row under a repository states: which model ran, on which branch, and
+ * when. The repository above it already names the project and the remote, so a
+ * row does not repeat them.
+ */
+const REPO_TRANSCRIPT_FACTS: readonly TranscriptRowFact[] = ["model", "branch", "date"];
 
 /** Normalise a git remote into an https GitHub-style URL when possible. */
 function remoteHref(remote: string | null): string | null {
@@ -54,10 +59,21 @@ function remoteHref(remote: string | null): string | null {
  */
 export default function CollectiveRepos({
   transcripts,
-  viewerId,
   viewerIsOwner = false,
 }: CollectiveReposProps) {
   const repoGroups = useMemo(() => groupByRepo(transcripts), [transcripts]);
+  // One fold per repository, computed once rather than at each render of an
+  // expanded panel, and keyed by the repository the rows belong to.
+  const foldsByRepo = useMemo(
+    () =>
+      new Map(
+        repoGroups.map((repo) => [
+          repo.key,
+          groupChildSessions(repo.transcripts.map(collectiveTranscriptRow)),
+        ]),
+      ),
+    [repoGroups],
+  );
   const [expanded, setExpanded] = useState<Set<string>>(
     // Expand the largest repo by default so the section isn't an empty wall.
     () => new Set(repoGroups.length > 0 ? [repoGroups[0].key] : [])
@@ -90,6 +106,7 @@ export default function CollectiveRepos({
         {repoGroups.map((repo) => {
           const isExpanded = expanded.has(repo.key);
           const href = remoteHref(repo.remote);
+          const fold = foldsByRepo.get(repo.key)!;
           return (
             <div key={repo.key}>
               {/* Repo header row */}
@@ -153,54 +170,21 @@ export default function CollectiveRepos({
                 )}
               </button>
 
-              {/* Transcript list for this repo */}
+              {/* Transcript list for this repo, drawn by the SAME list every
+                  other transcript surface uses. Folded WITHIN the repository,
+                  which is where a starter and what it started both sit: a
+                  session and the sessions it starts share a git remote, so
+                  grouping the repository's own rows is what puts a started
+                  session under the row a reader is already looking at. */}
               {isExpanded && (
-                <div className="border-t border-rule divide-y divide-rule bg-canvas/40">
-                  {repo.transcripts.map((t) => {
-                    const attribution = resolveAttribution(
-                      {
-                        id: t.owner_id,
-                        github_username: t.owner_username,
-                        is_discoverable: t.owner_is_discoverable,
-                      },
-                      viewerId,
-                      viewerIsOwner
-                    );
-                    return (
-                      <div
-                        key={t.id}
-                        className="flex items-center gap-3 pl-12 pr-5 py-2 hover:bg-surface-hover transition-colors"
-                      >
-                        <span className="text-[11px] font-mono text-ink-3 capitalize shrink-0 w-20 truncate">
-                          {formatModelName(t.model_name, t.model_provider)}
-                        </span>
-                        <Link
-                          href={`/transcripts/${t.id}`}
-                          className="text-[13px] text-ink truncate min-w-0 flex-1 hover:underline focus-mono cursor-pointer"
-                        >
-                          {t.title || "Untitled"}
-                        </Link>
-                        {t.git_branch && (
-                          <span
-                            className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-ink-4 shrink-0 max-w-[140px]"
-                            title={t.git_branch}
-                          >
-                            <GitBranch className="size-3 shrink-0" />
-                            <span className="truncate">{t.git_branch}</span>
-                          </span>
-                        )}
-                        <span className="text-[11px] font-mono text-ink-3 truncate shrink-0 w-24 text-right">
-                          {attribution.label}
-                        </span>
-                        <span className="text-[11px] font-mono text-ink-3 tabular-nums shrink-0 whitespace-nowrap">
-                          {new Date(t.published_at).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </span>
-                      </div>
-                    );
-                  })}
+                <div className="border-t border-rule bg-canvas/40 pl-7">
+                  <TranscriptList
+                    items={fold.rootItems}
+                    childSessions={childSessionsByParentID(fold)}
+                    facts={REPO_TRANSCRIPT_FACTS}
+                    viewerIsPrivileged={viewerIsOwner}
+                    bare
+                  />
                 </div>
               )}
             </div>

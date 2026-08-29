@@ -7,6 +7,8 @@ import type { ContributeNode, ProjectNode, SessionNode } from "@/lib/contribute/
 import { leafIds, nodeState, type NodeState, type Selection } from "@/lib/contribute/selection";
 import type { ContributeFilters } from "@/lib/contribute/filter";
 import { Button, Input, Select, Tag } from "@/lib/ft-ui";
+import SessionGroupDisclosure from "@/components/transcript/SessionGroupDisclosure";
+import { childSessionGroupLabel } from "@/lib/childSessions";
 
 interface ContributeTreeProps {
   tree: ProjectNode[];
@@ -192,36 +194,47 @@ function SessionRow({
               {session.label}
             </button>
             {row.already_shared && <Tag className="shrink-0">already contributed</Tag>}
-            {session.children.length > 0 && (
-              <button
-                type="button"
-                onClick={() => onToggleChildren(session.id)}
-                className="inline-flex min-h-6 shrink-0 items-center text-xs font-mono text-ink-3 tabular-nums cursor-pointer hover:text-ink focus-mono"
-              >
-                {childrenOpen ? "hide" : "+"} {session.children.length} child session
-                {session.children.length !== 1 ? "s" : ""}
-              </button>
-            )}
           </div>
           <div className="font-mono text-xs text-ink-3 tabular-nums [overflow-wrap:anywhere]">{sessionMeta(row)}</div>
         </div>
       </div>
-      {childrenOpen && (
-        <div className="contribute-subtree">
-          {session.children.map((child) => (
-            <SessionRow
-              key={child.id}
-              session={child}
-              depth={depth + 1}
-              selection={selection}
-              onToggleNode={onToggleNode}
-              onPreview={onPreview}
-              previewId={previewId}
-              setRowElement={setRowElement}
-              openChildren={openChildren}
-              onToggleChildren={onToggleChildren}
-            />
-          ))}
+      {/* The sessions this one started, behind the SAME control the home page
+          and every other transcript list uses. The marker attribute is the same
+          one those lists carry, so what a control belongs to is observable here
+          in the same way rather than inferred from the order elements happen to
+          appear in. */}
+      {session.children.length > 0 && (
+        <div className="pl-4" data-parent-transcript-id={session.id}>
+          <SessionGroupDisclosure
+            label={childSessionGroupLabel(session.children.length)}
+            collapsedLabel={childSessionGroupLabel(session.children.length)}
+            expanded={childrenOpen}
+            onToggle={() => onToggleChildren(session.id)}
+            rowsID={`contribute-child-sessions-${session.id}`}
+            testID="child-session-disclosure"
+            bare
+          >
+            <div
+              id={`contribute-child-sessions-${session.id}`}
+              data-testid="child-session-disclosure-rows"
+              className="contribute-subtree"
+            >
+              {session.children.map((child) => (
+                <SessionRow
+                  key={child.id}
+                  session={child}
+                  depth={depth + 1}
+                  selection={selection}
+                  onToggleNode={onToggleNode}
+                  onPreview={onPreview}
+                  previewId={previewId}
+                  setRowElement={setRowElement}
+                  openChildren={openChildren}
+                  onToggleChildren={onToggleChildren}
+                />
+              ))}
+            </div>
+          </SessionGroupDisclosure>
         </div>
       )}
     </div>

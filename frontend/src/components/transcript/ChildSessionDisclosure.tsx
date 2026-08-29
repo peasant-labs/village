@@ -4,7 +4,8 @@ import { useId, useState } from "react";
 import TranscriptList from "./TranscriptList";
 import SessionGroupDisclosure from "./SessionGroupDisclosure";
 import { childSessionGroupLabel } from "@/lib/childSessions";
-import type { TranscriptListItem } from "@/lib/types";
+import type { TranscriptRowFact, TranscriptRowSelection } from "./TranscriptList";
+import type { TranscriptRow } from "@/lib/types";
 
 interface ChildSessionDisclosureProps {
   /** The id of the row this chip hangs under. Rendered as a `data-` attribute
@@ -12,11 +13,23 @@ interface ChildSessionDisclosureProps {
    *  order elements happen to appear in. */
   parentTranscriptID: string;
   /** The rows the row above started, already in server order. */
-  childSessions: TranscriptListItem[];
+  childSessions: TranscriptRow[];
   /** Render Edit/Delete actions for rows the current viewer owns. */
   showOwnerActions?: boolean;
   /** Hide the owner pill, on a list where every row is the same person's. */
   hideOwner?: boolean;
+  /** The facts each revealed row states, so a child reads exactly like the row
+   *  it hangs under rather than like a row from some other list. */
+  facts?: readonly TranscriptRowFact[];
+  /** Selection for the revealed rows. A session started by another session is
+   *  picked out exactly like any other row, so a "select everything" action
+   *  cannot silently miss it. */
+  selection?: TranscriptRowSelection;
+  /** Carried through so a revealed row attributes its author exactly as the row
+   *  it hangs under does. */
+  viewerIsPrivileged?: boolean;
+  /** Carried through so a revealed handle leads where the parent's does. */
+  linkOwner?: boolean;
 }
 
 /**
@@ -43,6 +56,10 @@ export default function ChildSessionDisclosure({
   childSessions,
   showOwnerActions = false,
   hideOwner = false,
+  facts,
+  selection,
+  viewerIsPrivileged = false,
+  linkOwner = false,
 }: ChildSessionDisclosureProps) {
   const [expanded, setExpanded] = useState(false);
   // One id per mounted chip: a list carries one chip per parent row, and each
@@ -75,6 +92,10 @@ export default function ChildSessionDisclosure({
             items={childSessions}
             showOwnerActions={showOwnerActions}
             hideOwner={hideOwner}
+            facts={facts}
+            selection={selection}
+            viewerIsPrivileged={viewerIsPrivileged}
+            linkOwner={linkOwner}
             bare
           />
         </div>

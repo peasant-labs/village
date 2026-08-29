@@ -242,6 +242,16 @@ export interface VisibleGroup extends Omit<Group, "role" | "member_since"> {
 
 export interface UserGroupShare {
   id: string;
+  /** The publisher, and the id the recording harness used for this session.
+   *  Together they are how a session that another session started is matched to
+   *  the session that started it: `local_id` is unique per owner, never
+   *  globally. Every row of this response belongs to the caller, so `owner_id`
+   *  is constant here; it is carried anyway so one reading of a row's identity
+   *  serves every list. */
+  owner_id: string;
+  local_id: string;
+  /** The harness id of the session that started this one, or null. */
+  parent_session_id: string | null;
   title: string | null;
   model_provider: string;
   model_name: string | null;
@@ -407,6 +417,36 @@ interface AttestationSummary {
   org_login: string;
   attestation_type: string;
   created_at: string;
+}
+
+/**
+ * What a list needs to know about the person a row belongs to.
+ *
+ * Narrower than the account record on purpose. Three endpoints answer with a
+ * transcript and its author, and they do not agree on how much of that author
+ * they send: the transcripts list sends a whole account, a collective's browse
+ * page sends a handle, an avatar and a discoverability flag. Naming only the
+ * four facts a ROW draws is what lets both be listed by this one component
+ * without either inventing an account it was never sent.
+ */
+export interface TranscriptRowOwner {
+  id: string;
+  github_username: string;
+  avatar_url: string | null;
+  /** Absent is not the same as false: a response that does not carry the flag
+   *  has not said this person opted out, and {@link resolveAttribution} treats
+   *  only an explicit `false` as an opt-out. */
+  is_discoverable?: boolean;
+}
+
+/**
+ * One row of a transcript list: a transcript, whose it is, and where it is
+ * shared. Every list in this app is a list of these.
+ */
+export interface TranscriptRow {
+  transcript: Transcript;
+  owner: TranscriptRowOwner;
+  shares?: { group_name: string }[];
 }
 
 export interface TranscriptListItem {

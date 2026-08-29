@@ -1,4 +1,9 @@
-import { assertNameSourceExhaustive, type NameSource } from "@/lib/types";
+import {
+  assertNameSourceExhaustive,
+  type GroupTranscript,
+  type NameSource,
+  type TranscriptRow,
+} from "@/lib/types";
 
 /**
  * Format a model identifier into a human-readable name.
@@ -233,10 +238,24 @@ export interface RepoGroup<T> {
 const UNATTRIBUTED_KEY = "__unattributed__";
 
 /**
+ * A count shortened for a place that has room for a few characters, not a
+ * number: `1.2K`, `3.4M`, and the plain number below a thousand.
+ *
+ * One function, because a collective states the same total in more than one
+ * place -- a repository's roll-up and the row it rolls up -- and two spellings
+ * of one number read as two different numbers.
+ */
+export function formatCompact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return n.toLocaleString();
+}
+
+/**
  * Total tokens for a transcript, preferring the stored `token_count` and
  * falling back to the in/out split — matching the collective data browser.
  */
-function transcriptTokens(t: {
+export function transcriptTokens(t: {
   token_count: number | null;
   tokens_in: number | null;
   tokens_out: number | null;
@@ -341,6 +360,29 @@ export function groupByRepo<
     if (a.unattributed !== b.unattributed) return a.unattributed ? 1 : -1;
     return b.transcriptCount - a.transcriptCount;
   });
+}
+
+/**
+ * One collective-browse transcript as a transcript list reads it.
+ *
+ * The `/groups/{id}/transcripts` response carries the author flattened onto the
+ * transcript (`owner_username`, `owner_avatar_url`, `owner_is_discoverable`)
+ * rather than as a nested account, because a collective's browse page needs a
+ * handle and an avatar and nothing else about that person. This lifts those
+ * three fields back into the shape every transcript list draws, so the
+ * collective's rows are the SAME rows as everywhere else and no account is
+ * invented to make them fit.
+ */
+export function collectiveTranscriptRow(t: GroupTranscript): TranscriptRow {
+  return {
+    transcript: t,
+    owner: {
+      id: t.owner_id,
+      github_username: t.owner_username,
+      avatar_url: t.owner_avatar_url,
+      is_discoverable: t.owner_is_discoverable,
+    },
+  };
 }
 
 /**

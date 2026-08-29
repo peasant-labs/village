@@ -1,3 +1,4 @@
+import { groupSessionRows, type SessionIdentity } from "@/lib/childSessions";
 import type { ContributableTranscript } from "./types";
 
 /**
@@ -29,10 +30,12 @@ export interface BranchNode {
 
 /** A single contributable transcript. `id` is the transcript id — the leaf
  *  identity {@link leafIds} collects and a batch-share POST names. `children`
- *  are the rows whose `parent_session_id` names this row's `local_id`,
- *  recursively — so a session's own descendants nest here whether the
- *  session itself is a normal branch root or an orphan root (see
- *  {@link OrphansNode}). */
+ *  are every row this one started, however far down: a session started two
+ *  levels below arrives here directly, under the topmost row present, and not
+ *  nested a second time inside its own immediate starter. That is the shared
+ *  fold's answer, and it is what makes the count on the disclosure the number
+ *  of rows the control actually reveals. A session node inside `children` is
+ *  therefore always a leaf. */
 export interface SessionNode {
   kind: "session";
   id: string;
@@ -67,19 +70,33 @@ function branchSortKey(label: string): string {
   return label === UNKNOWN_BRANCH_LABEL ? `￿${label}` : label;
 }
 
-function buildSessionNode(
-  row: ContributableTranscript,
-  childrenByParentLocalId: Map<string, ContributableTranscript[]>,
-): SessionNode {
-  const children = (childrenByParentLocalId.get(row.local_id) ?? []).map((child) =>
-    buildSessionNode(child, childrenByParentLocalId),
-  );
+/**
+ * The shared fold's four facts, read out of a contributable row.
+ *
+ * `GET /groups/{id}/contributable` answers with the caller's OWN transcripts
+ * only, so every row here has one owner and the fold's per-owner scoping has
+ * nothing to separate. It is still stated, because the fold matches a parent on
+ * the owner AND the session id, and a constant is the honest way to say "these
+ * all belong to the same person" rather than leaving the field to be guessed.
+ */
+const CONTRIBUTABLE_OWNER = "the caller";
+
+function contributableIdentity(row: ContributableTranscript): SessionIdentity {
+  return {
+    rowID: row.id,
+    ownerID: CONTRIBUTABLE_OWNER,
+    sessionID: row.local_id,
+    parentSessionID: row.parent_session_id,
+  };
+}
+
+function sessionNode(row: ContributableTranscript, children: ContributableTranscript[]): SessionNode {
   return {
     kind: "session",
     id: row.id,
     label: row.title ?? row.id,
     row,
-    children,
+    children: children.map((child) => sessionNode(child, [])),
   };
 }
 
@@ -107,25 +124,27 @@ export function buildContributeTree(rows: ContributableTranscript[]): ProjectNod
 
   const projects: ProjectNode[] = [];
   for (const [projectHash, projectRows] of byProject) {
-    const localIds = new Set(projectRows.map((row) => row.local_id));
-    const childrenByParentLocalId = new Map<string, ContributableTranscript[]>();
+    // ONE fold, shared with every transcript list in this app. It is run per
+    // project because `local_id` is a per-project value here: matching across
+    // projects would be a false attach. Everything else -- which row keeps its
+    // place, which row hangs under another, and what happens to a row that
+    // names itself or a ring of rows that name each other -- is the shared
+    // fold's answer, not a second one written here.
+    const fold = groupSessionRows(projectRows, contributableIdentity);
+    const startedBy = new Map(
+      fold.groups.map((group) => [group.parent.id, group.children]),
+    );
+
     const branchRoots: ContributableTranscript[] = [];
     const orphanRoots: ContributableTranscript[] = [];
-
-    for (const row of projectRows) {
-      if (row.parent_session_id == null) {
-        branchRoots.push(row);
-        continue;
-      }
-      if (!localIds.has(row.parent_session_id)) {
-        // The named parent is absent from this project's corpus: this row is
-        // an orphan ROOT (its own descendants, if any, still nest normally).
-        orphanRoots.push(row);
-        continue;
-      }
-      const bucket = childrenByParentLocalId.get(row.parent_session_id);
-      if (bucket) bucket.push(row);
-      else childrenByParentLocalId.set(row.parent_session_id, [row]);
+    for (const row of fold.rootItems) {
+      // A row that kept its place while still naming a parent is an ORPHAN: the
+      // session that started it is not in this project's corpus (not fetched,
+      // foreign, already shared off the list) or the chain it names is a ring.
+      // It is shown under the project's synthetic orphans grouping rather than
+      // dropped, so it stays selectable.
+      if (row.parent_session_id == null) branchRoots.push(row);
+      else orphanRoots.push(row);
     }
 
     const branchesByKey = new Map<string, ContributableTranscript[]>();
@@ -140,7 +159,7 @@ export function buildContributeTree(rows: ContributableTranscript[]): ProjectNod
         kind: "branch",
         id: `${projectHash}::branch::${key || "__unknown__"}`,
         label: key || UNKNOWN_BRANCH_LABEL,
-        children: branchRows.map((row) => buildSessionNode(row, childrenByParentLocalId)),
+        children: branchRows.map((row) => sessionNode(row, startedBy.get(row.id) ?? [])),
       }))
       .sort((a, b) => branchSortKey(a.label).localeCompare(branchSortKey(b.label)));
 
@@ -150,7 +169,7 @@ export function buildContributeTree(rows: ContributableTranscript[]): ProjectNod
         kind: "orphans",
         id: `${projectHash}::orphans`,
         label: "orphaned transcripts",
-        children: orphanRoots.map((row) => buildSessionNode(row, childrenByParentLocalId)),
+        children: orphanRoots.map((row) => sessionNode(row, startedBy.get(row.id) ?? [])),
       });
     }
 
