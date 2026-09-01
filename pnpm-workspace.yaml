@@ -19,9 +19,9 @@ allowBuilds:
   sharp: false
   unrs-resolver: false
 # Minimum release age: block install of any dependency published less than
-# 7 days ago (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION), except our own first-party
+# 3 days ago (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION), except our own first-party
 # packages, which must always be installable immediately.
 # https://pnpm.io/settings/dependency-resolution
-minimumReleaseAge: 10080
+minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - '@peasant-labs/*'
