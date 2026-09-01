@@ -26,7 +26,7 @@ export function makeTranscriptFixture(overrides: Partial<Transcript> = {}): Tran
     turn_count: 12,
     token_count: 900,
     blob_size_bytes: null,
-    schema_version: "0.13.0",
+    schema_version: "0.14.0",
     published_at: "2026-08-20T10:00:00Z",
     updated_at: "2026-08-20T10:00:00Z",
     parent_session_id: null,
