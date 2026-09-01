@@ -5,14 +5,23 @@
 # any checkout.
 packages:
   - "frontend"
-# pnpm's install-script approval gate (pnpm >=10): these are mainstream toolchain
-# native-binary postinstall steps pulled in transitively (esbuild via vite/storybook,
-# sharp via Next's image optimizer, unrs-resolver via eslint's import resolver) --
-# approved so their prebuilt binaries actually download instead of silently no-op'ing.
+# pnpm's install-script approval gate (pnpm >=10): pnpm 11 makes an ignored build
+# script a hard error unless it is given an explicit decision here. These three
+# packages carry postinstall build scripts pulled in transitively (esbuild via
+# vite/storybook, sharp via Next's image optimizer, unrs-resolver via eslint's
+# import resolver). Policy: no build script is allowed to run. Each is set to
+# `false` to record an explicit ignore decision (the documented pnpm 11 mechanism,
+# https://pnpm.io/settings/build) so install does not fail with
+# ERR_PNPM_IGNORED_BUILDS. Their binaries come from optional platform packages,
+# not from these scripts.
 allowBuilds:
-  esbuild: true
-  sharp: true
-  unrs-resolver: true
+  esbuild: false
+  sharp: false
+  unrs-resolver: false
+# Minimum release age: block install of any dependency published less than
+# 3 days ago (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION), except our own first-party
+# packages, which must always be installable immediately.
+# https://pnpm.io/settings/dependency-resolution
+minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
-  - '@peasant-labs/fairtrade'
-  - '@peasant-labs/schema'
+  - '@peasant-labs/*'

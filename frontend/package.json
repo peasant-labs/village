@@ -3,12 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=26"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run && pnpm run test:mutation",
+    "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run && pnpm run test:mutation",
     "test:mutation": "node scripts/test-contract-compat-mutations.mjs && node scripts/test-transcript-query-guard-mutations.mjs",
     "probe:explore": "node scripts/visual/probe-explore.mjs",
     "probe:village": "node scripts/visual/probe-village.mjs",
@@ -57,7 +61,7 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/diff": "^7.0.2",
-    "@types/node": "^20",
+    "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

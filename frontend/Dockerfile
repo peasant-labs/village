@@ -1,5 +1,5 @@
-FROM node:24-alpine AS deps
-RUN corepack enable && corepack prepare pnpm@11.5.3 --activate
+FROM node:26-alpine AS deps
+RUN npm install -g pnpm@11.24.0
 ENV CI=true
 WORKDIR /app
 
@@ -8,8 +8,8 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY frontend/package.json frontend/package.json
 RUN pnpm install --frozen-lockfile
 
-FROM node:24-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@11.5.3 --activate
+FROM node:26-alpine AS builder
+RUN npm install -g pnpm@11.24.0
 ENV CI=true
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
@@ -27,7 +27,7 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 WORKDIR /app/frontend
 RUN pnpm run build
 
-FROM node:24-alpine AS runner
+FROM node:26-alpine AS runner
 ARG RAILWAY_GIT_COMMIT_SHA
 RUN case "$RAILWAY_GIT_COMMIT_SHA" in \
       ''|*[!0-9a-f]*) revision_valid=false ;; \
