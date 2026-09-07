@@ -11,6 +11,7 @@ import type {
   ListAnnotationsResponse,
 } from "../annotations";
 import { TRANSCRIPT_LIST_ENDPOINT } from "../transcriptPageRequest";
+import { parseTranscriptResponseText } from "./transcriptContent";
 
 /** Stable machine-readable category for discovery response trust failures. */
 export enum TranscriptListQueryErrorCode {
@@ -136,14 +137,7 @@ export function useTranscriptContent(id: string) {
         throw new Error(`API error: ${res.status}`);
       }
       const text = await res.text();
-      // Try parsing as JSON first (single object or array)
-      try {
-        return JSON.parse(text);
-      } catch {
-        // Fall back to JSONL (newline-delimited JSON)
-        const lines = text.split("\n").filter((line) => line.trim());
-        return lines.map((line) => JSON.parse(line));
-      }
+      return parseTranscriptResponseText(text);
     },
     enabled: !!id,
   });

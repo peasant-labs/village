@@ -79,20 +79,20 @@ var (
 
 func proveObservedModelPreservation() error {
 	observedModelPreservationOnce.Do(func() {
-		observedModelPreservationErr = executeObservedModelPreservationProof(productionContentRewriteEncoder)
+		observedModelPreservationErr = errors.Join(executeObservedModelPreservationProof(productionContentRewriteEncoder), provePiPreservation(productionContentRewriteEncoder))
 	})
 	return observedModelPreservationErr
 }
 
 func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observedModelPreservationEvaluator) error {
+	if err := scanStoredContent(raw); err != nil {
+		return fmt.Errorf("uploaded transcript content could not be decoded in handler.requireSupportedContentCapability before secret scan or storage because raw JSON validation failed; no transcript bytes or metadata were written; repair the transcript and retry: %w", err)
+	}
 	// Provider-native and legacy JSONL without enriched evidence retains the
 	// historical byte-for-byte publish path; decoding it is a read concern.
-	presence, presenceErr := inspectObservedModelMembers(raw)
+	_, presenceErr := inspectObservedModelMembers(raw)
 	if presenceErr != nil {
 		return presenceErr
-	}
-	if !presence {
-		return nil
 	}
 	payload, _, err := NewContentMigrator().Migrate(context.Background(), raw)
 	if err != nil {
@@ -102,11 +102,11 @@ func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observ
 		return err
 	}
 	required := schema.RequiredContentCapabilities(*payload)
-	if !containsContentCapability(required, schema.ContentCapabilityObservedModelV1) {
+	if len(required) == 0 {
 		return nil
 	}
 	if err := evaluator.Evaluate(); err != nil {
-		return fmt.Errorf("enriched transcript publish refused because the uploaded transcript_file carries observedModel evidence while Village's production preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would misattribute model output; deploy a Village build whose GET /api/v1/schema/version advertises %q after the preservation gate passes, then retry: %w", schema.ContentCapabilityObservedModelV1, err)
+		return fmt.Errorf("enriched transcript publish refused because the uploaded transcript_file carries observedModel evidence, detailed usage or native metadata while Village's production preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would misattribute model output; deploy a Village build whose GET /api/v1/schema/version advertises %q after the preservation gate passes, then retry: %w", required, err)
 	}
 	return nil
 }

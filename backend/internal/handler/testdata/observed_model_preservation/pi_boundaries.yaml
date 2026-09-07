@@ -1,0 +1,89 @@
+cases:
+  - name: duplicate_metadata_key
+    surface: metadata
+    find: '"harness":"pi"'
+    replace: '"harness":"pi","h\u0061rness":"pi"'
+    status: 400
+    error: duplicate
+  - name: duplicate_content_key
+    surface: content
+    find: '"harness":"pi"'
+    replace: '"harness":"pi","h\u0061rness":"pi"'
+    status: 409
+    error: duplicate
+  - name: duplicate_opaque_key
+    surface: content
+    find: '"deferred":true'
+    replace: '"deferred":true,"d\u0065ferred":false'
+    status: 409
+    error: duplicate
+  - name: duplicate_owner
+    surface: content
+    find: '"ownerId":"owner-equal"'
+    replace: '"ownerId":"owner-assistant"'
+    status: 409
+    error: owner
+  - name: wrong_usage_role
+    surface: content
+    find: '"scope":"tool"'
+    replace: '"scope":"assistant"'
+    status: 409
+    error: scope
+  - name: wrong_metadata_target
+    surface: content
+    find: '"turnIndex":30'
+    replace: '"turnIndex":10'
+    status: 409
+    error: correspondence
+  - name: wrong_tool_result_ref
+    surface: content
+    find: '"resultEntryRef":"ref-result"'
+    replace: '"resultEntryRef":"ref-other"'
+    status: 409
+    error: ref
+  - name: token_overflow
+    surface: content
+    find: '"input":4'
+    replace: '"input":9007199254740992'
+    status: 409
+    error: token
+  - name: token_null
+    surface: content
+    find: '"input":4'
+    replace: '"input":null'
+    status: 409
+    error: 'null'
+  - name: cost_not_string
+    surface: content
+    find: '"total":"2e-8"'
+    replace: '"total":2e-8'
+    status: 409
+    error: RecordedCostAmount
+  - name: opaque_integer_overflow
+    surface: content
+    find: '9007199254740991,-9007199254740991'
+    replace: '9007199254740992,-9007199254740991'
+    status: 409
+    error: JS-safe
+  - name: opaque_underflow
+    surface: content
+    find: '"deferred":true'
+    replace: '"deferred":1e-999'
+    status: 409
+    error: underflows
+  - name: opaque_string_budget
+    surface: content
+    find: '"details stay separate"'
+    repeat: 16385
+    status: 409
+    error: string
+  - name: ordinary_text_outside_metadata_budget
+    surface: content
+    find: '"absent native usage"'
+    repeat: 16385
+    status: 201
+    error: ''
+  - name: failed_capability_proof
+    surface: capability
+    status: 409
+    error: detailed_usage_v1

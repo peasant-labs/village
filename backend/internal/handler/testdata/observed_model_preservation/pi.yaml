@@ -1,0 +1,28 @@
+# Synthetic public evidence. Cost strings include JavaScript round-trip artifacts;
+# opaque numeric data is compared semantically, not by lexical spelling.
+cases:
+  - name: pi_all_metadata_and_usage_owners
+    content: |
+      {"contractVersion":"0.0.9","kind":"session_detail","sessionDetail":{
+        "id":"public-fixture","harness":"pi","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z",
+        "durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":7,"toolCallCount":1,
+        "turns":[
+          {"index":10,"role":"user","content":"request [image omitted]","timestamp":"2026-01-01T00:00:00Z","depth":0},
+          {"index":20,"role":"assistant","content":"thinking once; answer [image omitted]","timestamp":"2026-01-01T00:00:01Z","depth":0,"hasThinking":true,"observedModel":"example/model","sourceEntryRef":"ref-assistant",
+           "usage":{"ownerId":"owner-assistant","sourceEntryRef":"ref-assistant","scope":"assistant","completeness":"complete","tokens":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0},"cost":{"source":"recorded_harness_estimate","input":"1e-7","total":"0.30000000000000004"}},
+           "toolCalls":[{"id":"tool-public","name":"extension.inspect","arguments":"{\"nested\":{\"items\":[1,2]}}","result":"error [image omitted]","isError":true,"callEntryRef":"ref-call","resultEntryRef":"ref-result","usage":{"ownerId":"owner-tool","sourceEntryRef":"ref-result","scope":"tool","completeness":"partial","tokens":{"input":4,"reasoning":2}}}]},
+          {"index":30,"role":"system","content":"visible context [image omitted]","timestamp":"2026-01-01T00:00:02Z","depth":0,"sourceEntryRef":"ref-context"},
+          {"index":40,"role":"system","content":"compaction summary","timestamp":"2026-01-01T00:00:03Z","depth":0,"sourceEntryRef":"ref-compaction","usage":{"ownerId":"owner-compaction","sourceEntryRef":"ref-compaction","scope":"summary","completeness":"unknown","cost":{"source":"recorded_harness_estimate","total":"2e-8"}}},
+          {"index":50,"role":"system","content":"branch summary","timestamp":"2026-01-01T00:00:04Z","depth":0,"sourceEntryRef":"ref-branch","usage":{"ownerId":"owner-branch","sourceEntryRef":"ref-branch","scope":"summary","completeness":"unknown"}},
+          {"index":60,"role":"assistant","content":"equal values distinct owner","timestamp":"2026-01-01T00:00:05Z","depth":0,"sourceEntryRef":"ref-equal","usage":{"ownerId":"owner-equal","sourceEntryRef":"ref-equal","scope":"assistant","completeness":"complete","tokens":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0}}},
+          {"index":70,"role":"assistant","content":"absent native usage","timestamp":"2026-01-01T00:00:06Z","depth":0,"sourceEntryRef":"ref-absent","usage":{"ownerId":"owner-absent","sourceEntryRef":"ref-absent","scope":"assistant","completeness":"unknown"}}
+        ],
+        "nativeMetadata":[
+          {"id":"meta-custom","kind":"pi.custom.data","source":{"entryRef":"ref-custom","sourceType":"pi.custom"},"customType":"extension.state","data":{"deferred":true,"responseId":"extension-local","values":[9007199254740991,-9007199254740991,0.30000000000000004,1e-7]}},
+          {"id":"meta-context","kind":"pi.custommessage.details","source":{"entryRef":"ref-context","sourceType":"pi.custom_message"},"attachment":{"turnIndex":30},"customType":"extension.context","data":{"image":{"type":"image","mimeType":"image/png","bytesOmitted":true,"placeholder":"[image omitted]"}}},
+          {"id":"meta-tool","kind":"pi.toolresult.details","source":{"entryRef":"ref-result","sourceType":"pi.message","messageRole":"toolResult"},"attachment":{"turnIndex":20,"toolCallId":"tool-public"},"data":{"nested":{"result":"details stay separate"}}},
+          {"id":"meta-compaction","kind":"pi.compaction.details","source":{"entryRef":"ref-compaction","sourceType":"pi.compaction"},"attachment":{"turnIndex":40},"data":{"summary":"retained"}},
+          {"id":"meta-branch","kind":"pi.branchsummary.details","source":{"entryRef":"ref-branch","sourceType":"pi.branch_summary"},"attachment":{"turnIndex":50},"data":{"summary":"retained"}}
+        ]
+      }}
+    capabilities: [detailed_usage_v1, native_metadata_v1, observed_model_v1]

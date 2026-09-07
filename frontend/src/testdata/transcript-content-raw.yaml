@@ -1,0 +1,20 @@
+cases:
+  - name: legacy_single_object
+    content: '{"type":"user","message":{"content":"hello"}}'
+    expected: {type: user, message: {content: hello}}
+  - name: legacy_array
+    content: '[{"role":"user","content":"hello"}]'
+    expected: [{role: user, content: hello}]
+  - name: legacy_jsonl
+    content: |
+      {"role":"user","content":"hello"}
+      {"role":"assistant","content":"reply"}
+    expected: [{role: user, content: hello}, {role: assistant, content: reply}]
+  - name: legacy_duplicate_escaped_key
+    content: |
+      {"role":"user","r\u006fle":"assistant"}
+      {"content":"reply"}
+    error: true
+  - name: invalid_envelope_no_jsonl_fallback
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":null}'
+    error: true

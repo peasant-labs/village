@@ -40,6 +40,7 @@ const requiredHarnessNames = [
   "codex",
   "opencode",
   "antigravity",
+  "pi",
 ] as const;
 const requiredSessionNames = ["omitted-turns", "null-turns", "nullable-turn-fields"] as const;
 const requiredObservedModelSessionNames = [
@@ -77,9 +78,6 @@ export function loadFinalContractCompatibilityFixtures(): FinalContractCompatibi
   }
   assertExactKeys(parsed, ["harnesses", "observedModelSessions", "offContractHarness", "sessions"], "fixture root");
   const fixtures = parsed as FinalContractCompatibilityFixtures;
-  if (fixtures.harnesses.length !== 7 || fixtures.sessions.length !== 3 || fixtures.observedModelSessions.length !== 2) {
-    throw new Error("final contract compatibility fixtures must contain exactly seven harnesses, three nullable-turn cases, and two observed-model cases");
-  }
   assertExactNameInventory(fixtures.harnesses.map(({ name }) => name), requiredHarnessNames, "harness fixtures");
   assertExactNameInventory(fixtures.sessions.map(({ name }) => name), requiredSessionNames, "nullable-turn fixtures");
   assertExactNameInventory(

@@ -1157,6 +1157,27 @@ one fixture, not N tests.
 
 ### Enriched transcript preservation gate
 
+The same family also contains `pi.yaml`, `pi_boundaries.yaml`, and
+`pi_field_loss.yaml`. These synthetic public fixtures cover all five native
+metadata attachment kinds, assistant/tool/summary owners, partial and absent
+token fields, exact zero, distinct equal-valued owners, recorded cost strings,
+image placeholders, and metadata-local numeric/string limits. Required-name
+inventories guard the corpora against accidental deletion.
+
+`TestPiEncryptedPublishRewriteReadPull` runs the real multipart handlers over
+PostgreSQL and the production encrypted MinIO store. It compares publication,
+display, canonical rewrite, and pull values. Refusals compare the complete
+transcript row, audit and relationship ledgers, authenticated stored bytes, and
+object-write/delete counters. Stored-invalid cases install an encrypted historic
+generation through the actual database writer fence, then assert that read and
+pull refuse it without changing storage. Run it under `make backend-encrypted-test`;
+the aggregate must remain non-skipping.
+
+The frontend's `transcriptContent.test.tsx` reuses these public fixtures through
+the mounted `useTranscriptContent` fetch hook. Its fake network response exposes
+`text()` only, so a regression to lossy `response.json()` fails. Additional named
+legacy JSON/JSONL cases live in `frontend/src/testdata/transcript-content-raw.yaml`.
+
 `internal/handler/testdata/observed_model_preservation/` is the strict corpus for
 the optional `TurnDetail.observedModel` evidence introduced by the released
 Schema module. The loader uses known-field decoding, one-document enforcement,
