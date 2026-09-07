@@ -34,6 +34,15 @@ export function parseTranscriptResponseText(text: string): unknown {
   }
   const value: unknown = JSON.parse(text);
   if (isObject(value)) {
+    const detail = "sessionDetail" in value ? value.sessionDetail : value;
+    if (isObject(detail) && Array.isArray(detail.turns)) {
+      for (const turn of detail.turns) {
+        if (!isObject(turn) || !Array.isArray(turn.toolCalls)) continue;
+        if (turn.toolCalls.some((tool) => isObject(tool) && "namespace" in tool)) {
+          throw new Error("Tool namespace preservation is unavailable during transcript response parsing: the pinned Schema cannot retain this field; nothing was rendered; retry after upgrading to the canonical namespace release.");
+        }
+      }
+    }
     if ("contractVersion" in value || "sessionDetail" in value) return parseTranscriptContentText(text);
     // The content display endpoint serves a bare public detail after migration.
     if ("turns" in value) return parseSessionDetailPayloadText(text);

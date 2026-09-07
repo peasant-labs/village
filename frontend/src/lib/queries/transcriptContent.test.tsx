@@ -21,7 +21,7 @@ const legacy = corpus("src/testdata/transcript-content-raw.yaml").cases as { nam
 for (const name of ["legacy_single_object", "legacy_array", "legacy_jsonl", "legacy_duplicate_escaped_key", "invalid_envelope_no_jsonl_fallback"]) {
   if (legacy.filter((c) => c.name === name).length !== 1) throw new Error(`Required unique fixture missing: ${name}`);
 }
-for (const name of ["duplicate_content_key", "duplicate_opaque_key", "duplicate_owner", "wrong_usage_role", "wrong_metadata_target", "wrong_tool_result_ref", "token_overflow", "token_null", "cost_not_string", "opaque_integer_overflow", "opaque_underflow", "opaque_string_budget", "ordinary_text_outside_metadata_budget"]) {
+for (const name of ["duplicate_content_key", "duplicate_opaque_key", "duplicate_owner", "wrong_usage_role", "wrong_metadata_target", "wrong_tool_result_ref", "token_overflow", "token_null", "cost_not_string", "opaque_integer_overflow", "opaque_underflow", "opaque_string_budget", "ordinary_text_outside_metadata_budget", "complete_tool_namespace_requires_release"]) {
   if (boundaries.filter((c) => c.name === name).length !== 1) throw new Error(`Required unique fixture missing: ${name}`);
 }
 

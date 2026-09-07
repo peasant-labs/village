@@ -87,3 +87,9 @@ cases:
     surface: capability
     status: 409
     error: detailed_usage_v1
+  - name: complete_tool_namespace_requires_release
+    surface: content
+    find: '"name":"extension.inspect"'
+    replace: '"name":"extension.inspect","namespace":""'
+    status: 409
+    error: namespace

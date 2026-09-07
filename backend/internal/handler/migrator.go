@@ -146,14 +146,15 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 	if len(trimmed) == 0 {
 		return nil, false, ErrEmptyBlob
 	}
-	if err := scanStoredContent(trimmed); err != nil {
+	boundary, err := validateContentBoundary(trimmed, "", contentStoredRead)
+	if err != nil {
 		return nil, false, err
 	}
 
-	switch sniffShape(trimmed) {
+	switch boundary.shape {
 	case ShapeEnvelope:
-		env, err := schema.DecodeTranscriptContentRaw(trimmed)
-		if err != nil {
+		var env schema.TranscriptContent
+		if err := json.Unmarshal(trimmed, &env); err != nil {
 			return nil, false, fmt.Errorf("transcript migrate-on-read failed because the stored envelope could not be decoded as schema.TranscriptContent in handler.blobMigrator.Migrate during typed read normalization; no body was served and no stored generation was rewritten; repair or republish the transcript with a supported envelope, then retry: %w", err)
 		}
 		if env.Kind != schema.ContentKindSessionDetail || env.SessionDetail == nil {
@@ -178,7 +179,11 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 		return payload, true, nil
 
 	case ShapeBarePayload:
-		payload, err := decodeLegacyPayload(trimmed)
+		payload := boundary.canonical
+		var err error
+		if payload == nil {
+			payload, err = decodeLegacyPayload(trimmed)
+		}
 		if err != nil {
 			return nil, false, err
 		}
@@ -247,13 +252,11 @@ func canonicalHarness(legacy string) schema.Harness {
 // provider-keyed shape: if the canonical json:"harness" key is absent, it falls
 // back to json:"provider" then json:"modelHarness", and migrates the VALUE.
 func decodeLegacyPayload(raw []byte) (*schema.SessionDetailPayload, error) {
-	var object map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &object); err != nil {
+	var p schema.SessionDetailPayload
+	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, fmt.Errorf("transcript migrate-on-read failed because the stored bare payload could not be decoded as schema.SessionDetailPayload in handler.decodeLegacyPayload during typed read normalization; no body was served and no stored generation was rewritten; repair or republish the transcript with a supported payload, then retry: %w", err)
 	}
-	var harness string
-	_ = json.Unmarshal(object["harness"], &harness)
-	if harness == "" {
+	if p.Harness == "" {
 		var aux struct {
 			Provider     string `json:"provider"`
 			ModelHarness string `json:"modelHarness"`
@@ -263,23 +266,11 @@ func decodeLegacyPayload(raw []byte) (*schema.SessionDetailPayload, error) {
 		if legacy == "" {
 			legacy = aux.ModelHarness
 		}
-		harness = legacy
+		p.Harness = canonicalHarness(legacy)
+	} else {
+		p.Harness = canonicalHarness(string(p.Harness))
 	}
-	// Preserve legacy key migration, then apply the released public-root policy.
-	// The original bytes were scanned before any legacy decoding above; all
-	// detail fields remain raw until Schema validates their shapes and presence.
-	if _, present := object["harness"]; !present || harness != "" {
-		object["harness"], _ = json.Marshal(canonicalHarness(harness))
-	}
-	canonical, err := json.Marshal(object)
-	if err != nil {
-		return nil, err
-	}
-	validated, err := schema.DecodeSessionDetailPayloadRaw(canonical)
-	if err != nil {
-		return nil, err
-	}
-	return &validated, nil
+	return &p, nil
 }
 
 // decodeRawJSONL best-effort projects legacy raw provider transcript content (a

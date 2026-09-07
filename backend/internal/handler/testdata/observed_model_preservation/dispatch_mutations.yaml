@@ -1,0 +1,13 @@
+cases:
+  - name: removed_usage_discriminator
+    target: usage_null_is_presence
+    operation: remove_usage
+  - name: bypassed_strict_parser
+    target: complete_nonassistant_observation_with_new_evidence
+    operation: bypass_validation
+  - name: bypassed_known_pi_context
+    target: pi_context_opaque
+    operation: ignore_context
+  - name: strict_failure_falls_back
+    target: wrong_harness_metadata
+    operation: fallback_on_error

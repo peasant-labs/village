@@ -272,7 +272,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to read file")
 		return
 	}
-	if err := requireSupportedContentCapabilityWithEvaluator(content, h.preservationProof()); err != nil {
+	if err := requireSupportedContentForHarness(content, string(req.Model.Harness), h.preservationProof()); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}

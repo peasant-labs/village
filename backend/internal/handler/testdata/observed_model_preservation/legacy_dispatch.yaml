@@ -1,0 +1,159 @@
+cases:
+  - name: sparse_legacy_envelope
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"legacy","turns":[{"role":"user","content":"kept"}]}}'
+    publishStatus: 201
+    readStatus: 200
+  - name: sparse_legacy_bare
+    content: '{"id":"legacy","provider":"claude","turns":[{"role":"user","content":"kept"}]}'
+    publishStatus: 201
+    readStatus: 200
+  - name: opaque_plaintext
+    content: this upload is not a transcript envelope
+    publishStatus: 201
+    readStatus: 200
+  - name: legacy_provider_native_usage
+    content: '{"type":"assistant","message":{"role":"assistant","usage":{"input":9007199254740992},"content":"nativeMetadata usage namespace"}}'
+    publishStatus: 201
+    readStatus: 200
+  - name: legacy_jsonl
+    content: |
+      {"role":"user","content":"usage sourceEntryRef"}
+      {"role":"assistant","content":"kept"}
+    publishStatus: 201
+    readStatus: 200
+  - name: legacy_array
+    content: '[{"role":"user","content":"kept"},{"role":"assistant","content":"reply"}]'
+    publishStatus: 201
+    readStatus: 200
+  - name: empty_harness_canonical_rewrite
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"","harness":"","turns":[{"role":"user","content":"kept"}]}}'
+    publishStatus: 201
+    readStatus: 200
+  - name: older_assistant_observation
+    content: '{"id":"legacy","turns":[{"role":"assistant","content":"kept","observedModel":"provider/model"}]}'
+    publishStatus: 201
+    readStatus: 200
+  - name: historical_nonassistant_observation
+    content: '{"id":"legacy","turns":[{"role":"user","content":"kept","observedModel":"provider/model"}]}'
+    publishStatus: 409
+    readStatus: 200
+  - name: invalid_older_observation
+    content: '{"id":"legacy","turns":[{"role":"assistant","content":"kept","observedModel":" bad "}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: pi_context_opaque
+    context: pi
+    content: this upload is not a transcript envelope
+    publishStatus: 409
+    readStatus: 500
+  - name: pi_context_sparse_nonpi
+    context: pi
+    content: '{"harness":"claude-code","turns":[]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: pi_context_no_identity
+    context: pi
+    content: '{"turns":[]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: explicit_pi_sparse
+    content: '{"harness":"pi","turns":[]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: legacy_key_pi_not_normalized
+    content: '{"provider":"pi","turns":[]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: metadata_null_is_presence
+    content: '{"nativeMetadata":null}'
+    publishStatus: 409
+    readStatus: 500
+  - name: metadata_empty_is_presence
+    content: '{"nativeMetadata":[]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: usage_null_is_presence
+    content: '{"turns":[{"usage":null}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: usage_empty_is_presence
+    content: '{"turns":[{"usage":{}}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: source_ref_empty_is_presence
+    content: '{"turns":[{"sourceEntryRef":""}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: tool_usage_null_is_presence
+    content: '{"turns":[{"toolCalls":[{"usage":null}]}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: call_ref_empty_is_presence
+    content: '{"turns":[{"toolCalls":[{"callEntryRef":""}]}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: result_ref_null_is_presence
+    content: '{"turns":[{"toolCalls":[{"resultEntryRef":null}]}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: namespace_empty_requires_release
+    content: '{"turns":[{"toolCalls":[{"namespace":""}]}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: namespace_null_requires_release
+    content: '{"turns":[{"toolCalls":[{"namespace":null}]}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: malformed_json_not_opaque
+    content: '{"turns":'
+    publishStatus: 409
+    readStatus: 500
+  - name: duplicate_escaped_legacy_key
+    content: '{"id":"legacy","i\u0064":"other","turns":[]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: malformed_interior_jsonl
+    content: |
+      {"role":"user"}
+      {"role":}
+      {"role":"assistant"}
+    publishStatus: 409
+    readStatus: 500
+  - name: public_envelope_mixed_jsonl
+    content: |
+      {"role":"user"}
+      {"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"turns":[{"usage":null}]}}
+    publishStatus: 409
+    readStatus: 500
+  - name: public_bare_mixed_array
+    content: '[{"role":"user"},{"turns":[{"usage":null}]}]'
+    publishStatus: 409
+    readStatus: 500
+  - name: recursively_wrapped_public_envelope
+    content: '[{"record":{"nested":{"sessionDetail":{"turns":[{"usage":null}]}}}}]'
+    publishStatus: 409
+    readStatus: 500
+  - name: wrong_harness_metadata
+    content: '{"id":"wrong","harness":"claude-code","nativeMetadata":[{"id":"meta","kind":"pi.custom.data"}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: old_role_plus_new_marker
+    content: '{"id":"legacy","turns":[{"role":"user","observedModel":"provider/model","usage":null}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: complete_reusable_nonpi_usage
+    content: '{"id":"complete","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[{"index":0,"role":"assistant","content":"kept","timestamp":"2026-01-01T00:00:01Z","depth":0,"sourceEntryRef":"source","usage":{"ownerId":"owner","sourceEntryRef":"source","scope":"assistant","completeness":"unknown"}}]}'
+    publishStatus: 201
+    readStatus: 200
+  - name: complete_nonassistant_observation_with_new_evidence
+    content: '{"id":"complete","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"kept","timestamp":"2026-01-01T00:00:01Z","depth":0,"observedModel":"provider/model","usage":null}]}'
+    publishStatus: 409
+    readStatus: 500
+  - name: complete_nullable_usage
+    content: '{"id":"complete","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":0,"turns":[{"index":0,"role":"assistant","content":"kept","timestamp":"2026-01-01T00:00:01Z","depth":0,"usage":null}]}'
+    publishStatus: 201
+    readStatus: 200
+  - name: missing_discriminator_does_not_hide_new_fields
+    content: '{"sessionDetail":{"turns":[{"usage":null}]}}'
+    publishStatus: 409
+    readStatus: 500

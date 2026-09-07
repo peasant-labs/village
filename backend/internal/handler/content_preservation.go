@@ -79,22 +79,27 @@ var (
 
 func proveObservedModelPreservation() error {
 	observedModelPreservationOnce.Do(func() {
-		observedModelPreservationErr = errors.Join(executeObservedModelPreservationProof(productionContentRewriteEncoder), provePiPreservation(productionContentRewriteEncoder))
+		observedModelPreservationErr = errors.Join(executeObservedModelPreservationProof(productionContentRewriteEncoder), provePiPreservation(productionContentRewriteEncoder), proveContentBoundary(validateContentBoundary))
 	})
 	return observedModelPreservationErr
 }
 
 func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observedModelPreservationEvaluator) error {
-	if err := scanStoredContent(raw); err != nil {
+	return requireSupportedContentForHarness(raw, "", evaluator)
+}
+
+func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluator observedModelPreservationEvaluator) error {
+	boundary, err := validateContentBoundary(raw, knownHarness, contentPublication)
+	if err != nil {
 		return fmt.Errorf("uploaded transcript content could not be decoded in handler.requireSupportedContentCapability before secret scan or storage because raw JSON validation failed; no transcript bytes or metadata were written; repair the transcript and retry: %w", err)
 	}
-	// Provider-native and legacy JSONL without enriched evidence retains the
-	// historical byte-for-byte publish path; decoding it is a read concern.
-	_, presenceErr := inspectObservedModelMembers(raw)
-	if presenceErr != nil {
-		return presenceErr
+	if boundary.canonical == nil && !boundary.observed {
+		return nil
 	}
-	payload, _, err := NewContentMigrator().Migrate(context.Background(), raw)
+	payload := boundary.canonical
+	if payload == nil {
+		payload, _, err = NewContentMigrator().Migrate(context.Background(), raw)
+	}
 	if err != nil {
 		return fmt.Errorf("uploaded transcript content could not be decoded through handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written; repair the transcript envelope and retry: %w", err)
 	}

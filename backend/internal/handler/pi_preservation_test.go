@@ -145,7 +145,7 @@ func loadPiBoundaries(t *testing.T) []piBoundaryCase {
 			t.Fatalf("invalid expectation %q", c.Name)
 		}
 	}
-	for _, name := range []string{"duplicate_metadata_key", "duplicate_content_key", "duplicate_opaque_key", "duplicate_owner", "wrong_usage_role", "wrong_metadata_target", "wrong_tool_result_ref", "token_overflow", "token_null", "cost_not_string", "opaque_integer_overflow", "opaque_underflow", "opaque_string_budget", "ordinary_text_outside_metadata_budget", "failed_capability_proof"} {
+	for _, name := range []string{"duplicate_metadata_key", "duplicate_content_key", "duplicate_opaque_key", "duplicate_owner", "wrong_usage_role", "wrong_metadata_target", "wrong_tool_result_ref", "token_overflow", "token_null", "cost_not_string", "opaque_integer_overflow", "opaque_underflow", "opaque_string_budget", "ordinary_text_outside_metadata_budget", "failed_capability_proof", "complete_tool_namespace_requires_release"} {
 		if !seen[name] {
 			t.Fatalf("required case %q missing", name)
 		}

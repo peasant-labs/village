@@ -1178,6 +1178,23 @@ the mounted `useTranscriptContent` fetch hook. Its fake network response exposes
 `text()` only, so a regression to lossy `response.json()` fails. Additional named
 legacy JSON/JSONL cases live in `frontend/src/testdata/transcript-content-raw.yaml`.
 
+`legacy_dispatch.yaml` exercises the compatibility boundary before typed
+decoding. Sparse historical detail, JSONL, arrays, and opaque raw publication/pull
+retain their original paths. Pi identity, trusted publish/stored harness context,
+or structural presence of detailed usage, refs, or native metadata requires the
+strict Schema public root; null and empty members count as present. Strict
+failures cannot retry through legacy migration. Older observed-model-only
+content retains its distinct publication and historical-read policies.
+
+`TestLegacyDispatchEncryptedPublicationAndReads` mounts every routing case over
+real PostgreSQL and encrypted MinIO, compares rejection snapshots and raw pull
+hashes, and verifies repeated legacy display reads are no-ops. The same named
+corpus participates in capability evaluation. `dispatch_mutations.yaml` proves
+that removing a discriminator, bypassing strict parsing or trusted context, or
+falling back after strict failure withholds capabilities and refuses enriched
+publication. Until a namespace-preserving contract is pinned, a public tool
+`namespace` member is explicitly refused before a decoder could strip it.
+
 `internal/handler/testdata/observed_model_preservation/` is the strict corpus for
 the optional `TurnDetail.observedModel` evidence introduced by the released
 Schema module. The loader uses known-field decoding, one-document enforcement,
