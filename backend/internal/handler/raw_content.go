@@ -189,18 +189,13 @@ func publicEvidencePresence(detail map[string]json.RawMessage) (strict, namespac
 func embeddedPublicRoot(value any, allowRoot bool) bool {
 	switch node := value.(type) {
 	case map[string]any:
-		if !allowRoot {
-			if _, ok := node["contractVersion"]; ok {
-				return true
-			}
-			if _, ok := node["sessionDetail"]; ok {
-				return true
-			}
-			if _, ok := node["turns"]; ok {
-				return true
-			}
+		if !allowRoot && publicRootShape(node) {
+			return true
 		}
 		for key, child := range node {
+			if opaqueProviderChild(node, key, child) {
+				continue
+			}
 			// The one outer envelope and its detail are not embedded records.
 			if embeddedPublicRoot(child, allowRoot && key == "sessionDetail") {
 				return true
@@ -211,6 +206,67 @@ func embeddedPublicRoot(value any, allowRoot bool) bool {
 			if embeddedPublicRoot(child, false) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+// A reserved-looking application key is not sufficient to identify a public
+// transcript. Container shape and envelope discriminators establish that role.
+func publicRootShape(node map[string]any) bool {
+	if value, present := node["turns"]; present {
+		if value == nil {
+			return true
+		}
+		if _, array := value.([]any); array {
+			return true
+		}
+	}
+	if node["harness"] == string(schema.HarnessPi) {
+		return true
+	}
+	if node["kind"] == string(schema.ContentKindSessionDetail) {
+		return true
+	}
+	if detail, object := node["sessionDetail"].(map[string]any); object {
+		if _, version := node["contractVersion"].(string); version {
+			return true
+		}
+		if _, metadata := detail["nativeMetadata"]; metadata {
+			return true
+		}
+		return publicRootShape(detail)
+	}
+	return false
+}
+
+func legacyMessageShape(node map[string]any) bool {
+	// Native roles (for example model/developer) need not be canonical roles.
+	// Recognition follows message structure, not a second public-role validator.
+	_, role := node["role"].(string)
+	_, content := node["content"]
+	_, parts := node["parts"]
+	return role && (content || parts)
+}
+
+// These are provider payload boundaries, not arbitrary key-name exemptions.
+// The syntax scanner still visits these values and rejects duplicate keys; only
+// public-root discovery stops here, preserving native tool data as opaque data.
+func opaqueProviderChild(node map[string]any, key string, child any) bool {
+	if legacyMessageShape(node) && (key == "content" || key == "parts" || key == "toolCalls" || key == "tool_calls") {
+		return true
+	}
+	if key == "message" {
+		if message, ok := child.(map[string]any); ok && legacyMessageShape(message) {
+			return true
+		}
+	}
+	typeName, _ := node["type"].(string)
+	switch typeName {
+	case "tool_use", "tool_result", "toolCall", "function_call", "function_call_output":
+		switch key {
+		case "input", "arguments", "result", "output", "content":
+			return true
 		}
 	}
 	return false

@@ -1195,6 +1195,22 @@ falling back after strict failure withholds capabilities and refuses enriched
 publication. Until a namespace-preserving contract is pinned, a public tool
 `namespace` member is explicitly refused before a decoder could strip it.
 
+Provider message content, parts, and recognized tool argument/result bodies are
+opaque to public-root discovery, not to the recursive JSON syntax scanner.
+Benign `turns`, `sessionDetail`, and `contractVersion` application-data keys are
+paired with genuine mixed-public-root refusals in the routing corpus. A mutation
+that wrongly refuses opaque tool data also withholds preservation capabilities.
+
+`legacy_rendered.yaml` is shared by the Go mounted read-handler tests and the
+browser fetch-hook/production-route tests. The Go tests assert the exact first
+rendered response and second-read no-op; the browser tests consume those same
+responses, including empty harness and Go-zero timestamps, rather than testing
+only source JSONL. Legacy data reaches the existing shared viewer unchanged.
+Pi identity or new structural evidence still selects strict Schema parsing
+without error fallback. The full route and contribution preview wait for their
+same-ID metadata and pass its known harness to the content hook; the cache key
+includes that context so a legacy-validated result cannot satisfy a Pi read.
+
 `internal/handler/testdata/observed_model_preservation/` is the strict corpus for
 the optional `TurnDetail.observedModel` evidence introduced by the released
 Schema module. The loader uses known-field decoding, one-document enforcement,

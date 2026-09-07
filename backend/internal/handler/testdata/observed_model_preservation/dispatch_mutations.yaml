@@ -11,3 +11,6 @@ cases:
   - name: strict_failure_falls_back
     target: wrong_harness_metadata
     operation: fallback_on_error
+  - name: provider_tool_data_treated_as_public_root
+    target: native_tool_input_reserved_keys
+    operation: reject_opaque_data

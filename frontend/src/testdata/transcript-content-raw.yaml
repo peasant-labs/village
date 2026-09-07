@@ -18,3 +18,9 @@ cases:
   - name: invalid_envelope_no_jsonl_fallback
     content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":null}'
     error: true
+  - name: jsonl_total_byte_limit_survives_dispatch
+    content: |
+      {"role":"user","content":"__LONG__"}
+      {"role":"assistant","content":"__LONG__"}
+    stringBytes: 4194304
+    error: true

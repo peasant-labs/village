@@ -5,6 +5,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -65,6 +66,8 @@ func TestContentBoundaryMutationsWithholdCapabilities(t *testing.T) {
 					return validateContentBoundary(raw, "", mode)
 				case "bypass_validation":
 					return contentBoundary{}, nil
+				case "reject_opaque_data":
+					return contentBoundary{}, errors.New("provider tool arguments misclassified as an embedded public root")
 				case "fallback_on_error":
 					result, err := validateContentBoundary(raw, known, mode)
 					if err != nil {
@@ -98,7 +101,7 @@ func TestContentBoundaryMutationsWithholdCapabilities(t *testing.T) {
 			}
 		})
 	}
-	for _, name := range strings.Fields("removed_usage_discriminator bypassed_strict_parser bypassed_known_pi_context strict_failure_falls_back") {
+	for _, name := range strings.Fields("removed_usage_discriminator bypassed_strict_parser bypassed_known_pi_context strict_failure_falls_back provider_tool_data_treated_as_public_root") {
 		if !seen[name] {
 			t.Fatalf("required mutation %q missing", name)
 		}

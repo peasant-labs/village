@@ -126,9 +126,9 @@ export function useTranscript(id: string) {
   });
 }
 
-export function useTranscriptContent(id: string) {
+export function useTranscriptContent(id: string, options: {knownHarness?: string; enabled?: boolean} = {}) {
   return useQuery({
-    queryKey: ["transcript-content", id],
+    queryKey: ["transcript-content", id, options.knownHarness],
     queryFn: async () => {
       const res = await fetch(`${API_URL_BASE}/transcripts/${id}/content`, {
         headers: getAuthHeaders(),
@@ -137,9 +137,9 @@ export function useTranscriptContent(id: string) {
         throw new Error(`API error: ${res.status}`);
       }
       const text = await res.text();
-      return parseTranscriptResponseText(text);
+      return parseTranscriptResponseText(text, options.knownHarness);
     },
-    enabled: !!id,
+    enabled: !!id && (options.enabled ?? true),
   });
 }
 
