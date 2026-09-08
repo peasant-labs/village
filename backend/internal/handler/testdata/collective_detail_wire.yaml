@@ -1,0 +1,35 @@
+owner_id: 51000000-0000-4000-8000-000000000001
+pending_id: 51000000-0000-4000-8000-000000000002
+group_id: 52000000-0000-4000-8000-000000000001
+owner_name: detail-wire-owner
+seed_sql: |
+  INSERT INTO users(id, github_id, github_username, is_discoverable, display_name, avatar_url)
+  VALUES ('51000000-0000-4000-8000-000000000001', 982501, 'detail-wire-owner', true, 'Owner Name', 'https://example.test/owner.png'),
+         ('51000000-0000-4000-8000-000000000002', 982502, 'detail-wire-pending', true, 'Pending Name', 'https://example.test/pending.png');
+  INSERT INTO groups(id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy)
+  VALUES ('52000000-0000-4000-8000-000000000001', 'Actual Collective', 'Preserved description', '51000000-0000-4000-8000-000000000001', '2026-09-01T10:00:00Z', '2026-09-02T10:00:00Z', 'curated', 'members_only', 'example-org', true, 'mandatory');
+  INSERT INTO group_members(group_id, user_id, role, joined_at)
+  VALUES ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', 'owner', '2026-09-01T10:01:00Z'),
+         ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000002', 'pending', '2026-09-01T10:02:00Z');
+cases:
+  - name: legacy-exact-group-record-without-prompts-settings
+    query: ""
+    expected_json: |
+      {
+        "group":{"id":"52000000-0000-4000-8000-000000000001","name":"Actual Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-01T10:00:00Z","updated_at":"2026-09-02T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory"},
+        "members":[{"role":"owner","joined_at":"2026-09-01T10:01:00Z","id":"51000000-0000-4000-8000-000000000001","github_username":"detail-wire-owner","display_name":"Owner Name","avatar_url":"https://example.test/owner.png","github_orgs":[]}],
+        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0},
+        "models":[],"contributors":[],"can_read":true,"your_role":"owner","transcripts":[],
+        "pending_members":[{"role":"pending","joined_at":"2026-09-01T10:02:00Z","id":"51000000-0000-4000-8000-000000000002","github_username":"detail-wire-pending","display_name":"Pending Name","avatar_url":"https://example.test/pending.png","github_orgs":[]}]
+      }
+  - name: grouped-exact-group-record-without-prompts-settings
+    query: "?view=grouped"
+    expected_json: |
+      {
+        "group":{"id":"52000000-0000-4000-8000-000000000001","name":"Actual Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-01T10:00:00Z","updated_at":"2026-09-02T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory"},
+        "members":[{"role":"owner","joined_at":"2026-09-01T10:01:00Z","id":"51000000-0000-4000-8000-000000000001","github_username":"detail-wire-owner","display_name":"Owner Name","avatar_url":"https://example.test/owner.png","github_orgs":[]}],
+        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0},
+        "models":[],"contributors":[],"can_read":true,"your_role":"owner",
+        "transcriptList":{"items":[],"page":1,"limit":20,"totalItems":0,"ordinarySessionTotal":0,"helperThreadTotal":0},
+        "pending_members":[{"role":"pending","joined_at":"2026-09-01T10:02:00Z","id":"51000000-0000-4000-8000-000000000002","github_username":"detail-wire-pending","display_name":"Pending Name","avatar_url":"https://example.test/pending.png","github_orgs":[]}]
+      }
