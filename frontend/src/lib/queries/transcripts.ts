@@ -120,7 +120,7 @@ export function useTranscripts(
 export function useTranscript(id: string) {
   return useQuery({
     queryKey: ["transcript", id],
-    queryFn: () => api<TranscriptDetailResponse>(`/transcripts/${id}`),
+    queryFn: ({ signal }) => api<TranscriptDetailResponse>(`/transcripts/${id}`, { signal }),
     enabled: !!id,
   });
 }
@@ -128,9 +128,10 @@ export function useTranscript(id: string) {
 export function useTranscriptContent(id: string) {
   return useQuery({
     queryKey: ["transcript-content", id],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const res = await fetch(`${API_URL_BASE}/transcripts/${id}/content`, {
         headers: getAuthHeaders(),
+        signal,
       });
       if (!res.ok) {
         throw new Error(`API error: ${res.status}`);

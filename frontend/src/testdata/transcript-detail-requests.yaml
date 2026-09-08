@@ -1,0 +1,6 @@
+- name: metadata-cancelled-on-leave
+  kind: metadata
+  path: /transcripts/child-id
+- name: content-cancelled-on-leave
+  kind: content
+  path: /transcripts/child-id/content
