@@ -136,6 +136,29 @@ boundary are documented in
 
 ## 2. Licensing data model
 
+### Durable session graph projections
+
+Migration 037 adds `transcripts.input_submission_count` (nullable BIGINT, range
+0 through 9007199254740991), `root_session_id` (nullable nonempty TEXT),
+`session_purpose` (nullable closed menu: interaction, delegated_work,
+helper_review, unknown), and `session_relationships` (non-null JSONB array of
+objects, default `[]`). These are query projections of the schema-validated
+durable publication, not independently inferred facts. No historical count is
+backfilled from `turn_count`: NULL means unmeasured and numeric zero means
+measured none. Main transcript turns and saved helper identities remain separate
+quantities. Full graph semantics and forbidden read-only fields are enforced by
+the canonical schema boundary before publication side effects, not by this SQL
+shape backstop.
+
+Graph targets are owner-local IDs without target foreign keys. Missing parents
+do not prevent publication; later publication changes authorized navigation, not
+the child's captured encrypted content. The partial owner/root index supports
+owner-scoped queries. `(owner_id, local_id)` remains the sole source identity and
+idempotency key; equal bodies never merge sessions. Read navigation is never
+stored in the encrypted durable envelope. These columns add no governance axis,
+trigger writer, GUC, or permission: existing actor attribution, encrypted-writer
+fences, append-only audit, and private-before-replacement rules remain in force.
+
 - **`licenses`** is the home of license OBLIGATIONS (BCNF: `id` is the key and
   determines every column). The **id set's source of truth is the
   `github.com/peasant-labs/schema` module** (`schema.AllLicenses`); the SQL seed

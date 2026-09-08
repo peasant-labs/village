@@ -1,0 +1,72 @@
+required_up:
+  - ADD COLUMN input_submission_count BIGINT
+  - ADD COLUMN root_session_id TEXT
+  - ADD COLUMN session_purpose TEXT
+  - ADD COLUMN session_relationships JSONB NOT NULL DEFAULT '[]'::jsonb
+  - CHECK (input_submission_count BETWEEN 0 AND 9007199254740991)
+  - transcripts_session_purpose_menu
+  - transcripts_session_relationships_array
+  - ON transcripts (owner_id, root_session_id)
+required_down:
+  - DROP COLUMN input_submission_count
+  - DROP COLUMN root_session_id
+  - DROP COLUMN session_purpose
+  - DROP COLUMN session_relationships
+  - DROP INDEX idx_transcripts_owner_root_session
+forbidden_up:
+  - UPDATE transcripts
+  - DELETE FROM transcripts
+  - REFERENCES transcripts
+cases:
+  - name: historical-absence
+    count: null
+    purpose: null
+    root: null
+    relationships: '[]'
+    accepted: true
+  - name: measured-zero
+    count: '0'
+    purpose: interaction
+    root: root-local
+    relationships: '[]'
+    accepted: true
+  - name: measured-positive
+    count: '1'
+    purpose: delegated_work
+    relationships: '[]'
+    accepted: true
+  - name: safe-maximum
+    count: '9007199254740991'
+    purpose: helper_review
+    relationships: '[]'
+    accepted: true
+  - name: unknown-purpose
+    purpose: unknown
+    relationships: '[]'
+    accepted: true
+  - name: negative-count
+    count: '-1'
+    relationships: '[]'
+    accepted: false
+  - name: unsafe-count
+    count: '9007199254740992'
+    relationships: '[]'
+    accepted: false
+  - name: fraction-count
+    count: '0.5'
+    relationships: '[]'
+    accepted: false
+  - name: invalid-purpose
+    purpose: reviewer
+    relationships: '[]'
+    accepted: false
+  - name: empty-root
+    root: ''
+    relationships: '[]'
+    accepted: false
+  - name: nonarray-relationships
+    relationships: '{}'
+    accepted: false
+  - name: nonobject-relationship
+    relationships: '[null]'
+    accepted: false

@@ -223,6 +223,10 @@ type Transcript struct {
 	KeyVersion                          int32              `db:"key_version" json:"key_version"`
 	AcceptedRequestOperationFingerprint pgtype.Text        `db:"accepted_request_operation_fingerprint" json:"accepted_request_operation_fingerprint"`
 	SessionOrigin                       string             `db:"session_origin" json:"session_origin"`
+	InputSubmissionCount                pgtype.Int8        `db:"input_submission_count" json:"input_submission_count"`
+	RootSessionID                       pgtype.Text        `db:"root_session_id" json:"root_session_id"`
+	SessionPurpose                      pgtype.Text        `db:"session_purpose" json:"session_purpose"`
+	SessionRelationships                []byte             `db:"session_relationships" json:"session_relationships"`
 }
 
 type TranscriptAssociation struct {
