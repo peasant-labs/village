@@ -1157,6 +1157,24 @@ one fixture, not N tests.
 
 ### Enriched transcript preservation gate
 
+`internal/handler/testdata/session_graph_publication.yaml` drives the canonical
+raw-decoder rejection tests and typed migration/rewrite equality tests. It keeps
+input-count absence, measured zero, positive values, and invalid lexical values
+distinct; the full graph case retains separate source/starter targets, public
+anchor refs, folded tool provenance, and earlier-history bodies beyond preview
+limits. Required case names guard deletion independently of the fixture size.
+
+`TestSessionGraphEncryptedPublicationAndPull` uses real PostgreSQL and the real
+encrypted MinIO store through mounted publish, metadata, content, and pull
+handlers. It exercises explicit replacement and exact retry on one owner/local
+identity, the production immutable rewrite, and compares refused requests against
+the complete owner-scoped transcript/audit/share state plus observed writes to
+the real encrypted store. The migration's separate database fixture verifies
+historical NULL preservation, SQL shape constraints, and down migration.
+These tests require the released canonical graph APIs and run under the same
+no-skip encrypted aggregate as other preservation proofs; source-level fixtures
+are not proof of a deployed receiver's capability.
+
 `internal/handler/testdata/observed_model_preservation/` is the strict corpus for
 the optional `TurnDetail.observedModel` evidence introduced by the released
 Schema module. The loader uses known-field decoding, one-document enforcement,

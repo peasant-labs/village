@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"encoding/json"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/projectname"
 )
@@ -9,67 +11,71 @@ import (
 // transcriptResponse is the single public projection of a transcript row.
 // Storage locations and source-machine paths remain internal database state.
 type transcriptResponse struct {
-	ID                      pgtype.UUID        `json:"id"`
-	OwnerID                 pgtype.UUID        `json:"owner_id"`
-	LocalID                 string             `json:"local_id"`
-	Title                   pgtype.Text        `json:"title"`
-	Description             pgtype.Text        `json:"description"`
-	Visibility              string             `json:"visibility"`
-	ModelProvider           string             `json:"model_provider"`
-	ModelName               pgtype.Text        `json:"model_name"`
-	HarnessVersion          pgtype.Text        `json:"harness_version"`
-	SessionStart            pgtype.Timestamptz `json:"session_start"`
-	SessionEnd              pgtype.Timestamptz `json:"session_end"`
-	TurnCount               pgtype.Int4        `json:"turn_count"`
-	TokenCount              pgtype.Int4        `json:"token_count"`
-	BlobSizeBytes           pgtype.Int8        `json:"blob_size_bytes"`
-	SchemaVersion           string             `json:"schema_version"`
-	PublishedAt             pgtype.Timestamptz `json:"published_at"`
-	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
-	ParentSessionID         pgtype.Text        `json:"parent_session_id"`
-	IngestedAt              pgtype.Timestamptz `json:"ingested_at"`
-	SourceFormat            pgtype.Text        `json:"source_format"`
-	GitBranch               pgtype.Text        `json:"git_branch"`
-	GitRemote               pgtype.Text        `json:"git_remote"`
-	ProjectHash             pgtype.Text        `json:"project_hash"`
-	ProjectName             pgtype.Text        `json:"project_name"`
-	ToolCallCount           pgtype.Int4        `json:"tool_call_count"`
-	SubagentCount           pgtype.Int4        `json:"subagent_count"`
-	DurationMs              pgtype.Int8        `json:"duration_ms"`
-	Subagents               []byte             `json:"subagents"`
-	DiagnosticsWarnings     []byte             `json:"diagnostics_warnings"`
-	DiagnosticsPartial      pgtype.Bool        `json:"diagnostics_partial"`
-	TokensIn                pgtype.Int8        `json:"tokens_in"`
-	TokensOut               pgtype.Int8        `json:"tokens_out"`
-	TitleGenerated          pgtype.Text        `json:"title_generated"`
-	Outcome                 pgtype.Text        `json:"outcome"`
-	FilesTouched            pgtype.Int4        `json:"files_touched"`
-	LinesChanged            pgtype.Int4        `json:"lines_changed"`
-	RetryLoops              pgtype.Int4        `json:"retry_loops"`
-	RetryTokensWasted       pgtype.Int4        `json:"retry_tokens_wasted"`
-	WithinSessionReverts    pgtype.Int4        `json:"within_session_reverts"`
-	SignalDensity           pgtype.Float4      `json:"signal_density"`
-	SpecQualityScore        pgtype.Float4      `json:"spec_quality_score"`
-	ExplorationRatio        pgtype.Float4      `json:"exploration_ratio"`
-	ScopeBreadth            pgtype.Int4        `json:"scope_breadth"`
-	DiscoveryTurns          pgtype.Int4        `json:"discovery_turns"`
-	M2TokenOutcomeRatio     pgtype.Float4      `json:"m2_token_outcome_ratio"`
-	M3UniqueToolCount       pgtype.Int4        `json:"m3_unique_tool_count"`
-	M4ErrorRecoveryCount    pgtype.Int4        `json:"m4_error_recovery_count"`
-	M4ConsecutiveErrorMax   pgtype.Int4        `json:"m4_consecutive_error_max"`
-	M5ContextUtilizationPct pgtype.Float4      `json:"m5_context_utilization_pct"`
-	M5PeakContextTokens     pgtype.Int4        `json:"m5_peak_context_tokens"`
-	M5AvgMessageTokens      pgtype.Int4        `json:"m5_avg_message_tokens"`
-	M6OutputSurvivalPct     pgtype.Float4      `json:"m6_output_survival_pct"`
-	M6LinesSurvived         pgtype.Int4        `json:"m6_lines_survived"`
-	M6LinesTotal            pgtype.Int4        `json:"m6_lines_total"`
-	M7SpecWordCount         pgtype.Int4        `json:"m7_spec_word_count"`
-	M7SpecHasExamples       pgtype.Bool        `json:"m7_spec_has_examples"`
-	M7SpecHasConstraints    pgtype.Bool        `json:"m7_spec_has_constraints"`
-	ComputedAt              pgtype.Timestamptz `json:"computed_at"`
-	ComputeVersion          pgtype.Int4        `json:"compute_version"`
-	ContentHash             pgtype.Text        `json:"content_hash"`
-	LicenseID               pgtype.Text        `json:"license_id"`
+	ID                      pgtype.UUID           `json:"id"`
+	OwnerID                 pgtype.UUID           `json:"owner_id"`
+	LocalID                 string                `json:"local_id"`
+	Title                   pgtype.Text           `json:"title"`
+	Description             pgtype.Text           `json:"description"`
+	Visibility              string                `json:"visibility"`
+	ModelProvider           string                `json:"model_provider"`
+	ModelName               pgtype.Text           `json:"model_name"`
+	HarnessVersion          pgtype.Text           `json:"harness_version"`
+	SessionStart            pgtype.Timestamptz    `json:"session_start"`
+	SessionEnd              pgtype.Timestamptz    `json:"session_end"`
+	TurnCount               pgtype.Int4           `json:"turn_count"`
+	InputSubmissionCount    *int64                `json:"input_submission_count,omitempty"`
+	RootSessionID           *schema.SessionID     `json:"root_session_id,omitempty"`
+	Purpose                 schema.SessionPurpose `json:"purpose,omitempty"`
+	Relationships           json.RawMessage       `json:"relationships,omitempty"`
+	TokenCount              pgtype.Int4           `json:"token_count"`
+	BlobSizeBytes           pgtype.Int8           `json:"blob_size_bytes"`
+	SchemaVersion           string                `json:"schema_version"`
+	PublishedAt             pgtype.Timestamptz    `json:"published_at"`
+	UpdatedAt               pgtype.Timestamptz    `json:"updated_at"`
+	ParentSessionID         pgtype.Text           `json:"parent_session_id"`
+	IngestedAt              pgtype.Timestamptz    `json:"ingested_at"`
+	SourceFormat            pgtype.Text           `json:"source_format"`
+	GitBranch               pgtype.Text           `json:"git_branch"`
+	GitRemote               pgtype.Text           `json:"git_remote"`
+	ProjectHash             pgtype.Text           `json:"project_hash"`
+	ProjectName             pgtype.Text           `json:"project_name"`
+	ToolCallCount           pgtype.Int4           `json:"tool_call_count"`
+	SubagentCount           pgtype.Int4           `json:"subagent_count"`
+	DurationMs              pgtype.Int8           `json:"duration_ms"`
+	Subagents               []byte                `json:"subagents"`
+	DiagnosticsWarnings     []byte                `json:"diagnostics_warnings"`
+	DiagnosticsPartial      pgtype.Bool           `json:"diagnostics_partial"`
+	TokensIn                pgtype.Int8           `json:"tokens_in"`
+	TokensOut               pgtype.Int8           `json:"tokens_out"`
+	TitleGenerated          pgtype.Text           `json:"title_generated"`
+	Outcome                 pgtype.Text           `json:"outcome"`
+	FilesTouched            pgtype.Int4           `json:"files_touched"`
+	LinesChanged            pgtype.Int4           `json:"lines_changed"`
+	RetryLoops              pgtype.Int4           `json:"retry_loops"`
+	RetryTokensWasted       pgtype.Int4           `json:"retry_tokens_wasted"`
+	WithinSessionReverts    pgtype.Int4           `json:"within_session_reverts"`
+	SignalDensity           pgtype.Float4         `json:"signal_density"`
+	SpecQualityScore        pgtype.Float4         `json:"spec_quality_score"`
+	ExplorationRatio        pgtype.Float4         `json:"exploration_ratio"`
+	ScopeBreadth            pgtype.Int4           `json:"scope_breadth"`
+	DiscoveryTurns          pgtype.Int4           `json:"discovery_turns"`
+	M2TokenOutcomeRatio     pgtype.Float4         `json:"m2_token_outcome_ratio"`
+	M3UniqueToolCount       pgtype.Int4           `json:"m3_unique_tool_count"`
+	M4ErrorRecoveryCount    pgtype.Int4           `json:"m4_error_recovery_count"`
+	M4ConsecutiveErrorMax   pgtype.Int4           `json:"m4_consecutive_error_max"`
+	M5ContextUtilizationPct pgtype.Float4         `json:"m5_context_utilization_pct"`
+	M5PeakContextTokens     pgtype.Int4           `json:"m5_peak_context_tokens"`
+	M5AvgMessageTokens      pgtype.Int4           `json:"m5_avg_message_tokens"`
+	M6OutputSurvivalPct     pgtype.Float4         `json:"m6_output_survival_pct"`
+	M6LinesSurvived         pgtype.Int4           `json:"m6_lines_survived"`
+	M6LinesTotal            pgtype.Int4           `json:"m6_lines_total"`
+	M7SpecWordCount         pgtype.Int4           `json:"m7_spec_word_count"`
+	M7SpecHasExamples       pgtype.Bool           `json:"m7_spec_has_examples"`
+	M7SpecHasConstraints    pgtype.Bool           `json:"m7_spec_has_constraints"`
+	ComputedAt              pgtype.Timestamptz    `json:"computed_at"`
+	ComputeVersion          pgtype.Int4           `json:"compute_version"`
+	ContentHash             pgtype.Text           `json:"content_hash"`
+	LicenseID               pgtype.Text           `json:"license_id"`
 	// SessionOrigin says who drove the session: `user`, `agent`, or `unknown`.
 	// It scopes DISCOVERY only. Clients collapse `agent` rows into a labelled
 	// group instead of listing them at root level; every value still opens
@@ -115,7 +121,11 @@ func toTranscriptResponse(r sqlc.Transcript) transcriptResponse {
 		M5ContextUtilizationPct: r.M5ContextUtilizationPct, M5PeakContextTokens: r.M5PeakContextTokens, M5AvgMessageTokens: r.M5AvgMessageTokens, M6OutputSurvivalPct: r.M6OutputSurvivalPct,
 		M6LinesSurvived: r.M6LinesSurvived, M6LinesTotal: r.M6LinesTotal, M7SpecWordCount: r.M7SpecWordCount, M7SpecHasExamples: r.M7SpecHasExamples, M7SpecHasConstraints: r.M7SpecHasConstraints,
 		ComputedAt: r.ComputedAt, ComputeVersion: r.ComputeVersion, ContentHash: r.ContentHash, LicenseID: r.LicenseID,
-		SessionOrigin: r.SessionOrigin,
+		SessionOrigin:        r.SessionOrigin,
+		InputSubmissionCount: pgInt8ToInt64Ptr(r.InputSubmissionCount),
+		RootSessionID:        pgTextToSessionIDPtr(r.RootSessionID),
+		Purpose:              schema.SessionPurpose(r.SessionPurpose.String),
+		Relationships:        graphRelationshipsResponse(r.SessionRelationships),
 	}
 }
 
@@ -170,6 +180,8 @@ func groupTranscriptFromRow(row sqlc.ListGroupTranscriptsRow) groupTranscriptRes
 		M7SpecHasExamples: row.M7SpecHasExamples, M7SpecHasConstraints: row.M7SpecHasConstraints, ComputedAt: row.ComputedAt,
 		ComputeVersion: row.ComputeVersion, ContentHash: row.ContentHash, LicenseID: row.LicenseID, SessionOrigin: row.SessionOrigin,
 		WrappedDataKey: row.WrappedDataKey, EncryptionAlgorithm: row.EncryptionAlgorithm, KeyVersion: row.KeyVersion,
+		InputSubmissionCount: row.InputSubmissionCount, RootSessionID: row.RootSessionID,
+		SessionPurpose: row.SessionPurpose, SessionRelationships: row.SessionRelationships,
 	}
 	return groupTranscriptResponse{
 		transcriptResponse:  toTranscriptResponse(dbRow),

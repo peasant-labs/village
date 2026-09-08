@@ -79,6 +79,7 @@ func schemaToTranscriptParams(req schema.PublishRequest, blobKey string, blobSiz
 		SessionStart:            int64ToTimestamptz(req.Timestamp.Start),
 		SessionEnd:              int64ToTimestamptz(req.Timestamp.End),
 		TurnCount:               intToPgInt4(req.Stats.TurnCount),
+		InputSubmissionCount:    int64PtrToPgInt8(req.Stats.InputSubmissionCount),
 		TokenCount:              pgtype.Int4{Valid: false},
 		BlobKey:                 blobKey,
 		BlobSizeBytes:           int64ToPgInt8(blobSize),
@@ -465,6 +466,20 @@ func int64ToPgInt8(v int64) pgtype.Int8 {
 	return pgtype.Int8{Int64: v, Valid: true}
 }
 
+func int64PtrToPgInt8(v *int64) pgtype.Int8 {
+	if v == nil {
+		return pgtype.Int8{}
+	}
+	return int64ToPgInt8(*v)
+}
+
+func pgInt8ToInt64Ptr(v pgtype.Int8) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	return &v.Int64
+}
+
 func float64PtrToPgFloat4(v *float64) pgtype.Float4 {
 	if v == nil {
 		return pgtype.Float4{Valid: false}
@@ -533,12 +548,13 @@ func transcriptToSchema(t sqlc.Transcript) schema.PublishRequest {
 			Name:     t.ProjectName.String,
 		},
 		Stats: schema.SessionStats{
-			TurnCount:     pgInt4ToInt(t.TurnCount),
-			ToolCallCount: pgInt4ToInt(t.ToolCallCount),
-			SubagentCount: pgInt4ToInt(t.SubagentCount),
-			DurationMs:    pgInt8ToInt64(t.DurationMs),
-			TokensIn:      int(pgInt8ToInt64(t.TokensIn)),
-			TokensOut:     int(pgInt8ToInt64(t.TokensOut)),
+			InputSubmissionCount: pgInt8ToInt64Ptr(t.InputSubmissionCount),
+			TurnCount:            pgInt4ToInt(t.TurnCount),
+			ToolCallCount:        pgInt4ToInt(t.ToolCallCount),
+			SubagentCount:        pgInt4ToInt(t.SubagentCount),
+			DurationMs:           pgInt8ToInt64(t.DurationMs),
+			TokensIn:             int(pgInt8ToInt64(t.TokensIn)),
+			TokensOut:            int(pgInt8ToInt64(t.TokensOut)),
 		},
 		Quality: &schema.QualityMetrics{
 			TitleGenerated:          pgTextToStringPtr(t.TitleGenerated),

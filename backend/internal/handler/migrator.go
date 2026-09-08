@@ -149,8 +149,8 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 
 	switch sniffShape(trimmed) {
 	case ShapeEnvelope:
-		var env schema.TranscriptContent
-		if err := json.Unmarshal(trimmed, &env); err != nil {
+		env, err := schema.DecodeTranscriptContentRaw(normalizeEnvelopeHarnessJSON(trimmed))
+		if err != nil {
 			return nil, false, fmt.Errorf("transcript migrate-on-read failed because the stored envelope could not be decoded as schema.TranscriptContent in handler.blobMigrator.Migrate during typed read normalization; no body was served and no stored generation was rewritten; repair or republish the transcript with a supported envelope, then retry: %w", err)
 		}
 		if env.Kind != schema.ContentKindSessionDetail || env.SessionDetail == nil {
@@ -244,8 +244,8 @@ func canonicalHarness(legacy string) schema.Harness {
 // provider-keyed shape: if the canonical json:"harness" key is absent, it falls
 // back to json:"provider" then json:"modelHarness", and migrates the VALUE.
 func decodeLegacyPayload(raw []byte) (*schema.SessionDetailPayload, error) {
-	var p schema.SessionDetailPayload
-	if err := json.Unmarshal(raw, &p); err != nil {
+	p, err := schema.DecodeSessionDetailPayloadRaw(normalizeDetailHarnessJSON(raw))
+	if err != nil {
 		return nil, fmt.Errorf("transcript migrate-on-read failed because the stored bare payload could not be decoded as schema.SessionDetailPayload in handler.decodeLegacyPayload during typed read normalization; no body was served and no stored generation was rewritten; repair or republish the transcript with a supported payload, then retry: %w", err)
 	}
 	if p.Harness == "" {

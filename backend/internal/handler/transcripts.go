@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -45,7 +46,8 @@ const transcriptSelectColumns = `t.id, t.owner_id, t.local_id, t.title, t.descri
 	t.m6_output_survival_pct, t.m6_lines_survived, t.m6_lines_total, t.m7_spec_word_count,
 	t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at, t.compute_version,
 	t.content_hash, t.license_id, t.wrapped_data_key, t.encryption_algorithm, t.key_version,
-	t.accepted_request_operation_fingerprint, t.session_origin`
+	t.accepted_request_operation_fingerprint, t.session_origin,
+	t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships`
 
 // publishRequest is the v2 nested metadata schema from the local transcript store.
 type publishRequest struct {
@@ -192,6 +194,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	authoritativeReq, authoritativeErr := schema.DecodeAuthoritativePublishRequest(metaBytes)
 	legacyErr := schema.ValidatePublishRequest(metaBytes)
 	authoritative := authoritativeErr == nil
+	if _, successor := metadataObject["contentHash"]; successor && authoritativeErr != nil {
+		writeError(w, http.StatusUnprocessableEntity, "metadata failed schema validation: "+authoritativeErr.Error())
+		return
+	}
 	if !authoritative && legacyErr != nil {
 		writeError(w, http.StatusUnprocessableEntity, "metadata failed schema validation: authoritative: "+authoritativeErr.Error()+"; legacy compatibility: "+legacyErr.Error())
 		return
@@ -259,6 +265,25 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	content, err := io.ReadAll(file)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to read file")
+		return
+	}
+	durableDetail, err := decodePublicationDetail(content)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	var authoritativeMetadata *schema.AuthoritativePublishRequest
+	if authoritative {
+		authoritativeMetadata = &authoritativeReq
+	}
+	if err := validatePublicationGraphMirrors(durableDetail, &req, authoritativeMetadata); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	// Prepare the durable query projection before any external side effect.
+	graphParams := sqlc.CreateTranscriptParams{}
+	if err := installPublicationGraph(&graphParams, durableDetail); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	if err := requireSupportedContentCapabilityWithEvaluator(content, h.preservationProof()); err != nil {
@@ -409,6 +434,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 
 		// Use mapper to convert schema.PublishRequest to DB params
 		params := schemaToTranscriptParams(req, blobKey, blobSize, schemaVersion, publishedOrigin)
+		params.InputSubmissionCount = graphParams.InputSubmissionCount
+		params.RootSessionID = graphParams.RootSessionID
+		params.SessionPurpose = graphParams.SessionPurpose
+		params.SessionRelationships = graphParams.SessionRelationships
 		params.ID = transcriptID
 		params.OwnerID = ownerPgID
 		params.LocalID = string(req.Identity.SessionID)
@@ -489,6 +518,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				EncryptionAlgorithm:     string(descriptor.Algorithm()),
 				KeyVersion:              int32(descriptor.KeyVersion()),
 				SessionOrigin:           params.SessionOrigin,
+				InputSubmissionCount:    params.InputSubmissionCount,
+				RootSessionID:           params.RootSessionID,
+				SessionPurpose:          params.SessionPurpose,
+				SessionRelationships:    params.SessionRelationships,
 			}
 			// One txn, actor = the publisher: pin the governance axes from the LOCKED
 			// narrow pre-image (visibility never changes on re-publish; an absent CLI
@@ -587,6 +620,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				EncryptionAlgorithm:     string(descriptor.Algorithm()),
 				KeyVersion:              int32(descriptor.KeyVersion()),
 				SessionOrigin:           params.SessionOrigin,
+				InputSubmissionCount:    params.InputSubmissionCount,
+				RootSessionID:           params.RootSessionID,
+				SessionPurpose:          params.SessionPurpose,
+				SessionRelationships:    params.SessionRelationships,
 			}
 			// One txn, actor = the publisher; the migration-026 AFTER INSERT trigger
 			// appends the 'published' snapshot — there is no application audit writer.
@@ -836,31 +873,33 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	}
 	raw := readResult.Plaintext
 
-	// Migrate-on-read: normalize legacy/older decrypted transcript content to the
-	// current SessionDetailPayload shape and serve the bare payload the viewer
-	// expects (unwrapping the TranscriptContent envelope that peasant uploads).
-	payload, rewrite, err := defaultContentMigrator.Migrate(r.Context(), raw)
+	// Content is always durable evidence, never authorized read navigation.
+	// Normalize older shapes through the same typed envelope used for rewrites.
+	readInput := restoreStoredEnvelopeHarness(raw, readResult.Row.ModelProvider)
+	payload, rewrite, err := defaultContentMigrator.Migrate(r.Context(), readInput)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if payload.Harness == "" {
+		// Legacy raw JSONL has no session-level harness. Its authenticated row
+		// supplies that existing fact; never invent provenance from the turns.
+		payload.Harness = canonicalHarness(readResult.Row.ModelProvider)
+	}
+	rewrite = rewrite || !bytes.Equal(readInput, raw)
 	if err := validateObservedModelValues(payload); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	canonical := raw
 	if rewrite {
-		canonical, marshalErr := encodeCanonicalTranscript(payload)
-		if marshalErr != nil {
-			if payloadCarriesObservedModels(payload) {
-				writeError(w, http.StatusInternalServerError, marshalErr.Error())
-				return
-			}
-			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), marshalErr)
-			writeJSON(w, http.StatusOK, payload)
+		canonical, err = encodeCanonicalTranscript(payload)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, canonical); err != nil {
-			if payloadCarriesObservedModels(payload) {
+			if len(schema.RequiredContentCapabilities(*payload)) != 0 {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
@@ -868,7 +907,9 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, payload)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(canonical)
 }
 
 func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Transcript, canonical []byte) error {

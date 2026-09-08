@@ -59,6 +59,12 @@ func (productionObservedModelPreservationEvaluator) Evaluate() error {
 type canonicalContentRewriteEncoder struct{}
 
 func (canonicalContentRewriteEncoder) Encode(version schema.PushContractVersion, payload *schema.SessionDetailPayload) ([]byte, error) {
+	if payload == nil {
+		return nil, publicationDetailError(fmt.Errorf("canonical rewrite requires a non-null durable detail"))
+	}
+	if err := schema.ValidateSessionDetailPayload(*payload); err != nil {
+		return nil, publicationDetailError(err)
+	}
 	encoded, err := json.Marshal(schema.TranscriptContent{
 		ContractVersion: version,
 		Kind:            schema.ContentKindSessionDetail,
