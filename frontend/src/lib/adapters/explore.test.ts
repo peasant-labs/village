@@ -14,7 +14,13 @@ describe("Explore effective token adapter", () => {
     expect(new Set(fixture.cases.map((entry) => entry.name))).toEqual(new Set(fixture.required_names));
   });
   for (const entry of fixture.cases) {
-    it(entry.name, () => expect(effectiveExploreTokens(entry)).toBe(entry.expected));
+    it(entry.name, () => {
+      expect(effectiveExploreTokens(entry)).toBe(entry.expected);
+      const owner = { id: "owner", github_id: 1, github_username: "owner", display_name: null, avatar_url: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", is_discoverable: true, username_chosen: true, provider_username: null };
+      const transcript = makeTranscriptFixture(entry);
+      const payload = adaptExplore({ transcripts: [{ transcript, tags: [], owner }], harness_facets: [], total: 1, agent_total: 0, page: 1, limit: 24 }, { collectives: [] }, []);
+      expect(payload.transcripts.transcripts[0].tokenCount).toBe(entry.expected);
+    });
   }
 });
 

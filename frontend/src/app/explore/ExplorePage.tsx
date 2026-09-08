@@ -31,8 +31,9 @@ const DEFAULT_FILTERS: ExploreFilters = {
 
 export default function ExplorePage() {
   const router = useRouter();
-  const { user } = useAuth();
-  const authScope = user?.id ?? "anonymous";
+  const { user, isLoading: isAuthLoading, isError: isAuthError } = useAuth();
+  const authResolved = !isAuthLoading && !isAuthError;
+  const authScope = authResolved ? (user?.id ?? "anonymous") : "unresolved";
   const [filters, setFilters] = useState<ExploreFilters>(DEFAULT_FILTERS);
 
   const params = useMemo(() => buildTranscriptListParams(filters), [filters]);
@@ -45,7 +46,7 @@ export default function ExplorePage() {
     isPlaceholderData,
     isFetching,
     refetch,
-  } = useTranscripts(params, { authScope, requireHarnessFacets: true });
+  } = useTranscripts(params, { authScope, requireHarnessFacets: true, enabled: authResolved });
   const { data: collData } = useSearchCollectives(filters.query);
   const { data: popularTags } = usePopularTags(15);
 
@@ -59,12 +60,12 @@ export default function ExplorePage() {
   // failures. This guarded render-phase update converges on the latest validated
   // object without an effect or a ref read during render.
   const [lastConfirmed, setLastConfirmed] = useState<{ scope: string; data: TranscriptListResponse } | null>(null);
-  if (data != null && !isPlaceholderData && !isError && data !== lastConfirmed?.data) {
+  if (authResolved && data != null && !isPlaceholderData && !isError && data !== lastConfirmed?.data) {
     setLastConfirmed({ scope: authScope, data });
   }
 
-  const displayData: TranscriptListResponse | null = data ??
-    (lastConfirmed?.scope === authScope ? lastConfirmed.data : null);
+  const displayData: TranscriptListResponse | null = authResolved ? (data ??
+    (lastConfirmed?.scope === authScope ? lastConfirmed.data : null)) : null;
 
   // A session that a harness started from inside another session arrives in
   // this same response and would otherwise sit beside the session that started
@@ -135,7 +136,7 @@ export default function ExplorePage() {
   // Remembered WITH the request it belongs to. Asking for a different page is
   // not a retry of the one that failed, so the old message must not follow the
   // reader onto it: that request gets its own loading state and its own answer.
-  const requestKey = JSON.stringify(params);
+  const requestKey = JSON.stringify([authScope, params]);
   const [remembered, setRemembered] = useState<{ key: string; message: string } | null>(null);
   // Recorded when EITHER the message or the request changes. Comparing the
   // message alone would leave a stale key on the record, and the read below is
@@ -155,7 +156,7 @@ export default function ExplorePage() {
   if (!isError && data != null && remembered !== null) {
     setRemembered(null);
   }
-  const failureMessage = remembered?.key === requestKey ? remembered.message : null;
+  const failureMessage = authResolved && remembered?.key === requestKey ? remembered.message : null;
 
   // While a retry is in flight the control says so and refuses further presses.
   // A retry that fails again renders the same words, so without this it cannot

@@ -1,0 +1,3 @@
+cases:
+  - {name: missing-facets, kind: facet, operation: omit, accepted: false}
+  - {name: missing-facets, kind: facet, operation: omit, accepted: false}

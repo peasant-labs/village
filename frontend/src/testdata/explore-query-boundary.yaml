@@ -1,24 +1,12 @@
-required_names:
-  - missing-facets
-  - null-facets
-  - object-facets
-  - unknown-harness
-  - zero-count
-  - negative-count
-  - fractional-count
-  - explicit-empty-facets
-  - same-viewer-retains
-  - viewer-a-to-b-clears
-  - viewer-a-to-anonymous-clears
 cases:
-  - {name: missing-facets, value: missing, accepted: false}
-  - {name: null-facets, value: "null", accepted: false}
-  - {name: object-facets, value: object, accepted: false}
-  - {name: unknown-harness, value: unknown, accepted: false}
-  - {name: zero-count, value: zero, accepted: false}
-  - {name: negative-count, value: negative, accepted: false}
-  - {name: fractional-count, value: fractional, accepted: false}
-  - {name: explicit-empty-facets, value: empty, accepted: true}
-  - {name: same-viewer-retains, value: same, accepted: true}
-  - {name: viewer-a-to-b-clears, value: viewer-b, accepted: true}
-  - {name: viewer-a-to-anonymous-clears, value: anonymous, accepted: true}
+  - {name: missing-facets, kind: facet, operation: omit, accepted: false}
+  - {name: null-facets, kind: facet, facets: null, accepted: false}
+  - {name: object-facets, kind: facet, facets: {}, accepted: false}
+  - {name: unknown-harness, kind: facet, facets: [{harness: unknown, count: 1}], accepted: false}
+  - {name: zero-count, kind: facet, facets: [{harness: codex, count: 0}], accepted: false}
+  - {name: negative-count, kind: facet, facets: [{harness: codex, count: -1}], accepted: false}
+  - {name: fractional-count, kind: facet, facets: [{harness: codex, count: 1.5}], accepted: false}
+  - {name: explicit-empty-facets, kind: facet, facets: [], accepted: true}
+  - {name: same-viewer-retains, kind: scope, next_scope: viewer-a}
+  - {name: viewer-a-to-b-clears, kind: scope, next_scope: viewer-b}
+  - {name: viewer-a-to-anonymous-clears, kind: scope, next_scope: anonymous}
