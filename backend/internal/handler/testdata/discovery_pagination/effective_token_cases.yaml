@@ -1,0 +1,31 @@
+- name: tokens_page_one_overflow_and_split
+  sort: tokens
+  page: 1
+  limit: 3
+  expectedTotal: 7
+  expectedPage: 1
+  expectedLimit: 3
+  expectedIds:
+    - "10000000-0000-0000-0000-000000000001"
+    - "20000000-0000-0000-0000-000000000002"
+    - "30000000-0000-0000-0000-000000000003"
+- name: tokens_page_two_legacy_then_zero_ties
+  sort: tokens
+  page: 2
+  limit: 3
+  expectedTotal: 7
+  expectedPage: 2
+  expectedLimit: 3
+  expectedIds:
+    - "40000000-0000-0000-0000-000000000004"
+    - "60000000-0000-0000-0000-000000000006"
+    - "50000000-0000-0000-0000-000000000005"
+- name: tokens_page_three_null_last
+  sort: tokens
+  page: 3
+  limit: 3
+  expectedTotal: 7
+  expectedPage: 3
+  expectedLimit: 3
+  expectedIds:
+    - "70000000-0000-0000-0000-000000000007"

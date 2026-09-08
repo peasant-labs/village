@@ -44,9 +44,13 @@ type discoveryRow struct {
 	Name          string `yaml:"name"`
 	ID            string `yaml:"id"`
 	Visibility    string `yaml:"visibility"`
+	Harness       string `yaml:"harness"`
+	Origin        string `yaml:"origin"`
 	PublishedAtMs int64  `yaml:"publishedAtMs"`
 	TurnCount     *int32 `yaml:"turnCount"`
-	TokenCount    *int32 `yaml:"tokenCount"`
+	TokenCount    *int64 `yaml:"tokenCount"`
+	TokensIn      *int64 `yaml:"tokensIn"`
+	TokensOut     *int64 `yaml:"tokensOut"`
 	DurationMs    *int64 `yaml:"durationMs"`
 }
 
@@ -67,10 +71,11 @@ type discoveryCase struct {
 // discoveryResponse is the decoded discovery wire under assertion: the ordered
 // ids plus the total/page/limit metadata the endpoint must preserve.
 type discoveryResponse struct {
-	IDs   []string
-	Total int64
-	Page  int
-	Limit int
+	IDs    []string
+	Facets []string
+	Total  int64
+	Page   int
+	Limit  int
 }
 
 //go:embed testdata/discovery_pagination/inventory.yaml
@@ -81,6 +86,12 @@ var discoveryCasesYAML []byte
 
 //go:embed testdata/discovery_pagination/snapshot_seed.yaml
 var discoverySnapshotSeedYAML []byte
+
+//go:embed testdata/discovery_pagination/effective_tokens.yaml
+var discoveryEffectiveTokensYAML []byte
+
+//go:embed testdata/discovery_pagination/effective_token_cases.yaml
+var discoveryEffectiveTokenCasesYAML []byte
 
 // discoveryInsertRow inserts one fully-controlled transcript (explicit id,
 // published_at, and optional metrics) attributed to the SYSTEM actor, satisfying
@@ -101,18 +112,26 @@ func discoveryInsertRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, o
 		t.Fatalf("discoveryInsertRow %q: declare system actor: %v", row.Name, err)
 	}
 	hash := schema.ComputeTranscriptHash([]byte(row.Name))
+	harness := row.Harness
+	if harness == "" {
+		harness = "claude-code"
+	}
+	origin := row.Origin
+	if origin == "" {
+		origin = "unknown"
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO transcripts (
 			id, owner_id, local_id, title, visibility, model_provider, model_name,
 			blob_key, blob_size_bytes, schema_version, content_hash, wrapped_data_key,
-			encryption_algorithm, key_version, published_at, turn_count, token_count, duration_ms,
-			project_hash
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+			encryption_algorithm, key_version, published_at, turn_count, token_count, tokens_in, tokens_out, duration_ms,
+			project_hash, session_origin
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 	`,
-		toPgUUID(id), owner, row.Name, "t-"+row.Name, row.Visibility, "claude-code", "m-"+row.Name,
+		toPgUUID(id), owner, row.Name, "t-"+row.Name, row.Visibility, harness, "m-"+row.Name,
 		"blob/"+row.Name, int64(len(row.Name)), "0.1.0", hash, []byte("fixture-wrapped-data-key"),
-		"aes-256-gcm-random-nonce-v1", 1, time.UnixMilli(row.PublishedAtMs), row.TurnCount, row.TokenCount, row.DurationMs,
-		fixtureProjectHash(row.Name),
+		"aes-256-gcm-random-nonce-v1", 1, time.UnixMilli(row.PublishedAtMs), row.TurnCount, row.TokenCount, row.TokensIn, row.TokensOut, row.DurationMs,
+		fixtureProjectHash(row.Name), origin,
 	); err != nil {
 		t.Fatalf("discoveryInsertRow %q: insert: %v", row.Name, err)
 	}
@@ -142,9 +161,13 @@ func discoveryList(t *testing.T, h *Handler, ownerUsername, sort string, page, l
 				ID string `json:"id"`
 			} `json:"transcript"`
 		} `json:"transcripts"`
-		Total int64 `json:"total"`
-		Page  int   `json:"page"`
-		Limit int   `json:"limit"`
+		Total         int64 `json:"total"`
+		Page          int   `json:"page"`
+		Limit         int   `json:"limit"`
+		HarnessFacets []struct {
+			Harness string `json:"harness"`
+			Count   int64  `json:"count"`
+		} `json:"harness_facets"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode list response for %s: %v\nbody: %s", target, err, w.Body.String())
@@ -153,7 +176,11 @@ func discoveryList(t *testing.T, h *Handler, ownerUsername, sort string, page, l
 	for _, row := range resp.Transcripts {
 		ids = append(ids, row.Transcript.ID)
 	}
-	return discoveryResponse{IDs: ids, Total: resp.Total, Page: resp.Page, Limit: resp.Limit}
+	facets := make([]string, 0, len(resp.HarnessFacets))
+	for _, facet := range resp.HarnessFacets {
+		facets = append(facets, fmt.Sprintf("%s:%d", facet.Harness, facet.Count))
+	}
+	return discoveryResponse{IDs: ids, Facets: facets, Total: resp.Total, Page: resp.Page, Limit: resp.Limit}
 }
 
 func equalIDs(got, want []string) bool {
@@ -274,6 +301,35 @@ func TestListTranscripts_DeterministicPagination_RealPostgres(t *testing.T) {
 	}
 }
 
+func TestListTranscripts_EffectiveTokenOrder_RealPostgres(t *testing.T) {
+	ctx := context.Background()
+	pool := govTestPool(t)
+	defer pool.Close()
+	owner := pullInsertUser(t, ctx, pool, 980802, "discovery-token-owner")
+	defer cleanupOwners(t, ctx, pool, owner)
+	rows := loadFixtureRows[discoveryRow](t, discoveryEffectiveTokensYAML, 7)
+	required := map[string]bool{"overflow": false, "split-partial": false, "legacy-conflict": false, "legacy-only": false, "explicit-zero-newer": false, "explicit-zero-older": false, "all-null": false}
+	for _, row := range rows {
+		if _, ok := required[row.Name]; !ok {
+			t.Fatalf("unexpected effective-token fixture %q", row.Name)
+		}
+		required[row.Name] = true
+		discoveryInsertRow(t, ctx, pool, owner, row)
+	}
+	for name, found := range required {
+		if !found {
+			t.Fatalf("required effective-token fixture %q is missing", name)
+		}
+	}
+	h := &Handler{pool: pool, queries: sqlc.New(pool)}
+	for _, c := range loadFixtureRows[discoveryCase](t, discoveryEffectiveTokenCasesYAML, 3) {
+		got := discoveryList(t, h, "discovery-token-owner", c.Sort, c.Page, c.Limit)
+		if got.Total != c.ExpectedTotal || !equalIDs(got.IDs, c.ExpectedIDs) {
+			t.Errorf("case %q: total/order = %d/%v, want %d/%v", c.Name, got.Total, got.IDs, c.ExpectedTotal, c.ExpectedIDs)
+		}
+	}
+}
+
 // TestListTranscripts_CountPageSnapshot_RealPostgres proves the total and the
 // page come from one snapshot. A competing public publish is committed on
 // another connection BETWEEN the count and the page read (via the discovery read
@@ -331,6 +387,9 @@ func TestListTranscripts_CountPageSnapshot_RealPostgres(t *testing.T) {
 	}
 	if got.Total != 3 {
 		t.Errorf("total = %d, want 3 (the count was taken before the competing publish committed)", got.Total)
+	}
+	if !equalIDs(got.Facets, []string{"claude-code:3"}) {
+		t.Errorf("snapshot facets = %v, want pre-publication snapshot [claude-code:3]", got.Facets)
 	}
 	for _, id := range got.IDs {
 		if id == lateID {

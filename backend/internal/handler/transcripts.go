@@ -1460,8 +1460,12 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	// struct can't drift apart, so a migration's new column can never again
 	// silently serialize as null on this surface (the license_id regression), and
 	// a scan error is a loud 500 instead of a silently dropped row.
-	selectQuery := "SELECT DISTINCT " + transcriptSelectColumns + " " +
-		baseFrom + where + orderBy + fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	// De-duplicate the join-expanded transcript rows before sorting. The outer
+	// query is also required for effective-token ordering: PostgreSQL otherwise
+	// requires that computed ORDER BY expression to be added to a SELECT DISTINCT
+	// projection, which would leak a non-transcript column into strict scanning.
+	selectQuery := "SELECT * FROM (SELECT DISTINCT " + transcriptSelectColumns + " " +
+		baseFrom + where + ") t" + orderBy + fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
 
 	// The counts and the page read describe one database snapshot: they run in a
 	// single read-only REPEATABLE READ transaction, so a publish or delete

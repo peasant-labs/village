@@ -1,0 +1,52 @@
+- name: anonymous_page_one
+  viewer: anonymous
+  query: "page=1&limit=1"
+  expectedFacets: ["claude-code:1", "codex:1"]
+- name: anonymous_later_page
+  viewer: anonymous
+  query: "page=2&limit=1&sort=tokens"
+  expectedFacets: ["claude-code:1", "codex:1"]
+- name: zero_filtered_rows
+  viewer: anonymous
+  query: "q=definitely-absent&provider=pi&owner=absent&project=absent&repo=absent&org=absent&tags=absent&origin=agent"
+  expectedFacets: ["claude-code:1", "codex:1"]
+- name: query_narrowing_independent
+  viewer: anonymous
+  query: "q=public-claude"
+  expectedFacets: ["claude-code:1", "codex:1"]
+- name: provider_narrowing_independent
+  viewer: anonymous
+  query: "provider=claude-code"
+  expectedFacets: ["claude-code:1", "codex:1"]
+- name: owner_narrowing_independent
+  viewer: anonymous
+  query: "owner=facet-owner"
+  expectedFacets: ["claude-code:1", "codex:1"]
+- name: project_narrowing_independent
+  viewer: anonymous
+  query: "project=public"
+  expectedFacets: ["claude-code:1", "codex:1"]
+- name: repo_narrowing_independent
+  viewer: anonymous
+  query: "repo=absent"
+  expectedFacets: ["claude-code:1", "codex:1"]
+- name: org_narrowing_independent
+  viewer: anonymous
+  query: "org=absent"
+  expectedFacets: ["claude-code:1", "codex:1"]
+- name: tag_narrowing_independent
+  viewer: anonymous
+  query: "tags=absent"
+  expectedFacets: ["claude-code:1", "codex:1"]
+- name: explicit_origin_independent
+  viewer: anonymous
+  query: "origin=agent"
+  expectedFacets: ["claude-code:1", "codex:1"]
+- name: owner_sees_private
+  viewer: owner
+  query: "provider=codex"
+  expectedFacets: ["claude-code:1", "codex:1", "opencode:1", "cursor:1"]
+- name: member_sees_shared_once
+  viewer: member
+  query: "tags=facet-one"
+  expectedFacets: ["claude-code:1", "codex:1", "cursor:1"]
