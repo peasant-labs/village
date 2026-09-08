@@ -1656,6 +1656,13 @@ func (h *Handler) listDiscoverySnapshot(ctx context.Context, request discoverySn
 	if err := tx.QueryRow(ctx, request.countQuery, request.countArgs...).Scan(&snapshot.total); err != nil {
 		return discoverySnapshot{}, fmt.Errorf("read discovery total count within snapshot: %w", err)
 	}
+
+	// Deterministic-concurrency test synchronization point (nil in production).
+	// The first count fixes PostgreSQL's repeatable-read snapshot; every other
+	// response query must remain isolated from a write committed at this point.
+	if h.discoveryReadBarrier != nil {
+		h.discoveryReadBarrier()
+	}
 	if err := tx.QueryRow(ctx, request.agentCountQuery, request.agentCountArgs...).Scan(&snapshot.agentTotal); err != nil {
 		return discoverySnapshot{}, fmt.Errorf("read discovery agent-session count within snapshot: %w", err)
 	}
@@ -1674,7 +1681,7 @@ func (h *Handler) listDiscoverySnapshot(ctx context.Context, request discoverySn
 		harness, err := bestiary.NewHarness(raw)
 		if err != nil {
 			facetRows.Close()
-			return discoverySnapshot{}, fmt.Errorf("validate discovery harness %q read from transcripts: %w", raw, err)
+			return discoverySnapshot{}, fmt.Errorf("validate discovery harness within snapshot: stored harness metadata is outside the canonical menu; no discovery response was returned; repair the stored transcript metadata using a supported harness before retrying")
 		}
 		counts[harness] = count
 	}
@@ -1688,11 +1695,6 @@ func (h *Handler) listDiscoverySnapshot(ctx context.Context, request discoverySn
 		if count := counts[harness]; count > 0 {
 			snapshot.harnessFacets = append(snapshot.harnessFacets, schema.VillageHarnessFacet{Harness: harness, Count: count})
 		}
-	}
-
-	// Deterministic-concurrency test synchronization point (nil in production).
-	if h.discoveryReadBarrier != nil {
-		h.discoveryReadBarrier()
 	}
 
 	rows, err := tx.Query(ctx, request.selectQuery, request.selectArgs...)

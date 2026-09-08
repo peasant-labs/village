@@ -1,52 +1,15 @@
-- name: anonymous_page_one
-  viewer: anonymous
-  query: "page=1&limit=1"
-  expectedFacets: ["claude-code:1", "codex:1"]
-- name: anonymous_later_page
-  viewer: anonymous
-  query: "page=2&limit=1&sort=tokens"
-  expectedFacets: ["claude-code:1", "codex:1"]
-- name: zero_filtered_rows
-  viewer: anonymous
-  query: "q=definitely-absent&provider=pi&owner=absent&project=absent&repo=absent&org=absent&tags=absent&origin=agent"
-  expectedFacets: ["claude-code:1", "codex:1"]
-- name: query_narrowing_independent
-  viewer: anonymous
-  query: "q=public-claude"
-  expectedFacets: ["claude-code:1", "codex:1"]
-- name: provider_narrowing_independent
-  viewer: anonymous
-  query: "provider=claude-code"
-  expectedFacets: ["claude-code:1", "codex:1"]
-- name: owner_narrowing_independent
-  viewer: anonymous
-  query: "owner=facet-owner"
-  expectedFacets: ["claude-code:1", "codex:1"]
-- name: project_narrowing_independent
-  viewer: anonymous
-  query: "project=public"
-  expectedFacets: ["claude-code:1", "codex:1"]
-- name: repo_narrowing_independent
-  viewer: anonymous
-  query: "repo=absent"
-  expectedFacets: ["claude-code:1", "codex:1"]
-- name: org_narrowing_independent
-  viewer: anonymous
-  query: "org=absent"
-  expectedFacets: ["claude-code:1", "codex:1"]
-- name: tag_narrowing_independent
-  viewer: anonymous
-  query: "tags=absent"
-  expectedFacets: ["claude-code:1", "codex:1"]
-- name: explicit_origin_independent
-  viewer: anonymous
-  query: "origin=agent"
-  expectedFacets: ["claude-code:1", "codex:1"]
-- name: owner_sees_private
-  viewer: owner
-  query: "provider=codex"
-  expectedFacets: ["claude-code:1", "codex:1", "opencode:1", "cursor:1"]
-- name: member_sees_shared_once
-  viewer: member
-  query: "tags=facet-one"
-  expectedFacets: ["claude-code:1", "codex:1", "cursor:1"]
+- {name: anonymous_page_one, viewer: anonymous, query: "page=1&limit=1", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: ["81000000-0000-0000-0000-000000000001"], expectedTotal: 2, expectedAgentTotal: 1, expectedPage: 1, expectedLimit: 1}
+- {name: anonymous_later_page, viewer: anonymous, query: "page=2&limit=1&sort=tokens", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: ["82000000-0000-0000-0000-000000000002"], expectedTotal: 2, expectedAgentTotal: 1, expectedPage: 2, expectedLimit: 1}
+- {name: turns_sort_independent, viewer: anonymous, query: "sort=turns", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: ["81000000-0000-0000-0000-000000000001", "82000000-0000-0000-0000-000000000002"], expectedTotal: 2, expectedAgentTotal: 1, expectedPage: 1, expectedLimit: 20}
+- {name: duration_sort_independent, viewer: anonymous, query: "sort=duration", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: ["81000000-0000-0000-0000-000000000001", "82000000-0000-0000-0000-000000000002"], expectedTotal: 2, expectedAgentTotal: 1, expectedPage: 1, expectedLimit: 20}
+- {name: zero_filtered_rows, viewer: anonymous, query: "q=definitely-absent&provider=pi&owner=absent&project=absent&repo=absent&org=absent&tags=absent&origin=agent", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: [], expectedTotal: 0, expectedAgentTotal: 0, expectedPage: 1, expectedLimit: 20}
+- {name: query_narrowing_independent, viewer: anonymous, query: "q=public-claude", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: ["81000000-0000-0000-0000-000000000001"], expectedTotal: 1, expectedAgentTotal: 0, expectedPage: 1, expectedLimit: 20}
+- {name: provider_narrowing_independent, viewer: anonymous, query: "provider=claude-code", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: ["81000000-0000-0000-0000-000000000001"], expectedTotal: 1, expectedAgentTotal: 0, expectedPage: 1, expectedLimit: 20}
+- {name: owner_narrowing_independent, viewer: anonymous, query: "owner=facet-owner", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: ["81000000-0000-0000-0000-000000000001"], expectedTotal: 1, expectedAgentTotal: 1, expectedPage: 1, expectedLimit: 20}
+- {name: project_narrowing_independent, viewer: anonymous, query: "project=public", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: [], expectedTotal: 0, expectedAgentTotal: 0, expectedPage: 1, expectedLimit: 20}
+- {name: repo_narrowing_independent, viewer: anonymous, query: "repo=absent", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: [], expectedTotal: 0, expectedAgentTotal: 0, expectedPage: 1, expectedLimit: 20}
+- {name: org_narrowing_independent, viewer: anonymous, query: "org=absent", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: [], expectedTotal: 0, expectedAgentTotal: 0, expectedPage: 1, expectedLimit: 20}
+- {name: tag_narrowing_independent, viewer: anonymous, query: "tags=absent", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: [], expectedTotal: 0, expectedAgentTotal: 0, expectedPage: 1, expectedLimit: 20}
+- {name: explicit_origin_independent, viewer: anonymous, query: "origin=agent", expectedFacets: ["claude-code:1", "codex:1"], expectedIds: ["85000000-0000-0000-0000-000000000005"], expectedTotal: 1, expectedAgentTotal: 1, expectedPage: 1, expectedLimit: 20}
+- {name: owner_sees_private, viewer: owner, query: "provider=codex", expectedFacets: ["claude-code:1", "codex:1", "opencode:1", "cursor:1"], expectedIds: ["82000000-0000-0000-0000-000000000002"], expectedTotal: 1, expectedAgentTotal: 0, expectedPage: 1, expectedLimit: 20}
+- {name: member_sees_shared_once, viewer: member, query: "tags=facet-one", expectedFacets: ["claude-code:1", "codex:1", "cursor:1"], expectedIds: ["84000000-0000-0000-0000-000000000004"], expectedTotal: 1, expectedAgentTotal: 0, expectedPage: 1, expectedLimit: 20}

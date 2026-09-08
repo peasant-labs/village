@@ -1,0 +1,6 @@
+- name: sensitive-invalid-harness
+  id: "86000000-0000-0000-0000-000000000006"
+  visibility: public
+  harness: "<SENSITIVE-HARNESS-SENTINEL:/private/path>"
+  origin: user
+  publishedAtMs: 1700000006000
