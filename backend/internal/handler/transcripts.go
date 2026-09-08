@@ -797,7 +797,12 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	identity := projectIdentityKey{OwnerID: transcript.OwnerID, ProjectHash: transcript.ProjectHash}
 	resolved := h.resolveProjectIdentities(r.Context(), []projectIdentityKey{identity})[identity]
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	navigation, err := h.relationshipNavigation(r.Context(), user, transcript)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response := map[string]any{
 		"transcript":      detailTranscriptResponse(transcript, resolved),
 		"tags":            tags,
 		"shares":          shares,
@@ -805,7 +810,11 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 		"owner":           owner,
 		"owner_orgs":      ownerOrgs,
 		"attestations":    attestations,
-	})
+	}
+	if len(navigation) > 0 {
+		response["relationshipNavigation"] = navigation
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
