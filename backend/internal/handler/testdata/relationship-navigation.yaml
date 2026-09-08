@@ -1,0 +1,48 @@
+required_names:
+  - missing-parent
+  - cross-owner-collision
+  - private-parent
+  - public-starter
+  - exact-claim-without-public-authority
+  - unknown-parent
+  - conflicting-parent
+  - explicit-none
+cases:
+  - name: missing-parent
+    state: target_known
+    kind: started_by
+    target: missing
+    expected: '[{"kind":"started_by","status":"known_unavailable"}]'
+  - name: cross-owner-collision
+    state: target_known
+    kind: started_by
+    target: other-owner
+    expected: '[{"kind":"started_by","status":"known_unavailable"}]'
+  - name: private-parent
+    state: target_known
+    kind: started_by
+    target: private
+    expected: '[{"kind":"started_by","status":"inaccessible"}]'
+  - name: public-starter
+    state: target_known_retained
+    kind: started_by
+    target: public
+    expected: '[{"kind":"started_by","status":"resolved","transcriptId":"550e8400-e29b-41d4-a716-446655440002"}]'
+  - name: exact-claim-without-public-authority
+    state: target_known
+    kind: context_from
+    target: public
+    anchor: '{"kind":"through_redacted_entry","sourceEntryRef":"e_public","sourceRevisionRef":"r_old"}'
+    expected: '[{"kind":"context_from","status":"general_link_only","transcriptId":"550e8400-e29b-41d4-a716-446655440002","anchor":{"kind":"general_source_session"}}]'
+  - name: unknown-parent
+    state: unknown
+    kind: started_by
+    expected: '[{"kind":"started_by","status":"unknown"}]'
+  - name: conflicting-parent
+    state: conflicting_current_native_evidence
+    kind: started_by
+    expected: '[{"kind":"started_by","status":"conflicting"}]'
+  - name: explicit-none
+    state: explicit_none
+    kind: started_by
+    expected: 'null'

@@ -135,6 +135,9 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
 -- governance pre-image comes from the LOCKED narrow read inside the txn
 -- (GetTranscriptGovernanceForUpdate); a wide unlocked read here would be dead
 -- weight superseded under the lock.
+-- Metadata relationship reads also use this exact owner-local identity probe,
+-- then load GetTranscriptByID and apply current canViewTranscript permission.
+-- This query alone is not an access grant or a cross-owner local-ID search.
 SELECT id FROM transcripts WHERE owner_id = $1 AND local_id = $2;
 
 -- name: GetTranscriptByID :one

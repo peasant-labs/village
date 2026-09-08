@@ -4,6 +4,8 @@ import {
   TranscriptListQueryErrorCode,
   TranscriptListResponseMismatchError,
   useTranscripts,
+  useTranscript,
+  useTranscriptContent,
 } from "@/lib/queries/transcripts";
 import {
   makeQueryClientHarness,
@@ -11,6 +13,36 @@ import {
   transcriptListResponse as response,
 } from "@/test/queryHookHelpers";
 import { loadTranscriptQueryValidationFixtures } from "@/test/transcriptQueryValidationFixtures";
+import { readFileSync } from "node:fs";
+import { parse } from "yaml";
+
+const detailRequests = parse(readFileSync("src/testdata/transcript-detail-requests.yaml", "utf8")) as Array<{
+  name: string; kind: "metadata" | "content"; path: string;
+}>;
+
+describe("transcript detail request cancellation", () => {
+  it("retains the named metadata and content cases", () => {
+    expect(new Set(detailRequests.map((fixture) => fixture.name))).toEqual(new Set([
+      "metadata-cancelled-on-leave", "content-cancelled-on-leave",
+    ]));
+  });
+  for (const fixture of detailRequests) {
+    it(fixture.name, async () => {
+      let signal: AbortSignal | null | undefined;
+      vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toContain(fixture.path);
+        signal = init?.signal;
+        return new Promise<Response>(() => {});
+      }));
+      const hook = fixture.kind === "metadata" ? useTranscript : useTranscriptContent;
+      const view = renderHook(() => hook("child-id"), { wrapper: makeQueryClientWrapper() });
+      await waitFor(() => expect(signal).toBeInstanceOf(AbortSignal));
+      expect(signal?.aborted).toBe(false);
+      view.unmount();
+      expect(signal?.aborted).toBe(true);
+    });
+  }
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
