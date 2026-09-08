@@ -1302,6 +1302,10 @@ func (h *Handler) UnshareTranscript(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "grouped" {
+		h.listGroupedTranscripts(w, r)
+		return
+	}
 	user := GetUser(r.Context())
 	q := r.URL.Query()
 

@@ -36,3 +36,4 @@
 - {name: ListPullableTranscriptsByIDs, file: transcripts_pull.sql, kind: read}
 
 - {name: ListProjectTranscriptsForViewer, file: transcripts.sql, kind: read}
+- {name: ListGroupedTranscriptCandidates, file: grouped_transcripts.sql, kind: read}
