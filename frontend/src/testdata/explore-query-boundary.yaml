@@ -1,0 +1,24 @@
+required_names:
+  - missing-facets
+  - null-facets
+  - object-facets
+  - unknown-harness
+  - zero-count
+  - negative-count
+  - fractional-count
+  - explicit-empty-facets
+  - same-viewer-retains
+  - viewer-a-to-b-clears
+  - viewer-a-to-anonymous-clears
+cases:
+  - {name: missing-facets, value: missing, accepted: false}
+  - {name: null-facets, value: "null", accepted: false}
+  - {name: object-facets, value: object, accepted: false}
+  - {name: unknown-harness, value: unknown, accepted: false}
+  - {name: zero-count, value: zero, accepted: false}
+  - {name: negative-count, value: negative, accepted: false}
+  - {name: fractional-count, value: fractional, accepted: false}
+  - {name: explicit-empty-facets, value: empty, accepted: true}
+  - {name: same-viewer-retains, value: same, accepted: true}
+  - {name: viewer-a-to-b-clears, value: viewer-b, accepted: true}
+  - {name: viewer-a-to-anonymous-clears, value: anonymous, accepted: true}
