@@ -169,7 +169,10 @@ export default function UserProjectPage({
           <Library size={14} className="text-ink-3" />
           transcripts
         </span>
-        <span className="font-mono text-sm text-ink-3 tabular-nums">
+        <span
+          data-testid="project-transcript-count"
+          className="font-mono text-sm text-ink-3 tabular-nums"
+        >
           {data.transcripts.length.toLocaleString()}
         </span>
       </div>

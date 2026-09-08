@@ -23,6 +23,7 @@ export type ProjectOrphanTransition = {
   refreshed: ProjectOrphanRow[];
   expectedOrphansBefore: string[];
   expectedRootsAfter: string[];
+  expectedGroupsAfter: { parent: string; children: string[] }[];
   expectedOrphansAfter: string[];
 };
 
@@ -39,10 +40,15 @@ export function loadProjectOrphanGroupingFixtures(): { cases: ProjectOrphanCase[
     assertPartition(testCase.name, testCase.rows, testCase.expectedRoots, testCase.expectedGroups.flatMap((g) => g.children), testCase.expectedOrphans);
   }
   for (const transition of parsed.transitions) {
-    assertExactKeys(transition, ["name", "initial", "refreshed", "expectedOrphansBefore", "expectedRootsAfter", "expectedOrphansAfter"], `project orphan transition ${transition.name}`);
+    assertExactKeys(transition, ["name", "initial", "refreshed", "expectedOrphansBefore", "expectedRootsAfter", "expectedGroupsAfter", "expectedOrphansAfter"], `project orphan transition ${transition.name}`);
     assertPartition(transition.name, transition.initial, [], [], transition.expectedOrphansBefore);
-    const groupedAfter = transition.refreshed.filter((row) => !transition.expectedRootsAfter.includes(row.name) && !transition.expectedOrphansAfter.includes(row.name));
-    assertPartition(transition.name, transition.refreshed, transition.expectedRootsAfter, groupedAfter.map((row) => row.name), transition.expectedOrphansAfter);
+    for (const group of transition.expectedGroupsAfter) {
+      assertExactKeys(group, ["parent", "children"], `project orphan transition ${transition.name} group ${group.parent}`);
+      if (!transition.expectedRootsAfter.includes(group.parent) || group.children.length === 0) {
+        throw new Error(`${transition.name}: every post-refetch group must name a genuine root and at least one child`);
+      }
+    }
+    assertPartition(transition.name, transition.refreshed, transition.expectedRootsAfter, transition.expectedGroupsAfter.flatMap((group) => group.children), transition.expectedOrphansAfter);
   }
   return parsed;
 }

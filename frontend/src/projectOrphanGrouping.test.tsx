@@ -78,6 +78,7 @@ describe("the mounted project route groups unresolved ancestry", () => {
       refreshed: testCase.rows,
       expectedOrphansBefore: testCase.expectedOrphans,
       expectedRootsAfter: testCase.expectedRoots,
+      expectedGroupsAfter: testCase.expectedGroups,
       expectedOrphansAfter: testCase.expectedOrphans,
     });
 
@@ -97,7 +98,7 @@ describe("the mounted project route groups unresolved ancestry", () => {
     expect(rows.querySelectorAll('button[aria-label="Delete transcript"]')).toHaveLength(testCase.expectedOrphans.length);
     await userEvent.click(rows.querySelector<HTMLButtonElement>('button[aria-label="Edit transcript"]')!);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(document.body.textContent).toContain(String(testCase.rows.length));
+    expect(screen.getByTestId("project-transcript-count").textContent?.trim()).toBe(String(testCase.rows.length));
   });
 
   for (const transition of fixtures.transitions) {
@@ -105,6 +106,7 @@ describe("the mounted project route groups unresolved ancestry", () => {
       const client = await mountTransition(transition);
       const before = screen.getByTestId("project-orphan-session-group-toggle");
       expect(before).toHaveTextContent(`orphan sessions ${transition.expectedOrphansBefore.length}`);
+      expect(screen.getByTestId("project-transcript-count").textContent?.trim()).toBe(String(transition.initial.length));
 
       await act(async () => { await client.refetchQueries({ queryKey: ["user-project"] }); });
 
@@ -121,8 +123,25 @@ describe("the mounted project route groups unresolved ancestry", () => {
         await userEvent.click(screen.getByTestId("project-orphan-session-group-toggle"));
         expect(linkedIDs(screen.getByTestId("project-orphan-session-rows"))).toEqual(transition.expectedOrphansAfter);
       }
-      expect(linkedIDs().filter((id) => transition.refreshed.some((row) => row.name === id)).length)
-        .toBe(new Set(linkedIDs().filter((id) => transition.refreshed.some((row) => row.name === id))).size);
+
+      for (const expectedGroup of transition.expectedGroupsAfter) {
+        const disclosure = document.querySelector<HTMLElement>(
+          `[data-parent-transcript-id="${expectedGroup.parent}"]`,
+        );
+        expect(disclosure, `${transition.name}: disclosure under ${expectedGroup.parent}`).not.toBeNull();
+        await userEvent.click(disclosure!.querySelector<HTMLButtonElement>(
+          '[data-testid="child-session-disclosure-toggle"]',
+        )!);
+        expect(linkedIDs(disclosure!.querySelector<HTMLElement>(
+          '[data-testid="child-session-disclosure-rows"]',
+        )!)).toEqual(expectedGroup.children);
+      }
+
+      const refreshedIDs = transition.refreshed.map((row) => row.name).sort();
+      const renderedIDs = linkedIDs().filter((id) => refreshedIDs.includes(id)).sort();
+      expect(renderedIDs).toEqual(refreshedIDs);
+      expect(new Set(renderedIDs).size).toBe(transition.refreshed.length);
+      expect(screen.getByTestId("project-transcript-count").textContent?.trim()).toBe(String(transition.refreshed.length));
     });
   }
 });

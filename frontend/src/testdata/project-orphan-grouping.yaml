@@ -42,11 +42,15 @@ transitions:
   - name: complete-parent-chain-arrives-and-removes-orphan-group
     initial:
       - { name: child, ownerID: owner-a, localID: child, parentSessionID: root, origin: agent }
+      - { name: grandchild, ownerID: owner-a, localID: grandchild, parentSessionID: child, origin: agent }
     refreshed:
       - { name: child, ownerID: owner-a, localID: child, parentSessionID: root, origin: agent }
+      - { name: grandchild, ownerID: owner-a, localID: grandchild, parentSessionID: child, origin: agent }
       - { name: root, ownerID: owner-a, localID: root, parentSessionID: null, origin: user }
-    expectedOrphansBefore: [child]
+    expectedOrphansBefore: [child, grandchild]
     expectedRootsAfter: [root]
+    expectedGroupsAfter:
+      - { parent: root, children: [child, grandchild] }
     expectedOrphansAfter: []
   - name: parent-arrives-while-another-orphan-remains
     initial:
@@ -58,6 +62,8 @@ transitions:
       - { name: root, ownerID: owner-a, localID: root, parentSessionID: null, origin: user }
     expectedOrphansBefore: [child, other]
     expectedRootsAfter: [root]
+    expectedGroupsAfter:
+      - { parent: root, children: [child] }
     expectedOrphansAfter: [other]
   - name: arriving-parent-still-unresolved
     initial:
@@ -67,4 +73,5 @@ transitions:
       - { name: middle, ownerID: owner-a, localID: middle, parentSessionID: absent, origin: user }
     expectedOrphansBefore: [child]
     expectedRootsAfter: []
+    expectedGroupsAfter: []
     expectedOrphansAfter: [child, middle]
