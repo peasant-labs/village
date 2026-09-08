@@ -27,7 +27,7 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
     data: content,
     isLoading: contentLoading,
     error: contentError,
-  } = useTranscriptContent(transcriptId ?? "");
+  } = useTranscriptContent(transcriptId ?? "", { knownHarness: data?.transcript.model_provider, enabled: !!data });
 
   if (transcriptId == null) {
     return (

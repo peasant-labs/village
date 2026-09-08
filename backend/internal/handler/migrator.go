@@ -146,8 +146,12 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 	if len(trimmed) == 0 {
 		return nil, false, ErrEmptyBlob
 	}
+	boundary, err := validateContentBoundary(trimmed, "", contentStoredRead)
+	if err != nil {
+		return nil, false, err
+	}
 
-	switch sniffShape(trimmed) {
+	switch boundary.shape {
 	case ShapeEnvelope:
 		var env schema.TranscriptContent
 		if err := json.Unmarshal(trimmed, &env); err != nil {
@@ -175,7 +179,11 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 		return payload, true, nil
 
 	case ShapeBarePayload:
-		payload, err := decodeLegacyPayload(trimmed)
+		payload := boundary.canonical
+		var err error
+		if payload == nil {
+			payload, err = decodeLegacyPayload(trimmed)
+		}
 		if err != nil {
 			return nil, false, err
 		}
@@ -292,6 +300,12 @@ func decodeRawJSONL(raw []byte) (*schema.SessionDetailPayload, error) {
 
 	p := &schema.SessionDetailPayload{Turns: make([]schema.TurnDetail, 0, len(rows))}
 	for i, row := range rows {
+		if _, envelope := row["contractVersion"]; envelope {
+			return nil, fmt.Errorf("transcript migration failed in handler.decodeRawJSONL because a public content envelope was mixed into legacy records; no data was served or rewritten; republish one supported TranscriptContent envelope and retry")
+		}
+		if _, detail := row["sessionDetail"]; detail {
+			return nil, fmt.Errorf("transcript migration failed in handler.decodeRawJSONL because sessionDetail evidence was mixed into legacy records; no data was served or rewritten; republish one supported TranscriptContent envelope and retry")
+		}
 		turn := schema.TurnDetail{Index: i}
 		if r, ok := row["role"]; ok {
 			_ = json.Unmarshal(r, &turn.Role)

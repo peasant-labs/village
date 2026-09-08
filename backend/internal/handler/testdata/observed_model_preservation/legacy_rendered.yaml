@@ -1,0 +1,7 @@
+cases:
+  - name: array_to_empty_harness_detail
+    content: '[{"role":"user","content":"legacy request"}]'
+    rendered: '{"schemaVersion":"0.1.1","id":"","harness":"","startTime":"0001-01-01T00:00:00Z","endTime":"0001-01-01T00:00:00Z","durationMins":0,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":0,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"legacy request","timestamp":"0001-01-01T00:00:00Z","depth":0}]}'
+  - name: historical_nonassistant_observation_detail
+    content: '{"id":"legacy-observed","turns":[{"index":0,"role":"user","content":"legacy request","toolCalls":null,"observedModel":"provider/model"}]}'
+    rendered: '{"schemaVersion":"0.1.1","id":"legacy-observed","harness":"","startTime":"0001-01-01T00:00:00Z","endTime":"0001-01-01T00:00:00Z","durationMins":0,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":0,"toolCallCount":0,"turns":[{"index":0,"role":"user","content":"legacy request","timestamp":"0001-01-01T00:00:00Z","depth":0,"observedModel":"provider/model"}]}'

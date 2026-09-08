@@ -156,14 +156,25 @@ func publishSaveErrorMessage(err error, exposeStagedObjectKey bool) string {
 func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 
+	r.Body = http.MaxBytesReader(w, r.Body, 32<<20)
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid multipart form")
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 
-	metadataStr := r.FormValue("metadata")
+	metadataStr := ""
+	if values := r.MultipartForm.Value["metadata"]; len(values) == 1 {
+		metadataStr = values[0]
+	}
 	if metadataStr == "" {
 		writeError(w, http.StatusBadRequest, "Missing metadata field")
+		return
+	}
+	// Scan the bounded extracted part, never the multipart wrapper, before the
+	// legacy key normalizer or map decoder can collapse duplicate keys.
+	if err := schema.ScanRawJSONDocument([]byte(metadataStr), schema.RawJSONPathPolicy{MaxDocumentBytes: 4 << 20, MaxDocumentDepth: 64}); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid metadata JSON in PublishTranscript before normalization; nothing was written; repair the metadata part and retry: "+err.Error())
 		return
 	}
 
@@ -189,7 +200,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	authoritativeReq, authoritativeErr := schema.DecodeAuthoritativePublishRequest(metaBytes)
+	authoritativeReq, authoritativeErr := schema.DecodeAuthoritativePublishMetadataRaw([]byte(metadataStr))
 	legacyErr := schema.ValidatePublishRequest(metaBytes)
 	authoritative := authoritativeErr == nil
 	if !authoritative && legacyErr != nil {
@@ -256,12 +267,12 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	content, err := io.ReadAll(file)
+	content, err := io.ReadAll(io.LimitReader(file, (8<<20)+1))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to read file")
 		return
 	}
-	if err := requireSupportedContentCapabilityWithEvaluator(content, h.preservationProof()); err != nil {
+	if err := requireSupportedContentForHarness(content, string(req.Model.Harness), h.preservationProof()); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}

@@ -19,7 +19,7 @@ export default function TranscriptDetailPage({
   const { id } = use(params);
   const { data, isLoading } = useTranscript(id);
   const { data: content, isLoading: contentLoading, error: contentError } =
-    useTranscriptContent(id);
+    useTranscriptContent(id, { knownHarness: data?.transcript.model_provider, enabled: !!data });
   const { data: myGroups } = useGroups();
 
   const pendingReviews = useMemo<PendingReview[]>(() => {

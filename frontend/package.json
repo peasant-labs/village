@@ -37,8 +37,8 @@
     "probe:collectives": "node scripts/visual/probe-collectives-standing.mjs"
   },
   "dependencies": {
-    "@peasant-labs/fairtrade": "0.0.18",
-    "@peasant-labs/schema": "0.1.3",
+    "@peasant-labs/fairtrade": "0.0.19",
+    "@peasant-labs/schema": "0.18.0",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-table": "^8.21.3",
     "@xyflow/react": "^12.10.1",

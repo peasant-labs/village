@@ -13,6 +13,8 @@ harnesses:
     value: opencode
   - name: antigravity
     value: antigravity
+  - name: pi
+    value: pi
 offContractHarness:
   name: rejected-unknown-harness
   value: unknown-agent

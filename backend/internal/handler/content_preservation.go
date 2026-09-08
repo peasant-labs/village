@@ -79,22 +79,27 @@ var (
 
 func proveObservedModelPreservation() error {
 	observedModelPreservationOnce.Do(func() {
-		observedModelPreservationErr = executeObservedModelPreservationProof(productionContentRewriteEncoder)
+		observedModelPreservationErr = errors.Join(executeObservedModelPreservationProof(productionContentRewriteEncoder), provePiPreservation(productionContentRewriteEncoder), proveContentBoundary(validateContentBoundary))
 	})
 	return observedModelPreservationErr
 }
 
 func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observedModelPreservationEvaluator) error {
-	// Provider-native and legacy JSONL without enriched evidence retains the
-	// historical byte-for-byte publish path; decoding it is a read concern.
-	presence, presenceErr := inspectObservedModelMembers(raw)
-	if presenceErr != nil {
-		return presenceErr
+	return requireSupportedContentForHarness(raw, "", evaluator)
+}
+
+func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluator observedModelPreservationEvaluator) error {
+	boundary, err := validateContentBoundary(raw, knownHarness, contentPublication)
+	if err != nil {
+		return fmt.Errorf("uploaded transcript content could not be decoded in handler.requireSupportedContentCapability before secret scan or storage because raw JSON validation failed; no transcript bytes or metadata were written; repair the transcript and retry: %w", err)
 	}
-	if !presence {
+	if boundary.canonical == nil && !boundary.observed {
 		return nil
 	}
-	payload, _, err := NewContentMigrator().Migrate(context.Background(), raw)
+	payload := boundary.canonical
+	if payload == nil {
+		payload, _, err = NewContentMigrator().Migrate(context.Background(), raw)
+	}
 	if err != nil {
 		return fmt.Errorf("uploaded transcript content could not be decoded through handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written; repair the transcript envelope and retry: %w", err)
 	}
@@ -102,11 +107,11 @@ func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observ
 		return err
 	}
 	required := schema.RequiredContentCapabilities(*payload)
-	if !containsContentCapability(required, schema.ContentCapabilityObservedModelV1) {
+	if len(required) == 0 {
 		return nil
 	}
 	if err := evaluator.Evaluate(); err != nil {
-		return fmt.Errorf("enriched transcript publish refused because the uploaded transcript_file carries observedModel evidence while Village's production preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would misattribute model output; deploy a Village build whose GET /api/v1/schema/version advertises %q after the preservation gate passes, then retry: %w", schema.ContentCapabilityObservedModelV1, err)
+		return fmt.Errorf("enriched transcript publish refused because the uploaded transcript_file carries observedModel evidence, detailed usage or native metadata while Village's production preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would misattribute model output; deploy a Village build whose GET /api/v1/schema/version advertises %q after the preservation gate passes, then retry: %w", required, err)
 	}
 	return nil
 }
