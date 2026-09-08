@@ -91,10 +91,7 @@ func TestObservedModelRealPostgresMinIOLifecycle(t *testing.T) {
 	if webResponse.Code != http.StatusOK {
 		t.Fatalf("observed-model mounted web read status=%d body=%s", webResponse.Code, webResponse.Body.String())
 	}
-	var payload schema.SessionDetailPayload
-	if err := json.Unmarshal(webResponse.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode observed-model mounted web payload: %v", err)
-	}
+	payload := *decodeContentResponseEnvelope(t, webResponse.Body.Bytes())
 	fixtureCase := requireObservedModelPreservationCase(t, "enriched_repeated_change_and_omission")
 	if err := fixtureCase.assertObservedModels(&payload); err != nil {
 		t.Fatal(err)
