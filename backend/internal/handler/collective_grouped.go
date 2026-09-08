@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -15,18 +14,8 @@ import (
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
-// collectiveGroupedError preserves route refusals on member replay. A cached
-// scope records a query, never a past authorization decision.
-type collectiveGroupedError struct {
-	Status  int
-	Message string
-}
-
-func (e *collectiveGroupedError) Error() string   { return e.Message }
-func (e *collectiveGroupedError) HTTPStatus() int { return e.Status }
-
 func collectiveGroupedFailure(status int, operation, reason, recovery string) error {
-	return &collectiveGroupedError{Status: status, Message: fmt.Sprintf(
+	return &GroupedScopeError{Status: status, Message: fmt.Sprintf(
 		"handler.%s refused the collective grouped read: %s; no transcript list or members were returned and nothing was changed; %s", operation, reason, recovery)}
 }
 
@@ -154,15 +143,7 @@ func parseCollectiveGroupedRequest(r *http.Request, variant GroupedRouteVariant)
 }
 
 func writeCollectiveGroupedError(w http.ResponseWriter, err error) {
-	status := http.StatusInternalServerError
-	var refusal interface{ HTTPStatus() int }
-	if errors.As(err, &refusal) {
-		status = refusal.HTTPStatus()
-	}
-	if errors.Is(err, ErrGroupScopeExpired) {
-		status = http.StatusConflict
-	}
-	writeError(w, status, err.Error())
+	WriteGroupedScopeError(w, err)
 }
 
 func (h *Handler) listCollectiveGrouped(w http.ResponseWriter, r *http.Request, variant GroupedRouteVariant) {

@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -32,25 +33,31 @@ import (
 var collectiveHelperListingYAML []byte
 
 type collectiveHelperRow struct {
-	Name    string                `yaml:"name"`
-	Title   string                `yaml:"title"`
-	Start   int64                 `yaml:"start"`
-	Purpose schema.SessionPurpose `yaml:"purpose"`
-	Parent  string                `yaml:"parent"`
-	Project string                `yaml:"project"`
+	Name            string                `yaml:"name"`
+	Title           string                `yaml:"title"`
+	Start           int64                 `yaml:"start"`
+	Purpose         schema.SessionPurpose `yaml:"purpose"`
+	Parent          string                `yaml:"parent"`
+	Project         string                `yaml:"project"`
+	OtherOwner      bool                  `yaml:"other_owner"`
+	OtherCollective bool                  `yaml:"other_collective"`
 }
 type collectiveHelperCase struct {
-	Name         string   `yaml:"name"`
-	Route        string   `yaml:"route"`
-	Denied       bool     `yaml:"denied"`
-	Search       string   `yaml:"search"`
-	Status       int      `yaml:"status"`
-	Ordinary     int      `yaml:"ordinary"`
-	Helpers      int      `yaml:"helpers"`
-	Members      []string `yaml:"members"`
-	Mutation     string   `yaml:"mutation"`
-	MemberStatus int      `yaml:"member_status"`
-	AfterMembers []string `yaml:"after_members"`
+	Name           string            `yaml:"name"`
+	Route          string            `yaml:"route"`
+	Denied         bool              `yaml:"denied"`
+	Search         string            `yaml:"search"`
+	Status         int               `yaml:"status"`
+	Ordinary       int               `yaml:"ordinary"`
+	Helpers        int               `yaml:"helpers"`
+	Members        []string          `yaml:"members"`
+	Mutation       string            `yaml:"mutation"`
+	MemberStatus   int               `yaml:"member_status"`
+	AfterMembers   []string          `yaml:"after_members"`
+	Legacy         bool              `yaml:"legacy"`
+	LegacyIDs      []string          `yaml:"legacy_ids"`
+	SelectedIDs    []string          `yaml:"selected_ids"`
+	ExpectedStates map[string]string `yaml:"expected_states"`
 }
 type collectiveHelperFixtures struct {
 	Rows  []collectiveHelperRow  `yaml:"rows"`
@@ -77,6 +84,11 @@ func loadCollectiveHelperFixtures(t *testing.T) collectiveHelperFixtures {
 		}
 		rows[row.Name] = true
 	}
+	for _, name := range []string{"P", "G1", "G2", "B", "X"} {
+		if !rows[name] {
+			t.Fatalf("required scope-control row %s missing", name)
+		}
+	}
 	for _, c := range f.Cases {
 		if c.Name == "" || names[c.Name] {
 			t.Fatal("invalid or duplicate case")
@@ -90,6 +102,24 @@ func loadCollectiveHelperFixtures(t *testing.T) collectiveHelperFixtures {
 		if c.Status == 0 || c.Members == nil {
 			t.Fatalf("%s omits expected status or exact member set", c.Name)
 		}
+		if c.Mutation != "" && c.MemberStatus == 0 {
+			t.Fatalf("%s omits replay status", c.Name)
+		}
+		if c.Mutation == "contribute-selected" || c.Mutation == "review-selected" {
+			if !reflect.DeepEqual(c.SelectedIDs, []string{"G2"}) {
+				t.Fatalf("%s must prove exact G2-only selection", c.Name)
+			}
+			for name := range rows {
+				if _, ok := c.ExpectedStates[name]; !ok {
+					t.Fatalf("%s omits ledger state for %s", c.Name, name)
+				}
+			}
+			for name := range c.ExpectedStates {
+				if !rows[name] {
+					t.Fatalf("%s expects unknown ledger row %s", c.Name, name)
+				}
+			}
+		}
 	}
 	for _, name := range []string{
 		"collective-valid", "contributable-valid", "pending-valid", "my-shares-valid",
@@ -98,6 +128,8 @@ func loadCollectiveHelperFixtures(t *testing.T) collectiveHelperFixtures {
 		"collective-expired", "contributable-expired", "pending-expired", "my-shares-expired",
 		"collective-current-authorization", "contributable-current-authorization", "pending-current-authorization", "my-shares-current-authorization",
 		"contributable-current-eligibility", "pending-current-eligibility",
+		"collective-legacy-flat", "contributable-legacy-flat", "pending-legacy-flat", "my-shares-legacy-flat",
+		"contributable-select-second-only", "pending-select-second-only",
 	} {
 		if !names[name] {
 			t.Fatalf("required route case %s missing", name)
@@ -126,10 +158,18 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 			if _, err := pool.Exec(ctx, `INSERT INTO group_members(group_id,user_id,role) VALUES($1,$2,'owner')`, groupID, owner); err != nil {
 				t.Fatal(err)
 			}
+			var otherGroupID pgtype.UUID
+			if err := pool.QueryRow(ctx, `INSERT INTO groups(name, created_by, acceptance_mode, data_access) VALUES($1,$2,'curated','members_only') RETURNING id`, c.Name+"-other", stranger).Scan(&otherGroupID); err != nil {
+				t.Fatal(err)
+			}
 			ids := map[string]pgtype.UUID{}
 			names := map[string]string{}
 			for _, row := range f.Rows {
-				stored := govStoreWithOrigin(t, ctx, h, owner, row.Name, sessionorigin.Origin("agent"), dbVisibilityShared)
+				rowOwner := owner
+				if row.OtherOwner {
+					rowOwner = stranger
+				}
+				stored := govStoreWithOrigin(t, ctx, h, rowOwner, row.Name, sessionorigin.Origin("agent"), dbVisibilityShared)
 				ids[row.Name] = stored.ID
 				names[uuid.UUID(stored.ID.Bytes).String()] = row.Name
 				relations := []schema.SessionRelationship{}
@@ -149,13 +189,22 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 					if c.Route == "pending" {
 						status = "pending"
 					}
-					if err := h.queries.ShareTranscriptWithStatus(ctx, sqlc.ShareTranscriptWithStatusParams{TranscriptID: stored.ID, GroupID: groupID, Status: status}); err != nil {
+					shareGroupID := groupID
+					if row.OtherCollective {
+						shareGroupID = otherGroupID
+					}
+					if err := h.queries.ShareTranscriptWithStatus(ctx, sqlc.ShareTranscriptWithStatusParams{TranscriptID: stored.ID, GroupID: shareGroupID, Status: status}); err != nil {
 						t.Fatal(err)
 					}
 				}
 			}
 			routes := chi.NewRouter()
-			routes.Route("/api/v1", func(r chi.Router) { h.RegisterTranscriptBrowseRoutes(r); h.RegisterCollectiveBrowseRoutes(r) })
+			routes.Route("/api/v1", func(r chi.Router) {
+				h.RegisterTranscriptBrowseRoutes(r)
+				h.RegisterCollectiveBrowseRoutes(r)
+				r.With(h.AuthRequired).Post("/groups/{id}/shares", h.BatchShareProject)
+				r.With(h.AuthRequired).Patch("/groups/{id}/shares", h.BatchReviewShares)
+			})
 			ownerToken, err := auth.CreateToken(h.cfg.JWTSecret, uuid.UUID(owner.Bytes), ownerName)
 			if err != nil {
 				t.Fatal(err)
@@ -180,11 +229,47 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 				path += "/" + c.Route
 			}
 			query := url.Values{"view": {"grouped"}, "q": {c.Search}, "project_hash": {strings.Repeat("a", 64)}}
+			if c.Legacy {
+				query = url.Values{}
+			}
 			w := get(path+"?"+query.Encode(), token)
 			if w.Code != c.Status {
 				t.Fatalf("status=%d want=%d: %s", w.Code, c.Status, w.Body)
 			}
 			if w.Code != 200 {
+				return
+			}
+			if c.Legacy {
+				body := w.Body.Bytes()
+				if c.Route == "collective" || c.Route == "contributable" {
+					var wrapper map[string]json.RawMessage
+					if err := json.Unmarshal(body, &wrapper); err != nil {
+						t.Fatal(err)
+					}
+					if wrapper["transcriptList"] != nil || wrapper["transcripts"] == nil {
+						t.Fatal("legacy wrapper changed")
+					}
+					body = wrapper["transcripts"]
+				}
+				var flat []struct {
+					ID           string `json:"id"`
+					TranscriptID string `json:"transcript_id"`
+				}
+				if err := json.Unmarshal(body, &flat); err != nil {
+					t.Fatal(err)
+				}
+				got := []string{}
+				for _, row := range flat {
+					id := row.ID
+					if c.Route == "pending" {
+						id = row.TranscriptID
+					}
+					got = append(got, names[id])
+				}
+				sort.Strings(got)
+				if !reflect.DeepEqual(got, c.LegacyIDs) {
+					t.Fatalf("legacy IDs=%v want=%v", got, c.LegacyIDs)
+				}
 				return
 			}
 			var payload schema.VillageSessionListPayload
@@ -279,6 +364,39 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 				}
 			case "change-viewer":
 				token = strangerToken
+			case "contribute-selected", "review-selected":
+				selected := make([]string, 0, len(c.SelectedIDs))
+				for _, name := range c.SelectedIDs {
+					selected = append(selected, uuid.UUID(ids[name].Bytes).String())
+				}
+				var body []byte
+				method := http.MethodPost
+				if c.Mutation == "contribute-selected" {
+					body, err = json.Marshal(batchShareRequest{ProjectHash: strings.Repeat("a", 64), TranscriptIDs: selected, VisibilityConfirmed: true})
+				} else {
+					method = http.MethodPatch
+					body, err = json.Marshal(batchReviewRequest{TranscriptIDs: selected, Status: "approved"})
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				r := httptest.NewRequest(method, "/api/v1/groups/"+uuid.UUID(groupID.Bytes).String()+"/shares", bytes.NewReader(body))
+				r.Header.Set("Authorization", "Bearer "+token)
+				r.Header.Set("Content-Type", "application/json")
+				w := httptest.NewRecorder()
+				routes.ServeHTTP(w, r)
+				if w.Code != 200 {
+					t.Fatalf("explicit mutation status=%d: %s", w.Code, w.Body)
+				}
+				for name, expected := range c.ExpectedStates {
+					var state string
+					if err := pool.QueryRow(ctx, `SELECT COALESCE((SELECT status FROM transcript_share_attempts WHERE transcript_id=$1 AND group_id=$2 ORDER BY event_num DESC LIMIT 1),'')`, ids[name], groupID).Scan(&state); err != nil {
+						t.Fatal(err)
+					}
+					if state != expected {
+						t.Fatalf("explicit selection changed %s to %s, want %s", name, state, expected)
+					}
+				}
 			case "submit-second":
 				if err := h.queries.ShareTranscriptWithStatus(ctx, sqlc.ShareTranscriptWithStatusParams{TranscriptID: ids["G2"], GroupID: groupID, Status: "pending"}); err != nil {
 					t.Fatal(err)
