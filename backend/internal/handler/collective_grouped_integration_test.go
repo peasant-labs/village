@@ -332,10 +332,14 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 					t.Fatal(err)
 				}
 				got := []string{}
-				for _, member := range response.Members {
-					if err := member.Validate(); err != nil {
+				for _, item := range response.Members {
+					if err := item.Validate(); err != nil {
 						t.Fatal(err)
 					}
+					if item.Transcript == nil || item.Context != nil || item.Kind != schema.SessionListItemTranscript {
+						t.Fatal("member is not a transcript-only display item")
+					}
+					member := *item.Transcript
 					got = append(got, names[string(member.Session.ID)])
 					if member.Session.InputSubmissionCount == nil || *member.Session.InputSubmissionCount != 1 || member.Session.TurnCount == nil || *member.Session.TurnCount != 5 {
 						t.Fatal("independent counts lost")

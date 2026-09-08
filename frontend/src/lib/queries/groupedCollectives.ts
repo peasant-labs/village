@@ -1,9 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
-import type {
-  VillageGroupedContributableResponse,
-  VillageGroupedGroupDetailResponse,
-  VillageSessionListPayload,
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  zVillageGroupedContributableResponse,
+  zVillageGroupedGroupDetailResponse,
+  zVillageSessionListPayload,
 } from "@peasant-labs/schema";
+import { useAuth } from "@/providers/AuthProvider";
 import { api } from "../api";
 
 /** Parsed filters owned by the collective route, not by a helper disclosure. */
@@ -15,42 +16,49 @@ export interface CollectiveListFilters {
 }
 
 function listQuery(filters: CollectiveListFilters): string {
-  const query = new URLSearchParams({ view: "grouped" });
-  if (filters.page !== undefined) query.set("page", String(filters.page));
-  if (filters.limit !== undefined) query.set("limit", String(filters.limit));
+  const query = new URLSearchParams({ view: "grouped", page: String(filters.page ?? 1), limit: String(filters.limit ?? 20) });
   if (filters.q) query.set("q", filters.q);
   if (filters.project_hash) query.set("project_hash", filters.project_hash);
   return query.toString();
 }
 
-export function useGroupedCollective(groupId: string, filters: CollectiveListFilters) {
-  return useQuery({
-    queryKey: ["group", groupId, "grouped", filters],
-    queryFn: () => api<VillageGroupedGroupDetailResponse>(`/groups/${groupId}?${listQuery(filters)}`),
-    enabled: !!groupId,
+// The decoder is the published canonical validator, not a host wire model.
+// Existing mutation-key prefixes remain valid, with viewer and filter identity
+// below them so an account/filter change cannot borrow another list's scopes.
+function useCollectiveRead<T>(key: string, groupId: string, suffix: string, filters: CollectiveListFilters, enabled: boolean, decode: (value: unknown) => T, pageOf: (value: T) => { page: number; limit: number }) {
+  const { user, isLoading } = useAuth();
+  const client = useQueryClient();
+  const queryKey = [key, groupId, "grouped", user?.id ?? "anonymous", filters] as const;
+  const query = useQuery({
+    queryKey,
+    queryFn: async ({ signal }) => {
+      const raw = await api<unknown>(`/groups/${encodeURIComponent(groupId)}${suffix}?${listQuery(filters)}`, { signal });
+      const response = decode(raw);
+      const page = pageOf(response);
+      if (page.page !== (filters.page ?? 1) || page.limit !== (filters.limit ?? 20)) {
+        throw new Error("collective grouped read refused before caching: the response pagination differs from the requested scope; no selectable rows were retained; refresh the originating collective list");
+      }
+      return response;
+    },
+    enabled: !isLoading && !!groupId && enabled,
+    retry: false,
+    staleTime: 0,
   });
+  return { ...query, data: query.isError ? undefined : query.data, refreshOrigin: () => client.invalidateQueries({ queryKey, exact: true }) };
+}
+
+export function useGroupedCollective(groupId: string, filters: CollectiveListFilters) {
+  return useCollectiveRead("group", groupId, "", filters, true, (raw) => zVillageGroupedGroupDetailResponse.parse(raw), (response) => response.transcriptList);
 }
 
 export function useGroupedContributable(groupId: string, filters: CollectiveListFilters, enabled = true) {
-  return useQuery({
-    queryKey: ["group-contributable", groupId, "grouped", filters],
-    queryFn: () => api<VillageGroupedContributableResponse>(`/groups/${groupId}/contributable?${listQuery(filters)}`),
-    enabled: !!groupId && enabled,
-  });
+  return useCollectiveRead("group-contributable", groupId, "/contributable", filters, enabled, (raw) => zVillageGroupedContributableResponse.parse(raw), (response) => response.transcriptList);
 }
 
 export function useGroupedPendingShares(groupId: string, filters: CollectiveListFilters, enabled: boolean) {
-  return useQuery({
-    queryKey: ["group-pending", groupId, "grouped", filters],
-    queryFn: () => api<VillageSessionListPayload>(`/groups/${groupId}/pending?${listQuery(filters)}`),
-    enabled: !!groupId && enabled,
-  });
+  return useCollectiveRead("group-pending", groupId, "/pending", filters, enabled, (raw) => zVillageSessionListPayload.parse(raw), (response) => response);
 }
 
 export function useGroupedMyShares(groupId: string, filters: CollectiveListFilters, enabled = true) {
-  return useQuery({
-    queryKey: ["group-my-shares", groupId, "grouped", filters],
-    queryFn: () => api<VillageSessionListPayload>(`/groups/${groupId}/my-shares?${listQuery(filters)}`),
-    enabled: !!groupId && enabled,
-  });
+  return useCollectiveRead("group-my-shares", groupId, "/my-shares", filters, enabled, (raw) => zVillageSessionListPayload.parse(raw), (response) => response);
 }

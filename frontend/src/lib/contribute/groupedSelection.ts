@@ -1,4 +1,4 @@
-import type { VillageSessionRow } from "@peasant-labs/schema";
+import type { VillageSessionListItem } from "@peasant-labs/schema";
 
 /**
  * Build explicit-ID batches from individually selected server rows. A context
@@ -6,18 +6,23 @@ import type { VillageSessionRow } from "@peasant-labs/schema";
  * Selection retains its own records across pages; a later page or filter must
  * never reinterpret a remembered ID as all members of its parent or project.
  */
-export function groupedContributionBatches(selected: readonly VillageSessionRow[]): Map<string, string[]> {
+export function groupedContributionBatches(selected: readonly VillageSessionListItem[]): Map<string, string[]> {
   const batches = new Map<string, string[]>();
   const seen = new Set<string>();
-  for (const row of selected) {
+  for (const item of selected) {
+    const row = item.transcript;
+    if (item.kind !== "transcript" || !row || item.context) {
+      throw new Error("groupedContributionBatches refused before submission: a context container or helper group cannot be selected; nothing was sent; expand the group and select an eligible transcript individually");
+    }
     const contribution = row.contributable;
     if (!contribution || contribution.already_shared || contribution.id !== row.session.id) {
       throw new Error("groupedContributionBatches refused before submission: a selected row is not currently contributable; nothing was sent; refresh the contribute list and select eligible transcripts individually");
     }
-    if (seen.has(contribution.id)) continue;
-    seen.add(contribution.id);
+    const transcriptId = row.session.id;
+    if (seen.has(transcriptId)) continue;
+    seen.add(transcriptId);
     const ids = batches.get(contribution.project_hash) ?? [];
-    ids.push(contribution.id);
+    ids.push(transcriptId);
     batches.set(contribution.project_hash, ids);
   }
   return batches;

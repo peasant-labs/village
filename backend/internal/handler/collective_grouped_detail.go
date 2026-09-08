@@ -41,7 +41,7 @@ func (h *Handler) getCollectiveGrouped(w http.ResponseWriter, r *http.Request) {
 // pending-member visibility still follow the same owner flag as the flat route.
 func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, role string, canRead bool, list schema.VillageSessionListPayload) (schema.VillageGroupedGroupDetailResponse, error) {
 	response := schema.VillageGroupedGroupDetailResponse{
-		Group: schema.VillageGroup{
+		Group: schema.VillageGroupDetailRecord{
 			ID: schema.VillageUUID(uuid.UUID(group.ID.Bytes).String()), Name: group.Name,
 			Description: pgTextPointer(group.Description), CreatedBy: schema.VillageUUID(uuid.UUID(group.CreatedBy.Bytes).String()),
 			CreatedAt: group.CreatedAt.Time, UpdatedAt: group.UpdatedAt.Time,

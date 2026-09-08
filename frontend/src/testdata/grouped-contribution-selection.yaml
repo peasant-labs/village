@@ -1,0 +1,8 @@
+rows:
+  - {name: G1, id: 10000000-0000-4000-8000-000000000001, nested_group: hg_child_group}
+  - {name: G2, id: 10000000-0000-4000-8000-000000000002}
+cases:
+  - {name: select-nested-second-only, selected: [G2], expected_ids: [10000000-0000-4000-8000-000000000002]}
+  - {name: select-helper-owner-not-descendants, selected: [G1], expected_ids: [10000000-0000-4000-8000-000000000001]}
+  - {name: repeated-member-remains-one-identity, selected: [G2, G2], expected_ids: [10000000-0000-4000-8000-000000000002]}
+  - {name: context-container-not-selectable, context: true, selected: [], expected_ids: [], error_contains: context container}
