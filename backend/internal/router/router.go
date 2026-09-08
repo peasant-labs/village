@@ -93,7 +93,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		// Transcripts
 		r.With(h.AuthRequired).Post("/transcripts/publish", h.PublishTranscript)
 		r.With(h.AuthRequired).Post("/transcripts/publish/batch", h.PublishBatch)
-		r.With(h.AuthOptional).Get("/transcripts", h.ListTranscripts)
+		h.RegisterTranscriptBrowseRoutes(r)
 		r.With(h.AuthOptional).Get("/transcripts/{id}", h.GetTranscript)
 		r.With(h.AuthOptional).Get("/transcripts/{id}/content", h.GetTranscriptContent)
 		r.With(h.AuthRequired).Patch("/transcripts/{id}", h.UpdateTranscript)

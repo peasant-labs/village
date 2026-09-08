@@ -1,0 +1,170 @@
+rows:
+  - {name: P1, origin: user, title: ordinary first, purpose: interaction, time: 30, project: a, input: 1, turns: 5}
+  - {name: P2, origin: user, title: ordinary second, purpose: interaction, time: 20, project: a}
+  - {name: O1, origin: user, title: ordinary other, time: 10, project: a}
+  - {name: G1, origin: agent, title: same review, purpose: helper_review, owner: P1, time: 31, project: a}
+  - {name: G2, origin: agent, title: needle same review, purpose: helper_review, owner: P1, time: 32, project: a}
+  - {name: G3, origin: agent, title: same review, purpose: helper_review, owner: P2, time: 21, project: b}
+  - {name: G4, origin: agent, title: same review, purpose: helper_review, owner: P1, time: 33, project: a}
+  - {name: U1, origin: agent, title: same review, purpose: helper_review, time: 41, project: a}
+  - {name: U2, origin: agent, title: same review, purpose: helper_review, time: 42, project: a}
+  - {name: N1, origin: user, title: guardian reviews, purpose: interaction, time: 5, project: a}
+  - {name: C1, origin: user, title: ordinary child, owner: P1, purpose: delegated_work, time: 15, project: a}
+  - {name: H1, origin: agent, title: hidden review, owner: P1, purpose: helper_review, time: 45, project: a, private: true}
+  - {name: Y1, origin: agent, title: cycle first, owner: Y2, purpose: helper_review, time: 51, project: a}
+  - {name: Y2, origin: agent, title: needle cycle second, owner: Y1, purpose: helper_review, time: 52, project: a}
+cases:
+  - name: trunk-append-vs-replacement
+    seed: [P1, G1, G2]
+    ordinary: 1
+    helpers: 2
+    total: 1
+    items: [{transcript: P1, members: [G1, G2]}]
+    mutation: append-review
+    after_members: [G1, G2]
+  - name: replacement-saved-identity
+    seed: [P1, G1, G2]
+    ordinary: 1
+    helpers: 2
+    total: 1
+    items: [{transcript: P1, members: [G1, G2]}]
+    mutation: replacement
+    after_members: [G1, G2, G4]
+  - name: cyclic-owner-search-stability
+    seed: [Y1, Y2]
+    query: q=needle
+    ordinary: 0
+    helpers: 1
+    total: 1
+    items: [{members: [Y2]}]
+  - name: owner-retained-pages
+    seed: [P1, P2, O1, G1, G2, G3]
+    query: limit=2
+    ordinary: 3
+    helpers: 3
+    total: 3
+    items:
+      - {transcript: P1, members: [G1, G2]}
+      - {transcript: P2, members: [G3]}
+    next: [O1]
+  - name: helper-only-search
+    seed: [P1, P2, O1, G1, G2, G3]
+    query: q=needle
+    ordinary: 0
+    helpers: 1
+    total: 1
+    items: [{members: [G2]}]
+  - name: owner-excluded
+    seed: [G1, G2]
+    ordinary: 0
+    helpers: 2
+    total: 1
+    items: [{members: [G1, G2]}]
+  - name: unresolved-independent
+    seed: [U1, U2]
+    ordinary: 0
+    helpers: 2
+    total: 2
+    items: [{members: [U2]}, {members: [U1]}]
+  - name: identical-independent-helpers
+    seed: [P1, G1, G3]
+    ordinary: 1
+    helpers: 2
+    total: 2
+    items: [{transcript: P1, members: [G1]}, {members: [G3]}]
+  - name: guardian-like-title-negative
+    seed: [N1, G1]
+    ordinary: 1
+    helpers: 1
+    total: 2
+    items: [{members: [G1]}, {transcript: N1}]
+  - name: scope-project-profile-collective
+    seed: [P1, P2, G1, G2, G3]
+    query: project_hash=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    ordinary: 2
+    helpers: 2
+    total: 2
+    items: [{transcript: P1, members: [G1, G2]}, {transcript: P2}]
+  - name: scope-search-replay
+    seed: [P1, G1, G2]
+    query: q=needle
+    ordinary: 0
+    helpers: 1
+    total: 1
+    items: [{members: [G2]}]
+  - name: scope-expired
+    seed: [P1, G1, G2]
+    ordinary: 1
+    helpers: 2
+    total: 1
+    items: [{transcript: P1, members: [G1, G2]}]
+    mutation: expire
+    member_status: 409
+  - name: scope-restart
+    seed: [P1, G1]
+    ordinary: 1
+    helpers: 1
+    total: 1
+    items: [{transcript: P1, members: [G1]}]
+    mutation: restart
+    member_status: 409
+  - name: scope-missing
+    seed: [P1, G1]
+    ordinary: 1
+    helpers: 1
+    total: 1
+    items: [{transcript: P1, members: [G1]}]
+    mutation: missing
+    member_status: 409
+  - name: foreign-scope
+    seed: [P1, G1]
+    ordinary: 1
+    helpers: 1
+    total: 1
+    items: [{transcript: P1, members: [G1]}]
+    mutation: foreign-group
+    member_status: 409
+  - name: foreign-viewer
+    seed: [P1, G1]
+    ordinary: 1
+    helpers: 1
+    total: 1
+    items: [{transcript: P1, members: [G1]}]
+    mutation: foreign-viewer
+    member_status: 409
+  - name: extra-member-filter
+    seed: [P1, G1]
+    ordinary: 1
+    helpers: 1
+    total: 1
+    items: [{transcript: P1, members: [G1]}]
+    mutation: extra-filter
+    member_status: 400
+  - name: authorization-changed
+    seed: [P1, G1, G2]
+    ordinary: 1
+    helpers: 2
+    total: 1
+    items: [{transcript: P1, members: [G1, G2]}]
+    mutation: hide-second
+    after_members: [G1]
+  - name: denied-child-no-widening
+    seed: [P1, G1, G2, H1, C1]
+    ordinary: 2
+    helpers: 2
+    total: 2
+    items: [{transcript: P1, members: [G1, G2]}, {transcript: C1}]
+  - name: ordinary-origin-filter
+    seed: [P1, G1, G2]
+    query: origin=user
+    ordinary: 1
+    helpers: 0
+    total: 1
+    items: [{transcript: P1}]
+  - name: legacy-flat-shape
+    seed: [P1, P2, O1, G1, G2, G3]
+    legacy: true
+    ordinary: 3
+    helpers: 3
+    total: 3
+    items: [{transcript: P1}, {transcript: P2}, {transcript: O1}]

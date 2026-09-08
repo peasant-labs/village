@@ -34,6 +34,7 @@ type TitlePipeline interface {
 }
 
 type Handler struct {
+	groupedScopes         groupedScopeService
 	cfg                   *config.Config
 	pool                  *pgxpool.Pool
 	queries               Querier
