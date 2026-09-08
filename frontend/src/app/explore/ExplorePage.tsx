@@ -31,7 +31,8 @@ const DEFAULT_FILTERS: ExploreFilters = {
 
 export default function ExplorePage() {
   const router = useRouter();
-  const { user, isLoading: isAuthLoading, isError: isAuthError } = useAuth();
+  const { user, isLoading: isAuthLoading, isError: isAuthError,
+    isFetching: isAuthFetching, retry: retryAuth } = useAuth();
   const authResolved = !isAuthLoading && !isAuthError;
   const authScope = authResolved ? (user?.id ?? "anonymous") : "unresolved";
   const [filters, setFilters] = useState<ExploreFilters>(DEFAULT_FILTERS);
@@ -60,6 +61,9 @@ export default function ExplorePage() {
   // failures. This guarded render-phase update converges on the latest validated
   // object without an effect or a ref read during render.
   const [lastConfirmed, setLastConfirmed] = useState<{ scope: string; data: TranscriptListResponse } | null>(null);
+  if (lastConfirmed !== null && (!authResolved || lastConfirmed.scope !== authScope)) {
+    setLastConfirmed(null);
+  }
   if (authResolved && data != null && !isPlaceholderData && !isError && data !== lastConfirmed?.data) {
     setLastConfirmed({ scope: authScope, data });
   }
@@ -153,7 +157,7 @@ export default function ExplorePage() {
   ) {
     setRemembered({ key: requestKey, message: reportedFailure });
   }
-  if (!isError && data != null && remembered !== null) {
+  if (!isError && !isPlaceholderData && !isFetching && data != null && remembered !== null) {
     setRemembered(null);
   }
   const failureMessage = authResolved && remembered?.key === requestKey ? remembered.message : null;
@@ -174,7 +178,9 @@ export default function ExplorePage() {
   // The polite live region carries only transient loading/loaded status; failure
   // is owned by the alert surface, so a failure is announced exactly once.
   let statusMessage: string;
-  if (retrying) {
+  if (isAuthFetching) {
+    statusMessage = isAuthError ? "retrying authentication" : "checking authentication";
+  } else if (retrying) {
     statusMessage = `retrying page ${requestedPage}`;
   } else if (isLoading) {
     statusMessage = "loading session list";
@@ -202,7 +208,17 @@ export default function ExplorePage() {
   );
 
   let content: ReactNode;
-  if (failureMessage != null && payload == null) {
+  if (isAuthError) {
+    content = (
+      <RequestFailureState
+        title="unable to check authentication"
+        message="The authentication check at /auth/me failed while opening session discovery. The service could not confirm your identity. Sessions are withheld until this check succeeds. Retry authentication; if the problem persists, check your connection and try again later."
+        onRetry={retryAuth}
+        retryLabel={isAuthFetching ? "retrying authentication" : "retry authentication"}
+        retryDisabled={isAuthFetching}
+      />
+    );
+  } else if (failureMessage != null && payload == null) {
     // A failure with no rows to retain (initial-load error, or a first-response
     // mismatch): the full error surface owns the announcement and offers an
     // exact-key retry instead of stalling on an endless skeleton. It is the

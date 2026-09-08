@@ -1,0 +1,16 @@
+cases:
+  - { name: adapter-required-deletion, family: adapter, operation: delete-case, target: split-fields-win-over-legacy, error: 'missing required case split-fields-win-over-legacy' }
+  - { name: adapter-duplicate, family: adapter, operation: duplicate-case, target: split-fields-win-over-legacy, error: 'names must be unique' }
+  - { name: adapter-invalid-name, family: adapter, operation: set-case, target: split-fields-win-over-legacy, field: name, value: 7, error: 'name must be nonempty string' }
+  - { name: adapter-invalid-token, family: adapter, operation: set-case, target: split-fields-win-over-legacy, field: tokens_in, value: '4', error: 'token values must be nonnegative integers or null' }
+  - { name: adapter-invalid-expected, family: adapter, operation: set-case, target: split-fields-win-over-legacy, field: expected, value: false, error: 'token values must be nonnegative integers or null' }
+  - { name: query-required-deletion, family: query, operation: delete-case, target: missing-facets, error: 'missing required case missing-facets' }
+  - { name: query-unsupported-kind, family: query, operation: set-case, target: missing-facets, field: kind, value: other, error: 'unsupported explore query fixture kind' }
+  - { name: query-invalid-accepted, family: query, operation: set-case, target: missing-facets, field: accepted, value: 'false', error: 'accepted must be boolean' }
+  - { name: query-invalid-name, family: query, operation: set-case, target: missing-facets, field: name, value: 7, error: 'requires nonempty string name' }
+  - { name: query-unsupported-scope, family: query, operation: set-case, target: same-viewer-retains, field: next_scope, value: somebody, error: 'unsupported explore query scope target' }
+  - { name: viewer-required-deletion, family: viewer, operation: delete-case, target: viewer-a-to-b, error: 'missing required case viewer-a-to-b' }
+  - { name: viewer-empty-row, family: viewer, operation: set-viewer, target: viewer-a, field: row, value: '', error: 'rows must be populated' }
+  - { name: viewer-empty-facet, family: viewer, operation: set-viewer, target: viewer-a, field: count, value: 0, error: 'facets must be populated independently' }
+  - { name: viewer-identical-row, family: viewer, operation: set-viewer, target: viewer-a, field: row, value: viewer-b-row, error: 'rows must be distinctive' }
+  - { name: viewer-unsupported-kind, family: viewer, operation: set-case, target: viewer-a-to-b, field: kind, value: other, error: 'unsupported viewer schedule kind' }

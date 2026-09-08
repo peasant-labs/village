@@ -1,5 +1,6 @@
 import { Suspense, createElement, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider } from "@/providers/AuthProvider";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
@@ -138,6 +139,8 @@ function makeRouter(): AppRouterInstance {
 
 async function renderSurface(testCase: AgentSessionGroupingCase): Promise<void> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  client.setQueryDefaults(["me"], { staleTime: Infinity });
+  client.setQueryData(["me"], null);
   const page =
     testCase.surface === "explore"
       ? createElement(ExplorePage)
@@ -150,7 +153,7 @@ async function renderSurface(testCase: AgentSessionGroupingCase): Promise<void> 
         createElement(
           QueryClientProvider,
           { client },
-          createElement(Suspense, { fallback: createElement("div", null, "loading route") }, page as ReactNode),
+          createElement(AuthProvider, null, createElement(Suspense, { fallback: createElement("div", null, "loading route") }, page as ReactNode)),
         ),
       ),
     );

@@ -1,0 +1,32 @@
+viewers:
+  viewer-a:
+    row: viewer-a-row
+    title: viewer a private marker
+    harness: codex
+    count: 24
+  viewer-b:
+    row: viewer-b-row
+    title: viewer b private marker
+    harness: claude-code
+    count: 17
+  anonymous:
+    row: public-row
+    title: public session marker
+    harness: codex
+    count: 3
+cases:
+  - { name: credential-change-before-auth-success, kind: credential-race, status: 200 }
+  - { name: credential-change-before-auth-401, kind: credential-race, status: 401 }
+  - { name: credentialed-cold-pending, kind: cold, target: viewer-a, failure: none, route: explore }
+  - { name: credentialed-cold-401, kind: cold, target: anonymous, failure: none, route: explore }
+  - { name: cold-network-retry-repeated-recovery, kind: cold, target: viewer-a, failure: network, route: explore }
+  - { name: cold-server-retry-repeated-recovery, kind: cold, target: anonymous, failure: server, route: explore }
+  - { name: home-network-retry-repeated-recovery, kind: cold, target: anonymous, failure: network, route: home }
+  - { name: home-server-retry-repeated-recovery, kind: cold, target: anonymous, failure: server, route: home }
+  - { name: viewer-a-to-b, kind: transition, initial: viewer-a, target: viewer-b, prior_error: false }
+  - { name: viewer-a-to-anonymous, kind: transition, initial: viewer-a, target: anonymous, prior_error: false }
+  - { name: viewer-b-to-a, kind: transition, initial: viewer-b, target: viewer-a, prior_error: false }
+  - { name: viewer-a-error-to-b, kind: transition, initial: viewer-a, target: viewer-b, prior_error: true }
+  - { name: viewer-a-error-to-anonymous, kind: transition, initial: viewer-a, target: anonymous, prior_error: true }
+  - { name: same-viewer-page-failure-retry, kind: retention, initial: viewer-a }
+  - { name: populated-auth-failure-recovery, kind: auth-failure, initial: viewer-a }

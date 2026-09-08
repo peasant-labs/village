@@ -18,9 +18,9 @@ import HomePage from "./HomePage";
  * page and then swap it out under them.
  */
 export default function RootPage() {
-  const { isLoading, isLoggedIn } = useAuth();
+  const { isLoading, isLoggedIn, isError } = useAuth();
 
-  if (isLoading) {
+  if (isLoading && !isError) {
     return (
       <div
         className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"

@@ -1,39 +1,44 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { useMe } from "@/lib/queries/auth";
 import type { User } from "@/lib/types";
-import { isApiErrorStatus } from "@/lib/api";
 
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   isLoggedIn: boolean;
   isError: boolean;
+  isFetching: boolean;
+  retry: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
-  // Component harnesses without a provider represent an established anonymous
-  // viewer. The real provider below still reports its actual pending state.
-  isLoading: false,
+  isLoading: true,
   isLoggedIn: false,
   isError: false,
+  isFetching: false,
+  retry: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data: user, isLoading, isError, error } = useMe();
-  // A 401 conclusively establishes an anonymous viewer. Transport/server
-  // failures do not establish identity and remain fail-closed.
-  const identityError = isError && !isApiErrorStatus(error, 401);
+  const { data, isPending, isFetching, isError, refetch } = useMe();
+  const [failed, setFailed] = useState(false);
+  if (isError && !failed) setFailed(true);
+  if (!isPending && !isFetching && !isError && failed) setFailed(false);
+  // Cached identity is not confirmation of the credentials being checked now.
+  const user = isFetching || isError ? null : data ?? null;
 
   return (
     <AuthContext.Provider
       value={{
         user: user ?? null,
-        isLoading,
+        isLoading: isPending || isFetching,
         isLoggedIn: !!user,
-        isError: identityError,
+        isError: isError || (failed && (isPending || isFetching)),
+        isFetching,
+        retry: () => { void refetch(); },
       }}
     >
       {children}

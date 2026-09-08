@@ -1,11 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api";
+import { api, getAuthHeaders, isApiErrorStatus } from "../api";
 import type { User } from "../types";
 
 export function useMe() {
   return useQuery({
     queryKey: ["me"],
-    queryFn: () => api<User>("/auth/me"),
+    queryFn: async ({ signal }) => {
+      const credentials = getAuthHeaders().Authorization;
+      const assertCurrentCredentials = () => {
+        if (getAuthHeaders().Authorization !== credentials) {
+          throw new Error("Authentication credentials changed while checking /auth/me. The identity response was withheld. Retry authentication to check the current session.");
+        }
+      };
+      try {
+        const user = await api<User>("/auth/me", { signal });
+        assertCurrentCredentials();
+        return user;
+      } catch (error) {
+        if (!isApiErrorStatus(error, 401)) throw error;
+        // An expired credential must not accompany confirmed-anonymous reads.
+        // Do not erase a newer credential installed while this request ran.
+        assertCurrentCredentials();
+        document.cookie = "peasant_token=; path=/; max-age=0";
+        return null;
+      }
+    },
     retry: false,
   });
 }

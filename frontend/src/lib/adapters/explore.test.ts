@@ -1,25 +1,31 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { parse } from "yaml";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { createElement } from "react";
+import userEvent from "@testing-library/user-event";
+import { Explore } from "@peasant-labs/fairtrade/commons";
 import { adaptExplore, effectiveExploreTokens } from "./explore";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import { loadExploreAdapterFixtures, tokenTranscript } from "@/test/exploreAdapterFixtures";
 
-type Case = { name: string; tokens_in?: number | null; tokens_out?: number | null; token_count?: number | null; expected: number | null };
-type Fixture = { required_names: string[]; cases: Case[] };
-const fixture = parse(readFileSync(resolve(process.cwd(), "src/testdata/explore-adapter.yaml"), "utf8")) as Fixture;
+const cases = loadExploreAdapterFixtures();
+afterEach(cleanup);
 
 describe("Explore effective token adapter", () => {
-  it("retains every required named behavior", () => {
-    expect(new Set(fixture.cases.map((entry) => entry.name))).toEqual(new Set(fixture.required_names));
-  });
-  for (const entry of fixture.cases) {
-    it(entry.name, () => {
+  for (const entry of cases) {
+    it(entry.name, async () => {
       expect(effectiveExploreTokens(entry)).toBe(entry.expected);
       const owner = { id: "owner", github_id: 1, github_username: "owner", display_name: null, avatar_url: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", is_discoverable: true, username_chosen: true, provider_username: null };
-      const transcript = makeTranscriptFixture(entry);
+      const transcript = tokenTranscript(entry);
+      for (const field of ["tokens_in", "tokens_out", "token_count"]) {
+        expect(Object.hasOwn(transcript, field)).toBe(Object.hasOwn(entry, field));
+      }
       const payload = adaptExplore({ transcripts: [{ transcript, tags: [], owner }], harness_facets: [], total: 1, agent_total: 0, page: 1, limit: 24 }, { collectives: [] }, []);
       expect(payload.transcripts.transcripts[0].tokenCount).toBe(entry.expected);
+      render(createElement(Explore, { data: payload }));
+      await userEvent.setup().click(screen.getByRole("button", { name: /fixture session/i }));
+      // The published component's detail view renders null as zero; the adapter assertion above
+      // separately preserves the wire distinction between absent usage and zero.
+      expect(screen.getByText(`${entry.expected ?? 0} tokens`)).toBeVisible();
     });
   }
 });

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { anonymousAuthBoundary } from "@/test/anonymousAuthBoundary";
 import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { TranscriptListResponse } from "@/lib/types";
@@ -203,7 +204,7 @@ describe("mounted / session page orchestration", () => {
         h.refetch.mockClear();
 
         if (index === 0) {
-          const view = render(<ExplorePage />);
+          const view = render(<ExplorePage />, { wrapper: anonymousAuthBoundary() });
           rerenderPage = view.rerender;
         } else if (step.setFiltersQuery != null) {
           // Same page, different search text: the request key changes while the
