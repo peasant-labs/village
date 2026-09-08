@@ -12,7 +12,7 @@
   wantClause: " ORDER BY t.turn_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
 - name: tokens_sort
   sort: "tokens"
-  wantClause: " ORDER BY t.token_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
+  wantClause: " ORDER BY (CASE WHEN t.tokens_in IS NOT NULL OR t.tokens_out IS NOT NULL THEN COALESCE(t.tokens_in::numeric, 0) + COALESCE(t.tokens_out::numeric, 0) ELSE t.token_count::numeric END) DESC NULLS LAST, t.published_at DESC, t.id DESC"
 - name: duration_sort
   sort: "duration"
   wantClause: " ORDER BY t.duration_ms DESC NULLS LAST, t.published_at DESC, t.id DESC"

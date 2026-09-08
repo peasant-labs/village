@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dayvidpham/bestiary"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -1430,6 +1431,27 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	agentCountQuery := "SELECT count(DISTINCT t.id) " + baseFrom +
 		" WHERE " + strings.Join(agentConditions, " AND ")
 
+	// Facets describe the viewer-visible DEFAULT corpus, before every request
+	// filter and explicit origin scope. Keep this predicate independent from the
+	// joined listing query so tags and collective memberships cannot multiply a
+	// transcript.
+	facetConditions := []string{`t.session_origin <> $1`}
+	facetArgs := []any{sessionorigin.Agent.String()}
+	if user != nil {
+		facetConditions = append(facetConditions,
+			`(t.visibility = 'public' OR t.owner_id = $2 OR (t.visibility = 'shared' AND EXISTS (
+				SELECT 1 FROM transcript_shares facet_share
+				JOIN group_members facet_member ON facet_member.group_id = facet_share.group_id
+				WHERE facet_share.transcript_id = t.id AND facet_member.user_id = $2
+			)))`)
+		facetArgs = append(facetArgs, user.PgID())
+	} else {
+		facetConditions = append(facetConditions, `t.visibility = 'public'`)
+	}
+	facetQuery := `SELECT t.model_provider, count(DISTINCT t.id)
+		FROM transcripts t WHERE ` + strings.Join(facetConditions, " AND ") + `
+		GROUP BY t.model_provider`
+
 	orderBy := discoveryOrderClause(q.Get("sort"))
 
 	countQuery := "SELECT count(DISTINCT t.id) " + baseFrom + where
@@ -1453,6 +1475,8 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		countArgs:       args,
 		agentCountQuery: agentCountQuery,
 		agentCountArgs:  agentCountArgs,
+		facetQuery:      facetQuery,
+		facetArgs:       facetArgs,
 		selectQuery:     selectQuery,
 		selectArgs:      selectArgs,
 	})
@@ -1546,8 +1570,9 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"transcripts": transcripts,
-		"total":       total,
+		"transcripts":    transcripts,
+		"harness_facets": snapshot.harnessFacets,
+		"total":          total,
 		// How many agent-driven sessions the SAME filters match, so a client can
 		// render the collapsed "+ N agent sessions" group without guessing or
 		// issuing a second speculative request.
@@ -1573,7 +1598,7 @@ func discoveryOrderClause(sort string) string {
 	case "turns":
 		return " ORDER BY t.turn_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
 	case "tokens":
-		return " ORDER BY t.token_count DESC NULLS LAST, t.published_at DESC, t.id DESC"
+		return " ORDER BY (CASE WHEN t.tokens_in IS NOT NULL OR t.tokens_out IS NOT NULL THEN COALESCE(t.tokens_in::numeric, 0) + COALESCE(t.tokens_out::numeric, 0) ELSE t.token_count::numeric END) DESC NULLS LAST, t.published_at DESC, t.id DESC"
 	case "duration":
 		return " ORDER BY t.duration_ms DESC NULLS LAST, t.published_at DESC, t.id DESC"
 	default:
@@ -1601,6 +1626,8 @@ type discoverySnapshotRequest struct {
 	countArgs       []any
 	agentCountQuery string
 	agentCountArgs  []any
+	facetQuery      string
+	facetArgs       []any
 	selectQuery     string
 	selectArgs      []any
 }
@@ -1608,9 +1635,10 @@ type discoverySnapshotRequest struct {
 // discoverySnapshot is one consistent answer: the page, the matching total, and
 // the agent tally for the same filters.
 type discoverySnapshot struct {
-	total      int64
-	agentTotal int64
-	rows       []sqlc.Transcript
+	total         int64
+	agentTotal    int64
+	harnessFacets []schema.VillageHarnessFacet
+	rows          []sqlc.Transcript
 }
 
 func (h *Handler) listDiscoverySnapshot(ctx context.Context, request discoverySnapshotRequest) (discoverySnapshot, error) {
@@ -1626,6 +1654,36 @@ func (h *Handler) listDiscoverySnapshot(ctx context.Context, request discoverySn
 	}
 	if err := tx.QueryRow(ctx, request.agentCountQuery, request.agentCountArgs...).Scan(&snapshot.agentTotal); err != nil {
 		return discoverySnapshot{}, fmt.Errorf("read discovery agent-session count within snapshot: %w", err)
+	}
+	facetRows, err := tx.Query(ctx, request.facetQuery, request.facetArgs...)
+	if err != nil {
+		return discoverySnapshot{}, fmt.Errorf("read discovery harness facets within snapshot: %w", err)
+	}
+	counts := make(map[schema.Harness]int64)
+	for facetRows.Next() {
+		var raw string
+		var count int64
+		if err := facetRows.Scan(&raw, &count); err != nil {
+			facetRows.Close()
+			return discoverySnapshot{}, fmt.Errorf("scan discovery harness facets within snapshot: %w", err)
+		}
+		harness, err := bestiary.NewHarness(raw)
+		if err != nil {
+			facetRows.Close()
+			return discoverySnapshot{}, fmt.Errorf("validate discovery harness %q read from transcripts: %w", raw, err)
+		}
+		counts[harness] = count
+	}
+	if err := facetRows.Err(); err != nil {
+		facetRows.Close()
+		return discoverySnapshot{}, fmt.Errorf("iterate discovery harness facets within snapshot: %w", err)
+	}
+	facetRows.Close()
+	snapshot.harnessFacets = make([]schema.VillageHarnessFacet, 0, len(counts))
+	for _, harness := range schema.Harnesses() {
+		if count := counts[harness]; count > 0 {
+			snapshot.harnessFacets = append(snapshot.harnessFacets, schema.VillageHarnessFacet{Harness: harness, Count: count})
+		}
 	}
 
 	// Deterministic-concurrency test synchronization point (nil in production).

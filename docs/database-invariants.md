@@ -543,6 +543,14 @@ authenticating. Both are custom Postgres parameters read via
   keeps same-local-ID records from crossing owners in lists, counts, or
   skip-gates while still letting a non-owner's label follow the shared transcript
   it actually viewed.
+- **Discovery facets and ordering are snapshot reads.** The browser listing's
+  page, filtered total, matching agent total, and harness facets are read in one
+  read-only `REPEATABLE READ` transaction. Harness facets count distinct
+  transcript ids in the viewer-visible default non-agent corpus before search,
+  metadata, origin, sort, or pagination narrowing. Token ordering uses the sum
+  of whichever split token columns are present (with numeric casts before
+  addition), falls back to the legacy total only when both splits are absent,
+  sorts an entirely absent value last, and then uses `published_at DESC, id DESC`.
 - **Pull authorization is enforced at the query level.** The live pull-surface
   SQL (`ListPullableTranscripts` and the skip-gate's
   `ListPullableTranscriptsByIDs`) encodes `canPullTranscript`'s policy directly
