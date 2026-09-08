@@ -405,6 +405,19 @@ The audit triggers (migration 026) and the share-derivation triggers
   rather than a SQL `LIMIT`: the listing is deliberately whole, because the
   surface builds a project tree over it and a page would let someone contribute
   part of a project believing they contributed all of it.
+- **Grouped collective candidates and member replay share one scoped read.**
+  `ListCollectiveGroupedCandidates` applies the fixed collective, pending,
+  my-shares, or contributable predicate before grouping and paging. Collective
+  browsing requires its current data-access role; pending review requires the
+  current owner role. My-shares stays owner-scoped even after membership ends.
+  Grouped contribution requires current membership and the same acceptance-mode
+  eligibility check as submission; candidates already live in the attempt ledger
+  are excluded. Its project and search filters survive member expansion exactly.
+  The scoped join to `transcript_shares` supplies collective/review state only;
+  contribution eligibility remains ledger-derived. These are read projections,
+  not writes or authorization grants. The omitted-view, whole-corpus contribute
+  read and explicitly confirmed whole-project mutation retain their existing
+  semantics.
 - **Normalization: `owner_overrides`, `transcript_share_attempts` and
   `transcript_shares` are each in BCNF**, audited against the live catalog.
   `owner_overrides` has one candidate key (its primary key) and every non-key
