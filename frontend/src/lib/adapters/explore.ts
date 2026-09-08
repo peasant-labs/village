@@ -29,9 +29,20 @@ import { isHarness, type Harness } from '@peasant-labs/schema';
 function requireHarness(value: string, transcriptID: string): Harness {
   if (isHarness(value)) return value;
   throw new Error(
-    `Explore transcript ${transcriptID} has unsupported harness ${JSON.stringify(value)}. ` +
+    `Explore transcript ${transcriptID} has an unsupported harness. ` +
     'The Village API returned a model_provider outside the published Schema harness menu; refresh after correcting the stored transcript contract value.',
   );
+}
+
+export function effectiveExploreTokens(transcript: {
+  tokens_in: number | null;
+  tokens_out: number | null;
+  token_count: number | null;
+}): number | null {
+  if (transcript.tokens_in !== null || transcript.tokens_out !== null) {
+    return (transcript.tokens_in ?? 0) + (transcript.tokens_out ?? 0);
+  }
+  return transcript.token_count;
 }
 
 // ── Adapter signature ─────────────────────────────────────────────────────────
@@ -55,6 +66,10 @@ export function adaptExplore(
   popularTags: TagWithCount[],
 ): ExplorePayload {
   return {
+    harnessFacets: transcripts.harness_facets.map((facet) => ({
+      harness: facet.harness,
+      count: facet.count,
+    })),
     transcripts: {
       transcripts: transcripts?.transcripts?.map((item) => ({
         id: item.transcript.id,
@@ -66,7 +81,7 @@ export function adaptExplore(
         sessionStart: item.transcript.session_start,
         sessionEnd: item.transcript.session_end,
         turnCount: item.transcript.turn_count,
-        tokenCount: item.transcript.token_count,
+        tokenCount: effectiveExploreTokens(item.transcript),
         toolCallCount: item.transcript.tool_call_count,
         durationMs: item.transcript.duration_ms,
         gitBranch: item.transcript.git_branch,

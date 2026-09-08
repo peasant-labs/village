@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { isHarness } from "@peasant-labs/schema";
 import { api, API_URL_BASE, getAuthHeaders } from "../api";
 import type {
   ResolvedProject,
@@ -15,6 +16,20 @@ import { TRANSCRIPT_LIST_ENDPOINT } from "../transcriptPageRequest";
 /** Stable machine-readable category for discovery response trust failures. */
 export enum TranscriptListQueryErrorCode {
   ResponsePaginationMismatch = "response_pagination_mismatch",
+  InvalidHarnessFacets = "invalid_harness_facets",
+}
+
+export class TranscriptListHarnessFacetsError extends Error {
+  readonly code = TranscriptListQueryErrorCode.InvalidHarnessFacets;
+  readonly endpoint = TRANSCRIPT_LIST_ENDPOINT;
+
+  constructor() {
+    super(
+      `Session list response contained missing or malformed harness facets while loading ${TRANSCRIPT_LIST_ENDPOINT}. ` +
+        `The response was rejected before it could become successful cached data. Retry the request; if it persists, verify the discovery response contract.`,
+    );
+    this.name = "TranscriptListHarnessFacetsError";
+  }
 }
 
 /**
@@ -77,6 +92,14 @@ function assertTranscriptListResponseMatchesRequest(
   );
 }
 
+function assertHarnessFacets(response: TranscriptListResponse): void {
+  if (!Array.isArray(response.harness_facets) || response.harness_facets.some((facet) =>
+    facet == null || !isHarness(facet.harness) || !Number.isSafeInteger(facet.count) || facet.count <= 0
+  )) {
+    throw new TranscriptListHarnessFacetsError();
+  }
+}
+
 /**
  * The transcript list query, shared by discovery at `/explore` and by the
  * owner-scoped list the signed-in home page and the profile page read.
@@ -99,17 +122,20 @@ function assertTranscriptListResponseMatchesRequest(
  */
 export function useTranscripts(
   params?: Record<string, string>,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; authScope?: string; requireHarnessFacets?: boolean },
 ) {
   const searchParams = new URLSearchParams(params);
   return useQuery({
-    queryKey: ["transcripts", params],
+    queryKey: options?.authScope === undefined
+      ? ["transcripts", params]
+      : ["transcripts", options.authScope, params],
     queryFn: async ({ signal }) => {
       const response = await api<TranscriptListResponse>(
         `/transcripts?${searchParams}`,
         { signal },
       );
       assertTranscriptListResponseMatchesRequest(params, response);
+      if (options?.requireHarnessFacets) assertHarnessFacets(response);
       return response;
     },
     placeholderData: (previousData) => previousData,

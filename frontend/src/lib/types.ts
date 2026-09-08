@@ -50,6 +50,7 @@ export interface UserProjectPageResponse {
   collectives: ProjectCollectiveRollupEntry[];
 }
 import type { SessionOrigin } from "@/lib/sessionOrigin";
+import type { VillageHarnessFacet } from "@peasant-labs/schema";
 
 export interface User {
   id: string;
@@ -467,6 +468,8 @@ export interface TranscriptListResponse {
   agent_total: number;
   page: number;
   limit: number;
+  /** Corpus-wide, server-authoritative discovery facets. */
+  harness_facets: VillageHarnessFacet[];
 }
 
 export interface TranscriptDetailResponse {

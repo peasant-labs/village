@@ -1,0 +1,32 @@
+required_names:
+  - split-fields-win-over-legacy
+  - one-split-field-uses-zero
+  - explicit-zero-is-valid
+  - legacy-used-when-both-splits-missing
+  - all-null-stays-null
+cases:
+  - name: split-fields-win-over-legacy
+    tokens_in: 4
+    tokens_out: 6
+    token_count: 999
+    expected: 10
+  - name: one-split-field-uses-zero
+    tokens_in: 4
+    tokens_out: null
+    token_count: 999
+    expected: 4
+  - name: explicit-zero-is-valid
+    tokens_in: 0
+    tokens_out: 0
+    token_count: 999
+    expected: 0
+  - name: legacy-used-when-both-splits-missing
+    tokens_in: null
+    tokens_out: null
+    token_count: 8
+    expected: 8
+  - name: all-null-stays-null
+    tokens_in: null
+    tokens_out: null
+    token_count: null
+    expected: null

@@ -19,6 +19,7 @@ import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
 import { groupChildSessions, visibleTranscriptTotal } from "@/lib/childSessions";
 import RequestFailureState from "@/components/RequestFailureState";
 import RetryButton from "@/components/RetryButton";
+import { useAuth } from "@/providers/AuthProvider";
 
 const DEFAULT_FILTERS: ExploreFilters = {
   query: "",
@@ -30,6 +31,8 @@ const DEFAULT_FILTERS: ExploreFilters = {
 
 export default function ExplorePage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const authScope = user?.id ?? "anonymous";
   const [filters, setFilters] = useState<ExploreFilters>(DEFAULT_FILTERS);
 
   const params = useMemo(() => buildTranscriptListParams(filters), [filters]);
@@ -42,7 +45,7 @@ export default function ExplorePage() {
     isPlaceholderData,
     isFetching,
     refetch,
-  } = useTranscripts(params);
+  } = useTranscripts(params, { authScope, requireHarnessFacets: true });
   const { data: collData } = useSearchCollectives(filters.query);
   const { data: popularTags } = usePopularTags(15);
 
@@ -55,12 +58,13 @@ export default function ExplorePage() {
   // Retain the last successful non-placeholder response for initial/transition
   // failures. This guarded render-phase update converges on the latest validated
   // object without an effect or a ref read during render.
-  const [lastConfirmed, setLastConfirmed] = useState<TranscriptListResponse | null>(null);
-  if (data != null && !isPlaceholderData && !isError && data !== lastConfirmed) {
-    setLastConfirmed(data);
+  const [lastConfirmed, setLastConfirmed] = useState<{ scope: string; data: TranscriptListResponse } | null>(null);
+  if (data != null && !isPlaceholderData && !isError && data !== lastConfirmed?.data) {
+    setLastConfirmed({ scope: authScope, data });
   }
 
-  const displayData: TranscriptListResponse | null = data ?? lastConfirmed;
+  const displayData: TranscriptListResponse | null = data ??
+    (lastConfirmed?.scope === authScope ? lastConfirmed.data : null);
 
   // A session that a harness started from inside another session arrives in
   // this same response and would otherwise sit beside the session that started
