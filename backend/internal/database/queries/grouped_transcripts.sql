@@ -42,8 +42,8 @@ WITH RECURSIVE parents AS (
         ELSE t.parent_session_id END AS parent_local_id
     FROM transcripts t
     LEFT JOIN LATERAL (
-        SELECT value FROM jsonb_array_elements(t.session_relationships)
-        WHERE value->>'kind' = 'started_by'
+        SELECT edge.value FROM jsonb_array_elements(t.session_relationships) AS edge(value)
+        WHERE edge.value->>'kind' = 'started_by'
     ) relation ON true
     WHERE t.owner_id IN (SELECT owner_id FROM transcripts WHERE id=ANY(sqlc.arg(transcript_ids)::uuid[]))
 ), walk AS (

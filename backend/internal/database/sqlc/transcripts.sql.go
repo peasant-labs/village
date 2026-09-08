@@ -460,6 +460,9 @@ type GetTranscriptIDByOwnerAndLocalIDParams struct {
 // governance pre-image comes from the LOCKED narrow read inside the txn
 // (GetTranscriptGovernanceForUpdate); a wide unlocked read here would be dead
 // weight superseded under the lock.
+// Metadata relationship reads also use this exact owner-local identity probe,
+// then load GetTranscriptByID and apply current canViewTranscript permission.
+// This query alone is not an access grant or a cross-owner local-ID search.
 func (q *Queries) GetTranscriptIDByOwnerAndLocalID(ctx context.Context, arg GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, getTranscriptIDByOwnerAndLocalID, arg.OwnerID, arg.LocalID)
 	var id pgtype.UUID
