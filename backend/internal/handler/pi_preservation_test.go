@@ -23,7 +23,10 @@ var piBoundariesYAML []byte
 //go:embed testdata/observed_model_preservation/pi_field_loss.yaml
 var piFieldLossYAML []byte
 
-type fieldLossEncoder struct{ member string }
+type fieldLossEncoder struct {
+	member    string
+	emptyOnly bool
+}
 
 var _ contentRewriteEncoder = fieldLossEncoder{}
 
@@ -42,7 +45,9 @@ func (e fieldLossEncoder) Encode(version schema.PushContractVersion, payload *sc
 	remove = func(v any) {
 		switch node := v.(type) {
 		case map[string]any:
-			delete(node, e.member)
+			if value, present := node[e.member]; present && (!e.emptyOnly || value == "") {
+				delete(node, e.member)
+			}
 			for _, child := range node {
 				remove(child)
 			}
@@ -59,8 +64,9 @@ func (e fieldLossEncoder) Encode(version schema.PushContractVersion, payload *sc
 func TestPiFieldLossWithholdsDiscoveryAndPublish(t *testing.T) {
 	var corpus struct {
 		Cases []struct {
-			Name   string `yaml:"name"`
-			Member string `yaml:"member"`
+			Name      string `yaml:"name"`
+			Member    string `yaml:"member"`
+			EmptyOnly bool   `yaml:"emptyOnly"`
 		} `yaml:"cases"`
 	}
 	d := yaml.NewDecoder(bytes.NewReader(piFieldLossYAML))
@@ -79,7 +85,7 @@ func TestPiFieldLossWithholdsDiscoveryAndPublish(t *testing.T) {
 		}
 		seen[c.Name] = true
 		t.Run(c.Name, func(t *testing.T) {
-			proofErr := provePiPreservation(fieldLossEncoder{member: c.Member})
+			proofErr := provePiPreservation(fieldLossEncoder{member: c.Member, emptyOnly: c.EmptyOnly})
 			if proofErr == nil {
 				t.Fatal("production-point field loss passed preservation proof")
 			}
@@ -101,7 +107,7 @@ func TestPiFieldLossWithholdsDiscoveryAndPublish(t *testing.T) {
 			}
 		})
 	}
-	for _, name := range []string{"native_metadata_loss_withholds_support", "detailed_usage_loss_withholds_support", "recorded_cost_loss_withholds_support", "tool_result_ref_loss_withholds_support"} {
+	for _, name := range []string{"native_metadata_loss_withholds_support", "detailed_usage_loss_withholds_support", "recorded_cost_loss_withholds_support", "tool_result_ref_loss_withholds_support", "tool_namespace_loss_withholds_support", "empty_tool_namespace_loss_withholds_support"} {
 		if !seen[name] {
 			t.Fatalf("missing field loss case %q", name)
 		}
@@ -145,7 +151,7 @@ func loadPiBoundaries(t *testing.T) []piBoundaryCase {
 			t.Fatalf("invalid expectation %q", c.Name)
 		}
 	}
-	for _, name := range []string{"duplicate_metadata_key", "duplicate_content_key", "duplicate_opaque_key", "duplicate_owner", "wrong_usage_role", "wrong_metadata_target", "wrong_tool_result_ref", "token_overflow", "token_null", "cost_not_string", "opaque_integer_overflow", "opaque_underflow", "opaque_string_budget", "ordinary_text_outside_metadata_budget", "failed_capability_proof", "complete_tool_namespace_requires_release"} {
+	for _, name := range []string{"duplicate_metadata_key", "duplicate_content_key", "duplicate_opaque_key", "duplicate_owner", "wrong_usage_role", "wrong_metadata_target", "wrong_tool_result_ref", "token_overflow", "token_null", "cost_not_string", "opaque_integer_overflow", "opaque_underflow", "opaque_string_budget", "ordinary_text_outside_metadata_budget", "observed_size_opaque_metadata_accepted", "failed_capability_proof", "complete_tool_namespace_preserved", "empty_tool_namespace_preserved", "absent_tool_namespace_preserved", "null_tool_namespace_rejected", "numeric_tool_namespace_rejected", "object_tool_namespace_rejected", "array_tool_namespace_rejected", "boolean_tool_namespace_rejected", "duplicate_tool_namespace_rejected", "invalid_unicode_tool_namespace_rejected"} {
 		if !seen[name] {
 			t.Fatalf("required case %q missing", name)
 		}

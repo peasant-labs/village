@@ -1192,8 +1192,10 @@ hashes, and verifies repeated legacy display reads are no-ops. The same named
 corpus participates in capability evaluation. `dispatch_mutations.yaml` proves
 that removing a discriminator, bypassing strict parsing or trusted context, or
 falling back after strict failure withholds capabilities and refuses enriched
-publication. Until a namespace-preserving contract is pinned, a public tool
-`namespace` member is explicitly refused before a decoder could strip it.
+publication. With the namespace-preserving contract pinned, public tool
+`namespace` presence—including an empty string—selects strict parsing and
+requires `tool_namespace_v1`. The preservation proof withholds every advertised
+capability if either empty or nonempty namespace evidence changes on rewrite.
 
 Provider message content, parts, and recognized tool argument/result bodies are
 opaque to public-root discovery, not to the recursive JSON syntax scanner.
@@ -1210,6 +1212,12 @@ Pi identity or new structural evidence still selects strict Schema parsing
 without error fallback. The full route and contribution preview wait for their
 same-ID metadata and pass its known harness to the content hook; the cache key
 includes that context so a legacy-validated result cannot satisfy a Pi read.
+The shared strict corpus also covers absent, empty, mixed-case nonempty, null,
+non-string, and escaped-duplicate namespace forms. Real encrypted tests compare
+the accepted value after publication, canonical rewrite, rendered read, and raw
+pull, while rejected forms preserve the database, blob, audit, relationship,
+and object-counter snapshots. Selected metadata strings accept a synthetic
+51,175-byte value; 65,537-byte values still fail the independent 64-KiB limit.
 
 `internal/handler/testdata/observed_model_preservation/` is the strict corpus for
 the optional `TurnDetail.observedModel` evidence introduced by the released

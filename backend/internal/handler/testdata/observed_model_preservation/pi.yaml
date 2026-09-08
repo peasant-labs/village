@@ -10,7 +10,7 @@ cases:
           {"index":10,"role":"user","content":"request [image omitted]","timestamp":"2026-01-01T00:00:00Z","depth":0},
           {"index":20,"role":"assistant","content":"thinking once; answer [image omitted]","timestamp":"2026-01-01T00:00:01Z","depth":0,"hasThinking":true,"observedModel":"example/model","sourceEntryRef":"ref-assistant",
            "usage":{"ownerId":"owner-assistant","sourceEntryRef":"ref-assistant","scope":"assistant","completeness":"complete","tokens":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0},"cost":{"source":"recorded_harness_estimate","input":"1e-7","total":"0.30000000000000004"}},
-           "toolCalls":[{"id":"tool-public","name":"extension.inspect","arguments":"{\"nested\":{\"items\":[1,2]}}","result":"error [image omitted]","isError":true,"callEntryRef":"ref-call","resultEntryRef":"ref-result","usage":{"ownerId":"owner-tool","sourceEntryRef":"ref-result","scope":"tool","completeness":"partial","tokens":{"input":4,"reasoning":2}}}]},
+            "toolCalls":[{"id":"tool-public","name":"inspect","namespace":"Extension.Tools","arguments":"{\"nested\":{\"items\":[1,2]}}","result":"error [image omitted]","isError":true,"callEntryRef":"ref-call","resultEntryRef":"ref-result","usage":{"ownerId":"owner-tool","sourceEntryRef":"ref-result","scope":"tool","completeness":"partial","tokens":{"input":4,"reasoning":2}}}]},
           {"index":30,"role":"system","content":"visible context [image omitted]","timestamp":"2026-01-01T00:00:02Z","depth":0,"sourceEntryRef":"ref-context"},
           {"index":40,"role":"system","content":"compaction summary","timestamp":"2026-01-01T00:00:03Z","depth":0,"sourceEntryRef":"ref-compaction","usage":{"ownerId":"owner-compaction","sourceEntryRef":"ref-compaction","scope":"summary","completeness":"unknown","cost":{"source":"recorded_harness_estimate","total":"2e-8"}}},
           {"index":50,"role":"system","content":"branch summary","timestamp":"2026-01-01T00:00:04Z","depth":0,"sourceEntryRef":"ref-branch","usage":{"ownerId":"owner-branch","sourceEntryRef":"ref-branch","scope":"summary","completeness":"unknown"}},
@@ -25,4 +25,12 @@ cases:
           {"id":"meta-branch","kind":"pi.branchsummary.details","source":{"entryRef":"ref-branch","sourceType":"pi.branch_summary"},"attachment":{"turnIndex":50},"data":{"summary":"retained"}}
         ]
       }}
-    capabilities: [detailed_usage_v1, native_metadata_v1, observed_model_v1]
+    capabilities: [detailed_usage_v1, native_metadata_v1, observed_model_v1, tool_namespace_v1]
+  - name: pi_empty_tool_namespace
+    content: |
+      {"contractVersion":"0.0.9","kind":"session_detail","sessionDetail":{"id":"empty-namespace","harness":"pi","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":1,"turns":[{"index":0,"role":"assistant","content":"kept","timestamp":"2026-01-01T00:00:01Z","depth":0,"toolCalls":[{"id":"tool-empty","name":"inspect","namespace":"","arguments":"{}","result":""}]}]}}
+    capabilities: [tool_namespace_v1]
+  - name: pi_absent_tool_namespace
+    content: |
+      {"contractVersion":"0.0.9","kind":"session_detail","sessionDetail":{"id":"absent-namespace","harness":"pi","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"totalTokens":0,"tokensIn":0,"tokensOut":0,"turnCount":1,"toolCallCount":1,"turns":[{"index":0,"role":"assistant","content":"kept","timestamp":"2026-01-01T00:00:01Z","depth":0,"toolCalls":[{"id":"tool-absent","name":"inspect","arguments":"{}","result":""}]}]}}
+    capabilities: []

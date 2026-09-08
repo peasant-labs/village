@@ -42,9 +42,6 @@ export function parseTranscriptResponseText(text: string, knownHarness?: string)
   const detail = envelope ? value.sessionDetail : value;
   const piIdentity = isObject(detail) && [detail.harness, detail.provider, detail.modelHarness].includes("pi");
   const evidence = publicEvidence(detail);
-  if (evidence.namespace) {
-    throw new Error("Tool namespace preservation is unavailable during transcript response parsing: the pinned Schema cannot retain this field; nothing was rendered; retry after upgrading to the canonical namespace release.");
-  }
   // Dispatch before invoking a strict parser. There is no strict-error fallback:
   // null/empty new members and trusted Pi context cannot select legacy parsing.
   if (knownHarness === "pi" || piIdentity || evidence.strict) {
@@ -70,9 +67,8 @@ export function parseTranscriptResponseText(text: string, knownHarness?: string)
   return value;
 }
 
-function publicEvidence(value: unknown): { strict: boolean; namespace: boolean } {
+function publicEvidence(value: unknown): { strict: boolean } {
   let strict = false;
-  let namespace = false;
   if (isObject(value)) {
     strict = "nativeMetadata" in value;
     if (Array.isArray(value.turns)) {
@@ -83,12 +79,12 @@ function publicEvidence(value: unknown): { strict: boolean; namespace: boolean }
         for (const tool of turn.toolCalls) {
           if (!isObject(tool)) continue;
           if ("usage" in tool || "callEntryRef" in tool || "resultEntryRef" in tool) strict = true;
-          if ("namespace" in tool) namespace = strict = true;
+          if ("namespace" in tool) strict = true;
         }
       }
     }
   }
-  return { strict, namespace };
+  return { strict };
 }
 
 function publicRootShape(node: Record<string, unknown>): boolean {

@@ -43,8 +43,10 @@ func loadPiPreservationFixtures() ([]piPreservationCase, error) {
 		}
 		seen[c.Name] = true
 	}
-	if !seen["pi_all_metadata_and_usage_owners"] {
-		return nil, fmt.Errorf("Pi preservation corpus is missing pi_all_metadata_and_usage_owners; restore the required evidence before capability evaluation")
+	for _, name := range []string{"pi_all_metadata_and_usage_owners", "pi_empty_tool_namespace", "pi_absent_tool_namespace"} {
+		if !seen[name] {
+			return nil, fmt.Errorf("Pi preservation corpus is missing %s; restore the required evidence before capability evaluation", name)
+		}
 	}
 	return corpus.Cases, nil
 }

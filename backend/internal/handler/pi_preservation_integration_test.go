@@ -82,9 +82,9 @@ func TestPiEncryptedPublishRewriteReadPull(t *testing.T) {
 		}
 		return w
 	}
-	assertPayload := func(raw []byte, envelope bool) {
+	assertPayload := func(raw, expected []byte, envelope bool) {
 		t.Helper()
-		want, err := schema.DecodeTranscriptContentRaw(content)
+		want, err := schema.DecodeTranscriptContentRaw(expected)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -113,12 +113,12 @@ func TestPiEncryptedPublishRewriteReadPull(t *testing.T) {
 	if !bytes.Equal(pulled.Body.Bytes(), content) {
 		t.Fatal("pull changed uploaded raw content before rewrite")
 	}
-	assertPayload(pulled.Body.Bytes(), true)
+	assertPayload(pulled.Body.Bytes(), content, true)
 	served := read(false)
 	if served.Code != http.StatusOK {
 		t.Fatalf("read=%d %s", served.Code, served.Body.String())
 	}
-	assertPayload(served.Body.Bytes(), false)
+	assertPayload(served.Body.Bytes(), content, false)
 	if blobs.writes != 2 {
 		t.Fatalf("publish plus canonical rewrite writes=%d", blobs.writes)
 	}
@@ -126,7 +126,7 @@ func TestPiEncryptedPublishRewriteReadPull(t *testing.T) {
 	if pulled.Code != http.StatusOK {
 		t.Fatalf("rewritten pull=%d %s", pulled.Code, pulled.Body.String())
 	}
-	assertPayload(pulled.Body.Bytes(), true)
+	assertPayload(pulled.Body.Bytes(), content, true)
 	if read(false).Code != http.StatusOK || blobs.writes != 2 {
 		t.Fatal("second display read rewrote canonical data")
 	}
@@ -182,6 +182,18 @@ func TestPiEncryptedPublishRewriteReadPull(t *testing.T) {
 			}
 			if w.Code != want || !strings.Contains(w.Body.String(), c.Error) {
 				t.Fatalf("status=%d want=%d body=%s", w.Code, want, w.Body.String())
+			}
+			if c.Status == http.StatusCreated {
+				pulled := read(true)
+				if pulled.Code != http.StatusOK {
+					t.Fatalf("accepted namespace pull=%d %s", pulled.Code, pulled.Body.String())
+				}
+				assertPayload(pulled.Body.Bytes(), raw, true)
+				served := read(false)
+				if served.Code != http.StatusOK {
+					t.Fatalf("accepted namespace read=%d %s", served.Code, served.Body.String())
+				}
+				assertPayload(served.Body.Bytes(), raw, false)
 			}
 			if c.Status != http.StatusCreated && !reflect.DeepEqual(before, snapshot()) {
 				t.Fatal("refused request changed row, encrypted bytes, ledger, audit or object counters")

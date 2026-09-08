@@ -7,3 +7,8 @@ cases:
     member: cost
   - name: tool_result_ref_loss_withholds_support
     member: resultEntryRef
+  - name: tool_namespace_loss_withholds_support
+    member: namespace
+  - name: empty_tool_namespace_loss_withholds_support
+    member: namespace
+    emptyOnly: true

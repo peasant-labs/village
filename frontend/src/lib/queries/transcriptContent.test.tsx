@@ -24,7 +24,7 @@ const dispatch = corpus(`${backendCorpus}legacy_dispatch.yaml`).cases as {name: 
 for (const name of ["legacy_single_object", "legacy_array", "legacy_jsonl", "legacy_duplicate_escaped_key", "invalid_envelope_no_jsonl_fallback", "jsonl_total_byte_limit_survives_dispatch"]) {
   if (legacy.filter((c) => c.name === name).length !== 1) throw new Error(`Required unique fixture missing: ${name}`);
 }
-for (const name of ["duplicate_content_key", "duplicate_opaque_key", "duplicate_owner", "wrong_usage_role", "wrong_metadata_target", "wrong_tool_result_ref", "token_overflow", "token_null", "cost_not_string", "opaque_integer_overflow", "opaque_underflow", "opaque_string_budget", "ordinary_text_outside_metadata_budget", "complete_tool_namespace_requires_release"]) {
+for (const name of ["duplicate_content_key", "duplicate_opaque_key", "duplicate_owner", "wrong_usage_role", "wrong_metadata_target", "wrong_tool_result_ref", "token_overflow", "token_null", "cost_not_string", "opaque_integer_overflow", "opaque_underflow", "opaque_string_budget", "ordinary_text_outside_metadata_budget", "observed_size_opaque_metadata_accepted", "complete_tool_namespace_preserved", "empty_tool_namespace_preserved", "absent_tool_namespace_preserved", "null_tool_namespace_rejected", "numeric_tool_namespace_rejected", "object_tool_namespace_rejected", "array_tool_namespace_rejected", "boolean_tool_namespace_rejected", "duplicate_tool_namespace_rejected", "invalid_unicode_tool_namespace_rejected"]) {
   if (boundaries.filter((c) => c.name === name).length !== 1) throw new Error(`Required unique fixture missing: ${name}`);
 }
 

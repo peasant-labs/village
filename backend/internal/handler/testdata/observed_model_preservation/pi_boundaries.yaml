@@ -74,22 +74,82 @@ cases:
   - name: opaque_string_budget
     surface: content
     find: '"details stay separate"'
-    repeat: 16385
+    repeat: 65537
     status: 409
     error: string
   - name: ordinary_text_outside_metadata_budget
     surface: content
     find: '"absent native usage"'
-    repeat: 16385
+    repeat: 65537
     status: 201
     error: ''
   - name: failed_capability_proof
     surface: capability
     status: 409
     error: detailed_usage_v1
-  - name: complete_tool_namespace_requires_release
+  - name: observed_size_opaque_metadata_accepted
     surface: content
-    find: '"name":"extension.inspect"'
-    replace: '"name":"extension.inspect","namespace":""'
+    find: '"details stay separate"'
+    repeat: 51175
+    status: 201
+    error: ''
+  - name: complete_tool_namespace_preserved
+    surface: content
+    find: '"namespace":"Extension.Tools"'
+    replace: '"namespace":"Extension.Tools"'
+    status: 201
+    error: ''
+  - name: empty_tool_namespace_preserved
+    surface: content
+    find: '"namespace":"Extension.Tools"'
+    replace: '"namespace":""'
+    status: 201
+    error: ''
+  - name: absent_tool_namespace_preserved
+    surface: content
+    find: ',"namespace":"Extension.Tools"'
+    replace: ''
+    status: 201
+    error: ''
+  - name: null_tool_namespace_rejected
+    surface: content
+    find: '"namespace":"Extension.Tools"'
+    replace: '"namespace":null'
     status: 409
     error: namespace
+  - name: numeric_tool_namespace_rejected
+    surface: content
+    find: '"namespace":"Extension.Tools"'
+    replace: '"namespace":7'
+    status: 409
+    error: namespace
+  - name: object_tool_namespace_rejected
+    surface: content
+    find: '"namespace":"Extension.Tools"'
+    replace: '"namespace":{}'
+    status: 409
+    error: namespace
+  - name: array_tool_namespace_rejected
+    surface: content
+    find: '"namespace":"Extension.Tools"'
+    replace: '"namespace":[]'
+    status: 409
+    error: namespace
+  - name: boolean_tool_namespace_rejected
+    surface: content
+    find: '"namespace":"Extension.Tools"'
+    replace: '"namespace":false'
+    status: 409
+    error: namespace
+  - name: duplicate_tool_namespace_rejected
+    surface: content
+    find: '"namespace":"Extension.Tools"'
+    replace: '"namespace":"Extension.Tools","n\u0061mespace":"other"'
+    status: 409
+    error: duplicate
+  - name: invalid_unicode_tool_namespace_rejected
+    surface: content
+    find: '"namespace":"Extension.Tools"'
+    replace: '"namespace":"\ud800"'
+    status: 409
+    error: Unicode

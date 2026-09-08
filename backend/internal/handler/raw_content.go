@@ -75,12 +75,9 @@ func validateContentBoundary(raw []byte, knownHarness string, mode contentBounda
 	}
 	var detail map[string]json.RawMessage
 	_ = json.Unmarshal(detailRaw, &detail)
-	strict, namespace := publicEvidencePresence(detail)
+	strict := publicEvidencePresence(detail)
 	piIdentity := publicPiIdentity(detail)
 	strict = strict || knownPi || piIdentity
-	if namespace {
-		return result, fmt.Errorf("tool namespace preservation is unavailable in handler.validateContentBoundary before decoding or storage because the pinned public contract cannot retain namespace; no content was served or written; use a Village release advertising tool_namespace_v1 after its canonical Schema release is available, then retry")
-	}
 	if strict {
 		if knownPi || piIdentity {
 			var harness string
@@ -158,7 +155,7 @@ func publicPiIdentity(detail map[string]json.RawMessage) bool {
 
 // Only public structural paths participate. Presence includes null and empty
 // values; deriving this from typed capabilities would erase those markers.
-func publicEvidencePresence(detail map[string]json.RawMessage) (strict, namespace bool) {
+func publicEvidencePresence(detail map[string]json.RawMessage) (strict bool) {
 	_, strict = detail["nativeMetadata"]
 	var turns []map[string]json.RawMessage
 	_ = json.Unmarshal(detail["turns"], &turns)
@@ -179,11 +176,10 @@ func publicEvidencePresence(detail map[string]json.RawMessage) (strict, namespac
 			}
 			if _, ok := tool["namespace"]; ok {
 				strict = true
-				namespace = true
 			}
 		}
 	}
-	return strict, namespace
+	return strict
 }
 
 func embeddedPublicRoot(value any, allowRoot bool) bool {
