@@ -4,7 +4,7 @@ import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { effectiveExploreTokens } from "./explore";
 
-type Case = { name: string; tokens_in: number | null; tokens_out: number | null; token_count: number | null; expected: number | null };
+type Case = { name: string; tokens_in?: number | null; tokens_out?: number | null; token_count?: number | null; expected: number | null };
 type Fixture = { required_names: string[]; cases: Case[] };
 const fixture = parse(readFileSync(resolve(process.cwd(), "src/testdata/explore-adapter.yaml"), "utf8")) as Fixture;
 

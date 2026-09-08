@@ -87,7 +87,7 @@ function listResponse(ids: string[], origin: SessionOrigin, agentTotal: number):
   return {
     transcripts: ids.map((id) => wireItem(id, origin)),
     total: ids.length,
-    agent_total: agentTotal,
+    harness_facets: [], agent_total: agentTotal,
     page: 1,
     limit: 24,
   };

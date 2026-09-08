@@ -35,14 +35,14 @@ function requireHarness(value: string, transcriptID: string): Harness {
 }
 
 export function effectiveExploreTokens(transcript: {
-  tokens_in: number | null;
-  tokens_out: number | null;
-  token_count: number | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  token_count?: number | null;
 }): number | null {
-  if (transcript.tokens_in !== null || transcript.tokens_out !== null) {
+  if (transcript.tokens_in != null || transcript.tokens_out != null) {
     return (transcript.tokens_in ?? 0) + (transcript.tokens_out ?? 0);
   }
-  return transcript.token_count;
+  return transcript.token_count ?? null;
 }
 
 // ── Adapter signature ─────────────────────────────────────────────────────────

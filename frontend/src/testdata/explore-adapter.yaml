@@ -4,6 +4,7 @@ required_names:
   - explicit-zero-is-valid
   - legacy-used-when-both-splits-missing
   - all-null-stays-null
+  - absent-splits-use-legacy
 cases:
   - name: split-fields-win-over-legacy
     tokens_in: 4
@@ -30,3 +31,6 @@ cases:
     tokens_out: null
     token_count: null
     expected: null
+  - name: absent-splits-use-legacy
+    token_count: 12
+    expected: 12

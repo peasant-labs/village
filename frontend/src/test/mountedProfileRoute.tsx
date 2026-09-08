@@ -166,7 +166,7 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
       return json({
         transcripts: rows,
         total: rows.length,
-        agent_total: 0,
+        harness_facets: [], agent_total: 0,
         page: 1,
         limit: 24,
       });

@@ -17,7 +17,7 @@ offContractHarness:
   name: rejected-unknown-harness
   value: unknown-agent
   transcriptId: transcript-off-contract
-  expectedError: 'Explore transcript transcript-off-contract has unsupported harness "unknown-agent". The Village API returned a model_provider outside the published Schema harness menu; refresh after correcting the stored transcript contract value.'
+  expectedError: 'Explore transcript transcript-off-contract has an unsupported harness. The Village API returned a model_provider outside the published Schema harness menu; refresh after correcting the stored transcript contract value.'
 sessions:
   - name: omitted-turns
     turnsState: omitted

@@ -201,7 +201,7 @@ function listResponse(testCase: ChildSessionGroupingCase): TranscriptListRespons
     // larger than one response reports more than it carries, which is what the
     // real paged endpoint does.
     total: testCase.serverTotal,
-    agent_total: testCase.agentSessions.length,
+    harness_facets: [], agent_total: testCase.agentSessions.length,
     page: 1,
     limit: 24,
   };
@@ -212,7 +212,7 @@ function agentListResponse(testCase: ChildSessionGroupingCase): TranscriptListRe
   return {
     transcripts: testCase.agentSessions.map((id) => wireItem(agentRow(id), "agent")),
     total: testCase.agentSessions.length,
-    agent_total: testCase.agentSessions.length,
+    harness_facets: [], agent_total: testCase.agentSessions.length,
     page: 1,
     limit: 24,
   };

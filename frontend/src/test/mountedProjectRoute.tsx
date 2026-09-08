@@ -241,7 +241,7 @@ export function installProfileRouteREST(
           owner,
         })),
         total: projects.length,
-        agent_total: 0,
+        harness_facets: [], agent_total: 0,
         page: 1,
         limit: 20,
       });

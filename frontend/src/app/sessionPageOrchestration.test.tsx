@@ -74,7 +74,7 @@ let currentQuery = "";
 const dataObjects = new Map<string, TranscriptListResponse>(
   Object.entries(fixtures.data).map(([id, value]) => [
     id,
-    { transcripts: [], total: value.total, agent_total: 0, page: value.page, limit: value.limit },
+    { transcripts: [], total: value.total, harness_facets: [], agent_total: 0, page: value.page, limit: value.limit },
   ]),
 );
 

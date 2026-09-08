@@ -271,7 +271,7 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
       return json({ error: "not configured" }, 501);
     }
     if (url.includes("/transcripts?")) {
-      return json({ transcripts: [], total: 0, agent_total: 0, page: 1, limit: 100 });
+      return json({ transcripts: [], total: 0, harness_facets: [], agent_total: 0, page: 1, limit: 100 });
     }
     // Fired by the tree-based contribute page's `useContributable`
     // (village#66). Empty by default: the panel's own empty state ("all

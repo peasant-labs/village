@@ -94,7 +94,7 @@ function assertTranscriptListResponseMatchesRequest(
 
 function assertHarnessFacets(response: TranscriptListResponse): void {
   if (!Array.isArray(response.harness_facets) || response.harness_facets.some((facet) =>
-    facet == null || !isHarness(facet.harness) || !Number.isSafeInteger(facet.count) || facet.count <= 0
+    facet == null || !isHarness(facet.harness) || !Number.isInteger(facet.count) || facet.count <= 0
   )) {
     throw new TranscriptListHarnessFacetsError();
   }
@@ -138,7 +138,11 @@ export function useTranscripts(
       if (options?.requireHarnessFacets) assertHarnessFacets(response);
       return response;
     },
-    placeholderData: (previousData) => previousData,
+    placeholderData: (previousData, previousQuery) => {
+      if (options?.authScope === undefined) return previousData;
+      const previousScope = previousQuery?.queryKey[1];
+      return previousScope === options.authScope ? previousData : undefined;
+    },
     enabled: options?.enabled ?? true,
   });
 }
