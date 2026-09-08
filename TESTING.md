@@ -1175,6 +1175,20 @@ These tests require the released canonical graph APIs and run under the same
 no-skip encrypted aggregate as other preservation proofs; source-level fixtures
 are not proof of a deployed receiver's capability.
 
+Batch transcript upload is still unimplemented. The registered route is guarded
+by `internal/router/testdata/publish_batch_refusal.yaml`: anonymous requests keep
+their authentication refusal, and authenticated requests keep HTTP 501 regardless
+of body shape. Tests mount the real router and authentication middleware, assert
+no object write, and compare transcript, governance-audit, share-attempt, and
+derived-share rows against real PostgreSQL. This is not a successful batch-upload
+contract and does not change the implemented collective batch share/review flows.
+
+The database-only `grouped_query_projection.yaml` fixture executes generated
+global candidate, cycle, owner-local probe, and collective candidate queries on
+PostgreSQL independently of frontend or wire-package adoption. It protects the
+nullable count projection and the JSONB lateral-edge/cycle query's actual SQL
+execution, not merely whether sqlc can parse the source.
+
 `internal/handler/testdata/observed_model_preservation/` is the strict corpus for
 the optional `TurnDetail.observedModel` evidence introduced by the released
 Schema module. The loader uses known-field decoding, one-document enforcement,

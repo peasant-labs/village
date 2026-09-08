@@ -1,0 +1,15 @@
+cases:
+  - name: absent-legacy-graph
+    purpose: ''
+    relationships: '[]'
+    cyclic: false
+  - name: measured-zero-helper-without-owner
+    count: 0
+    purpose: helper_review
+    relationships: '[{"kind":"started_by","targetState":"unknown","evidence":"unknown"}]'
+    cyclic: false
+  - name: measured-positive-self-cycle
+    count: 1
+    purpose: helper_review
+    relationships: '[{"kind":"started_by","targetState":"target_known","targetLocalId":"550e8400-e29b-41d4-a716-446655440000","evidence":"native_typed"}]'
+    cyclic: true
