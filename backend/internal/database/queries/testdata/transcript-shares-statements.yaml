@@ -21,6 +21,7 @@
 
 - {name: ListTranscriptShares, file: shares.sql, kind: read}
 - {name: ListGroupTranscripts, file: shares.sql, kind: read}
+- {name: ListCollectiveGroupedCandidates, file: collective_grouped.sql, kind: read}
 - {name: ListSharesByTranscriptIDs, file: shares.sql, kind: read}
 - {name: ListPendingGroupShares, file: shares.sql, kind: read}
 - {name: GetGroupTranscriptStats, file: shares.sql, kind: read}
