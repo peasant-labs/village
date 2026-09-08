@@ -68,6 +68,17 @@ type discoveryCase struct {
 	ExpectedIDs   []string `yaml:"expectedIds"`
 }
 
+type discoverySnapshotCase struct {
+	Name               string         `yaml:"name"`
+	Seed               []discoveryRow `yaml:"seed"`
+	Competing          []discoveryRow `yaml:"competing"`
+	ExpectedIDs        []string       `yaml:"expectedIds"`
+	ExpectedFacets     []string       `yaml:"expectedFacets"`
+	ExpectedTotal      int64          `yaml:"expectedTotal"`
+	ExpectedAgentTotal int64          `yaml:"expectedAgentTotal"`
+	ExpectedStored     int            `yaml:"expectedStored"`
+}
+
 // discoveryResponse is the decoded discovery wire under assertion: the ordered
 // ids plus the total/page/limit metadata the endpoint must preserve.
 type discoveryResponse struct {
@@ -309,11 +320,17 @@ func TestListTranscripts_EffectiveTokenOrder_RealPostgres(t *testing.T) {
 	defer pool.Close()
 	owner := pullInsertUser(t, ctx, pool, 980802, "discovery-token-owner")
 	defer cleanupOwners(t, ctx, pool, owner)
-	rows := loadFixtureRows[discoveryRow](t, discoveryEffectiveTokensYAML, 7)
+	rows, err := decodeFixtureRows[discoveryRow](discoveryEffectiveTokensYAML)
+	if err != nil {
+		t.Fatalf("decode effective-token rows: %v", err)
+	}
 	required := map[string]bool{"overflow": false, "split-partial": false, "legacy-conflict": false, "legacy-only": false, "explicit-zero-newer": false, "explicit-zero-older": false, "all-null": false}
 	for _, row := range rows {
 		if _, ok := required[row.Name]; !ok {
 			t.Fatalf("unexpected effective-token fixture %q", row.Name)
+		}
+		if required[row.Name] {
+			t.Fatalf("duplicate effective-token fixture %q", row.Name)
 		}
 		required[row.Name] = true
 		discoveryInsertRow(t, ctx, pool, owner, row)
@@ -325,7 +342,11 @@ func TestListTranscripts_EffectiveTokenOrder_RealPostgres(t *testing.T) {
 	}
 	h := &Handler{pool: pool, queries: sqlc.New(pool)}
 	requiredCases := map[string]bool{"tokens_page_one_overflow_and_split": false, "tokens_page_two_legacy_then_zero_ties": false, "tokens_page_three_null_last": false}
-	for _, c := range loadFixtureRows[discoveryCase](t, discoveryEffectiveTokenCasesYAML, 3) {
+	cases, err := decodeFixtureRows[discoveryCase](discoveryEffectiveTokenCasesYAML)
+	if err != nil {
+		t.Fatalf("decode effective-token cases: %v", err)
+	}
+	for _, c := range cases {
 		if _, ok := requiredCases[c.Name]; !ok {
 			t.Fatalf("unexpected effective-token request fixture %q", c.Name)
 		}
@@ -365,7 +386,25 @@ func TestListTranscripts_CountPageSnapshot_RealPostgres(t *testing.T) {
 	owner := pullInsertUser(t, ctx, pool, 981001, "discovery-snapshot-owner")
 	defer cleanupOwners(t, ctx, pool, owner)
 
-	seed := loadFixtureRows[discoveryRow](t, discoverySnapshotSeedYAML, 3)
+	scenarios, err := decodeFixtureRows[discoverySnapshotCase](discoverySnapshotSeedYAML)
+	if err != nil {
+		t.Fatalf("decode snapshot scenarios: %v", err)
+	}
+	var scenario discoverySnapshotCase
+	seenScenario := false
+	for _, candidate := range scenarios {
+		if candidate.Name != "publication_after_snapshot" {
+			t.Fatalf("unexpected snapshot scenario %q", candidate.Name)
+		}
+		if seenScenario {
+			t.Fatalf("duplicate snapshot scenario %q", candidate.Name)
+		}
+		seenScenario, scenario = true, candidate
+	}
+	if !seenScenario {
+		t.Fatalf("required snapshot scenario publication_after_snapshot missing")
+	}
+	seed := scenario.Seed
 	seedNames := make(map[string]bool, len(seed))
 	seedIDs := make(map[string]bool, len(seed))
 	for _, row := range seed {
@@ -385,16 +424,12 @@ func TestListTranscripts_CountPageSnapshot_RealPostgres(t *testing.T) {
 
 	h := &Handler{pool: pool, queries: sqlc.New(pool)}
 
-	lateID := "aaaaaaaa-0000-0000-0000-00000000ffff"
 	var once sync.Once
 	h.discoveryReadBarrier = func() {
 		once.Do(func() {
-			discoveryInsertRow(t, ctx, pool, owner, discoveryRow{
-				Name: "late", ID: lateID, Visibility: "public", Harness: "codex", Origin: "user", PublishedAtMs: 1700000003000,
-			})
-			discoveryInsertRow(t, ctx, pool, owner, discoveryRow{
-				Name: "late-agent", ID: "aaaaaaaa-0000-0000-0000-00000000fffe", Visibility: "public", Harness: "gemini-cli", Origin: "agent", PublishedAtMs: 1700000004000,
-			})
+			for _, row := range scenario.Competing {
+				discoveryInsertRow(t, ctx, pool, owner, row)
+			}
 		})
 	}
 
@@ -403,22 +438,23 @@ func TestListTranscripts_CountPageSnapshot_RealPostgres(t *testing.T) {
 	if int64(len(got.IDs)) != got.Total {
 		t.Errorf("returned %d rows but total = %d; count and page are not one snapshot", len(got.IDs), got.Total)
 	}
-	if got.Total != 3 {
-		t.Errorf("total = %d, want 3 (the count was taken before the competing publish committed)", got.Total)
+	if got.Total != scenario.ExpectedTotal {
+		t.Errorf("total = %d, want %d (the count was taken before the competing publish committed)", got.Total, scenario.ExpectedTotal)
 	}
-	if !equalIDs(got.Facets, []string{"claude-code:3"}) {
-		t.Errorf("snapshot facets = %v, want pre-publication snapshot [claude-code:3]", got.Facets)
+	if !equalIDs(got.Facets, scenario.ExpectedFacets) {
+		t.Errorf("snapshot facets = %v, want pre-publication snapshot %v", got.Facets, scenario.ExpectedFacets)
 	}
-	if got.AgentTotal != 0 {
-		t.Errorf("snapshot agent_total = %d, want 0 before competing agent publication", got.AgentTotal)
+	if got.AgentTotal != scenario.ExpectedAgentTotal {
+		t.Errorf("snapshot agent_total = %d, want %d before competing agent publication", got.AgentTotal, scenario.ExpectedAgentTotal)
 	}
-	wantIDs := []string{"aaaaaaaa-0000-0000-0000-000000000003", "aaaaaaaa-0000-0000-0000-000000000002", "aaaaaaaa-0000-0000-0000-000000000001"}
-	if !equalIDs(got.IDs, wantIDs) {
-		t.Errorf("snapshot page ids = %v, want %v", got.IDs, wantIDs)
+	if !equalIDs(got.IDs, scenario.ExpectedIDs) {
+		t.Errorf("snapshot page ids = %v, want %v", got.IDs, scenario.ExpectedIDs)
 	}
-	for _, id := range got.IDs {
-		if id == lateID {
-			t.Errorf("late row committed mid-transaction leaked into the REPEATABLE READ page snapshot")
+	for _, competing := range scenario.Competing {
+		for _, id := range got.IDs {
+			if id == competing.ID {
+				t.Errorf("competing row %q leaked into snapshot", competing.Name)
+			}
 		}
 	}
 
@@ -426,7 +462,7 @@ func TestListTranscripts_CountPageSnapshot_RealPostgres(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM transcripts WHERE owner_id = $1", owner).Scan(&stored); err != nil {
 		t.Fatalf("count stored transcripts: %v", err)
 	}
-	if stored != 5 {
-		t.Fatalf("stored transcripts = %d, want 5; the barrier's competing publications did not commit, so the snapshot test is vacuous", stored)
+	if stored != scenario.ExpectedStored {
+		t.Fatalf("stored transcripts = %d, want %d; the barrier's competing publications did not commit, so the snapshot test is vacuous", stored, scenario.ExpectedStored)
 	}
 }

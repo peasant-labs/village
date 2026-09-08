@@ -59,12 +59,18 @@ func TestListTranscripts_HarnessFacets_RealPostgres(t *testing.T) {
 	if err := json.Unmarshal(emptyWriter.Body.Bytes(), &emptyResponse); err != nil || emptyResponse.HarnessFacets == nil || len(emptyResponse.HarnessFacets) != 0 {
 		t.Fatalf("empty corpus facets must be explicit []: facets=%v decode=%v body=%s", emptyResponse.HarnessFacets, err, emptyWriter.Body.String())
 	}
-	rows := loadFixtureRows[discoveryRow](t, discoveryFacetRowsYAML, 5)
+	rows, err := decodeFixtureRows[discoveryRow](discoveryFacetRowsYAML)
+	if err != nil {
+		t.Fatalf("decode facet rows: %v", err)
+	}
 	requiredRows := map[string]bool{"public-claude": false, "public-codex-later": false, "private-opencode": false, "shared-cursor": false, "public-agent": false}
 	ids := map[string]uuid.UUID{}
 	for _, row := range rows {
 		if _, ok := requiredRows[row.Name]; !ok {
 			t.Fatalf("unexpected facet row %q", row.Name)
+		}
+		if requiredRows[row.Name] {
+			t.Fatalf("duplicate facet row %q", row.Name)
 		}
 		requiredRows[row.Name] = true
 		rowOwner := owner
@@ -98,7 +104,10 @@ func TestListTranscripts_HarnessFacets_RealPostgres(t *testing.T) {
 	}
 
 	h := &Handler{pool: pool, queries: sqlc.New(pool)}
-	cases := loadFixtureRows[discoveryFacetCase](t, discoveryFacetCasesYAML, 15)
+	cases, err := decodeFixtureRows[discoveryFacetCase](discoveryFacetCasesYAML)
+	if err != nil {
+		t.Fatalf("decode facet cases: %v", err)
+	}
 	requiredCases := map[string]bool{
 		"anonymous_page_one": false, "anonymous_later_page": false, "zero_filtered_rows": false,
 		"turns_sort_independent": false, "duration_sort_independent": false,
@@ -111,6 +120,9 @@ func TestListTranscripts_HarnessFacets_RealPostgres(t *testing.T) {
 	for _, c := range cases {
 		if _, ok := requiredCases[c.Name]; !ok {
 			t.Fatalf("unexpected facet case %q", c.Name)
+		}
+		if requiredCases[c.Name] {
+			t.Fatalf("duplicate facet case %q", c.Name)
 		}
 		requiredCases[c.Name] = true
 		r := httptest.NewRequest(http.MethodGet, "/api/v1/transcripts?"+c.Query, nil)
@@ -182,11 +194,25 @@ func TestListTranscripts_InvalidStoredHarnessDoesNotLogValue_RealPostgres(t *tes
 	defer pool.Close()
 	owner := pullInsertUser(t, ctx, pool, 980805, "invalid-harness-owner")
 	defer cleanupOwners(t, ctx, pool, owner)
-	rows := loadFixtureRows[discoveryRow](t, discoveryInvalidHarnessYAML, 1)
-	if len(rows) != 1 || rows[0].Name != "sensitive-invalid-harness" {
+	rows, err := decodeFixtureRows[discoveryRow](discoveryInvalidHarnessYAML)
+	if err != nil {
+		t.Fatalf("decode invalid harness fixtures: %v", err)
+	}
+	var invalid discoveryRow
+	seen := false
+	for _, row := range rows {
+		if row.Name != "sensitive-invalid-harness" {
+			t.Fatalf("unexpected invalid harness fixture %q", row.Name)
+		}
+		if seen {
+			t.Fatalf("duplicate invalid harness fixture %q", row.Name)
+		}
+		seen, invalid = true, row
+	}
+	if !seen {
 		t.Fatalf("required invalid harness fixture missing")
 	}
-	discoveryInsertRow(t, ctx, pool, owner, rows[0])
+	discoveryInsertRow(t, ctx, pool, owner, invalid)
 	var logs bytes.Buffer
 	prior := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
@@ -197,7 +223,7 @@ func TestListTranscripts_InvalidStoredHarnessDoesNotLogValue_RealPostgres(t *tes
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
 	}
-	if strings.Contains(logs.String(), rows[0].Harness) {
+	if strings.Contains(logs.String(), invalid.Harness) {
 		t.Fatalf("operator log disclosed invalid stored harness sentinel: %s", logs.String())
 	}
 }
