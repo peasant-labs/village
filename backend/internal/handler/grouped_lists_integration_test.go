@@ -50,20 +50,23 @@ type helperListingItem struct {
 }
 
 type helperListingCase struct {
-	Owners       map[string]string   `yaml:"owners"`
-	Nested       map[string][]string `yaml:"nested"`
-	Name         string              `yaml:"name"`
-	Seed         []string            `yaml:"seed"`
-	Query        string              `yaml:"query"`
-	Ordinary     int                 `yaml:"ordinary"`
-	Helpers      int                 `yaml:"helpers"`
-	Total        int                 `yaml:"total"`
-	Items        []helperListingItem `yaml:"items"`
-	Next         []string            `yaml:"next"`
-	Mutation     string              `yaml:"mutation"`
-	MemberStatus int                 `yaml:"member_status"`
-	AfterMembers []string            `yaml:"after_members"`
-	Legacy       bool                `yaml:"legacy"`
+	NestedMutation string              `yaml:"nested_mutation"`
+	NestedStatus   int                 `yaml:"nested_status"`
+	NestedAfter    []string            `yaml:"nested_after"`
+	Owners         map[string]string   `yaml:"owners"`
+	Nested         map[string][]string `yaml:"nested"`
+	Name           string              `yaml:"name"`
+	Seed           []string            `yaml:"seed"`
+	Query          string              `yaml:"query"`
+	Ordinary       int                 `yaml:"ordinary"`
+	Helpers        int                 `yaml:"helpers"`
+	Total          int                 `yaml:"total"`
+	Items          []helperListingItem `yaml:"items"`
+	Next           []string            `yaml:"next"`
+	Mutation       string              `yaml:"mutation"`
+	MemberStatus   int                 `yaml:"member_status"`
+	AfterMembers   []string            `yaml:"after_members"`
+	Legacy         bool                `yaml:"legacy"`
 }
 
 func loadHelperListingFixtures(t *testing.T) (map[string]helperListingRow, []helperListingCase) {
@@ -123,6 +126,11 @@ func loadHelperListingFixtures(t *testing.T) (map[string]helperListingRow, []hel
 	for _, name := range []string{"cyclic-owner-search-stability", "trunk-append-vs-replacement", "replacement-saved-identity"} {
 		if !names[name] {
 			t.Fatalf("required real-route fixture %s missing", name)
+		}
+	}
+	for _, name := range []string{"nested-helper-owner", "nested-helper-only-search", "nested-owner-excluded", "nested-owner-missing", "nested-hidden-child", "nested-member-pages", "nested-original-search-scope", "nested-scope-expired", "nested-current-authorization", "nested-foreign-viewer"} {
+		if !names[name] {
+			t.Fatalf("required nested route fixture %s missing", name)
 		}
 	}
 	return rows, fixture.Cases
@@ -327,6 +335,86 @@ func TestGroupedBrowseRegisteredRoutesRealSQL(t *testing.T) {
 					}
 				}
 				assertMembers(memberResponse, want.Members)
+				var direct schema.VillageHelperMembersPayload
+				if err := json.Unmarshal(memberResponse.Body.Bytes(), &direct); err != nil {
+					t.Fatal(err)
+				}
+				for _, member := range direct.Members {
+					name := idNames[string(member.Transcript.Session.ID)]
+					expected := c.Nested[name]
+					if len(expected) == 0 {
+						if len(member.HelperGroups) != 0 {
+							t.Fatalf("unexpected nested disclosure on %s", name)
+						}
+						continue
+					}
+					if len(member.HelperGroups) != 1 {
+						t.Fatalf("%s lost its nested disclosure", name)
+					}
+					nested := member.HelperGroups[0]
+					if nested.HelperThreadCount != len(expected) || nested.MemberScope == group.MemberScope || nested.GroupID == group.GroupID {
+						t.Fatal("nested direct count or independent scope binding is wrong")
+					}
+					for _, child := range expected {
+						if baselineGroups[child] != nested.GroupID {
+							t.Fatal("nested identity changed with query scope")
+						}
+					}
+					nestedPath := "/api/v1/transcript-groups/" + nested.GroupID + "/members?scope=" + nested.MemberScope
+					assertMembers(get(nestedPath, ""), expected)
+					wrongScope := get("/api/v1/transcript-groups/"+nested.GroupID+"/members?scope="+group.MemberScope, "")
+					if wrongScope.Code != 409 {
+						t.Fatal("outer token granted nested group access")
+					}
+					if len(expected) > 1 {
+						pagedResponse := get(nestedPath+"&page=2&limit=1", "")
+						if pagedResponse.Code != 200 {
+							t.Fatalf("nested member page: %s", pagedResponse.Body)
+						}
+						var paged schema.VillageHelperMembersPayload
+						if err := json.Unmarshal(pagedResponse.Body.Bytes(), &paged); err != nil {
+							t.Fatal(err)
+						}
+						if paged.Total != len(expected) || len(paged.Members) != 1 || idNames[string(paged.Members[0].Transcript.Session.ID)] != expected[1] {
+							t.Fatal("nested paging changed direct membership")
+						}
+					}
+					if c.NestedMutation == "" {
+						continue
+					}
+					token := ""
+					switch c.NestedMutation {
+					case "expire":
+						h.groupedScopes.mu.Lock()
+						entry := h.groupedScopes.entries[nested.MemberScope]
+						entry.expires = time.Now().Add(-time.Second)
+						h.groupedScopes.entries[nested.MemberScope] = entry
+						h.groupedScopes.mu.Unlock()
+					case "hide":
+						if err := h.inTxAs(ctx, owner, func(q Querier) error {
+							private := dbVisibilityPrivate
+							_, err := applyMetadataPatch(ctx, q, ids[expected[0]], metadataPatch{Visibility: &private})
+							return err
+						}); err != nil {
+							t.Fatal(err)
+						}
+					case "foreign-viewer":
+						token, err = auth.CreateToken(h.cfg.JWTSecret, uuid.UUID(owner.Bytes), username)
+						if err != nil {
+							t.Fatal(err)
+						}
+					default:
+						t.Fatalf("unsupported nested mutation %s", c.NestedMutation)
+					}
+					changed := get(nestedPath, token)
+					if c.NestedStatus != 0 {
+						if changed.Code != c.NestedStatus || !strings.Contains(changed.Body.String(), "group_scope_expired") || !strings.Contains(changed.Body.String(), "refresh") {
+							t.Fatalf("nested scope refusal: %d %s", changed.Code, changed.Body)
+						}
+					} else {
+						assertMembers(changed, c.NestedAfter)
+					}
+				}
 				if len(want.Members) > 1 {
 					pagedResponse := get(memberPath+"&page=2&limit=1", "")
 					if pagedResponse.Code != 200 {

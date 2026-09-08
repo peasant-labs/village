@@ -6,6 +6,7 @@ rows:
   - {name: G2, origin: agent, title: needle same review, purpose: helper_review, owner: P1, time: 32, project: a}
   - {name: G3, origin: agent, title: same review, purpose: helper_review, owner: P2, time: 21, project: b}
   - {name: G4, origin: agent, title: same review, purpose: helper_review, owner: P1, time: 33, project: a}
+  - {name: GX, origin: agent, title: unmatched branch, purpose: helper_review, owner: G1, time: 34, project: a}
   - {name: U1, origin: agent, title: same review, purpose: helper_review, time: 41, project: a}
   - {name: U2, origin: agent, title: same review, purpose: helper_review, time: 42, project: a}
   - {name: N1, origin: user, title: guardian reviews, purpose: interaction, time: 5, project: a}
@@ -14,6 +15,91 @@ rows:
   - {name: Y1, origin: agent, title: cycle first, owner: Y2, purpose: helper_review, time: 51, project: a}
   - {name: Y2, origin: agent, title: needle cycle second, owner: Y1, purpose: helper_review, time: 52, project: a}
 cases:
+  - name: nested-helper-owner
+    seed: [P1, G1, G2]
+    owners: {G2: G1}
+    ordinary: 1
+    helpers: 2
+    total: 1
+    items: [{transcript: P1, members: [G1]}]
+    nested: {G1: [G2]}
+  - name: nested-helper-only-search
+    seed: [P1, G1, G2]
+    owners: {G2: G1}
+    query: q=needle
+    ordinary: 0
+    helpers: 1
+    total: 1
+    items: [{members: [G2]}]
+  - name: nested-owner-excluded
+    seed: [G1, G2]
+    owners: {G2: G1}
+    ordinary: 0
+    helpers: 2
+    total: 1
+    items: [{members: [G1]}]
+    nested: {G1: [G2]}
+  - name: nested-owner-missing
+    seed: [P1, G2]
+    owners: {G2: G1}
+    ordinary: 1
+    helpers: 1
+    total: 2
+    items: [{members: [G2]}, {transcript: P1}]
+  - name: nested-hidden-child
+    seed: [P1, G1, H1]
+    owners: {H1: G1}
+    ordinary: 1
+    helpers: 1
+    total: 1
+    items: [{transcript: P1, members: [G1]}]
+  - name: nested-member-pages
+    seed: [P1, G1, G2, G4]
+    owners: {G2: G1, G4: G1}
+    ordinary: 1
+    helpers: 3
+    total: 1
+    items: [{transcript: P1, members: [G1]}]
+    nested: {G1: [G2, G4]}
+  - name: nested-original-search-scope
+    seed: [P1, G1, G2, GX]
+    owners: {G2: G1}
+    query: q=review
+    ordinary: 0
+    helpers: 2
+    total: 1
+    items: [{members: [G1]}]
+    nested: {G1: [G2]}
+  - name: nested-scope-expired
+    seed: [P1, G1, G2]
+    owners: {G2: G1}
+    ordinary: 1
+    helpers: 2
+    total: 1
+    items: [{transcript: P1, members: [G1]}]
+    nested: {G1: [G2]}
+    nested_mutation: expire
+    nested_status: 409
+  - name: nested-current-authorization
+    seed: [P1, G1, G2]
+    owners: {G2: G1}
+    ordinary: 1
+    helpers: 2
+    total: 1
+    items: [{transcript: P1, members: [G1]}]
+    nested: {G1: [G2]}
+    nested_mutation: hide
+    nested_after: []
+  - name: nested-foreign-viewer
+    seed: [P1, G1, G2]
+    owners: {G2: G1}
+    ordinary: 1
+    helpers: 2
+    total: 1
+    items: [{transcript: P1, members: [G1]}]
+    nested: {G1: [G2]}
+    nested_mutation: foreign-viewer
+    nested_status: 409
   - name: trunk-append-vs-replacement
     seed: [P1, G1, G2]
     ordinary: 1

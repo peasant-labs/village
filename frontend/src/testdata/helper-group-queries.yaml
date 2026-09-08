@@ -1,4 +1,12 @@
 group: {groupId: hg_fixture, purpose: helper_review, helperThreadCount: 1, memberScope: opaque-fixture-scope}
+nestedGroup: {groupId: hg_nested, purpose: helper_review, helperThreadCount: 1, memberScope: opaque-nested-scope}
+nestedRow:
+  id: 12345678-1234-4234-8234-123456789014
+  owner_id: 12345678-1234-4234-8234-123456789013
+  local_id: ses_G3
+  title: nested saved review
+  turn_count: 5
+  session_origin: agent
 row:
   id: 12345678-1234-4234-8234-123456789012
   owner_id: 12345678-1234-4234-8234-123456789013
@@ -7,6 +15,8 @@ row:
   turn_count: 5
   session_origin: agent
 cases:
+  - {name: nested-independent-scope, kind: members, params: {}, expanded: true, status: 200, nestedStatus: 200, request: {scope: opaque-fixture-scope, page: '1', limit: '20'}}
+  - {name: nested-expiry-keeps-parent, kind: members, params: {}, expanded: true, status: 200, nestedStatus: 409, request: {scope: opaque-fixture-scope, page: '1', limit: '20'}}
   - {name: global-query, kind: list, params: {page: '1', limit: '20'}, expanded: false, status: 200, request: {view: grouped, page: '1', limit: '20'}}
   - {name: profile-query, kind: list, params: {owner: fixture-owner, page: '1', limit: '20'}, expanded: false, status: 200, request: {owner: fixture-owner, view: grouped, page: '1', limit: '20'}}
   - {name: project-query, kind: list, params: {owner: fixture-owner, project_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}, expanded: false, status: 200, request: {owner: fixture-owner, project_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, view: grouped, page: '1', limit: '20'}}
