@@ -52,7 +52,8 @@ type GroupedScopeRequest struct {
 // schema.VillageSessionRow values so every registered variant preserves its
 // existing route-specific projection without a second wire model.
 type GroupedScopeResult struct {
-	Rows []schema.VillageSessionRow
+	Rows   []schema.VillageSessionRow
+	cyclic map[schema.TranscriptID]bool
 }
 
 // GroupedScopeResolver replays one fixed route variant using current
@@ -70,6 +71,19 @@ type GroupedScopeRegistration interface {
 const groupedScopeLifetime = 15 * time.Minute
 
 const groupedScopeCapacity = 4096
+
+const groupedScopeMaxFilterBytes = 16 * 1024
+
+func validateGroupedScopeSize(request GroupedScopeRequest) error {
+	bytes := len(request.ViewerID) + len(request.Owner) + len(request.ProjectHash) + len(request.Project) + len(request.Collective) + len(request.Query) + len(request.Provider) + len(request.Repository) + len(request.Org) + len(request.Origin) + len(request.Sort) + len(request.SelectionRevision)
+	for _, tag := range request.Tags {
+		bytes += len(tag)
+	}
+	if bytes > groupedScopeMaxFilterBytes || len(request.Tags) > 128 {
+		return &GroupedScopeError{Status: 400, Message: "handler.GroupedList refused oversized filters while saving a member scope; no grouped list was returned because the bounded scope cache cannot retain this request; shorten the filters to 16 KiB and at most 128 tags, then retry"}
+	}
+	return nil
+}
 
 // ErrGroupScopeExpired never permits a fallback to an unscoped member read.
 var ErrGroupScopeExpired = errors.New("group_scope_expired: handler helper-member replay cannot recover this viewer's original list scope during expansion; no members were returned; refresh the originating list and expand again")

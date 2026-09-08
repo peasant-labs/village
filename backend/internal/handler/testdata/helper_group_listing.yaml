@@ -5,12 +5,38 @@ rows:
   - {name: G1, origin: agent, title: same review, purpose: helper_review, owner: P1, time: 31, project: a}
   - {name: G2, origin: agent, title: needle same review, purpose: helper_review, owner: P1, time: 32, project: a}
   - {name: G3, origin: agent, title: same review, purpose: helper_review, owner: P2, time: 21, project: b}
+  - {name: G4, origin: agent, title: same review, purpose: helper_review, owner: P1, time: 33, project: a}
   - {name: U1, origin: agent, title: same review, purpose: helper_review, time: 41, project: a}
   - {name: U2, origin: agent, title: same review, purpose: helper_review, time: 42, project: a}
   - {name: N1, origin: user, title: guardian reviews, purpose: interaction, time: 5, project: a}
   - {name: C1, origin: user, title: ordinary child, owner: P1, purpose: delegated_work, time: 15, project: a}
   - {name: H1, origin: agent, title: hidden review, owner: P1, purpose: helper_review, time: 45, project: a, private: true}
+  - {name: Y1, origin: agent, title: cycle first, owner: Y2, purpose: helper_review, time: 51, project: a}
+  - {name: Y2, origin: agent, title: needle cycle second, owner: Y1, purpose: helper_review, time: 52, project: a}
 cases:
+  - name: trunk-append-vs-replacement
+    seed: [P1, G1, G2]
+    ordinary: 1
+    helpers: 2
+    total: 1
+    items: [{transcript: P1, members: [G1, G2]}]
+    mutation: append-review
+    after_members: [G1, G2]
+  - name: replacement-saved-identity
+    seed: [P1, G1, G2]
+    ordinary: 1
+    helpers: 2
+    total: 1
+    items: [{transcript: P1, members: [G1, G2]}]
+    mutation: replacement
+    after_members: [G1, G2, G4]
+  - name: cyclic-owner-search-stability
+    seed: [Y1, Y2]
+    query: q=needle
+    ordinary: 0
+    helpers: 1
+    total: 1
+    items: [{members: [Y2]}]
   - name: owner-retained-pages
     seed: [P1, P2, O1, G1, G2, G3]
     query: limit=2

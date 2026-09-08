@@ -118,6 +118,11 @@ func loadHelperListingFixtures(t *testing.T) (map[string]helperListingRow, []hel
 			t.Fatalf("required real-route fixture %s missing", name)
 		}
 	}
+	for _, name := range []string{"cyclic-owner-search-stability", "trunk-append-vs-replacement", "replacement-saved-identity"} {
+		if !names[name] {
+			t.Fatalf("required real-route fixture %s missing", name)
+		}
+	}
 	return rows, fixture.Cases
 }
 
@@ -140,18 +145,18 @@ func TestGroupedBrowseRegisteredRoutesRealSQL(t *testing.T) {
 			h, routes := newHandler()
 			idNames := map[string]string{}
 			ids := map[string]pgtype.UUID{}
-			for _, name := range c.Seed {
+			seedRow := func(name string) {
 				row := rows[name]
 				visibility := dbVisibilityPublic
 				if row.Private {
 					visibility = dbVisibilityPrivate
 				}
-				stored := govStoreWithOrigin(t, ctx, h, owner, name, sessionorigin.Origin(row.Origin), visibility)
+				stored := govStoreWithOrigin(t, ctx, h, owner, "ses_"+name, sessionorigin.Origin(row.Origin), visibility)
 				ids[name] = stored.ID
 				idNames[uuid.UUID(stored.ID.Bytes).String()] = name
 				relations := []schema.SessionRelationship{}
 				if row.Owner != "" {
-					local := schema.SessionID(row.Owner)
+					local := schema.SessionID("ses_" + row.Owner)
 					relation := schema.SessionRelationship{Kind: schema.SessionRelationshipStartedBy, TargetState: schema.RelationshipTargetKnown, TargetLocalID: &local, Evidence: schema.EvidenceNativeTyped}
 					if err := relation.Validate(); err != nil {
 						t.Fatal(err)
@@ -162,10 +167,17 @@ func TestGroupedBrowseRegisteredRoutesRealSQL(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = pool.Exec(ctx, `UPDATE transcripts SET title=$2, session_start=$3, project_hash=$4, session_purpose=NULLIF($5,''), session_relationships=$6, parent_session_id=NULLIF($7,''), input_submission_count=$8, turn_count=$9 WHERE id=$1`, stored.ID, row.Title, time.Unix(int64(row.Time), 0), strings.Repeat(row.Project, 64), string(row.Purpose), encoded, row.Owner, row.Input, row.Turns)
+				parent := ""
+				if row.Owner != "" {
+					parent = "ses_" + row.Owner
+				}
+				_, err = pool.Exec(ctx, `UPDATE transcripts SET title=$2, session_start=$3, project_hash=$4, session_purpose=NULLIF($5,''), session_relationships=$6, parent_session_id=NULLIF($7,''), input_submission_count=$8, turn_count=$9 WHERE id=$1`, stored.ID, row.Title, time.Unix(int64(row.Time), 0), strings.Repeat(row.Project, 64), string(row.Purpose), encoded, parent, row.Input, row.Turns)
 				if err != nil {
 					t.Fatal(err)
 				}
+			}
+			for _, name := range c.Seed {
+				seedRow(name)
 			}
 			get := func(path, token string) *httptest.ResponseRecorder {
 				r := httptest.NewRequest(http.MethodGet, path, nil)
@@ -217,6 +229,33 @@ func TestGroupedBrowseRegisteredRoutesRealSQL(t *testing.T) {
 			if err := json.Unmarshal(get(path, "").Body.Bytes(), &repeat); err != nil {
 				t.Fatal(err)
 			}
+			// The same saved helper has the same group key even when a search
+			// excludes its ordinary owner or another member of a logical cycle.
+			baselineQuery := url.Values{"owner": {username}, "view": {"grouped"}, "limit": {"100"}}
+			var baseline schema.VillageSessionListPayload
+			baselineResponse := get("/api/v1/transcripts?"+baselineQuery.Encode(), "")
+			if baselineResponse.Code != 200 {
+				t.Fatalf("baseline status %d: %s", baselineResponse.Code, baselineResponse.Body)
+			}
+			if err := json.Unmarshal(baselineResponse.Body.Bytes(), &baseline); err != nil {
+				t.Fatal(err)
+			}
+			baselineGroups := map[string]string{}
+			for _, item := range baseline.Items {
+				for _, group := range item.HelperGroups {
+					w := get("/api/v1/transcript-groups/"+group.GroupID+"/members?scope="+group.MemberScope, "")
+					if w.Code != 200 {
+						t.Fatalf("baseline members: %s", w.Body)
+					}
+					var members schema.VillageHelperMembersPayload
+					if err := json.Unmarshal(w.Body.Bytes(), &members); err != nil {
+						t.Fatal(err)
+					}
+					for _, member := range members.Members {
+						baselineGroups[idNames[string(member.Session.ID)]] = group.GroupID
+					}
+				}
+			}
 			for i, item := range payload.Items {
 				want := c.Items[i]
 				if want.Transcript != "" {
@@ -239,6 +278,11 @@ func TestGroupedBrowseRegisteredRoutesRealSQL(t *testing.T) {
 					t.Fatalf("expected one helper group: %+v", item)
 				}
 				group := item.HelperGroups[0]
+				for _, name := range want.Members {
+					if baselineGroups[name] != group.GroupID {
+						t.Fatalf("%s changed group identity under filters", name)
+					}
+				}
 				if group.HelperThreadCount != len(want.Members) || group.GroupID != repeat.Items[i].HelperGroups[0].GroupID {
 					t.Fatal("unstable group identity/count")
 				}
@@ -262,11 +306,30 @@ func TestGroupedBrowseRegisteredRoutesRealSQL(t *testing.T) {
 					}
 				}
 				assertMembers(memberResponse, want.Members)
+				if len(want.Members) > 1 {
+					pagedResponse := get(memberPath+"&page=2&limit=1", "")
+					if pagedResponse.Code != 200 {
+						t.Fatalf("member paging: %s", pagedResponse.Body)
+					}
+					var paged schema.VillageHelperMembersPayload
+					if err := json.Unmarshal(pagedResponse.Body.Bytes(), &paged); err != nil {
+						t.Fatal(err)
+					}
+					if paged.Total != len(want.Members) || len(paged.Members) != 1 || idNames[string(paged.Members[0].Session.ID)] != want.Members[1] {
+						t.Fatalf("wrong independently paged members: %+v", paged)
+					}
+				}
 				if c.Mutation == "" {
 					continue
 				}
 				token := ""
 				switch c.Mutation {
+				case "append-review":
+					if _, err := pool.Exec(ctx, `UPDATE transcripts SET turn_count=coalesce(turn_count,0)+10 WHERE id=$1`, ids["G1"]); err != nil {
+						t.Fatal(err)
+					}
+				case "replacement":
+					seedRow("G4")
 				case "expire":
 					h.groupedScopes.mu.Lock()
 					entry := h.groupedScopes.entries[group.MemberScope]

@@ -14,7 +14,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
 // GroupedScopeError preserves a route's safe denial when replayed through the
@@ -50,15 +53,18 @@ func groupedViewerID(ctx context.Context) string {
 // Resolvers receive current auth context, never an authority inferred from a token.
 func (h *Handler) GroupedList(ctx context.Context, request GroupedScopeRequest, page, limit int) (schema.VillageSessionListPayload, error) {
 	request.ViewerID = groupedViewerID(ctx)
+	if err := validateGroupedScopeSize(request); err != nil {
+		return schema.VillageSessionListPayload{}, err
+	}
 	resolve := h.groupedScopes.resolver(request.Variant)
 	if resolve == nil {
 		return schema.VillageSessionListPayload{}, ErrGroupScopeExpired
 	}
-	result, err := resolve(ctx, request)
+	result, err := h.resolveGroupedCandidates(ctx, request, resolve)
 	if err != nil {
 		return schema.VillageSessionListPayload{}, err
 	}
-	items, groups, ordinary, err := groupVillageRows(result.Rows)
+	items, groups, ordinary, err := groupVillageRows(result.Rows, result.cyclic)
 	if err != nil {
 		return schema.VillageSessionListPayload{}, err
 	}
@@ -102,12 +108,12 @@ func (h *Handler) ListHelperMembers(w http.ResponseWriter, r *http.Request) {
 		WriteGroupedScopeError(w, ErrGroupScopeExpired)
 		return
 	}
-	result, err := resolve(r.Context(), request)
+	result, err := h.resolveGroupedCandidates(r.Context(), request, resolve)
 	if err != nil {
 		WriteGroupedScopeError(w, err)
 		return
 	}
-	_, groups, _, err := groupVillageRows(result.Rows)
+	_, groups, _, err := groupVillageRows(result.Rows, result.cyclic)
 	if err != nil {
 		WriteGroupedScopeError(w, err)
 		return
@@ -203,7 +209,7 @@ func helperGroupID(row schema.VillageSessionRow, owner schema.SessionID) string 
 
 // groupVillageRows only sees the selected candidate domain. No lookup of a
 // hidden owner's title, time or usage is needed to construct a context container.
-func groupVillageRows(rows []schema.VillageSessionRow) ([]schema.VillageSessionListItem, map[string][]schema.VillageSessionRow, int, error) {
+func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.TranscriptID]bool) ([]schema.VillageSessionListItem, map[string][]schema.VillageSessionRow, int, error) {
 	byIdentity := make(map[string]schema.VillageSessionRow, len(rows))
 	seenIDs := make(map[schema.TranscriptID]bool, len(rows))
 	for _, row := range rows {
@@ -213,10 +219,8 @@ func groupVillageRows(rows []schema.VillageSessionRow) ([]schema.VillageSessionL
 		if !row.Session.Purpose.IsValid() {
 			return nil, nil, 0, fmt.Errorf("handler helper grouping: invalid stored purpose during projection; no rows returned; repair the publishing validation and explicitly republish")
 		}
-		for _, relation := range row.Session.Relationships {
-			if err := relation.Validate(); err != nil {
-				return nil, nil, 0, err
-			}
+		if err := schema.ValidateSessionRelationships(row.Session.Relationships); err != nil {
+			return nil, nil, 0, err
 		}
 		key := groupedIdentity(row.Session.OwnerID, row.Session.LocalID)
 		if _, exists := byIdentity[key]; exists || seenIDs[row.Session.ID] {
@@ -233,6 +237,9 @@ func groupVillageRows(rows []schema.VillageSessionRow) ([]schema.VillageSessionL
 			continue
 		}
 		owner, status := helperOwner(row)
+		if cyclic[row.Session.ID] {
+			owner, status = "", schema.RelationshipNavigationConflicting
+		}
 		// Only a cycle actually containing this helper invalidates its owner.
 		visited := map[string]bool{groupedIdentity(row.Session.OwnerID, row.Session.LocalID): true}
 		next := owner
@@ -301,4 +308,37 @@ func groupVillageRows(rows []schema.VillageSessionRow) ([]schema.VillageSessionL
 		return a < b
 	})
 	return items, groups, ordinary, nil
+}
+
+func (h *Handler) resolveGroupedCandidates(ctx context.Context, request GroupedScopeRequest, resolve GroupedScopeResolver) (GroupedScopeResult, error) {
+	result, err := resolve(ctx, request)
+	if err != nil {
+		return GroupedScopeResult{}, err
+	}
+	ids := []pgtype.UUID{}
+	for _, row := range result.Rows {
+		if row.Session.Purpose != schema.SessionPurposeHelperReview {
+			continue
+		}
+		id, err := uuid.Parse(string(row.Session.ID))
+		if err != nil {
+			return GroupedScopeResult{}, fmt.Errorf("handler grouped candidates: malformed published identity during cycle resolution; no rows returned; correct the route projection: %w", err)
+		}
+		ids = append(ids, toPgUUID(id))
+	}
+	if len(ids) == 0 {
+		return result, nil
+	}
+	if h.pool == nil {
+		return GroupedScopeResult{}, fmt.Errorf("handler grouped candidates: database unavailable during owner-cycle resolution; no members returned; restore the database and refresh the list")
+	}
+	cycles, err := sqlc.New(h.pool).ListGroupedCyclicHelpers(ctx, ids)
+	if err != nil {
+		return GroupedScopeResult{}, err
+	}
+	result.cyclic = make(map[schema.TranscriptID]bool, len(cycles))
+	for _, id := range cycles {
+		result.cyclic[schema.TranscriptID(uuid.UUID(id.Bytes).String())] = true
+	}
+	return result, nil
 }
