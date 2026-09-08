@@ -440,7 +440,10 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
           `without one proves nothing about ${surface}`,
       );
     }
-    if (!surfacesKeepingARowWithAnAbsentParent.has(surface)) {
+    // Project responses contain the whole readable project. Their absent
+    // parents are classified by the focused project-orphan fixture instead of
+    // promoted to browse roots like paginated and filtered list surfaces.
+    if (surface !== "project" && !surfacesKeepingARowWithAnAbsentParent.has(surface)) {
       throw new Error(
         `child-session-grouping fixtures cover no case on ${surface} where a row names a session the response does ` +
           `not carry: that row must keep its ordinary place, and a build that folded it into nothing -- or dropped ` +

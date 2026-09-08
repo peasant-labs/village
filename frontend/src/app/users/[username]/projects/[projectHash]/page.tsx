@@ -21,6 +21,7 @@ import {
   StatGrid,
 } from "@/lib/ft-ui";
 import TranscriptList from "@/components/transcript/TranscriptList";
+import SessionGroupDisclosure from "@/components/transcript/SessionGroupDisclosure";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   useClearProjectDisplayName,
@@ -28,7 +29,7 @@ import {
   useUserProject,
 } from "@/lib/queries/transcripts";
 import { describeNameSource } from "@/lib/format";
-import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
+import { childSessionsByParentID, groupProjectSessions } from "@/lib/childSessions";
 import { isApiErrorStatus } from "@/lib/api";
 import { EXPLORE_SECTION } from "@/lib/nav/sections";
 import type {
@@ -64,6 +65,7 @@ export default function UserProjectPage({
   // a completed set or clear drops it, so the field re-reads the resolved name
   // the server just returned rather than echoing what was typed.
   const [draft, setDraft] = useState<string | null>(null);
+  const [orphansExpanded, setOrphansExpanded] = useState(false);
 
   const isOwner =
     !!user &&
@@ -146,14 +148,13 @@ export default function UserProjectPage({
   }));
 
   // A project page is where a person asks what a session did, so a session that
-  // another session started is listed under the one that started it rather than
-  // beside it. The rows are the same rows either way: a started session whose
-  // starter is not in this project's list keeps its own place in it.
+  // another session started is listed under the genuine root of its complete
+  // ancestry. Unresolved ancestry is kept reachable in one display-only group.
   //
   // The panel's own count still counts every transcript in the project,
   // including the ones inside a chip. It answers how much this project holds,
   // which is not changed by where a row is drawn.
-  const grouping = groupChildSessions(items);
+  const grouping = groupProjectSessions(items);
   const childSessions = childSessionsByParentID(grouping);
 
   // Panels are <div>s, not <section>s. The design system styles the bare
@@ -192,6 +193,26 @@ export default function UserProjectPage({
           hideOwner
           bare
         />
+        {grouping.orphanItems.length > 0 && (
+          <SessionGroupDisclosure
+            label={`orphan sessions ${grouping.orphanItems.length}`}
+            collapsedLabel={`orphan sessions ${grouping.orphanItems.length}`}
+            expanded={orphansExpanded}
+            onToggle={() => setOrphansExpanded((open) => !open)}
+            rowsID="project-orphan-session-rows"
+            testID="project-orphan-session-group"
+            bare
+          >
+            <div id="project-orphan-session-rows" data-testid="project-orphan-session-rows">
+              <TranscriptList
+                items={grouping.orphanItems}
+                showOwnerActions={isOwner}
+                hideOwner
+                bare
+              />
+            </div>
+          </SessionGroupDisclosure>
+        )}
       </DataState>
     </div>
   );

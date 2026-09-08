@@ -47,6 +47,7 @@ export interface ProjectTranscriptRow {
   localID?: string;
   /** The harness id of the session that started this one, or null. */
   parentSessionID?: string | null;
+  sessionOrigin?: "user" | "agent" | "unknown";
 }
 
 export interface ProjectRouteFixture {
@@ -59,6 +60,8 @@ export interface ProjectRouteFixture {
   /** `""` when the project has no known git remote. */
   remoteLabel: string;
   transcripts: ProjectTranscriptRow[];
+  /** Successive project GET answers. The final answer repeats on later refetches. */
+  transcriptResponses?: ProjectTranscriptRow[][];
   collectives: ProjectCollectiveRollupEntry[];
   /** When set, the project route answers this status instead of a payload. */
   errorStatus?: number;
@@ -98,6 +101,7 @@ function makeTranscript(
     owner_id: `user-${fixture.ownerUsername}`,
     local_id: row.localID ?? `local-${index}`,
     parent_session_id: row.parentSessionID ?? null,
+    session_origin: row.sessionOrigin ?? "user",
     title: row.title,
     project_hash: fixture.projectHash,
     project_name: fixture.displayName,
@@ -123,8 +127,12 @@ export function installProjectRouteREST(fixture: ProjectRouteFixture): RecordedR
   const owner = makeUser(fixture.ownerUsername);
   let displayName = fixture.displayName;
   let nameSource = fixture.nameSource;
+  let projectRead = 0;
 
-  const projectPayload = (): UserProjectPageResponse => ({
+  const projectPayload = (): UserProjectPageResponse => {
+    const responses = fixture.transcriptResponses;
+    const transcripts = responses?.[Math.min(projectRead++, responses.length - 1)] ?? fixture.transcripts;
+    return ({
     project: {
       project_hash: fixture.projectHash,
       project_display_name: displayName,
@@ -132,11 +140,12 @@ export function installProjectRouteREST(fixture: ProjectRouteFixture): RecordedR
       project_remote_label: fixture.remoteLabel,
     },
     owner,
-    transcripts: fixture.transcripts.map((row, i) =>
+    transcripts: transcripts.map((row, i) =>
       makeTranscript(row, i, { ...fixture, displayName, nameSource }),
     ),
     collectives: fixture.collectives,
-  });
+    });
+  };
 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -248,10 +257,7 @@ export function installProfileRouteREST(
   vi.stubGlobal("fetch", fetchMock);
 }
 
-function Providers({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+function Providers({ children, client }: { children: ReactNode; client: QueryClient }) {
   return (
     <QueryClientProvider client={client}>
       <AuthProvider>
@@ -262,21 +268,28 @@ function Providers({ children }: { children: ReactNode }) {
 }
 
 /** Renders the real project-page route for one `(username, projectHash)`. */
-export async function renderProjectRoute(username: string, projectHash: string): Promise<void> {
+export async function renderProjectRoute(username: string, projectHash: string): Promise<QueryClient> {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   await act(async () => {
     render(
-      <Providers>
+      <Providers client={client}>
         <UserProjectPage params={Promise.resolve({ username, projectHash })} />
       </Providers>,
     );
   });
+  return client;
 }
 
 /** Renders the real profile route whose project headings link into the page. */
 export async function renderProfileRoute(username: string): Promise<void> {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   await act(async () => {
     render(
-      <Providers>
+      <Providers client={client}>
         <UserProfilePage params={Promise.resolve({ username })} />
       </Providers>,
     );

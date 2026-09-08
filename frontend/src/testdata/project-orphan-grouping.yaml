@@ -1,0 +1,70 @@
+cases:
+  - name: mixed-roots-descendants-and-invalid-ancestry
+    rows:
+      - { name: codex-root, ownerID: owner-a, localID: root-a, parentSessionID: null, origin: user }
+      - { name: claude-child, ownerID: owner-a, localID: child-a, parentSessionID: root-a, origin: agent }
+      - { name: deep-child, ownerID: owner-a, localID: deep-a, parentSessionID: child-a, origin: agent }
+      - { name: unknown-root, ownerID: owner-a, localID: unknown-a, parentSessionID: null, origin: unknown }
+      - { name: missing-parent, ownerID: owner-a, localID: missing-a, parentSessionID: absent, origin: user }
+      - { name: missing-grandparent, ownerID: owner-a, localID: missing-b, parentSessionID: missing-a, origin: agent }
+      - { name: parentless-agent, ownerID: owner-a, localID: lone-agent, parentSessionID: null, origin: agent }
+      - { name: agent-descendant, ownerID: owner-a, localID: agent-child, parentSessionID: lone-agent, origin: agent }
+      - { name: self-cycle, ownerID: owner-a, localID: self, parentSessionID: self, origin: user }
+      - { name: cycle-one, ownerID: owner-a, localID: cycle-1, parentSessionID: cycle-2, origin: user }
+      - { name: cycle-two, ownerID: owner-a, localID: cycle-2, parentSessionID: cycle-1, origin: agent }
+      - { name: cycle-descendant, ownerID: owner-a, localID: cycle-child, parentSessionID: cycle-1, origin: agent }
+      - { name: foreign-same-id, ownerID: owner-b, localID: foreign, parentSessionID: root-a, origin: user }
+    expectedRoots: [codex-root, unknown-root]
+    expectedGroups:
+      - { parent: codex-root, children: [claude-child, deep-child] }
+    expectedOrphans: [missing-parent, missing-grandparent, parentless-agent, agent-descendant, self-cycle, cycle-one, cycle-two, cycle-descendant, foreign-same-id]
+  - name: no-orphans
+    rows:
+      - { name: root, ownerID: owner-a, localID: root, parentSessionID: null, origin: user }
+      - { name: child, ownerID: owner-a, localID: child, parentSessionID: root, origin: agent }
+    expectedRoots: [root]
+    expectedGroups:
+      - { parent: root, children: [child] }
+    expectedOrphans: []
+  - name: only-orphans
+    rows:
+      - { name: agent, ownerID: owner-a, localID: agent, parentSessionID: null, origin: agent }
+      - { name: child, ownerID: owner-a, localID: child, parentSessionID: agent, origin: agent }
+    expectedRoots: []
+    expectedGroups: []
+    expectedOrphans: [agent, child]
+  - name: empty-project
+    rows: []
+    expectedRoots: []
+    expectedGroups: []
+    expectedOrphans: []
+transitions:
+  - name: complete-parent-chain-arrives-and-removes-orphan-group
+    initial:
+      - { name: child, ownerID: owner-a, localID: child, parentSessionID: root, origin: agent }
+    refreshed:
+      - { name: child, ownerID: owner-a, localID: child, parentSessionID: root, origin: agent }
+      - { name: root, ownerID: owner-a, localID: root, parentSessionID: null, origin: user }
+    expectedOrphansBefore: [child]
+    expectedRootsAfter: [root]
+    expectedOrphansAfter: []
+  - name: parent-arrives-while-another-orphan-remains
+    initial:
+      - { name: child, ownerID: owner-a, localID: child, parentSessionID: root, origin: agent }
+      - { name: other, ownerID: owner-a, localID: other, parentSessionID: absent, origin: user }
+    refreshed:
+      - { name: child, ownerID: owner-a, localID: child, parentSessionID: root, origin: agent }
+      - { name: other, ownerID: owner-a, localID: other, parentSessionID: absent, origin: user }
+      - { name: root, ownerID: owner-a, localID: root, parentSessionID: null, origin: user }
+    expectedOrphansBefore: [child, other]
+    expectedRootsAfter: [root]
+    expectedOrphansAfter: [other]
+  - name: arriving-parent-still-unresolved
+    initial:
+      - { name: child, ownerID: owner-a, localID: child, parentSessionID: middle, origin: agent }
+    refreshed:
+      - { name: child, ownerID: owner-a, localID: child, parentSessionID: middle, origin: agent }
+      - { name: middle, ownerID: owner-a, localID: middle, parentSessionID: absent, origin: user }
+    expectedOrphansBefore: [child]
+    expectedRootsAfter: []
+    expectedOrphansAfter: [child, middle]
