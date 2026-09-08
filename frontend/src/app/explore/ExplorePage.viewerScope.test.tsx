@@ -181,7 +181,7 @@ describe("real authentication and Explore retention boundary", () => {
       h.hidden(scenario.initial);
       expect(screen.queryByRole("alert")).toBeNull();
       expect(h.listRequests).toHaveLength(nextList);
-      expect(screen.getByTestId("auth-context")).toHaveTextContent(JSON.stringify({ user: null, loading: true, loggedIn: false, error: false }));
+      expect(screen.getByTestId("auth-context")).toHaveTextContent(JSON.stringify({ user: scenario.initial, loading: false, loggedIn: true, error: false }));
       h.adapted.mockClear();
       await h.auth(1, scenario.target);
       await waitFor(() => expect(h.listRequests).toHaveLength(nextList + 1));

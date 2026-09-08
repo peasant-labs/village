@@ -1,0 +1,14 @@
+cases:
+  - { name: anonymous-root-preserves-filters, route: anonymous-root, outcome: success, retained_failure: false }
+  - { name: anonymous-root-preserves-retained-failure, route: anonymous-root, outcome: success, retained_failure: true }
+  - { name: anonymous-root-outage-preserves-intent, route: anonymous-root, outcome: failure, retained_failure: false }
+  - { name: signed-root-preserves-home, route: signed-root, outcome: success, retained_failure: false }
+  - { name: signed-root-outage-keeps-home, route: signed-root, outcome: failure, retained_failure: false }
+  - { name: signed-root-replaces-viewer, route: signed-root, outcome: viewer-change, retained_failure: false }
+  - { name: signed-root-expiry-opens-anonymous, route: signed-root, outcome: expired, retained_failure: false }
+  - { name: welcome-preserves-edited-handle, route: welcome, outcome: success, retained_failure: false }
+  - { name: welcome-outage-does-not-redirect, route: welcome, outcome: failure, retained_failure: false }
+  - { name: collective-preserves-create-draft, route: groups, outcome: success, retained_failure: false }
+  - { name: collective-outage-preserves-draft, route: groups, outcome: failure, retained_failure: false }
+  - { name: publish-preserves-open-dialog, route: publish, outcome: success, retained_failure: false }
+  - { name: publish-outage-keeps-dialog, route: publish, outcome: failure, retained_failure: false }

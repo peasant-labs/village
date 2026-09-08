@@ -29,11 +29,18 @@ const DEFAULT_FILTERS: ExploreFilters = {
   page: 1,
 };
 
+// Keep the stateful filter controls mounted during verification without passing
+// any previous viewer's rows, facets, collectives, or tags to the component.
+const WITHHELD_PAYLOAD = adaptExplore(
+  { transcripts: [], harness_facets: [], total: 0, agent_total: 0, page: 1, limit: TRANSCRIPT_PAGE_SIZE },
+  { collectives: [] },
+  [],
+);
+
 export default function ExplorePage() {
   const router = useRouter();
-  const { user, isLoading: isAuthLoading, isError: isAuthError,
+  const { user, isVerified: authResolved, isError: isAuthError,
     isFetching: isAuthFetching, retry: retryAuth } = useAuth();
-  const authResolved = !isAuthLoading && !isAuthError;
   const authScope = authResolved ? (user?.id ?? "anonymous") : "unresolved";
   const [filters, setFilters] = useState<ExploreFilters>(DEFAULT_FILTERS);
 
@@ -61,7 +68,7 @@ export default function ExplorePage() {
   // failures. This guarded render-phase update converges on the latest validated
   // object without an effect or a ref read during render.
   const [lastConfirmed, setLastConfirmed] = useState<{ scope: string; data: TranscriptListResponse } | null>(null);
-  if (lastConfirmed !== null && (!authResolved || lastConfirmed.scope !== authScope)) {
+  if (lastConfirmed !== null && authResolved && lastConfirmed.scope !== authScope) {
     setLastConfirmed(null);
   }
   if (authResolved && data != null && !isPlaceholderData && !isError && data !== lastConfirmed?.data) {
@@ -253,8 +260,12 @@ export default function ExplorePage() {
       </div>
     );
   } else {
-    content = (
-      <>
+    content = null;
+  }
+
+  const showResults = payload != null && (!isLoading || failureMessage != null);
+  const results = lastConfirmed !== null ? (
+      <div hidden={!showResults} inert={!showResults}>
         {failureMessage != null && (
           <div
             className="border border-rule bg-surface px-4 py-3 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
@@ -286,7 +297,7 @@ export default function ExplorePage() {
         )}
         <div aria-busy={busy} data-testid="session-list-results">
           <Explore
-            data={payload}
+            data={showResults ? payload : WITHHELD_PAYLOAD}
             onFiltersChange={setFilters}
             transcriptHref={(transcript) => `/transcripts/${transcript.id}`}
             profileHref={(owner) => `/users/${owner.githubUsername}`}
@@ -310,9 +321,8 @@ export default function ExplorePage() {
             </div>
           </div>
         </div>
-      </>
-    );
-  }
+      </div>
+    ) : null;
 
   // The polite status region is mounted persistently across every render branch
   // (loading, error, and results) so a live region always exists before its
@@ -328,6 +338,7 @@ export default function ExplorePage() {
         {statusMessage}
       </p>
       {content}
+      {results}
     </div>
   );
 }

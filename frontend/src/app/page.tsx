@@ -18,7 +18,7 @@ import HomePage from "./HomePage";
  * page and then swap it out under them.
  */
 export default function RootPage() {
-  const { isLoading, isLoggedIn, isError } = useAuth();
+  const { user, isLoading, isLoggedIn, isError } = useAuth();
 
   if (isLoading && !isError) {
     return (
@@ -32,5 +32,5 @@ export default function RootPage() {
     );
   }
 
-  return isLoggedIn ? <HomePage /> : <ExplorePage />;
+  return isLoggedIn ? <HomePage key={user?.id} /> : <ExplorePage />;
 }

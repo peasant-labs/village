@@ -10,6 +10,8 @@ interface AuthContextValue {
   isLoggedIn: boolean;
   isError: boolean;
   isFetching: boolean;
+  /** Current verification, separate from the established identity used by routes. */
+  isVerified: boolean;
   retry: () => void;
 }
 
@@ -19,6 +21,7 @@ const AuthContext = createContext<AuthContextValue>({
   isLoggedIn: false,
   isError: false,
   isFetching: false,
+  isVerified: false,
   retry: () => {},
 });
 
@@ -27,17 +30,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [failed, setFailed] = useState(false);
   if (isError && !failed) setFailed(true);
   if (!isPending && !isFetching && !isError && failed) setFailed(false);
-  // Cached identity is not confirmation of the credentials being checked now.
-  const user = isFetching || isError ? null : data ?? null;
+  // Keep established route/form identity through background checks and outages.
+  // Only a successful identity response (including normalized 401/null) changes it.
+  // Discovery separately requires current verification before using private data.
+  const user = data ?? null;
 
   return (
     <AuthContext.Provider
       value={{
         user: user ?? null,
-        isLoading: isPending || isFetching,
+        isLoading: isPending,
         isLoggedIn: !!user,
         isError: isError || (failed && (isPending || isFetching)),
         isFetching,
+        isVerified: !isPending && !isFetching && !isError,
         retry: () => { void refetch(); },
       }}
     >

@@ -142,8 +142,13 @@ function assertStep(step: OrchestrationStep): void {
       screen.getByRole("button", { name: /^retry(ing)? page \d+$/ }),
     ).toBeInTheDocument();
   } else {
-    expect(screen.queryByTestId("session-list-results")).toBeNull();
-    expect(screen.queryByTestId("explore")).toBeNull();
+    // Once established, controls stay mounted while their result data is
+    // withheld; this preserves filter intent through identity verification.
+    const results = screen.queryByTestId("session-list-results");
+    if (results) {
+      expect(results).not.toBeVisible();
+      expect(results.parentElement).toHaveAttribute("inert");
+    }
     expect(screen.queryAllByRole("alert").length).toBe(0);
   }
 
