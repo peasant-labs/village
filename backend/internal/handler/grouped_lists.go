@@ -75,12 +75,9 @@ func (h *Handler) GroupedList(ctx context.Context, request GroupedScopeRequest, 
 	}
 	start, end := groupedBounds(page, limit, len(items))
 	for _, item := range items[start:end] {
-		for i := range item.HelperGroups {
-			scope, err := h.groupedScopes.mint(request, item.HelperGroups[i].GroupID, time.Now())
-			if err != nil {
-				return schema.VillageSessionListPayload{}, err
-			}
-			item.HelperGroups[i].MemberScope = scope
+		item, err = h.scopeGroupedItem(request, item)
+		if err != nil {
+			return schema.VillageSessionListPayload{}, err
 		}
 		payload.Items = append(payload.Items, item)
 	}
@@ -121,12 +118,34 @@ func (h *Handler) ListHelperMembers(w http.ResponseWriter, r *http.Request) {
 	members := groups[groupID]
 	page, limit := groupedQueryPage(q)
 	start, end := groupedBounds(page, limit, len(members))
-	payload := schema.VillageHelperMembersPayload{Members: append([]schema.VillageSessionRow{}, members[start:end]...), Page: page, Limit: limit, Total: len(members)}
+	payload := schema.VillageHelperMembersPayload{Members: []schema.VillageSessionListItem{}, Page: page, Limit: limit, Total: len(members)}
+	for _, item := range members[start:end] {
+		item, err = h.scopeGroupedItem(request, item)
+		if err != nil {
+			WriteGroupedScopeError(w, err)
+			return
+		}
+		payload.Members = append(payload.Members, item)
+	}
 	if err := payload.Validate(); err != nil {
 		WriteGroupedScopeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, payload)
+}
+
+// Nested scopes retain the original route universe, not the outer group's
+// direct-member restriction. Only the group binding changes at each disclosure.
+func (h *Handler) scopeGroupedItem(request GroupedScopeRequest, item schema.VillageSessionListItem) (schema.VillageSessionListItem, error) {
+	item.HelperGroups = append([]schema.HelperGroupSummary(nil), item.HelperGroups...)
+	for i := range item.HelperGroups {
+		token, err := h.groupedScopes.mint(request, item.HelperGroups[i].GroupID, time.Now())
+		if err != nil {
+			return schema.VillageSessionListItem{}, err
+		}
+		item.HelperGroups[i].MemberScope = token
+	}
+	return item, nil
 }
 
 func groupedQueryPage(q url.Values) (int, int) {
@@ -209,7 +228,7 @@ func helperGroupID(row schema.VillageSessionRow, owner schema.SessionID) string 
 
 // groupVillageRows only sees the selected candidate domain. No lookup of a
 // hidden owner's title, time or usage is needed to construct a context container.
-func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.TranscriptID]bool) ([]schema.VillageSessionListItem, map[string][]schema.VillageSessionRow, int, error) {
+func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.TranscriptID]bool) ([]schema.VillageSessionListItem, map[string][]schema.VillageSessionListItem, int, error) {
 	byIdentity := make(map[string]schema.VillageSessionRow, len(rows))
 	seenIDs := make(map[schema.TranscriptID]bool, len(rows))
 	for _, row := range rows {
@@ -265,16 +284,15 @@ func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.Transcr
 	}
 	items := []schema.VillageSessionListItem{}
 	times := map[string]time.Time{}
-	ordinaryIndex := map[string]int{}
+	byItemIdentity := map[string]*schema.VillageSessionListItem{}
 	for i := range rows {
+		byItemIdentity[groupedIdentity(rows[i].Session.OwnerID, rows[i].Session.LocalID)] = &schema.VillageSessionListItem{Kind: schema.SessionListItemTranscript, Transcript: &rows[i]}
 		if rows[i].Session.Purpose == schema.SessionPurposeHelperReview {
 			continue
 		}
-		ordinaryIndex[groupedIdentity(rows[i].Session.OwnerID, rows[i].Session.LocalID)] = len(items)
-		items = append(items, schema.VillageSessionListItem{Kind: schema.SessionListItemTranscript, Transcript: &rows[i]})
 		times[string(rows[i].Session.ID)] = groupedSortTime(rows[i])
 	}
-	ordinary := len(items)
+	ordinary := len(times)
 	for id, members := range groups {
 		sort.Slice(members, func(i, j int) bool {
 			a, b := groupedSortTime(members[i]), groupedSortTime(members[j])
@@ -284,11 +302,26 @@ func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.Transcr
 			return members[i].Session.ID < members[j].Session.ID
 		})
 		group := schema.HelperGroupSummary{GroupID: id, Purpose: schema.SessionPurposeHelperReview, HelperThreadCount: len(members)}
-		if index, ok := ordinaryIndex[owners[id]]; ok {
-			items[index].HelperGroups = append(items[index].HelperGroups, group)
+		if owner, ok := byItemIdentity[owners[id]]; ok {
+			owner.HelperGroups = append(owner.HelperGroups, group)
 		} else {
 			items = append(items, schema.VillageSessionListItem{Kind: schema.SessionListItemContextContainer, Context: &schema.HelperContextSummary{GroupID: id, OwnerStatus: statuses[id]}, HelperGroups: []schema.HelperGroupSummary{group}})
 			times[id] = groupedSortTime(members[len(members)-1])
+		}
+	}
+	// Every admitted helper is represented in exactly one direct-member group.
+	// Attach summaries before copying items into member pages so helper owners
+	// carry their own disclosures without redundant top-level containers.
+	for _, item := range byItemIdentity {
+		sort.Slice(item.HelperGroups, func(a, b int) bool { return item.HelperGroups[a].GroupID < item.HelperGroups[b].GroupID })
+		if item.Transcript.Session.Purpose != schema.SessionPurposeHelperReview {
+			items = append(items, *item)
+		}
+	}
+	memberItems := make(map[string][]schema.VillageSessionListItem, len(groups))
+	for id, members := range groups {
+		for _, row := range members {
+			memberItems[id] = append(memberItems[id], *byItemIdentity[groupedIdentity(row.Session.OwnerID, row.Session.LocalID)])
 		}
 	}
 	itemKey := func(item schema.VillageSessionListItem) string {
@@ -307,7 +340,7 @@ func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.Transcr
 		}
 		return a < b
 	})
-	return items, groups, ordinary, nil
+	return items, memberItems, ordinary, nil
 }
 
 func (h *Handler) resolveGroupedCandidates(ctx context.Context, request GroupedScopeRequest, resolve GroupedScopeResolver) (GroupedScopeResult, error) {
