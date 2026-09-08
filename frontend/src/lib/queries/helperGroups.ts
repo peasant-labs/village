@@ -57,6 +57,9 @@ export function useGroupedTranscripts(
  * Shared by browse and collective hosts: membership comes only from the opaque
  * scope on a server summary. The originating filters are deliberately not an
  * argument, so no caller can add search/project/collective filters to this URL.
+ * Members are transcript-only display items: key by item.transcript.session.id
+ * and render item.helperGroups as independent nested disclosures. The row and
+ * its applicable collective/review arm remain under item.transcript.
  */
 export function useHelperGroupMembers(
   group: HelperGroupSummary | undefined,
