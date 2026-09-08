@@ -1,0 +1,57 @@
+rows:
+  - {name: P, title: parent, start: 300, purpose: interaction, project: a}
+  - {name: G1, title: first helper, start: 100, purpose: helper_review, parent: P, project: a}
+  - {name: G2, title: needle helper, start: 200, purpose: helper_review, parent: P, project: a}
+  - {name: B, title: needle other project, start: 150, purpose: helper_review, parent: P, project: b}
+  - {name: X, title: needle other collective, start: 175, purpose: helper_review, parent: P, project: a, other_owner: true, other_collective: true}
+cases:
+  - {name: collective-valid, route: collective, status: 200, ordinary: 1, helpers: 2, members: [G1, G2]}
+  - {name: contributable-valid, route: contributable, status: 200, ordinary: 1, helpers: 2, members: [G1, G2]}
+  - {name: pending-valid, route: pending, status: 200, ordinary: 1, helpers: 2, members: [G1, G2]}
+  - {name: my-shares-valid, route: my-shares, status: 200, ordinary: 1, helpers: 2, members: [G1, G2]}
+  - {name: collective-denied, route: collective, denied: true, status: 200, ordinary: 0, helpers: 0, members: []}
+  - {name: contributable-denied, route: contributable, denied: true, status: 403, ordinary: 0, helpers: 0, members: []}
+  - {name: pending-denied, route: pending, denied: true, status: 403, ordinary: 0, helpers: 0, members: []}
+  - {name: my-shares-denied, route: my-shares, denied: true, status: 200, ordinary: 0, helpers: 0, members: []}
+  - {name: collective-filter-replay, route: collective, search: needle, status: 200, ordinary: 0, helpers: 1, members: [G2]}
+  - {name: contributable-filter-replay, route: contributable, search: needle, status: 200, ordinary: 0, helpers: 1, members: [G2]}
+  - {name: pending-filter-replay, route: pending, search: needle, status: 200, ordinary: 0, helpers: 1, members: [G2]}
+  - {name: my-shares-filter-replay, route: my-shares, search: needle, status: 200, ordinary: 0, helpers: 1, members: [G2]}
+  - {name: collective-expired, route: collective, status: 200, ordinary: 1, helpers: 2, members: [G1, G2], mutation: expire, member_status: 409}
+  - {name: contributable-expired, route: contributable, status: 200, ordinary: 1, helpers: 2, members: [G1, G2], mutation: expire, member_status: 409}
+  - {name: pending-expired, route: pending, status: 200, ordinary: 1, helpers: 2, members: [G1, G2], mutation: expire, member_status: 409}
+  - {name: my-shares-expired, route: my-shares, status: 200, ordinary: 1, helpers: 2, members: [G1, G2], mutation: expire, member_status: 409}
+  - {name: collective-current-authorization, route: collective, status: 200, ordinary: 1, helpers: 2, members: [G1, G2], mutation: remove-role, member_status: 403}
+  - {name: contributable-current-authorization, route: contributable, status: 200, ordinary: 1, helpers: 2, members: [G1, G2], mutation: remove-role, member_status: 403}
+  - {name: pending-current-authorization, route: pending, status: 200, ordinary: 1, helpers: 2, members: [G1, G2], mutation: remove-role, member_status: 403}
+  - {name: my-shares-current-authorization, route: my-shares, status: 200, ordinary: 1, helpers: 2, members: [G1, G2], mutation: change-viewer, member_status: 409}
+  - {name: contributable-current-eligibility, route: contributable, status: 200, ordinary: 1, helpers: 2, members: [G1, G2], mutation: submit-second, member_status: 200, after_members: [G1]}
+  - {name: pending-current-eligibility, route: pending, status: 200, ordinary: 1, helpers: 2, members: [G1, G2], mutation: approve-second, member_status: 200, after_members: [G1]}
+  - {name: collective-legacy-flat, route: collective, legacy: true, status: 200, members: [], legacy_ids: [B, G1, G2, P]}
+  - {name: contributable-legacy-flat, route: contributable, legacy: true, status: 200, members: [], legacy_ids: [B, G1, G2, P]}
+  - {name: pending-legacy-flat, route: pending, legacy: true, status: 200, members: [], legacy_ids: [B, G1, G2, P]}
+  - {name: my-shares-legacy-flat, route: my-shares, legacy: true, status: 200, members: [], legacy_ids: [B, G1, G2, P]}
+  - name: contributable-select-second-only
+    route: contributable
+    search: needle
+    status: 200
+    ordinary: 0
+    helpers: 1
+    members: [G2]
+    mutation: contribute-selected
+    selected_ids: [G2]
+    expected_states: {P: "", G1: "", G2: pending, B: "", X: ""}
+    member_status: 200
+    after_members: []
+  - name: pending-select-second-only
+    route: pending
+    search: needle
+    status: 200
+    ordinary: 0
+    helpers: 1
+    members: [G2]
+    mutation: review-selected
+    selected_ids: [G2]
+    expected_states: {P: pending, G1: pending, G2: approved, B: pending, X: ""}
+    member_status: 200
+    after_members: []

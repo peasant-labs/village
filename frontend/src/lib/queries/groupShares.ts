@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../api";
 import type { BatchShareRequest, BatchShareResponse, ContributableResponse } from "../contribute/types";
+import { requireExplicitContributionIDs } from "../contribute/groupedSelection";
 
 /**
  * `GET /groups/{id}/contributable` — every transcript the caller owns that
@@ -84,6 +85,7 @@ export function useContributeRun(groupId: string) {
       for (const projectHash of projectHashes) {
         const transcriptIds = batches.get(projectHash) ?? [];
         try {
+          requireExplicitContributionIDs(transcriptIds);
           const response = await batchShare.mutateAsync({
             project_hash: projectHash,
             transcript_ids: transcriptIds,

@@ -1,0 +1,36 @@
+session: |
+  {
+    "id":"10000000-0000-4000-8000-000000000002", "owner_id":"20000000-0000-4000-8000-000000000001",
+    "local_id":"guardian-two", "title":"Second helper", "description":"Independent saved work",
+    "visibility":"shared", "model_provider":"codex", "model_name":"gpt-5", "harness_version":"1",
+    "session_start":"2026-09-01T10:00:00Z", "session_end":"2026-09-01T10:01:00Z",
+    "turn_count":5, "token_count":31, "blob_size_bytes":800, "schema_version":"11",
+    "published_at":"2026-09-01T11:00:00Z", "updated_at":"2026-09-01T12:00:00Z",
+    "parent_session_id":"parent-one", "ingested_at":"2026-09-01T10:02:00Z", "source_format":"jsonl",
+    "git_branch":"feature", "git_remote":"https://example.test/owner/project",
+    "project_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "project_name":"Published name", "project_display_name":"Owner name", "project_name_source":"override",
+    "project_remote_label":"owner/project", "tool_call_count":2, "subagent_count":1, "duration_ms":60000,
+    "subagents":[], "diagnostics_warnings":["retained uncertainty"], "diagnostics_partial":true,
+    "tokens_in":11, "tokens_out":20, "title_generated":"Generated name", "outcome":"success",
+    "files_touched":2, "lines_changed":3, "retry_loops":4, "retry_tokens_wasted":5, "within_session_reverts":6,
+    "signal_density":0.5, "spec_quality_score":0.6, "exploration_ratio":0.7, "scope_breadth":7, "discovery_turns":8,
+    "m2_token_outcome_ratio":0.8, "m3_unique_tool_count":9, "m4_error_recovery_count":10,
+    "m4_consecutive_error_max":11, "m5_context_utilization_pct":12.5, "m5_peak_context_tokens":13,
+    "m5_avg_message_tokens":14, "m6_output_survival_pct":15.5, "m6_lines_survived":16,
+    "m6_lines_total":17, "m7_spec_word_count":18, "m7_spec_has_examples":true, "m7_spec_has_constraints":true,
+    "computed_at":"2026-09-01T12:01:00Z", "compute_version":2,
+    "content_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "license_id":"CC-BY-4.0",
+    "session_origin":"agent", "root_session_id":"root-one", "purpose":"helper_review",
+    "relationships":[{"kind":"started_by","targetState":"target_known","targetLocalId":"parent-one","evidence":"native_typed"}]
+  }
+owner_username: contributor
+owner_avatar: https://example.test/avatar.png
+owner_discoverable: true
+shared_at: "2026-09-02T10:00:00Z"
+cases:
+  - {name: collective-positive-count, route: collective, input_count: 1}
+  - {name: collective-unknown-count, route: collective}
+  - {name: pending-measured-zero, route: pending, input_count: 0}
+  - {name: my-shares-positive-count, route: my-shares, input_count: 1, status: rejected}
+  - {name: contributable-positive-count, route: contributable, input_count: 1, already_shared: false}

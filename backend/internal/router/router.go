@@ -141,7 +141,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		// to. Both routes exist because the browse surface and the contribute
 		// picker ask different questions.
 		r.With(h.AuthRequired).Get("/groups/visible", h.ListVisibleGroups)
-		r.With(h.AuthOptional).Get("/groups/{id}", h.GetGroup)
+		h.RegisterCollectiveBrowseRoutes(r)
 		r.With(h.AuthRequired).Patch("/groups/{id}", h.UpdateGroup)
 		r.With(h.AuthRequired).Delete("/groups/{id}", h.DeleteGroup)
 		r.With(h.AuthRequired).Post("/groups/{id}/join", h.JoinGroup)
@@ -151,10 +151,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		// Contributing a whole project: one read that says what the caller may
 		// offer this collective, and one write that offers a project's
 		// transcripts in a single transaction. Both are member-only.
-		r.With(h.AuthRequired).Get("/groups/{id}/contributable", h.ListContributable)
 		r.With(h.AuthRequired).Post("/groups/{id}/shares", h.BatchShareProject)
-		r.With(h.AuthRequired).Get("/groups/{id}/pending", h.ListPendingShares)
-		r.With(h.AuthRequired).Get("/groups/{id}/my-shares", h.ListMyGroupShares)
 		// Reviewing submissions: one route decides ONE submission, the other
 		// decides a whole selection in one action. Both are owner-only and
 		// neither touches transcript visibility.
