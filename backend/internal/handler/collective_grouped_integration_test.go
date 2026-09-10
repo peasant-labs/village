@@ -336,11 +336,16 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 					if err := member.Validate(); err != nil {
 						t.Fatal(err)
 					}
-					got = append(got, names[string(member.Session.ID)])
-					if member.Session.InputSubmissionCount == nil || *member.Session.InputSubmissionCount != 1 || member.Session.TurnCount == nil || *member.Session.TurnCount != 5 {
+					if member.Kind != schema.SessionListItemTranscript || member.Transcript == nil {
+						t.Fatalf("member is not a transcript item: %+v", member)
+					}
+					session := member.Transcript.Session
+					got = append(got, names[string(session.ID)])
+					if session.InputSubmissionCount == nil || *session.InputSubmissionCount != 1 || session.TurnCount == nil || *session.TurnCount != 5 {
 						t.Fatal("independent counts lost")
 					}
-					if (member.Collective != nil) != (c.Route == "collective") || (member.Pending != nil) != (c.Route == "pending") || (member.MyShare != nil) != (c.Route == "my-shares") || (member.Contributable != nil) != (c.Route == "contributable") {
+					row := member.Transcript
+					if (row.Collective != nil) != (c.Route == "collective") || (row.Pending != nil) != (c.Route == "pending") || (row.MyShare != nil) != (c.Route == "my-shares") || (row.Contributable != nil) != (c.Route == "contributable") {
 						t.Fatal("member changed route variant")
 					}
 				}

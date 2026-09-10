@@ -252,7 +252,10 @@ func TestGroupedBrowseRegisteredRoutesRealSQL(t *testing.T) {
 						t.Fatal(err)
 					}
 					for _, member := range members.Members {
-						baselineGroups[idNames[string(member.Session.ID)]] = group.GroupID
+						if member.Kind != schema.SessionListItemTranscript || member.Transcript == nil {
+							t.Fatalf("baseline member is not a transcript item: %+v", member)
+						}
+						baselineGroups[idNames[string(member.Transcript.Session.ID)]] = group.GroupID
 					}
 				}
 			}
@@ -299,7 +302,10 @@ func TestGroupedBrowseRegisteredRoutesRealSQL(t *testing.T) {
 					}
 					got := []string{}
 					for _, member := range members.Members {
-						got = append(got, idNames[string(member.Session.ID)])
+						if member.Kind != schema.SessionListItemTranscript || member.Transcript == nil {
+							t.Fatalf("scoped member is not a transcript item: %+v", member)
+						}
+						got = append(got, idNames[string(member.Transcript.Session.ID)])
 					}
 					if !reflect.DeepEqual(got, expected) || members.Total != len(expected) {
 						t.Fatalf("scoped member IDs=%v total=%d want=%v", got, members.Total, expected)
@@ -315,7 +321,7 @@ func TestGroupedBrowseRegisteredRoutesRealSQL(t *testing.T) {
 					if err := json.Unmarshal(pagedResponse.Body.Bytes(), &paged); err != nil {
 						t.Fatal(err)
 					}
-					if paged.Total != len(want.Members) || len(paged.Members) != 1 || idNames[string(paged.Members[0].Session.ID)] != want.Members[1] {
+					if paged.Total != len(want.Members) || len(paged.Members) != 1 || paged.Members[0].Transcript == nil || idNames[string(paged.Members[0].Transcript.Session.ID)] != want.Members[1] {
 						t.Fatalf("wrong independently paged members: %+v", paged)
 					}
 				}
