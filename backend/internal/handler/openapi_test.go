@@ -127,14 +127,18 @@ func TestPublishTranscript_UnknownHarnessRejectsAsSchemaEnum422(t *testing.T) {
 	if !strings.Contains(respBody, "metadata failed schema validation") || !strings.Contains(respBody, "value must be one of") {
 		t.Fatalf("unknown harness publish body = %s, want schema enum rejection body", respBody)
 	}
-	// Order-independent, self-updating drift tripwire: every harness the contract
-	// enumerates must be named in the 422 body. Derive from schema.Harnesses() (the
-	// FULL bestiary set the publish-request harness enum is generated from), NOT
-	// schema.AllHarnesses (only the ingestion-supported subset) — the latter would
-	// still pass if a non-subset harness were silently dropped from the enum.
-	for _, hn := range schema.Harnesses() {
-		if !strings.Contains(respBody, string(hn)) {
-			t.Errorf("harness-422 body does not name enum value %q: %s", hn, respBody)
+	// Frozen-boundary tripwire: the legacy compatibility branch of this 422
+	// validates against the module's byte-frozen Village 0.10.0 schema, which
+	// intentionally never follows the current Village API version (see the
+	// module's compilePublishRequestSchema: the successor validator has a
+	// separate source type and must not silently change this legacy boundary).
+	// New harnesses therefore never appear in this body. Pin the frozen enum
+	// literally: any silent change to that boundary fails here and forces
+	// review, while the live harness menu stays covered by schema.Harnesses()
+	// consumers and the served-spec pins elsewhere in this file.
+	for _, hn := range []string{"claude-code", "gemini-cli", "codex", "opencode", "cursor", "antigravity", "strike"} {
+		if !strings.Contains(respBody, hn) {
+			t.Errorf("harness-422 body does not name frozen legacy enum value %q: %s", hn, respBody)
 		}
 	}
 }
@@ -347,7 +351,7 @@ func TestServeOpenAPI_ServesModuleSpec(t *testing.T) {
 
 // wantVillageAPIVersion is the contract version the village serves + enforces. It is
 // the consumer-side pin on the module's schema.VillageAPIVersion.
-const wantVillageAPIVersion = "0.14.0"
+const wantVillageAPIVersion = "0.17.0"
 
 // TestPinnedContractVersion_MatchesExpected asserts the pinned schema module reports
 // the contract version the village expects. The schema repo's go-apidiff gate

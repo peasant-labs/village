@@ -1,44 +1,56 @@
 cases:
   - name: valid_assistant_evidence
-    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-assistant","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}}'
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-assistant","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","content":"hello","timestamp":"2026-01-01T00:00:01Z","depth":0,"observedModel":"anthropic/Claude-Fable-5"}]}}'
     wantErrorPart: ''
   - name: invalid_non_assistant_evidence
-    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-role","turns":[{"index":0,"role":"user","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}}'
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-role","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"user","content":"hello","timestamp":"2026-01-01T00:00:01Z","depth":0,"observedModel":"anthropic/Claude-Fable-5"}]}}'
+    want_status: 422
     wantErrorPart: 'role "user" is not assistant'
-    wantErrorParts: &actionable [{name: what, value: observedModel}, {name: why, value: transcript}, {name: where, value: handler.}, {name: when, value: before secret scan or storage}, {name: consequence, value: no transcript bytes or metadata were written}, {name: fix, value: retry}]
+    wantErrorParts: [{name: what, value: "Village publication validation failed"}, {name: why, value: "violates the canonical schema"}, {name: where, value: "handler.decodePublicationDetail"}, {name: when, value: "before scan, locks, or storage"}, {name: consequence, value: "no transcript, object, audit, or share was changed"}, {name: fix, value: "correct the producer payload and retry"}]
   - name: malformed_enriched_input
     content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"turns":[{"role":"assistant","observedModel":]}}}'
     wantErrorPart: 'could not be decoded'
-    wantErrorParts: *actionable
+    wantErrorParts: &actionable [{name: what, value: observedModel}, {name: why, value: transcript}, {name: where, value: handler.}, {name: when, value: before secret scan or storage}, {name: consequence, value: no transcript bytes or metadata were written}, {name: fix, value: retry}]
   - name: present_empty_observed_model
-    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-empty","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":""}]}}'
-    wantErrorPart: 'present observedModel that is null, empty, or not a string'
-    wantErrorParts: *actionable
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-empty","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","content":"hello","timestamp":"2026-01-01T00:00:01Z","depth":0,"observedModel":""}]}}'
+    want_status: 422
+    wantErrorPart: 'the value is empty'
+    wantErrorParts: &shape422 [{name: what, value: "Village publication validation failed"}, {name: why, value: "violates the canonical schema"}, {name: where, value: "handler.decodePublicationDetail"}, {name: when, value: "before scan, locks, or storage"}, {name: consequence, value: "no transcript, object, audit, or share was changed"}, {name: fix, value: "correct the producer payload and retry"}]
   - name: present_null_observed_model
-    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-null","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":null}]}}'
-    wantErrorPart: 'present observedModel that is null, empty, or not a string'
-    wantErrorParts: *actionable
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"typed-null","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","content":"hello","timestamp":"2026-01-01T00:00:01Z","depth":0,"observedModel":null}]}}'
+    want_status: 422
+    wantErrorPart: 'non-null value required'
+    wantErrorParts: *shape422
   - name: legacy_provider_jsonl_trailing_blank_line
     content: |
       {"type":"user","message":{"role":"user","content":"hello"}}
 
-    wantErrorPart: ''
+    want_status: 422
+    wantErrorPart: 'required field id is missing'
+    wantErrorParts: *shape422
   - name: legacy_provider_specific_jsonl_shape
     content: |
       {"type":"assistant","uuid":"provider-entry","message":{"role":"assistant","model":"provider/native-model","content":[{"type":"text","text":"hello"}]}}
-    wantErrorPart: ''
+    want_status: 422
+    wantErrorPart: 'required field id is missing'
+    wantErrorParts: *shape422
   - name: legacy_text_mentions_observed_model_member
     content: '{"type":"message","text":"literal \"observedModel\": marker is only prose"}'
-    wantErrorPart: ''
+    want_status: 422
+    wantErrorPart: 'required field id is missing'
+    wantErrorParts: *shape422
   - name: bare_payload_null_observed_model
-    content: '{"id":"bare-null","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":null}]}'
-    wantErrorPart: 'present observedModel that is null, empty, or not a string'
-    wantErrorParts: *actionable
+    content: '{"id":"bare-null","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","content":"hello","timestamp":"2026-01-01T00:00:01Z","depth":0,"observedModel":null}]}'
+    want_status: 422
+    wantErrorPart: 'non-null value required'
+    wantErrorParts: *shape422
   - name: bare_payload_empty_observed_model
-    content: '{"id":"bare-empty","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":""}]}'
-    wantErrorPart: 'present observedModel that is null, empty, or not a string'
-    wantErrorParts: *actionable
+    content: '{"id":"bare-empty","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","content":"hello","timestamp":"2026-01-01T00:00:01Z","depth":0,"observedModel":""}]}'
+    want_status: 422
+    wantErrorPart: 'the value is empty'
+    wantErrorParts: *shape422
   - name: escaped_key_null_observed_model
-    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"escaped-null","turns":[{"index":0,"role":"assistant","content":"hello","observed\u004dodel":null}]}}'
-    wantErrorPart: 'present observedModel that is null, empty, or not a string'
-    wantErrorParts: *actionable
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"escaped-null","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","content":"hello","timestamp":"2026-01-01T00:00:01Z","depth":0,"observed\u004dodel":null}]}}'
+    want_status: 422
+    wantErrorPart: 'non-null value required'
+    wantErrorParts: *shape422

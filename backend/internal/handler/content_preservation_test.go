@@ -45,6 +45,7 @@ type observedModelPublishGateFixture struct {
 type observedModelPublishGateCase struct {
 	Name           string                       `yaml:"name"`
 	Content        string                       `yaml:"content"`
+	WantStatus     int                          `yaml:"want_status"`
 	WantErrorPart  string                       `yaml:"wantErrorPart"`
 	WantErrorParts []observedModelErrorFragment `yaml:"wantErrorParts"`
 }
@@ -430,8 +431,12 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 		}
 		return
 	}
-	if response.Code != http.StatusConflict || !strings.Contains(decodeError(t, response.Body.Bytes()), fixtureCase.WantErrorPart) {
-		t.Fatalf("mounted rejection status=%d body=%s want=%q", response.Code, response.Body.String(), fixtureCase.WantErrorPart)
+	wantStatus := http.StatusConflict
+	if fixtureCase.WantStatus != 0 {
+		wantStatus = fixtureCase.WantStatus
+	}
+	if response.Code != wantStatus || !strings.Contains(decodeError(t, response.Body.Bytes()), fixtureCase.WantErrorPart) {
+		t.Fatalf("mounted rejection status=%d body=%s want status=%d part=%q", response.Code, response.Body.String(), wantStatus, fixtureCase.WantErrorPart)
 	}
 	errorBody := decodeError(t, response.Body.Bytes())
 	for _, part := range fixtureCase.WantErrorParts {
@@ -547,7 +552,7 @@ func TestObservedModelPublishInventoryMutationGuards(t *testing.T) {
 	if _, err := decodeObservedModelPublishGateFixtures(nameSwap); err == nil {
 		t.Fatal("component name swap accepted")
 	}
-	valueSwap := bytes.Replace(observedModelPublishGateFixtureYAML, []byte("value: observedModel"), []byte("value: missing-component"), 1)
+	valueSwap := bytes.Replace(observedModelPublishGateFixtureYAML, []byte(`value: "Village publication validation failed"`), []byte(`value: "missing-component"`), 1)
 	f, err := decodeObservedModelPublishGateFixtures(valueSwap)
 	if err != nil {
 		t.Fatal(err)
