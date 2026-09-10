@@ -446,20 +446,22 @@ func deleteMaintenanceOwner(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 func buildTitleBackfillRawPayload(t *testing.T, leading int, turns []string) []byte {
 	t.Helper()
 	type turnJSON struct {
-		Index   int    `json:"index"`
-		Role    string `json:"role"`
-		Content string `json:"content"`
+		Index     int    `json:"index"`
+		Role      string `json:"role"`
+		Content   string `json:"content"`
+		Timestamp string `json:"timestamp"`
+		Depth     int    `json:"depth"`
 	}
 	details := make([]turnJSON, 0, leading+len(turns))
 	for i := 0; i < leading; i++ {
-		details = append(details, turnJSON{Index: i, Role: "assistant", Content: "not selected"})
+		details = append(details, turnJSON{Index: i, Role: "assistant", Content: "not selected", Timestamp: fmt.Sprintf("2026-01-01T00:00:%02dZ", i+1), Depth: 0})
 	}
 	for i, content := range turns {
-		details = append(details, turnJSON{Index: leading + i, Role: "user", Content: content})
+		details = append(details, turnJSON{Index: leading + i, Role: "user", Content: content, Timestamp: fmt.Sprintf("2026-01-01T00:00:%02dZ", leading+i+1), Depth: 0})
 	}
 	turnsJSON, err := json.Marshal(details)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return []byte(fmt.Sprintf(`{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"fixture","harness":"claude-code","turns":%s}}`, turnsJSON))
+	return []byte(fmt.Sprintf(`{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"fixture","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":%d,"turns":%s}}`, len(details), turnsJSON))
 }

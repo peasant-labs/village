@@ -115,21 +115,23 @@ func loadOriginBackfillFixtures(data []byte) ([]originBackfillFixture, error) {
 func (c originBackfillFixture) rawPayload(t *testing.T) []byte {
 	t.Helper()
 	type turnJSON struct {
-		Index   int    `json:"index"`
-		Role    string `json:"role"`
-		Content string `json:"content"`
+		Index     int    `json:"index"`
+		Role      string `json:"role"`
+		Content   string `json:"content"`
+		Timestamp string `json:"timestamp"`
+		Depth     int    `json:"depth"`
 	}
 	details := []turnJSON{}
 	for _, run := range c.Turns {
 		for range run.Count {
-			details = append(details, turnJSON{Index: len(details), Role: run.Role, Content: run.Content})
+			details = append(details, turnJSON{Index: len(details), Role: run.Role, Content: run.Content, Timestamp: fmt.Sprintf("2026-01-01T00:00:%02dZ", len(details)+1), Depth: 0})
 		}
 	}
 	encoded, err := json.Marshal(details)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return []byte(fmt.Sprintf(`{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"origin-fixture","harness":"claude-code","turns":%s}}`, encoded))
+	return []byte(fmt.Sprintf(`{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"origin-fixture","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":%d,"turns":%s}}`, len(details), encoded))
 }
 
 func TestOriginBackfillFixtureLoads(t *testing.T) {
