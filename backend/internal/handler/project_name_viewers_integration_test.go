@@ -256,7 +256,7 @@ func seedProjectNameWorldThroughPublish(t *testing.T, ctx context.Context, w *pr
 	}
 	user := &AuthUser{ID: uuid.UUID(w.owner.Bytes), Username: w.ownerName}
 
-	content := `{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"project-name-viewers","harness":"claude-code","turns":[]}}`
+	content := `{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"project-name-viewers","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":0,"turns":[]}}`
 	title := w.title
 	quality := schema.AuthoritativeQualityMetrics(schema.QualityMetrics{TitleGenerated: &title})
 	request := schema.AuthoritativePublishRequest{

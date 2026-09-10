@@ -34,6 +34,7 @@ var collectiveHelperListingYAML []byte
 
 type collectiveHelperRow struct {
 	Name            string                `yaml:"name"`
+	LocalID         string                `yaml:"local_id"`
 	Title           string                `yaml:"title"`
 	Start           int64                 `yaml:"start"`
 	Purpose         schema.SessionPurpose `yaml:"purpose"`
@@ -78,11 +79,24 @@ func loadCollectiveHelperFixtures(t *testing.T) collectiveHelperFixtures {
 	}
 	names := map[string]bool{}
 	rows := map[string]bool{}
+	localIDs := map[string]string{}
 	for _, row := range f.Rows {
 		if row.Name == "" || rows[row.Name] || !row.Purpose.IsValid() {
 			t.Fatal("invalid or duplicate row")
 		}
+		if _, err := schema.NewSessionID(row.LocalID); err != nil {
+			t.Fatalf("row %q carries local id %q outside the contract session ID grammar: %v", row.Name, row.LocalID, err)
+		}
+		if localIDs[row.LocalID] != "" {
+			t.Fatalf("duplicate local id %q", row.LocalID)
+		}
 		rows[row.Name] = true
+		localIDs[row.LocalID] = row.Name
+	}
+	for _, row := range f.Rows {
+		if row.Parent != "" && !rows[row.Parent] {
+			t.Fatalf("row %q names unknown parent %q", row.Name, row.Parent)
+		}
 	}
 	for _, name := range []string{"P", "G1", "G2", "B", "X"} {
 		if !rows[name] {
@@ -169,19 +183,27 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 				if row.OtherOwner {
 					rowOwner = stranger
 				}
-				stored := govStoreWithOrigin(t, ctx, h, rowOwner, row.Name, sessionorigin.Origin("agent"), dbVisibilityShared)
+				stored := govStoreWithOrigin(t, ctx, h, rowOwner, row.LocalID, sessionorigin.Origin("agent"), dbVisibilityShared)
 				ids[row.Name] = stored.ID
 				names[uuid.UUID(stored.ID.Bytes).String()] = row.Name
-				relations := []schema.SessionRelationship{}
+				parentLocalID := ""
 				if row.Parent != "" {
-					target := schema.SessionID(row.Parent)
+					for _, candidate := range f.Rows {
+						if candidate.Name == row.Parent {
+							parentLocalID = candidate.LocalID
+						}
+					}
+				}
+				relations := []schema.SessionRelationship{}
+				if parentLocalID != "" {
+					target := schema.SessionID(parentLocalID)
 					relations = append(relations, schema.SessionRelationship{Kind: schema.SessionRelationshipStartedBy, TargetState: schema.RelationshipTargetKnown, TargetLocalID: &target, Evidence: schema.EvidenceNativeTyped})
 				}
 				encoded, err := json.Marshal(relations)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := pool.Exec(ctx, `UPDATE transcripts SET title=$2, session_start=$3, project_hash=$4, session_purpose=$5, session_relationships=$6, parent_session_id=NULLIF($7,''), input_submission_count=1, turn_count=5 WHERE id=$1`, stored.ID, row.Title, time.Unix(row.Start, 0), strings.Repeat(row.Project, 64), string(row.Purpose), encoded, row.Parent); err != nil {
+				if _, err := pool.Exec(ctx, `UPDATE transcripts SET title=$2, session_start=$3, project_hash=$4, session_purpose=$5, session_relationships=$6, parent_session_id=NULLIF($7,''), input_submission_count=1, turn_count=5 WHERE id=$1`, stored.ID, row.Title, time.Unix(row.Start, 0), strings.Repeat(row.Project, 64), string(row.Purpose), encoded, parentLocalID); err != nil {
 					t.Fatal(err)
 				}
 				if c.Route != "contributable" {
