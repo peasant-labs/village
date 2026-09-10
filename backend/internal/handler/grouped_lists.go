@@ -121,7 +121,12 @@ func (h *Handler) ListHelperMembers(w http.ResponseWriter, r *http.Request) {
 	members := groups[groupID]
 	page, limit := groupedQueryPage(q)
 	start, end := groupedBounds(page, limit, len(members))
-	payload := schema.VillageHelperMembersPayload{Members: append([]schema.VillageSessionRow{}, members[start:end]...), Page: page, Limit: limit, Total: len(members)}
+	memberItems := make([]schema.VillageSessionListItem, 0, end-start)
+	for i := start; i < end; i++ {
+		row := members[i]
+		memberItems = append(memberItems, schema.VillageSessionListItem{Kind: schema.SessionListItemTranscript, Transcript: &row})
+	}
+	payload := schema.VillageHelperMembersPayload{Members: memberItems, Page: page, Limit: limit, Total: len(members)}
 	if err := payload.Validate(); err != nil {
 		WriteGroupedScopeError(w, err)
 		return

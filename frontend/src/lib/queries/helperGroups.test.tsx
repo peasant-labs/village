@@ -23,7 +23,7 @@ for (const fixture of fixtures.cases) {
       const session = { ...makeTranscriptFixture(fixtures.row), input_submission_count: 0 };
       const response = fixture.kind === "list"
         ? { items: [{ kind: "transcript", transcript: { session } }], page: 1, limit: 20, totalItems: 1, ordinarySessionTotal: 1, helperThreadTotal: 0 }
-        : { members: [{ session }], page: 1, limit: 20, total: 1 };
+        : { members: [{ kind: "transcript", transcript: { session } }], page: 1, limit: 20, total: 1 };
       return new Response(JSON.stringify(response), { status: 200 });
     }));
     const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}><AuthProvider>{children}</AuthProvider></QueryClientProvider>;
@@ -44,9 +44,10 @@ for (const fixture of fixtures.cases) {
         expect(calls[0].url.pathname).toContain(`/transcript-groups/${fixtures.group.groupId}/members`);
         expect(view.result.current.members.refreshRequired).toBe(fixture.status === 409);
         if (fixture.status === 200) {
-          expect(view.result.current.members.data?.members[0].session.id).toBe(fixtures.row.id);
-          expect(view.result.current.members.data?.members[0].session.input_submission_count).toBe(0);
-          expect(view.result.current.members.data?.members[0].session.turn_count).toBe(5);
+          expect(view.result.current.members.data?.members[0].kind).toBe("transcript");
+          expect(view.result.current.members.data?.members[0].transcript?.session.id).toBe(fixtures.row.id);
+          expect(view.result.current.members.data?.members[0].transcript?.session.input_submission_count).toBe(0);
+          expect(view.result.current.members.data?.members[0].transcript?.session.turn_count).toBe(5);
         }
       }
       if (fixture.refetchStatus) {
