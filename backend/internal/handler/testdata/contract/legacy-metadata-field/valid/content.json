@@ -10,9 +10,12 @@
     "durationMins": 1,
     "turnCount": 2,
     "toolCallCount": 0,
+    "tokensIn": 60,
+    "tokensOut": 40,
+    "totalTokens": 100,
     "turns": [
-      {"index": 0, "role": "user", "content": "metadata-legacy case"},
-      {"index": 1, "role": "assistant", "content": "ok"}
+      {"index": 0, "role": "user", "content": "metadata-legacy case", "timestamp": "2026-02-01T00:00:01Z", "depth": 0},
+      {"index": 1, "role": "assistant", "content": "ok", "timestamp": "2026-02-01T00:00:02Z", "depth": 0}
     ],
     "outcome": "resolved"
   }

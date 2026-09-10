@@ -424,7 +424,7 @@ func TestGroupedBrowseRegisteredRoutesRealSQL(t *testing.T) {
 					if err := json.Unmarshal(pagedResponse.Body.Bytes(), &paged); err != nil {
 						t.Fatal(err)
 					}
-					if paged.Total != len(want.Members) || len(paged.Members) != 1 || idNames[string(paged.Members[0].Transcript.Session.ID)] != want.Members[1] {
+					if paged.Total != len(want.Members) || len(paged.Members) != 1 || paged.Members[0].Transcript == nil || idNames[string(paged.Members[0].Transcript.Session.ID)] != want.Members[1] {
 						t.Fatalf("wrong independently paged members: %+v", paged)
 					}
 				}

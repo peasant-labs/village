@@ -56,8 +56,14 @@ func currentEnvelopeJSON(t *testing.T, harness string) []byte {
         "harness": "` + harness + `",
         "startTime": "2026-01-01T00:00:00Z",
         "endTime": "2026-01-01T00:01:00Z",
+        "durationMins": 1,
+        "tokensIn": 60,
+        "tokensOut": 40,
+        "totalTokens": 100,
+        "toolCallCount": 0,
+        "turnCount": 1,
         "turns": [
-          {"index": 0, "role": "user", "content": "hello", "partType": "text"}
+          {"index": 0, "role": "user", "content": "hello", "timestamp": "2026-01-01T00:00:01Z", "depth": 0, "partType": "text"}
         ]
       }
     }`
@@ -72,9 +78,15 @@ func legacyBarePayloadJSON(provider string) []byte {
       "provider": "` + provider + `",
       "startTime": "2026-01-01T00:00:00Z",
       "endTime": "2026-01-01T00:01:00Z",
+      "durationMins": 1,
+      "tokensIn": 60,
+      "tokensOut": 40,
+      "totalTokens": 100,
+      "toolCallCount": 0,
+      "turnCount": 2,
       "turns": [
-        {"index": 0, "role": "user", "content": "hi"},
-        {"index": 1, "role": "assistant", "content": "yo"}
+        {"index": 0, "role": "user", "content": "hi", "timestamp": "2026-01-01T00:00:01Z", "depth": 0},
+        {"index": 1, "role": "assistant", "content": "yo", "timestamp": "2026-01-01T00:00:02Z", "depth": 0}
       ]
     }`)
 }
@@ -98,8 +110,14 @@ func envelopeAtVersion(contractVersion, schemaVersion, harness string) []byte {
         "harness": "` + harness + `",
         "startTime": "2026-01-01T00:00:00Z",
         "endTime": "2026-01-01T00:01:00Z",
+        "durationMins": 1,
+        "tokensIn": 60,
+        "tokensOut": 40,
+        "totalTokens": 100,
+        "toolCallCount": 0,
+        "turnCount": 1,
         "turns": [
-          {"index": 0, "role": "user", "content": "hello"}
+          {"index": 0, "role": "user", "content": "hello", "timestamp": "2026-01-01T00:00:01Z", "depth": 0}
         ]
       }
     }`)

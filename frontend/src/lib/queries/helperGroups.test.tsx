@@ -51,6 +51,7 @@ for (const fixture of fixtures.cases) {
         expect(calls[0].url.pathname).toContain(`/transcript-groups/${fixtures.group.groupId}/members`);
         expect(view.result.current.members.refreshRequired).toBe(fixture.status === 409);
         if (fixture.status === 200) {
+          expect(view.result.current.members.data?.members[0].kind).toBe("transcript");
           expect(view.result.current.members.data?.members[0].transcript?.session.id).toBe(fixtures.row.id);
           expect(view.result.current.members.data?.members[0].transcript?.session.input_submission_count).toBe(0);
           expect(view.result.current.members.data?.members[0].transcript?.session.turn_count).toBe(5);

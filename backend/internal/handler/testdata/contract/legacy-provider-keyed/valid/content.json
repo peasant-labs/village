@@ -5,8 +5,12 @@
   "endTime": "2025-07-22T00:01:00Z",
   "durationMins": 1,
   "turnCount": 2,
+  "tokensIn": 60,
+  "tokensOut": 40,
+  "totalTokens": 100,
+  "toolCallCount": 0,
   "turns": [
-    {"index": 0, "role": "user", "content": "legacy hello"},
-    {"index": 1, "role": "assistant", "content": "legacy reply"}
+    {"index": 0, "role": "user", "content": "legacy hello", "timestamp": "2025-07-22T00:00:01Z", "depth": 0},
+    {"index": 1, "role": "assistant", "content": "legacy reply", "timestamp": "2025-07-22T00:00:02Z", "depth": 0}
   ]
 }

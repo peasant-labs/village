@@ -267,6 +267,12 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to read file")
 		return
 	}
+	// An out-of-menu sessionOrigin declaration is refused here, before the
+	// first content decode would turn the documented 400 into a 422.
+	if err := refuseOutOfMenuSessionOrigin(content); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	durableDetail, err := decodePublicationDetail(content)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
