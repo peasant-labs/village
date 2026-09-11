@@ -102,6 +102,7 @@ register that frontend URL as the provider callback.
 ```
 src/
 ├── app/                  # Pages (App Router)
+│   ├── privacy/          # Privacy notice: operator + what each license choice grants
 │   ├── publish/          # Publishing dashboard (API keys + CLI instructions)
 │   ├── transcripts/[id]/ # Transcript detail view
 │   ├── me/transcripts/   # User's library

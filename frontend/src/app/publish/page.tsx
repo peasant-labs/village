@@ -12,6 +12,25 @@ import { cn } from "@/lib/utils";
 
 const LS_KEY = "peasant:publish:getting-started-dismissed";
 
+// Publishing grants a license, so the notice that states each grant is linked
+// from this page in every auth state, before a person runs the push command.
+function PrivacyNoticeLine() {
+  // One element, not a fragment: the empty state's privacy slot is a flex
+  // row, and a fragment would hand it three items to wrap independently.
+  return (
+    <span>
+      Publishing grants a license. Read the{" "}
+      <Link
+        href="/privacy"
+        className="text-ink underline decoration-ink-4 underline-offset-2 hover:decoration-ink focus-mono"
+      >
+        privacy notice
+      </Link>{" "}
+      before you push.
+    </span>
+  );
+}
+
 const PUBLISH_STEPS = [
   {
     title: "run the setup wizard",
@@ -45,7 +64,7 @@ export default function PublishPage() {
             <TeachingEmptyState
               title="sign in to publish"
               body="Connect your GitHub account to push transcripts to the village."
-              privacy={null}
+              privacy={<PrivacyNoticeLine />}
             />
           }
         />
@@ -74,6 +93,9 @@ export default function PublishPage() {
         </h1>
         <p className="text-sm text-ink-3">
           Push transcripts from the Peasant CLI to the village.
+        </p>
+        <p className="text-sm text-ink-3">
+          <PrivacyNoticeLine />
         </p>
       </div>
 
