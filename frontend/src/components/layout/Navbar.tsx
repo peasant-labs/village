@@ -124,6 +124,17 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* The privacy notice is the text every publish consent control
+              points at, so it is reachable from the persistent chrome on every
+              page, signed in or out. Mono lowercase like the section pills; it
+              is not a section, so it stays out of the GraphSectionNav registry. */}
+          <Link
+            href="/privacy"
+            className="px-2 py-1.5 text-sm font-mono text-ink-3 transition-colors duration-150 hover:text-ink hover:bg-surface-hover focus-mono cursor-pointer"
+          >
+            privacy
+          </Link>
+
           <button
             onClick={toggle}
             className="flex h-8 w-8 items-center justify-center text-ink-3 transition-colors duration-150 hover:text-ink hover:bg-surface-hover focus-mono cursor-pointer"
