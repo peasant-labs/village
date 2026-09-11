@@ -94,6 +94,10 @@ const sessions = [
   { title: 'Rework the share-attempt history', provider: 'claude-code', turns: 28, published: '2026-08-19T16:30:00Z' },
   { title: 'Collectives roll-up query', provider: 'opencode', turns: 17, published: '2026-08-17T09:05:00Z' },
   { title: 'Breadcrumb routing for project pages', provider: 'gemini-cli', turns: 9, published: '2026-08-14T13:45:00Z' },
+  ...(process.env.MOCK_PROJECT_ORPHANS === '1' ? [
+    { title: 'Recover the unreadable parent chain', provider: 'codex', turns: 12, published: '2026-08-13T11:00:00Z', parent: 'missing-parent', origin: 'agent' },
+    { title: 'Audit the orphan ancestry', provider: 'claude-code', turns: 8, published: '2026-08-12T11:00:00Z', parent: null, origin: 'agent' },
+  ] : []),
 ]
 
 const collectives = [
@@ -131,7 +135,7 @@ const transcript = (s, i) => ({
   schema_version: '0.13.0',
   published_at: s.published,
   updated_at: s.published,
-  parent_session_id: null,
+  parent_session_id: s.parent ?? null,
   ingested_at: null,
   source_format: null,
   git_branch: null,
@@ -180,7 +184,7 @@ const transcript = (s, i) => ({
   compute_version: null,
   content_hash: null,
   license_id: null,
-  session_origin: 'user',
+  session_origin: s.origin ?? 'user',
 })
 
 const resolvedProject = () => ({
