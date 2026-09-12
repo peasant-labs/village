@@ -19,7 +19,23 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/village/backend/internal/config"
+	"github.com/peasant-labs/village/backend/internal/handler"
 )
+
+// TestContractEnforcedOperations_AreMounted proves each operation the
+// handlers validate bodies for is served at exactly that method and path, so
+// an operation constant cannot drift from the router.
+func TestContractEnforcedOperations_AreMounted(t *testing.T) {
+	mounted := map[string]bool{}
+	for _, r := range mountedAPIRoutes(t) {
+		mounted[routeKey(r.Method, r.Path)] = true
+	}
+	for _, op := range handler.ContractEnforcedOperations() {
+		if !mounted[routeKey(op.Method, op.Path)] {
+			t.Errorf("enforced operation %s is not mounted at that method and path", op)
+		}
+	}
+}
 
 //go:embed testdata/contract_drift_cases.yaml
 var contractDriftCasesYAML []byte

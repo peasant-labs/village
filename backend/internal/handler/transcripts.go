@@ -1135,15 +1135,21 @@ func (h *Handler) ShareTranscript(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "Not the transcript owner")
 		return
 	}
+	// Read and validate the body before taking the publish lock, so a
+	// malformed request never holds the lock.
+	raw, ok := h.readContractBody(w, r, opShareTranscript)
+	if !ok {
+		return
+	}
 	if err := h.withPublishLocks(r.Context(), user.PgID(), transcript.LocalID, nil, func(conn *pgxpool.Conn) error {
-		h.shareTranscriptLocked(w, r, conn)
+		h.shareTranscriptLocked(w, r, conn, raw)
 		return nil
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to serialize transcript sharing; retry the share operation")
 	}
 }
 
-func (h *Handler) shareTranscriptLocked(w http.ResponseWriter, r *http.Request, conn *pgxpool.Conn) {
+func (h *Handler) shareTranscriptLocked(w http.ResponseWriter, r *http.Request, conn *pgxpool.Conn, raw []byte) {
 	user := GetUser(r.Context())
 	q := h.queries
 	if conn != nil {
@@ -1169,7 +1175,7 @@ func (h *Handler) shareTranscriptLocked(w http.ResponseWriter, r *http.Request, 
 	var req struct {
 		GroupIDs []string `json:"group_ids"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.Unmarshal(raw, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}

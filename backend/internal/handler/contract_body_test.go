@@ -1,11 +1,19 @@
 package handler
 
 import (
+	"context"
 	_ "embed"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
 //go:embed testdata/contract_body_operations.yaml
@@ -134,5 +142,116 @@ func TestContractBody_InvalidJSONIsSchemaInvalid(t *testing.T) {
 	err := v.ValidateBody(http.MethodPost, "/api/v1/groups", []byte(`{"name":`))
 	if !errors.Is(err, ErrSchemaInvalid) {
 		t.Fatalf("expected ErrSchemaInvalid for invalid JSON, got %v", err)
+	}
+}
+
+// contractBodyTestUser is the signed-in caller every handler-level case uses.
+var contractBodyTestUser = uuid.MustParse("7d5c2a10-9b3e-4c8f-a1d2-3e4f5a6b7c8d")
+
+// contractBodyRouter mounts the nine enforced handlers at their production
+// patterns under /api/v1 so chi.URLParam works as in production. Every
+// database lookup that precedes the body decode is stubbed to succeed as an
+// owner; every lookup after the decode is left unstubbed, so the mock panics
+// (and the test fails) if a malformed body reaches the database.
+func contractBodyRouter(t *testing.T) http.Handler {
+	t.Helper()
+	q := &mockQuerier{
+		getGroupMember: memberStub("owner"),
+		getTranscriptByID: func(ctx context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
+			return sqlc.Transcript{ID: id, OwnerID: pgtype.UUID{Bytes: contractBodyTestUser, Valid: true}, LocalID: "local"}, nil
+		},
+	}
+	fake := &fakeGitHub{}
+	newFakeGitHub(t, fake)
+	h := newRepoHandler(t, q, fake)
+	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			next.ServeHTTP(w, req.WithContext(withUserID(req.Context(), contractBodyTestUser)))
+		})
+	})
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Post("/groups", h.CreateGroup)
+		r.Patch("/groups/{id}", h.UpdateGroup)
+		r.Post("/groups/{id}/members", h.AddGroupMember)
+		r.Patch("/groups/{id}/members/{userID}/role", h.PromoteMember)
+		r.Post("/groups/{id}/repositories", h.LinkRepository)
+		r.Post("/groups/{id}/shares", h.BatchShareProject)
+		r.Patch("/groups/{id}/shares", h.BatchReviewShares)
+		r.Patch("/groups/{id}/shares/{transcriptID}", h.ReviewShare)
+		r.Post("/transcripts/{id}/share", h.ShareTranscript)
+	})
+	return r
+}
+
+// contractBodyTarget turns a contract path into a concrete request target.
+func contractBodyTarget(path string) string {
+	replacer := strings.NewReplacer(
+		"{id}", testGroupID,
+		"{userID}", "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d",
+		"{transcriptID}", "3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b",
+	)
+	return replacer.Replace(path)
+}
+
+func TestContractBody_HandlersAnswer400BeforeTouchingTheDatabase(t *testing.T) {
+	router := contractBodyRouter(t)
+	for _, c := range loadContractBodyOperations(t) {
+		for _, m := range c.Malformed {
+			t.Run(c.Name+"/"+m.Name, func(t *testing.T) {
+				req := httptest.NewRequest(c.Method, contractBodyTarget(c.Path), strings.NewReader(m.Body))
+				req.Header.Set("Content-Type", "application/json")
+				rec := httptest.NewRecorder()
+				router.ServeHTTP(rec, req)
+				if rec.Code != http.StatusBadRequest {
+					t.Fatalf("status = %d, want 400 (body: %s)", rec.Code, rec.Body.String())
+				}
+				body := rec.Body.String()
+				if !strings.Contains(body, "request body failed contract validation: ") {
+					t.Fatalf("body lacks the contract prefix: %s", body)
+				}
+				if !strings.Contains(body, strings.ReplaceAll(m.Expect, `"`, `\"`)) && !strings.Contains(body, m.Expect) {
+					t.Fatalf("body %q does not name the violation %q", body, m.Expect)
+				}
+			})
+		}
+	}
+}
+
+func TestContractBody_HandlersKeepInvalidJSONWording(t *testing.T) {
+	router := contractBodyRouter(t)
+	for _, c := range loadContractBodyOperations(t) {
+		t.Run(c.Name, func(t *testing.T) {
+			req := httptest.NewRequest(c.Method, contractBodyTarget(c.Path), strings.NewReader(`{"name":`))
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "Invalid request body") {
+				t.Fatalf("status = %d body = %s; want 400 Invalid request body", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestContractBody_OversizedBodyAnswers413(t *testing.T) {
+	router := contractBodyRouter(t)
+	huge := `{"name":"` + strings.Repeat("x", maxContractBodyBytes) + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/groups", strings.NewReader(huge))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413 (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestContractBody_NilValidatorFailsClosed(t *testing.T) {
+	orig := payloadValidator
+	payloadValidator = func() PayloadValidator { return nil }
+	t.Cleanup(func() { payloadValidator = orig })
+	router := contractBodyRouter(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/groups", strings.NewReader(`{"name":"x"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 (body: %s)", rec.Code, rec.Body.String())
 	}
 }

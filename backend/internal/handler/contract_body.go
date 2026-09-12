@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"regexp"
 	"sort"
 	"strings"
@@ -14,6 +16,62 @@ import (
 
 	"github.com/peasant-labs/schema"
 )
+
+// maxContractBodyBytes caps a JSON request body on the enforced operations.
+// A batch of transcript ids is a few dozen bytes per id; a megabyte is far
+// beyond any real selection and stops a client from streaming an unbounded
+// body into the validator.
+const maxContractBodyBytes = 1 << 20
+
+// readContractBody reads the JSON body under the size cap and validates it
+// against the served contract's schema for op. On any refusal it has already
+// written the response and returns false. Invalid JSON keeps the existing
+// "Invalid request body" answer; a contract violation answers 400 with the
+// rendered violation; an operation the contract gives no body answers 500
+// because that is a wiring error, not a client error.
+func (h *Handler) readContractBody(w http.ResponseWriter, r *http.Request, op ContractOperation) ([]byte, bool) {
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxContractBodyBytes))
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("request body exceeds the %d byte limit", maxContractBodyBytes))
+			return nil, false
+		}
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return nil, false
+	}
+	if !json.Valid(raw) {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return nil, false
+	}
+	v := payloadValidator()
+	if v == nil {
+		writeError(w, http.StatusServiceUnavailable, "request validation unavailable")
+		return nil, false
+	}
+	if err := v.ValidateBody(op.Method, op.Path, raw); err != nil {
+		if errors.Is(err, ErrContractBodyUndeclared) {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("contract wiring error: the served contract declares no request body for %s", op))
+			return nil, false
+		}
+		writeError(w, http.StatusBadRequest, "request body failed contract validation: "+strings.TrimPrefix(err.Error(), ErrSchemaInvalid.Error()+": "))
+		return nil, false
+	}
+	return raw, true
+}
+
+// decodeContractBody is readContractBody followed by a decode into dst.
+func (h *Handler) decodeContractBody(w http.ResponseWriter, r *http.Request, op ContractOperation, dst any) bool {
+	raw, ok := h.readContractBody(w, r, op)
+	if !ok {
+		return false
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return false
+	}
+	return true
+}
 
 // ContractOperation names one operation of the served Village API by method
 // and path exactly as the contract spells them. Handlers pass their operation
