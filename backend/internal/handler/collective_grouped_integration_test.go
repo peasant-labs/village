@@ -366,7 +366,7 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 					if member.Session.InputSubmissionCount == nil || *member.Session.InputSubmissionCount != 1 || member.Session.TurnCount == nil || *member.Session.TurnCount != 5 {
 						t.Fatal("independent counts lost")
 					}
-					row := member.Transcript
+					row := &member
 					if (row.Collective != nil) != (c.Route == "collective") || (row.Pending != nil) != (c.Route == "pending") || (row.MyShare != nil) != (c.Route == "my-shares") || (row.Contributable != nil) != (c.Route == "contributable") {
 						t.Fatal("member changed route variant")
 					}
