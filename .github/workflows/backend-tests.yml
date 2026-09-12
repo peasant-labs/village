@@ -9,6 +9,7 @@ on:
     paths:
       - "backend/**"
       - "go.work"
+      - "Makefile"
       - "frontend/**"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -30,6 +31,7 @@ on:
     paths:
       - "backend/**"
       - "go.work"
+      - "Makefile"
       - "frontend/**"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -173,6 +175,33 @@ jobs:
             docker logs "$MINIO_CONTAINER" >&2 || true
           fi
           docker rm --force "$MINIO_CONTAINER" >/dev/null 2>&1 || true
+
+  # Dependency-license gate for the backend binary. Two invariants on the
+  # third-party Go modules compiled into ./cmd/server:
+  #   1. backend/THIRD_PARTY_NOTICES is fresh (regenerating from the pinned
+  #      module set produces no diff), so the file the published image ships
+  #      matches the deps.
+  #   2. No copyleft (forbidden/restricted/unknown) license has entered the set.
+  # Both run via `make third-party-notices-check`. The image-carries-notices
+  # assertion lives in the production-artifacts job (it builds the image).
+  license-notices:
+    name: Third-party license notices
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Notices are fresh + no copyleft dependency
+        run: make third-party-notices-check
 
   frontend:
     name: Frontend frozen build
