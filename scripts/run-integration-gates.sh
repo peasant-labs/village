@@ -12,6 +12,11 @@ url_template="${TEST_DATABASE_URL_TEMPLATE:-}"
 export TRANSCRIPT_KEK_ACTIVE_VERSION="1"
 export TRANSCRIPT_KEK_KEYRING='{"1":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}'
 
+# Some wire fixtures compare exact JSON bytes, and a timestamptz renders in the
+# test process's local offset (the same instant, not the same bytes). Pin the
+# zone so the gate is deterministic on any developer machine; CI is already UTC.
+export TZ=UTC
+
 if [[ -z "$admin_url" ]]; then
   printf >&2 '%s\n' "scripts/run-integration-gates.sh: TEST_DATABASE_ADMIN_URL is required to create isolated package databases. Set it to a reachable PostgreSQL maintenance database whose test role has CREATEDB."
   exit 2

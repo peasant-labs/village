@@ -3,9 +3,9 @@ pending_id: 51000000-0000-4000-8000-000000000002
 group_id: 52000000-0000-4000-8000-000000000001
 owner_name: detail-wire-owner
 seed_sql: |
-  INSERT INTO users(id, github_id, github_username, is_discoverable, display_name, avatar_url)
-  VALUES ('51000000-0000-4000-8000-000000000001', 982501, 'detail-wire-owner', true, 'Owner Name', 'https://example.test/owner.png'),
-         ('51000000-0000-4000-8000-000000000002', 982502, 'detail-wire-pending', true, 'Pending Name', 'https://example.test/pending.png');
+  INSERT INTO users(id, github_id, github_username, is_discoverable, display_name, avatar_url, provider_user_id)
+  VALUES ('51000000-0000-4000-8000-000000000001', 982501, 'detail-wire-owner', true, 'Owner Name', 'https://example.test/owner.png', '982501'),
+         ('51000000-0000-4000-8000-000000000002', 982502, 'detail-wire-pending', true, 'Pending Name', 'https://example.test/pending.png', '982502');
   INSERT INTO groups(id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy)
   VALUES ('52000000-0000-4000-8000-000000000001', 'Actual Collective', 'Preserved description', '51000000-0000-4000-8000-000000000001', '2026-09-01T10:00:00Z', '2026-09-02T10:00:00Z', 'curated', 'members_only', 'example-org', true, 'mandatory');
   INSERT INTO group_members(group_id, user_id, role, joined_at)
