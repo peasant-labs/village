@@ -3,19 +3,127 @@ package router
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"reflect"
 	"regexp"
 	"sort"
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/peasant-labs/redact"
+	"github.com/peasant-labs/schema"
 	"gopkg.in/yaml.v3"
+
+	"github.com/peasant-labs/village/backend/internal/config"
 )
 
 //go:embed testdata/contract_drift_cases.yaml
 var contractDriftCasesYAML []byte
+
+//go:embed testdata/undocumented_routes.yaml
+var undocumentedRoutesYAML []byte
+
+type manifestRoute struct {
+	Method string `yaml:"method"`
+	Path   string `yaml:"path"`
+	Reason string `yaml:"reason"`
+}
+
+type undocumentedRoutesFile struct {
+	Routes []manifestRoute `yaml:"routes"`
+}
+
+func loadUndocumentedRoutes(t *testing.T) []route {
+	t.Helper()
+	file, err := decodeSingleYAMLDocument[undocumentedRoutesFile](undocumentedRoutesYAML)
+	if err != nil {
+		t.Fatalf("load the undocumented-routes manifest: %v", err)
+	}
+	routes := make([]route, 0, len(file.Routes))
+	for _, r := range file.Routes {
+		if strings.TrimSpace(r.Reason) == "" {
+			t.Fatalf("%s %s in the undocumented-routes manifest has no reason; say why the contract does not declare it yet", r.Method, r.Path)
+		}
+		routes = append(routes, route{Method: r.Method, Path: r.Path})
+	}
+	return routes
+}
+
+// mountedAPIRoutes builds the production router with no database, blob store,
+// or GitHub App (construction touches none of them) and walks every route
+// mounted under /api/v1.
+func mountedAPIRoutes(t *testing.T) []route {
+	t.Helper()
+	titles, err := redact.NewTitlePipeline()
+	if err != nil {
+		t.Fatalf("construct the title pipeline: %v", err)
+	}
+	handler := New(&config.Config{FrontendURL: "https://app.example.com"}, nil, nil, titles)
+	routes, ok := handler.(chi.Routes)
+	if !ok {
+		t.Fatalf("router is %T, not chi.Routes", handler)
+	}
+	var out []route
+	err = chi.Walk(routes, func(method, path string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if strings.HasPrefix(path, "/api/v1/") {
+			out = append(out, route{Method: method, Path: path})
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk the router: %v", err)
+	}
+	return out
+}
+
+// declaredContractRoutes reads the operations from the same bytes the server
+// serves at /api/v1/openapi.json.
+func declaredContractRoutes(t *testing.T) []route {
+	t.Helper()
+	var doc struct {
+		Paths map[string]map[string]json.RawMessage `json:"paths"`
+	}
+	if err := json.Unmarshal(schema.VillageAPISpecJSON(), &doc); err != nil {
+		t.Fatalf("parse the served contract: %v", err)
+	}
+	var out []route
+	for path, operations := range doc.Paths {
+		for method := range operations {
+			switch strings.ToUpper(method) {
+			case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+				out = append(out, route{Method: strings.ToUpper(method), Path: path})
+			}
+		}
+	}
+	return out
+}
+
+// TestContractDriftGate_MountedRoutesAreDeclaredOrListed is the CI gate: every
+// route the server mounts under /api/v1 is either declared by the served
+// contract or listed, with a reason, in the undocumented-routes manifest. The
+// manifest can only shrink: a row for a route the contract now declares, or
+// for a route no longer mounted, is itself a failure.
+func TestContractDriftGate_MountedRoutesAreDeclaredOrListed(t *testing.T) {
+	mounted := mountedAPIRoutes(t)
+	declared := declaredContractRoutes(t)
+	manifest := loadUndocumentedRoutes(t)
+	for _, finding := range contractDriftFindings(mounted, declared, manifest) {
+		t.Error(finding)
+	}
+	mountedSet := map[string]bool{}
+	for _, r := range mounted {
+		mountedSet[routeKey(r.Method, r.Path)] = true
+	}
+	for _, r := range declared {
+		if !mountedSet[routeKey(r.Method, r.Path)] {
+			t.Logf("declared but not mounted (informational): %s %s", r.Method, r.Path)
+		}
+	}
+}
 
 // route is one method and path pair. Path parameter names are erased before
 // comparison: the router's {id} and the contract's {groupId} at the same
