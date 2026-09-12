@@ -23,8 +23,11 @@ LABEL org.opencontainers.image.source="https://github.com/peasant-labs/village" 
 ENV VILLAGE_BUILD_REVISION=${RAILWAY_GIT_COMMIT_SHA}
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /server /server
-# Dependency license notices for the statically-linked binary this image ships.
-# Required when the image is published/redistributed; see backend/scripts/gen-third-party-notices.sh.
+# License obligations for the statically-linked binary this image ships, required
+# when the image is published/redistributed: village's own Apache-2.0 license
+# (Apache-2.0 section 4a) plus the dependency notices (see
+# backend/scripts/gen-third-party-notices.sh).
+COPY --from=builder /app/LICENSE /usr/share/doc/village/LICENSE
 COPY --from=builder /app/THIRD_PARTY_NOTICES /usr/share/doc/village/THIRD_PARTY_NOTICES
 EXPOSE 8080
 CMD ["/server"]

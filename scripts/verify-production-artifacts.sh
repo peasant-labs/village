@@ -19,11 +19,14 @@ frontend_image="village-frontend:${revision}"
 docker build --build-arg "RAILWAY_GIT_COMMIT_SHA=$revision" --tag "$backend_image" backend
 
 # The published backend image conveys a statically-linked binary; it must carry
-# the dependency license notices (see backend/scripts/gen-third-party-notices.sh).
-if ! docker run --rm --entrypoint cat "$backend_image" /usr/share/doc/village/THIRD_PARTY_NOTICES >/dev/null 2>&1; then
-  printf >&2 '%s\n' "scripts/verify-production-artifacts.sh: backend image $backend_image is missing /usr/share/doc/village/THIRD_PARTY_NOTICES. The image must ship dependency license notices; run 'make third-party-notices', commit, and rebuild."
-  exit 1
-fi
+# village's own license (Apache-2.0 section 4a) and the dependency license notices
+# (see backend/scripts/gen-third-party-notices.sh).
+for doc in LICENSE THIRD_PARTY_NOTICES; do
+  if ! docker run --rm --entrypoint cat "$backend_image" "/usr/share/doc/village/$doc" >/dev/null 2>&1; then
+    printf >&2 '%s\n' "scripts/verify-production-artifacts.sh: backend image $backend_image is missing /usr/share/doc/village/$doc. The image must ship the license and dependency notices; run 'make third-party-notices', commit, and rebuild."
+    exit 1
+  fi
+done
 
 docker build \
   --build-arg "RAILWAY_GIT_COMMIT_SHA=$revision" \

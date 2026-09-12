@@ -13,12 +13,10 @@
 # with a note -- do NOT widen --disallowed_types.
 #
 # Allowlist:
-#   github.com/peasant-labs/village/backend -- the main module itself, not a
-#     third-party dependency; its grant is the repo-root LICENSE, which lives
-#     outside the backend module dir go-licenses inspects, so it reads as
-#     "unknown". Not a notice obligation.
 #   modernc.org/mathutil -- BSD-3-Clause ("The mathutil Authors"); the classifier
 #     cannot match the text, which still ships in THIRD_PARTY_NOTICES.
+# (The main module classifies as Apache-2.0 via backend/LICENSE, so it is not
+# ignored -- the guard verifies village's own license is permissive too.)
 #
 # The check runs across the shipped container platforms (CGO_ENABLED=0) so an
 # arch-specific dependency cannot evade it, matching gen-third-party-notices.sh.
@@ -41,7 +39,6 @@ for pair in linux/amd64 linux/arm64; do
   if ! CGO_ENABLED=0 GOOS="${pair%/*}" GOARCH="${pair#*/}" \
       "${gobin}/go-licenses" check "${pkg}" \
         --disallowed_types=forbidden,restricted,unknown \
-        --ignore github.com/peasant-labs/village/backend \
         --ignore modernc.org/mathutil; then
     echo "check-dep-licenses: disallowed or unclassifiable license for ${pair}" >&2
     status=1
