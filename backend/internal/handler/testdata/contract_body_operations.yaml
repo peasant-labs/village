@@ -1,0 +1,107 @@
+# One row per operation whose request body the handlers validate against the
+# served Village API contract. `conforming` must pass the contract. Each
+# malformed body names the substring the rendered violation must contain. The
+# rendered text is "<instance pointer>: <message>" per failing leaf, joined by
+# "; ", with the root pointer rendered as "/".
+
+- name: create group
+  method: POST
+  path: /api/v1/groups
+  conforming: '{"name":"Night Shift","description":"late sessions","acceptance_mode":"open","data_access":"members_only"}'
+  malformed:
+    - name: name missing
+      body: '{"description":"no name"}'
+      expect: "/: missing properties: 'name'"
+    - name: name is a number
+      body: '{"name":7}'
+      expect: "/name: expected string, but got number"
+    - name: acceptance mode outside the closed set
+      body: '{"name":"x","acceptance_mode":"whenever"}'
+      expect: '/acceptance_mode: value must be one of "open", "verified_only", "curated"'
+
+- name: update group
+  method: PATCH
+  path: /api/v1/groups/{id}
+  conforming: '{"name":"Renamed","display_members":true}'
+  malformed:
+    - name: data access outside the closed set
+      body: '{"data_access":"everyone"}'
+      expect: '/data_access: value must be one of "members_only", "contributors", "public"'
+    - name: display members is a string
+      body: '{"display_members":"yes"}'
+      expect: "/display_members: expected"
+
+- name: add group member
+  method: POST
+  path: /api/v1/groups/{id}/members
+  conforming: '{"username":"octocat"}'
+  malformed:
+    - name: username missing
+      body: '{}'
+      expect: "/: missing properties: 'username'"
+
+- name: update group member role
+  method: PATCH
+  path: /api/v1/groups/{id}/members/{userID}/role
+  conforming: '{"role":"member"}'
+  malformed:
+    - name: role outside the assignable set
+      body: '{"role":"owner"}'
+      expect: '/role: value must be one of "contributor", "member"'
+
+- name: link group repository
+  method: POST
+  path: /api/v1/groups/{id}/repositories
+  conforming: '{"owner":"acme","name":"repo","installation_id":42}'
+  malformed:
+    - name: installation id is a string
+      body: '{"owner":"acme","name":"repo","installation_id":"42"}'
+      expect: "/installation_id: expected integer, but got string"
+    - name: owner missing
+      body: '{"name":"repo","installation_id":42}'
+      expect: "/: missing properties: 'owner'"
+
+- name: batch share project
+  method: POST
+  path: /api/v1/groups/{id}/shares
+  conforming: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","visibility_confirmed":true}'
+  malformed:
+    - name: project hash is not a hash
+      body: '{"project_hash":"not-a-hash","visibility_confirmed":true}'
+      expect: "/project_hash: "
+    - name: visibility confirmation missing
+      body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"}'
+      expect: "/: missing properties: 'visibility_confirmed'"
+
+- name: batch review shares
+  method: PATCH
+  path: /api/v1/groups/{id}/shares
+  conforming: '{"transcript_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"],"status":"approved"}'
+  malformed:
+    - name: status outside the decision set
+      body: '{"transcript_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"],"status":"maybe"}'
+      expect: '/status: value must be one of "approved", "rejected"'
+    - name: transcript ids is a string
+      body: '{"transcript_ids":"3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b","status":"approved"}'
+      expect: "/transcript_ids: expected array, but got string"
+
+- name: review share
+  method: PATCH
+  path: /api/v1/groups/{id}/shares/{transcriptID}
+  conforming: '{"status":"rejected"}'
+  malformed:
+    - name: status missing
+      body: '{}'
+      expect: "/: missing properties: 'status'"
+
+- name: share transcript with groups
+  method: POST
+  path: /api/v1/transcripts/{id}/share
+  conforming: '{"group_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"]}'
+  malformed:
+    - name: group ids missing
+      body: '{"groups":[]}'
+      expect: "/: missing properties: 'group_ids'"
+    - name: group id is not a uuid
+      body: '{"group_ids":["nope"]}'
+      expect: "/group_ids/0: "
