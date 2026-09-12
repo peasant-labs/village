@@ -1,0 +1,122 @@
+# Routes the server mounts under /api/v1 that no version of the Village API
+# contract declares yet. The route drift gate accepts a mounted route only when
+# the served contract declares it or this file names it. A row here must still
+# be mounted and must still be absent from the contract, otherwise the gate
+# fails, so this list can only shrink. Declaring these routes is tracked in the
+# schema repository; when a declaration lands and the pin moves, delete the row.
+
+routes:
+  - method: GET
+    path: /api/v1/openapi.json
+    reason: serves the contract document itself
+  - method: POST
+    path: /api/v1/auth/logout
+    reason: session logout, predates the contract
+  - method: GET
+    path: /api/v1/auth/me
+    reason: signed-in account read, predates the contract
+  - method: DELETE
+    path: /api/v1/auth/me
+    reason: account deletion, predates the contract
+  - method: PATCH
+    path: /api/v1/auth/me/settings
+    reason: discoverability setting; the contract declares a separate users/me/settings route for the preview flag, and folding the two is a pending decision
+  - method: PATCH
+    path: /api/v1/auth/me/username
+    reason: username choice, predates the contract
+  - method: POST
+    path: /api/v1/auth/api-keys
+    reason: API key creation, predates the contract
+  - method: GET
+    path: /api/v1/auth/api-keys
+    reason: API key list, predates the contract
+  - method: DELETE
+    path: /api/v1/auth/api-keys/{id}
+    reason: API key revocation, predates the contract
+  - method: GET
+    path: /api/v1/auth/orgs
+    reason: caller's organisations, predates the contract
+  - method: PATCH
+    path: /api/v1/auth/orgs/{orgLogin}/visibility
+    reason: organisation visibility toggle, predates the contract
+  - method: GET
+    path: /api/v1/auth/github
+    reason: OAuth entry point, redirects to the provider
+  - method: GET
+    path: /api/v1/auth/github/callback
+    reason: OAuth callback, redirects to the frontend
+  - method: GET
+    path: /api/v1/auth/gitlab
+    reason: OAuth entry point, redirects to the provider
+  - method: GET
+    path: /api/v1/auth/gitlab/callback
+    reason: OAuth callback, redirects to the frontend
+  - method: GET
+    path: /api/v1/auth/huggingface
+    reason: OAuth entry point, redirects to the provider
+  - method: GET
+    path: /api/v1/auth/huggingface/callback
+    reason: OAuth callback, redirects to the frontend
+  - method: GET
+    path: /api/v1/auth/codeberg
+    reason: OAuth entry point, redirects to the provider
+  - method: GET
+    path: /api/v1/auth/codeberg/callback
+    reason: OAuth callback, redirects to the frontend
+  - method: GET
+    path: /api/v1/auth/sourcehut
+    reason: OAuth entry point, redirects to the provider
+  - method: GET
+    path: /api/v1/auth/sourcehut/callback
+    reason: OAuth callback, redirects to the frontend
+  - method: GET
+    path: /api/v1/orgs/search
+    reason: organisation search, predates the contract
+  - method: GET
+    path: /api/v1/orgs/{login}
+    reason: organisation page, predates the contract
+  - method: GET
+    path: /api/v1/tags
+    reason: tag list, predates the contract
+  - method: GET
+    path: /api/v1/tags/popular
+    reason: popular tags, predates the contract
+  - method: GET
+    path: /api/v1/transcripts/{id}/annotations
+    reason: annotation list read, predates the contract
+  - method: POST
+    path: /api/v1/transcripts/{id}/annotations
+    reason: manual annotation creation, predates the contract
+  - method: GET
+    path: /api/v1/transcripts/{id}/attestations
+    reason: attestation list, predates the contract
+  - method: POST
+    path: /api/v1/transcripts/{id}/attestations
+    reason: attestation creation, predates the contract
+  - method: DELETE
+    path: /api/v1/transcripts/{id}/attestations/{attestationID}
+    reason: attestation deletion, predates the contract
+  - method: GET
+    path: /api/v1/transcripts/{id}/commits
+    reason: transcript commit list, predates the contract
+  - method: DELETE
+    path: /api/v1/transcripts/{id}
+    reason: transcript deletion, predates the contract
+  - method: POST
+    path: /api/v1/transcripts/publish/batch
+    reason: answers 501 today; whether to declare or remove it is a pending decision
+  - method: GET
+    path: /api/v1/users/{username}
+    reason: public profile, predates the contract
+  - method: GET
+    path: /api/v1/users/{username}/orgs
+    reason: public organisations, predates the contract
+  - method: GET
+    path: /api/v1/users/{username}/projects/{projectHash}
+    reason: project page, predates the contract
+  - method: PATCH
+    path: /api/v1/users/me/projects/{projectHash}
+    reason: project display name override, predates the contract
+  - method: DELETE
+    path: /api/v1/users/me/projects/{projectHash}/display-name
+    reason: project display name reset, predates the contract

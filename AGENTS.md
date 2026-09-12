@@ -87,6 +87,21 @@ Contract changes land and receive a module tag before Village updates its
 `go.mod` pin. Do not fork or vendor a local contract copy, and do not add an
 undocumented handler-only validation rule.
 
+Two tests keep the served document honest. The route drift gate
+(`backend/internal/router/contract_drift_test.go`) fails when a mounted
+`/api/v1` route is neither declared by the served document nor listed, with a
+reason, in `backend/internal/router/testdata/undocumented_routes.yaml`; a row
+there may only be removed once the contract declares the route or the route
+is unmounted, so the list only shrinks. The collectives, share, repository,
+and review mutations read their bodies through `readContractBody` /
+`decodeContractBody` (`backend/internal/handler/contract_body.go`), which
+validate against the served document's request-body schema before decoding;
+a new operation with a JSON body adds its `ContractOperation` there and a row
+in `backend/internal/handler/testdata/contract_body_operations.yaml`. Those
+bodies are capped at 1 MiB (413 above it) and a contract violation answers
+400 with the field and the reason; only the publish and annotation paths
+answer 422.
+
 When adding a license:
 
 1. Add the license and regenerate specifications in the schema module, then tag it.
