@@ -243,6 +243,31 @@ func TestContractBody_OversizedBodyAnswers413(t *testing.T) {
 	}
 }
 
+// brokenValidator stands in for a validator whose served contract failed to
+// compile: every call reports the compile error rather than a body verdict.
+type brokenValidator struct{ err error }
+
+func (b brokenValidator) ValidatePublish([]byte) error              { return b.err }
+func (b brokenValidator) ValidateAnnotation([]byte) error           { return b.err }
+func (b brokenValidator) ValidateBody(string, string, []byte) error { return b.err }
+
+func TestContractBody_ValidatorFailureFailsClosedWithoutInternalText(t *testing.T) {
+	orig := payloadValidator
+	internal := errors.New("compile the POST /api/v1/groups request body schema: contract://village-api/openapi.json#/paths: boom")
+	payloadValidator = func() PayloadValidator { return brokenValidator{err: internal} }
+	t.Cleanup(func() { payloadValidator = orig })
+	router := contractBodyRouter(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/groups", strings.NewReader(`{"name":"x"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "contract://") || strings.Contains(rec.Body.String(), "boom") {
+		t.Fatalf("body leaks internal text: %s", rec.Body.String())
+	}
+}
+
 func TestContractBody_NilValidatorFailsClosed(t *testing.T) {
 	orig := payloadValidator
 	payloadValidator = func() PayloadValidator { return nil }

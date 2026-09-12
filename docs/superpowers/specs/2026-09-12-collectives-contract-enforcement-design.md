@@ -161,6 +161,18 @@ stricter unknown-field refusal after the contract check. The share route reads a
 its body before taking the publish lock, so a malformed request never holds the lock; the
 locked function receives the raw bytes.
 
+Two observable tightenings follow from enforcing the contract as served, both consistent with
+it: a share request whose `group_ids` carries a value outside the contract's lowercase UUID
+pattern is refused as a whole with 400, where the handler used to skip the element silently;
+and a body with trailing bytes after the JSON value answers `Invalid request body`, where the
+streaming decoder used to ignore them.
+
+The contract's create-group request types `linked_github_org` as a plain string while the
+update request accepts null. The frontend's create dialog used to send null for a blank
+organisation; it now omits the field, and both the create and update bodies are built by
+functions that run the contract's own parsers before sending. The asymmetry is filed against
+the schema repository.
+
 The served document and the enforced schemas are the same bytes from the same module, so this
 adds no handler-only validation rule, in keeping with `AGENTS.md`.
 

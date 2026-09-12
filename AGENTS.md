@@ -97,7 +97,10 @@ and review mutations read their bodies through `readContractBody` /
 `decodeContractBody` (`backend/internal/handler/contract_body.go`), which
 validate against the served document's request-body schema before decoding;
 a new operation with a JSON body adds its `ContractOperation` there and a row
-in `backend/internal/handler/testdata/contract_body_operations.yaml`.
+in `backend/internal/handler/testdata/contract_body_operations.yaml`. Those
+bodies are capped at 1 MiB (413 above it) and a contract violation answers
+400 with the field and the reason; only the publish and annotation paths
+answer 422.
 
 When adding a license:
 

@@ -126,7 +126,10 @@ describe("collectives wire types come from the contract package", () => {
             .filter((name) => /^zVillage[A-Z]/.test(name))
             .map((name) => name.slice("zVillage".length)),
         );
-        const declared = [...text.matchAll(/export interface ([A-Za-z]+)\b/g)].map((m) => m[1]);
+        // An interface, or an object type written out by hand, both count as a declaration.
+        const declared = [...text.matchAll(/export (?:interface ([A-Za-z]+)\b|type ([A-Za-z]+) = \{)/g)].map(
+          (m) => m[1] ?? m[2],
+        );
         const allowed = new Set(knownHandWrittenOutsideScope[file] ?? []);
         const duplicates = declared.filter((name) => exported.has(name) && !allowed.has(name));
         expect(duplicates, `hand-written duplicates of contract types: ${duplicates.join(", ")}`).toEqual([]);

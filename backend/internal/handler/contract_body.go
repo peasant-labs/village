@@ -26,9 +26,13 @@ const maxContractBodyBytes = 1 << 20
 // readContractBody reads the JSON body under the size cap and validates it
 // against the served contract's schema for op. On any refusal it has already
 // written the response and returns false. Invalid JSON keeps the existing
-// "Invalid request body" answer; a contract violation answers 400 with the
-// rendered violation; an operation the contract gives no body answers 500
-// because that is a wiring error, not a client error.
+// "Invalid request body" answer (json.Valid also refuses trailing bytes after
+// the value, which the streaming decoder used to ignore); a contract
+// violation answers 400 with the rendered violation; an operation the contract
+// gives no body answers 500 because that is a wiring error, not a client
+// error; a validator that cannot compile the served contract answers 503, the
+// same fail-closed answer as a missing validator, so no internal text reaches
+// a client.
 func (h *Handler) readContractBody(w http.ResponseWriter, r *http.Request, op ContractOperation) ([]byte, bool) {
 	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxContractBodyBytes))
 	if err != nil {
@@ -50,11 +54,14 @@ func (h *Handler) readContractBody(w http.ResponseWriter, r *http.Request, op Co
 		return nil, false
 	}
 	if err := v.ValidateBody(op.Method, op.Path, raw); err != nil {
-		if errors.Is(err, ErrContractBodyUndeclared) {
+		switch {
+		case errors.Is(err, ErrContractBodyUndeclared):
 			writeError(w, http.StatusInternalServerError, fmt.Sprintf("contract wiring error: the served contract declares no request body for %s", op))
-			return nil, false
+		case errors.Is(err, ErrSchemaInvalid):
+			writeError(w, http.StatusBadRequest, "request body failed contract validation: "+strings.TrimPrefix(err.Error(), ErrSchemaInvalid.Error()+": "))
+		default:
+			writeError(w, http.StatusServiceUnavailable, "request validation unavailable")
 		}
-		writeError(w, http.StatusBadRequest, "request body failed contract validation: "+strings.TrimPrefix(err.Error(), ErrSchemaInvalid.Error()+": "))
 		return nil, false
 	}
 	return raw, true
@@ -175,14 +182,10 @@ func loadContractBodySchemas() contractBodySchemas {
 			if !ok || len(content.Schema) == 0 {
 				continue
 			}
-			var ref struct {
-				Ref string `json:"$ref"`
-			}
-			_ = json.Unmarshal(content.Schema, &ref)
-			location := ref.Ref
-			if location == "" {
-				location = "#/paths/" + jsonPointerEscape(path) + "/" + method + "/requestBody/content/application~1json/schema"
-			}
+			// Compile the schema at its own location in the document, so a
+			// bare $ref and an inline schema (and any keyword beside a $ref)
+			// are all honoured exactly as the served document states them.
+			location := "#/paths/" + jsonPointerEscape(path) + "/" + method + "/requestBody/content/application~1json/schema"
 			compiled, err := compiler.Compile(contractSpecURL + location)
 			if err != nil {
 				return contractBodySchemas{err: fmt.Errorf("compile the %s %s request body schema: %w", strings.ToUpper(method), path, err)}
