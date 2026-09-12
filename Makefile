@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend setup setup-backend setup-frontend migrate sqlc seed test build up down backend-dev backend-dev-seed backend-dev-down backend-dev-reset backend-encrypted-test backend-encrypted-down
+.PHONY: dev dev-backend dev-frontend setup setup-backend setup-frontend migrate sqlc seed test build up down backend-dev backend-dev-seed backend-dev-down backend-dev-reset backend-encrypted-test backend-encrypted-down third-party-notices third-party-notices-check
 
 export PATH := $(PATH):$(shell go env GOPATH)/bin
 
@@ -37,6 +37,17 @@ seed:
 test:
 	@echo "Running tests..."
 	cd backend && go test ./...
+
+# Dependency license notices shipped in the backend image (backend/Dockerfile).
+third-party-notices:
+	cd backend && ./scripts/gen-third-party-notices.sh
+
+# CI gate: fail if the committed notices drift from the deps, and fail on any
+# copyleft/unclassifiable license entering the backend binary's module set.
+third-party-notices-check:
+	cd backend && ./scripts/gen-third-party-notices.sh
+	git diff --exit-code -- backend/THIRD_PARTY_NOTICES
+	cd backend && ./scripts/check-dep-licenses.sh
 
 # Disposable, isolated PostgreSQL + MinIO proof of the encrypted backend.
 # The script always removes its project and volumes unless KEEP_ENCRYPTED_TEST_STACK=1.
