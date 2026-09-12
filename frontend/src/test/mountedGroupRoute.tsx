@@ -208,6 +208,7 @@ function makeMember(fixture: GroupRouteFixture): GroupMember {
     id: `user-${username}`,
     github_username: username,
     display_name: null,
+    github_orgs: [],
     avatar_url: null,
   };
 }

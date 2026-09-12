@@ -151,6 +151,11 @@ function groupTranscript(row: ChildSessionRow, index: number): GroupTranscript {
       git_remote: REPO_REMOTE,
       project_remote_label: "github.com:ada/commons",
     }),
+    // The contract narrows these to closed sets; the shared fixture types them as strings.
+    license_id: null,
+    outcome: null,
+    source_format: null,
+    subagents: null,
     owner_username: row.ownerID,
     owner_avatar_url: null,
     owner_is_discoverable: true,
