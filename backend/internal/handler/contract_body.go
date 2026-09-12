@@ -350,7 +350,7 @@ func schemaItems(s *jsonschema.Schema) *jsonschema.Schema {
 	return find(s, 0)
 }
 
-func sortedKeys(object map[string]any) []string {
+func sortedObjectKeys(object map[string]any) []string {
 	keys := make([]string, 0, len(object))
 	for k := range object {
 		keys = append(keys, k)
@@ -371,7 +371,7 @@ func findCaseVariantKey(value any, s *jsonschema.Schema, at string) string {
 			declared = append(declared, name)
 		}
 		sort.Strings(declared)
-		for _, k := range sortedKeys(v) {
+		for _, k := range sortedObjectKeys(v) {
 			if _, ok := props[k]; ok {
 				continue
 			}
@@ -385,7 +385,7 @@ func findCaseVariantKey(value any, s *jsonschema.Schema, at string) string {
 				}
 			}
 		}
-		for _, k := range sortedKeys(v) {
+		for _, k := range sortedObjectKeys(v) {
 			if ps, ok := props[k]; ok {
 				if msg := findCaseVariantKey(v[k], ps, at+"/"+k); msg != "" {
 					return msg
@@ -418,7 +418,7 @@ func filterDeclared(value any, s *jsonschema.Schema, at string, undeclared *[]st
 			return v
 		}
 		out := make(map[string]any, len(v))
-		for _, k := range sortedKeys(v) {
+		for _, k := range sortedObjectKeys(v) {
 			ps, ok := props[k]
 			if !ok {
 				*undeclared = append(*undeclared, at+"/"+k)
