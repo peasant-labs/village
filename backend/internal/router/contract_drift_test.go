@@ -43,6 +43,46 @@ var contractDriftCasesYAML []byte
 //go:embed testdata/undocumented_routes.yaml
 var undocumentedRoutesYAML []byte
 
+//go:embed testdata/api_prefix_cases.yaml
+var apiPrefixCasesYAML []byte
+
+type apiPrefixCase struct {
+	Name string `yaml:"name"`
+	Path string `yaml:"path"`
+	API  bool   `yaml:"api"`
+}
+
+var requiredAPIPrefixCases = []string{
+	"the bare prefix is an API route",
+	"a route below the prefix is an API route",
+	"the prefix with a trailing slash is an API route",
+	"a path that merely starts with the prefix text is not an API route",
+	"a path outside the prefix is not an API route",
+}
+
+func TestUnderAPIPrefix_Fixture(t *testing.T) {
+	cases, err := decodeSingleYAMLDocument[[]apiPrefixCase](apiPrefixCasesYAML)
+	if err != nil {
+		t.Fatalf("load the API prefix fixture: %v", err)
+	}
+	present := map[string]bool{}
+	for _, c := range cases {
+		present[c.Name] = true
+	}
+	for _, required := range requiredAPIPrefixCases {
+		if !present[required] {
+			t.Fatalf("the API prefix fixture omits required case %q", required)
+		}
+	}
+	for _, c := range cases {
+		t.Run(c.Name, func(t *testing.T) {
+			if got := underAPIPrefix(c.Path); got != c.API {
+				t.Fatalf("underAPIPrefix(%q) = %v, want %v", c.Path, got, c.API)
+			}
+		})
+	}
+}
+
 type manifestRoute struct {
 	Method string `yaml:"method"`
 	Path   string `yaml:"path"`
@@ -85,7 +125,7 @@ func mountedAPIRoutes(t *testing.T) []route {
 	}
 	var out []route
 	err = chi.Walk(routes, func(method, path string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		if strings.HasPrefix(path, "/api/v1/") {
+		if underAPIPrefix(path) {
 			out = append(out, route{Method: method, Path: path})
 		}
 		return nil
@@ -94,6 +134,12 @@ func mountedAPIRoutes(t *testing.T) []route {
 		t.Fatalf("walk the router: %v", err)
 	}
 	return out
+}
+
+// underAPIPrefix reports whether a mounted path belongs to the /api/v1
+// surface, the bare prefix included.
+func underAPIPrefix(path string) bool {
+	return path == "/api/v1" || strings.HasPrefix(path, "/api/v1/")
 }
 
 // declaredContractRoutes reads the operations from the same bytes the server

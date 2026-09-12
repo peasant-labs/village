@@ -145,6 +145,63 @@ func TestContractBody_InvalidJSONIsSchemaInvalid(t *testing.T) {
 	}
 }
 
+//go:embed testdata/contract_body_aliases.yaml
+var contractBodyAliasesYAML []byte
+
+type contractBodyAliasCase struct {
+	Name   string `yaml:"name"`
+	Method string `yaml:"method"`
+	Path   string `yaml:"path"`
+	Body   string `yaml:"body"`
+	Expect string `yaml:"expect"`
+}
+
+func loadContractBodyAliases(t *testing.T) []contractBodyAliasCase {
+	t.Helper()
+	cases, err := decodeFixtureRows[contractBodyAliasCase](contractBodyAliasesYAML)
+	if err != nil {
+		t.Fatalf("load the contract body alias fixture: %v", err)
+	}
+	present := map[string]bool{}
+	for _, c := range cases {
+		key := c.Method + " " + c.Path
+		if present[key] {
+			t.Fatalf("the contract body alias fixture repeats operation %q", key)
+		}
+		if strings.TrimSpace(c.Expect) == "" {
+			t.Fatalf("alias case %q expects nothing; name the refused alias", c.Name)
+		}
+		present[key] = true
+	}
+	for _, required := range requiredContractBodyOperations {
+		if !present[required] {
+			t.Fatalf("the contract body alias fixture omits required operation %q; every enforced operation needs an alias case", required)
+		}
+	}
+	return cases
+}
+
+// TestContractBody_ValidatorRefusesCaseVariantKeys: a key that differs from a
+// declared field only in case is refused by the validator itself, so the
+// decoded object can never differ from the validated one.
+func TestContractBody_ValidatorRefusesCaseVariantKeys(t *testing.T) {
+	v := moduleValidator{}
+	for _, c := range loadContractBodyAliases(t) {
+		t.Run(c.Name, func(t *testing.T) {
+			err := v.ValidateBody(c.Method, c.Path, []byte(c.Body))
+			if err == nil {
+				t.Fatalf("alias body accepted")
+			}
+			if !errors.Is(err, ErrSchemaInvalid) {
+				t.Fatalf("error is not ErrSchemaInvalid: %v", err)
+			}
+			if !strings.Contains(err.Error(), c.Expect) {
+				t.Fatalf("violation %q does not contain %q", err.Error(), c.Expect)
+			}
+		})
+	}
+}
+
 // contractBodyTestUser is the signed-in caller every handler-level case uses.
 var contractBodyTestUser = uuid.MustParse("7d5c2a10-9b3e-4c8f-a1d2-3e4f5a6b7c8d")
 
@@ -215,6 +272,61 @@ func TestContractBody_HandlersAnswer400BeforeTouchingTheDatabase(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestContractBody_HandlersRefuseCaseVariantKeysBeforeDecode drives each alias
+// body through the production handler. The mock panics on any lookup after the
+// decode and the share route's publish lock needs a pool the test does not
+// give it, so a 400 here proves the refused value reached neither a write nor
+// a lock.
+func TestContractBody_HandlersRefuseCaseVariantKeysBeforeDecode(t *testing.T) {
+	router := contractBodyRouter(t)
+	for _, c := range loadContractBodyAliases(t) {
+		t.Run(c.Name, func(t *testing.T) {
+			req := httptest.NewRequest(c.Method, contractBodyTarget(c.Path), strings.NewReader(c.Body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400 (body: %s)", rec.Code, rec.Body.String())
+			}
+			body := rec.Body.String()
+			if !strings.Contains(body, strings.ReplaceAll(c.Expect, `"`, `\"`)) {
+				t.Fatalf("body %q does not name the alias %q", body, c.Expect)
+			}
+		})
+	}
+}
+
+func TestContractBody_TrailingBytesAnswer400(t *testing.T) {
+	router := contractBodyRouter(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/groups", strings.NewReader(`{"name":"x"} trailing`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "Invalid request body") {
+		t.Fatalf("status = %d body = %s; want 400 Invalid request body", rec.Code, rec.Body.String())
+	}
+}
+
+// TestContractBody_UndeclaredOperationAnswers500 mounts a handler that names
+// an operation the served contract gives no body, the wiring mistake the 500
+// exists for, and proves the answer through the HTTP boundary.
+func TestContractBody_UndeclaredOperationAnswers500(t *testing.T) {
+	h := newTestHandler(&mockQuerier{}, nil)
+	r := chi.NewRouter()
+	r.Post("/api/v1/groups/{id}/join", func(w http.ResponseWriter, req *http.Request) {
+		var body struct{}
+		if !h.decodeContractBody(w, req, ContractOperation{Method: "POST", Path: "/api/v1/groups/{id}/join"}, &body) {
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/groups/"+testGroupID+"/join", strings.NewReader(`{}`))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError || !strings.Contains(rec.Body.String(), "contract wiring error") {
+		t.Fatalf("status = %d body = %s; want 500 contract wiring error", rec.Code, rec.Body.String())
 	}
 }
 

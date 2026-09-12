@@ -2,8 +2,14 @@
 # contract declares yet. The route drift gate accepts a mounted route only when
 # the served contract declares it or this file names it. A row here must still
 # be mounted and must still be absent from the contract, otherwise the gate
-# fails, so this list can only shrink. Declaring these routes is tracked in the
-# schema repository; when a declaration lands and the pin moves, delete the row.
+# fails.
+#
+# Declaring these routes is tracked in peasant-labs/schema#120; this file is
+# done when it has zero rows. When a declaration lands and the pin moves,
+# delete the row. Adding a row is a review decision, not a way past the gate:
+# the stale-row checks catch a row that outlived its route, they do not stop a
+# new route from being listed instead of declared, so a reviewer asks why a new
+# row is not a contract change first.
 
 routes:
   - method: GET

@@ -17,7 +17,6 @@ package handler
 // transaction, where carrying on after an error is not possible at all.
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -211,11 +210,11 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 	}
 	pgGroupID := toPgUUID(groupID)
 
-	raw, ok := h.readContractBody(w, r, opBatchShareProject)
+	body, ok := h.readContractBody(w, r, opBatchShareProject)
 	if !ok {
 		return
 	}
-	req, refusal := decodeBatchShareRequest(raw)
+	req, refusal := decodeBatchShareRequest(body)
 	if refusal != "" {
 		writeError(w, http.StatusBadRequest, refusal)
 		return
@@ -401,15 +400,19 @@ func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user 
 }
 
 // decodeBatchShareRequest decodes and validates the already contract-checked
-// body. Unknown fields are rejected rather than ignored, which is stricter
-// than the contract's open object on purpose: a client that misspells
-// visibility_confirmed would otherwise be told its private transcripts need
-// confirming while it believes it sent one.
-func decodeBatchShareRequest(raw []byte) (batchShareRequest, string) {
+// body. Fields the contract does not declare are refused rather than ignored,
+// which is stricter than the contract's open object on purpose: a client that
+// misspells visibility_confirmed would otherwise be told its private
+// transcripts need confirming while it believes it sent one.
+func decodeBatchShareRequest(body contractBody) (batchShareRequest, string) {
 	var req batchShareRequest
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&req); err != nil {
+	if len(body.Undeclared) > 0 {
+		return req, fmt.Sprintf(
+			"this contribution request names fields the contract does not declare: %s. Refused before anything was "+
+				"submitted, so nothing was written. Send project_hash, an optional transcript_ids list, and "+
+				"visibility_confirmed, and no other fields.", strings.Join(body.Undeclared, ", "))
+	}
+	if err := json.Unmarshal(body.Declared, &req); err != nil {
 		return req, fmt.Sprintf(
 			"this contribution request could not be read: %s. Refused before anything was submitted, so nothing was "+
 				"written. Send project_hash, an optional transcript_ids list, and visibility_confirmed, and no other "+

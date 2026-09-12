@@ -68,7 +68,7 @@
   malformed:
     - name: project hash is not a hash
       body: '{"project_hash":"not-a-hash","visibility_confirmed":true}'
-      expect: "/project_hash: "
+      expect: "/project_hash: does not match pattern"
     - name: visibility confirmation missing
       body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"}'
       expect: "/: missing properties: 'visibility_confirmed'"
@@ -104,4 +104,4 @@
       expect: "/: missing properties: 'group_ids'"
     - name: group id is not a uuid
       body: '{"group_ids":["nope"]}'
-      expect: "/group_ids/0: "
+      expect: "/group_ids/0: 'nope' is not valid 'uuid'"
