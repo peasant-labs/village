@@ -107,27 +107,34 @@ ValidateBody(method, routePattern string, raw []byte) error
   its JSON-pointer location (`#/paths/<escaped path>/<method>/requestBody/content/
   application~1json/schema`). Compiling by location handles both `$ref` and inline schemas.
   Multipart bodies (publish) are skipped.
-- Key the table by `METHOD path` exactly as chi reports the pattern.
+- Key the table by `METHOD path` with parameter names erased, so a handler's `{id}` and the
+  contract's `{groupId}` meet.
 - A lookup miss returns `ErrContractBodyUndeclared`. A validation failure returns
   `ErrSchemaInvalid` wrapped around a rendered violation.
+
+Handlers name their operation explicitly (`opCreateGroup`, ...). Taking the route pattern chi
+knows was the first design, but the integration suite invokes handlers directly, so those
+requests carry no pattern and every such test would have answered 500. A router test asserts
+every enforced operation is mounted at exactly its method and path.
 
 Violation rendering: walk the compiler's error tree to its leaves and emit
 `<instance pointer>: <message>` entries joined by `; `, where the root pointer renders as `/`.
 No schema URLs, file paths, or absolute locations appear in the text.
 
-Handler helper:
+Handler helpers:
 
 ```go
-func (h *Handler) decodeContractBody(w http.ResponseWriter, r *http.Request, dst any) bool
+func (h *Handler) readContractBody(w http.ResponseWriter, r *http.Request, op ContractOperation) ([]byte, bool)
+func (h *Handler) decodeContractBody(w http.ResponseWriter, r *http.Request, op ContractOperation, dst any) bool
 ```
 
 1. Read the body through `http.MaxBytesReader` with a 1 MiB cap. Over the cap answers 413; any
-   other read error answers 400 `Invalid request body`.
-2. Take the pattern from `chi.RouteContext(r.Context()).RoutePattern()`.
-3. Call `payloadValidator().ValidateBody(r.Method, pattern, raw)`.
-   - `ErrContractBodyUndeclared` (or an empty pattern) answers 500 with a wiring message naming
-     the method and pattern. This is a programming error, never a user error, and the enforced-
-     operations fixture below catches it in tests.
+   other read error, and a body that is not valid JSON, answers 400 `Invalid request body`.
+2. Call `payloadValidator().ValidateBody(op.Method, op.Path, raw)`. A nil validator answers 503,
+   matching the publish path.
+   - `ErrContractBodyUndeclared` answers 500 with a wiring message naming the operation. This
+     is a programming error, never a user error, and the enforced-operations fixture below
+     catches it in tests.
    - Any other error answers **400** with `request body failed contract validation: <rendered>`.
      The contract declares 400, not 422, for these operations, and the handlers answer 400 for
      bad input today. Publish and annotation keep their 422.
@@ -149,7 +156,10 @@ The nine handlers replace `json.NewDecoder(r.Body).Decode(&req)` with the helper
 
 Existing handler-level checks (for example "Name is required") stay in place. They become
 unreachable for shape errors the contract already rejects, and they still guard semantics the
-contract does not express. Nothing user-facing is deleted.
+contract does not express. Nothing user-facing is deleted. The batch share handler keeps its
+stricter unknown-field refusal after the contract check. The share route reads and validates
+its body before taking the publish lock, so a malformed request never holds the lock; the
+locked function receives the raw bytes.
 
 The served document and the enforced schemas are the same bytes from the same module, so this
 adds no handler-only validation rule, in keeping with `AGENTS.md`.
@@ -187,7 +197,29 @@ Divergence policy when the typecheck disagrees with the alias:
 
 A small vitest guard reads `types.ts` and the package's exported `Village*` names and fails if
 any `export interface` re-declares a shape the package exports. That keeps "no hand-written
-duplicate" true after this change.
+duplicate" true after this change. The guard carries the exact declaration of every alias, so
+a documented composition or widening is as protected as a bare alias, and a list of the
+hand-written interfaces outside this surface that share a contract name (`User`, `Transcript`,
+`TranscriptListResponse`), which can only shrink.
+
+The group, member, role, and repository mutation inputs in the query modules are inline
+parameter types, not named wire types, and stay as they are; the batch share and batch review
+inputs already use the named request types, which now alias the contract.
+
+Divergences the typecheck surfaced and how each was resolved:
+
+- The contract brands `project_hash` and models int64 columns as bigint. The frontend reads
+  responses with JSON.parse and never runs the contract's parsers over these routes, so two
+  documented helpers (`AsPlainString`, `AsJSONNumber`) widen those fields on the aliases that
+  carry them. Adopting the brand and the parsers in the contribute and review flows is
+  follow-up work.
+- The app's `Group` served three contract shapes at once (the collective record, the caller's
+  membership row, and the detail record with a viewer role). It is now a documented
+  composition of those three, with the two pull-request check settings optional until the
+  server stores them.
+- Test fixtures that used plain strings where the contract has closed sets (`license_id`,
+  `outcome`, `source_format`, member roles) now carry the contract's literals, and a group
+  member fixture gained the `github_orgs` list the contract requires.
 
 ### 5. Documentation
 
@@ -208,9 +240,11 @@ Backend, unit (no database):
 - `handler/testdata/contract_body_operations.yaml`: one row per enforced operation with at least
   one malformed body naming the expected violation text and one conforming body. Two tests read
   it: the validator alone (malformed rejects, conforming passes, every row compiles), and each
-  handler mounted on a bare chi router at its production pattern, with a nil pool and a user
-  injected into the request context by a test middleware (each malformed body answers 400 with
-  the prefix before any database call; a nil-pool panic would fail the test loudly).
+  handler mounted on a bare chi router at its production pattern, with the mock querier and a
+  user injected into the request context by a test middleware. The lookups that precede the
+  decode (membership, transcript ownership, the GitHub App guard) are stubbed to succeed; every
+  lookup after the decode is unstubbed, so the mock panics and the test fails if a malformed
+  body gets past the contract check.
 - The existing `openapi_test.go` guard on the pinned version, bumped.
 
 Backend, integration (CI only, real Postgres): the existing collectives, share, batch-share, and
