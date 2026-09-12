@@ -18,6 +18,7 @@ declare -Ar required_modes=(
   [runtime_revision_mismatch]=1
   [backend_command_mismatch]=1
   [frontend_command_mismatch]=1
+  [missing_license_notices]=1
 )
 declare -A seen_modes=()
 while IFS= read -r line || [[ -n "$line" ]]; do
