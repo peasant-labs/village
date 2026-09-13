@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"regexp"
 	"sort"
@@ -109,22 +110,30 @@ func loadUndocumentedRoutes(t *testing.T) []route {
 	return routes
 }
 
-// mountedAPIRoutes builds the production router with no database, blob store,
-// or GitHub App (construction touches none of them) and walks every route
-// mounted under /api/v1.
-func mountedAPIRoutes(t *testing.T) []route {
+// productionRouter builds the production router with no database, blob store,
+// or GitHub App (construction touches none of them).
+func productionRouter(t *testing.T) chi.Router {
 	t.Helper()
 	titles, err := redact.NewTitlePipeline()
 	if err != nil {
 		t.Fatalf("construct the title pipeline: %v", err)
 	}
 	handler := New(&config.Config{FrontendURL: "https://app.example.com"}, nil, nil, titles)
-	routes, ok := handler.(chi.Routes)
+	routes, ok := handler.(chi.Router)
 	if !ok {
-		t.Fatalf("router is %T, not chi.Routes", handler)
+		t.Fatalf("router is %T, not chi.Router", handler)
 	}
+	return routes
+}
+
+// enumerateAPIRoutes returns every route mounted under /api/v1. chi.Walk
+// reports a method handler that shares a mount node with a subrouter, such as
+// a handler registered on the parent at the mount prefix (chi v5.3.0 and
+// later); a mount stub with no handler of its own stays hidden.
+func enumerateAPIRoutes(t *testing.T, routes chi.Routes) []route {
+	t.Helper()
 	var out []route
-	err = chi.Walk(routes, func(method, path string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+	err := chi.Walk(routes, func(method, path string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		if underAPIPrefix(path) {
 			out = append(out, route{Method: method, Path: path})
 		}
@@ -134,6 +143,12 @@ func mountedAPIRoutes(t *testing.T) []route {
 		t.Fatalf("walk the router: %v", err)
 	}
 	return out
+}
+
+// mountedAPIRoutes builds the production router and returns its API routes.
+func mountedAPIRoutes(t *testing.T) []route {
+	t.Helper()
+	return enumerateAPIRoutes(t, productionRouter(t))
 }
 
 // underAPIPrefix reports whether a mounted path belongs to the /api/v1
@@ -185,6 +200,32 @@ func TestContractDriftGate_MountedRoutesAreDeclaredOrListed(t *testing.T) {
 			t.Logf("declared but not mounted (informational): %s %s", r.Method, r.Path)
 		}
 	}
+}
+
+// TestContractDriftGate_SeesAHandlerAtTheMountPrefix pins the enumeration
+// behavior the gate depends on: a method handler registered on the parent
+// router at the exact /api/v1 mount prefix is a mounted route. The handler is
+// live, and the gate reports it as undeclared, so the proof is not vacuous.
+func TestContractDriftGate_SeesAHandlerAtTheMountPrefix(t *testing.T) {
+	router := productionRouter(t)
+	router.Get("/api/v1", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	live := httptest.NewRecorder()
+	router.ServeHTTP(live, httptest.NewRequest(http.MethodGet, "/api/v1", nil))
+	if live.Code != http.StatusNoContent {
+		t.Fatalf("the handler at /api/v1 answered %d; the regression would be vacuous", live.Code)
+	}
+
+	findings := contractDriftFindings(enumerateAPIRoutes(t, router), declaredContractRoutes(t), loadUndocumentedRoutes(t))
+	want := "GET /api/v1 is mounted but the served contract does not declare it; declare it in the schema module and re-pin, or add it to the undocumented-routes manifest with a reason"
+	for _, finding := range findings {
+		if finding == want {
+			return
+		}
+	}
+	t.Fatalf("the gate misses a live handler at the mount prefix; findings = %v", findings)
 }
 
 // route is one method and path pair. Path parameter names are erased before
