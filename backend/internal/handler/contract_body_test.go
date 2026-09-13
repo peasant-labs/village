@@ -206,10 +206,12 @@ func TestContractBody_ValidatorRefusesCaseVariantKeys(t *testing.T) {
 var contractBodyTestUser = uuid.MustParse("7d5c2a10-9b3e-4c8f-a1d2-3e4f5a6b7c8d")
 
 // contractBodyRouter mounts the nine enforced handlers at their production
-// patterns under /api/v1 so chi.URLParam works as in production. Every
-// database lookup that precedes the body decode is stubbed to succeed as an
-// owner; every lookup after the decode is left unstubbed, so the mock panics
-// (and the test fails) if a malformed body reaches the database.
+// patterns under /api/v1 so chi.URLParam works as in production. The lookups
+// that gate every request are stubbed to succeed. The tests below assert the
+// refusal status and the message: if a refused body were accepted, the request
+// would continue into the handler and answer differently. Some post-decode
+// lookups are unstubbed and would fail the request too, but that is a
+// secondary signal, not the guarantee.
 func contractBodyRouter(t *testing.T) http.Handler {
 	t.Helper()
 	q := &mockQuerier{
@@ -276,10 +278,11 @@ func TestContractBody_HandlersAnswer400BeforeTouchingTheDatabase(t *testing.T) {
 }
 
 // TestContractBody_HandlersRefuseCaseVariantKeysBeforeDecode drives each alias
-// body through the production handler. The mock panics on any lookup after the
-// decode and the share route's publish lock needs a pool the test does not
-// give it, so a 400 here proves the refused value reached neither a write nor
-// a lock.
+// body through the production handler. The 400 and the named alias are the
+// assertion; a regression that accepted the alias would let the request
+// continue into the handler and fail here with a different status or body.
+// This proves the refusal, not lock acquisition: with no pool the lock helper
+// calls its callback directly, so no advisory lock is taken in this test.
 func TestContractBody_HandlersRefuseCaseVariantKeysBeforeDecode(t *testing.T) {
 	router := contractBodyRouter(t)
 	for _, c := range loadContractBodyAliases(t) {
@@ -294,6 +297,69 @@ func TestContractBody_HandlersRefuseCaseVariantKeysBeforeDecode(t *testing.T) {
 			body := rec.Body.String()
 			if !strings.Contains(body, strings.ReplaceAll(c.Expect, `"`, `\"`)) {
 				t.Fatalf("body %q does not name the alias %q", body, c.Expect)
+			}
+		})
+	}
+}
+
+//go:embed testdata/contract_body_undeclared.yaml
+var contractBodyUndeclaredYAML []byte
+
+type contractBodyUndeclaredCase struct {
+	Name   string `yaml:"name"`
+	Body   string `yaml:"body"`
+	Expect string `yaml:"expect"`
+}
+
+// requiredContractBodyUndeclaredCases names the pointer cases the fixture must
+// keep. It lives here so deleting a row cannot delete the check silently.
+var requiredContractBodyUndeclaredCases = []string{
+	"a slash in an undeclared key",
+	"a tilde in an undeclared key",
+	"a slash and a tilde in one undeclared key",
+}
+
+func loadContractBodyUndeclared(t *testing.T) []contractBodyUndeclaredCase {
+	t.Helper()
+	cases, err := decodeFixtureRows[contractBodyUndeclaredCase](contractBodyUndeclaredYAML)
+	if err != nil {
+		t.Fatalf("load the undeclared-keys fixture: %v", err)
+	}
+	present := map[string]bool{}
+	for _, c := range cases {
+		if present[c.Name] {
+			t.Fatalf("the undeclared-keys fixture repeats case %q", c.Name)
+		}
+		if strings.TrimSpace(c.Expect) == "" {
+			t.Fatalf("undeclared-keys case %q expects nothing; name the escaped pointer", c.Name)
+		}
+		present[c.Name] = true
+	}
+	for _, required := range requiredContractBodyUndeclaredCases {
+		if !present[required] {
+			t.Fatalf("the undeclared-keys fixture omits required case %q; restore it", required)
+		}
+	}
+	return cases
+}
+
+// TestContractBody_UndeclaredKeysAreReportedAsJSONPointers drives the batch
+// share handler with unknown keys that carry JSON pointer metacharacters. The
+// refusal must name the escaped pointer, so a key cannot masquerade as a
+// different path.
+func TestContractBody_UndeclaredKeysAreReportedAsJSONPointers(t *testing.T) {
+	router := contractBodyRouter(t)
+	for _, c := range loadContractBodyUndeclared(t) {
+		t.Run(c.Name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, contractBodyTarget("/api/v1/groups/{id}/shares"), strings.NewReader(c.Body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400 (body: %s)", rec.Code, rec.Body.String())
+			}
+			if body := rec.Body.String(); !strings.Contains(body, "names fields the contract does not declare: "+c.Expect) {
+				t.Fatalf("body %q does not name the escaped pointer %q", body, c.Expect)
 			}
 		})
 	}

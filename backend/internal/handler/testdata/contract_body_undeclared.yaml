@@ -1,0 +1,16 @@
+# Unknown fields on the batch-share mutation are refused before any write.
+# Each `expect` is the JSON-pointer spelling of the refused key: a key that
+# contains a slash or a tilde is escaped (RFC 6901), so it cannot masquerade as
+# a different path.
+
+- name: a slash in an undeclared key
+  body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","visibility_confirmed":true,"a/b":1}'
+  expect: "/a~1b"
+
+- name: a tilde in an undeclared key
+  body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","visibility_confirmed":true,"a~b":1}'
+  expect: "/a~0b"
+
+- name: a slash and a tilde in one undeclared key
+  body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","visibility_confirmed":true,"a/~b":1}'
+  expect: "/a~1~0b"

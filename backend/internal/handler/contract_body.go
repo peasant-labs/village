@@ -30,8 +30,8 @@ type contractBody struct {
 	// bind anything the validator did not see.
 	Declared []byte
 	// Undeclared lists the keys the body carried that the contract does not
-	// declare, as JSON pointers in document order, for handlers that refuse
-	// them rather than ignore them.
+	// declare, as JSON pointers in sorted depth-first order (array elements in
+	// index order), for handlers that refuse them rather than ignore them.
 	Undeclared []string
 }
 
@@ -387,7 +387,7 @@ func findCaseVariantKey(value any, s *jsonschema.Schema, at string) string {
 		}
 		for _, k := range sortedObjectKeys(v) {
 			if ps, ok := props[k]; ok {
-				if msg := findCaseVariantKey(v[k], ps, at+"/"+k); msg != "" {
+				if msg := findCaseVariantKey(v[k], ps, at+"/"+jsonPointerEscape(k)); msg != "" {
 					return msg
 				}
 			}
@@ -421,10 +421,10 @@ func filterDeclared(value any, s *jsonschema.Schema, at string, undeclared *[]st
 		for _, k := range sortedObjectKeys(v) {
 			ps, ok := props[k]
 			if !ok {
-				*undeclared = append(*undeclared, at+"/"+k)
+				*undeclared = append(*undeclared, at+"/"+jsonPointerEscape(k))
 				continue
 			}
-			out[k] = filterDeclared(v[k], ps, at+"/"+k, undeclared)
+			out[k] = filterDeclared(v[k], ps, at+"/"+jsonPointerEscape(k), undeclared)
 		}
 		return out
 	case []any:
