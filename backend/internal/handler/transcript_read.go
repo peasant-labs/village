@@ -36,6 +36,9 @@ func (h *Handler) readEncryptedTranscript(ctx context.Context, initial sqlc.Tran
 		if err != nil {
 			return encryptedReadResult{}, err
 		}
+		if _, err := validateContentBoundary(plaintext, row.ModelProvider, contentStoredRead); err != nil {
+			return encryptedReadResult{}, fmt.Errorf("encrypted transcript validation failed in handler.readEncryptedTranscript before serving or pulling; stored data was not changed; repair or republish the stored content and retry: %w", err)
+		}
 		return encryptedReadResult{Plaintext: plaintext, Row: row, Identity: identity}, nil
 	}
 	result, err := read(initial)

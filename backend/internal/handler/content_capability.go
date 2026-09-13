@@ -17,5 +17,5 @@ func advertisedContentCapabilitiesWithEvaluator(evaluator observedModelPreservat
 	if err := evaluator.Evaluate(); err != nil {
 		return []schema.ContentCapability{}
 	}
-	return []schema.ContentCapability{schema.ContentCapabilityObservedModelV1}
+	return []schema.ContentCapability{schema.ContentCapabilityDetailedUsageV1, schema.ContentCapabilityNativeMetadataV1, schema.ContentCapabilityObservedModelV1, schema.ContentCapabilityToolNamespaceV1}
 }

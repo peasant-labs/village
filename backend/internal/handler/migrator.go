@@ -146,10 +146,14 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 	if len(trimmed) == 0 {
 		return nil, false, ErrEmptyBlob
 	}
+	boundary, err := validateContentBoundary(trimmed, "", contentStoredRead)
+	if err != nil {
+		return nil, false, err
+	}
 
-	switch sniffShape(trimmed) {
+	switch boundary.shape {
 	case ShapeEnvelope:
-		env, err := schema.DecodeTranscriptContentRaw(normalizeEnvelopeHarnessJSON(trimmed))
+		env, err := decodeMigratableEnvelope(trimmed, boundary.canonical != nil)
 		if err != nil {
 			return nil, false, fmt.Errorf("transcript migrate-on-read failed because the stored envelope could not be decoded as schema.TranscriptContent in handler.blobMigrator.Migrate during typed read normalization; no body was served and no stored generation was rewritten; repair or republish the transcript with a supported envelope, then retry: %w", err)
 		}
@@ -175,7 +179,11 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 		return payload, true, nil
 
 	case ShapeBarePayload:
-		payload, err := decodeLegacyPayload(trimmed)
+		payload := boundary.canonical
+		var err error
+		if payload == nil {
+			payload, err = decodeLegacyPayload(trimmed)
+		}
 		if err != nil {
 			return nil, false, err
 		}
@@ -193,6 +201,21 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 	default:
 		return nil, false, ErrEmptyBlob
 	}
+}
+
+// decodeMigratableEnvelope uses the strict canonical decoder only for content
+// the content boundary already classified as canonical. Legacy/observed
+// envelopes keep the historical lenient decode so migrate-on-read can still
+// serve, normalize, and rewrite them without losing the legacy shape.
+func decodeMigratableEnvelope(raw []byte, canonical bool) (schema.TranscriptContent, error) {
+	if canonical {
+		return schema.DecodeTranscriptContentRaw(normalizeEnvelopeHarnessJSON(raw))
+	}
+	var env schema.TranscriptContent
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return env, err
+	}
+	return env, nil
 }
 
 // encodeCanonicalTranscript is the sole typed rewrite/re-emit boundary used by
@@ -243,9 +266,12 @@ func canonicalHarness(legacy string) schema.Harness {
 // decodeLegacyPayload decodes a bare SessionDetailPayload, accepting the legacy
 // provider-keyed shape: if the canonical json:"harness" key is absent, it falls
 // back to json:"provider" then json:"modelHarness", and migrates the VALUE.
+// Content that declares a canonical harness is validated strictly by the
+// content boundary before reaching here, so this lenient typed decode only
+// serves genuinely sparse legacy payloads.
 func decodeLegacyPayload(raw []byte) (*schema.SessionDetailPayload, error) {
-	p, err := schema.DecodeSessionDetailPayloadRaw(normalizeDetailHarnessJSON(raw))
-	if err != nil {
+	var p schema.SessionDetailPayload
+	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, fmt.Errorf("transcript migrate-on-read failed because the stored bare payload could not be decoded as schema.SessionDetailPayload in handler.decodeLegacyPayload during typed read normalization; no body was served and no stored generation was rewritten; repair or republish the transcript with a supported payload, then retry: %w", err)
 	}
 	if p.Harness == "" {
@@ -292,6 +318,12 @@ func decodeRawJSONL(raw []byte) (*schema.SessionDetailPayload, error) {
 
 	p := &schema.SessionDetailPayload{Turns: make([]schema.TurnDetail, 0, len(rows))}
 	for i, row := range rows {
+		if _, envelope := row["contractVersion"]; envelope {
+			return nil, fmt.Errorf("transcript migration failed in handler.decodeRawJSONL because a public content envelope was mixed into legacy records; no data was served or rewritten; republish one supported TranscriptContent envelope and retry")
+		}
+		if _, detail := row["sessionDetail"]; detail {
+			return nil, fmt.Errorf("transcript migration failed in handler.decodeRawJSONL because sessionDetail evidence was mixed into legacy records; no data was served or rewritten; republish one supported TranscriptContent envelope and retry")
+		}
 		turn := schema.TurnDetail{Index: i}
 		if r, ok := row["role"]; ok {
 			_ = json.Unmarshal(r, &turn.Role)

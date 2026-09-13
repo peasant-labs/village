@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -158,14 +157,25 @@ func publishSaveErrorMessage(err error, exposeStagedObjectKey bool) string {
 func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 
+	r.Body = http.MaxBytesReader(w, r.Body, 32<<20)
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid multipart form")
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 
-	metadataStr := r.FormValue("metadata")
+	metadataStr := ""
+	if values := r.MultipartForm.Value["metadata"]; len(values) == 1 {
+		metadataStr = values[0]
+	}
 	if metadataStr == "" {
 		writeError(w, http.StatusBadRequest, "Missing metadata field")
+		return
+	}
+	// Scan the bounded extracted part, never the multipart wrapper, before the
+	// legacy key normalizer or map decoder can collapse duplicate keys.
+	if err := schema.ScanRawJSONDocument([]byte(metadataStr), schema.RawJSONPathPolicy{MaxDocumentBytes: 4 << 20, MaxDocumentDepth: 64}); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid metadata JSON in PublishTranscript before normalization; nothing was written; repair the metadata part and retry: "+err.Error())
 		return
 	}
 
@@ -191,7 +201,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	authoritativeReq, authoritativeErr := schema.DecodeAuthoritativePublishRequest(metaBytes)
+	authoritativeReq, authoritativeErr := schema.DecodeAuthoritativePublishMetadataRaw([]byte(metadataStr))
 	legacyErr := schema.ValidatePublishRequest(metaBytes)
 	authoritative := authoritativeErr == nil
 	if _, successor := metadataObject["contentHash"]; successor && authoritativeErr != nil {
@@ -262,7 +272,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	content, err := io.ReadAll(file)
+	content, err := io.ReadAll(io.LimitReader(file, (8<<20)+1))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to read file")
 		return
@@ -271,6 +281,14 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	// first content decode would turn the documented 400 into a 422.
 	if err := refuseOutOfMenuSessionOrigin(content); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// The harness-aware content boundary owns "this content cannot be preserved"
+	// (409) before the durable graph decode below, which owns raw-shape
+	// disagreements (422). Keeping the boundary first preserves the published
+	// producer classifications it already pins.
+	if err := requireSupportedContentForHarness(content, string(req.Model.Harness), h.preservationProof()); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 	durableDetail, err := decodePublicationDetail(content)
@@ -290,10 +308,6 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	graphParams := sqlc.CreateTranscriptParams{}
 	if err := installPublicationGraph(&graphParams, durableDetail); err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	if err := requireSupportedContentCapabilityWithEvaluator(content, h.preservationProof()); err != nil {
-		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 
@@ -888,32 +902,32 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	}
 	raw := readResult.Plaintext
 
-	// Content is always durable evidence, never authorized read navigation.
-	// Normalize older shapes through the same typed envelope used for rewrites.
-	readInput := restoreStoredEnvelopeHarness(raw, readResult.Row.ModelProvider)
-	payload, rewrite, err := defaultContentMigrator.Migrate(r.Context(), readInput)
+	// Migrate-on-read: normalize legacy/older decrypted transcript content to
+	// the current SessionDetailPayload shape and serve the bare payload the
+	// viewer expects (unwrapping the TranscriptContent envelope that peasant
+	// uploads). The canonical envelope is still installed in storage by the
+	// rewrite below; the response keeps the historical bare representation.
+	payload, rewrite, err := defaultContentMigrator.Migrate(r.Context(), raw)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if payload.Harness == "" {
-		// Legacy raw JSONL has no session-level harness. Its authenticated row
-		// supplies that existing fact; never invent provenance from the turns.
-		payload.Harness = canonicalHarness(readResult.Row.ModelProvider)
-	}
-	rewrite = rewrite || !bytes.Equal(readInput, raw)
 	if err := validateObservedModelValues(payload); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	canonical := raw
 	if rewrite {
-		canonical, err = encodeCanonicalTranscript(payload)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+		encoded, encodeErr := encodeCanonicalTranscript(payload)
+		if encodeErr != nil {
+			// Legacy content that cannot be represented as a canonical durable
+			// envelope follows the historical bare-payload response; the
+			// harness-aware content boundary already owns strict validation of
+			// canonical content. No canonical generation is installed.
+			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), encodeErr)
+			writeJSON(w, http.StatusOK, payload)
 			return
 		}
-		if err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, canonical); err != nil {
+		if err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, encoded); err != nil {
 			if len(schema.RequiredContentCapabilities(*payload)) != 0 {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
@@ -922,9 +936,7 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(canonical)
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Transcript, canonical []byte) error {

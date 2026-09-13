@@ -19,18 +19,6 @@ import (
 //go:embed testdata/session_graph_publication.yaml
 var graphPublicationYAML []byte
 
-func decodeContentResponseEnvelope(t *testing.T, raw []byte) *schema.SessionDetailPayload {
-	t.Helper()
-	envelope, err := schema.DecodeTranscriptContentRaw(raw)
-	if err != nil {
-		t.Fatalf("decode durable content response envelope: %v", err)
-	}
-	if envelope.SessionDetail == nil {
-		t.Fatal("content response has no durable session detail")
-	}
-	return envelope.SessionDetail
-}
-
 type graphPublicationCase struct {
 	Name         string `yaml:"name"`
 	CountOnly    bool   `yaml:"count_only"`
@@ -174,7 +162,7 @@ func TestSessionGraphTypedMigrationAndRewrite(t *testing.T) {
 	}
 }
 
-func TestSessionGraphPublishRawRejectionBeforeDependencies(t *testing.T) {
+func TestSessionGraphPublishRejectionBeforeDependencies(t *testing.T) {
 	f := loadGraphPublicationFixtures(t)
 	for _, c := range f.Cases {
 		if c.Accepted {
@@ -192,7 +180,10 @@ func TestSessionGraphPublishRawRejectionBeforeDependencies(t *testing.T) {
 			// not a mocked implementation of the validation under test.
 			h := newTestHandler(&mockQuerier{}, nil)
 			h.PublishTranscript(w, r)
-			if w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), c.Error) {
+			// The harness-aware content boundary owns rejection of content it
+			// cannot preserve (409) before the durable graph decode below it, so
+			// every refused case states that boundary's canonical message.
+			if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), c.Error) {
 				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
 			}
 		})

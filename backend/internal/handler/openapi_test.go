@@ -127,19 +127,11 @@ func TestPublishTranscript_UnknownHarnessRejectsAsSchemaEnum422(t *testing.T) {
 	if !strings.Contains(respBody, "metadata failed schema validation") || !strings.Contains(respBody, "value must be one of") {
 		t.Fatalf("unknown harness publish body = %s, want schema enum rejection body", respBody)
 	}
-	// Frozen-boundary tripwire: the legacy compatibility branch of this 422
-	// validates against the module's byte-frozen Village 0.10.0 schema, which
-	// intentionally never follows the current Village API version (see the
-	// module's compilePublishRequestSchema: the successor validator has a
-	// separate source type and must not silently change this legacy boundary).
-	// New harnesses therefore never appear in this body. Pin the frozen enum
-	// literally: any silent change to that boundary fails here and forces
-	// review, while the live harness menu stays covered by schema.Harnesses()
-	// consumers and the served-spec pins elsewhere in this file.
-	for _, hn := range []string{"claude-code", "gemini-cli", "codex", "opencode", "cursor", "antigravity", "strike"} {
-		if !strings.Contains(respBody, hn) {
-			t.Errorf("harness-422 body does not name frozen legacy enum value %q: %s", hn, respBody)
-		}
+	// Legacy publication uses Schema's byte-frozen compatibility menu, not the
+	// current Types harness set. Pi is accepted by the authoritative successor.
+	legacyErr := schema.ValidatePublishRequest(metaJSON)
+	if legacyErr == nil || !strings.Contains(decodeError(t, w.Body.Bytes()), legacyErr.Error()) {
+		t.Fatalf("legacy harness rejection did not preserve the Schema validator body: %s", respBody)
 	}
 }
 

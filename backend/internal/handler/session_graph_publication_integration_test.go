@@ -97,7 +97,9 @@ func TestSessionGraphEncryptedPublicationAndPull(t *testing.T) {
 			}
 			w := publish()
 			if !c.Accepted {
-				if w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), c.Error) {
+				// The content boundary refuses un-preservable content with 409
+				// before the durable graph decode; the message is its canonical one.
+				if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), c.Error) {
 					t.Fatalf("refusal status=%d body=%s", w.Code, w.Body.String())
 				}
 				var afterState string

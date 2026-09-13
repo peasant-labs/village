@@ -12,18 +12,35 @@ import (
 // decodePublicationDetail uses the contract's raw boundary, before pointer
 // decoding can erase nulls or typed decoding can discard read-only fields.
 // Native JSONL remains a legacy byte-preserving input, not a graph DTO.
+//
+// The durable graph is authoritative only for canonical content. A strict
+// decode failure for legacy/opaque bytes (which the harness-aware content
+// boundary routes to the historical dispatch and migrate-on-read path) carries
+// no graph and is not a publish refusal; only content that claims the canonical
+// public shape reaches the graph projection, so the failure stays strict there.
 func decodePublicationDetail(raw []byte) (*schema.SessionDetailPayload, error) {
+	detail, err := decodeCanonicalPublicationDetail(raw)
+	if err == nil {
+		return detail, nil
+	}
+	if _, boundaryErr := validateContentBoundary(raw, "", contentPublication); boundaryErr != nil {
+		return nil, publicationDetailError(err)
+	}
+	return nil, nil
+}
+
+func decodeCanonicalPublicationDetail(raw []byte) (*schema.SessionDetailPayload, error) {
 	switch sniffShape(bytes.TrimSpace(raw)) {
 	case ShapeEnvelope:
 		envelope, err := schema.DecodeTranscriptContentRaw(normalizeEnvelopeHarnessJSON(raw))
 		if err != nil {
-			return nil, publicationDetailError(err)
+			return nil, err
 		}
 		return envelope.SessionDetail, nil
 	case ShapeBarePayload:
 		detail, err := schema.DecodeSessionDetailPayloadRaw(normalizeDetailHarnessJSON(raw))
 		if err != nil {
-			return nil, publicationDetailError(err)
+			return nil, err
 		}
 		return &detail, nil
 	default:
@@ -87,42 +104,6 @@ func normalizeEnvelopeHarnessJSON(raw []byte) []byte {
 		return raw
 	}
 	envelope["sessionDetail"] = normalized
-	encoded, err := json.Marshal(envelope)
-	if err != nil {
-		return raw
-	}
-	return encoded
-}
-
-// Earlier native-JSONL rewrites had no harness in their envelope. Only a stored,
-// authorized row may restore that existing fact; inbound publication never uses
-// this compatibility step and cannot obtain fabricated graph authority from it.
-func restoreStoredEnvelopeHarness(raw []byte, storedHarness string) []byte {
-	if sniffShape(bytes.TrimSpace(raw)) != ShapeEnvelope || storedHarness == "" {
-		return raw
-	}
-	if schema.ScanRawJSONDocument(raw, schema.RawJSONPathPolicy{}) != nil {
-		return raw
-	}
-	var envelope, detail map[string]json.RawMessage
-	if json.Unmarshal(raw, &envelope) != nil || json.Unmarshal(envelope["sessionDetail"], &detail) != nil || detail == nil {
-		return raw
-	}
-	if value, present := detail["harness"]; present && !bytes.Equal(bytes.TrimSpace(value), []byte(`""`)) {
-		return raw
-	}
-	if _, present := detail["provider"]; present {
-		return raw
-	}
-	if _, present := detail["modelHarness"]; present {
-		return raw
-	}
-	detail["harness"], _ = json.Marshal(canonicalHarness(storedHarness))
-	encodedDetail, err := json.Marshal(detail)
-	if err != nil {
-		return raw
-	}
-	envelope["sessionDetail"] = encodedDetail
 	encoded, err := json.Marshal(envelope)
 	if err != nil {
 		return raw

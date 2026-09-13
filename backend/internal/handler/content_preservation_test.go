@@ -45,7 +45,6 @@ type observedModelPublishGateFixture struct {
 type observedModelPublishGateCase struct {
 	Name           string                       `yaml:"name"`
 	Content        string                       `yaml:"content"`
-	WantStatus     int                          `yaml:"want_status"`
 	WantErrorPart  string                       `yaml:"wantErrorPart"`
 	WantErrorParts []observedModelErrorFragment `yaml:"wantErrorParts"`
 }
@@ -431,12 +430,8 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 		}
 		return
 	}
-	wantStatus := http.StatusConflict
-	if fixtureCase.WantStatus != 0 {
-		wantStatus = fixtureCase.WantStatus
-	}
-	if response.Code != wantStatus || !strings.Contains(decodeError(t, response.Body.Bytes()), fixtureCase.WantErrorPart) {
-		t.Fatalf("mounted rejection status=%d body=%s want status=%d part=%q", response.Code, response.Body.String(), wantStatus, fixtureCase.WantErrorPart)
+	if response.Code != http.StatusConflict || !strings.Contains(decodeError(t, response.Body.Bytes()), fixtureCase.WantErrorPart) {
+		t.Fatalf("mounted rejection status=%d body=%s want=%q", response.Code, response.Body.String(), fixtureCase.WantErrorPart)
 	}
 	errorBody := decodeError(t, response.Body.Bytes())
 	for _, part := range fixtureCase.WantErrorParts {
@@ -457,7 +452,10 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 	if served.Code != http.StatusOK {
 		t.Fatalf("corrected mounted read status=%d body=%s", served.Code, served.Body.String())
 	}
-	payload := *decodeContentResponseEnvelope(t, served.Body.Bytes())
+	var payload schema.SessionDetailPayload
+	if err := json.Unmarshal(served.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
 	if err := requireObservedModelPreservationCase(t, "enriched_repeated_change_and_omission").assertObservedModels(&payload); err != nil {
 		t.Fatal(err)
 	}
@@ -552,7 +550,7 @@ func TestObservedModelPublishInventoryMutationGuards(t *testing.T) {
 	if _, err := decodeObservedModelPublishGateFixtures(nameSwap); err == nil {
 		t.Fatal("component name swap accepted")
 	}
-	valueSwap := bytes.Replace(observedModelPublishGateFixtureYAML, []byte(`value: "Village publication validation failed"`), []byte(`value: "missing-component"`), 1)
+	valueSwap := bytes.Replace(observedModelPublishGateFixtureYAML, []byte("value: observedModel"), []byte("value: missing-component"), 1)
 	f, err := decodeObservedModelPublishGateFixtures(valueSwap)
 	if err != nil {
 		t.Fatal(err)
@@ -588,7 +586,10 @@ func TestObservedModelRealHandlerMigrateRewriteReemit(t *testing.T) {
 		t.Fatalf("real migrate/rewrite handler status=%d, want 200; body=%s", response.Code, response.Body.String())
 	}
 	fixtureCase := requireObservedModelPreservationCase(t, "enriched_repeated_change_and_omission")
-	served := *decodeContentResponseEnvelope(t, response.Body.Bytes())
+	var served schema.SessionDetailPayload
+	if err := json.Unmarshal(response.Body.Bytes(), &served); err != nil {
+		t.Fatalf("decode real handler re-emission: %v", err)
+	}
 	if err := fixtureCase.assertObservedModels(&served); err != nil {
 		t.Fatal(err)
 	}
@@ -697,7 +698,10 @@ func TestObservedModelFieldDropMountedHandlers(t *testing.T) {
 	if served.Code != http.StatusOK {
 		t.Fatalf("persisted legacy read status=%d body=%s", served.Code, served.Body.String())
 	}
-	payload := *decodeContentResponseEnvelope(t, served.Body.Bytes())
+	var payload schema.SessionDetailPayload
+	if err := json.Unmarshal(served.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
 	if err := requireObservedModelPreservationCase(t, "legacy_without_observations").assertObservedModels(&payload); err != nil {
 		t.Fatal(err)
 	}

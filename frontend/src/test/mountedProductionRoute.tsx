@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
-import type { SessionDetailPayload } from "@peasant-labs/schema";
+import type { Harness } from "@peasant-labs/schema";
 import type { NameSource } from "@/lib/types";
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 import TranscriptDetailPage from "@/app/transcripts/[id]/page";
@@ -23,6 +23,7 @@ export interface MountedRouteTranscriptMetadata {
   transcript: {
     id: string;
     local_id: string;
+    model_provider?: Harness;
     visibility: string;
     title: string | null;
     description: string | null;
@@ -91,7 +92,7 @@ function withProjectIdentityDefaults(
 export function installRESTFixture(
   transcriptID: string,
   metadata: MountedRouteTranscriptMetadata,
-  detail: SessionDetailPayload,
+  detail: unknown,
   fixtureLabel: string,
 ): ReturnType<typeof vi.fn> {
   const resolvedMetadata = withProjectIdentityDefaults(metadata);
