@@ -5,7 +5,10 @@
 # request receives and must be 501 for every row here. A 401 carries
 # `unauthenticated_error`; a 501 carries `not_implemented_error`. A row with a
 # `malformed` block also sends that body signed in and expects the contract
-# violation, proving the body is checked before the stub answers.
+# violation, proving the body is checked before the stub answers. The text
+# after `expected` depends on how the generator renders the optional flag
+# (today an anyOf of null and boolean), so the pin stops at the field,
+# matching the contract body operations fixture in the handler package.
 #
 # When a real handler lands, delete its row and its name from the required
 # list in attachment_stubs_test.go. A row whose route stops answering 501
@@ -62,4 +65,4 @@ routes:
     malformed:
       body: '{"preview_before_attach":"yes"}'
       status: 400
-      error_contains: "/preview_before_attach: expected null or boolean, but got string"
+      error_contains: "/preview_before_attach: expected"

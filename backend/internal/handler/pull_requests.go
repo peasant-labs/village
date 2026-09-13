@@ -56,8 +56,8 @@ func (h *Handler) GetUserSettings(w http.ResponseWriter, _ *http.Request) {
 
 // UpdateUserSettings is PATCH /api/v1/users/me/settings. The body is checked
 // against the served contract before anything else, so a malformed body
-// answers 400 with the violation today and keeps doing so once the settings
-// store exists; a conforming body answers 501 until then.
+// answers 400 with the violation; the contract check stays in front of the
+// store when it lands, and a conforming body answers 501 until then.
 func (h *Handler) UpdateUserSettings(w http.ResponseWriter, r *http.Request) {
 	var req schema.VillageUpdateUserSettingsRequest
 	if !h.decodeContractBody(w, r, opUpdateUserSettings, &req) {

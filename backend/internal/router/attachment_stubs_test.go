@@ -195,7 +195,6 @@ func TestAttachmentStubRoutes_AnswerAsFixtured(t *testing.T) {
 	handler, cfg := attachmentStubRouter(t)
 
 	for _, row := range fixture.Routes {
-		row := row
 		t.Run(row.Name, func(t *testing.T) {
 			anon := serveAttachmentStub(t, handler, row.Method, row.Target, row.Body, "")
 			if anon.Code != row.Anonymous {

@@ -107,11 +107,14 @@ describe("pull request attachment wire types parse as the package ships them", (
   for (const { name, parser, value } of examples) {
     it(`${name} parses and round-trips`, () => {
       const parsed = parser.parse(value);
+      // The round-trip proves "only declared keys" because the generated
+      // parsers use zod's default strip behaviour; a regeneration that adds
+      // `.passthrough()` would weaken this proof.
       expect(parsed).toEqual(value);
     });
   }
 
-  it("the parsed values are the exported types", () => {
+  it("the exported type names resolve to the parsers' output types", () => {
     const typed: {
       attachment: VillagePullRequestAttachmentResponse;
       requests: VillagePromptRequestsResponse;
