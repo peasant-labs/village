@@ -173,8 +173,9 @@
 - name: bad_project_hash_400
   why: >
     A project is identified by its hash. A value that is not one is refused at
-    the boundary with an actionable message rather than reaching a query that
-    would simply match nothing and read as an empty project.
+    the boundary rather than reaching a query that would simply match nothing
+    and read as an empty project. The served contract's hash pattern answers
+    first; the handler's own check behind it guards the same rule.
   acceptance: open
   transcripts:
     - {key: a, project: p, visibility: shared}
@@ -186,11 +187,13 @@
   why: >
     A misspelled field is refused instead of ignored. A client that sent
     "visibility_confirm" would otherwise be told its private transcripts need
-    confirming while believing it had confirmed them.
+    confirming while believing it had confirmed them. The body also carries
+    the real field, so the served contract accepts it and the handler's own
+    unknown-field refusal is what answers.
   acceptance: open
   transcripts:
     - {key: a, project: p, visibility: shared}
-  request: {raw_body: '{"project_hash":"PROJECT_HASH_P","visibility_confirm":true}'}
+  request: {raw_body: '{"project_hash":"PROJECT_HASH_P","visibility_confirmed":true,"visibility_confirm":true}'}
   expect_status: 400
   expect_message_names: [visibility_confirm]
   expect_attempts: {a: 0}

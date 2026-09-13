@@ -50,6 +50,30 @@ export interface UserProjectPageResponse {
   collectives: ProjectCollectiveRollupEntry[];
 }
 import type { SessionOrigin } from "@/lib/sessionOrigin";
+import type {
+  VillageGroup,
+  VillageGroupViewerRole,
+  VillageCollectiveSearchResponse,
+  VillageCollectiveSearchResult,
+  VillageCollectiveSubmission,
+  VillageContributedCollective,
+  VillageGroupContributor,
+  VillageGroupMember,
+  VillageGroupModelBreakdown,
+  VillageGroupTranscript,
+  VillageGroupTranscriptStats,
+  VillageLinkedRepositoriesResponse,
+  VillageLinkedRepository,
+  VillageRepositoryCommit,
+  VillageRepositoryCommitsResponse,
+  VillageShareEvent,
+  VillageShareEventActor,
+  VillageShareStatus,
+  VillageTranscriptCollective,
+  VillageUserGroup,
+  VillageUserGroupShare,
+  VillageVisibleGroup,
+} from "@peasant-labs/schema";
 
 export interface User {
   id: string;
@@ -205,27 +229,35 @@ export interface TagWithCount extends Tag {
   usage_count: number;
 }
 
-export interface Group {
-  id: string;
-  name: string;
-  description: string | null;
-  linked_github_org: string | null;
-  display_members: boolean;
-  transcript_deletion_policy: "user_choice" | "mandatory";
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  acceptance_mode: "open" | "verified_only" | "curated";
-  data_access: "members_only" | "contributors" | "public";
-  role: string;
-  member_since: string | null;
-  // Aggregate counts. `ListUserGroups` and `ListVisibleGroups` both compute
-  // them; `ListAllGroups` (GET /groups/public) selects group columns only, so
-  // they stay optional and are simply omitted where a surface does not carry
-  // them.
-  member_count?: number;
-  transcript_count?: number;
-}
+
+/**
+ * The contract brands project hashes and models int64 columns as bigint. The
+ * frontend reads responses with JSON.parse and does not run the contract's
+ * parsers over these routes, so at runtime a project hash is a string and an
+ * int64 column is a number. These two helpers state that on the aliases that
+ * carry such fields; adopting the brand and the parsers in the contribute and
+ * review flows is separate work.
+ */
+export type AsPlainString<T, K extends keyof T> = Omit<T, K> & { [P in K]: string };
+export type AsJSONNumber<T, K extends keyof T> = Omit<T, K> & { [P in K]: number };
+
+/**
+ * One record type across three contract shapes: the collective record
+ * (create and update responses), the caller's membership row (the groups
+ * list, which adds role, member_since and the counts), and the detail record
+ * (which reports the viewer's role separately, so a non-member reads as "").
+ * Consumers read the membership columns defensively, so they are the list
+ * row's counts made optional and the role is the viewer role. The two
+ * pull-request check settings are optional until the server stores them.
+ *
+ * @deprecated Import VillageGroup, VillageUserGroup, or VillageGroupDetailRecord from "@peasant-labs/schema". Alias kept for one release.
+ */
+export type Group = Omit<VillageGroup, "post_prompts_check" | "prompts_check_mode"> &
+  Partial<Pick<VillageGroup, "post_prompts_check" | "prompts_check_mode">> &
+  Partial<Pick<VillageUserGroup, "member_count" | "transcript_count">> & {
+    role: VillageGroupViewerRole;
+    member_since: string | null;
+  };
 
 /**
  * A collective the caller may SEE, as served by `GET /groups/visible`.
@@ -235,70 +267,26 @@ export interface Group {
  * NULL role and a NULL member_since, and a consumer must read those as "you are
  * not a member of this one" rather than as a value that failed to load.
  */
-export interface VisibleGroup extends Omit<Group, "role" | "member_since"> {
-  role: string | null;
-  member_since: string | null;
-}
+/** @deprecated Import VillageVisibleGroup from "@peasant-labs/schema". Alias kept for one release. */
+export type VisibleGroup = VillageVisibleGroup;
 
-export interface UserGroupShare {
-  id: string;
-  /** The publisher, and the id the recording harness used for this session.
-   *  Together they are how a session that another session started is matched to
-   *  the session that started it: `local_id` is unique per owner, never
-   *  globally. Every row of this response belongs to the caller, so `owner_id`
-   *  is constant here; it is carried anyway so one reading of a row's identity
-   *  serves every list. */
-  owner_id: string;
-  local_id: string;
-  /** The harness id of the session that started this one, or null. */
-  parent_session_id: string | null;
-  title: string | null;
-  model_provider: string;
-  model_name: string | null;
-  visibility: "private" | "shared" | "public";
-  published_at: string;
-  turn_count: number | null;
-  tokens_in: number | null;
-  tokens_out: number | null;
-  status: "pending" | "approved" | "rejected";
-  shared_at: string;
-}
+/** @deprecated Import VillageUserGroupShare from "@peasant-labs/schema". Alias kept for one release. */
+export type UserGroupShare = VillageUserGroupShare;
 
-export interface GroupTranscriptStats {
-  total_transcripts: number;
-  contributor_count: number;
-  total_turns: number;
-  total_duration_ms: number;
-  total_tokens: number;
-}
+/** @deprecated Import VillageGroupTranscriptStats from "@peasant-labs/schema". Alias kept for one release. */
+export type GroupTranscriptStats = AsJSONNumber<VillageGroupTranscriptStats, "total_duration_ms" | "total_tokens" | "total_turns">;
 
-export interface GroupModelBreakdown {
-  model_provider: string;
-  transcript_count: number;
-}
+/** @deprecated Import VillageGroupModelBreakdown from "@peasant-labs/schema". Alias kept for one release. */
+export type GroupModelBreakdown = VillageGroupModelBreakdown;
 
-export interface GroupContributor {
-  id: string;
-  github_username: string;
-  avatar_url: string | null;
-  transcript_count: number;
-}
+/** @deprecated Import VillageGroupContributor from "@peasant-labs/schema". Alias kept for one release. */
+export type GroupContributor = VillageGroupContributor;
 
-export interface GroupMember {
-  role: string;
-  joined_at: string;
-  id: string;
-  github_username: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  github_orgs?: string[];
-}
+/** @deprecated Import VillageGroupMember from "@peasant-labs/schema". Alias kept for one release. */
+export type GroupMember = VillageGroupMember;
 
-export interface GroupTranscript extends Transcript {
-  owner_username: string;
-  owner_avatar_url: string | null;
-  owner_is_discoverable: boolean;
-}
+/** @deprecated Import VillageGroupTranscript from "@peasant-labs/schema". Alias kept for one release. */
+export type GroupTranscript = AsPlainString<VillageGroupTranscript, "project_hash">;
 
 interface TranscriptShare {
   group_id: string;
@@ -323,18 +311,11 @@ export interface UserOrg {
   fetched_at: string;
 }
 
-export interface CollectiveSearchResult {
-  id: string;
-  name: string;
-  description: string | null;
-  linked_github_org: string | null;
-  member_count: number;
-  transcript_count: number;
-}
+/** @deprecated Import VillageCollectiveSearchResult from "@peasant-labs/schema". Alias kept for one release. */
+export type CollectiveSearchResult = VillageCollectiveSearchResult;
 
-export interface CollectiveSearchResponse {
-  collectives: CollectiveSearchResult[];
-}
+/** @deprecated Import VillageCollectiveSearchResponse from "@peasant-labs/schema". Alias kept for one release. */
+export type CollectiveSearchResponse = VillageCollectiveSearchResponse;
 
 /**
  * A GitHub repository linked to a collective via the GitHub App. Wire shape of
@@ -342,40 +323,18 @@ export interface CollectiveSearchResponse {
  * fields (`pgtype.UUID`, `pgtype.Timestamptz`) marshal to a string when present
  * and `null` when absent.
  */
-export interface LinkedRepository {
-  id: string;
-  group_id: string;
-  owner: string;
-  name: string;
-  installation_id: number;
-  is_private: boolean;
-  linked_by: string | null;
-  last_synced_at: string | null;
-  created_at: string | null;
-}
+/** @deprecated Import VillageLinkedRepository from "@peasant-labs/schema". Alias kept for one release. */
+export type LinkedRepository = VillageLinkedRepository;
 
-export interface LinkedRepositoriesResponse {
-  repositories: LinkedRepository[];
-}
+/** @deprecated Import VillageLinkedRepositoriesResponse from "@peasant-labs/schema". Alias kept for one release. */
+export type LinkedRepositoriesResponse = VillageLinkedRepositoriesResponse;
 
 /** A cached commit for a linked repository (backend `commitResponse`). */
-export interface RepositoryCommit {
-  sha: string;
-  message: string | null;
-  author_name: string | null;
-  author_email: string | null;
-  authored_at: string | null;
-  committed_at: string | null;
-}
+/** @deprecated Import VillageRepositoryCommit from "@peasant-labs/schema". Alias kept for one release. */
+export type RepositoryCommit = VillageRepositoryCommit;
 
-export interface RepositoryCommitsResponse {
-  owner: string;
-  name: string;
-  refreshed: boolean;
-  last_synced: string | null;
-  commit_count: number;
-  commits: RepositoryCommit[];
-}
+/** @deprecated Import VillageRepositoryCommitsResponse from "@peasant-labs/schema". Alias kept for one release. */
+export type RepositoryCommitsResponse = VillageRepositoryCommitsResponse;
 
 /**
  * A git commit captured for a single transcript's session (backend
@@ -500,20 +459,8 @@ export interface TranscriptDetailResponse {
  * history (`ShareEvent`) still distinguishes them by actor, and must keep
  * doing so; only the tally here folds them together.
  */
-export interface ContributedCollective {
-  id: string;
-  name: string;
-  description: string | null;
-  linked_github_org: string | null;
-  /** Distinct transcripts of yours this collective currently holds. */
-  approved_count: number;
-  /** Distinct transcripts of yours currently awaiting this collective's review. */
-  pending_count: number;
-  /** Refusal EVENTS, not transcripts. */
-  rejected_attempt_count: number;
-  /** Withdrawal EVENTS (`retracted` + `revoked` combined), not transcripts. */
-  withdrawn_attempt_count: number;
-}
+/** @deprecated Import VillageContributedCollective from "@peasant-labs/schema". Alias kept for one release. */
+export type ContributedCollective = VillageContributedCollective;
 
 /**
  * One accepted membership of a transcript in a collective the viewer may see,
@@ -525,13 +472,8 @@ export interface ContributedCollective {
  * as plain emptiness: anything that reads as "there is something here you may
  * not see" re-creates exactly the disclosure the empty list exists to avoid.
  */
-export interface TranscriptCollective {
-  id: string;
-  name: string;
-  description: string | null;
-  linked_github_org: string | null;
-  shared_at: string;
-}
+/** @deprecated Import VillageTranscriptCollective from "@peasant-labs/schema". Alias kept for one release. */
+export type TranscriptCollective = VillageTranscriptCollective;
 
 /**
  * The outcome recorded on one share event (village backend
@@ -544,12 +486,8 @@ export interface TranscriptCollective {
  * distinct terminal states, distinct from each other AND from `rejected`.
  * Collapsing any of them into another makes the history unreadable.
  */
-export type ShareEventStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "retracted"
-  | "revoked";
+/** @deprecated Import VillageShareStatus from "@peasant-labs/schema". Alias kept for one release. */
+export type ShareEventStatus = VillageShareStatus;
 
 /**
  * Compile-time exhaustiveness proof for {@link ShareEventStatus}, used the same
@@ -573,7 +511,8 @@ export function assertShareEventStatusExhaustive(status: never): never {
  * The empty string is the wire's value for an event that has not been decided
  * yet (a `pending` event has no actor because nothing has been decided).
  */
-export type ShareEventActor = "" | "owner" | "collective" | "moderator";
+/** @deprecated Import VillageShareEventActor from "@peasant-labs/schema". Alias kept for one release. */
+export type ShareEventActor = VillageShareEventActor;
 
 /** Compile-time exhaustiveness proof for {@link ShareEventActor}. */
 export function assertShareEventActorExhaustive(actor: never): never {
@@ -590,14 +529,8 @@ export function assertShareEventActorExhaustive(actor: never): never {
  * including the withdrawals nobody submitted. {@link event_num} is therefore an
  * event ordinal and never an "attempt number" in rendered copy.
  */
-export interface ShareEvent {
-  event_num: number;
-  status: ShareEventStatus;
-  recorded_at: string;
-  /** Null until the event is decided. */
-  decided_at: string | null;
-  decided_by_actor: ShareEventActor;
-}
+/** @deprecated Import VillageShareEvent from "@peasant-labs/schema". Alias kept for one release. */
+export type ShareEvent = VillageShareEvent;
 
 /**
  * One (transcript, collective) LEDGER PAIR, as served by the owner-only
@@ -622,12 +555,5 @@ export interface ShareEvent {
  * `@/lib/queries/collectives`, which normalizes that 404 to an empty list for
  * consumers: the rendered empty state is unaffected either way.
  */
-export interface CollectiveSubmissionPair {
-  transcript_id: string;
-  group_id: string;
-  /** Null when the transcript has no title. Never derived or guessed. */
-  title: string | null;
-  status: ShareEventStatus;
-  event_num: number;
-  recorded_at: string;
-}
+/** @deprecated Import VillageCollectiveSubmission from "@peasant-labs/schema". Alias kept for one release. */
+export type CollectiveSubmissionPair = VillageCollectiveSubmission;

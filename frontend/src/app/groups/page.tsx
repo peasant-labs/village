@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useVisibleGroups, useCreateGroup } from "@/lib/queries/groups";
+import { createGroupRequest } from "@/lib/queries/groupRequests";
 import { useMyCollectiveContributions } from "@/lib/queries/collectives";
 import { useMyOrgs } from "@/lib/queries/orgs";
 import { useAuth } from "@/providers/AuthProvider";
@@ -86,15 +87,7 @@ export default function GroupsPage() {
   }
 
   const handleCreateCollective = ({ name, purpose, mode, access, org }: { name: string; purpose: string; mode: string; access: string; org: string }) => {
-    createGroup.mutate(
-      {
-        name,
-        description: purpose,
-        acceptance_mode: mode,
-        data_access: access,
-        linked_github_org: org || null,
-      }
-    );
+    createGroup.mutate(createGroupRequest({ name, purpose, mode, access, org }));
   };
 
   return (

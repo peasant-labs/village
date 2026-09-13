@@ -22,6 +22,8 @@ suite under the race detector.
 | Migration + sqlc conventions | mixed | the `_integration_test.go` variants do | both of the above | [Migration & sqlc](#migration--sqlc-test-conventions) below |
 | Authoritative publication ordering | `//go:build integration` for persistence/order | PostgreSQL + S3-compatible storage | integration `-race` | Publish/PATCH/share locking, audited private-before-replacement, complete association receipts, and fingerprint currency |
 | Cross-repo contract (village ↔ schema module ↔ peasant) | none | no | unit | [Cross-repo contract](#cross-repo-contract-tests--gate-faithful-expectations) below |
+| Route drift gate (mounted routes ⊆ served contract ∪ manifest) | none | no | unit | `backend/internal/router/contract_drift_test.go`; manifest `testdata/undocumented_routes.yaml` |
+| Contract request-body enforcement (collectives mutations) | none | no | unit | `backend/internal/handler/contract_body_test.go`; fixture `testdata/contract_body_operations.yaml` |
 | Governance rules (fail-closed fixtures, append-only teardown, drift guards, convergence) | mixed | mostly yes | both | [Governance testing](#governance-testing-migration-026) below |
 | Test performance (measured levers, template cache) | - | - | - | [Test performance](#test-performance-measured) below |
 
