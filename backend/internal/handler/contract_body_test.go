@@ -46,6 +46,7 @@ var requiredContractBodyOperations = []string{
 	"PATCH /api/v1/groups/{id}/shares",
 	"PATCH /api/v1/groups/{id}/shares/{transcriptID}",
 	"POST /api/v1/transcripts/{id}/share",
+	"PATCH /api/v1/users/me/settings",
 }
 
 func loadContractBodyOperations(t *testing.T) []contractBodyOperationCase {
@@ -239,6 +240,7 @@ func contractBodyRouter(t *testing.T) http.Handler {
 		r.Patch("/groups/{id}/shares", h.BatchReviewShares)
 		r.Patch("/groups/{id}/shares/{transcriptID}", h.ReviewShare)
 		r.Post("/transcripts/{id}/share", h.ShareTranscript)
+		r.Patch("/users/me/settings", h.UpdateUserSettings)
 	})
 	return r
 }

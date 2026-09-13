@@ -124,6 +124,7 @@ var (
 	opBatchReviewShares     = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/shares"}
 	opReviewShare           = ContractOperation{Method: "PATCH", Path: "/api/v1/groups/{id}/shares/{transcriptID}"}
 	opShareTranscript       = ContractOperation{Method: "POST", Path: "/api/v1/transcripts/{id}/share"}
+	opUpdateUserSettings    = ContractOperation{Method: "PATCH", Path: "/api/v1/users/me/settings"}
 )
 
 // ContractEnforcedOperations lists every operation whose request body the
@@ -141,6 +142,7 @@ func ContractEnforcedOperations() []ContractOperation {
 		opBatchReviewShares,
 		opReviewShare,
 		opShareTranscript,
+		opUpdateUserSettings,
 	}
 }
 
