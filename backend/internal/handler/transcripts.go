@@ -903,10 +903,11 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	raw := readResult.Plaintext
 
 	// Migrate-on-read: normalize legacy/older decrypted transcript content to
-	// the current SessionDetailPayload shape and serve the bare payload the
-	// viewer expects (unwrapping the TranscriptContent envelope that peasant
-	// uploads). The canonical envelope is still installed in storage by the
-	// rewrite below; the response keeps the historical bare representation.
+	// the current SessionDetailPayload shape. The display contract always serves
+	// the durable TranscriptContent envelope (contractVersion/kind/sessionDetail);
+	// the migrated payload is its sessionDetail. A shape-compatible stored blob is
+	// already canonical and is served byte-for-byte; a normalized payload is
+	// re-stamped, installed, and served in the envelope.
 	payload, rewrite, err := defaultContentMigrator.Migrate(r.Context(), raw)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -916,27 +917,35 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	response := raw
 	if rewrite {
 		encoded, encodeErr := encodeCanonicalTranscript(payload)
-		if encodeErr != nil {
-			// Legacy content that cannot be represented as a canonical durable
-			// envelope follows the historical bare-payload response; the
-			// harness-aware content boundary already owns strict validation of
-			// canonical content. No canonical generation is installed.
+		if encodeErr == nil {
+			response = encoded
+			if err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, encoded); err != nil {
+				if len(schema.RequiredContentCapabilities(*payload)) != 0 {
+					writeError(w, http.StatusInternalServerError, err.Error())
+					return
+				}
+				log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
+			}
+		} else {
+			// Sparse legacy content the strict canonical encoder cannot represent
+			// (for example a missing session harness) is still served, wrapped in
+			// the same durable envelope, so historical sessions stay readable. No
+			// canonical generation is installed here.
 			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), encodeErr)
-			writeJSON(w, http.StatusOK, payload)
-			return
-		}
-		if err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, encoded); err != nil {
-			if len(schema.RequiredContentCapabilities(*payload)) != 0 {
+			response, err = marshalTranscriptContentEnvelope(currentContractVersion, payload)
+			if err != nil {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
 		}
 	}
 
-	writeJSON(w, http.StatusOK, payload)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(response)
 }
 
 func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Transcript, canonical []byte) error {

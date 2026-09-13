@@ -19,6 +19,21 @@ import (
 //go:embed testdata/session_graph_publication.yaml
 var graphPublicationYAML []byte
 
+// decodeContentResponseEnvelope is the display contract's sole reader in tests:
+// GET /transcripts/{id}/content serves a durable TranscriptContent envelope and
+// this unwraps its sessionDetail for behavioral assertions.
+func decodeContentResponseEnvelope(t *testing.T, raw []byte) *schema.SessionDetailPayload {
+	t.Helper()
+	envelope, err := schema.DecodeTranscriptContentRaw(raw)
+	if err != nil {
+		t.Fatalf("decode durable content response envelope: %v", err)
+	}
+	if envelope.SessionDetail == nil {
+		t.Fatal("content response has no durable session detail")
+	}
+	return envelope.SessionDetail
+}
+
 type graphPublicationCase struct {
 	Name         string `yaml:"name"`
 	CountOnly    bool   `yaml:"count_only"`

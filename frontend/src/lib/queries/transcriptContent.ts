@@ -48,7 +48,7 @@ export function parseTranscriptResponseText(text: string, knownHarness?: string)
     if ((knownHarness === "pi" || piIdentity) && (!isObject(detail) || detail.harness !== "pi")) {
       throw new Error("Pi transcript response disagrees with its recorded harness during content parsing; nothing was rendered; republish a complete Pi session detail and retry.");
     }
-    return envelope ? parseTranscriptContentText(text) : parseSessionDetailPayloadText(text);
+    return envelope ? parseTranscriptContentText(text).sessionDetail : parseSessionDetailPayloadText(text);
   }
   if (embeddedPublicRoot(value, isObject(value))) {
     throw new Error("Transcript response contains public detail inside legacy records; nothing was rendered; republish one supported content envelope and retry.");
@@ -64,7 +64,10 @@ export function parseTranscriptResponseText(text: string, knownHarness?: string)
       if (isObject(turn) && "observedModel" in turn) zObservedModelID.parse(turn.observedModel);
     }
   }
-  return value;
+  // The display contract always serves a durable TranscriptContent envelope; the
+  // viewer consumes its sessionDetail. A bare payload or legacy JSONL remains a
+  // valid prior-wire shape and is returned unchanged.
+  return envelope ? detail : value;
 }
 
 function publicEvidence(value: unknown): { strict: boolean } {

@@ -118,7 +118,7 @@ func TestPiEncryptedPublishRewriteReadPull(t *testing.T) {
 	if served.Code != http.StatusOK {
 		t.Fatalf("read=%d %s", served.Code, served.Body.String())
 	}
-	assertPayload(served.Body.Bytes(), content, false)
+	assertPayload(served.Body.Bytes(), content, true)
 	if blobs.writes != 2 {
 		t.Fatalf("publish plus canonical rewrite writes=%d", blobs.writes)
 	}
@@ -193,7 +193,7 @@ func TestPiEncryptedPublishRewriteReadPull(t *testing.T) {
 				if served.Code != http.StatusOK {
 					t.Fatalf("accepted namespace read=%d %s", served.Code, served.Body.String())
 				}
-				assertPayload(served.Body.Bytes(), raw, false)
+				assertPayload(served.Body.Bytes(), raw, true)
 			}
 			if c.Status != http.StatusCreated && !reflect.DeepEqual(before, snapshot()) {
 				t.Fatal("refused request changed row, encrypted bytes, ledger, audit or object counters")

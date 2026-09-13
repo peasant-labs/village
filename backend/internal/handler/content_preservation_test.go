@@ -452,11 +452,8 @@ func assertMountedObservedModelPublishGate(t *testing.T, fixtureCase observedMod
 	if served.Code != http.StatusOK {
 		t.Fatalf("corrected mounted read status=%d body=%s", served.Code, served.Body.String())
 	}
-	var payload schema.SessionDetailPayload
-	if err := json.Unmarshal(served.Body.Bytes(), &payload); err != nil {
-		t.Fatal(err)
-	}
-	if err := requireObservedModelPreservationCase(t, "enriched_repeated_change_and_omission").assertObservedModels(&payload); err != nil {
+	payload := decodeContentResponseEnvelope(t, served.Body.Bytes())
+	if err := requireObservedModelPreservationCase(t, "enriched_repeated_change_and_omission").assertObservedModels(payload); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -586,10 +583,7 @@ func TestObservedModelRealHandlerMigrateRewriteReemit(t *testing.T) {
 		t.Fatalf("real migrate/rewrite handler status=%d, want 200; body=%s", response.Code, response.Body.String())
 	}
 	fixtureCase := requireObservedModelPreservationCase(t, "enriched_repeated_change_and_omission")
-	var served schema.SessionDetailPayload
-	if err := json.Unmarshal(response.Body.Bytes(), &served); err != nil {
-		t.Fatalf("decode real handler re-emission: %v", err)
-	}
+	served := *decodeContentResponseEnvelope(t, response.Body.Bytes())
 	if err := fixtureCase.assertObservedModels(&served); err != nil {
 		t.Fatal(err)
 	}
@@ -698,11 +692,8 @@ func TestObservedModelFieldDropMountedHandlers(t *testing.T) {
 	if served.Code != http.StatusOK {
 		t.Fatalf("persisted legacy read status=%d body=%s", served.Code, served.Body.String())
 	}
-	var payload schema.SessionDetailPayload
-	if err := json.Unmarshal(served.Body.Bytes(), &payload); err != nil {
-		t.Fatal(err)
-	}
-	if err := requireObservedModelPreservationCase(t, "legacy_without_observations").assertObservedModels(&payload); err != nil {
+	payload := decodeContentResponseEnvelope(t, served.Body.Bytes())
+	if err := requireObservedModelPreservationCase(t, "legacy_without_observations").assertObservedModels(payload); err != nil {
 		t.Fatal(err)
 	}
 }
