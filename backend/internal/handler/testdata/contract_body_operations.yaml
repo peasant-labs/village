@@ -105,3 +105,12 @@
     - name: group id is not a uuid
       body: '{"group_ids":["nope"]}'
       expect: "/group_ids/0: 'nope' is not valid 'uuid'"
+
+- name: update user settings
+  method: PATCH
+  path: /api/v1/users/me/settings
+  conforming: '{"preview_before_attach":true}'
+  malformed:
+    - name: preview flag is a string
+      body: '{"preview_before_attach":"yes"}'
+      expect: "/preview_before_attach: expected"

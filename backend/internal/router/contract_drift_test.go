@@ -257,6 +257,7 @@ var requiredContractDriftCases = []string{
 	"manifest row still mounted and still undeclared passes",
 	"path parameter names do not matter",
 	"declared route that is not mounted is not a finding",
+	"attachment route mounted without a declaration is a finding",
 }
 
 func decodeSingleYAMLDocument[T any](data []byte) (T, error) {

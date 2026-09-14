@@ -58,3 +58,9 @@
   path: /api/v1/transcripts/{id}/share
   body: '{"group_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"],"GROUP_IDS":["nope"]}'
   expect: 'key "GROUP_IDS" differs only in case from the declared field "group_ids"'
+
+- name: update user settings
+  method: PATCH
+  path: /api/v1/users/me/settings
+  body: '{"preview_before_attach":true,"Preview_Before_Attach":false}'
+  expect: 'key "Preview_Before_Attach" differs only in case from the declared field "preview_before_attach"'

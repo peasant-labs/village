@@ -93,14 +93,18 @@ Two tests keep the served document honest. The route drift gate
 reason, in `backend/internal/router/testdata/undocumented_routes.yaml`; a row
 there may only be removed once the contract declares the route or the route
 is unmounted, so the list only shrinks. The collectives, share, repository,
-and review mutations read their bodies through `readContractBody` /
-`decodeContractBody` (`backend/internal/handler/contract_body.go`), which
-validate against the served document's request-body schema before decoding;
-a new operation with a JSON body adds its `ContractOperation` there and a row
-in `backend/internal/handler/testdata/contract_body_operations.yaml`. Those
+review, and user-settings mutations read their bodies through
+`readContractBody` / `decodeContractBody`
+(`backend/internal/handler/contract_body.go`), which validate against the
+served document's request-body schema before decoding; a new operation with a
+JSON body adds its `ContractOperation` there and a row in
+`backend/internal/handler/testdata/contract_body_operations.yaml`. Those
 bodies are capped at 1 MiB (413 above it) and a contract violation answers
 400 with the field and the reason; only the publish and annotation paths
-answer 422.
+answer 422. Routes the contract declares before their handlers exist are
+mounted as 501 stubs and pinned, with their auth expectations, in
+`backend/internal/router/testdata/attachment_stub_routes.yaml`; landing a
+real handler deletes its row.
 
 When adding a license:
 

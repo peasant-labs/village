@@ -46,6 +46,7 @@ var requiredContractBodyOperations = []string{
 	"PATCH /api/v1/groups/{id}/shares",
 	"PATCH /api/v1/groups/{id}/shares/{transcriptID}",
 	"POST /api/v1/transcripts/{id}/share",
+	"PATCH /api/v1/users/me/settings",
 }
 
 func loadContractBodyOperations(t *testing.T) []contractBodyOperationCase {
@@ -205,7 +206,7 @@ func TestContractBody_ValidatorRefusesCaseVariantKeys(t *testing.T) {
 // contractBodyTestUser is the signed-in caller every handler-level case uses.
 var contractBodyTestUser = uuid.MustParse("7d5c2a10-9b3e-4c8f-a1d2-3e4f5a6b7c8d")
 
-// contractBodyRouter mounts the nine enforced handlers at their production
+// contractBodyRouter mounts every enforced handler at their production
 // patterns under /api/v1 so chi.URLParam works as in production. The lookups
 // that gate every request are stubbed to succeed. The tests below assert the
 // refusal status and the message: if a refused body were accepted, the request
@@ -239,6 +240,7 @@ func contractBodyRouter(t *testing.T) http.Handler {
 		r.Patch("/groups/{id}/shares", h.BatchReviewShares)
 		r.Patch("/groups/{id}/shares/{transcriptID}", h.ReviewShare)
 		r.Post("/transcripts/{id}/share", h.ShareTranscript)
+		r.Patch("/users/me/settings", h.UpdateUserSettings)
 	})
 	return r
 }

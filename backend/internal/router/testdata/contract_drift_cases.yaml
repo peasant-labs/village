@@ -111,3 +111,19 @@
       path: /api/v1/pulls/{owner}/{name}/{number}
   manifest: []
   findings: []
+
+- name: attachment route mounted without a declaration is a finding
+  why: >
+    The pull request prompt attachment routes are mounted before their
+    handlers exist. If the served contract stopped declaring one, or the
+    router spelled one differently, the gate must say so rather than let the
+    stub pass unnoticed.
+  mounted:
+    - method: POST
+      path: /api/v1/pulls/{owner}/{name}/{number}/confirm
+  declared:
+    - method: GET
+      path: /api/v1/pulls/{owner}/{name}/{number}
+  manifest: []
+  findings:
+    - "POST /api/v1/pulls/{owner}/{name}/{number}/confirm is mounted but the served contract does not declare it; declare it in the schema module and re-pin, or add it to the undocumented-routes manifest with a reason"
