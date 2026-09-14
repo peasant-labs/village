@@ -22,7 +22,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
 
 const getUserByID = `-- name: GetUserByID :one
 
-SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username FROM users WHERE id = $1
+SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach FROM users WHERE id = $1
 `
 
 // ⚠️ DO-NOT-TOUCH (TRAP — NOT the harness wire key): users.provider here is the
@@ -45,12 +45,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.ProviderUserID,
 		&i.UsernameChosen,
 		&i.ProviderUsername,
+		&i.PreviewBeforeAttach,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username FROM users WHERE lower(github_username) = lower($1)
+SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach FROM users WHERE lower(github_username) = lower($1)
 `
 
 // Canonical handle lookup. github_username is globally unique (case-insensitive),
@@ -71,6 +72,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 		&i.ProviderUserID,
 		&i.UsernameChosen,
 		&i.ProviderUsername,
+		&i.PreviewBeforeAttach,
 	)
 	return i, err
 }
@@ -81,7 +83,7 @@ UPDATE users SET
     username_chosen = true,
     updated_at = now()
 WHERE id = $1
-RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach
 `
 
 type SetUsernameParams struct {
@@ -107,6 +109,7 @@ func (q *Queries) SetUsername(ctx context.Context, arg SetUsernameParams) (User,
 		&i.ProviderUserID,
 		&i.UsernameChosen,
 		&i.ProviderUsername,
+		&i.PreviewBeforeAttach,
 	)
 	return i, err
 }
@@ -116,7 +119,7 @@ UPDATE users SET
     is_discoverable = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach
 `
 
 type UpdateUserDiscoverableParams struct {
@@ -140,6 +143,7 @@ func (q *Queries) UpdateUserDiscoverable(ctx context.Context, arg UpdateUserDisc
 		&i.ProviderUserID,
 		&i.UsernameChosen,
 		&i.ProviderUsername,
+		&i.PreviewBeforeAttach,
 	)
 	return i, err
 }
@@ -152,7 +156,7 @@ ON CONFLICT (github_id) DO UPDATE SET
     display_name = EXCLUDED.display_name,
     avatar_url = EXCLUDED.avatar_url,
     updated_at = now()
-RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach
 `
 
 type UpsertUserParams struct {
@@ -188,6 +192,7 @@ func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (User, e
 		&i.ProviderUserID,
 		&i.UsernameChosen,
 		&i.ProviderUsername,
+		&i.PreviewBeforeAttach,
 	)
 	return i, err
 }
@@ -200,7 +205,7 @@ ON CONFLICT (provider, provider_user_id) DO UPDATE SET
     display_name = EXCLUDED.display_name,
     avatar_url = EXCLUDED.avatar_url,
     updated_at = now()
-RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach
 `
 
 type UpsertUserByProviderParams struct {
@@ -243,6 +248,7 @@ func (q *Queries) UpsertUserByProvider(ctx context.Context, arg UpsertUserByProv
 		&i.ProviderUserID,
 		&i.UsernameChosen,
 		&i.ProviderUsername,
+		&i.PreviewBeforeAttach,
 	)
 	return i, err
 }

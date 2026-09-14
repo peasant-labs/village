@@ -105,6 +105,8 @@ type Group struct {
 	LinkedGithubOrg          pgtype.Text        `db:"linked_github_org" json:"linked_github_org"`
 	DisplayMembers           bool               `db:"display_members" json:"display_members"`
 	TranscriptDeletionPolicy string             `db:"transcript_deletion_policy" json:"transcript_deletion_policy"`
+	PostPromptsCheck         bool               `db:"post_prompts_check" json:"post_prompts_check"`
+	PromptsCheckMode         string             `db:"prompts_check_mode" json:"prompts_check_mode"`
 }
 
 type GroupMember struct {
@@ -132,6 +134,37 @@ type OwnerOverride struct {
 	Provenance []byte             `db:"provenance" json:"provenance"`
 	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type PullRequestAttachment struct {
+	ID                pgtype.UUID        `db:"id" json:"id"`
+	RepoOwner         string             `db:"repo_owner" json:"repo_owner"`
+	RepoName          string             `db:"repo_name" json:"repo_name"`
+	GithubRepoID      int64              `db:"github_repo_id" json:"github_repo_id"`
+	Number            int32              `db:"number" json:"number"`
+	HeadSha           string             `db:"head_sha" json:"head_sha"`
+	BaseRemote        string             `db:"base_remote" json:"base_remote"`
+	HeadRemote        string             `db:"head_remote" json:"head_remote"`
+	AuthorID          pgtype.UUID        `db:"author_id" json:"author_id"`
+	RequesterGithubID pgtype.Int8        `db:"requester_github_id" json:"requester_github_id"`
+	State             string             `db:"state" json:"state"`
+	CommentID         pgtype.Int8        `db:"comment_id" json:"comment_id"`
+	CheckRunID        pgtype.Int8        `db:"check_run_id" json:"check_run_id"`
+	Digest            []byte             `db:"digest" json:"digest"`
+	RequestedAt       pgtype.Timestamptz `db:"requested_at" json:"requested_at"`
+	WaitingAt         pgtype.Timestamptz `db:"waiting_at" json:"waiting_at"`
+	PreviewAt         pgtype.Timestamptz `db:"preview_at" json:"preview_at"`
+	AttachedAt        pgtype.Timestamptz `db:"attached_at" json:"attached_at"`
+	DetachedAt        pgtype.Timestamptz `db:"detached_at" json:"detached_at"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type PullRequestAttachmentTranscript struct {
+	AttachmentID       pgtype.UUID `db:"attachment_id" json:"attachment_id"`
+	TranscriptID       pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	Position           int32       `db:"position" json:"position"`
+	PreviousVisibility string      `db:"previous_visibility" json:"previous_visibility"`
 }
 
 type RepositoryCommit struct {
@@ -314,18 +347,19 @@ type TranscriptTag struct {
 }
 
 type User struct {
-	ID               pgtype.UUID        `db:"id" json:"id"`
-	GithubID         int64              `db:"github_id" json:"github_id"`
-	GithubUsername   string             `db:"github_username" json:"github_username"`
-	DisplayName      pgtype.Text        `db:"display_name" json:"display_name"`
-	AvatarUrl        pgtype.Text        `db:"avatar_url" json:"avatar_url"`
-	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	IsDiscoverable   bool               `db:"is_discoverable" json:"is_discoverable"`
-	Provider         string             `db:"provider" json:"provider"`
-	ProviderUserID   string             `db:"provider_user_id" json:"provider_user_id"`
-	UsernameChosen   bool               `db:"username_chosen" json:"username_chosen"`
-	ProviderUsername pgtype.Text        `db:"provider_username" json:"provider_username"`
+	ID                  pgtype.UUID        `db:"id" json:"id"`
+	GithubID            int64              `db:"github_id" json:"github_id"`
+	GithubUsername      string             `db:"github_username" json:"github_username"`
+	DisplayName         pgtype.Text        `db:"display_name" json:"display_name"`
+	AvatarUrl           pgtype.Text        `db:"avatar_url" json:"avatar_url"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	IsDiscoverable      bool               `db:"is_discoverable" json:"is_discoverable"`
+	Provider            string             `db:"provider" json:"provider"`
+	ProviderUserID      string             `db:"provider_user_id" json:"provider_user_id"`
+	UsernameChosen      bool               `db:"username_chosen" json:"username_chosen"`
+	ProviderUsername    pgtype.Text        `db:"provider_username" json:"provider_username"`
+	PreviewBeforeAttach bool               `db:"preview_before_attach" json:"preview_before_attach"`
 }
 
 type UserGithubOrg struct {
