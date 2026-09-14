@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -109,8 +108,7 @@ func (h *Handler) LinkRepository(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req linkRepoRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opLinkGroupRepository, &req) {
 		return
 	}
 	req.Owner = strings.TrimSpace(req.Owner)

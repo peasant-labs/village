@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { VillageCreateGroupRequest, VillageGroup } from "@peasant-labs/schema";
 import { api } from "../api";
 import type { Group, VisibleGroup, GroupMember, GroupContributor, GroupTranscript, GroupTranscriptStats, GroupModelBreakdown, CollectiveSearchResponse, UserGroupShare } from "../types";
+import { updateGroupRequest, type UpdateGroupForm } from "./groupRequests";
 
 /**
  * The collectives the caller BELONGS to (`GET /groups`).
@@ -78,8 +80,8 @@ export function useRemoveGroupTranscript() {
 export function useCreateGroup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; description?: string; acceptance_mode?: string; data_access?: string; linked_github_org?: string | null }) =>
-      api<Group>("/groups", { method: "POST", body: JSON.stringify(data) }),
+    mutationFn: (data: VillageCreateGroupRequest) =>
+      api<VillageGroup>("/groups", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["groups"] });
       qc.invalidateQueries({ queryKey: ["visible-groups"] });
@@ -90,36 +92,10 @@ export function useCreateGroup() {
 export function useUpdateGroup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      name,
-      description,
-      acceptance_mode,
-      data_access,
-      linked_github_org,
-      display_members,
-      transcript_deletion_policy,
-    }: {
-      id: string;
-      name: string;
-      description: string;
-      acceptance_mode: string;
-      data_access: string;
-      linked_github_org?: string | null;
-      display_members?: boolean;
-      transcript_deletion_policy?: "user_choice" | "mandatory";
-    }) =>
-      api<Group>(`/groups/${id}`, {
+    mutationFn: ({ id, ...form }: { id: string } & UpdateGroupForm) =>
+      api<VillageGroup>(`/groups/${id}`, {
         method: "PATCH",
-        body: JSON.stringify({
-          name,
-          description,
-          acceptance_mode,
-          data_access,
-          linked_github_org,
-          display_members,
-          transcript_deletion_policy,
-        }),
+        body: JSON.stringify(updateGroupRequest(form)),
       }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["group", vars.id] });

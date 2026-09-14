@@ -195,6 +195,20 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Get("/pull/transcripts/{id}", h.GetPullTranscript)
 		r.With(h.AuthRequired).Get("/pull/transcripts/{id}/content", h.GetPullTranscriptContent)
 		r.With(h.AuthRequired).Get("/pull/transcripts/{id}/annotations", h.GetPullTranscriptAnnotations)
+
+		// Pull request prompt attachment. The served contract declares these
+		// seven routes; each answers 501 until its handler lands, so the route
+		// drift gate sees contract and server agree now. The webhook is
+		// authenticated by GitHub's HMAC over the raw body, not by a session,
+		// so it carries no auth middleware. The attachment read is open to
+		// anonymous readers of a public repository, so auth is optional there.
+		r.Post("/integrations/github/webhook", h.ReceiveGitHubWebhook)
+		r.With(h.AuthOptional).Get("/pulls/{owner}/{name}/{number}", h.GetPullRequestAttachment)
+		r.With(h.AuthRequired).Post("/pulls/{owner}/{name}/{number}/confirm", h.ConfirmPullRequestAttachment)
+		r.With(h.AuthRequired).Delete("/pulls/{owner}/{name}/{number}", h.DetachPullRequestAttachment)
+		r.With(h.AuthRequired).Get("/users/me/prompt-requests", h.ListMyPromptRequests)
+		r.With(h.AuthRequired).Get("/users/me/settings", h.GetUserSettings)
+		r.With(h.AuthRequired).Patch("/users/me/settings", h.UpdateUserSettings)
 	})
 
 	return r

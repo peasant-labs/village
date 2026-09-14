@@ -1,0 +1,66 @@
+# One row per enforced operation: a body the served contract accepts as written,
+# plus a key that differs from a declared field only in case. Go's JSON decoder
+# matches keys without regard to case, so the alias would bind to the same
+# struct field as the declared key and the handler would act on a value the
+# validator never saw. Every row must answer 400 naming the alias, before any
+# decode, lock, or write.
+
+- name: create group
+  method: POST
+  path: /api/v1/groups
+  body: '{"name":"night shift","NAME":7}'
+  expect: 'key "NAME" differs only in case from the declared field "name"'
+
+- name: update group
+  method: PATCH
+  path: /api/v1/groups/{id}
+  body: '{"name":"renamed","Data_Access":"public"}'
+  expect: 'key "Data_Access" differs only in case from the declared field "data_access"'
+
+- name: add group member
+  method: POST
+  path: /api/v1/groups/{id}/members
+  body: '{"username":"octocat","USERNAME":"someone-else"}'
+  expect: 'key "USERNAME" differs only in case from the declared field "username"'
+
+- name: update group member role
+  method: PATCH
+  path: /api/v1/groups/{id}/members/{userID}/role
+  body: '{"role":"member","ROLE":"owner"}'
+  expect: 'key "ROLE" differs only in case from the declared field "role"'
+
+- name: link group repository
+  method: POST
+  path: /api/v1/groups/{id}/repositories
+  body: '{"owner":"acme","name":"repo","installation_id":42,"Installation_ID":-1}'
+  expect: 'key "Installation_ID" differs only in case from the declared field "installation_id"'
+
+- name: batch share project
+  method: POST
+  path: /api/v1/groups/{id}/shares
+  body: '{"project_hash":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","visibility_confirmed":true,"VISIBILITY_CONFIRMED":false}'
+  expect: 'key "VISIBILITY_CONFIRMED" differs only in case from the declared field "visibility_confirmed"'
+
+- name: batch review shares
+  method: PATCH
+  path: /api/v1/groups/{id}/shares
+  body: '{"transcript_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"],"status":"approved","Status":"rejected"}'
+  expect: 'key "Status" differs only in case from the declared field "status"'
+
+- name: review share
+  method: PATCH
+  path: /api/v1/groups/{id}/shares/{transcriptID}
+  body: '{"status":"rejected","STATUS":"approved"}'
+  expect: 'key "STATUS" differs only in case from the declared field "status"'
+
+- name: share transcript with groups
+  method: POST
+  path: /api/v1/transcripts/{id}/share
+  body: '{"group_ids":["3f0d8b1e-2c4a-4f6e-9a1b-7c2d3e4f5a6b"],"GROUP_IDS":["nope"]}'
+  expect: 'key "GROUP_IDS" differs only in case from the declared field "group_ids"'
+
+- name: update user settings
+  method: PATCH
+  path: /api/v1/users/me/settings
+  body: '{"preview_before_attach":true,"Preview_Before_Attach":false}'
+  expect: 'key "Preview_Before_Attach" differs only in case from the declared field "preview_before_attach"'

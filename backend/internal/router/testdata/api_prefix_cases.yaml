@@ -1,0 +1,19 @@
+# Which mounted paths the route drift gate considers part of the /api/v1
+# surface. The bare prefix counts: a handler mounted at exactly /api/v1 is as
+# much a route as one below it.
+
+- name: the bare prefix is an API route
+  path: /api/v1
+  api: true
+- name: a route below the prefix is an API route
+  path: /api/v1/groups/{id}
+  api: true
+- name: the prefix with a trailing slash is an API route
+  path: /api/v1/
+  api: true
+- name: a path that merely starts with the prefix text is not an API route
+  path: /api/v10/groups
+  api: false
+- name: a path outside the prefix is not an API route
+  path: /health
+  api: false

@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -39,8 +38,7 @@ func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		DataAccess      string `json:"data_access"`
 		LinkedGitHubOrg string `json:"linked_github_org"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opCreateGroup, &req) {
 		return
 	}
 	if req.Name == "" {
@@ -346,8 +344,7 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 		DisplayMembers           *bool   `json:"display_members"`
 		TranscriptDeletionPolicy string  `json:"transcript_deletion_policy"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opUpdateGroup, &req) {
 		return
 	}
 	if req.DataAccess != "" && !validDataAccess[req.DataAccess] {
@@ -475,8 +472,7 @@ func (h *Handler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opAddGroupMember, &req) {
 		return
 	}
 
@@ -559,8 +555,7 @@ func (h *Handler) ReviewShare(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Status string `json:"status"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opReviewShare, &req) {
 		return
 	}
 	if req.Status != "approved" && req.Status != "rejected" {
@@ -630,8 +625,7 @@ func (h *Handler) BatchReviewShares(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req batchReviewRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opBatchReviewShares, &req) {
 		return
 	}
 	if req.Status != "approved" && req.Status != "rejected" {
@@ -793,8 +787,7 @@ func (h *Handler) PromoteMember(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Role string `json:"role"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opUpdateGroupMemberRole, &req) {
 		return
 	}
 	if req.Role != "contributor" && req.Role != "member" {

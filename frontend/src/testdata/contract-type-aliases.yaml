@@ -1,0 +1,96 @@
+# The frontend's collectives, share, contribution, and repository wire types are
+# aliases of the published contract package's generated types, kept under their
+# historical names for one release. Each row names the local type, the package
+# type it derives from, and, when the alias is a documented composition or
+# widening rather than a bare alias, the exact right-hand side the file must
+# carry. `path` is relative to src/lib.
+#
+# `known_hand_written_outside_scope` lists interfaces that share a name with a
+# contract type but belong to routes outside this surface (transcript and
+# profile reads). Deriving them is separate work. Each entry must still be
+# declared by hand and still exported by the package, so the list only shrinks.
+
+files:
+  - path: ./types.ts
+    known_hand_written_outside_scope: [User, Transcript, TranscriptListResponse]
+    aliases:
+      - local: Group
+        generated: VillageGroup
+        declaration: >-
+          Omit<VillageGroup, "post_prompts_check" | "prompts_check_mode"> & Partial<Pick<VillageGroup, "post_prompts_check" | "prompts_check_mode">> & Partial<Pick<VillageUserGroup, "member_count" | "transcript_count">> & { role: VillageGroupViewerRole; member_since: string | null; }
+      - local: VisibleGroup
+        generated: VillageVisibleGroup
+      - local: UserGroupShare
+        generated: VillageUserGroupShare
+      - local: GroupTranscriptStats
+        generated: VillageGroupTranscriptStats
+        declaration: >-
+          AsJSONNumber<VillageGroupTranscriptStats, "total_duration_ms" | "total_tokens" | "total_turns">
+      - local: GroupModelBreakdown
+        generated: VillageGroupModelBreakdown
+      - local: GroupContributor
+        generated: VillageGroupContributor
+      - local: GroupMember
+        generated: VillageGroupMember
+      - local: GroupTranscript
+        generated: VillageGroupTranscript
+        declaration: >-
+          AsPlainString<VillageGroupTranscript, "project_hash">
+      - local: CollectiveSearchResult
+        generated: VillageCollectiveSearchResult
+      - local: CollectiveSearchResponse
+        generated: VillageCollectiveSearchResponse
+      - local: LinkedRepository
+        generated: VillageLinkedRepository
+      - local: LinkedRepositoriesResponse
+        generated: VillageLinkedRepositoriesResponse
+      - local: RepositoryCommit
+        generated: VillageRepositoryCommit
+      - local: RepositoryCommitsResponse
+        generated: VillageRepositoryCommitsResponse
+      - local: ContributedCollective
+        generated: VillageContributedCollective
+      - local: TranscriptCollective
+        generated: VillageTranscriptCollective
+      - local: ShareEventStatus
+        generated: VillageShareStatus
+      - local: ShareEventActor
+        generated: VillageShareEventActor
+      - local: ShareEvent
+        generated: VillageShareEvent
+      - local: CollectiveSubmissionPair
+        generated: VillageCollectiveSubmission
+
+  - path: ./review/types.ts
+    known_hand_written_outside_scope: []
+    aliases:
+      - local: PendingShare
+        generated: VillagePendingShare
+        declaration: >-
+          AsPlainString<VillagePendingShare, "project_hash">
+      - local: ReviewDecision
+        generated: VillageReviewDecision
+      - local: BatchReviewRequest
+        generated: VillageBatchReviewRequest
+      - local: BatchReviewResponse
+        generated: VillageBatchReviewResponse
+
+  - path: ./contribute/types.ts
+    known_hand_written_outside_scope: []
+    aliases:
+      - local: ContributableTranscript
+        generated: VillageContributableTranscript
+        declaration: >-
+          AsPlainString<VillageContributableTranscript, "project_hash">
+      - local: ContributableResponse
+        generated: VillageContributableResponse
+        declaration: >-
+          Omit<VillageContributableResponse, "transcripts"> & { transcripts: ContributableTranscript[] }
+      - local: BatchShareRequest
+        generated: VillageBatchShareRequest
+        declaration: >-
+          AsPlainString<VillageBatchShareRequest, "project_hash">
+      - local: BatchShareStatus
+        generated: VillageContributionStatus
+      - local: BatchShareResponse
+        generated: VillageBatchShareResponse

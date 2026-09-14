@@ -8,6 +8,7 @@ import { parse } from "yaml";
 import { AuthProvider } from "@/providers/AuthProvider";
 import GroupsPage from "@/app/groups/page";
 import type { ContributedCollective, User, VisibleGroup } from "@/lib/types";
+import { AllVillageGroupRoles, type VillageGroupRole } from "@peasant-labs/schema";
 
 /**
  * Mount support for the REAL `/groups` collectives route, with REST stubbed at
@@ -32,7 +33,7 @@ export interface CollectiveBadgeRow {
   name: string;
   why: string;
   /** `role` as GET /groups/visible reports it; null for a collective the caller only sees. */
-  role: string | null;
+  role: VillageGroupRole | null;
   /** This caller's approved contributions to this collective. */
   approved: number;
   /** This caller's contributions to this collective still awaiting review. */
@@ -104,6 +105,9 @@ export function loadCollectiveBadgeFixtures(): CollectiveBadgeFixtures {
     const name = assertString(rawRow.name, `rows[${index}].name`);
     const why = assertString(rawRow.why, `rows[${index}].why`);
     const role = assertNullableString(rawRow.role, `rows[${index}] ("${name}").role`);
+    if (role !== null && !(AllVillageGroupRoles as readonly string[]).includes(role)) {
+      throw new Error(`rows[${index}] ("${name}").role ${JSON.stringify(role)} is not a collective role the contract knows`);
+    }
     const approved = assertCount(rawRow.approved, `rows[${index}] ("${name}").approved`);
     const pending = assertCount(rawRow.pending, `rows[${index}] ("${name}").pending`);
     const rejected = assertCount(rawRow.rejected, `rows[${index}] ("${name}").rejected`);
@@ -136,7 +140,7 @@ export function loadCollectiveBadgeFixtures(): CollectiveBadgeFixtures {
     return {
       name,
       why,
-      role,
+      role: role as VillageGroupRole | null,
       approved,
       pending,
       rejected,
