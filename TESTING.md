@@ -1178,6 +1178,38 @@ These tests require the released canonical graph APIs and run under the same
 no-skip encrypted aggregate as other preservation proofs; source-level fixtures
 are not proof of a deployed receiver's capability.
 
+`internal/handler/testdata/provenance_preservation/cases.yaml` is the canonical
+corpus for the production provenance-preservation proof. Provenance preservation
+means durable session-relationship evidence survives unchanged — relationships
+and their public anchors, the root session identity, the submission count
+including a measured zero and the safe-integer maximum, every nonempty purpose
+including an unknown one, retained earlier history, and per-block plus folded
+tool provenance. It is durable evidence, not a rendered graph. The corpus
+declares each case's exact capability inventory; a required-name inventory guards
+it against deletion or silent renaming, and known-field decoding rejects unknown
+members.
+
+The production proof runs `NewContentMigrator` and the same typed canonical
+rewrite boundary used by `GetTranscriptContent`, migrates the re-emitted bytes
+again, and compares the full durable payload plus the re-derived capability of
+every case, uncached, through an injectable encoder. `GET
+/api/v1/schema/version` advertises the sealed `session_graph_provenance_v1`
+token only while that proof passes, and the publish gate refuses a
+provenance-bearing transcript before secret scan or storage when it does not.
+The withholding is fail-closed and per proof: a failing base enriched-content
+proof withholds the whole advertisement, while a failing provenance proof
+withholds only the provenance token and keeps the shared evidence tokens for
+content that carries no relationship evidence. The returned list is always the
+closed inventory in canonical lexicographic order, so it always satisfies
+`schema.ValidateContentCapabilityAdvertisements`.
+
+The negative is executed, not descriptive metadata: a substitute encoder at the
+real typed rewrite boundary deletes relationships, root identity, submission
+count, purpose, retained history, and per-block provenance. It must make the
+proof fail, hide only the provenance token, and make the provenance publish
+precondition refuse with a no-write explanation. Keep this production-point
+negative when the canonical rewrite code moves.
+
 Batch transcript upload is still unimplemented. The registered route is guarded
 by `internal/router/testdata/publish_batch_refusal.yaml`: anonymous requests keep
 their authentication refusal, and authenticated requests keep HTTP 501 regardless

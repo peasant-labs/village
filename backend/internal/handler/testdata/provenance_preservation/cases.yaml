@@ -1,0 +1,50 @@
+# Canonical stored envelopes carrying durable session-relationship evidence:
+# relationships (with public anchors), root session identity, submission-count
+# presence including a measured zero and the safe-integer maximum, an unknown
+# purpose, earlier retained history, and per-block plus folded tool provenance.
+# This is durable provenance evidence, not a visual graph.
+#
+# Each case declares the exact capability set the released contract derives from
+# its payload, so the production proof cannot silently lose evidence and still
+# pass. The names below are guarded by an independent required-name inventory in
+# the loader.
+cases:
+  - name: full_provenance_evidence
+    content: |
+      {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{
+        "id":"550e8400-e29b-41d4-a716-446655440000","harness":"codex",
+        "schemaVersion":"0.1.0","turnCount":5,"inputSubmissionCount":1,
+        "startTime":"2023-11-14T22:13:20Z","endTime":"2023-11-14T22:14:20Z","durationMins":1,
+        "tokensIn":100,"tokensOut":50,"totalTokens":150,"toolCallCount":1,
+        "rootSessionId":"550e8400-e29b-41d4-a716-446655440001","purpose":"delegated_work",
+        "relationships":[
+          {"kind":"started_by","targetState":"target_known","targetLocalId":"550e8400-e29b-41d4-a716-446655440001","evidence":"native_typed"},
+          {"kind":"context_from","targetState":"target_known_retained","targetLocalId":"550e8400-e29b-41d4-a716-446655440002","evidence":"retained_last_good","anchor":{"kind":"through_redacted_entry","sourceEntryRef":"e_parent","sourceRevisionRef":"r_parent"}}
+        ],
+        "turns":[
+          {"index":0,"role":"user","entryType":"text","sourceEntryRef":"e_u1","content":"fix parser","timestamp":"2023-11-14T22:13:21Z","depth":0,"provenance":{"origin":"submitted_input","actor":"unknown","delivery":"session_admission","ownership":"local","evidence":"native_typed","inputModality":"text","submissionRef":"s_u1"}},
+          {"index":1,"role":"assistant","entryType":"text","sourceEntryRef":"e_a1","content":"I will inspect.","timestamp":"2023-11-14T22:13:24Z","depth":0,"toolCalls":[{"id":"call_one","name":"shell","callEntryRef":"e_call1","resultEntryRef":"e_result1","arguments":"rg parser","result":"parser.go:42","callProvenance":{"origin":"tool_activity","actor":"unknown","delivery":"tool_delivery","ownership":"local","evidence":"native_typed","inputModality":"none"},"resultProvenance":{"origin":"tool_activity","actor":"unknown","delivery":"tool_delivery","ownership":"local","evidence":"native_typed","inputModality":"none"}}]},
+          {"index":2,"role":"assistant","entryType":"thinking","sourceEntryRef":"e_reason1","content":"I will inspect.","timestamp":"2023-11-14T22:13:25Z","depth":0}
+        ],
+        "earlierHistory":[{"state":"uncertain_migrated","turns":[{"index":0,"role":"user","entryType":"text","sourceEntryRef":"e_old","content":"earlier retained body","timestamp":"2023-11-14T22:12:20Z","depth":0,"provenance":{"origin":"submitted_input","actor":"unknown","delivery":"unknown","ownership":"uncertain","evidence":"unknown","inputModality":"text"}}]}]
+      }}
+    capabilities: [session_graph_provenance_v1]
+  - name: measured_zero_submission_count
+    content: |
+      {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{
+        "id":"550e8400-e29b-41d4-a716-446655440010","harness":"codex",
+        "schemaVersion":"0.1.0","turnCount":0,"inputSubmissionCount":0,
+        "startTime":"2023-11-14T22:13:20Z","endTime":"2023-11-14T22:14:20Z","durationMins":1,
+        "tokensIn":0,"tokensOut":0,"totalTokens":0,"toolCallCount":0,"turns":[]
+      }}
+    capabilities: [session_graph_provenance_v1]
+  - name: safe_maximum_count_with_unknown_purpose
+    content: |
+      {"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{
+        "id":"550e8400-e29b-41d4-a716-446655440020","harness":"codex",
+        "schemaVersion":"0.1.0","turnCount":0,"inputSubmissionCount":9007199254740991,
+        "startTime":"2023-11-14T22:13:20Z","endTime":"2023-11-14T22:14:20Z","durationMins":1,
+        "tokensIn":0,"tokensOut":0,"totalTokens":0,"toolCallCount":0,
+        "rootSessionId":"550e8400-e29b-41d4-a716-446655440021","purpose":"unknown","turns":[]
+      }}
+    capabilities: [session_graph_provenance_v1]

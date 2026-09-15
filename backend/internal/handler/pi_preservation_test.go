@@ -236,8 +236,13 @@ func TestPiPublicPreservationAndCapabilities(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &version); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(version.ContentCapabilities, cases[0].Capabilities) {
-		t.Fatalf("capabilities=%v want=%v", version.ContentCapabilities, cases[0].Capabilities)
+	// Every production preservation proof passes here, so the endpoint
+	// advertises the full closed inventory, not just the Pi-derived tokens.
+	if !slices.Equal(version.ContentCapabilities, schema.AllContentCapabilities) {
+		t.Fatalf("capabilities=%v want the full passing-proof inventory %v", version.ContentCapabilities, schema.AllContentCapabilities)
+	}
+	if len(cases) == 0 {
+		t.Fatal("Pi preservation corpus is empty")
 	}
 }
 
