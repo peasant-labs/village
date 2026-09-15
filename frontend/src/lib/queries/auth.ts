@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api";
+import { api, clearAuthTokenCookie } from "../api";
 import type { User } from "../types";
 
 export function useMe() {
@@ -24,7 +24,7 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => api("/auth/logout", { method: "POST" }),
     onSuccess: () => {
-      document.cookie = "peasant_token=; path=/; max-age=0";
+      clearAuthTokenCookie();
       qc.clear();
       window.location.href = "/";
     },
@@ -36,7 +36,7 @@ export function useDeleteAccount() {
   return useMutation({
     mutationFn: () => api("/auth/me", { method: "DELETE" }),
     onSuccess: () => {
-      document.cookie = "peasant_token=; path=/; max-age=0";
+      clearAuthTokenCookie();
       qc.clear();
       window.location.href = "/";
     },
