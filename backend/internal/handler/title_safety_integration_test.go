@@ -40,7 +40,7 @@ func TestTitleSafetyMountedPersistenceAndGovernance(t *testing.T) {
 	h := &Handler{pool: pool, queries: sqlc.New(pool), blobs: blobs, titles: titles, cfg: &config.Config{FrontendURL: "https://village.example"}}
 	user := &AuthUser{ID: uuid.UUID(owner.Bytes), Username: "title-safety-publisher"}
 	localID := "550e8400-e29b-41d4-a716-446655440057"
-	content := `{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"title-safety","harness":"claude-code","turns":[]}}`
+	content := `{"contractVersion":"0.1.0","kind":"session_detail","sessionDetail":{"id":"title-safety","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":0,"turns":[]}}`
 
 	created := mountedTitlePublish(t, h, user, localID, content, createCase, schema.LicenseCCBY)
 	if created.Code != http.StatusCreated {

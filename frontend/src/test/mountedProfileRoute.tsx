@@ -135,6 +135,21 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
       return json(pairs);
     }
     if (path.startsWith("/transcripts?")) {
+      // The grouped helper read is a separate, opt-in view of the same route;
+      // answering it here keeps the flat library request unchanged. Its own
+      // page/limit are echoed because the grouped query validates the response
+      // against the page it requested.
+      if (path.includes("view=grouped")) {
+        const groupedQuery = new URLSearchParams(path.slice(path.indexOf("?") + 1));
+        return json({
+          items: [],
+          page: Number(groupedQuery.get("page") ?? 1),
+          limit: Number(groupedQuery.get("limit") ?? 20),
+          totalItems: 0,
+          ordinarySessionTotal: 0,
+          helperThreadTotal: 0,
+        });
+      }
       if (fixture.library != null && fixture.libraryIdentities != null) {
         throw new Error(
           "mounted profile route fixture states the library twice (library and libraryIdentities); one response " +

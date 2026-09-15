@@ -70,7 +70,7 @@ describe("raw content on the mounted fetch path", () => {
     hook.unmount(); client.clear();
   });
   it("preserves every public owner, metadata attachment, numeric value and recorded cost", async () => {
-    expect(await mountedRead(publicCase.content)).toEqual(JSON.parse(publicCase.content));
+    expect(await mountedRead(publicCase.content)).toEqual(JSON.parse(publicCase.content).sessionDetail);
   });
   it("validates the bare detail returned by the display endpoint", async () => {
     const detail = JSON.parse(publicCase.content).sessionDetail;
@@ -92,7 +92,7 @@ describe("raw content on the mounted fetch path", () => {
   }
   for (const c of renderedLegacy) {
     it(`backend-rendered-${c.name}-and-second-read`, async () => {
-      expect(await mountedRead(c.rendered, false, undefined, c.rendered)).toEqual(JSON.parse(c.rendered));
+      expect(await mountedRead(c.rendered, false, undefined, c.rendered)).toEqual(JSON.parse(c.rendered).sessionDetail);
     });
     it(`prior-wire-${c.name}`, async () => {
       expect(await mountedRead(c.content)).toEqual(JSON.parse(c.content));

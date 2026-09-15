@@ -34,7 +34,7 @@ const CHROME = process.env.CHROME_PATH
 const URL = process.env.VILLAGE_URL || 'http://localhost:3000/'
 const theme = process.argv[2] || 'dark'
 const MODE = process.env.HOME_SHOOT_MODE || 'home'
-const MODES = ['home', 'failure', 'no-handle']
+const MODES = ['home', 'failure', 'no-handle', 'helpers']
 if (!MODES.includes(MODE)) {
   console.error(`ERROR [home-shoot.mjs] HOME_SHOOT_MODE=${MODE} is not one of ${MODES.join(', ')}.`)
   process.exit(1)
@@ -311,6 +311,115 @@ if (MODE === 'failure') {
   console.log('shot', 'village-home-failure'.padEnd(28), `${Math.round(bodyBox.width)}x${Math.round(bodyBox.height)}`.padEnd(11), `nonbg=${(pageMeasure.nonbgRatio * 100).toFixed(2)}% colors=${pageMeasure.distinctColors} ${(statSync(failFile).size / 1024).toFixed(1)}KB (page measured, not gated: see note above)`)
   console.log('failure panel:', JSON.stringify(shape))
   console.log('computed panel style:', JSON.stringify(st))
+  console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
+  await browser.close()
+  process.exit(0)
+}
+
+if (MODE === 'helpers') {
+  const panel = await waitFor('[data-testid="home-page"]')
+  if (!panel) {
+    await fail(
+      `ERROR [home-shoot.mjs] the home surface never mounted at ${URL}.
+  What failed: no [data-testid="home-page"] element appeared after the app loaded.
+  Why: the served build predates this branch, or the mock did not serve the grouped view.
+  Where: home-shoot.mjs helpers-arm readiness wait.
+  Means: the capture would not show the helper-group surface.
+  Fix: restart the mock with MOCK_HELPER_GROUPS=1, rebuild from this worktree, and retry.`,
+      2,
+    )
+  }
+  const groupSel = '.helper-group[data-group-id="hg_demo_owner"]'
+  const group = await waitFor(`${groupSel} button.helper-group-trigger`)
+  if (!group) {
+    await fail(
+      `ERROR [home-shoot.mjs] the grouped helper disclosure never mounted at ${URL}.
+  What failed: no helper-group control appeared under the owner row.
+  Why: the served build does not mount the grouped helper host, or the mock served no groups.
+  Where: home-shoot.mjs helpers-arm build-provenance check.
+  Means: the capture would not evidence the helper-group exit.
+  Fix: rebuild and restart the server from this worktree, then retry.`,
+      2,
+    )
+  }
+  const before = await page.evaluate((sel) => {
+    const root = document.querySelector(sel)
+    return {
+      label: (root?.querySelector('[data-testid="helper-group-label"]')?.textContent ?? '').trim(),
+      ownerLink: document.querySelector('[data-testid="home-recent-sessions"] a[href^="/transcripts/"]')?.getAttribute('href') ?? null,
+      contextStatus: document.body.textContent.includes('owner is unavailable'),
+      memberLinks: root?.querySelectorAll('a.helper-thread-open').length ?? 0,
+    }
+  }, groupSel)
+  if (
+    !before.label.includes('1 helper thread') ||
+    before.ownerLink === null ||
+    before.memberLinks !== 0
+  ) {
+    await fail(
+      `ERROR [home-shoot.mjs] the helper group is not the collapsed control this branch ships.
+  What failed: ${JSON.stringify(before)}.
+  Why: the label, the owner row's individual link, or the collapsed state is wrong.
+  Where: home-shoot.mjs helpers-arm build-provenance check.
+  Means: the capture would not evidence the grouped helper exit.
+  Fix: rebuild and restart the server from this worktree, then retry.`,
+      2,
+    )
+  }
+
+  await group.click()
+  const memberLink = await waitFor(`${groupSel} a.helper-thread-open`)
+  if (!memberLink) {
+    await fail(
+      `ERROR [home-shoot.mjs] expanding the helper group loaded no individually linked member.
+  What failed: no a.helper-thread-open appeared after the disclosure opened.
+  Why: the member request failed, or the host did not render the page the server returned.
+  Where: home-shoot.mjs helpers-arm expansion check.
+  Means: the capture would not evidence the member exit.
+  Fix: confirm the mock answers /transcript-groups/{id}/members, then retry.`,
+      2,
+    )
+  }
+  const opened = await page.evaluate((sel) => {
+    const root = document.querySelector(sel)
+    return {
+      label: (root?.querySelector('[data-testid="helper-group-label"]')?.textContent ?? '').trim(),
+      memberLinks: [...(root?.querySelectorAll('a.helper-thread-open') ?? [])].map((a) => a.getAttribute('href')),
+    }
+  }, groupSel)
+  if (opened.memberLinks.length !== 1 || !/^\/transcripts\/[0-9a-f-]+$/.test(opened.memberLinks[0] ?? '')) {
+    await fail(
+      `ERROR [home-shoot.mjs] the expanded member is not one explicit transcript link.
+  What failed: ${JSON.stringify(opened)}.
+  Why: the member row links somewhere other than its own transcript.
+  Where: home-shoot.mjs helpers-arm member-link check.
+  Means: the capture would not evidence individual member navigation.
+  Fix: confirm the host links each member with its own transcript id, then retry.`,
+      2,
+    )
+  }
+  const groupStyle = await assertComputed(
+    `${groupSel} .helper-group-count`,
+    { borderRadius: isSquare },
+    "the helper group's count",
+  )
+
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await pause(150)
+  const panelEl = await page.$('[data-testid="home-recent-sessions"]')
+  const panelBox = await panelEl.boundingBox()
+  if (!panelBox || panelBox.width < 4 || panelBox.height < 4) {
+    await fail(`ERROR [home-shoot.mjs] the recent-sessions panel resolved to a blank box at ${URL}.`, 1)
+  }
+  const file = `${out}/village-home-helpers.png`
+  await panelEl.screenshot({ path: file, captureBeyondViewport: true })
+  const r = await gate.assert('village-home-helpers', file, {
+    sel: '[data-testid="home-recent-sessions"]',
+    where: 'home-shoot.mjs',
+  })
+  console.log('shot', 'village-home-helpers'.padEnd(30), `${Math.round(panelBox.width)}x${Math.round(panelBox.height)}`.padEnd(11), `nonbg=${(r.nonbgRatio * 100).toFixed(1)}% colors=${r.distinctColors} ${(statSync(file).size / 1024).toFixed(1)}KB`)
+  console.log('helpers provenance:', JSON.stringify({ before, opened }))
+  console.log('computed helper-group count style:', JSON.stringify(groupStyle))
   console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
   await browser.close()
   process.exit(0)

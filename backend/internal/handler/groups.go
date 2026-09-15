@@ -231,6 +231,10 @@ func canReadData(role string, dataAccess string) bool {
 }
 
 func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "grouped" {
+		h.getCollectiveGrouped(w, r)
+		return
+	}
 	user := GetUser(r.Context()) // may be nil (AuthOptional)
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -494,6 +498,10 @@ func (h *Handler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
 // ListPendingShares returns pending transcript shares for a curated collective.
 // GET /groups/{id}/pending (AuthRequired, owner only)
 func (h *Handler) ListPendingShares(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "grouped" {
+		h.listCollectiveGrouped(w, r, GroupedRoutePending)
+		return
+	}
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -919,6 +927,10 @@ func (h *Handler) RemoveGroupMember(w http.ResponseWriter, r *http.Request) {
 // contributions" card and the leave-collective modal.
 // GET /groups/{id}/my-shares (AuthRequired)
 func (h *Handler) ListMyGroupShares(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "grouped" {
+		h.listCollectiveGrouped(w, r, GroupedRouteMyShares)
+		return
+	}
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {

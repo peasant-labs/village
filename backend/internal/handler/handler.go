@@ -34,12 +34,14 @@ type TitlePipeline interface {
 }
 
 type Handler struct {
+	groupedScopes         groupedScopeService
 	cfg                   *config.Config
 	pool                  *pgxpool.Pool
 	queries               Querier
 	blobs                 storage.TranscriptBlobStore
 	titles                TitlePipeline
 	preservationEvaluator observedModelPreservationEvaluator
+	provenanceEvaluator   provenancePreservationEvaluator
 	scanContent           func([]byte) []string
 
 	// discoveryReadBarrier, when non-nil, is invoked exactly once inside the
@@ -111,6 +113,7 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 		blobs:                 blobs,
 		titles:                titles,
 		preservationEvaluator: productionObservedModelPreservationEvaluator{},
+		provenanceEvaluator:   productionProvenancePreservationEvaluator{},
 		// The remote-label rule belongs to the contract module, which both
 		// Village and Peasant import, so the two render one label for one
 		// repository instead of each formatting remotes their own way.

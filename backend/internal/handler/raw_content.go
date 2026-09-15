@@ -77,7 +77,7 @@ func validateContentBoundary(raw []byte, knownHarness string, mode contentBounda
 	_ = json.Unmarshal(detailRaw, &detail)
 	strict := publicEvidencePresence(detail)
 	piIdentity := publicPiIdentity(detail)
-	strict = strict || knownPi || piIdentity
+	strict = strict || knownPi || piIdentity || publicCanonicalHarness(detail)
 	if strict {
 		if knownPi || piIdentity {
 			var harness string
@@ -147,6 +147,23 @@ func publicPiIdentity(detail map[string]json.RawMessage) bool {
 	for _, key := range []string{"harness", "provider", "modelHarness"} {
 		var harness string
 		if json.Unmarshal(detail[key], &harness) == nil && harness == string(schema.HarnessPi) {
+			return true
+		}
+	}
+	return false
+}
+
+// A declared canonical harness is itself a claim to the current wire shape:
+// content that names its harness in bestiary's known set must pass strict
+// canonical validation even when it carries no usage/native-metadata marker.
+// Sparse legacy payloads (no harness, or a provider-keyed value) remain legacy.
+func publicCanonicalHarness(detail map[string]json.RawMessage) bool {
+	var declared schema.Harness
+	if json.Unmarshal(detail["harness"], &declared) != nil {
+		return false
+	}
+	for _, known := range schema.Harnesses() {
+		if declared == known {
 			return true
 		}
 	}

@@ -1,12 +1,13 @@
 cases:
   - name: previously_stored_non_assistant_is_opaque
-    content: '{"id":"stored-role","turns":[{"index":0,"role":"user","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}'
-    wantStatus: 200
-    wantRewrite: true
-    corrected: '{"id":"stored-role","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}'
-  - name: invalid_raw_model_bytes_are_rejected
-    content: '{"id":"stored-invalid","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":" bad "}]}'
+    content: '{"id":"stored-role","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"user","content":"hello","timestamp":"2026-01-01T00:00:01Z","depth":0,"observedModel":"anthropic/Claude-Fable-5"}]}'
     wantStatus: 500
-    wantError: invalid observedModel
+    wantError: is not assistant
     wantRewrite: false
-    corrected: '{"id":"stored-invalid","turns":[{"index":0,"role":"assistant","content":"hello","observedModel":"anthropic/Claude-Fable-5"}]}'
+    corrected: '{"id":"stored-role","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","content":"hello","timestamp":"2026-01-01T00:00:01Z","depth":0,"observedModel":"anthropic/Claude-Fable-5"}]}'
+  - name: invalid_raw_model_bytes_are_rejected
+    content: '{"id":"stored-invalid","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","content":"hello","timestamp":"2026-01-01T00:00:01Z","depth":0,"observedModel":" bad "}]}'
+    wantStatus: 500
+    wantError: observed model validation failed
+    wantRewrite: false
+    corrected: '{"id":"stored-invalid","harness":"claude-code","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","content":"hello","timestamp":"2026-01-01T00:00:01Z","depth":0,"observedModel":"anthropic/Claude-Fable-5"}]}'

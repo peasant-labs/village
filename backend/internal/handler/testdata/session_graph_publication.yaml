@@ -1,0 +1,113 @@
+long_text: 'retained tool and transcript evidence. '
+long_repetitions: 256
+detail: |
+  {
+    "id":"550e8400-e29b-41d4-a716-446655440000", "harness":"codex",
+    "schemaVersion":"0.1.0", "turnCount":5, "inputSubmissionCount":1,
+    "startTime":"2023-11-14T22:13:20Z", "endTime":"2023-11-14T22:14:20Z", "durationMins":1,
+    "tokensIn":100, "tokensOut":50, "totalTokens":150, "toolCallCount":1,
+    "rootSessionId":"550e8400-e29b-41d4-a716-446655440001", "purpose":"delegated_work",
+    "relationships":[
+      {"kind":"started_by","targetState":"target_known","targetLocalId":"550e8400-e29b-41d4-a716-446655440001","evidence":"native_typed"},
+      {"kind":"context_from","targetState":"target_known_retained","targetLocalId":"550e8400-e29b-41d4-a716-446655440002","evidence":"retained_last_good","anchor":{"kind":"through_redacted_entry","sourceEntryRef":"e_parent","sourceRevisionRef":"r_parent"}}
+    ],
+    "turns":[
+      {"index":0,"role":"user","entryType":"text","sourceEntryRef":"e_u1","content":"fix parser","timestamp":"2023-11-14T22:13:21Z","depth":0,"provenance":{"origin":"submitted_input","actor":"unknown","delivery":"session_admission","ownership":"local","evidence":"native_typed","inputModality":"text","submissionRef":"s_u1"}},
+      {"index":1,"role":"system","entryType":"text","sourceEntryRef":"e_ctx1","content":"ok","timestamp":"2023-11-14T22:13:22Z","depth":0,"provenance":{"origin":"harness_context","actor":"harness","delivery":"system_lifecycle","ownership":"local","evidence":"native_typed","inputModality":"none"}},
+      {"index":2,"role":"user","entryType":"text","sourceEntryRef":"e_media1","content":"media display","timestamp":"2023-11-14T22:13:23Z","depth":0,"provenance":{"origin":"submitted_input","actor":"unknown","delivery":"session_admission","ownership":"local","evidence":"native_typed","inputModality":"media","submissionRef":"s_u1"}},
+      {"index":3,"role":"assistant","entryType":"text","sourceEntryRef":"e_a1","content":"I will inspect.","timestamp":"2023-11-14T22:13:24Z","depth":0,"toolCalls":[{"id":"call_one","name":"shell","callEntryRef":"e_call1","resultEntryRef":"e_result1","arguments":"rg parser","result":"__LONG__","callProvenance":{"origin":"tool_activity","actor":"unknown","delivery":"tool_delivery","ownership":"local","evidence":"native_typed","inputModality":"none"},"resultProvenance":{"origin":"tool_activity","actor":"unknown","delivery":"tool_delivery","ownership":"local","evidence":"native_typed","inputModality":"none"}}]},
+      {"index":4,"role":"assistant","entryType":"thinking","sourceEntryRef":"e_reason1","content":"I will inspect.","timestamp":"2023-11-14T22:13:25Z","depth":0}
+    ],
+    "earlierHistory":[{"state":"uncertain_migrated","turns":[{"index":0,"role":"user","entryType":"text","sourceEntryRef":"e_old","content":"__LONG__","timestamp":"2023-11-14T22:12:20Z","depth":0,"provenance":{"origin":"submitted_input","actor":"unknown","delivery":"unknown","ownership":"uncertain","evidence":"unknown","inputModality":"text"}}]}]
+  }
+cases:
+  - name: full-graph-long-history
+    count_json: '1'
+    accepted: true
+    projection:
+      count: true
+      count_value: 1
+      root: true
+      purpose: true
+      relationships: true
+  - name: graph-republish-updated
+    count_json: '2'
+    injected_json: '{"rootSessionId":"550e8400-e29b-41d4-a716-446655440099","purpose":"helper_review","relationships":[{"kind":"context_from","targetState":"target_known_retained","targetLocalId":"550e8400-e29b-41d4-a716-446655440003","evidence":"retained_last_good","anchor":{"kind":"through_redacted_entry","sourceEntryRef":"e_new","sourceRevisionRef":"r_new"}}]}'
+    accepted: true
+    projection:
+      count: true
+      count_value: 2
+      root: true
+      purpose: true
+      relationships: true
+  - name: input-count-absent
+    count_only: true
+    accepted: true
+    projection:
+      count: false
+      count_value: 0
+      root: false
+      purpose: false
+      relationships: false
+  - name: count-only-zero
+    count_only: true
+    count_json: '0'
+    accepted: true
+    projection:
+      count: true
+      count_value: 0
+      root: false
+      purpose: false
+      relationships: false
+  - name: count-only-positive
+    count_only: true
+    count_json: '1'
+    accepted: true
+    projection:
+      count: true
+      count_value: 1
+      root: false
+      purpose: false
+      relationships: false
+  - name: count-only-safe-maximum
+    count_only: true
+    count_json: '9007199254740991'
+    accepted: true
+    projection:
+      count: true
+      count_value: 9007199254740991
+      root: false
+      purpose: false
+      relationships: false
+  - name: input-count-null
+    count_json: 'null'
+    error: inputSubmissionCount
+  - name: input-count-string
+    count_json: '"1"'
+    error: inputSubmissionCount
+  - name: input-count-bool
+    count_json: 'true'
+    error: inputSubmissionCount
+  - name: input-count-array
+    count_json: '[]'
+    error: inputSubmissionCount
+  - name: input-count-object
+    count_json: '{}'
+    error: inputSubmissionCount
+  - name: input-count-negative
+    count_json: '-1'
+    error: inputSubmissionCount
+  - name: input-count-fraction
+    count_json: '0.5'
+    error: inputSubmissionCount
+  - name: input-count-overflow
+    count_json: '9007199254740992'
+    error: inputSubmissionCount
+  - name: read-navigation-rejected
+    count_json: '1'
+    injected_json: '{"relationshipNavigation":[]}'
+    error: relationshipNavigation
+  - name: read-wrapper-rejected
+    count_json: '1'
+    injected_json: '{"detail":{}}'
+    error: detail

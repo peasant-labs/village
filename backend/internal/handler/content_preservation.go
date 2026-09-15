@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 
 	"github.com/peasant-labs/schema"
 	"gopkg.in/yaml.v3"
@@ -53,42 +52,53 @@ var _ contentRewriteEncoder = canonicalContentRewriteEncoder{}
 type productionObservedModelPreservationEvaluator struct{}
 
 func (productionObservedModelPreservationEvaluator) Evaluate() error {
-	return proveObservedModelPreservation()
+	baseErr, _ := EvaluatePreservationProofs()
+	return baseErr
 }
 
 type canonicalContentRewriteEncoder struct{}
 
 func (canonicalContentRewriteEncoder) Encode(version schema.PushContractVersion, payload *schema.SessionDetailPayload) ([]byte, error) {
-	encoded, err := json.Marshal(schema.TranscriptContent{
-		ContractVersion: version,
-		Kind:            schema.ContentKindSessionDetail,
-		SessionDetail:   payload,
-	})
+	if payload == nil {
+		return nil, publicationDetailError(fmt.Errorf("canonical rewrite requires a non-null durable detail"))
+	}
+	if err := schema.ValidateSessionDetailPayload(*payload); err != nil {
+		return nil, publicationDetailError(err)
+	}
+	encoded, err := marshalTranscriptContentEnvelope(version, payload)
 	if err != nil {
 		return nil, fmt.Errorf("canonical transcript rewrite encoding failed because the typed SessionDetailPayload could not be marshaled in handler.canonicalContentRewriteEncoder.Encode during migrate-on-read rewrite; the stored generation remains authoritative and no replacement can be advertised as preserving enriched evidence; repair the typed payload or schema pin, then retry: %w", err)
 	}
 	return encoded, nil
 }
 
+// marshalTranscriptContentEnvelope builds the durable envelope that declares the
+// envelope's contractVersion and kind around a migrated payload. The strict
+// canonical encoder validates the payload before calling this; the migrate-on-read
+// response wrapper also uses it to keep sparse legacy content readable without
+// installing a canonical generation it cannot validate.
+func marshalTranscriptContentEnvelope(version schema.PushContractVersion, payload *schema.SessionDetailPayload) ([]byte, error) {
+	return json.Marshal(schema.TranscriptContent{
+		ContractVersion: version,
+		Kind:            schema.ContentKindSessionDetail,
+		SessionDetail:   payload,
+	})
+}
+
 var productionContentRewriteEncoder contentRewriteEncoder = canonicalContentRewriteEncoder{}
 
-var (
-	observedModelPreservationOnce sync.Once
-	observedModelPreservationErr  error
-)
-
-func proveObservedModelPreservation() error {
-	observedModelPreservationOnce.Do(func() {
-		observedModelPreservationErr = errors.Join(executeObservedModelPreservationProof(productionContentRewriteEncoder), provePiPreservation(productionContentRewriteEncoder), proveContentBoundary(validateContentBoundary))
-	})
-	return observedModelPreservationErr
-}
-
 func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observedModelPreservationEvaluator) error {
-	return requireSupportedContentForHarness(raw, "", evaluator)
+	return requireSupportedContentForHarness(raw, "", evaluator, productionProvenancePreservationEvaluator{})
 }
 
-func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluator observedModelPreservationEvaluator) error {
+// requireSupportedContentForHarness is the production publish gate. It refuses
+// enriched publishes before secret scan or storage whenever the evidence they
+// carry is not backed by a passing preservation proof, mirroring the
+// advertisement: a client that cannot see a capability must not be able to lose
+// its evidence silently. The gates are per proof so a provenance-specific
+// failure refuses only the provenance evidence and cannot un-advertise or
+// un-refuse the shared tokens.
+func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluator observedModelPreservationEvaluator, provenance provenancePreservationEvaluator) error {
 	boundary, err := validateContentBoundary(raw, knownHarness, contentPublication)
 	if err != nil {
 		return fmt.Errorf("uploaded transcript content could not be decoded in handler.requireSupportedContentCapability before secret scan or storage because raw JSON validation failed; no transcript bytes or metadata were written; repair the transcript and retry: %w", err)
@@ -110,8 +120,21 @@ func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluato
 	if len(required) == 0 {
 		return nil
 	}
-	if err := evaluator.Evaluate(); err != nil {
-		return fmt.Errorf("enriched transcript publish refused because the uploaded transcript_file carries observedModel evidence, detailed usage or native metadata while Village's production preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would misattribute model output; deploy a Village build whose GET /api/v1/schema/version advertises %q after the preservation gate passes, then retry: %w", required, err)
+	shared := make([]schema.ContentCapability, 0, len(required))
+	for _, capability := range required {
+		if capability != schema.ContentCapabilitySessionGraphProvenanceV1 {
+			shared = append(shared, capability)
+		}
+	}
+	if len(shared) > 0 {
+		if err := evaluator.Evaluate(); err != nil {
+			return fmt.Errorf("enriched transcript publish refused because the uploaded transcript_file carries observedModel evidence, detailed usage or native metadata while Village's production preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would misattribute model output; deploy a Village build whose GET /api/v1/schema/version advertises %q after the preservation gate passes, then retry: %w", shared, err)
+		}
+	}
+	if containsContentCapability(required, schema.ContentCapabilitySessionGraphProvenanceV1) {
+		if err := provenance.Evaluate(); err != nil {
+			return fmt.Errorf("provenance-bearing transcript publish refused because the uploaded transcript_file carries durable session-relationship evidence (relationships, root identity, submission count, purpose, retained history, or per-block provenance) while Village's provenance preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would drop the session's recorded lineage; deploy a Village build whose GET /api/v1/schema/version advertises %q after the provenance preservation gate passes, then retry: %w", schema.ContentCapabilitySessionGraphProvenanceV1, err)
+		}
 	}
 	return nil
 }

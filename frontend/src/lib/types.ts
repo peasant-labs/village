@@ -51,6 +51,7 @@ export interface UserProjectPageResponse {
 }
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 import type {
+  SessionRelationshipNavigation,
   VillageGroup,
   VillageGroupViewerRole,
   VillageCollectiveSearchResponse,
@@ -435,6 +436,14 @@ export interface TranscriptDetailResponse {
   enriched_shares: EnrichedTranscriptShare[];
   owner: User;
   attestations?: Attestation[];
+  /**
+   * The viewer's authorized current-target navigation for the child's stored
+   * relationships. It rides the metadata read separately from the durable
+   * content: absent means the child carries no linkable relationship (or no
+   * relationship at all), never a durable field. Only Fairtrade's
+   * `adaptTranscript` cooks it into the view.
+   */
+  relationshipNavigation?: SessionRelationshipNavigation[];
 }
 
 /**
