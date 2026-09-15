@@ -53,13 +53,13 @@ func loadGraphProjectionFixtures(t *testing.T) (fixture struct {
 	return fixture
 }
 
-func TestMigration037SessionGraphStructure(t *testing.T) {
+func TestMigration039SessionGraphStructure(t *testing.T) {
 	f := loadGraphProjectionFixtures(t)
-	up, err := migrationsFS.ReadFile("migrations/037_session_graph_provenance.up.sql")
+	up, err := migrationsFS.ReadFile("migrations/039_session_graph_provenance.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := migrationsFS.ReadFile("migrations/037_session_graph_provenance.down.sql")
+	down, err := migrationsFS.ReadFile("migrations/039_session_graph_provenance.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestMigration037SessionGraphStructure(t *testing.T) {
 			t.Fatalf("up SQL must not contain %q", text)
 		}
 	}
-	if !isRegisteredMigration(37) {
+	if !isRegisteredMigration(39) {
 		t.Fatal("graph migration is not registered")
 	}
 }

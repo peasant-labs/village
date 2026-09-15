@@ -45,6 +45,15 @@ type Config struct {
 	// (literal multi-line value or one with \n escapes, which we unescape).
 	GitHubAppID         string
 	GitHubAppPrivateKey string
+
+	// GitHubAppSlug is the App's URL slug (github.com/apps/<slug>), used to build
+	// the install-handshake redirect. When empty the install route returns 501.
+	GitHubAppSlug string
+
+	// GitHubAppWebhookSecret verifies inbound GitHub App webhook deliveries
+	// (X-Hub-Signature-256, HMAC over the raw body). When empty, the webhook
+	// route returns 501 and no delivery is trusted.
+	GitHubAppWebhookSecret string
 }
 
 // Narrow S3 accessors let the raw object adapter depend on storage authority,
@@ -100,6 +109,8 @@ func Load() *Config {
 		BaseURL:                 getEnv("BASE_URL", "https://localhost"),
 		GitHubAppID:             getEnv("GITHUB_APP_ID", ""),
 		GitHubAppPrivateKey:     normalizePEM(getEnv("GITHUB_APP_PRIVATE_KEY", "")),
+		GitHubAppSlug:           getEnv("GITHUB_APP_SLUG", ""),
+		GitHubAppWebhookSecret:  getEnv("GITHUB_APP_WEBHOOK_SECRET", ""),
 		// Default ON: only the explicit string "false" disables it, so an unset or
 		// malformed value fails safe to enabled (legacy NULLs still get backfilled).
 	}

@@ -63,7 +63,9 @@ var migrations = []migration{
 	{version: 34, file: "migrations/034_owner_overrides.up.sql"},
 	{version: 35, file: "migrations/035_project_hash_required.up.sql"},
 	{version: 36, file: "migrations/036_transcript_share_attempts.up.sql"},
-	{version: 37, file: "migrations/037_session_graph_provenance.up.sql"},
+	{version: 37, file: "migrations/037_pull_request_attachments.up.sql"},
+	{version: 38, file: "migrations/038_github_webhook_deliveries.up.sql"},
+	{version: 39, file: "migrations/039_session_graph_provenance.up.sql"},
 }
 
 func RunMigrations(pool *pgxpool.Pool) error {

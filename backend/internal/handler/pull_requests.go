@@ -23,12 +23,6 @@ func (h *Handler) pullRequestAttachmentNotImplemented(w http.ResponseWriter) {
 	writeError(w, http.StatusNotImplemented, pullRequestAttachmentUnavailable)
 }
 
-// ReceiveGitHubWebhook is POST /api/v1/integrations/github/webhook. Nothing is
-// read from the request until the HMAC-verifying receiver exists.
-func (h *Handler) ReceiveGitHubWebhook(w http.ResponseWriter, _ *http.Request) {
-	h.pullRequestAttachmentNotImplemented(w)
-}
-
 // GetPullRequestAttachment is GET /api/v1/pulls/{owner}/{name}/{number}.
 func (h *Handler) GetPullRequestAttachment(w http.ResponseWriter, _ *http.Request) {
 	h.pullRequestAttachmentNotImplemented(w)

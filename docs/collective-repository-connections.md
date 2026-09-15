@@ -1,9 +1,10 @@
 # Design: Connecting repositories to a collective
 
-**Status:** Design only — not implemented. This doc scopes the work to let a
-collective link real GitHub repositories so we can overlay its transcripts onto
-a repo's commit/PR timeline — replicating what the local peasant app gets for
-free from the working tree.
+**Status:** Partly implemented. Repository linking and the commit overlay are
+live (migrations `021`/`022`, the `/groups/{id}/repositories` routes, and the
+collective "Repositories" / commit-timeline UI); the pull request prompt
+attachment work builds on the same App. What remains is the operator install
+handshake, still tracked separately as a follow-up.
 
 **Context / what already exists.** Pushed transcripts already carry git context
 in their payload (`schema.GitContext`: `branch`, `remote`, `worktree`,
@@ -16,9 +17,9 @@ overlay is (a) the **commit SHAs** are dropped on ingest, and (b) we have no
 **authenticated link** to the live repo to fetch its commits/PRs. This doc
 covers both.
 
-> Prerequisite & main blocker: a registered GitHub App plus its secrets is a
-> human setup step (see [Auth mechanism](#auth-mechanism)). Nothing here ships
-> until that exists.
+> The registered GitHub App and its secrets now exist in production. The
+> remaining rough edge is the install flow: linking a repository still takes a
+> hand-entered installation id, which is a tracked follow-up.
 
 ---
 
@@ -39,32 +40,30 @@ churn. It gives per-repo scoping, short-lived tokens, higher aggregate rate
 limits, and a webhook path for incremental sync. The cost is the one-time human
 setup of registering the app and provisioning its secrets.
 
-### Human setup (the blocker)
+### Human setup
 
 1. Register a **GitHub App** ("Village") under the peasant-labs org with:
-   - **Permissions (read-only):** Repository → *Contents: Read*, *Metadata:
-     Read*, *Pull requests: Read*. No write scopes.
-   - **Callback URL:** `<BASE_URL>/api/v1/integrations/github/callback`
-     (mirrors the existing OAuth callback convention in
-     `auth_providers.go` / `docs/oauth-app-registration.md`).
+   - **Permissions:** Repository → *Contents: Read*, *Metadata: Read*;
+     *Pull requests: Read and write*; *Checks: Read and write*.
+   - **Callback URL:** `<BASE_URL>/api/v1/integrations/github/callback` (not
+     implemented yet).
    - **Setup URL** (post-install redirect) → the collective settings page.
    - **Webhook URL:** `<BASE_URL>/api/v1/integrations/github/webhook` with a
-     webhook secret; events: `push`, `pull_request`. (Optional for v1 — polling
-     works without it.)
+     webhook secret; events: `installation`, `pull_request`, `check_run`,
+     `issue_comment`.
 2. Generate the App's **private key** (`.pem`) and note the **App ID** and
    **webhook secret**.
 3. Provision secrets (same pattern as the OAuth apps — env vars passed through
    `docker-compose.yml`, real values in the prod secret store):
    ```env
    GITHUB_APP_ID=...
-   GITHUB_APP_PRIVATE_KEY=...        # PEM, base64 or file-mounted
+   GITHUB_APP_PRIVATE_KEY=...        # PEM, multi-line or \n-escaped
    GITHUB_APP_WEBHOOK_SECRET=...
-   GITHUB_APP_CLIENT_ID=...          # for the install/identify handshake
-   GITHUB_APP_CLIENT_SECRET=...
    ```
    The backend treats the integration as "configured" only when `GITHUB_APP_ID`
-   and the private key are both present (otherwise the "Link repository" button
-   503s, exactly like an unconfigured OAuth provider).
+   and the private key are both present (otherwise the repository routes return
+   `501`, exactly like an unconfigured OAuth provider); the webhook route also
+   needs the secret.
 
 ---
 

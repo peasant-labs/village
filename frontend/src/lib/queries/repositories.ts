@@ -39,9 +39,10 @@ export function useRepositories(groupId: string, enabled = true) {
 
 /**
  * Link a GitHub repository to a collective. Owner-only (backend returns 403
- * otherwise). The backend validates the supplied installation can reach the
- * repo before persisting, so a bad owner/name/installation surfaces as a 400.
- * Invalidates the list on success.
+ * otherwise). The backend resolves the App installation from the repository
+ * itself, so the caller sends only `owner`/`name`; it validates the resolved
+ * installation can reach the repo before persisting, so a bad owner/name
+ * surfaces as a 400. Invalidates the list on success.
  */
 export function useLinkRepository() {
   const qc = useQueryClient();
@@ -50,20 +51,14 @@ export function useLinkRepository() {
       groupId,
       owner,
       name,
-      installationId,
     }: {
       groupId: string;
       owner: string;
       name: string;
-      installationId: number;
     }) =>
       api(`/groups/${groupId}/repositories`, {
         method: "POST",
-        body: JSON.stringify({
-          owner,
-          name,
-          installation_id: installationId,
-        }),
+        body: JSON.stringify({ owner, name }),
       }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["group-repositories", vars.groupId] });

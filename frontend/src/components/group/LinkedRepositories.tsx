@@ -12,6 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button, Input, Tag } from "@/lib/ft-ui";
+import { API_URL_BASE } from "@/lib/api";
 import {
   useRepositories,
   useLinkRepository,
@@ -166,13 +167,12 @@ function RepositoryCommits({
 }
 
 // ---------------------------------------------------------------------------
-// Owner-only link form. Backend requires owner, name, AND a GitHub App
-// installation_id (the install that grants the App access to the repo).
+// Owner-only link form. Backend resolves the GitHub App installation from the
+// repository, so only owner/name are entered here.
 // ---------------------------------------------------------------------------
 
 function LinkRepoForm({ groupId }: { groupId: string }) {
   const [repoInput, setRepoInput] = useState("");
-  const [installationId, setInstallationId] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const link = useLinkRepository();
 
@@ -185,18 +185,12 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
       setValidationError("Enter a repository as owner/name (e.g. acme/widgets).");
       return;
     }
-    const instId = Number(installationId.trim());
-    if (!Number.isInteger(instId) || instId <= 0) {
-      setValidationError("Enter the numeric GitHub App installation ID.");
-      return;
-    }
 
     link.mutate(
-      { groupId, owner: parsed.owner, name: parsed.name, installationId: instId },
+      { groupId, owner: parsed.owner, name: parsed.name },
       {
         onSuccess: () => {
           setRepoInput("");
-          setInstallationId("");
         },
       }
     );
@@ -207,25 +201,25 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
       onSubmit={handleSubmit}
       className="flex flex-col gap-2 border-b border-rule px-4 py-3"
     >
-      <span className="v2-eyebrow">Link a repository</span>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-        <div className="flex-1 [&_.is-field]:mb-0">
+      <div className="flex items-center justify-between gap-2">
+        <span className="v2-eyebrow">Link a repository</span>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          icon={Github}
+          onClick={() => window.location.assign(installURL(groupId))}
+        >
+          connect github
+        </Button>
+      </div>
+      <div className="flex flex-col gap-2">
+        <div className="[&_.is-field]:mb-0">
           <Input
             value={repoInput}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRepoInput(e.target.value)}
             placeholder="owner/name"
             aria-label="Repository owner/name"
-          />
-        </div>
-        <div className="sm:w-44 [&_.is-field]:mb-0">
-          <Input
-            value={installationId}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setInstallationId(e.target.value.replace(/[^\d]/g, ""))
-            }
-            inputMode="numeric"
-            placeholder="installation id"
-            aria-label="GitHub App installation ID"
           />
         </div>
         <Button
@@ -240,8 +234,8 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
         </Button>
       </div>
       <p className="text-[11px] text-ink-3">
-        The GitHub App must already be installed on the repo. The installation
-        ID comes from that installation.
+        The GitHub App must be installed on the repository&apos;s account. The
+        installation is resolved from the repository.
       </p>
       {validationError && (
         <p className="text-[12px] text-danger">{validationError}</p>
@@ -263,6 +257,11 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
 // Owner-only controls are gated on `isOwner` (role === "owner"), the same gate
 // the rest of the collective UI and the backend use.
 // ---------------------------------------------------------------------------
+
+/** Full-page URL for the App install handshake; the backend redirects to GitHub. */
+function installURL(groupId: string): string {
+  return `${API_URL_BASE}/integrations/github/install?group_id=${encodeURIComponent(groupId)}`;
+}
 
 export default function LinkedRepositories({
   groupId,

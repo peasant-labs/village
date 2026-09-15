@@ -78,6 +78,12 @@ type Handler struct {
 	// It is nil when the App is not configured; handlers detect this via
 	// githubClient() and respond 501. Tests inject a client pointed at httptest.
 	gh *github.Client
+
+	// githubDispatcher is the handling point for each subscribed webhook event
+	// type. Production uses noopGitHubDispatcher until the matching, digest, and
+	// posting work fills it in; a test injects a recording dispatcher to prove
+	// which event reached which method.
+	githubDispatcher github.Dispatcher
 }
 
 func (h *Handler) scanTranscriptContent(content []byte) []string {
@@ -112,6 +118,7 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 		projectNames:          projectname.Resolver{Label: schema.RemoteLabel},
 		scanContent:           scanner.ScanForSecrets,
 		contributableRowLimit: defaultContributableRowLimit,
+		githubDispatcher:      noopGitHubDispatcher{},
 	}
 
 	// The GitHub App is optional. If credentials are absent (or invalid),
@@ -129,6 +136,13 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 	default:
 		h.gh = gh
 		log.Println("GitHub App configured; collective-repository endpoints enabled")
+	}
+
+	// The webhook receiver needs both the App (to act on events) and the secret
+	// (to authenticate GitHub's signature). Either missing leaves the route
+	// answering 501, fail-closed.
+	if h.gh != nil && cfg.GitHubAppWebhookSecret != "" {
+		log.Println("GitHub webhook receiver configured; POST /api/v1/integrations/github/webhook is enabled")
 	}
 
 	return h

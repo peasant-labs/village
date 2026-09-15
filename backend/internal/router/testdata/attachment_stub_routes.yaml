@@ -18,13 +18,6 @@ unauthenticated_error: Authentication required
 not_implemented_error: Pull request prompt attachment is not implemented on this server yet
 
 routes:
-  - name: receive github webhook
-    method: POST
-    path: /api/v1/integrations/github/webhook
-    target: /api/v1/integrations/github/webhook
-    body: 'not json at all'
-    anonymous: 501
-    authenticated: 501
   - name: get pull request attachment
     method: GET
     path: /api/v1/pulls/{owner}/{name}/{number}

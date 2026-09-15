@@ -7,10 +7,10 @@ import (
 	"testing"
 )
 
-func TestMigration037SessionGraphConstraints(t *testing.T) {
+func TestMigration039SessionGraphConstraints(t *testing.T) {
 	ctx := context.Background()
 	pool := newMigrationScratchDatabase(t)
-	migrateTestDatabaseThrough(t, pool, 36)
+	migrateTestDatabaseThrough(t, pool, 38)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -26,7 +26,7 @@ func TestMigration037SessionGraphConstraints(t *testing.T) {
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := runMigration(pool, requireMigrationVersion(t, 37)); err != nil {
+	if err := runMigration(pool, requireMigrationVersion(t, 39)); err != nil {
 		t.Fatal(err)
 	}
 	var absent bool
@@ -44,7 +44,7 @@ func TestMigration037SessionGraphConstraints(t *testing.T) {
 			}
 		})
 	}
-	down, err := migrationsFS.ReadFile("migrations/037_session_graph_provenance.down.sql")
+	down, err := migrationsFS.ReadFile("migrations/039_session_graph_provenance.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

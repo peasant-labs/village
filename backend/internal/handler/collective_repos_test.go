@@ -38,12 +38,21 @@ type fakeGitHub struct {
 	commitsBody string // JSON for GET /repos/.../commits
 	commitsETag string
 	notModified bool
+	// installationID is the id returned by GET /repos/{owner}/{name}/installation.
+	installationID     int64
+	installationStatus int // status for that endpoint (default 200)
+	// installationAccount is the account login returned by GET /app/installations/{id}.
+	installationAccount string
 }
 
 func newFakeGitHub(t *testing.T, f *fakeGitHub) {
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/app/installations/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			fmt.Fprintf(w, `{"id":%d,"account":{"login":%q,"id":1,"type":"Organization"}}`, f.installationID, f.installationAccount)
+			return
+		}
 		atomic.AddInt32(&f.tokenCalls, 1)
 		w.WriteHeader(http.StatusCreated)
 		fmt.Fprintf(w, `{"token":"ghs_x","expires_at":%q}`, time.Now().Add(time.Hour).UTC().Format(time.RFC3339))
@@ -59,6 +68,17 @@ func newFakeGitHub(t *testing.T, f *fakeGitHub) {
 				w.Header().Set("ETag", f.commitsETag)
 			}
 			fmt.Fprint(w, f.commitsBody)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/installation") {
+			status := f.installationStatus
+			if status == 0 {
+				status = http.StatusOK
+			}
+			w.WriteHeader(status)
+			if status == http.StatusOK {
+				fmt.Fprintf(w, `{"id":%d}`, f.installationID)
+			}
 			return
 		}
 		status := f.repoStatus
@@ -203,6 +223,94 @@ func TestLinkRepository_OwnerSucceeds(t *testing.T) {
 	// Privacy is derived from the validated repo metadata, not the request.
 	if !linked.IsPrivate {
 		t.Error("expected is_private=true derived from repo metadata")
+	}
+}
+
+// TestLinkRepository_ResolvesInstallationFromRepo proves a link with no
+// installation_id resolves one from the repository and persists the resolved id.
+func TestLinkRepository_ResolvesInstallationFromRepo(t *testing.T) {
+	f := &fakeGitHub{repoBody: `{"name":"repo","private":false,"owner":{"login":"acme"}}`, installationID: 99}
+	newFakeGitHub(t, f)
+
+	var linked *sqlc.LinkCollectiveRepositoryParams
+	mq := &mockQuerier{
+		getGroupMember: memberStub("owner"),
+		linkCollectiveRepository: func(ctx context.Context, arg sqlc.LinkCollectiveRepositoryParams) (sqlc.CollectiveRepository, error) {
+			linked = &arg
+			return sqlc.CollectiveRepository{ID: toPgUUID(uuid.New()), GroupID: arg.GroupID, Owner: arg.Owner, Name: arg.Name, InstallationID: arg.InstallationID}, nil
+		},
+	}
+	h := newRepoHandler(t, mq, f)
+
+	w := routeRequest(h, http.MethodPost, "/groups/"+testGroupID+"/repositories", `{"owner":"acme","name":"repo"}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201 (body: %s)", w.Code, w.Body.String())
+	}
+	if linked == nil || linked.InstallationID != 99 {
+		t.Fatalf("resolved installation not persisted: %+v", linked)
+	}
+}
+
+// TestLinkRepository_NoInstallationCoversRepo proves that when no installation
+// covers the repository, the link is refused rather than persisted.
+func TestLinkRepository_NoInstallationCoversRepo(t *testing.T) {
+	f := &fakeGitHub{repoBody: `{"name":"repo","private":false,"owner":{"login":"acme"}}`, installationStatus: http.StatusNotFound}
+	newFakeGitHub(t, f)
+
+	mq := &mockQuerier{getGroupMember: memberStub("owner")}
+	h := newRepoHandler(t, mq, f)
+
+	w := routeRequest(h, http.MethodPost, "/groups/"+testGroupID+"/repositories", `{"owner":"acme","name":"repo"}`)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 when no installation covers the repo (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+// TestLinkRepository_AllowsRepoInCollectiveOrg proves a collective bound to an
+// org may link a repo under that org.
+func TestLinkRepository_AllowsRepoInCollectiveOrg(t *testing.T) {
+	f := &fakeGitHub{repoBody: `{"name":"repo","private":false,"owner":{"login":"acme"}}`, installationID: 99, installationAccount: "acme"}
+	newFakeGitHub(t, f)
+
+	var linked *sqlc.LinkCollectiveRepositoryParams
+	mq := &mockQuerier{
+		getGroupMember: memberStub("owner"),
+		getGroupByID: func(_ context.Context, id pgtype.UUID) (sqlc.Group, error) {
+			return sqlc.Group{ID: id, LinkedGithubOrg: pgtype.Text{String: "acme", Valid: true}}, nil
+		},
+		linkCollectiveRepository: func(_ context.Context, arg sqlc.LinkCollectiveRepositoryParams) (sqlc.CollectiveRepository, error) {
+			linked = &arg
+			return sqlc.CollectiveRepository{ID: toPgUUID(uuid.New()), GroupID: arg.GroupID, Owner: arg.Owner, Name: arg.Name, InstallationID: arg.InstallationID}, nil
+		},
+	}
+	h := newRepoHandler(t, mq, f)
+
+	w := routeRequest(h, http.MethodPost, "/groups/"+testGroupID+"/repositories", `{"owner":"acme","name":"repo"}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201 (body: %s)", w.Code, w.Body.String())
+	}
+	if linked == nil || linked.InstallationID != 99 {
+		t.Fatalf("link not persisted: %+v", linked)
+	}
+}
+
+// TestLinkRepository_RejectsRepoOutsideCollectiveOrg proves a collective bound
+// to one org cannot link a repo whose installation belongs to another.
+func TestLinkRepository_RejectsRepoOutsideCollectiveOrg(t *testing.T) {
+	f := &fakeGitHub{repoBody: `{"name":"repo","private":false,"owner":{"login":"acme"}}`, installationID: 99, installationAccount: "someone-else"}
+	newFakeGitHub(t, f)
+
+	mq := &mockQuerier{
+		getGroupMember: memberStub("owner"),
+		getGroupByID: func(_ context.Context, id pgtype.UUID) (sqlc.Group, error) {
+			return sqlc.Group{ID: id, LinkedGithubOrg: pgtype.Text{String: "acme", Valid: true}}, nil
+		},
+	}
+	h := newRepoHandler(t, mq, f)
+
+	w := routeRequest(h, http.MethodPost, "/groups/"+testGroupID+"/repositories", `{"owner":"acme","name":"repo"}`)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 when the installation is outside the collective's org (body: %s)", w.Code, w.Body.String())
 	}
 }
 
