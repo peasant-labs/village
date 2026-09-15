@@ -70,7 +70,7 @@
     "puppeteer-core": "^25.2.1",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.10",
+    "vitest": "^4.1.11",
     "yaml": "^2.9.0"
   }
 }
