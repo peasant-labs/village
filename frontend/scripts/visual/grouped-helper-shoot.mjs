@@ -253,6 +253,10 @@ if (SURFACE === 'discovery') {
   Means: the capture would not evidence the continuation this change adds.
   Fix: rebuild and restart the server from this worktree, then retry.`, 2)
   }
+  // The continuation is the control this change adds, so it is imaged BEFORE it
+  // is pressed: the provenance check above only proves it exists, and a reviewer
+  // reading the captures has to be able to see the changed mounted path.
+  await capture(`village-${SURFACE}-grouped-continuation-before`, '[data-testid="grouped-helper-continuation"]', SURFACE)
   await page.click('[data-testid="grouped-helper-continuation"] button')
   const laterControl = await waitFor(`${laterSel} button.helper-group-trigger`)
   if (!laterControl) {
