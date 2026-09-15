@@ -1,0 +1,103 @@
+# Webhook payloads, trimmed to the fields the attachment flow reads, so the
+# decoding is exercised against GitHub's real wire shapes and field names.
+cases:
+  - name: issue-comment-on-a-pull-request-by-its-author
+    payload: |
+      {
+        "action": "created",
+        "issue": {
+          "number": 42,
+          "user": {"id": 1001, "login": "author"},
+          "pull_request": {"url": "https://api.github.com/repos/peasant-labs/village/pulls/42", "html_url": "https://github.com/peasant-labs/village/pull/42"}
+        },
+        "comment": {
+          "id": 555,
+          "body": "/peasant attach",
+          "author_association": "NONE",
+          "user": {"id": 1001, "login": "author"}
+        },
+        "repository": {"id": 7, "name": "village", "full_name": "peasant-labs/village", "owner": {"id": 9, "login": "peasant-labs"}, "default_branch": "develop", "fork": false},
+        "sender": {"id": 1001, "login": "author"},
+        "installation": {"id": 1234}
+      }
+    expect:
+      is_pull_request: true
+      number: 42
+      sender_id: 1001
+      author_id: 1001
+      association: NONE
+      comment_id: 555
+      comment_body: "/peasant attach"
+      repository_id: 7
+      installation_id: 1234
+
+  - name: issue-comment-on-a-plain-issue
+    payload: |
+      {
+        "action": "created",
+        "issue": {"number": 11, "user": {"id": 1001, "login": "author"}},
+        "comment": {"id": 556, "body": "/peasant attach", "author_association": "MEMBER", "user": {"id": 2002, "login": "member"}},
+        "repository": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}},
+        "sender": {"id": 2002, "login": "member"},
+        "installation": {"id": 1234}
+      }
+    expect:
+      is_pull_request: false
+      number: 11
+      sender_id: 2002
+      author_id: 1001
+      association: MEMBER
+      comment_id: 556
+      comment_body: "/peasant attach"
+      repository_id: 7
+      installation_id: 1234
+
+  - name: pull-request-from-a-fork
+    payload: |
+      {
+        "action": "synchronize",
+        "number": 42,
+        "pull_request": {
+          "number": 42,
+          "user": {"id": 1001, "login": "author"},
+          "head": {"ref": "feature/x", "sha": "aaaaaaa", "repo": {"id": 55, "name": "village-fork", "owner": {"id": 1001, "login": "author"}}},
+          "base": {"ref": "develop", "sha": "bbbbbbb", "repo": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}}},
+          "merged": false
+        },
+        "repository": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}},
+        "sender": {"id": 1001, "login": "author"},
+        "installation": {"id": 1234}
+      }
+    expect:
+      number: 42
+      sender_id: 1001
+      author_id: 1001
+      is_fork: true
+      head_ref: feature/x
+      base_repo_name: village
+      head_repo_name: village-fork
+
+  - name: pull-request-from-the-same-repository
+    payload: |
+      {
+        "action": "opened",
+        "number": 43,
+        "pull_request": {
+          "number": 43,
+          "user": {"id": 1001, "login": "author"},
+          "head": {"ref": "feature/y", "sha": "ccccccc", "repo": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}}},
+          "base": {"ref": "develop", "sha": "ddddddd", "repo": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}}},
+          "merged": false
+        },
+        "repository": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}},
+        "sender": {"id": 1001, "login": "author"},
+        "installation": {"id": 1234}
+      }
+    expect:
+      number: 43
+      sender_id: 1001
+      author_id: 1001
+      is_fork: false
+      head_ref: feature/y
+      base_repo_name: village
+      head_repo_name: village
