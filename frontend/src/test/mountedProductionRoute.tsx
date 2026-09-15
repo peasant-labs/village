@@ -57,6 +57,9 @@ export interface MountedRouteTranscriptMetadata {
    *  everything — which is also what a transcript in no collective gets, by
    *  design. Callers that do not exercise the memberships omit it. */
   viewer_collectives?: Array<{ id: string; name: string }>;
+  /** The viewer-authorized relationship navigation the metadata read serves.
+   *  Omitted when the fixture exercises no source/starter links. */
+  relationshipNavigation?: unknown[];
 }
 
 const DEFAULT_PROJECT_HASH = "0".repeat(64);
@@ -156,6 +159,7 @@ export function installMountedRouteTeardown(): void {
     cleanup();
     vi.unstubAllGlobals();
     globalThis.localStorage?.clear();
+    globalThis.sessionStorage?.clear();
     document.documentElement.setAttribute("data-theme", "dark");
   });
 }
