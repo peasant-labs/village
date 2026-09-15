@@ -25,18 +25,44 @@ import (
 //go:embed testdata/collective_detail_wire.yaml
 var collectiveDetailWireYAML []byte
 
+// collectiveDetailWireCase is one raw collective-detail body plus the route that
+// serves it. It declares the stored pull-request check settings its own raw group
+// object carries, so the loader can prove the oracle agrees with itself and the
+// test compares the canonical binding against that declaration instead of
+// against another invocation of the projection under test.
 type collectiveDetailWireCase struct {
-	Name         string `yaml:"name"`
-	Query        string `yaml:"query"`
-	ExpectedJSON string `yaml:"expected_json"`
+	Name             string  `yaml:"name"`
+	GroupID          string  `yaml:"group_id"`
+	Query            string  `yaml:"query"`
+	PostPromptsCheck *bool   `yaml:"post_prompts_check"`
+	PromptsCheckMode *string `yaml:"prompts_check_mode"`
+	ExpectedJSON     string  `yaml:"expected_json"`
 }
 type collectiveDetailWireFixtures struct {
 	OwnerID   string                     `yaml:"owner_id"`
 	PendingID string                     `yaml:"pending_id"`
-	GroupID   string                     `yaml:"group_id"`
 	OwnerName string                     `yaml:"owner_name"`
 	SeedSQL   string                     `yaml:"seed_sql"`
 	Cases     []collectiveDetailWireCase `yaml:"cases"`
+}
+
+// collectiveDetailWireRawGroup is the subset of the raw oracle's group object
+// this gate reads back, so absence and explicit values stay distinguishable.
+type collectiveDetailWireRawGroup struct {
+	PostPromptsCheck *bool   `json:"post_prompts_check"`
+	PromptsCheckMode *string `json:"prompts_check_mode"`
+}
+type collectiveDetailWireRawBody struct {
+	Group collectiveDetailWireRawGroup `json:"group"`
+}
+
+// requiredCollectiveDetailWireCases names the route/collective pairs this gate
+// must keep covering. Renaming or deleting one fails the loader.
+var requiredCollectiveDetailWireCases = []string{
+	"legacy-exact-group-record-with-defaulted-check-settings",
+	"grouped-exact-group-record-with-defaulted-check-settings",
+	"legacy-exact-group-record-with-overridden-check-settings",
+	"grouped-exact-group-record-with-overridden-check-settings",
 }
 
 func loadCollectiveDetailWireFixtures(t *testing.T) collectiveDetailWireFixtures {
@@ -56,9 +82,27 @@ func loadCollectiveDetailWireFixtures(t *testing.T) collectiveDetailWireFixtures
 		if c.Name == "" || seen[c.Name] || !json.Valid([]byte(c.ExpectedJSON)) {
 			t.Fatalf("invalid or duplicate raw wire fixture %q", c.Name)
 		}
+		if _, err := uuid.Parse(c.GroupID); err != nil {
+			t.Fatalf("raw wire fixture %q must name the collective it reads: %v", c.Name, err)
+		}
+		if c.PostPromptsCheck == nil || c.PromptsCheckMode == nil {
+			t.Fatalf("raw wire fixture %q must declare the collective's stored pull-request check settings", c.Name)
+		}
+		if !schema.VillagePromptsCheckMode(*c.PromptsCheckMode).IsValid() {
+			t.Fatalf("raw wire fixture %q declares a check mode outside the closed menu", c.Name)
+		}
+		var oracle collectiveDetailWireRawBody
+		if err := json.Unmarshal([]byte(c.ExpectedJSON), &oracle); err != nil {
+			t.Fatalf("raw wire fixture %q is not a collective detail body: %v", c.Name, err)
+		}
+		if oracle.Group.PostPromptsCheck == nil || oracle.Group.PromptsCheckMode == nil ||
+			*oracle.Group.PostPromptsCheck != *c.PostPromptsCheck ||
+			*oracle.Group.PromptsCheckMode != *c.PromptsCheckMode {
+			t.Fatalf("raw wire fixture %q declares check settings that its own raw group object does not carry", c.Name)
+		}
 		seen[c.Name] = true
 	}
-	for _, name := range []string{"legacy-exact-group-record-without-prompts-settings", "grouped-exact-group-record-without-prompts-settings"} {
+	for _, name := range requiredCollectiveDetailWireCases {
 		if !seen[name] {
 			t.Fatalf("missing required raw wire fixture %s", name)
 		}
@@ -86,7 +130,7 @@ func TestCollectiveDetailRawWireRegisteredRoutes(t *testing.T) {
 	}
 	for _, c := range f.Cases {
 		t.Run(c.Name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, "/api/v1/groups/"+f.GroupID+c.Query, nil)
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/groups/"+c.GroupID+c.Query, nil)
 			r.Header.Set("Authorization", "Bearer "+token)
 			w := httptest.NewRecorder()
 			routes.ServeHTTP(w, r)
@@ -124,13 +168,16 @@ func TestCollectiveDetailRawWireRegisteredRoutes(t *testing.T) {
 				}
 				typed, group = response, response.Group
 			}
-			// The grouped route projects a partial group record and reads no
-			// prompts settings, so it must omit them rather than fabricate
-			// defaults. The legacy route reads the full row and supplies the
-			// real settings; the round-trip comparison below proves that
-			// neither route invents or drops a field.
-			if c.Query != "" && (group.PostPromptsCheck != nil || group.PromptsCheckMode != nil) {
-				t.Fatal("grouped collective detail acquired invented prompts settings")
+			// The stored pull-request check settings are facts on the row both
+			// route variants serve. The canonical binding must carry exactly the
+			// settings the fixture declares, never substituting a default or
+			// dropping a stored one.
+			if group.PostPromptsCheck == nil || group.PromptsCheckMode == nil {
+				t.Fatalf("canonical detail binding dropped the declared check settings for %s: got (%v, %v)", c.Name, group.PostPromptsCheck, group.PromptsCheckMode)
+			}
+			if *group.PostPromptsCheck != *c.PostPromptsCheck || string(*group.PromptsCheckMode) != *c.PromptsCheckMode {
+				t.Fatalf("canonical detail binding reported check settings (%t, %s) but the fixture declares (%t, %s)",
+					*group.PostPromptsCheck, *group.PromptsCheckMode, *c.PostPromptsCheck, *c.PromptsCheckMode)
 			}
 			encoded, err := json.Marshal(typed)
 			if err != nil {

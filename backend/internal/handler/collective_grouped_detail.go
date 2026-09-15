@@ -39,7 +39,10 @@ func (h *Handler) getCollectiveGrouped(w http.ResponseWriter, r *http.Request) {
 // collectiveGroupedDetail retains the existing collective body. Only its
 // transcript collection is replaced by a grouped page. Roster visibility and
 // pending-member visibility still follow the same owner flag as the flat route.
+// The pull-request check settings are the same stored row facts the flat route
+// serves, so the grouped body carries them too instead of dropping them.
 func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, role string, canRead bool, list schema.VillageSessionListPayload) (schema.VillageGroupedGroupDetailResponse, error) {
+	promptsCheckMode := schema.VillagePromptsCheckMode(group.PromptsCheckMode)
 	response := schema.VillageGroupedGroupDetailResponse{
 		Group: schema.VillageGroupDetailRecord{
 			ID: schema.VillageUUID(uuid.UUID(group.ID.Bytes).String()), Name: group.Name,
@@ -48,10 +51,17 @@ func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, rol
 			AcceptanceMode: schema.VillageGroupAcceptanceMode(group.AcceptanceMode),
 			DataAccess:     schema.VillageGroupDataAccess(group.DataAccess), LinkedGithubOrg: pgTextPointer(group.LinkedGithubOrg),
 			DisplayMembers: group.DisplayMembers, TranscriptDeletionPolicy: schema.VillageTranscriptDeletionPolicy(group.TranscriptDeletionPolicy),
+			PostPromptsCheck: &group.PostPromptsCheck, PromptsCheckMode: &promptsCheckMode,
 		},
 		Members: []schema.VillageGroupMember{}, Models: []schema.VillageGroupModelBreakdown{},
 		Contributors: []schema.VillageGroupContributor{}, CanRead: canRead,
 		YourRole: schema.VillageGroupViewerRole(role), TranscriptList: list,
+	}
+	// A stored mode outside the closed menu is refused rather than replaced by a
+	// guess, because a client cannot interpret it and a substituted setting would
+	// silently change the collective's pull-request behaviour.
+	if !promptsCheckMode.IsValid() {
+		return response, collectiveGroupedFailure(500, "collectiveGroupedDetail", "the stored pull-request check mode is outside the supported menu", "repair the collective's pull-request check setting through an explicit owner update and retry")
 	}
 	failure := func() (schema.VillageGroupedGroupDetailResponse, error) {
 		return response, collectiveGroupedFailure(500, "collectiveGroupedDetail", "collective metadata could not be read", "retry the collective page; a failed read is not an empty roster or dataset")

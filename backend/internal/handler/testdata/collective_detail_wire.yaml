@@ -1,24 +1,33 @@
 owner_id: 51000000-0000-4000-8000-000000000001
 pending_id: 51000000-0000-4000-8000-000000000002
-group_id: 52000000-0000-4000-8000-000000000001
 owner_name: detail-wire-owner
 seed_sql: |
   INSERT INTO users(id, github_id, github_username, is_discoverable, display_name, avatar_url, provider_user_id)
   VALUES ('51000000-0000-4000-8000-000000000001', 982501, 'detail-wire-owner', true, 'Owner Name', 'https://example.test/owner.png', '982501'),
          ('51000000-0000-4000-8000-000000000002', 982502, 'detail-wire-pending', true, 'Pending Name', 'https://example.test/pending.png', '982502');
+  -- The first collective keeps the column defaults for its pull-request check
+  -- settings (post_prompts_check true, prompts_check_mode informational); the
+  -- second stores both explicitly. A route that reported a default instead of
+  -- the stored row therefore disagrees with one of the two.
   INSERT INTO groups(id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy)
   VALUES ('52000000-0000-4000-8000-000000000001', 'Actual Collective', 'Preserved description', '51000000-0000-4000-8000-000000000001', '2026-09-01T10:00:00Z', '2026-09-02T10:00:00Z', 'curated', 'members_only', 'example-org', true, 'mandatory');
+  INSERT INTO groups(id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy, post_prompts_check, prompts_check_mode)
+  VALUES ('52000000-0000-4000-8000-000000000002', 'Override Collective', 'Preserved description', '51000000-0000-4000-8000-000000000001', '2026-09-03T10:00:00Z', '2026-09-04T10:00:00Z', 'curated', 'members_only', 'example-org', true, 'mandatory', false, 'required');
   INSERT INTO group_members(group_id, user_id, role, joined_at)
   VALUES ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', 'owner', '2026-09-01T10:01:00Z'),
-         ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000002', 'pending', '2026-09-01T10:02:00Z');
+         ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000002', 'pending', '2026-09-01T10:02:00Z'),
+         ('52000000-0000-4000-8000-000000000002', '51000000-0000-4000-8000-000000000001', 'owner', '2026-09-03T10:01:00Z'),
+         ('52000000-0000-4000-8000-000000000002', '51000000-0000-4000-8000-000000000002', 'pending', '2026-09-03T10:02:00Z');
+# Both route variants serve the same collective body and replace only the
+# transcript collection, so each case declares the stored pull-request check
+# settings that its own raw body carries. A route that invents a default or
+# drops a stored setting disagrees with the raw oracle and fails.
 cases:
-  # The seed inserts the group without prompts settings, so the row carries the
-  # database defaults (true / informational). The legacy detail route reads the
-  # full row and therefore reports those real settings; the grouped route
-  # projects a partial record and reports none. Either way the canonical
-  # binding must round-trip the raw wire without inventing or dropping a field.
-  - name: legacy-exact-group-record-without-prompts-settings
+  - name: legacy-exact-group-record-with-defaulted-check-settings
+    group_id: 52000000-0000-4000-8000-000000000001
     query: ""
+    post_prompts_check: true
+    prompts_check_mode: informational
     expected_json: |
       {
         "group":{"id":"52000000-0000-4000-8000-000000000001","name":"Actual Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-01T10:00:00Z","updated_at":"2026-09-02T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory","post_prompts_check":true,"prompts_check_mode":"informational"},
@@ -27,14 +36,44 @@ cases:
         "models":[],"contributors":[],"can_read":true,"your_role":"owner","transcripts":[],
         "pending_members":[{"role":"pending","joined_at":"2026-09-01T10:02:00Z","id":"51000000-0000-4000-8000-000000000002","github_username":"detail-wire-pending","display_name":"Pending Name","avatar_url":"https://example.test/pending.png","github_orgs":[]}]
       }
-  - name: grouped-exact-group-record-without-prompts-settings
+  - name: grouped-exact-group-record-with-defaulted-check-settings
+    group_id: 52000000-0000-4000-8000-000000000001
     query: "?view=grouped"
+    post_prompts_check: true
+    prompts_check_mode: informational
     expected_json: |
       {
-        "group":{"id":"52000000-0000-4000-8000-000000000001","name":"Actual Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-01T10:00:00Z","updated_at":"2026-09-02T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory"},
+        "group":{"id":"52000000-0000-4000-8000-000000000001","name":"Actual Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-01T10:00:00Z","updated_at":"2026-09-02T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory","post_prompts_check":true,"prompts_check_mode":"informational"},
         "members":[{"role":"owner","joined_at":"2026-09-01T10:01:00Z","id":"51000000-0000-4000-8000-000000000001","github_username":"detail-wire-owner","display_name":"Owner Name","avatar_url":"https://example.test/owner.png","github_orgs":[]}],
         "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0},
         "models":[],"contributors":[],"can_read":true,"your_role":"owner",
         "transcriptList":{"items":[],"page":1,"limit":20,"totalItems":0,"ordinarySessionTotal":0,"helperThreadTotal":0},
         "pending_members":[{"role":"pending","joined_at":"2026-09-01T10:02:00Z","id":"51000000-0000-4000-8000-000000000002","github_username":"detail-wire-pending","display_name":"Pending Name","avatar_url":"https://example.test/pending.png","github_orgs":[]}]
+      }
+  - name: legacy-exact-group-record-with-overridden-check-settings
+    group_id: 52000000-0000-4000-8000-000000000002
+    query: ""
+    post_prompts_check: false
+    prompts_check_mode: required
+    expected_json: |
+      {
+        "group":{"id":"52000000-0000-4000-8000-000000000002","name":"Override Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-03T10:00:00Z","updated_at":"2026-09-04T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory","post_prompts_check":false,"prompts_check_mode":"required"},
+        "members":[{"role":"owner","joined_at":"2026-09-03T10:01:00Z","id":"51000000-0000-4000-8000-000000000001","github_username":"detail-wire-owner","display_name":"Owner Name","avatar_url":"https://example.test/owner.png","github_orgs":[]}],
+        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0},
+        "models":[],"contributors":[],"can_read":true,"your_role":"owner","transcripts":[],
+        "pending_members":[{"role":"pending","joined_at":"2026-09-03T10:02:00Z","id":"51000000-0000-4000-8000-000000000002","github_username":"detail-wire-pending","display_name":"Pending Name","avatar_url":"https://example.test/pending.png","github_orgs":[]}]
+      }
+  - name: grouped-exact-group-record-with-overridden-check-settings
+    group_id: 52000000-0000-4000-8000-000000000002
+    query: "?view=grouped"
+    post_prompts_check: false
+    prompts_check_mode: required
+    expected_json: |
+      {
+        "group":{"id":"52000000-0000-4000-8000-000000000002","name":"Override Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-03T10:00:00Z","updated_at":"2026-09-04T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory","post_prompts_check":false,"prompts_check_mode":"required"},
+        "members":[{"role":"owner","joined_at":"2026-09-03T10:01:00Z","id":"51000000-0000-4000-8000-000000000001","github_username":"detail-wire-owner","display_name":"Owner Name","avatar_url":"https://example.test/owner.png","github_orgs":[]}],
+        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0},
+        "models":[],"contributors":[],"can_read":true,"your_role":"owner",
+        "transcriptList":{"items":[],"page":1,"limit":20,"totalItems":0,"ordinarySessionTotal":0,"helperThreadTotal":0},
+        "pending_members":[{"role":"pending","joined_at":"2026-09-03T10:02:00Z","id":"51000000-0000-4000-8000-000000000002","github_username":"detail-wire-pending","display_name":"Pending Name","avatar_url":"https://example.test/pending.png","github_orgs":[]}]
       }
