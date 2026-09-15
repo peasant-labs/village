@@ -111,6 +111,7 @@ export default function TranscriptDetailPage({
         ownerUsername={data.owner?.github_username}
         detail={detail}
         relationshipNavigation={data.relationshipNavigation}
+        transcriptContentHash={t.content_hash}
         error={contentError ? String((contentError as Error).message ?? contentError) : null}
       />
     </>
