@@ -304,6 +304,53 @@ Manual click-through checklist for the non-automated part of the gate:
 4. Open transcript `d41a8e`, confirm the route changes to `/transcripts/d41a8e`, then open profile `alice-dev` and confirm `/users/alice-dev`.
 5. Search `ai` again, open `AI Research Team`, confirm `/groups/ai-research-team`, then back out and confirm the shell still renders the card grid.
 
+### Grouped helper threads on the collective routes
+
+`grouped-helper-shoot.mjs` also drives the collective surfaces whose grouped
+read hangs a saved helper group under its owner row:
+
+- `collective-browse` — `/groups/{id}`. The collective's own browse list draws
+  the server's saved helper group under the owner row it was grouped with, and
+  the group expands to individually linked members. The browse list is
+  read-only: it offers no per-member selection.
+- `collective-contribute` — `/groups/{id}/contribute`. Expanding the group and
+  ticking ONE member arms the contribution bar with exactly one transcript.
+- `collective-review` — `/groups/{id}/review`. The same explicit per-member
+  selection on the owner's review queue; one tick arms the decision bar.
+
+Each arm asserts build provenance and capture geometry before writing a PNG:
+exactly one group, inside the owner row the server grouped it with, with no
+member request until the disclosure opens; the expanded group mounts
+individually linked members; and (on the two action surfaces) ticking one member
+arms the route's own action — never a group id, never an unticked sibling. The
+computed helper-group count style is probed too, because a scaled PNG cannot
+tell the design system's square radius and mono chrome apart from close values.
+
+`mock-rest-grouped-collective.mjs` serves the collective routes, the opt-in
+grouped pages, the registered member endpoints (with the route's own row arm
+per scope), and `/auth/me` as the collective's owner, so the contribute and
+review surfaces both render their action bars. It refuses a busy port.
+
+```sh
+CHROME=/path/to/google-chrome
+BASE=/abs/path/to/capture-base
+
+MOCK_REST_PORT=8847 node scripts/visual/mock-rest-grouped-collective.mjs &
+until curl -sf http://localhost:8847/api/v1/auth/me >/dev/null; do sleep 0.2; done
+NEXT_PUBLIC_API_URL=http://localhost:8847/api/v1 pnpm build
+PORT=3100 NEXT_PUBLIC_API_URL=http://localhost:8847/api/v1 pnpm start &
+
+for surface in collective-browse collective-contribute collective-review; do
+  for theme in dark light; do
+    GROUPED_SHOOT_SURFACE=$surface VILLAGE_ORIGIN=http://localhost:3100 \
+      CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/$surface/$theme
+  done
+done
+```
+
+Capture into `review-capture/` (gitignored). Per-round proof PNGs are never
+committed.
+
 ### Sessions started by another session
 
 `child-session-shoot.mjs` captures the one design on all three surfaces it

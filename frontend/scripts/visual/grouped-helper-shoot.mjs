@@ -16,6 +16,14 @@
      member-failure `/` — the registered member endpoint refuses, so the open
                     group must state the failure and offer a retry instead of
                     claiming a successful empty result.
+     collective-browse   `/groups/{id}` — the collective's own browse list
+                    carries the saved helper group under its owner row, read
+                    only (no per-member selection on a browse surface).
+     collective-contribute `/groups/{id}/contribute` — expanding the group and
+                    ticking ONE member arms the contribution action with exactly
+                    one transcript; no group id is ever sent.
+     collective-review   `/groups/{id}/review` — the same explicit per-member
+                    selection on the owner's review queue.
 
    Build provenance is asserted BEFORE any PNG is written: the served build must
    carry the grouped-helper host, the generated scope-first member requests, and
@@ -27,9 +35,13 @@
    radius and mono chrome on the element the capture is judged on.
 
    env:
-     GROUPED_SHOOT_SURFACE  discovery | profile | project | member-failure
+     GROUPED_SHOOT_SURFACE  discovery | profile | project | member-failure |
+                            collective-browse | collective-contribute |
+                            collective-review
      GROUPED_SHOOT_OWNER    profile/project owner handle (default alice-dev)
      GROUPED_SHOOT_HASH     64-hex project hash for the project arm
+     GROUPED_SHOOT_COLLECTIVE     collective id for the collective arms
+     GROUPED_SHOOT_COLLECTIVE_ROW the owner-row transcript id the group hangs under
      VILLAGE_ORIGIN         app origin (default http://localhost:3000)
      VILLAGE_URL            overrides the arm's URL
      CHROME_PATH            Chrome/Chromium binary (required)
@@ -43,7 +55,15 @@ const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core'))
 
 const CHROME = process.env.CHROME_PATH
 const SURFACE = process.env.GROUPED_SHOOT_SURFACE || 'discovery'
-const SURFACES = ['discovery', 'profile', 'project', 'member-failure']
+const SURFACES = [
+  'discovery',
+  'profile',
+  'project',
+  'member-failure',
+  'collective-browse',
+  'collective-contribute',
+  'collective-review',
+]
 const theme = process.argv[2] || 'dark'
 const out = process.argv[3] || `/tmp/village-grouped-${theme}`
 mkdirSync(out, { recursive: true })
@@ -60,6 +80,9 @@ if (!CHROME) {
 const ORIGIN = (process.env.VILLAGE_ORIGIN || 'http://localhost:3000').replace(/\/$/, '')
 const OWNER = process.env.GROUPED_SHOOT_OWNER || 'alice-dev'
 const HASH = process.env.GROUPED_SHOOT_HASH || '1'.repeat(64)
+const COLLECTIVE = process.env.GROUPED_SHOOT_COLLECTIVE || '50000000-0000-4000-8000-000000000001'
+const COLLECTIVE_ROW = process.env.GROUPED_SHOOT_COLLECTIVE_ROW || '22222222-2222-4222-8222-000000000001'
+const COLLECTIVE_GROUP = process.env.GROUPED_SHOOT_COLLECTIVE_GROUP || 'hg_capture_owner'
 const ARM_URL = {
   discovery: `${ORIGIN}/explore`,
   profile: `${ORIGIN}/users/${encodeURIComponent(OWNER)}`,
@@ -67,6 +90,9 @@ const ARM_URL = {
   // The failure arm reuses the home mount, whose grouped read is single-page:
   // one disclosure to open, one failing member request to state.
   'member-failure': `${ORIGIN}/`,
+  'collective-browse': `${ORIGIN}/groups/${COLLECTIVE}`,
+  'collective-contribute': `${ORIGIN}/groups/${COLLECTIVE}/contribute`,
+  'collective-review': `${ORIGIN}/groups/${COLLECTIVE}/review`,
 }
 const URL = process.env.VILLAGE_URL || ARM_URL[SURFACE]
 
@@ -288,7 +314,7 @@ if (SURFACE === 'discovery') {
   await capture(`village-${SURFACE}-grouped-continuation`, '.helper-group-item', SURFACE)
   console.log(`${SURFACE} provenance:`, JSON.stringify({ before, after }))
   console.log('computed helper-group count style:', JSON.stringify(style))
-} else {
+} else if (SURFACE === 'member-failure') {
   const ownerSel = '.helper-group[data-group-id="hg_demo_owner"]'
   const panel = await waitFor('[data-testid="home-page"]')
   const control = await waitFor(`${ownerSel} button.helper-group-trigger`)
@@ -337,6 +363,123 @@ if (SURFACE === 'discovery') {
   await capture('village-home-member-load-failed', '[data-testid="home-recent-sessions"]', 'member-failure')
   console.log('member-failure provenance:', JSON.stringify(shape))
   console.log('computed failure-notice style:', JSON.stringify(style))
+} else {
+  const groupSel = `.helper-group[data-group-id="${COLLECTIVE_GROUP}"]`
+  const panelSel =
+    SURFACE === 'collective-contribute'
+      ? '[data-testid="contribute-member-panel"]'
+      : SURFACE === 'collective-review'
+        ? '[data-testid="review-panel"]'
+        : null
+  const readinessSel =
+    SURFACE === 'collective-browse'
+      ? '[data-testid="owner-helper-groups"]'
+      : panelSel
+  const panel = await waitFor(readinessSel)
+  if (!panel) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} surface never mounted at ${URL}.
+  What failed: no ${readinessSel} appeared.
+  Why: the served build predates the grouped collective mount, or the mock answered no grouped items.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm readiness wait.
+  Fix: restart the mock (mock-rest-grouped-collective.mjs), rebuild from this worktree, and retry.`, 2)
+  }
+
+  // BEFORE expanding: exactly ONE group, under the owner row the server
+  // grouped it with, and no member request yet. A page that doubled the group,
+  // moved it, or fetched members eagerly fails here.
+  const closed = await page.evaluate((rowSel, sel) => {
+    const slot = document.querySelector(rowSel)
+    return {
+      rowSlots: document.querySelectorAll(rowSel).length,
+      groups: document.querySelectorAll(sel).length,
+      inRow: slot == null ? -1 : slot.querySelectorAll(sel).length,
+      memberRows: [...document.querySelectorAll(`${sel} .helper-thread-row`)].length,
+      memberRowsInRow: slot == null ? -1 : slot.querySelectorAll(`${sel} .helper-thread-row`).length,
+    }
+  }, SURFACE === 'collective-browse'
+    ? '[data-testid="owner-helper-groups"]'
+    : `[data-helper-group-owner="${COLLECTIVE_ROW}"]`, groupSel)
+  if (closed.inRow !== 1 || closed.groups !== 1 || closed.memberRows !== 0 || closed.memberRowsInRow !== 0) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} group is not the single undisclosed mount.
+  What failed: ${JSON.stringify(closed)}.
+  Why: the group rendered more than once, rendered outside its owner row, or loaded members before expansion.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm provenance check.
+  Fix: rebuild and restart the server from this worktree, then retry.`, 2)
+  }
+
+  const control = await waitFor(`${groupSel} button.helper-group-trigger`)
+  if (!control) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} group carries no disclosure control.`, 2)
+  }
+  await control.click()
+  const memberLink = await waitFor(`${groupSel} a.helper-thread-open`)
+  const box = await page.$(`${groupSel} input[aria-label^="select "]`)
+  // A browse surface is read-only: it draws the individually linked members but
+  // offers no per-member selection.
+  const selectionExpected = SURFACE !== 'collective-browse'
+  if (!memberLink || (selectionExpected && !box)) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] expanding the ${SURFACE} group loaded no ${selectionExpected ? 'individually selectable' : 'linked'} member.
+  What failed: link=${memberLink != null} checkbox=${box != null} after the disclosure opened.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm expansion check.
+  Fix: confirm the mock answers /transcript-groups/{id}/members with the right route arm, then retry.`, 2)
+  }
+  if (!selectionExpected) {
+    const strayBox = await page.$(`${groupSel} input[type="checkbox"]`)
+    if (strayBox) {
+      await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} group offers a selection control on a read-only surface.`, 2)
+    }
+  }
+
+  const openedLinks = await page.evaluate((sel) =>
+    [...document.querySelectorAll(`${sel} a.helper-thread-open`)].map((a) => a.getAttribute('href')), groupSel)
+  if (openedLinks.length !== 2 || openedLinks.some((href) => !/^\/transcripts\/[0-9a-f-]+$/.test(href ?? ''))) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the expanded ${SURFACE} group is not explicit per-member links.
+  What failed: ${JSON.stringify(openedLinks)}.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm member-link check.
+  Fix: confirm the host links each member with its own transcript id, then retry.`, 2)
+  }
+
+  // The BROWSE list is read-only: no selection control belongs on it.
+  if (SURFACE === 'collective-browse') {
+    const style = await assertComputed(
+      `${groupSel} .helper-group-count`,
+      { fontFamily: isMono, borderRadius: isSquare },
+      'the collective browse helper group count',
+    )
+    await capture('village-collective-grouped-browse', null, 'collective-browse')
+    console.log('collective-browse provenance:', JSON.stringify({ closed, openedLinks }))
+    console.log('computed helper-group count style:', JSON.stringify(style))
+  } else {
+    // Selecting ONE member must arm the route's own action bar with exactly
+    // one transcript; the server never receives a group id.
+    await box.click()
+    const armed = await page.evaluate((linkCount) => ({
+      memberLinks: document.querySelectorAll('a.helper-thread-open').length,
+      sameCount: linkCount === document.querySelectorAll('a.helper-thread-open').length,
+      action: [...document.querySelectorAll('button')]
+        .map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim())
+        .filter((label) => /transcript|selected/i.test(label)),
+    }), openedLinks.length)
+    const armedText = await page.evaluate(() =>
+      (document.body.textContent ?? '').replace(/\s+/g, ' '),
+    )
+    const expectedWord = SURFACE === 'collective-contribute' ? 'contribute 1 transcript' : '1 selected'
+    if (!armedText.includes(expectedWord)) {
+      await fail(`ERROR [grouped-helper-shoot.mjs] selecting one member did not arm the ${SURFACE} action.
+  What failed: the page does not state "${expectedWord}" after one member was ticked; action labels=${JSON.stringify(armed.action)}.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm selection check.
+  Means: the capture would not evidence an explicit per-helper selection.
+  Fix: confirm the page's selection count includes helper members, then retry.`, 2)
+    }
+    const style = await assertComputed(
+      `${groupSel} .helper-group-count`,
+      { fontFamily: isMono, borderRadius: isSquare },
+      `the ${SURFACE} helper group count`,
+    )
+    await capture(`village-${SURFACE}-grouped-helper`, panelSel, SURFACE)
+    console.log(`${SURFACE} provenance:`, JSON.stringify({ closed, openedLinks, armed }))
+    console.log('computed helper-group count style:', JSON.stringify(style))
+  }
 }
 
 console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
