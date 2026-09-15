@@ -3,6 +3,7 @@
 import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { ConnectionPill, DataState } from "@/lib/ft-ui";
+import { setAuthTokenCookie } from "@/lib/api";
 
 function CallbackHandler() {
   const searchParams = useSearchParams();
@@ -10,7 +11,7 @@ function CallbackHandler() {
   useEffect(() => {
     const token = searchParams.get("token");
     if (token) {
-      document.cookie = `peasant_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; secure; samesite=lax`;
+      setAuthTokenCookie(token);
     }
     // Use hard navigation so the auth state is fully re-fetched
     window.location.replace("/");
