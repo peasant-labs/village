@@ -4,6 +4,10 @@ name: Backend Tests
 # to the long-lived branches). The integration suite (`-tags=integration`) needs
 # real PostgreSQL and S3-compatible storage. PostgreSQL runs as a service
 # container; the workflow starts an ephemeral pinned MinIO container explicitly.
+#
+# Jobs run on the organization's self-hosted container pool when a runner is
+# online (the routing job picks it dynamically) and on GitHub-hosted
+# ubuntu-24.04 otherwise; both paths are kept green.
 on:
   pull_request:
     paths:
@@ -55,13 +59,48 @@ permissions:
   contents: read
 
 jobs:
+  determine-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      runner: ${{ steps.pick.outputs.runner }}
+    steps:
+      - name: Pick a runner
+        id: pick
+        env:
+          GH_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Bound the availability query so a hang cannot consume the whole
+          # job budget and skip the fallback decision.
+          if ! online=$(timeout 30s gh api /orgs/peasant-labs/actions/runners --paginate \
+              --jq '.runners[] | select(.status == "online") | select(any(.labels[]; .name == "container")) | .name' 2>/dev/null | wc -l); then
+            echo "::warning::runner availability query failed; using the fallback"
+            online=0
+          fi
+          echo "online runners: ${online}"
+          if [ "${online}" -gt 0 ]; then
+            echo 'runner=["self-hosted","container"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'runner=["ubuntu-24.04"]' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Report chosen runner
+        env:
+          CHOSEN: ${{ steps.pick.outputs.runner }}
+        run: 'echo "chosen: $CHOSEN"'
+
   test:
     name: Backend, PostgreSQL, and MinIO
-    runs-on: ubuntu-24.04
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
 
     # Ephemeral Postgres for the -tags=integration suite. TEST_DATABASE_URL points
     # the tests at this service; each integration test runs RunMigrations itself,
     # so no migration step is needed here.
+    #
+    # Ports and container identity are dynamic: the self-hosted pool shares one
+    # podman socket and host network, so fixed host ports (5432/9000) or a fixed
+    # MinIO container name collide the moment two backend jobs run concurrently.
     services:
       postgres:
         # postgres 16.14-alpine3.24, pinned to the linux/amd64 manifest used by ubuntu-24.04.
@@ -71,7 +110,7 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: village_test
         ports:
-          - 5432:5432
+          - 5432
         # Gate on readiness so the first connection never races startup.
         options: >-
           --health-cmd "pg_isready -U test -d village_test"
@@ -80,11 +119,7 @@ jobs:
           --health-retries 10
     env:
       MINIO_IMAGE: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
-      MINIO_CONTAINER: village-test-minio
-      TEST_DATABASE_URL: postgres://test:test@localhost:5432/village_test?sslmode=disable
-      TEST_DATABASE_ADMIN_URL: postgres://test:test@localhost:5432/postgres?sslmode=disable
-      TEST_DATABASE_URL_TEMPLATE: postgres://test:test@localhost:5432/{database}?sslmode=disable
-      TEST_S3_ENDPOINT: http://localhost:9000
+      MINIO_CONTAINER: minio-${{ github.run_id }}-${{ github.run_attempt }}
       TEST_S3_BUCKET: peasant-transcripts
       TEST_S3_ACCESS_KEY: minioadmin
       TEST_S3_SECRET_KEY: minioadmin
@@ -101,11 +136,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Ephemeral host port; the runner picks an unused one.
           docker run --detach --name "$MINIO_CONTAINER" \
-            --publish 9000:9000 \
+            --publish 0:9000 \
             --env MINIO_ROOT_USER="$TEST_S3_ACCESS_KEY" \
             --env MINIO_ROOT_PASSWORD="$TEST_S3_SECRET_KEY" \
             "$MINIO_IMAGE" server /data
+
+          MINIO_PORT="$(docker port "$MINIO_CONTAINER" 9000/tcp | head -n 1 | sed 's/.*://')"
+          if [[ -z "$MINIO_PORT" ]]; then
+            echo "MinIO port allocation failed; container logs follow." >&2
+            docker logs "$MINIO_CONTAINER" >&2 || true
+            exit 1
+          fi
+          echo "TEST_S3_ENDPOINT=http://localhost:${MINIO_PORT}" >> "$GITHUB_ENV"
 
           ready=false
           for attempt in {1..30}; do
@@ -117,7 +161,7 @@ jobs:
             sleep 2
           done
           if [[ "$ready" != true ]]; then
-            echo "MinIO did not become ready at $TEST_S3_ENDPOINT after $attempt/30 attempts; container logs follow." >&2
+            echo "MinIO did not become ready at http://localhost:${MINIO_PORT} after $attempt/30 attempts; container logs follow." >&2
             docker logs "$MINIO_CONTAINER" >&2 || true
             exit 1
           fi
@@ -140,9 +184,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --yes postgresql-client
-          pg_isready --dbname "$TEST_DATABASE_ADMIN_URL"
+
+          # Bounded readiness probe through the service container's own client.
+          # The postgres image ships `pg_isready` and the same docker socket
+          # already runs the MinIO container, so this runs unchanged on the
+          # self-hosted pool (no apt / no host package manager) and on the
+          # GitHub-hosted fallback. `pg_isready` performs a real protocol-level
+          # connection attempt, so it confirms the postmaster is accepting
+          # connections -- not merely that the TCP port is listening. The
+          # retries absorb startup latency.
+          pg_ready=false
+          for attempt in {1..30}; do
+            if docker exec ${{ job.services.postgres.id }} pg_isready -U test -d village_test; then
+              pg_ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [[ "$pg_ready" != true ]]; then
+            echo "PostgreSQL did not become ready after $attempt/30 attempts." >&2
+            exit 1
+          fi
+
           docker exec "$MINIO_CONTAINER" mc stat "local/$TEST_S3_BUCKET" >/dev/null
 
       - name: Build
@@ -151,6 +214,8 @@ jobs:
 
       - name: Unit tests (-race)
         working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/village_test?sslmode=disable
         run: go test -race ./...
 
       - name: Formatting
@@ -162,6 +227,10 @@ jobs:
         run: go vet ./...
 
       - name: Isolated integration tests (-tags=integration, -race)
+        env:
+          TEST_DATABASE_URL: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/village_test?sslmode=disable
+          TEST_DATABASE_ADMIN_URL: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/postgres?sslmode=disable
+          TEST_DATABASE_URL_TEMPLATE: postgres://test:test@localhost:${{ job.services.postgres.ports[5432] }}/{database}?sslmode=disable
         run: |
           scripts/test-go-test-events.sh
           scripts/run-integration-gates.sh
@@ -186,7 +255,8 @@ jobs:
   # assertion lives in the production-artifacts job (it builds the image).
   license-notices:
     name: Third-party license notices
-    runs-on: ubuntu-24.04
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 15
     steps:
       - name: Checkout repository
@@ -205,7 +275,8 @@ jobs:
 
   frontend:
     name: Frontend frozen build
-    runs-on: ubuntu-24.04
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -247,7 +318,8 @@ jobs:
 
   production-artifacts:
     name: Production artifact provenance
-    runs-on: ubuntu-24.04
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
