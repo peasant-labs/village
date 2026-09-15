@@ -15,7 +15,7 @@ cases:
         sessionStart: "2026-09-06T14:00:00Z"
         turns:
           - {index: 0, role: user, content: "first ask", timestamp: "2026-09-06T14:02:00Z"}
-          - {index: 1, role: user, content: "run the plan", timestamp: "2026-09-06T14:02:30Z", command: {name: "/superpowers:brainstorming"}}
+          - {index: 1, role: user, content: "run the plan", timestamp: "2026-09-06T14:02:30Z", command: {name: "/superpowers:brainstorming", args: the header story}}
           - {index: 2, role: assistant, content: "working on it", timestamp: "2026-09-06T14:03:00Z"}
           - {index: 3, role: user, content: "second ask with <REDACTED>", timestamp: "2026-09-06T14:05:00Z"}
     commits:

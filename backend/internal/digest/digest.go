@@ -139,6 +139,7 @@ func Build(in Input) (schema.PromptDigest, error) {
 					TranscriptID: session.TranscriptID,
 					Timestamp:    turn.Timestamp,
 					Text:         text,
+					Args:         turn.Command.Args,
 					TurnIndex:    intPtr(turn.Index),
 				})
 			case isPrompt(turn):

@@ -79,6 +79,9 @@ func itemLine(item schema.PromptDigestItem) string {
 	case schema.DigestItemPrompt:
 		return fmt.Sprintf("- %d. %s\n", deref(item.Ordinal), strings.ReplaceAll(item.Text, "\n", " "))
 	case schema.DigestItemSkill:
+		if item.Args != "" {
+			return fmt.Sprintf("- %s %s\n", item.Text, item.Args)
+		}
 		return fmt.Sprintf("- %s\n", item.Text)
 	case schema.DigestItemCommit:
 		line := fmt.Sprintf("- commit %s", item.CommitSHA)

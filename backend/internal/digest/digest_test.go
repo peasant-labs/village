@@ -228,6 +228,42 @@ func TestDigestRedactionPlaceholderSurvives(t *testing.T) {
 	t.Fatal("the short_session fixture is missing")
 }
 
+// TestDigestSkillArgsAreCarriedAndRendered proves a skill invocation's argument
+// is carried on the item and rendered next to the command name.
+func TestDigestSkillArgsAreCarriedAndRendered(t *testing.T) {
+	for _, c := range loadCases(t) {
+		if c.Name != "short_session" {
+			continue
+		}
+		built, err := Build(c.toInput(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, item := range built.Items {
+			if item.Kind != schema.DigestItemSkill {
+				continue
+			}
+			found = true
+			if item.Text != "/superpowers:brainstorming" || item.Args != "the header story" {
+				t.Fatalf("skill item = %q / args %q, want the name and its argument", item.Text, item.Args)
+			}
+		}
+		if !found {
+			t.Fatal("no skill item was built")
+		}
+		out, err := Render(built, VillageTier)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out, "/superpowers:brainstorming the header story") {
+			t.Fatalf("rendered output does not show the skill args:\n%s", out)
+		}
+		return
+	}
+	t.Fatal("the short_session fixture is missing")
+}
+
 // pinGolden compares out to testdata/golden/<case>.<tier>.md, or rewrites it
 // under -update.
 func pinGolden(t *testing.T, caseName, tier, out string) {
