@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, type ReactNode } from "react";
+import { RefreshCw } from "lucide-react";
 import {
   HelperGroup,
   HelperGroupListItem,
@@ -30,6 +31,11 @@ import { useHelperGroupMembers } from "@/lib/queries/helperGroups";
  *  • The member request. Members come only from the server summary's opaque
  *    scope, so no caller can widen a query by adding filters; the request is
  *    sent only while the group is open.
+ *  • An honest member-load state. While a page is in flight, and when the
+ *    request fails for any reason other than a 409, the group states that — it
+ *    never falls through to the primitive's "no saved helpers match" notice,
+ *    which would describe a failed load as an empty result. The recovery is a
+ *    retry of the SAME scope and page, never a broader request.
  *  • Fail-closed scope expiry. An expired/invalid scope is a 409, and the
  *    primitive shows only a refresh of the ORIGINATING list. This host passes
  *    that refresh straight through and never substitutes an all-members view.
@@ -40,6 +46,54 @@ import { useHelperGroupMembers } from "@/lib/queries/helperGroups";
 
 /** How many members one disclosure loads per page. */
 export const HELPER_MEMBER_PAGE_SIZE = 20;
+
+/**
+ * The member state a group states while it holds no members of its own.
+ *
+ * The published primitive draws a member list or, when the list is empty, its
+ * own "no saved helpers match the current query and access" notice. That copy
+ * is TRUE for a successful empty page and FALSE for a request still in flight
+ * or one that failed, so the host supplies this one non-member row instead of
+ * letting an empty array claim a successful result. It is never a member: it
+ * carries no identity, no link and no checkbox.
+ */
+type MemberLoadState = "loading" | "failed";
+
+const MEMBER_LOAD_ROWS: Record<MemberLoadState, { memberLoadState: MemberLoadState }> = {
+  loading: { memberLoadState: "loading" },
+  failed: { memberLoadState: "failed" },
+};
+
+/** The host's own member state row, or null for an ordinary member item. */
+function memberLoadState(raw: unknown): MemberLoadState | null {
+  if (raw == null || typeof raw !== "object") return null;
+  const value = (raw as { memberLoadState?: unknown }).memberLoadState;
+  return value === "loading" || value === "failed" ? value : null;
+}
+
+/** The same scope and page restated, so a reader knows what a retry asks for. */
+function MemberLoadFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="helper-group-notice" role="alert" data-testid="helper-group-load-failed">
+      <p>
+        these saved helpers could not be loaded, so no members are shown. the request stayed
+        scoped to this group and nothing broader was loaded. retry to ask for the same scope
+        again, or refresh the originating list.
+      </p>
+      <button type="button" className="helper-group-action" onClick={onRetry}>
+        <RefreshCw aria-hidden="true" /> retry
+      </button>
+    </div>
+  );
+}
+
+function MemberLoadPending() {
+  return (
+    <p className="helper-group-notice" role="status" data-testid="helper-group-loading">
+      loading this group&apos;s saved helpers.
+    </p>
+  );
+}
 
 /**
  * The host's per-member selection contract. Ids are individual transcript ids;
@@ -108,11 +162,27 @@ export function ScopedHelperGroup({
   });
   const payload = members.data;
   const rows = payload?.members ?? [];
+  const refetchMembers = members.refetch;
   // While a page is in flight the server's own total is not yet on screen; the
   // summary's saved-identity count is the honest stand-in, never a review or
   // turn total.
   const total = payload?.total ?? group.helperThreadCount;
   const totalPages = Math.max(1, Math.ceil(total / HELPER_MEMBER_PAGE_SIZE));
+
+  // A 409 is the primitive's own fail-closed expiry state; every other failure
+  // is the host's to state. `members.isPending` covers the first page, a page
+  // change and an expanded group whose request has not answered yet — all of
+  // which would otherwise render as a successful empty result.
+  const loadState: MemberLoadState | null =
+    members.isError && !members.refreshRequired
+      ? "failed"
+      : members.isPending
+        ? "loading"
+        : null;
+  // A single host-owned row stands in for the member list while there is none
+  // to draw. It is never a member: it has no transcript identity and renders
+  // only the state it reports.
+  const displayedRows: unknown[] = loadState == null ? rows : [MEMBER_LOAD_ROWS[loadState]];
 
   const handleExpandedChange = useCallback((open: boolean) => {
     setExpanded(open);
@@ -127,6 +197,9 @@ export function ScopedHelperGroup({
 
   const renderMember = useCallback(
     (raw: unknown): ReactNode => {
+      const state = memberLoadState(raw);
+      if (state === "loading") return <MemberLoadPending />;
+      if (state === "failed") return <MemberLoadFailed onRetry={() => void refetchMembers()} />;
       const member = raw as VillageSessionListItem;
       const session = itemSession(member);
       if (session == null) {
@@ -163,11 +236,14 @@ export function ScopedHelperGroup({
         </HelperThreadRow>
       );
     },
-    [onRefreshOrigin, selection],
+    [refetchMembers, onRefreshOrigin, selection],
   );
 
+  // Paging belongs to a loaded page. While the members are loading or have
+  // failed there is no page to page from, so the controls are withheld rather
+  // than offering a second request against the same unanswered scope.
   const memberFooter =
-    totalPages > 1 ? (
+    loadState == null && totalPages > 1 ? (
       <div className="flex items-center gap-3" data-testid="helper-group-pager">
         <button
           type="button"
@@ -196,13 +272,15 @@ export function ScopedHelperGroup({
       groupId={group.groupId}
       memberScope={group.memberScope}
       helperThreadCount={group.helperThreadCount}
-      members={rows}
+      members={displayedRows}
       expanded={expanded}
       onExpandedChange={handleExpandedChange}
       scopeExpired={members.refreshRequired}
       onRefreshList={onRefreshOrigin}
       isMemberSelected={isMemberSelected}
       getMemberKey={(raw: unknown) => {
+        const state = memberLoadState(raw);
+        if (state != null) return `member-load-${state}`;
         const member = raw as VillageSessionListItem;
         return itemSession(member)?.id ?? member.context?.groupId ?? group.groupId;
       }}
@@ -359,9 +437,11 @@ export function ScopedHelperGroupedRow({
 }
 
 /**
- * The grouped helper rows of one page, in server order: an owner row for each
- * admitted ordinary transcript (with its helper groups), then the helper-only
- * context containers. A page with no helper groups renders nothing.
+ * The grouped rows of one page, in server order: an owner row for each admitted
+ * ordinary transcript (with its helper groups), then the helper-only context
+ * containers. Every item on the page renders exactly once — a helper-only
+ * context is drawn here, not here AND again by a second renderer. A page whose
+ * items carry neither a helper group nor a context container renders nothing.
  */
 export function ScopedGroupedHelperRows({
   items,
@@ -372,11 +452,16 @@ export function ScopedGroupedHelperRows({
   onRefreshOrigin: () => void;
   selection?: ScopedHelperSelection;
 }) {
-  const withGroups = items.filter((item) => (item.helperGroups ?? []).length > 0);
-  if (withGroups.length === 0) return null;
+  // A context container is read context whether or not it currently carries a
+  // group summary, so it is kept in the list either way; an ordinary row with no
+  // saved helpers has nothing to disclose and is skipped.
+  const disclosed = items.filter(
+    (item) => item.kind === "context_container" || (item.helperGroups ?? []).length > 0,
+  );
+  if (disclosed.length === 0) return null;
   return (
     <div className="divide-y divide-rule" data-testid="grouped-helper-rows">
-      {withGroups.map((item) => (
+      {disclosed.map((item) => (
         <ScopedHelperGroupedRow
           key={itemSession(item)?.id ?? item.context?.groupId ?? ""}
           item={item}

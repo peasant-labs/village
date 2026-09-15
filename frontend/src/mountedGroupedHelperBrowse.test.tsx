@@ -7,6 +7,7 @@ import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import {
   loadGroupedHelperMountFixtures,
   memberItem,
+  memberPageFor,
   memberUUID,
 } from "@/test/groupedHelperMountFixtures";
 import type { TranscriptListItem, User } from "@/lib/types";
@@ -104,16 +105,12 @@ function installREST(): Calls {
       if (url.pathname.includes("/transcript-groups/")) {
         calls.members.push(url.search);
         const scope = url.searchParams.get("scope");
-        const spec =
-          scope === fixtures.groups.owner.memberScope
-            ? fixtures.pages.pageOne
-            : scope === fixtures.groups.context.memberScope
-              ? fixtures.pages.otherMembers
-              : null;
+        const page = Number(url.searchParams.get("page") ?? 1);
+        const spec = scope == null ? undefined : memberPageFor(fixtures, scope, page);
         if (spec == null) return json({ error: "unknown scope" }, 409);
         return json({
           members: spec.members.map(memberItem),
-          page: spec.page,
+          page,
           limit: spec.limit,
           total: spec.total,
         });

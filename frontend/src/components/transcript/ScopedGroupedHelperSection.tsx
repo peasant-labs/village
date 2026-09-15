@@ -1,10 +1,7 @@
 "use client";
 
 import { useGroupedTranscripts } from "@/lib/queries/helperGroups";
-import {
-  ScopedContextContainerList,
-  ScopedGroupedHelperRows,
-} from "./ScopedHelperGroups";
+import { ScopedGroupedHelperRows } from "./ScopedHelperGroups";
 
 /**
  * The saved-helper-thread section of a discovery-style surface.
@@ -16,6 +13,11 @@ import {
  *
  * A page whose grouped response carries no helper groups renders nothing at
  * all, so a commons without saved helpers looks exactly as it did.
+ *
+ * The section renders its items through ONE path. An owner row, an owner row
+ * with saved helpers and a helper-only context container are each drawn once,
+ * in server order; a second renderer for the same context would put two
+ * independent controls on one group.
  */
 export default function ScopedGroupedHelperSection({
   params,
@@ -26,17 +28,16 @@ export default function ScopedGroupedHelperSection({
 }) {
   const grouped = useGroupedTranscripts(params);
   const items = grouped.data?.items ?? [];
-  const hasRows = items.some(
+  const hasDisclosures = items.some(
     (item) => item.kind === "context_container" || (item.helperGroups ?? []).length > 0,
   );
-  if (grouped.isError || !hasRows) return null;
+  if (grouped.isError || !hasDisclosures) return null;
 
   return (
     <div className="mt-4 flex flex-col gap-3" data-testid="grouped-helper-section">
       <p className="font-mono text-xs text-ink-3">saved helper threads</p>
       <div className="border border-rule bg-surface">
         <ScopedGroupedHelperRows items={items} onRefreshOrigin={grouped.refreshOrigin} />
-        <ScopedContextContainerList items={items} onRefreshOrigin={grouped.refreshOrigin} />
       </div>
     </div>
   );
