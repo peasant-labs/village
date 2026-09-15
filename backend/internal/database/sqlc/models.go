@@ -88,6 +88,11 @@ type GithubAppInstallation struct {
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type GithubWebhookDelivery struct {
+	DeliveryID string             `db:"delivery_id" json:"delivery_id"`
+	ReceivedAt pgtype.Timestamptz `db:"received_at" json:"received_at"`
+}
+
 type GovernanceEventType struct {
 	ID          string `db:"id" json:"id"`
 	Description string `db:"description" json:"description"`
