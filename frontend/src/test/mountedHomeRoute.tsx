@@ -140,10 +140,11 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
       // schedule) so a page's helper groups can never change the flat list's
       // retry behaviour under test.
       if (path.includes("view=grouped")) {
+        const groupedQuery = new URLSearchParams(path.slice(path.indexOf("?") + 1));
         return json({
           items: [],
-          page: 1,
-          limit: 20,
+          page: Number(groupedQuery.get("page") ?? 1),
+          limit: Number(groupedQuery.get("limit") ?? 20),
           totalItems: 0,
           ordinarySessionTotal: 0,
           helperThreadTotal: 0,

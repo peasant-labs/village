@@ -1,0 +1,57 @@
+# Mutations that must be KILLED by the mounted helper-group suite.
+#
+# Each entry edits one anchor in the named corpus and requires the named
+# production-path test to fail. Three change a case's declared expectation (the
+# request scope, the selected member, the mounted members) and must fail an
+# assertion; three damage the corpus itself (a renamed required case, a
+# non-boolean field, a page composition with no continuation) and must fail
+# loader validation. A mutation that survives means the mounted test is not
+# consuming the fixture field it claims to.
+mutations:
+  - name: expected-request-scope-drift
+    file: ../../src/testdata/grouped-helper-mounts.yaml
+    original: "  - name: expand-loads-exact-scope\n    group: owner\n    expand: true\n    loadingNotice: helper-group-loading\n    expectedRequests:\n      - {scope: scope-fixture-owner, page: \"1\", limit: \"20\"}\n"
+    replacement: "  - name: expand-loads-exact-scope\n    group: owner\n    expand: true\n    loadingNotice: helper-group-loading\n    expectedRequests:\n      - {scope: scope-fixture-other, page: \"1\", limit: \"20\"}\n"
+    testFile: src/components/transcript/ScopedHelperGroups.test.tsx
+    testName: expand-loads-exact-scope
+    failure: assertion
+
+  - name: expected-selected-drift
+    file: ../../src/testdata/grouped-helper-mounts.yaml
+    original: "    expectedSelected: [helper-b]\n"
+    replacement: "    expectedSelected: [helper-a]\n"
+    testFile: src/components/transcript/ScopedHelperGroups.test.tsx
+    testName: selection-is-one-member
+    failure: assertion
+
+  - name: expected-member-drift
+    file: ../../src/testdata/grouped-helper-mounts.yaml
+    original: "  - name: expand-loads-exact-scope\n    group: owner\n    expand: true\n    loadingNotice: helper-group-loading\n    expectedRequests:\n      - {scope: scope-fixture-owner, page: \"1\", limit: \"20\"}\n    expectedMembers: [helper-a, helper-b]\n"
+    replacement: "  - name: expand-loads-exact-scope\n    group: owner\n    expand: true\n    loadingNotice: helper-group-loading\n    expectedRequests:\n      - {scope: scope-fixture-owner, page: \"1\", limit: \"20\"}\n    expectedMembers: [helper-a, helper-c]\n"
+    testFile: src/components/transcript/ScopedHelperGroups.test.tsx
+    testName: expand-loads-exact-scope
+    failure: assertion
+
+  - name: required-case-renamed
+    file: ../../src/testdata/grouped-helper-mounts.yaml
+    original: "- name: selection-is-one-member\n"
+    replacement: "- name: selection-is-one-member-renamed\n"
+    testFile: src/components/transcript/ScopedHelperGroups.test.tsx
+    testName: selection-is-one-member-renamed
+    failure: loader
+
+  - name: invalid-expand-field
+    file: ../../src/testdata/grouped-helper-mounts.yaml
+    original: "  - name: collapsed-sends-no-request\n    group: owner\n    expand: false\n"
+    replacement: "  - name: collapsed-sends-no-request\n    group: owner\n    expand: \"no\"\n"
+    testFile: src/components/transcript/ScopedHelperGroups.test.tsx
+    testName: collapsed-sends-no-request
+    failure: loader
+
+  - name: continuation-total-drift
+    file: ../../src/testdata/grouped-helper-surfaces.yaml
+    original: "    firstPageOrdinary: 100\n    totalItems: 101\n    laterContext:\n      groupId: hg_fixture_profile_later\n"
+    replacement: "    firstPageOrdinary: 100\n    totalItems: 100\n    laterContext:\n      groupId: hg_fixture_profile_later\n"
+    testFile: src/mountedGroupedHelperSurfaces.test.tsx
+    testName: profile-continuation-reaches-later-context
+    failure: loader

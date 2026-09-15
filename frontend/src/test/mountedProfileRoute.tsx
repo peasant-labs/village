@@ -136,12 +136,15 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
     }
     if (path.startsWith("/transcripts?")) {
       // The grouped helper read is a separate, opt-in view of the same route;
-      // answering it here keeps the flat library request unchanged.
+      // answering it here keeps the flat library request unchanged. Its own
+      // page/limit are echoed because the grouped query validates the response
+      // against the page it requested.
       if (path.includes("view=grouped")) {
+        const groupedQuery = new URLSearchParams(path.slice(path.indexOf("?") + 1));
         return json({
           items: [],
-          page: 1,
-          limit: 20,
+          page: Number(groupedQuery.get("page") ?? 1),
+          limit: Number(groupedQuery.get("limit") ?? 20),
           totalItems: 0,
           ordinarySessionTotal: 0,
           helperThreadTotal: 0,

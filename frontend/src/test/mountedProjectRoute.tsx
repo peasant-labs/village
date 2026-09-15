@@ -217,11 +217,14 @@ export function installProfileRouteREST(
     }
     if (url.includes("/transcripts?")) {
       // The grouped helper read is a separate, opt-in view of the same route.
+      // Its own page/limit are echoed: the grouped query validates the response
+      // against the page it asked for, and a fixed value would be a mismatch.
       if (url.includes("view=grouped")) {
+        const groupedQuery = new URL(url).searchParams;
         return json({
           items: [],
-          page: 1,
-          limit: 20,
+          page: Number(groupedQuery.get("page") ?? 1),
+          limit: Number(groupedQuery.get("limit") ?? 20),
           totalItems: 0,
           ordinarySessionTotal: 0,
           helperThreadTotal: 0,
