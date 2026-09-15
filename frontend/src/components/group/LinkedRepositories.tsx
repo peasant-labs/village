@@ -208,8 +208,8 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
       className="flex flex-col gap-2 border-b border-rule px-4 py-3"
     >
       <span className="v2-eyebrow">Link a repository</span>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-        <div className="flex-1 [&_.is-field]:mb-0">
+      <div className="flex flex-col gap-2">
+        <div className="[&_.is-field]:mb-0">
           <Input
             value={repoInput}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRepoInput(e.target.value)}
@@ -217,27 +217,29 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
             aria-label="Repository owner/name"
           />
         </div>
-        <div className="sm:w-44 [&_.is-field]:mb-0">
-          <Input
-            value={installationId}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setInstallationId(e.target.value.replace(/[^\d]/g, ""))
-            }
-            inputMode="numeric"
-            placeholder="installation id"
-            aria-label="GitHub App installation ID"
-          />
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1 [&_.is-field]:mb-0">
+            <Input
+              value={installationId}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setInstallationId(e.target.value.replace(/[^\d]/g, ""))
+              }
+              inputMode="numeric"
+              placeholder="installation id"
+              aria-label="GitHub App installation ID"
+            />
+          </div>
+          <Button
+            type="submit"
+            size="sm"
+            variant="primary"
+            icon={Github}
+            loading={link.isPending}
+            disabled={link.isPending}
+          >
+            Link
+          </Button>
         </div>
-        <Button
-          type="submit"
-          size="sm"
-          variant="primary"
-          icon={Github}
-          loading={link.isPending}
-          disabled={link.isPending}
-        >
-          Link
-        </Button>
       </div>
       <p className="text-[11px] text-ink-3">
         The GitHub App must already be installed on the repo. The installation
