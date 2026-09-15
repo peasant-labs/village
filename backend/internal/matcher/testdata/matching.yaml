@@ -1,0 +1,359 @@
+# The acceptance policy for pull-request matching, case by case.
+#
+# Every case names the evidence it turns on and the outcome it expects, so a
+# change to the policy fails here rather than quietly re-selecting transcripts.
+# A repository gate is discovery only (cases 5 and 6); acceptance is a resolved
+# commit intersection (cases 1 and 2); everything unresolved is REPORTED with
+# the reason, never dropped and never promoted (cases 3, 4, 7-13).
+cases:
+  - name: sha-only-evidence-accepts
+    pull_request:
+      base_repo: village
+      head_repo: village
+      head_ref: feat/picker
+      is_fork: false
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+          authored_at: 2026-01-02T03:04:05Z
+    candidates:
+      - transcript: t-sha-only
+        project_name: /workspace/village
+        git_remote: github.com/peasant-labs/village.git
+        git_branch: feat/something-else
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "aaaaaaa"
+            authored_at: 2026-01-02T03:04:05Z
+            additions: 12
+            deletions: 3
+            files_changed: 2
+    expect:
+      accepted:
+        - transcript: t-sha-only
+          anchors: ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"]
+      unresolved: []
+      excluded: []
+
+  - name: accepted-transcripts-order-by-session-start
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+        - sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2"
+    candidates:
+      - transcript: t-later
+        git_remote: github.com/peasant-labs/village.git
+        session_start: 2026-02-02T00:00:00Z
+        commits:
+          - sha: "aaaaaaa"
+      - transcript: t-earlier
+        git_remote: github.com/peasant-labs/village.git
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "bbbbbbb"
+    expect:
+      accepted:
+        - transcript: t-earlier
+          anchors: ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2"]
+        - transcript: t-later
+          anchors: ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"]
+      unresolved: []
+      excluded: []
+
+  - name: branch-only-evidence-stays-unresolved
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    candidates:
+      - transcript: t-branch-only
+        git_remote: github.com/peasant-labs/village.git
+        git_branch: feat/picker
+        session_start: 2026-01-01T00:00:00Z
+    expect:
+      accepted: []
+      unresolved:
+        - transcript: t-branch-only
+          branch_matched: true
+          reasons: {}
+      excluded: []
+
+  - name: no-recorded-commits-branch-match-unresolved
+    pull_request:
+      base_repo: village
+      head_ref: main
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    candidates:
+      - transcript: t-no-commits
+        project_name: /workspace/village
+        git_remote: ""
+        git_branch: main
+        session_start: 2026-01-01T00:00:00Z
+    expect:
+      accepted: []
+      unresolved:
+        - transcript: t-no-commits
+          branch_matched: true
+          reasons: {}
+      excluded: []
+
+  - name: over-attributed-legacy-sha-is-retained-not-accepted
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    candidates:
+      - transcript: t-legacy-sha
+        git_remote: github.com/peasant-labs/village.git
+        git_branch: feat/picker
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+            authored_at: 2025-06-01T00:00:00Z
+    expect:
+      accepted: []
+      unresolved:
+        - transcript: t-legacy-sha
+          branch_matched: true
+          reasons:
+            deadbeefdeadbeefdeadbeefdeadbeefdeadbeef: not_in_pull_request
+      excluded: []
+
+  - name: reused-branch-name-does-not-prove-relevance
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    candidates:
+      - transcript: t-reused-branch
+        git_remote: github.com/peasant-labs/village.git
+        git_branch: feat/picker
+        session_start: 2025-01-01T00:00:00Z
+        commits:
+          - sha: "9999999999999999999999999999999999999999"
+    expect:
+      accepted: []
+      unresolved:
+        - transcript: t-reused-branch
+          branch_matched: true
+          reasons:
+            9999999999999999999999999999999999999999: not_in_pull_request
+      excluded: []
+
+  - name: still-existing-branch-after-rebase-unresolved
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+        - sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2"
+    candidates:
+      - transcript: t-rebased
+        git_remote: github.com/peasant-labs/village.git
+        git_branch: feat/picker
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "ccccccccccccccccccccccccccccccccccccccc1"
+          - sha: "ccccccccccccccccccccccccccccccccccccccc2"
+    expect:
+      accepted: []
+      unresolved:
+        - transcript: t-rebased
+          branch_matched: true
+          reasons:
+            ccccccccccccccccccccccccccccccccccccccc1: not_in_pull_request
+            ccccccccccccccccccccccccccccccccccccccc2: not_in_pull_request
+      excluded: []
+
+  - name: ambiguous-abbreviated-sha-names-no-commit
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "abc1234000000000000000000000000000000001"
+        - sha: "abc1234000000000000000000000000000000002"
+    candidates:
+      - transcript: t-ambiguous
+        git_remote: github.com/peasant-labs/village.git
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "abc1234"
+    expect:
+      accepted: []
+      unresolved:
+        - transcript: t-ambiguous
+          branch_matched: false
+          reasons:
+            abc1234: ambiguous
+      excluded: []
+
+  - name: abbreviated-sha-that-names-one-commit-accepts
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "abc1234000000000000000000000000000000001"
+        - sha: "abc9999000000000000000000000000000000002"
+    candidates:
+      - transcript: t-unambiguous
+        git_remote: github.com/peasant-labs/village.git
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "abc1234"
+    expect:
+      accepted:
+        - transcript: t-unambiguous
+          anchors: ["abc1234000000000000000000000000000000001"]
+      unresolved: []
+      excluded: []
+
+  - name: sha-shorter-than-a-resolving-prefix-unresolved
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    candidates:
+      - transcript: t-too-short
+        git_remote: github.com/peasant-labs/village.git
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "aaaaaa"
+    expect:
+      accepted: []
+      unresolved:
+        - transcript: t-too-short
+          branch_matched: false
+          reasons:
+            aaaaaa: too_short
+      excluded: []
+
+  - name: historical-commit-on-another-ref-is-not-coverage
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    candidates:
+      - transcript: t-other-ref
+        git_remote: github.com/peasant-labs/village.git
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "ffffffffffffffffffffffffffffffffffffffff"
+    expect:
+      accepted: []
+      unresolved:
+        - transcript: t-other-ref
+          branch_matched: false
+          reasons:
+            ffffffffffffffffffffffffffffffffffffffff: not_in_pull_request
+      excluded: []
+
+  - name: fork-pull-request-matches-its-head-repository
+    pull_request:
+      base_repo: village
+      head_repo: village-fork
+      head_ref: feature/x
+      is_fork: true
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    candidates:
+      - transcript: t-fork
+        project_name: /workspace/village-fork
+        git_remote: ""
+        git_branch: feature/x
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "aaaaaaa"
+    expect:
+      accepted:
+        - transcript: t-fork
+          anchors: ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"]
+      unresolved: []
+      excluded: []
+
+  - name: same-repository-pull-request-cannot-match-a-stray-head-repo
+    pull_request:
+      base_repo: village
+      head_repo: some-other-project
+      head_ref: feat/picker
+      is_fork: false
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    candidates:
+      - transcript: t-stray
+        git_remote: github.com/peasant-labs/some-other-project.git
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "aaaaaaa"
+    expect:
+      accepted: []
+      unresolved: []
+      excluded: [t-stray]
+
+  - name: unrelated-repository-is-not-even-a-candidate
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    candidates:
+      - transcript: t-other-repo
+        git_remote: github.com/peasant-labs/another-project.git
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "aaaaaaa"
+    expect:
+      accepted: []
+      unresolved: []
+      excluded: [t-other-repo]
+
+  - name: one-commit-recorded-twice-is-one-anchor
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+          authored_at: 2026-01-05T00:00:00Z
+    candidates:
+      - transcript: t-double
+        git_remote: github.com/peasant-labs/village.git
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+            authored_at: 2026-01-04T00:00:00Z
+          - sha: "aaaaaaa"
+            authored_at: 2026-01-03T00:00:00Z
+    expect:
+      accepted:
+        - transcript: t-double
+          anchors: ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"]
+      unresolved: []
+      excluded: []
+
+  - name: one-unresolved-commit-does-not-hold-back-an-accepted-anchor
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commits:
+        - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    candidates:
+      - transcript: t-mixed
+        git_remote: github.com/peasant-labs/village.git
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+          - sha: "aaaaaaa"
+    expect:
+      accepted:
+        - transcript: t-mixed
+          anchors: ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"]
+          unresolved:
+            deadbeefdeadbeefdeadbeefdeadbeefdeadbeef: not_in_pull_request
+      unresolved: []
+      excluded: []

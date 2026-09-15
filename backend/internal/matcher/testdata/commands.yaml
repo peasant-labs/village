@@ -1,0 +1,34 @@
+# Reading the prompt command out of a comment body. The command word must open
+# the body as its own token; a sentence that merely mentions it is not a command.
+cases:
+  - name: plain-attach
+    body: "/peasant attach"
+    expect: attach
+
+  - name: plain-detach
+    body: "/peasant detach"
+    expect: detach
+
+  - name: leading-whitespace-and-trailing-sentence
+    body: "  /peasant attach please, this is my work"
+    expect: attach
+
+  - name: case-insensitive-command
+    body: "/PEASANT Attach"
+    expect: attach
+
+  - name: bare-command-word-is-not-a-command
+    body: "/peasant"
+    expect: none
+
+  - name: unknown-subcommand-is-not-a-command
+    body: "/peasant refresh"
+    expect: none
+
+  - name: mention-in-a-sentence-is-not-a-command
+    body: "could you run /peasant attach here?"
+    expect: none
+
+  - name: empty-body-is-not-a-command
+    body: ""
+    expect: none

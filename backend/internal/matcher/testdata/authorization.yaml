@@ -1,0 +1,104 @@
+# Who may act on a pull request, and with what effect.
+#
+# The author acts; a repository owner, member, or collaborator may ask, and
+# only for attach; everyone else is ignored. A sender Village cannot resolve to
+# a user is nobody, whatever association GitHub reported.
+cases:
+  - name: author-attach-proceeds
+    actor:
+      sender_resolved: true
+      sender_github_id: 1001
+      author_github_id: 1001
+      association: NONE
+    command: attach
+    expect: proceed
+
+  - name: author-detach-proceeds
+    actor:
+      sender_resolved: true
+      sender_github_id: 1001
+      author_github_id: 1001
+      association: NONE
+    command: detach
+    expect: proceed
+
+  - name: owner-attach-records-a-request
+    actor:
+      sender_resolved: true
+      sender_github_id: 2002
+      author_github_id: 1001
+      association: OWNER
+    command: attach
+    expect: request
+
+  - name: member-attach-records-a-request
+    actor:
+      sender_resolved: true
+      sender_github_id: 2002
+      author_github_id: 1001
+      association: MEMBER
+    command: attach
+    expect: request
+
+  - name: collaborator-attach-records-a-request
+    actor:
+      sender_resolved: true
+      sender_github_id: 2002
+      author_github_id: 1001
+      association: COLLABORATOR
+    command: attach
+    expect: request
+
+  - name: lowercase-association-still-stands
+    actor:
+      sender_resolved: true
+      sender_github_id: 2002
+      author_github_id: 1001
+      association: collaborator
+    command: attach
+    expect: request
+
+  - name: contributor-attach-is-ignored
+    actor:
+      sender_resolved: true
+      sender_github_id: 2002
+      author_github_id: 1001
+      association: CONTRIBUTOR
+    command: attach
+    expect: ignore
+
+  - name: first-time-contributor-attach-is-ignored
+    actor:
+      sender_resolved: true
+      sender_github_id: 2002
+      author_github_id: 1001
+      association: FIRST_TIME_CONTRIBUTOR
+    command: attach
+    expect: ignore
+
+  - name: member-detach-is-ignored
+    actor:
+      sender_resolved: true
+      sender_github_id: 2002
+      author_github_id: 1001
+      association: MEMBER
+    command: detach
+    expect: ignore
+
+  - name: unresolved-sender-is-ignored-even-when-the-id-is-the-author
+    actor:
+      sender_resolved: false
+      sender_github_id: 1001
+      author_github_id: 1001
+      association: OWNER
+    command: attach
+    expect: ignore
+
+  - name: unknown-sender-id-is-not-the-author
+    actor:
+      sender_resolved: true
+      sender_github_id: 0
+      author_github_id: 0
+      association: NONE
+    command: attach
+    expect: ignore
