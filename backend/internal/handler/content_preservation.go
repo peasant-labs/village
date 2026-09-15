@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 
 	"github.com/peasant-labs/schema"
 	"gopkg.in/yaml.v3"
@@ -53,7 +52,8 @@ var _ contentRewriteEncoder = canonicalContentRewriteEncoder{}
 type productionObservedModelPreservationEvaluator struct{}
 
 func (productionObservedModelPreservationEvaluator) Evaluate() error {
-	return proveObservedModelPreservation()
+	baseErr, _ := EvaluatePreservationProofs()
+	return baseErr
 }
 
 type canonicalContentRewriteEncoder struct{}
@@ -86,18 +86,6 @@ func marshalTranscriptContentEnvelope(version schema.PushContractVersion, payloa
 }
 
 var productionContentRewriteEncoder contentRewriteEncoder = canonicalContentRewriteEncoder{}
-
-var (
-	observedModelPreservationOnce sync.Once
-	observedModelPreservationErr  error
-)
-
-func proveObservedModelPreservation() error {
-	observedModelPreservationOnce.Do(func() {
-		observedModelPreservationErr = errors.Join(executeObservedModelPreservationProof(productionContentRewriteEncoder), provePiPreservation(productionContentRewriteEncoder), proveContentBoundary(validateContentBoundary))
-	})
-	return observedModelPreservationErr
-}
 
 func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observedModelPreservationEvaluator) error {
 	return requireSupportedContentForHarness(raw, "", evaluator, productionProvenancePreservationEvaluator{})

@@ -8,7 +8,6 @@ import (
 	"io"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/peasant-labs/schema"
 	"gopkg.in/yaml.v3"
@@ -58,23 +57,8 @@ var _ provenancePreservationEvaluator = productionProvenancePreservationEvaluato
 type productionProvenancePreservationEvaluator struct{}
 
 func (productionProvenancePreservationEvaluator) Evaluate() error {
-	return proveProvenancePreservation(productionContentRewriteEncoder)
-}
-
-var (
-	provenancePreservationOnce sync.Once
-	provenancePreservationErr  error
-)
-
-// proveProvenancePreservation caches the production proof for the process
-// lifetime. Tests exercise executeProvenancePreservationProof directly with a
-// deliberately lossy encoder so a negative cannot poison or depend on this
-// cache.
-func proveProvenancePreservation(encoder contentRewriteEncoder) error {
-	provenancePreservationOnce.Do(func() {
-		provenancePreservationErr = executeProvenancePreservationProof(encoder)
-	})
-	return provenancePreservationErr
+	_, provenanceErr := EvaluatePreservationProofs()
+	return provenanceErr
 }
 
 // executeProvenancePreservationProof runs the real typed migrator and the same
