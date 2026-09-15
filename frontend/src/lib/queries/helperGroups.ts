@@ -111,7 +111,10 @@ export function useGroupedTranscriptsPaged(
     ...query,
     items,
     totalItems,
-    remainingItems: Math.max(0, totalItems - items.length),
+    // What the continuation may offer. It follows the SAME answer the query
+    // uses to decide whether another page exists, so a surface can never show a
+    // control whose next page the query would not request.
+    remainingItems: query.hasNextPage ? Math.max(0, totalItems - items.length) : 0,
     // Refresh is explicitly initiated by the host's recovery control. An
     // expired expansion must not automatically broaden, reopen or select rows.
     refreshOrigin: () => client.invalidateQueries({ queryKey, exact: true }),
