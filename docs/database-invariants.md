@@ -138,7 +138,7 @@ boundary are documented in
   (`UNIQUE (github_repo_id, number)`), one nullable timestamp per state, the
   GitHub object ids the posting path later fills in, and a closed `state` menu
   (`requested | waiting | preview | attached | detached`) under
-  `pull_request_attachments_state_menu`.   `pull_request_attachment_transcripts`
+  `pull_request_attachments_state_menu`. `pull_request_attachment_transcripts`
   binds transcripts to an attachment by `position` and records
   `previous_visibility`, the `transcripts.visibility` value read before an
   attach widened it, which detach restores exactly. It is recorded once per
@@ -161,6 +161,19 @@ boundary are documented in
   tables carry NO governance trigger and need no `app.actor_id`: they are not a
   disclosure axis, and widening a transcript's visibility stays the audited
   `transcripts` write it always was.
+- **038 records accepted webhook deliveries.** `github_webhook_deliveries`
+  holds one row per verified GitHub App delivery: `delivery_id` (the opaque
+  `X-GitHub-Delivery` value) is the PRIMARY KEY, so the receiver's
+  `INSERT ... ON CONFLICT (delivery_id) DO NOTHING` returns 1 for a first
+  delivery and 0 for a replay, and a redelivered event is acknowledged without
+  being dispatched twice. `received_at` is when this server first accepted it.
+  The table carries no FK and no trigger; it is a dedup ledger, not a disclosure
+  axis, so it needs no `app.actor_id`. The receiver authenticates the RAW body by
+  HMAC (`X-Hub-Signature-256`) before writing the row, and records the delivery
+  id BEFORE dispatch, so the order is verify, then record-once, then handle. A
+  dispatch failure after the insert leaves the delivery recorded, so a
+  redelivery returns replay and is not re-dispatched; effectful handlers must
+  account for that.
 
 ## 2. Licensing data model
 
