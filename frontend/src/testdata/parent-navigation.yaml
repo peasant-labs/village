@@ -5,12 +5,22 @@
 # mounts the real route (TranscriptDetailPage -> SessionDetailV2 -> fairtrade
 # TranscriptViewer), so Fairtrade's adapter cooks both sides and the assertions
 # read the rendered session-context markup.
+#
+# `link_anchors` is the expected branch-point anchor for each context-link push,
+# positionally aligned with `links`: null means the link stays the ordinary
+# current-target route, while a value names the exact entry ref/revision the
+# host must carry. `target` supplies the CURRENT target's own content so a
+# mounted target route can be checked: its `content_hash` is the public
+# revision authority the carried anchor is verified against, and each turn's
+# `source_ref`/`tool_calls` are the cooked refs the anchor resolves to.
 required_names:
   - distinct-context-and-starter
   - same-target-combines
   - unavailable-shows-status
   - inaccessible-shows-status
   - context-general-note
+  - context-anchor-via-folded-call-ref
+  - context-target-revision-changed
   - earlier-history-expands-locally
 cases:
   - name: distinct-context-and-starter
@@ -27,9 +37,20 @@ cases:
         status: resolved
         transcriptId: "e0e0e0e0-0000-4000-8000-000000000011"
         anchor: {kind: through_redacted_entry, sourceEntryRef: e_parent, sourceRevisionRef: "sha3-256:match"}
+    target:
+      content_hash: "sha3-256:match"
+      turns:
+        - {source_ref: e_parent_open, role: user, content: "parent opening request"}
+        - {source_ref: e_parent_early, role: assistant, content: "parent early reply"}
+        - {source_ref: e_parent, role: user, content: "the inherited branch conversation"}
+        - {source_ref: e_parent_later, role: assistant, content: "parent later reply"}
     expected:
       labels: ["context inherited from", "started by"]
       links: ["e0e0e0e0-0000-4000-8000-000000000011", "d0d0d0d0-0000-4000-8000-000000000012"]
+      link_anchors:
+        - {entry: e_parent, entry_kind: through_redacted_entry, entry_revision: "sha3-256:match"}
+        - null
+      target_active_ref: e_parent
       note: "opens the current source at the recorded branch point"
   - name: same-target-combines
     relationships:
@@ -41,6 +62,7 @@ cases:
     expected:
       labels: ["context inherited from and started by"]
       links: ["bcbcbcbc-0000-4000-8000-000000000013"]
+      link_anchors: [null]
   - name: unavailable-shows-status
     relationships:
       - {kind: started_by, targetState: target_known, targetLocalId: "5a5a5a5a-0000-4000-8000-000000000002", evidence: native_typed}
@@ -50,6 +72,7 @@ cases:
       labels: ["started by"]
       statuses: ["source unavailable"]
       links: []
+      link_anchors: []
   - name: inaccessible-shows-status
     relationships:
       - {kind: context_from, targetState: target_known, targetLocalId: "c0c0c0c0-0000-4000-8000-000000000001", evidence: native_typed}
@@ -59,6 +82,7 @@ cases:
       labels: ["context inherited from"]
       statuses: ["source inaccessible"]
       links: []
+      link_anchors: []
   - name: context-general-note
     relationships:
       - kind: context_from
@@ -71,7 +95,61 @@ cases:
     expected:
       labels: ["context inherited from"]
       links: ["e0e0e0e0-0000-4000-8000-000000000011"]
+      link_anchors: [null]
       note: "the earlier source state is not verified"
+  - name: context-anchor-via-folded-call-ref
+    relationships:
+      - kind: context_from
+        targetState: target_known_retained
+        targetLocalId: "c0c0c0c0-0000-4000-8000-000000000001"
+        evidence: retained_last_good
+        anchor: {kind: through_redacted_entry, sourceEntryRef: e_call_ref, sourceRevisionRef: "sha3-256:folded"}
+    navigation:
+      - kind: context_from
+        status: resolved
+        transcriptId: "e0e0e0e0-0000-4000-8000-000000000011"
+        anchor: {kind: through_redacted_entry, sourceEntryRef: e_call_ref, sourceRevisionRef: "sha3-256:folded"}
+    target:
+      content_hash: "sha3-256:folded"
+      turns:
+        - {source_ref: e_folded0, role: user, content: "parent request"}
+        - source_ref: e_folded1
+          role: assistant
+          content: "ran a folded tool"
+          tool_calls: [{call_ref: e_call_ref, result_ref: e_call_result}]
+        - {source_ref: e_folded2, role: user, content: "parent follow-up"}
+    expected:
+      labels: ["context inherited from"]
+      links: ["e0e0e0e0-0000-4000-8000-000000000011"]
+      link_anchors:
+        - {entry: e_call_ref, entry_kind: through_redacted_entry, entry_revision: "sha3-256:folded"}
+      target_active_ref: e_folded1
+      note: "opens the current source at the recorded branch point"
+  - name: context-target-revision-changed
+    relationships:
+      - kind: context_from
+        targetState: target_known_retained
+        targetLocalId: "c0c0c0c0-0000-4000-8000-000000000001"
+        evidence: retained_last_good
+        anchor: {kind: through_redacted_entry, sourceEntryRef: e_parent, sourceRevisionRef: "sha3-256:read"}
+    navigation:
+      - kind: context_from
+        status: resolved
+        transcriptId: "e0e0e0e0-0000-4000-8000-000000000011"
+        anchor: {kind: through_redacted_entry, sourceEntryRef: e_parent, sourceRevisionRef: "sha3-256:read"}
+    target:
+      content_hash: "sha3-256:republished"
+      turns:
+        - {source_ref: e_rev0, role: user, content: "republished parent request"}
+        - {source_ref: e_parent, role: assistant, content: "republished parent reply"}
+        - {source_ref: e_rev2, role: user, content: "republished parent follow-up"}
+    expected:
+      labels: ["context inherited from"]
+      links: ["e0e0e0e0-0000-4000-8000-000000000011"]
+      link_anchors:
+        - {entry: e_parent, entry_kind: through_redacted_entry, entry_revision: "sha3-256:read"}
+      target_active_ref: null
+      note: "opens the current source at the recorded branch point"
   - name: earlier-history-expands-locally
     relationships: []
     navigation: []
@@ -79,4 +157,5 @@ cases:
     expected:
       labels: []
       links: []
+      link_anchors: []
       earlier_content: "migrated earlier work"

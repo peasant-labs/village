@@ -28,6 +28,9 @@ export interface MountedRouteTranscriptMetadata {
     title: string | null;
     description: string | null;
     project_name: string;
+    /** This transcript's current public representation revision. Callers that
+     *  exercise a carried branch-point anchor supply it; others omit it. */
+    content_hash?: string | null;
     /** The resolved project identity fields. Optional: a caller that does
      *  not exercise project-identity behavior gets sensible defaults from
      *  {@link installRESTFixture} (`project_display_name` falls back to
@@ -135,8 +138,14 @@ export function installRESTFixture(
 }
 
 /** Renders the real `TranscriptDetailPage` route for `transcriptID` behind a fresh,
- *  retry-disabled QueryClient — the same mount every mounted-route test asserts against. */
-export async function renderProductionRoute(transcriptID: string): Promise<void> {
+ *  retry-disabled QueryClient — the same mount every mounted-route test asserts against.
+ *  `search` (e.g. `?entry=…`) is installed on the live jsdom location first, so the
+ *  production component's `window.location.search` read sees the same URL a real router
+ *  push would leave behind. */
+export async function renderProductionRoute(transcriptID: string, search = ""): Promise<void> {
+  if (typeof window !== "undefined") {
+    window.history.replaceState({}, "", `/transcripts/${transcriptID}${search}`);
+  }
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -160,6 +169,7 @@ export function installMountedRouteTeardown(): void {
     vi.unstubAllGlobals();
     globalThis.localStorage?.clear();
     globalThis.sessionStorage?.clear();
+    if (typeof window !== "undefined") window.history.replaceState({}, "", "/");
     document.documentElement.setAttribute("data-theme", "dark");
   });
 }
