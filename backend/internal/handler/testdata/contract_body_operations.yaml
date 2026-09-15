@@ -52,11 +52,11 @@
 - name: link group repository
   method: POST
   path: /api/v1/groups/{id}/repositories
-  conforming: '{"owner":"acme","name":"repo","installation_id":42}'
+  conforming: '{"owner":"acme","name":"repo"}'
   malformed:
     - name: installation id is a string
       body: '{"owner":"acme","name":"repo","installation_id":"42"}'
-      expect: "/installation_id: expected integer, but got string"
+      expect: "/installation_id: expected null or integer, but got string"
     - name: owner missing
       body: '{"name":"repo","installation_id":42}'
       expect: "/: missing properties: 'owner'"
