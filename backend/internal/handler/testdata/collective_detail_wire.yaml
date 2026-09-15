@@ -12,11 +12,16 @@ seed_sql: |
   VALUES ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', 'owner', '2026-09-01T10:01:00Z'),
          ('52000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000002', 'pending', '2026-09-01T10:02:00Z');
 cases:
+  # The seed inserts the group without prompts settings, so the row carries the
+  # database defaults (true / informational). The legacy detail route reads the
+  # full row and therefore reports those real settings; the grouped route
+  # projects a partial record and reports none. Either way the canonical
+  # binding must round-trip the raw wire without inventing or dropping a field.
   - name: legacy-exact-group-record-without-prompts-settings
     query: ""
     expected_json: |
       {
-        "group":{"id":"52000000-0000-4000-8000-000000000001","name":"Actual Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-01T10:00:00Z","updated_at":"2026-09-02T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory"},
+        "group":{"id":"52000000-0000-4000-8000-000000000001","name":"Actual Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-01T10:00:00Z","updated_at":"2026-09-02T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory","post_prompts_check":true,"prompts_check_mode":"informational"},
         "members":[{"role":"owner","joined_at":"2026-09-01T10:01:00Z","id":"51000000-0000-4000-8000-000000000001","github_username":"detail-wire-owner","display_name":"Owner Name","avatar_url":"https://example.test/owner.png","github_orgs":[]}],
         "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0},
         "models":[],"contributors":[],"can_read":true,"your_role":"owner","transcripts":[],

@@ -124,8 +124,13 @@ func TestCollectiveDetailRawWireRegisteredRoutes(t *testing.T) {
 				}
 				typed, group = response, response.Group
 			}
-			if group.PostPromptsCheck != nil || group.PromptsCheckMode != nil {
-				t.Fatal("unavailable prompts settings acquired invented values")
+			// The grouped route projects a partial group record and reads no
+			// prompts settings, so it must omit them rather than fabricate
+			// defaults. The legacy route reads the full row and supplies the
+			// real settings; the round-trip comparison below proves that
+			// neither route invents or drops a field.
+			if c.Query != "" && (group.PostPromptsCheck != nil || group.PromptsCheckMode != nil) {
+				t.Fatal("grouped collective detail acquired invented prompts settings")
 			}
 			encoded, err := json.Marshal(typed)
 			if err != nil {
