@@ -45,7 +45,6 @@ type attachmentStubMalformed struct {
 // here so deleting fixture rows cannot delete the manifest that protects them;
 // landing a real handler removes the route from both places in one change.
 var requiredAttachmentStubRoutes = []string{
-	"receive github webhook",
 	"get pull request attachment",
 	"confirm pull request attachment",
 	"detach pull request attachment",

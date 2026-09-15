@@ -137,6 +137,7 @@ type mockQuerier struct {
 	upsertRepositoryCommit         func(ctx context.Context, arg sqlc.UpsertRepositoryCommitParams) error
 	listRepositoryCommits          func(ctx context.Context, arg sqlc.ListRepositoryCommitsParams) ([]sqlc.RepositoryCommit, error)
 	countRepositoryCommits         func(ctx context.Context, arg sqlc.CountRepositoryCommitsParams) (int64, error)
+	recordGitHubWebhookDelivery    func(ctx context.Context, deliveryID string) (int64, error)
 }
 
 // ---- CLI session ---------------------------------------------------------
@@ -801,6 +802,13 @@ func (m *mockQuerier) CountRepositoryCommits(ctx context.Context, arg sqlc.Count
 		return m.countRepositoryCommits(ctx, arg)
 	}
 	return 0, nil
+}
+
+func (m *mockQuerier) RecordGitHubWebhookDelivery(ctx context.Context, deliveryID string) (int64, error) {
+	if m.recordGitHubWebhookDelivery != nil {
+		return m.recordGitHubWebhookDelivery(ctx, deliveryID)
+	}
+	return 1, nil
 }
 
 // ----------------------------------------------------------------------------
