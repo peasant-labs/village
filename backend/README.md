@@ -81,8 +81,9 @@ Key environment variables:
 | `TRANSCRIPT_KEK_KEYRING` | JSON map of positive versions to base64-encoded 32-byte KEKs; no fallback exists |
 | `GITHUB_CLIENT_ID` | GitHub OAuth app client ID |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret |
-| `GITHUB_APP_ID` | GitHub App ID for collective repo linking (optional; feature disabled when empty) |
-| `GITHUB_APP_PRIVATE_KEY` | GitHub App PEM private key (optional; needs Contents + Metadata read) |
+| `GITHUB_APP_ID` | GitHub App ID for collective repo linking and pull request prompts (optional; feature disabled when empty) |
+| `GITHUB_APP_PRIVATE_KEY` | GitHub App PEM private key (optional; needs Contents + Metadata read, Pull requests + Checks read/write) |
+| `GITHUB_APP_WEBHOOK_SECRET` | Verifies inbound GitHub App webhook deliveries by HMAC (optional; webhook route returns 501 when empty) |
 | `JWT_SECRET` | Secret for signing JWTs |
 | `PORT` | Server port (default 8080) |
 | `FRONTEND_URL` | Frontend origin for CORS |
