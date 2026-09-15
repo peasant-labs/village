@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   zVillageHelperMembersPayload,
   zVillageSessionListPayload,
@@ -47,6 +47,71 @@ export function useGroupedTranscripts(
   });
   return {
     ...query,
+    // Refresh is explicitly initiated by the host's recovery control. An
+    // expired expansion must not automatically broaden, reopen or select rows.
+    refreshOrigin: () => client.invalidateQueries({ queryKey, exact: true }),
+  };
+}
+
+/**
+ * The grouped top-level unit count one server page may carry.
+ *
+ * The list endpoint caps `limit` at 100, so a mount that reads ONE page covers
+ * only the first 100 grouped top-level units. A later owner or helper-only
+ * context container on such a surface would silently lose its grouped exit.
+ */
+export const GROUPED_TOP_LEVEL_PAGE_SIZE = 100;
+
+/**
+ * The global/profile/project grouped read, with a reachable continuation.
+ *
+ * A browse surface that renders more than `GROUPED_TOP_LEVEL_PAGE_SIZE` grouped
+ * units needs the later pages too, or the owners and helper-only context
+ * containers on them never get their grouped exits. This reads page 1 and then
+ * offers `fetchNextPage`/`hasNextPage`, so the continuation is explicit and
+ * every request after the first is bounded by what the server reports.
+ *
+ * The flat list above these mounts stays the authority for its own rows, pages
+ * and ordinary child folds; this hook only supplements it. Each page is
+ * validated against its own requested page/limit before it can become cache
+ * data, and the whole set shares one query key, so a re-minted scope's refresh
+ * invalidates the continuation rather than leaving a stale later page behind.
+ */
+export function useGroupedTranscriptsPaged(
+  params: Record<string, string>,
+  options: { enabled?: boolean } = {},
+) {
+  const { user, isLoading } = useAuth();
+  const client = useQueryClient();
+  const limit = Number(params.limit ?? GROUPED_TOP_LEVEL_PAGE_SIZE);
+  const filterParams = { ...params, view: "grouped", limit: String(limit) };
+  const queryKey = ["transcripts", "grouped-paged", user?.id ?? "anonymous", filterParams] as const;
+  const query = useInfiniteQuery({
+    queryKey,
+    queryFn: async ({ pageParam, signal }) => {
+      const requestParams = { ...filterParams, page: String(pageParam) };
+      const value = await api<unknown>(`/transcripts?${new URLSearchParams(requestParams)}`, { signal });
+      const response = zVillageSessionListPayload.parse(value);
+      assertPageMatches(pageParam, limit, response);
+      return response;
+    },
+    initialPageParam: 1,
+    // The server reports how many grouped top-level units the SAME filters
+    // select, so "is there another page" is its answer, never a client count.
+    getNextPageParam: (last) =>
+      last.page * last.limit < last.totalItems ? last.page + 1 : undefined,
+    // Never borrow rows or member scopes from another viewer/filter/page.
+    enabled: !isLoading && (options.enabled ?? true),
+    retry: false,
+    staleTime: 0,
+  });
+  const items = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const totalItems = query.data?.pages[0]?.totalItems ?? 0;
+  return {
+    ...query,
+    items,
+    totalItems,
+    remainingItems: Math.max(0, totalItems - items.length),
     // Refresh is explicitly initiated by the host's recovery control. An
     // expired expansion must not automatically broaden, reopen or select rows.
     refreshOrigin: () => client.invalidateQueries({ queryKey, exact: true }),

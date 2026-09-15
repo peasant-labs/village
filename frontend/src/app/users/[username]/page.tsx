@@ -2,12 +2,13 @@
 
 import { use, useState } from "react";
 import { useTranscripts } from "@/lib/queries/transcripts";
-import { useGroupedTranscripts } from "@/lib/queries/helperGroups";
+import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
 import {
   ScopedContextContainerList,
   ScopedOwnerHelperGroups,
   helperGroupsByTranscript,
 } from "@/components/transcript/ScopedHelperGroups";
+import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { useDeleteAccount, usePublicProfile, useUpdateMySettings } from "@/lib/queries/auth";
 import { useAuth } from "@/providers/AuthProvider";
 import TranscriptList from "@/components/transcript/TranscriptList";
@@ -52,8 +53,10 @@ export default function UserProfilePage({
   // The server's own helper-group fold for this person's library. Independent
   // of the flat list above: the rows, the ordinary child chip and the project
   // bucketing are unchanged, and a grouped read that fails contributes nothing.
-  const grouped = useGroupedTranscripts({ owner: username, limit: "100" });
-  const groupedItems = grouped.data?.items ?? [];
+  // The grouped read pages, so an owner or helper-only context container past
+  // the first grouped page still reaches its grouped exit.
+  const grouped = useGroupedTranscriptsPaged({ owner: username });
+  const groupedItems = grouped.items;
   const helperGroups = helperGroupsByTranscript(groupedItems);
   const refreshGrouped = grouped.refreshOrigin;
   const deleteAccountMutation = useDeleteAccount();
@@ -258,6 +261,14 @@ export default function UserProfilePage({
             <ScopedContextContainerList
               items={groupedItems}
               onRefreshOrigin={refreshGrouped}
+            />
+            {/* A grouped page holds at most one server page of top-level units;
+                the continuation reads the next one so a later owner or
+                helper-only container still gets its grouped exit. */}
+            <ScopedGroupedContinuation
+              remaining={grouped.remainingItems}
+              busy={grouped.isFetchingNextPage}
+              onLoadMore={() => void grouped.fetchNextPage()}
             />
             {/* Agent-driven sessions are never mixed into the project groups:
                 they are not the work this person wrote, and grouping them by

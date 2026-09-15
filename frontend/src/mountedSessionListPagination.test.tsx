@@ -104,11 +104,15 @@ class Schedule {
       // The grouped helper read is a separate, opt-in view of the same route;
       // it never participates in the flat pagination schedule.
       if (url.includes("view=grouped")) {
+        // The grouped read follows the requested page and echoes it, exactly as
+        // the list endpoint does; the grouped query validates page/limit before
+        // the response can become cache data.
+        const groupedQuery = new URL(url).searchParams;
         return Promise.resolve(
           jsonResponse({
             items: [],
-            page: 1,
-            limit: PAGE_SIZE,
+            page: Number(groupedQuery.get("page") ?? 1),
+            limit: Number(groupedQuery.get("limit") ?? PAGE_SIZE),
             totalItems: 0,
             ordinarySessionTotal: 0,
             helperThreadTotal: 0,

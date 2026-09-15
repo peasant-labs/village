@@ -26,13 +26,14 @@ import {
   ScopedOwnerHelperGroups,
   helperGroupsByTranscript,
 } from "@/components/transcript/ScopedHelperGroups";
+import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   useClearProjectDisplayName,
   useSetProjectDisplayName,
   useUserProject,
 } from "@/lib/queries/transcripts";
-import { useGroupedTranscripts } from "@/lib/queries/helperGroups";
+import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
 import { describeNameSource } from "@/lib/format";
 import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
 import { isApiErrorStatus } from "@/lib/api";
@@ -65,13 +66,14 @@ export default function UserProjectPage({
   const { data, isLoading, error } = useUserProject(username, projectHash);
   // The server's own helper-group fold, scoped to this project and owner. It
   // rides beside the flat project list, whose rows, child chip and pagination
-  // are unchanged; a grouped read that fails contributes no groups.
-  const grouped = useGroupedTranscripts({
+  // are unchanged; a grouped read that fails contributes no groups. The read
+  // pages, so a project whose transcripts exceed one grouped page still reaches
+  // every later owner's and context container's grouped exit.
+  const grouped = useGroupedTranscriptsPaged({
     owner: username,
     project_hash: projectHash,
-    limit: "100",
   });
-  const groupedItems = grouped.data?.items ?? [];
+  const groupedItems = grouped.items;
   const helperGroups = helperGroupsByTranscript(groupedItems);
   const refreshGrouped = grouped.refreshOrigin;
   const setName = useSetProjectDisplayName();
@@ -218,6 +220,14 @@ export default function UserProjectPage({
         <ScopedContextContainerList
           items={groupedItems}
           onRefreshOrigin={refreshGrouped}
+        />
+        {/* A grouped page holds at most one server page of top-level units; the
+            continuation reads the next one so a later owner or helper-only
+            container in this project still gets its grouped exit. */}
+        <ScopedGroupedContinuation
+          remaining={grouped.remainingItems}
+          busy={grouped.isFetchingNextPage}
+          onLoadMore={() => void grouped.fetchNextPage()}
         />
       </DataState>
     </div>
