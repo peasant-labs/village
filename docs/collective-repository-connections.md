@@ -1,10 +1,10 @@
 # Design: Connecting repositories to a collective
 
-**Status:** Partly implemented. Repository linking and the commit overlay are
-live (migrations `021`/`022`, the `/groups/{id}/repositories` routes, and the
-collective "Repositories" / commit-timeline UI); the pull request prompt
-attachment work builds on the same App. What remains is the operator install
-handshake, still tracked separately as a follow-up.
+**Status:** Implemented. Repository linking, the commit overlay, the GitHub App
+install handshake, and the repository picker are live (migrations `021`/`022`,
+the `/groups/{id}/repositories` routes, and the collective "Repositories" /
+commit-timeline UI); the pull request prompt attachment work builds on the same
+App.
 
 **Context / what already exists.** Pushed transcripts already carry git context
 in their payload (`schema.GitContext`: `branch`, `remote`, `worktree`,
@@ -17,9 +17,9 @@ overlay is (a) the **commit SHAs** are dropped on ingest, and (b) we have no
 **authenticated link** to the live repo to fetch its commits/PRs. This doc
 covers both.
 
-> The registered GitHub App and its secrets now exist in production. The
-> remaining rough edge is the install flow: linking a repository still takes a
-> hand-entered installation id, which is a tracked follow-up.
+> The registered GitHub App and its secrets exist in production, with the install
+> handshake and repository picker live: a collective owner connects the App and
+> chooses a repository, so there is no hand-entered installation id.
 
 ---
 
@@ -211,6 +211,8 @@ New handlers mounted under the existing `/api/v1` group routes
 (`router/routes.go`), e.g.:
 - `POST /groups/{id}/repositories` — link a repo (owner-only).
 - `GET  /groups/{id}/repositories` — list linked repos + sync status.
+- `GET  /groups/{id}/repositories/available` — the repositories the App can offer
+  the collective (the picker's source).
 - `DELETE /groups/{id}/repositories/{repoID}` — unlink.
 - `GET  /groups/{id}/repositories/{repoID}/timeline` — merged commits + PRs +
   the transcripts that touched each commit.
