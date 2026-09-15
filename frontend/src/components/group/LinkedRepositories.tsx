@@ -12,6 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button, Input, Tag } from "@/lib/ft-ui";
+import { API_URL_BASE } from "@/lib/api";
 import {
   useRepositories,
   useLinkRepository,
@@ -200,7 +201,18 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
       onSubmit={handleSubmit}
       className="flex flex-col gap-2 border-b border-rule px-4 py-3"
     >
-      <span className="v2-eyebrow">Link a repository</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="v2-eyebrow">Link a repository</span>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          icon={Github}
+          onClick={() => window.location.assign(installURL(groupId))}
+        >
+          connect github
+        </Button>
+      </div>
       <div className="flex flex-col gap-2">
         <div className="[&_.is-field]:mb-0">
           <Input
@@ -245,6 +257,11 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
 // Owner-only controls are gated on `isOwner` (role === "owner"), the same gate
 // the rest of the collective UI and the backend use.
 // ---------------------------------------------------------------------------
+
+/** Full-page URL for the App install handshake; the backend redirects to GitHub. */
+function installURL(groupId: string): string {
+  return `${API_URL_BASE}/integrations/github/install?group_id=${encodeURIComponent(groupId)}`;
+}
 
 export default function LinkedRepositories({
   groupId,
