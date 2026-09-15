@@ -6,14 +6,16 @@
 -- rows keyed to an already-decided attachment.
 
 -- name: CreatePullRequestAttachment :one
--- Records (or re-observes) the attachment row for one pull request. A repeated
--- observation of the same (github_repo_id, number) refreshes the head and
--- remotes it was seen at, but never resets the lifecycle state.
+-- Records (or re-observes) the attachment row for one pull request. Creation
+-- initialises the closed lifecycle at 'requested' with its timestamp; every later
+-- move goes through the Go transition function. A repeated observation of the same
+-- (github_repo_id, number) refreshes the head and remotes it was seen at, but
+-- never resets the lifecycle state.
 INSERT INTO pull_request_attachments (
     repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote,
     author_id, requester_github_id, state, requested_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, 'requested', now()
 )
 ON CONFLICT (github_repo_id, number) DO UPDATE SET
     repo_owner   = EXCLUDED.repo_owner,

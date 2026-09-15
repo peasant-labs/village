@@ -37,7 +37,8 @@ type Querier interface {
 // attachment's state. It reads the current state, validates the edge against the
 // closed table, and writes the new state conditionally on the state it read
 // (expected-state matching, not a revision fence). Recording a NEW attachment is
-// a separate statement (CreatePullRequestAttachment) and does not route here.
+// a separate statement (CreatePullRequestAttachment) that always initialises
+// `requested`; it does not route here.
 // The timestamps record the latest entry per state; they are not an exact event
 // history.
 //

@@ -50,7 +50,7 @@ INSERT INTO pull_request_attachments (
     repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote,
     author_id, requester_github_id, state, requested_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, 'requested', now()
 )
 ON CONFLICT (github_repo_id, number) DO UPDATE SET
     repo_owner   = EXCLUDED.repo_owner,
@@ -72,7 +72,6 @@ type CreatePullRequestAttachmentParams struct {
 	HeadRemote        string      `db:"head_remote" json:"head_remote"`
 	AuthorID          pgtype.UUID `db:"author_id" json:"author_id"`
 	RequesterGithubID pgtype.Int8 `db:"requester_github_id" json:"requester_github_id"`
-	State             string      `db:"state" json:"state"`
 }
 
 // Pull request prompt-attachment store (migration 037).
@@ -81,9 +80,11 @@ type CreatePullRequestAttachmentParams struct {
 // and only from internal/promptattach.Transition, which enforces the closed
 // transition table in Go. Every other statement here reads the state or writes
 // rows keyed to an already-decided attachment.
-// Records (or re-observes) the attachment row for one pull request. A repeated
-// observation of the same (github_repo_id, number) refreshes the head and
-// remotes it was seen at, but never resets the lifecycle state.
+// Records (or re-observes) the attachment row for one pull request. Creation
+// initialises the closed lifecycle at 'requested' with its timestamp; every later
+// move goes through the Go transition function. A repeated observation of the same
+// (github_repo_id, number) refreshes the head and remotes it was seen at, but
+// never resets the lifecycle state.
 func (q *Queries) CreatePullRequestAttachment(ctx context.Context, arg CreatePullRequestAttachmentParams) (PullRequestAttachment, error) {
 	row := q.db.QueryRow(ctx, createPullRequestAttachment,
 		arg.RepoOwner,
@@ -95,7 +96,6 @@ func (q *Queries) CreatePullRequestAttachment(ctx context.Context, arg CreatePul
 		arg.HeadRemote,
 		arg.AuthorID,
 		arg.RequesterGithubID,
-		arg.State,
 	)
 	var i PullRequestAttachment
 	err := row.Scan(

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
@@ -24,7 +25,7 @@ func TestTransitionEnforcesTheClosedTable(t *testing.T) {
 
 	for i, c := range loadTransitionCases(t) {
 		t.Run(c.Name, func(t *testing.T) {
-			attachment := createAttachment(t, ctx, q, owner, i, c.From)
+			attachment := createAttachment(t, ctx, q, pool, owner, i, c.From)
 
 			updated, err := Transition(ctx, q, attachment.ID, c.To)
 
@@ -68,7 +69,7 @@ func TestTransitionDetachPreservesRecordedPreviousVisibility(t *testing.T) {
 	for i, c := range loadVisibilityCases(t) {
 		t.Run(c.Name, func(t *testing.T) {
 			transcriptID := insertTranscript(t, ctx, pool, owner, c.Visibility)
-			attachment := createAttachment(t, ctx, q, owner, 100+i, Attached)
+			attachment := createAttachment(t, ctx, q, pool, owner, 100+i, Attached)
 
 			if err := q.AttachPullRequestTranscript(ctx, sqlc.AttachPullRequestTranscriptParams{
 				AttachmentID:       attachment.ID,
@@ -116,7 +117,7 @@ func TestAttachTranscriptPreservesOriginalSnapshot(t *testing.T) {
 	owner := insertOwner(t, ctx, pool)
 
 	transcriptID := insertTranscript(t, ctx, pool, owner, "private")
-	attachment := createAttachment(t, ctx, q, owner, 500, Attached)
+	attachment := createAttachment(t, ctx, q, pool, owner, 500, Attached)
 
 	if err := q.AttachPullRequestTranscript(ctx, sqlc.AttachPullRequestTranscriptParams{
 		AttachmentID:       attachment.ID,
@@ -149,9 +150,11 @@ func TestAttachTranscriptPreservesOriginalSnapshot(t *testing.T) {
 	}
 }
 
-// createAttachment inserts one attachment in the given state with a repo key
-// unique to index i, so rows never collide on (github_repo_id, number).
-func createAttachment(t *testing.T, ctx context.Context, q *sqlc.Queries, owner pgtype.UUID, i int, state State) sqlc.PullRequestAttachment {
+// createAttachment inserts one attachment and seeds the given lifecycle state.
+// Creation always initialises 'requested' (the store's rule); a test that needs
+// another source state sets it directly, the documented test-only path. The repo
+// key is unique to index i, so rows never collide on (github_repo_id, number).
+func createAttachment(t *testing.T, ctx context.Context, q *sqlc.Queries, pool *pgxpool.Pool, owner pgtype.UUID, i int, state State) sqlc.PullRequestAttachment {
 	t.Helper()
 	attachment, err := q.CreatePullRequestAttachment(ctx, sqlc.CreatePullRequestAttachmentParams{
 		RepoOwner:    "acme",
@@ -162,10 +165,15 @@ func createAttachment(t *testing.T, ctx context.Context, q *sqlc.Queries, owner 
 		BaseRemote:   "https://github.com/acme/widgets.git",
 		HeadRemote:   "https://github.com/acme/widgets.git",
 		AuthorID:     owner,
-		State:        string(state),
 	})
 	if err != nil {
-		t.Fatalf("create attachment fixture in state %s: %v", state, err)
+		t.Fatalf("create attachment fixture: %v", err)
+	}
+	if state != Requested {
+		if _, err := pool.Exec(ctx, `UPDATE pull_request_attachments SET state=$2 WHERE id=$1`, attachment.ID, string(state)); err != nil {
+			t.Fatalf("seed attachment state %s: %v", state, err)
+		}
+		attachment.State = string(state)
 	}
 	return attachment
 }

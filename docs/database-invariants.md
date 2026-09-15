@@ -149,8 +149,8 @@ boundary are documented in
   expected-state matching, not a revision fence: two moves to the same target can
   both succeed and an A->B->A sequence passes the predicate, so a caller that
   needs serialized history binds its read and write in one transaction. Recording
-  a NEW attachment writes the initial state directly and does not route through
-  `Transition`. The transition
+  a NEW attachment initialises `requested`; any other state is reachable only
+  through `Transition`. The transition
   table is closed and exhaustively fixtured
   (`internal/promptattach/testdata/transitions.yaml`); every pair it does not
   name is refused. The same migration adds `users.preview_before_attach`
