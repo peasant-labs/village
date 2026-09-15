@@ -338,6 +338,22 @@ export type RepositoryCommit = VillageRepositoryCommit;
 export type RepositoryCommitsResponse = VillageRepositoryCommitsResponse;
 
 /**
+ * A repository the App can offer a collective, for the repository picker.
+ * Hand-typed until `@peasant-labs/schema` publishes the available-repositories
+ * types to npm (the Go contract already declares them); switch to the generated
+ * exports when the package is re-pinned.
+ */
+export interface AvailableRepository {
+  owner: string;
+  name: string;
+  is_private: boolean;
+}
+
+export interface AvailableRepositoriesResponse {
+  repositories: AvailableRepository[];
+}
+
+/**
  * A git commit captured for a single transcript's session (backend
  * `GET /api/v1/transcripts/{id}/commits`). The daemon records the commits a
  * coding session produced; joining these SHAs against a linked repo's cached

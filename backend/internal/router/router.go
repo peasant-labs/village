@@ -165,6 +165,9 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Post("/groups/{id}/repositories", h.LinkRepository)
 		r.With(h.AuthRequired).Delete("/groups/{id}/repositories/{owner}/{name}", h.UnlinkRepository)
 		r.With(h.AuthRequired).Get("/groups/{id}/repositories/{owner}/{name}/commits", h.ListRepositoryCommits)
+		// The repositories the App can offer this collective, for the picker. A
+		// literal segment, so chi resolves it ahead of any {owner} pattern.
+		r.With(h.AuthRequired).Get("/groups/{id}/repositories/available", h.ListAvailableRepositories)
 
 		// Tags
 		r.Get("/tags", h.ListTags)

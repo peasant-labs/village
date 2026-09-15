@@ -11,10 +11,11 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { Button, Input, Tag } from "@/lib/ft-ui";
+import { Button, Select, Tag } from "@/lib/ft-ui";
 import { API_URL_BASE } from "@/lib/api";
 import {
   useRepositories,
+  useAvailableRepositories,
   useLinkRepository,
   useUnlinkRepository,
   useRepositoryCommits,
@@ -167,22 +168,25 @@ function RepositoryCommits({
 }
 
 // ---------------------------------------------------------------------------
-// Owner-only link form. Backend resolves the GitHub App installation from the
-// repository, so only owner/name are entered here.
+// Owner-only link form. The repositories are those the App can offer this
+// collective (the installation for its linked organization), so a repository is
+// chosen from a picker rather than typed. An empty list points at Connect GitHub.
 // ---------------------------------------------------------------------------
 
 function LinkRepoForm({ groupId }: { groupId: string }) {
-  const [repoInput, setRepoInput] = useState("");
+  const [selected, setSelected] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const link = useLinkRepository();
+  const available = useAvailableRepositories(groupId);
+  const repos = available.data?.repositories ?? [];
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setValidationError(null);
 
-    const parsed = parseRepoInput(repoInput);
+    const parsed = parseRepoInput(selected);
     if (!parsed) {
-      setValidationError("Enter a repository as owner/name (e.g. acme/widgets).");
+      setValidationError("Select a repository to link.");
       return;
     }
 
@@ -190,7 +194,7 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
       { groupId, owner: parsed.owner, name: parsed.name },
       {
         onSuccess: () => {
-          setRepoInput("");
+          setSelected("");
         },
       }
     );
@@ -213,30 +217,54 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
           connect github
         </Button>
       </div>
-      <div className="flex flex-col gap-2">
-        <div className="[&_.is-field]:mb-0">
-          <Input
-            value={repoInput}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRepoInput(e.target.value)}
-            placeholder="owner/name"
-            aria-label="Repository owner/name"
-          />
+      {available.isLoading ? (
+        <div className="flex items-center gap-2 text-[13px] text-ink-3">
+          <Loader2 className="size-4 animate-spin" />
+          Loading repositories…
         </div>
-        <Button
-          type="submit"
-          size="sm"
-          variant="primary"
-          icon={Github}
-          loading={link.isPending}
-          disabled={link.isPending}
-        >
-          Link
-        </Button>
-      </div>
-      <p className="text-[11px] text-ink-3">
-        The GitHub App must be installed on the repository&apos;s account. The
-        installation is resolved from the repository.
-      </p>
+      ) : available.isError ? (
+        <p className="text-[12px] text-danger">
+          {isNotConfigured(available.error)
+            ? "GitHub isn't set up on this server."
+            : available.error.message}
+        </p>
+      ) : repos.length === 0 ? (
+        <p className="text-[12px] text-ink-3">
+          No repositories available. Connect the GitHub App to this collective&apos;s
+          organization above to choose one.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className="[&_.is-field]:mb-0">
+            <Select
+              value={selected}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelected(e.target.value)}
+              aria-label="Repository"
+            >
+              <option value="">Select a repository…</option>
+              {repos.map((repo) => {
+                const value = `${repo.owner}/${repo.name}`;
+                return (
+                  <option key={value} value={value}>
+                    {value}
+                    {repo.is_private ? " (private)" : ""}
+                  </option>
+                );
+              })}
+            </Select>
+          </div>
+          <Button
+            type="submit"
+            size="sm"
+            variant="primary"
+            icon={Github}
+            loading={link.isPending}
+            disabled={link.isPending || selected === ""}
+          >
+            Link
+          </Button>
+        </div>
+      )}
       {validationError && (
         <p className="text-[12px] text-danger">{validationError}</p>
       )}

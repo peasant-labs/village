@@ -43,11 +43,21 @@ type fakeGitHub struct {
 	installationStatus int // status for that endpoint (default 200)
 	// installationAccount is the account login returned by GET /app/installations/{id}.
 	installationAccount string
+	// installationsBody is the JSON for GET /app/installations (the App's list).
+	installationsBody string
+	// installationReposBody is the JSON for GET /installation/repositories.
+	installationReposBody string
 }
 
 func newFakeGitHub(t *testing.T, f *fakeGitHub) {
 	t.Helper()
 	mux := http.NewServeMux()
+	mux.HandleFunc("/app/installations", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, f.installationsBody)
+	})
+	mux.HandleFunc("/installation/repositories", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, f.installationReposBody)
+	})
 	mux.HandleFunc("/app/installations/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			fmt.Fprintf(w, `{"id":%d,"account":{"login":%q,"id":1,"type":"Organization"}}`, f.installationID, f.installationAccount)

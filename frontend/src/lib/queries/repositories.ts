@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, isApiErrorStatus } from "../api";
 import type {
+  AvailableRepositoriesResponse,
   LinkedRepositoriesResponse,
   RepositoryCommitsResponse,
   TranscriptCommitsResponse,
@@ -30,6 +31,25 @@ export function useRepositories(groupId: string, enabled = true) {
     enabled: enabled && !!groupId,
     // A 501 (not configured) and a 403 (membership) are both terminal states;
     // never spin on them. Other failures get React Query's default behaviour.
+    retry: (failureCount, err) => {
+      if (isNotConfigured(err) || isApiErrorStatus(err, 403)) return false;
+      return failureCount < 2;
+    },
+  });
+}
+
+/**
+ * List the repositories the GitHub App can offer a collective: the repositories
+ * of the installation for the collective's linked organization. Owner-only. An
+ * empty list means the collective has no linked organization, or no installation
+ * for it, so the picker can point at Connect GitHub.
+ */
+export function useAvailableRepositories(groupId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["group-repositories-available", groupId],
+    queryFn: () =>
+      api<AvailableRepositoriesResponse>(`/groups/${groupId}/repositories/available`),
+    enabled: enabled && !!groupId,
     retry: (failureCount, err) => {
       if (isNotConfigured(err) || isApiErrorStatus(err, 403)) return false;
       return failureCount < 2;
