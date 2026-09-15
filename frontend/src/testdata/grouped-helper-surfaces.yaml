@@ -1,0 +1,73 @@
+# Cases for the mounted grouped-helper surfaces:
+#
+#   • discovery's saved-helper section, whose helper-only result must render
+#     exactly ONCE (one context notice, one disclosure control, one member row);
+#   • the profile and project mounts, whose grouped read pages past its first
+#     server page so a later owner or helper-only context container still
+#     reaches its grouped exit.
+#
+# The routes under test are the REAL production routes (the discovery page, the
+# profile route and the project route) with the REAL grouped query hooks; only
+# HTTP is controlled. Everything a case asserts — the page size, the grouped
+# total, the later group and its member — is declared here.
+
+explore:
+  name: explore-helper-only-context-renders-once
+  context:
+    groupId: hg_fixture_explore_context
+    ownerStatus: known_unavailable
+  group:
+    groupId: hg_fixture_explore_context
+    purpose: helper_review
+    helperThreadCount: 1
+    memberScope: scope-fixture-explore
+  member:
+    id: helper-explore
+    title: "explore helper"
+    turnCount: 2
+    inputSubmissionCount: 1
+
+continuationCases:
+  - name: profile-continuation-reaches-later-context
+    route: profile
+    owner: alice-dev
+    projectHash: null
+    flatTranscripts: 1
+    pageSize: 100
+    firstPageOrdinary: 100
+    totalItems: 101
+    laterContext:
+      groupId: hg_fixture_profile_later
+      ownerStatus: known_unavailable
+    laterGroup:
+      groupId: hg_fixture_profile_later
+      purpose: helper_review
+      helperThreadCount: 1
+      memberScope: scope-fixture-profile-later
+    laterMember:
+      id: helper-profile-later
+      title: "later helper"
+      turnCount: 3
+      inputSubmissionCount: 0
+
+  - name: project-continuation-reaches-later-context
+    route: project
+    owner: alice-dev
+    projectHash: "1111111111111111111111111111111111111111111111111111111111111111"
+    flatTranscripts: 1
+    pageSize: 100
+    firstPageOrdinary: 100
+    totalItems: 101
+    laterContext:
+      groupId: hg_fixture_project_later
+      ownerStatus: known_unavailable
+    laterGroup:
+      groupId: hg_fixture_project_later
+      purpose: helper_review
+      helperThreadCount: 1
+      memberScope: scope-fixture-project-later
+    laterMember:
+      id: helper-project-later
+      title: "later helper"
+      turnCount: 6
+      inputSubmissionCount: 2
