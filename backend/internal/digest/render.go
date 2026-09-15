@@ -59,13 +59,12 @@ func Render(d schema.PromptDigest, tier Tier) (string, error) {
 func headerLine(d schema.PromptDigest) string {
 	parts := []string{
 		string(d.Header.Harness),
-		fmt.Sprintf("%d sessions", d.Header.SessionCount),
-		fmt.Sprintf("%d prompts", d.Header.PromptCount),
+		plural(d.Header.SessionCount, "session"),
+		plural(d.Header.PromptCount, "prompt"),
 		fmt.Sprintf("%d/%d commits", d.Header.CommitsCovered, d.Header.CommitsTotal),
 	}
-	if d.Header.RedactionLevel != "" {
-		parts = append(parts, "redaction "+d.Header.RedactionLevel)
-	}
+	// The header carries RedactionLevel for Village's own use, but it is never
+	// rendered: a session's redaction level is not a peer-facing fact.
 	line := "**peasant / prompts** - " + strings.Join(parts, " - ")
 	if d.Header.VillageURL != "" {
 		line += " - " + d.Header.VillageURL
@@ -76,7 +75,7 @@ func headerLine(d schema.PromptDigest) string {
 func itemLine(item schema.PromptDigestItem) string {
 	switch item.Kind {
 	case schema.DigestItemSession:
-		return fmt.Sprintf("- session: %d prompts, %d commits\n", deref(item.PromptCount), deref(item.CommitCount))
+		return fmt.Sprintf("- session: %s, %s\n", plural(deref(item.PromptCount), "prompt"), plural(deref(item.CommitCount), "commit"))
 	case schema.DigestItemPrompt:
 		return fmt.Sprintf("- %d. %s\n", deref(item.Ordinal), strings.ReplaceAll(item.Text, "\n", " "))
 	case schema.DigestItemSkill:
@@ -111,6 +110,13 @@ func finalize(out string, tier Tier) (string, error) {
 		return "", fmt.Errorf("rendered %s digest is %d bytes, over the %d-byte cap", tier.Name, len(out), tier.MaxBytes)
 	}
 	return out, nil
+}
+
+func plural(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }
 
 func countPrompts(items []schema.PromptDigestItem) int {
