@@ -55,9 +55,27 @@ permissions:
   contents: read
 
 jobs:
+  determine-runner:
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.pick.outputs.use-runner }}
+    steps:
+      - name: Pick a runner
+        id: pick
+        uses: mikehardy/runner-fallback-action@dc7732f9e532c451b2527b288ba8d58fd4b0a4ca # v1.1.0
+        with:
+          organization: peasant-labs
+          primary-runner: "self-hosted,nixos"
+          fallback-runner: "ubuntu-24.04"
+          fallback-on-error: true
+          github-token: ${{ secrets.RUNNER_STATUS_TOKEN }}
+      - name: Report chosen runner
+        run: 'echo "chosen: ${{ steps.pick.outputs.use-runner }}"'
+
   test:
     name: Backend, PostgreSQL, and MinIO
-    runs-on: ubuntu-24.04
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
 
     # Ephemeral Postgres for the -tags=integration suite. TEST_DATABASE_URL points
     # the tests at this service; each integration test runs RunMigrations itself,
@@ -140,9 +158,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --yes postgresql-client
-          pg_isready --dbname "$TEST_DATABASE_ADMIN_URL"
+
+          # Bounded TCP readiness probe for the Postgres service container. This
+          # runs unchanged on the self-hosted pool (no apt / no host package
+          # manager) and on the GitHub-hosted fallback, so it never depends on
+          # installing a client. The postmaster opens its listener when it is
+          # ready to accept connections; the retries absorb startup latency.
+          pg_ready=false
+          for attempt in {1..30}; do
+            if (exec 3<>/dev/tcp/127.0.0.1/5432) 2>/dev/null; then
+              pg_ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [[ "$pg_ready" != true ]]; then
+            echo "PostgreSQL did not accept a connection at 127.0.0.1:5432 after $attempt/30 attempts." >&2
+            exit 1
+          fi
+
           docker exec "$MINIO_CONTAINER" mc stat "local/$TEST_S3_BUCKET" >/dev/null
 
       - name: Build
@@ -186,7 +220,8 @@ jobs:
   # assertion lives in the production-artifacts job (it builds the image).
   license-notices:
     name: Third-party license notices
-    runs-on: ubuntu-24.04
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 15
     steps:
       - name: Checkout repository
@@ -205,7 +240,8 @@ jobs:
 
   frontend:
     name: Frontend frozen build
-    runs-on: ubuntu-24.04
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -247,7 +283,8 @@ jobs:
 
   production-artifacts:
     name: Production artifact provenance
-    runs-on: ubuntu-24.04
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
