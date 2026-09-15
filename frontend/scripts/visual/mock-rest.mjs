@@ -606,10 +606,15 @@ if (TITLE_DIAGNOSTIC) {
 // Fairtrade's strict payload validation, which the legacy observed-model
 // fixture's out-of-contract `tokensIn`/`tokensOut` fields would fail.
 const CONTEXT_NAV = process.env.MOCK_CONTEXT_NAV === '1'
+const CONTEXT_TARGET_ID = 'e0e0e0e0-0000-4000-8000-000000000011'
+const STARTER_TARGET_ID = 'd0d0d0d0-0000-4000-8000-000000000012'
+const CONTEXT_ANCHOR_REVISION = 'sha3-256:capture'
 let contextNavigation = null
+let contextTargetContent = null
+let contextTargetDetail = null
 if (CONTEXT_NAV) {
-  const contextTarget = 'e0e0e0e0-0000-4000-8000-000000000011'
-  const starterTarget = 'd0d0d0d0-0000-4000-8000-000000000012'
+  const contextTarget = CONTEXT_TARGET_ID
+  const starterTarget = STARTER_TARGET_ID
   for (const turn of content.turns) {
     delete turn.tokensIn
     delete turn.tokensOut
@@ -647,9 +652,59 @@ if (CONTEXT_NAV) {
       kind: 'context_from',
       status: 'resolved',
       transcriptId: contextTarget,
-      anchor: { kind: 'through_redacted_entry', sourceEntryRef: 'e_parent', sourceRevisionRef: 'sha3-256:capture' },
+      anchor: { kind: 'through_redacted_entry', sourceEntryRef: 'e_parent', sourceRevisionRef: CONTEXT_ANCHOR_REVISION },
     },
   ]
+
+  // The CURRENT context target itself: a long transcript whose NON-FIRST turn
+  // carries the `e_parent` ref the anchor resolves to, so the capture can prove
+  // the reader is scrolled to the branch point rather than the transcript top
+  // (where a discarded anchor would leave them). Its `content_hash` is the
+  // public revision the carried anchor is verified against.
+  const PARENT_BRANCH_TURN = 8
+  const targetTurns = []
+  for (let i = 0; i < 16; i += 1) {
+    const branch = i === PARENT_BRANCH_TURN
+    targetTurns.push({
+      index: i,
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: branch
+        ? 'parent: the conversation the child inherited context from'
+        : `parent: turn ${i} of the source session before and after the branch`,
+      timestamp: ts(-12 + i),
+      depth: 0,
+      entryType: 'text',
+      sourceEntryRef: branch ? 'e_parent' : `e_parent_${i}`,
+    })
+  }
+  contextTargetContent = {
+    id: 'sess_context_target',
+    harness: 'codex',
+    startTime: ts(-12),
+    endTime: ts(4),
+    durationMins: 16,
+    totalTokens: 30,
+    tokensIn: 20,
+    tokensOut: 10,
+    turnCount: targetTurns.length,
+    toolCallCount: 0,
+    turns: targetTurns,
+  }
+  contextTargetDetail = {
+    transcript: {
+      id: contextTarget,
+      local_id: contextTargetContent.id,
+      model_provider: 'codex',
+      visibility: 'public',
+      title: 'the session the child inherited context from',
+      description: null,
+      project_name: 'native-provenance',
+      content_hash: CONTEXT_ANCHOR_REVISION,
+    },
+    owner: { id: 'owner-demo' },
+    enriched_shares: [],
+    relationshipNavigation: [],
+  }
 }
 const detail = {
   transcript: {
@@ -751,6 +806,12 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && p === `/transcripts/${ID}/content`) return send(res, 200, content)
   if (req.method === 'GET' && p === `/transcripts/${ID}/annotations`) return send(res, 200, { annotations: [] })
   if (req.method === 'GET' && p === `/transcripts/${ID}/attestations`) return send(res, 200, attestations)
+  // The context target behind the child's exact branch-point link, so a capture
+  // can click the real link and land on the CURRENT target at the anchored turn.
+  if (CONTEXT_NAV && req.method === 'GET' && p === `/transcripts/${CONTEXT_TARGET_ID}`) return send(res, 200, contextTargetDetail)
+  if (CONTEXT_NAV && req.method === 'GET' && p === `/transcripts/${CONTEXT_TARGET_ID}/content`) return send(res, 200, contextTargetContent)
+  if (CONTEXT_NAV && req.method === 'GET' && p === `/transcripts/${CONTEXT_TARGET_ID}/annotations`) return send(res, 200, { annotations: [] })
+  if (CONTEXT_NAV && req.method === 'GET' && p === `/transcripts/${CONTEXT_TARGET_ID}/collectives`) return send(res, 200, { collectives: [] })
   // The contribute tree's own fixture ids (contributableResponse, above):
   // real turns + a tool call + a saved label, so the preview column's
   // capture shows actual content instead of a loading/not-found state.
