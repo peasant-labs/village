@@ -42,7 +42,7 @@ for (const c of loadExplicitRunCases()) {
       expect(init?.method).toBe("POST");
       const body: BatchShareRequest = JSON.parse(String(init?.body));
       requests.push(body);
-      return new Response(JSON.stringify({ project_hash: body.project_hash, shared: body.transcript_ids.map((id) => ({ transcript_id: id, status: "pending" })), already_shared: [] }), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ project_hash: body.project_hash, shared: (body.transcript_ids as string[]).map((id) => ({ transcript_id: id, status: "pending" })), already_shared: [] }), { status: 200, headers: { "content-type": "application/json" } });
     }));
     const { result } = renderHook(() => useContributeRun("collective"), { wrapper: makeQueryClientWrapper() });
     let outcome: unknown;
