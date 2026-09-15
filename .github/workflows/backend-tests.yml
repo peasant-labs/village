@@ -4,6 +4,10 @@ name: Backend Tests
 # to the long-lived branches). The integration suite (`-tags=integration`) needs
 # real PostgreSQL and S3-compatible storage. PostgreSQL runs as a service
 # container; the workflow starts an ephemeral pinned MinIO container explicitly.
+#
+# Jobs run on the organization's self-hosted container pool when a runner is
+# online (the routing job picks it dynamically) and on GitHub-hosted
+# ubuntu-24.04 otherwise; both paths are kept green.
 on:
   pull_request:
     paths:
@@ -68,13 +72,13 @@ jobs:
         run: |
           set -euo pipefail
           if ! online=$(gh api /orgs/peasant-labs/actions/runners --paginate \
-              --jq '.runners[] | select(.status == "online") | select(any(.labels[]; .name == "nixos")) | .name' 2>/dev/null | wc -l); then
+              --jq '.runners[] | select(.status == "online") | select(any(.labels[]; .name == "container")) | .name' 2>/dev/null | wc -l); then
             echo "::warning::runner availability query failed; using the fallback"
             online=0
           fi
           echo "online runners: ${online}"
           if [ "${online}" -gt 0 ]; then
-            echo 'runner=["self-hosted","nixos"]' >> "$GITHUB_OUTPUT"
+            echo 'runner=["self-hosted","container"]' >> "$GITHUB_OUTPUT"
           else
             echo 'runner=["ubuntu-24.04"]' >> "$GITHUB_OUTPUT"
           fi
