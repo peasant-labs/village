@@ -170,21 +170,24 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Bounded TCP readiness probe for the Postgres service container. This
-          # runs unchanged on the self-hosted pool (no apt / no host package
-          # manager) and on the GitHub-hosted fallback, so it never depends on
-          # installing a client. The postmaster opens its listener when it is
-          # ready to accept connections; the retries absorb startup latency.
+          # Bounded readiness probe through the service container's own client.
+          # The postgres image ships `pg_isready` and the same docker socket
+          # already runs the MinIO container, so this runs unchanged on the
+          # self-hosted pool (no apt / no host package manager) and on the
+          # GitHub-hosted fallback. `pg_isready` performs a real protocol-level
+          # connection attempt, so it confirms the postmaster is accepting
+          # connections -- not merely that the TCP port is listening. The
+          # retries absorb startup latency.
           pg_ready=false
           for attempt in {1..30}; do
-            if (exec 3<>/dev/tcp/127.0.0.1/5432) 2>/dev/null; then
+            if docker exec ${{ job.services.postgres.id }} pg_isready -U test -d village_test; then
               pg_ready=true
               break
             fi
             sleep 2
           done
           if [[ "$pg_ready" != true ]]; then
-            echo "PostgreSQL did not accept a connection at 127.0.0.1:5432 after $attempt/30 attempts." >&2
+            echo "PostgreSQL did not become ready after $attempt/30 attempts." >&2
             exit 1
           fi
 
