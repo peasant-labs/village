@@ -51,6 +51,7 @@ Every callback URL is `<BASE_URL>/api/v1/auth/<provider>/callback`. Locally,
 | Variables | Feature | When unset |
 | --- | --- | --- |
 | `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` | Collective repository linking and the commit overlay (a GitHub App, not the OAuth app: Contents read-only, Metadata read-only, installable on any account). The key accepts a multi-line PEM or one line with `\n` escapes. | The feature's endpoints return `501`; everything else works. |
+| `GITHUB_APP_SLUG` | The App's URL slug, used to build the GitHub App install redirect (`github.com/apps/<slug>/installations/new`) behind the collective "Connect GitHub" action. | The install-handshake routes return `501`. |
 
 ## Failure behavior summary
 

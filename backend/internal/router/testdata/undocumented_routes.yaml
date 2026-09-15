@@ -126,3 +126,9 @@ routes:
   - method: DELETE
     path: /api/v1/users/me/projects/{projectHash}/display-name
     reason: project display name reset, predates the contract
+  - method: GET
+    path: /api/v1/integrations/github/install
+    reason: GitHub App install redirect, like an OAuth entry point; started by a collective owner and to be declared with the other integration routes when they move into the contract
+  - method: GET
+    path: /api/v1/integrations/github/callback
+    reason: GitHub App install callback redirect, like an OAuth callback; verifies the signed state it carries

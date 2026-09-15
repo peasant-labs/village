@@ -110,6 +110,12 @@ type mockQuerier struct {
 
 	// Group membership stub (used for owner/admin gating)
 	getGroupMember func(ctx context.Context, arg sqlc.GetGroupMemberParams) (sqlc.GroupMember, error)
+	// getGroupByID stubs the collective read (used by the repository-link
+	// organization guard). Unset returns a zero collective with no linked org.
+	getGroupByID func(ctx context.Context, id pgtype.UUID) (sqlc.Group, error)
+	// listUserGroups stubs the caller's collectives (used by the install
+	// callback to find the one bound to the installation's account).
+	listUserGroups func(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserGroupsRow, error)
 
 	// Collectives stubs. They are overridable func fields (rather than the
 	// constant-nil shorthand used by the older group stubs) so a test can count
@@ -494,7 +500,10 @@ func (m *mockQuerier) CreateGroup(ctx context.Context, arg sqlc.CreateGroupParam
 	panic("CreateGroup: not stubbed")
 }
 func (m *mockQuerier) GetGroupByID(ctx context.Context, id pgtype.UUID) (sqlc.Group, error) {
-	panic("GetGroupByID: not stubbed")
+	if m.getGroupByID != nil {
+		return m.getGroupByID(ctx, id)
+	}
+	return sqlc.Group{}, nil
 }
 func (m *mockQuerier) UpdateGroup(ctx context.Context, arg sqlc.UpdateGroupParams) (sqlc.Group, error) {
 	panic("UpdateGroup: not stubbed")
@@ -503,7 +512,10 @@ func (m *mockQuerier) DeleteGroup(ctx context.Context, id pgtype.UUID) error {
 	panic("DeleteGroup: not stubbed")
 }
 func (m *mockQuerier) ListUserGroups(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
-	panic("ListUserGroups: not stubbed")
+	if m.listUserGroups != nil {
+		return m.listUserGroups(ctx, userID)
+	}
+	return nil, nil
 }
 func (m *mockQuerier) ListVisibleGroups(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListVisibleGroupsRow, error) {
 	panic("ListVisibleGroups: not stubbed")
