@@ -17,10 +17,13 @@ import (
 // not permit from the attachment's current state.
 var ErrTransitionNotAllowed = errors.New("pull request attachment transition not allowed")
 
-// ErrStaleState is returned when the row moved between the read and the write.
-// The write is conditional on the state that was read, so a concurrent
-// transition loses cleanly instead of clobbering the other move; the caller
-// re-reads and retries.
+// ErrStaleState is returned when the row no longer matches the state that was
+// read. The write is conditional on that state (expected-state matching), so a
+// move that raced another writer returns no row instead of clobbering. This is
+// NOT a revision fence: two moves to the same target can both succeed, and an
+// A->B->A sequence can pass the predicate. A caller that needs serialized
+// history must bind its reads and writes in one transaction. The caller re-reads
+// and retries.
 var ErrStaleState = errors.New("pull request attachment state changed concurrently")
 
 // Querier is the subset of *sqlc.Queries the transition path needs. Callers
@@ -30,11 +33,13 @@ type Querier interface {
 	UpdatePullRequestAttachmentState(ctx context.Context, arg sqlc.UpdatePullRequestAttachmentStateParams) (sqlc.PullRequestAttachment, error)
 }
 
-// Transition is the ONLY path allowed to change an attachment's state. It
-// reads the current state, validates the edge against the closed table, and
-// writes the new state conditionally on the state it read. Anything else that
-// wanted to move an attachment must call this function, so the table above is
-// the single source of truth for the lifecycle.
+// Transition is the only path this package provides to change an existing
+// attachment's state. It reads the current state, validates the edge against the
+// closed table, and writes the new state conditionally on the state it read
+// (expected-state matching, not a revision fence). Recording a NEW attachment is
+// a separate statement (CreatePullRequestAttachment) and does not route here.
+// The timestamps record the latest entry per state; they are not an exact event
+// history.
 //
 // It does not run side effects: sharing transcripts, building a digest, posting
 // the comment, or restoring visibility are the caller's job. This function only
@@ -69,7 +74,7 @@ func Transition(ctx context.Context, q Querier, id pgtype.UUID, next State) (sql
 		if errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.PullRequestAttachment{}, fmt.Errorf("%w: attachment %s was no longer in %s when the move to %s was applied; re-read and retry", ErrStaleState, id, from, next)
 		}
-		return sqlc.PullRequestAttachment{}, fmt.Errorf("could not move attachment %s from %s to %s; the previous state is unchanged: %w", id, from, next, err)
+		return sqlc.PullRequestAttachment{}, fmt.Errorf("could not move attachment %s from %s to %s; the move did not complete: %w", id, from, next, err)
 	}
 	return updated, nil
 }

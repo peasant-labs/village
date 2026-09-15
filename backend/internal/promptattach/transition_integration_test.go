@@ -105,6 +105,50 @@ func TestTransitionDetachPreservesRecordedPreviousVisibility(t *testing.T) {
 	}
 }
 
+// TestAttachTranscriptPreservesOriginalSnapshot proves a re-bind after the
+// transcript was widened does not overwrite the recorded previous visibility:
+// the snapshot describes the transcript before the FIRST widening, so detach
+// still restores the original tier.
+func TestAttachTranscriptPreservesOriginalSnapshot(t *testing.T) {
+	ctx := context.Background()
+	pool := newScratchPool(t)
+	q := sqlc.New(pool)
+	owner := insertOwner(t, ctx, pool)
+
+	transcriptID := insertTranscript(t, ctx, pool, owner, "private")
+	attachment := createAttachment(t, ctx, q, owner, 500, Attached)
+
+	if err := q.AttachPullRequestTranscript(ctx, sqlc.AttachPullRequestTranscriptParams{
+		AttachmentID:       attachment.ID,
+		TranscriptID:       transcriptID,
+		Position:           0,
+		PreviousVisibility: "private",
+	}); err != nil {
+		t.Fatalf("first bind: %v", err)
+	}
+
+	// A refresh or retry re-observes the pair after the transcript was widened.
+	if err := q.AttachPullRequestTranscript(ctx, sqlc.AttachPullRequestTranscriptParams{
+		AttachmentID:       attachment.ID,
+		TranscriptID:       transcriptID,
+		Position:           0,
+		PreviousVisibility: "public",
+	}); err != nil {
+		t.Fatalf("re-bind: %v", err)
+	}
+
+	links, err := q.ListPullRequestAttachmentTranscripts(ctx, attachment.ID)
+	if err != nil {
+		t.Fatalf("list after re-bind: %v", err)
+	}
+	if len(links) != 1 {
+		t.Fatalf("attachment holds %d transcripts, want 1", len(links))
+	}
+	if links[0].PreviousVisibility != "private" {
+		t.Fatalf("re-bind overwrote the snapshot: previous_visibility = %q, want private", links[0].PreviousVisibility)
+	}
+}
+
 // createAttachment inserts one attachment in the given state with a repo key
 // unique to index i, so rows never collide on (github_repo_id, number).
 func createAttachment(t *testing.T, ctx context.Context, q *sqlc.Queries, owner pgtype.UUID, i int, state State) sqlc.PullRequestAttachment {

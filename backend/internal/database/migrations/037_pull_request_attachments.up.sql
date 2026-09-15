@@ -6,9 +6,10 @@
 -- in, and the transcripts an attachment holds together with the visibility
 -- each one had before it was widened. It does NOT match transcripts, compute
 -- a digest, post to GitHub, or move any transcript's visibility - those are
--- separate work. The only writer of `state` is the Go transition
--- function (`internal/promptattach.Transition`), which enforces the closed
--- transition table; every other statement reads it.
+-- separate work. The only statement that changes an EXISTING attachment's
+-- state is the Go transition function (`internal/promptattach.Transition`),
+-- which enforces the closed transition table; creating an attachment writes the
+-- initial state directly.
 --
 -- `state` is CHECK-constrained to the closed menu, mirrored by the Go
 -- `promptattach.State` constants so a value that round-trips through the

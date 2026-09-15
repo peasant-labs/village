@@ -50,17 +50,19 @@ WHERE id = sqlc.arg(id) AND state = sqlc.arg(expected_state)
 RETURNING *;
 
 -- name: AttachPullRequestTranscript :exec
--- Binds a transcript to an attachment at a position, recording the visibility
--- the transcript held before an attach widened it so detach can restore exactly
--- that value. Idempotent on the (attachment, transcript) key.
+-- Binds a transcript to an attachment at a position, recording the visibility the
+-- transcript held before an attach widened it so detach can restore exactly that
+-- value. Idempotent on the (attachment, transcript) key: re-binding updates the
+-- position but PRESERVES the original previous_visibility, because the snapshot
+-- describes the transcript before the FIRST widening. A refresh or retry after the
+-- transcript was widened must not overwrite it with the already-widened tier.
 INSERT INTO pull_request_attachment_transcripts (
     attachment_id, transcript_id, position, previous_visibility
 ) VALUES (
     $1, $2, $3, $4
 )
 ON CONFLICT (attachment_id, transcript_id) DO UPDATE SET
-    position            = EXCLUDED.position,
-    previous_visibility = EXCLUDED.previous_visibility;
+    position = EXCLUDED.position;
 
 -- name: ListPullRequestAttachmentTranscripts :many
 SELECT * FROM pull_request_attachment_transcripts

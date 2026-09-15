@@ -138,14 +138,19 @@ boundary are documented in
   (`UNIQUE (github_repo_id, number)`), one nullable timestamp per state, the
   GitHub object ids the posting path later fills in, and a closed `state` menu
   (`requested | waiting | preview | attached | detached`) under
-  `pull_request_attachments_state_menu`. `pull_request_attachment_transcripts`
+  `pull_request_attachments_state_menu`.   `pull_request_attachment_transcripts`
   binds transcripts to an attachment by `position` and records
   `previous_visibility`, the `transcripts.visibility` value read before an
-  attach widened it, which detach restores exactly. **`state` is written by
-  exactly one Go function**, `internal/promptattach.Transition`, over the single
-  statement `UpdatePullRequestAttachmentState`; that statement is conditional on
-  the state the caller read (`state = expected_state`), so a concurrent
-  transition loses cleanly instead of clobbering another move. The transition
+  attach widened it, which detach restores exactly. It is recorded once per
+  (attachment, transcript): re-binding preserves the first snapshot. **`state` is
+  changed by exactly one Go function**, `internal/promptattach.Transition`, over
+  the single statement `UpdatePullRequestAttachmentState`, which is conditional
+  on the state the caller read (`state = expected_state`). That is
+  expected-state matching, not a revision fence: two moves to the same target can
+  both succeed and an A->B->A sequence passes the predicate, so a caller that
+  needs serialized history binds its read and write in one transaction. Recording
+  a NEW attachment writes the initial state directly and does not route through
+  `Transition`. The transition
   table is closed and exhaustively fixtured
   (`internal/promptattach/testdata/transitions.yaml`); every pair it does not
   name is refused. The same migration adds `users.preview_before_attach`

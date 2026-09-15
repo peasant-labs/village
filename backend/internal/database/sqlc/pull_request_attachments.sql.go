@@ -18,8 +18,7 @@ INSERT INTO pull_request_attachment_transcripts (
     $1, $2, $3, $4
 )
 ON CONFLICT (attachment_id, transcript_id) DO UPDATE SET
-    position            = EXCLUDED.position,
-    previous_visibility = EXCLUDED.previous_visibility
+    position = EXCLUDED.position
 `
 
 type AttachPullRequestTranscriptParams struct {
@@ -29,9 +28,12 @@ type AttachPullRequestTranscriptParams struct {
 	PreviousVisibility string      `db:"previous_visibility" json:"previous_visibility"`
 }
 
-// Binds a transcript to an attachment at a position, recording the visibility
-// the transcript held before an attach widened it so detach can restore exactly
-// that value. Idempotent on the (attachment, transcript) key.
+// Binds a transcript to an attachment at a position, recording the visibility the
+// transcript held before an attach widened it so detach can restore exactly that
+// value. Idempotent on the (attachment, transcript) key: re-binding updates the
+// position but PRESERVES the original previous_visibility, because the snapshot
+// describes the transcript before the FIRST widening. A refresh or retry after the
+// transcript was widened must not overwrite it with the already-widened tier.
 func (q *Queries) AttachPullRequestTranscript(ctx context.Context, arg AttachPullRequestTranscriptParams) error {
 	_, err := q.db.Exec(ctx, attachPullRequestTranscript,
 		arg.AttachmentID,
