@@ -34,3 +34,57 @@ export function requireExplicitContributionIDs(ids: readonly string[]): void {
     throw new Error("contribute run refused before submission: this selected project contains no explicit transcript IDs; nothing was sent; select at least one transcript, or use the separately confirmed whole-project action");
   }
 }
+
+/**
+ * The union of explicit-ID batch maps, keyed by project. The ordinary tree
+ * contributes the rows a contributor ticked there; the grouped helper
+ * disclosures contribute the members ticked individually under an expanded
+ * group. Both maps already carry explicit transcript ids, and one identity
+ * repeated across them is still one request entry.
+ */
+export function mergeContributionBatches(
+  ...maps: readonly Map<string, string[]>[]
+): Map<string, string[]> {
+  const merged = new Map<string, string[]>();
+  const seen = new Map<string, Set<string>>();
+  for (const map of maps) {
+    for (const [projectHash, ids] of map) {
+      const known = seen.get(projectHash) ?? new Set<string>();
+      for (const id of ids) {
+        if (known.has(id)) continue;
+        known.add(id);
+        const target = merged.get(projectHash) ?? [];
+        target.push(id);
+        merged.set(projectHash, target);
+      }
+      seen.set(projectHash, known);
+    }
+  }
+  return merged;
+}
+
+/**
+ * The explicit transcript ids a review decision may name, from submissions a
+ * moderator ticked individually under a grouped helper disclosure. A context
+ * container or helper-group summary is not a submission and cannot be decided
+ * here; a row that is no longer a live pending submission is refused rather
+ * than sent, so a stale membership can never be approved by accident.
+ */
+export function groupedReviewSelection(selected: readonly VillageSessionListItem[]): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const item of selected) {
+    const row = item.transcript;
+    if (item.kind !== "transcript" || !row || item.context) {
+      throw new Error("review selection refused before submission: a context container or helper group cannot be decided; nothing was sent; expand the group and select an eligible submission individually");
+    }
+    const pending = row.pending;
+    if (!pending || pending.transcript_id !== row.session.id) {
+      throw new Error("review selection refused before submission: a selected row is not a live pending submission; nothing was sent; refresh the review queue and select submissions individually");
+    }
+    if (seen.has(row.session.id)) continue;
+    seen.add(row.session.id);
+    ids.push(row.session.id);
+  }
+  return ids;
+}

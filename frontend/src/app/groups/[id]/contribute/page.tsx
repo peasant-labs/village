@@ -1,14 +1,24 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
+import type { VillageSessionListItem } from "@peasant-labs/schema";
 import { useGroup } from "@/lib/queries/groups";
 import { useContributable, useContributeRun, partitionRunOutcome } from "@/lib/queries/groupShares";
+import { useGroupedContributable } from "@/lib/queries/groupedCollectives";
+import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import { buildContributeTree } from "@/lib/contribute/tree";
 import { groupByProject, privateIds, toggleNode, type Selection } from "@/lib/contribute/selection";
+import { groupedContributionBatches, mergeContributionBatches } from "@/lib/contribute/groupedSelection";
+import { helperItemID, useExplicitHelperSelection } from "@/lib/contribute/helperSelection";
 import { applyFilters, harnessCounts, type ContributeFilters } from "@/lib/contribute/filter";
 import ContributeTree from "@/components/contribute/ContributeTree";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
+import {
+  ScopedContextContainerList,
+  ScopedOwnerHelperGroups,
+  helperGroupsByTranscript,
+} from "@/components/transcript/ScopedHelperGroups";
 import ConfirmContributeDialog from "@/components/transcript/ConfirmContributeDialog";
 import { Button } from "@/lib/ft-ui";
 
@@ -44,6 +54,29 @@ export default function GroupContributePage({
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
   const tree = useMemo(() => buildContributeTree(filteredRows), [filteredRows]);
   const counts = useMemo(() => harnessCounts(rows, filters.search), [rows, filters.search]);
+  // The grouped read of the SAME route. It supplements the flat tree with the
+  // saved helper threads the server grouped under each owner row; it is not a
+  // second list. A failed or still-loading grouped read removes nothing -- the
+  // flat tree above stays the authority for its own rows and pages.
+  const grouped = useGroupedContributable(id, { page: 1, limit: GROUPED_TOP_LEVEL_PAGE_SIZE });
+  const groupedItems = useMemo(
+    () => grouped.data?.transcriptList.items ?? [],
+    [grouped.data],
+  );
+  const helperGroups = useMemo(() => helperGroupsByTranscript(groupedItems), [groupedItems]);
+  // A member is selectable only while the row it was served with is still a
+  // live contributable submission: an already-shared row stays visible in the
+  // group but can never re-enter a contribution batch.
+  const helperDisabled = useCallback((item: VillageSessionListItem) => {
+    const row = item.transcript;
+    const contribution = row?.contributable;
+    return !row || !contribution || contribution.already_shared || contribution.id !== row.session.id;
+  }, []);
+  const helper = useExplicitHelperSelection(helperDisabled);
+  const helperPrivateSelected = useMemo(
+    () => [...helper.selected.values()].filter((item) => item.transcript?.session.visibility === "private"),
+    [helper.selected],
+  );
   // The receipt list is keyed by `project_hash` (the run's grouping key), but
   // a viewer never sees a raw hash elsewhere on this page -- resolve it back
   // to the same `project_display_name` the tree renders.
@@ -51,7 +84,7 @@ export default function GroupContributePage({
     () => new Map(rows.map((row) => [row.project_hash, row.project_display_name])),
     [rows],
   );
-  const selectedCount = selection.size;
+  const selectedCount = selection.size + helper.selectedIds.size;
 
   if (groupLoading || contributableLoading) {
     return (
@@ -106,18 +139,30 @@ export default function GroupContributePage({
   }
 
   async function startRun(visibilityConfirmed: boolean) {
-    const batches = groupByProject(selection, tree);
+    // Tree rows and individually ticked helper members are ONE set of explicit
+    // transcript ids. The helper batches are built from the exact row each
+    // member endpoint served, so nothing here sends a group id or infers a
+    // sibling: the ordinary project/branch selection is the pre-existing
+    // per-transcript selection, and a helper is only ever its own id.
+    const batches = mergeContributionBatches(
+      groupByProject(selection, tree),
+      groupedContributionBatches([...helper.selected.values()]),
+    );
     if (batches.size === 0) return;
     const results = await run.run(batches, visibilityConfirmed);
     const { clearedIds } = partitionRunOutcome(batches, results);
     const cleared = new Set(clearedIds);
     setSelection((prev) => new Set([...prev].filter((sel) => !cleared.has(sel))));
+    helper.forget(cleared);
     setConfirmOpen(false);
   }
 
   function handleContributeClick() {
     if (selectedCount === 0) return;
-    const privates = privateIds(selection, tree);
+    const privates = [
+      ...privateIds(selection, tree),
+      ...helperPrivateSelected.map((item) => helperItemID(item)).filter((id): id is string => id != null),
+    ];
     if (privates.length > 0) {
       setConfirmOpen(true);
       return;
@@ -125,10 +170,16 @@ export default function GroupContributePage({
     void startRun(false);
   }
 
-  const privateSelectedItems = privateIds(selection, tree).map((transcriptId) => {
-    const source = rows.find((row) => row.id === transcriptId);
-    return { id: transcriptId, title: source?.title ?? transcriptId };
-  });
+  const privateSelectedItems = [
+    ...privateIds(selection, tree).map((transcriptId) => {
+      const source = rows.find((row) => row.id === transcriptId);
+      return { id: transcriptId, title: source?.title ?? transcriptId };
+    }),
+    ...helperPrivateSelected.map((item) => ({
+      id: helperItemID(item) ?? "",
+      title: item.transcript?.session.title ?? helperItemID(item) ?? "",
+    })),
+  ];
 
   return (
     <div className="cmg-root max-w-[1600px] mx-auto px-6 pt-6 pb-24 flex flex-col gap-6 animate-fade-up">
@@ -180,6 +231,18 @@ export default function GroupContributePage({
                 filters={filters}
                 onFiltersChange={setFilters}
                 harnessCounts={counts}
+                helperGroupSlot={(session) => (
+                  <ScopedOwnerHelperGroups
+                    groups={helperGroups.get(session.id)}
+                    onRefreshOrigin={grouped.refreshOrigin}
+                    selection={helper.contract}
+                  />
+                )}
+              />
+              <ScopedContextContainerList
+                items={groupedItems}
+                onRefreshOrigin={grouped.refreshOrigin}
+                selection={helper.contract}
               />
             </div>
             <div className="min-h-[20rem] @[880px]:min-h-[32rem]">

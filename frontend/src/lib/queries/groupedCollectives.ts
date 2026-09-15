@@ -47,8 +47,8 @@ function useCollectiveRead<T>(key: string, groupId: string, suffix: string, filt
   return { ...query, data: query.isError ? undefined : query.data, refreshOrigin: () => client.invalidateQueries({ queryKey, exact: true }) };
 }
 
-export function useGroupedCollective(groupId: string, filters: CollectiveListFilters) {
-  return useCollectiveRead("group", groupId, "", filters, true, (raw) => zVillageGroupedGroupDetailResponse.parse(raw), (response) => response.transcriptList);
+export function useGroupedCollective(groupId: string, filters: CollectiveListFilters, enabled = true) {
+  return useCollectiveRead("group", groupId, "", filters, enabled, (raw) => zVillageGroupedGroupDetailResponse.parse(raw), (response) => response.transcriptList);
 }
 
 export function useGroupedContributable(groupId: string, filters: CollectiveListFilters, enabled = true) {

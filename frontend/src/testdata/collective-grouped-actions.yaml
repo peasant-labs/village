@@ -1,0 +1,72 @@
+# Mounted collective grouped-helper actions.
+#
+# The per-helper contribution and review selection on the real collective
+# routes. Every case names the tree row the group hangs under, the group the
+# server grouped with it, the member a person ticks individually, and the
+# EXACT explicit-id body the route must send. The member labels are human
+# names; the wire carries deterministic UUID transcript ids derived from them.
+groupId: 50000000-0000-4000-8000-000000000001
+projectHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+projectName: peasant
+groups:
+  owner:
+    groupId: hg_owner_group
+    purpose: helper_review
+    helperThreadCount: 2
+    memberScope: scope-owner-group
+  other:
+    groupId: hg_other_group
+    purpose: helper_review
+    helperThreadCount: 1
+    memberScope: scope-other-group
+  context:
+    groupId: hg_context_group
+    purpose: helper_review
+    helperThreadCount: 1
+    memberScope: scope-context-group
+members:
+  owner:
+    - {name: G1, title: "the first saved helper"}
+    - {name: G2, title: "the second saved helper"}
+  other:
+    - {name: H1, title: "an independently owned helper"}
+  context:
+    - {name: C1, title: "a helper whose owner this page does not carry"}
+rows:
+  - {name: P1, id: 40000000-0000-4000-8000-000000000001, local_id: sess_p1, title: "the first owned session"}
+  - {name: P2, id: 40000000-0000-4000-8000-000000000002, local_id: sess_p2, title: "the second owned session"}
+cases:
+  - name: browse-renders-the-group-under-its-owner-row
+    surface: browse
+    why: The collective's browse list draws the server's saved helper group under the owner row it was grouped with.
+    row: P1
+    group: owner
+    expected_ids: []
+  - name: contribute-selects-one-helper-only
+    surface: contribute
+    why: A contributor ticks one helper member and the batch names exactly that transcript id.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
+  - name: contribute-context-container-is-not-selectable
+    surface: contribute
+    why: A helper-only context container is read context with no selectable row, so it can never enter a batch.
+    row: P1
+    group: owner
+    context: true
+    expected_ids: []
+  - name: review-selects-one-helper-only
+    surface: review
+    why: A reviewer decides one helper member and the decision names exactly that transcript id.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
+  - name: review-other-owner-group-remains-independent
+    surface: review
+    why: Selecting a member of the second owner's group sends only that member, never the first group's work.
+    row: P2
+    group: other
+    select: H1
+    expected_ids: [H1]

@@ -8,7 +8,8 @@ import { parse } from "yaml";
  * Each mutation edits one anchor in a corpus and requires the named
  * production-path test to fail: a changed expectation must fail an assertion,
  * and a damaged corpus (a renamed required case, a non-boolean field, a page
- * composition with no continuation) must fail loader validation. A mutation
+ * composition with no continuation, a renamed collective case) must fail
+ * loader validation. A mutation
  * that survives means the case's declared field is inert — the review finding
  * this script exists to prevent from coming back.
  */
@@ -30,6 +31,8 @@ const requiredNames = [
   "required-case-renamed",
   "invalid-expand-field",
   "continuation-total-drift",
+  "collective-expected-id-drift",
+  "collective-required-case-renamed",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (

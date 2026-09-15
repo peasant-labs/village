@@ -25,6 +25,11 @@ interface ContributeTreeProps {
    *  DECIDE, so the two pages count the same rows in different words. */
   countNoun?: string;
   emptyLabel?: string;
+  /** The saved helper groups hanging off one session row, mounted by the page
+   *  that owns the grouped read. A group renders directly beneath the row it
+   *  belongs to, so the group's members are selectable without a second,
+   *  duplicated copy of the owner row. The page owns the selection state. */
+  helperGroupSlot?: (session: SessionNode<TreeRowFacts>) => React.ReactNode;
 }
 
 /** Depth column each row type occupies in the connector: project 0, branch (or
@@ -133,6 +138,7 @@ function SessionRow({
   setRowElement,
   openChildren,
   onToggleChildren,
+  helperGroupSlot,
 }: {
   session: SessionNode<TreeRowFacts>;
   depth: number;
@@ -143,6 +149,7 @@ function SessionRow({
   setRowElement: (key: string, element: HTMLElement | null) => void;
   openChildren: ReadonlySet<string>;
   onToggleChildren: (sessionId: string) => void;
+  helperGroupSlot?: (session: SessionNode<TreeRowFacts>) => React.ReactNode;
 }) {
   const childrenOpen = openChildren.has(session.id);
   const state = nodeState(selection, session);
@@ -227,10 +234,19 @@ function SessionRow({
                   setRowElement={setRowElement}
                   openChildren={openChildren}
                   onToggleChildren={onToggleChildren}
+                  helperGroupSlot={helperGroupSlot}
                 />
               ))}
             </div>
           </SessionGroupDisclosure>
+        </div>
+      )}
+      {/* The saved helper groups that hang off THIS row, drawn under it by the
+          page that owns the grouped read. The marker names the owner row so a
+          group's place in the tree is observable rather than inferred. */}
+      {helperGroupSlot != null && (
+        <div className="pl-4" data-helper-group-owner={session.id}>
+          {helperGroupSlot(session)}
         </div>
       )}
     </div>
@@ -247,6 +263,7 @@ function GroupRow({
   setRowElement,
   openChildren,
   onToggleChildren,
+  helperGroupSlot,
 }: {
   node: ContributeNode<TreeRowFacts> & { children: SessionNode<TreeRowFacts>[] };
   selection: Selection;
@@ -256,6 +273,7 @@ function GroupRow({
   setRowElement: (key: string, element: HTMLElement | null) => void;
   openChildren: ReadonlySet<string>;
   onToggleChildren: (sessionId: string) => void;
+  helperGroupSlot?: (session: SessionNode<TreeRowFacts>) => React.ReactNode;
 }) {
   const state = nodeState(selection, node);
   // A branch names itself; the synthetic orphans grouping is not a branch and
@@ -292,6 +310,7 @@ function GroupRow({
             setRowElement={setRowElement}
             openChildren={openChildren}
             onToggleChildren={onToggleChildren}
+            helperGroupSlot={helperGroupSlot}
           />
         ))}
       </div>
@@ -310,6 +329,7 @@ function ProjectRow({
   setRowElement,
   openChildren,
   onToggleChildren,
+  helperGroupSlot,
 }: {
   project: ProjectNode<TreeRowFacts>;
   open: boolean;
@@ -321,6 +341,7 @@ function ProjectRow({
   setRowElement: (key: string, element: HTMLElement | null) => void;
   openChildren: ReadonlySet<string>;
   onToggleChildren: (sessionId: string) => void;
+  helperGroupSlot?: (session: SessionNode<TreeRowFacts>) => React.ReactNode;
 }) {
   const state = nodeState(selection, project);
   const projectRef = useCallback(
@@ -363,6 +384,7 @@ function ProjectRow({
               setRowElement={setRowElement}
               openChildren={openChildren}
               onToggleChildren={onToggleChildren}
+              helperGroupSlot={helperGroupSlot}
             />
           ))}
         </div>
@@ -394,6 +416,7 @@ export default function ContributeTree({
   harnessCounts,
   countNoun = "session",
   emptyLabel = "no contributable sessions match this filter.",
+  helperGroupSlot,
 }: ContributeTreeProps) {
   const [collapsedProjects, setCollapsedProjects] = useState<ReadonlySet<string>>(new Set());
   const [openChildren, setOpenChildren] = useState<ReadonlySet<string>>(new Set());
@@ -576,6 +599,7 @@ export default function ContributeTree({
                       return next;
                     })
                   }
+                  helperGroupSlot={helperGroupSlot}
                 />
               ))}
             </div>

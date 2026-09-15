@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users,
@@ -38,6 +38,13 @@ import TranscriptList, {
   type TranscriptRowFact,
   type TranscriptRowSelection,
 } from "@/components/transcript/TranscriptList";
+import {
+  ScopedContextContainerList,
+  ScopedOwnerHelperGroups,
+  helperGroupsByTranscript,
+} from "@/components/transcript/ScopedHelperGroups";
+import { useGroupedCollective } from "@/lib/queries/groupedCollectives";
+import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import {
   Button,
   ProviderBars,
@@ -257,6 +264,18 @@ export default function GroupDetailPage({
   });
 
   const { data: myShares } = useMyGroupShares(id, !!user);
+
+  // The grouped read of the SAME collective route: it supplements the flat
+  // transcript list with the saved helper threads the server grouped under
+  // each owner row. A failed, refused or still-loading grouped read removes
+  // nothing -- the flat list stays the authority for its own rows.
+  const grouped = useGroupedCollective(
+    id,
+    { page: 1, limit: GROUPED_TOP_LEVEL_PAGE_SIZE },
+    !!data?.can_read,
+  );
+  const groupedItems = useMemo(() => grouped.data?.transcriptList.items ?? [], [grouped.data]);
+  const helperGroups = useMemo(() => helperGroupsByTranscript(groupedItems), [groupedItems]);
 
   if (isLoading) {
     return (
@@ -870,6 +889,16 @@ export default function GroupDetailPage({
                 viewerIsPrivileged={isOwner}
                 linkOwner
                 bare
+                helperGroupSlot={(item) => (
+                  <ScopedOwnerHelperGroups
+                    groups={helperGroups.get(item.transcript.id)}
+                    onRefreshOrigin={grouped.refreshOrigin}
+                  />
+                )}
+              />
+              <ScopedContextContainerList
+                items={groupedItems}
+                onRefreshOrigin={grouped.refreshOrigin}
               />
 
               {showDataBrowser && totalPages > 1 && (

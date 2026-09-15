@@ -1,15 +1,25 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
+import type { VillageSessionListItem } from "@peasant-labs/schema";
 import { useGroup } from "@/lib/queries/groups";
 import { usePendingShares, useBatchReview } from "@/lib/queries/groupReview";
+import { useGroupedPendingShares } from "@/lib/queries/groupedCollectives";
+import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import { buildReviewTree, toReviewRows } from "@/lib/review/tree";
 import type { ReviewDecision } from "@/lib/review/types";
 import { toggleNode, type Selection } from "@/lib/contribute/selection";
+import { groupedReviewSelection } from "@/lib/contribute/groupedSelection";
+import { helperItemID, useExplicitHelperSelection } from "@/lib/contribute/helperSelection";
 import { applyFilters, harnessCounts, type ContributeFilters } from "@/lib/contribute/filter";
 import ContributeTree from "@/components/contribute/ContributeTree";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
+import {
+  ScopedContextContainerList,
+  ScopedOwnerHelperGroups,
+  helperGroupsByTranscript,
+} from "@/components/transcript/ScopedHelperGroups";
 import { Button } from "@/lib/ft-ui";
 
 /**
@@ -47,6 +57,37 @@ export default function GroupReviewPage({
   // watch a selection silently shrink.
   const [stale, setStale] = useState<ReadonlySet<string>>(new Set());
 
+  // The grouped read of the SAME queue: it supplements the flat review tree
+  // with the saved helper threads the server grouped under each submission.
+  // A failed or still-loading grouped read removes nothing -- the flat tree
+  // above stays the authority for its own rows.
+  const grouped = useGroupedPendingShares(
+    id,
+    { page: 1, limit: GROUPED_TOP_LEVEL_PAGE_SIZE },
+    isOwner,
+  );
+  const groupedItems = useMemo(() => grouped.data?.items ?? [], [grouped.data]);
+  const helperGroups = useMemo(() => helperGroupsByTranscript(groupedItems), [groupedItems]);
+  // A helper is decidable only while the row it was served with is still a
+  // live pending submission for this collective, and not already answered by
+  // another reviewer on this page's last action.
+  const helperDisabled = useCallback(
+    (item: VillageSessionListItem) => {
+      const row = item.transcript;
+      const pendingRow = row?.pending;
+      const itemID = helperItemID(item);
+      return (
+        itemID == null ||
+        !row ||
+        !pendingRow ||
+        pendingRow.transcript_id !== row.session.id ||
+        stale.has(itemID)
+      );
+    },
+    [stale],
+  );
+  const helper = useExplicitHelperSelection(helperDisabled);
+
   const shares = useMemo(() => pending ?? [], [pending]);
   const rows = useMemo(() => toReviewRows(shares, stale), [shares, stale]);
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
@@ -73,7 +114,13 @@ export default function GroupReviewPage({
     () => new Set([...selection].filter((id) => queuedIds.has(id))),
     [selection, queuedIds],
   );
-  const selectedCount = selected.size;
+  // Helper members are narrowed against the same queue: one that left it since
+  // it was ticked must not be counted or resent.
+  const queuedHelperIds = useMemo(
+    () => new Set([...helper.selectedIds].filter((id) => queuedIds.has(id))),
+    [helper.selectedIds, queuedIds],
+  );
+  const selectedCount = selected.size + queuedHelperIds.size;
 
   if (groupLoading || (isOwner && pendingLoading)) {
     return (
@@ -128,7 +175,14 @@ export default function GroupReviewPage({
 
   async function decide(status: ReviewDecision) {
     if (selectedCount === 0) return;
-    const ids = [...selected];
+    // Tree rows and individually ticked helper members are ONE set of explicit
+    // transcript ids: the decision names submissions, never a group id and
+    // never a parent/sibling a helper happened to be grouped under.
+    const helperItems = [...helper.selected.values()].filter((item) => {
+      const itemID = helperItemID(item);
+      return itemID != null && queuedHelperIds.has(itemID);
+    });
+    const ids = [...new Set([...selected, ...groupedReviewSelection(helperItems)])];
     const outcome = await review.mutateAsync({ transcript_ids: ids, status });
     // Every id the server answered about leaves the selection: a decided row
     // is done, and a stale row can never be decided from here — leaving it
@@ -139,6 +193,7 @@ export default function GroupReviewPage({
     const answered = new Set([...outcome.decided, ...outcome.already_decided]);
     setStale(new Set(outcome.already_decided));
     setSelection((prev) => new Set([...prev].filter((sel) => !answered.has(sel))));
+    helper.forget(answered);
   }
 
   const deciding = review.isPending;
@@ -185,6 +240,18 @@ export default function GroupReviewPage({
                 harnessCounts={counts}
                 countNoun="contribution"
                 emptyLabel="no pending contributions match this filter."
+                helperGroupSlot={(session) => (
+                  <ScopedOwnerHelperGroups
+                    groups={helperGroups.get(session.id)}
+                    onRefreshOrigin={grouped.refreshOrigin}
+                    selection={helper.contract}
+                  />
+                )}
+              />
+              <ScopedContextContainerList
+                items={groupedItems}
+                onRefreshOrigin={grouped.refreshOrigin}
+                selection={helper.contract}
               />
             </div>
             <div className="min-h-[20rem] @[880px]:min-h-[32rem]">

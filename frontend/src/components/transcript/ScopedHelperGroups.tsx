@@ -96,15 +96,18 @@ function MemberLoadPending() {
 }
 
 /**
- * The host's per-member selection contract. Ids are individual transcript ids;
- * the component reports the exact row that was toggled and holds no state of
- * its own, so the surface that acts on a selection owns it.
+ * The host's per-member selection contract. The component reports the exact
+ * display item that was toggled — the same item the member endpoint served,
+ * carrying the route arm (`contributable`/`pending`) a collective action needs —
+ * and holds no state of its own, so the surface that acts on a selection owns
+ * it. A surface that only needs the id reads `item.transcript?.session.id`
+ * rather than receiving a second, partially-populated callback.
  */
 export interface ScopedHelperSelection {
   selectedIds: ReadonlySet<string>;
-  onToggle: (transcriptId: string, selected: boolean) => void;
-  /** Members the surface must not let the viewer pick (e.g. already shared). */
-  isDisabled?: (transcriptId: string) => boolean;
+  onToggle: (item: VillageSessionListItem, selected: boolean) => void;
+  /** Items the surface must not let the viewer pick (e.g. already shared). */
+  isDisabled?: (item: VillageSessionListItem) => boolean;
 }
 
 /** The transcript a display item carries, or undefined for a context container. */
@@ -218,11 +221,11 @@ export function ScopedHelperGroup({
           turnCount={session.turn_count ?? undefined}
           href={`/transcripts/${encodeURIComponent(session.id)}`}
           selected={selection == null ? undefined : selected}
-          selectionDisabled={selection?.isDisabled?.(session.id) ?? false}
+          selectionDisabled={selection?.isDisabled?.(member) ?? false}
           onSelect={
             selection == null
               ? undefined
-              : (id: string, nextSelected: boolean) => selection.onToggle(id, nextSelected)
+              : (_id: string, nextSelected: boolean) => selection.onToggle(member, nextSelected)
           }
         >
           {nested?.map((child) => (
@@ -415,11 +418,11 @@ export function ScopedHelperGroupedRow({
           turnCount={session.turn_count ?? undefined}
           href={`/transcripts/${encodeURIComponent(session.id)}`}
           selected={selection?.selectedIds.has(session.id)}
-          selectionDisabled={selection?.isDisabled?.(session.id) ?? false}
+          selectionDisabled={selection?.isDisabled?.(item) ?? false}
           onSelect={
             selection == null
               ? undefined
-              : (id: string, nextSelected: boolean) => selection.onToggle(id, nextSelected)
+              : (_id: string, nextSelected: boolean) => selection.onToggle(item, nextSelected)
           }
         />
       }

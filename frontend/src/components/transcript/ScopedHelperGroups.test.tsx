@@ -157,7 +157,8 @@ function SelectionHost({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const selection: ScopedHelperSelection = {
     selectedIds: selected,
-    onToggle: (id, next) => {
+    onToggle: (item, next) => {
+      const id = item.transcript?.session.id ?? "";
       setSelected((previous) => {
         const updated = new Set(previous);
         if (next) updated.add(id);

@@ -55,3 +55,19 @@ mutations:
     testFile: src/mountedGroupedHelperSurfaces.test.tsx
     testName: profile-continuation-reaches-later-context
     failure: loader
+
+  - name: collective-expected-id-drift
+    file: ../../src/testdata/collective-grouped-actions.yaml
+    original: "  - name: contribute-selects-one-helper-only\n    surface: contribute\n    why: A contributor ticks one helper member and the batch names exactly that transcript id.\n    row: P1\n    group: owner\n    select: G2\n    expected_ids: [G2]\n"
+    replacement: "  - name: contribute-selects-one-helper-only\n    surface: contribute\n    why: A contributor ticks one helper member and the batch names exactly that transcript id.\n    row: P1\n    group: owner\n    select: G2\n    expected_ids: [G1]\n"
+    testFile: src/mountedCollectiveGroupedActions.test.tsx
+    testName: contribute-selects-one-helper-only
+    failure: assertion
+
+  - name: collective-required-case-renamed
+    file: ../../src/testdata/collective-grouped-actions.yaml
+    original: "- name: review-other-owner-group-remains-independent\n"
+    replacement: "- name: review-other-owner-group-remains-independent-renamed\n"
+    testFile: src/mountedCollectiveGroupedActions.test.tsx
+    testName: review-other-owner-group-remains-independent-renamed
+    failure: loader
