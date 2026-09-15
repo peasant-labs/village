@@ -87,12 +87,9 @@ func TestMountedRewriteFailurePolicy(t *testing.T) {
 				t.Fatalf("actionable error missing %q: %s", tc.WantError, response.Body.String())
 			}
 			if tc.WantStatus == 200 {
-				var payload schema.SessionDetailPayload
-				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-					t.Fatal(err)
-				}
-				if payloadCarriesObservedModels(&payload) != tc.WantObserved {
-					t.Fatalf("observed evidence=%v want=%v", payloadCarriesObservedModels(&payload), tc.WantObserved)
+				payload := decodeContentResponseEnvelope(t, response.Body.Bytes())
+				if payloadCarriesObservedModels(payload) != tc.WantObserved {
+					t.Fatalf("observed evidence=%v want=%v", payloadCarriesObservedModels(payload), tc.WantObserved)
 				}
 			}
 			q.getTranscriptByID(context.Background(), pgtype.UUID{Bytes: mustFixtureUUID(t), Valid: true})

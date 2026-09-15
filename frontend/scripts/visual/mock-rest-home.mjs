@@ -18,6 +18,9 @@
      MOCK_REST_PORT=8791 MOCK_OWNER_LIST_FAILS=1 node scripts/visual/mock-rest-home.mjs
      MOCK_REST_PORT=8791 MOCK_BLANK_HANDLE=1 node scripts/visual/mock-rest-home.mjs
      MOCK_REST_PORT=8791 MOCK_CHILD_SESSIONS=1 node scripts/visual/mock-rest-home.mjs
+     MOCK_REST_PORT=8791 MOCK_HELPER_GROUPS=1 node scripts/visual/mock-rest-home.mjs
+     MOCK_REST_PORT=8791 MOCK_HELPER_GROUPS=1 MOCK_MEMBER_STATUS=403 node scripts/visual/mock-rest-home.mjs
+     MOCK_REST_PORT=8791 MOCK_GROUPED_SURFACES=1 node scripts/visual/mock-rest-home.mjs
 */
 import { createServer } from 'node:http'
 
@@ -40,6 +43,23 @@ const BLANK_HANDLE = process.env.MOCK_BLANK_HANDLE === '1'
 // expandable chip a parent row carries. Off by default: the other home captures
 // are about the page's own panels and must keep the list they were taken with.
 const CHILD_SESSIONS = process.env.MOCK_CHILD_SESSIONS === '1'
+
+// Serve the opt-in grouped view plus the registered member endpoint, so a
+// capture can show a saved helper thread attached to its owner row and expanded
+// in place. Off by default: every other home capture keeps its flat list.
+const HELPER_GROUPS = process.env.MOCK_HELPER_GROUPS === '1'
+
+// Serve the grouped read for the discovery, profile and project surfaces as a
+// FULL first page of ordinary owners plus ONE later helper-only context
+// container, so a capture can show the continuation that reaches it. Off by
+// default: those surfaces' own captures keep the single grouped page.
+const GROUPED_SURFACES = process.env.MOCK_GROUPED_SURFACES === '1'
+
+// When set, the registered member endpoint refuses with this status instead of
+// serving members, so a capture can show the host's own member-load failure
+// state rather than a successful list. 409 is the replay-expired arm; any other
+// status is the arm this change surfaces.
+const MEMBER_STATUS = Number(process.env.MOCK_MEMBER_STATUS || '0')
 
 const baseUser = {
   id: 'user-demo',
@@ -94,11 +114,112 @@ const servedSessions = CHILD_SESSIONS
   ? [...sessions, ...startedSessions, ...unmatchedChild]
   : sessions
 
+/* Deterministic RFC-4122-shaped identities for the grouped arm. The canonical
+   grouped payload validates transcript/session ids as UUIDs, while the flat
+   list the page already serves carries short fixture ids; the grouped arm
+   therefore maps every row it serves to a stable UUID so the owner row and the
+   grouped item it is keyed by agree. */
+const DEMO_OWNER_UUID = '12345678-1234-4234-8234-123456789013'
+// Every row served while a grouped arm is on carries the UUID identity, so the
+// grouped item and the flat owner row it belongs to cannot disagree.
+const GROUPED_IDS = HELPER_GROUPS || GROUPED_SURFACES
+const uuidFor = (id) => {
+  let hash = 0
+  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  return `aaaaaaaa-bbbb-4ccc-8ddd-${hash.toString(16).padStart(12, '0').slice(-12)}`
+}
+
+const HELPER_GROUP = {
+  groupId: 'hg_demo_owner',
+  purpose: 'helper_review',
+  helperThreadCount: 1,
+  memberScope: 'scope-demo-owner',
+}
+const CONTEXT_GROUP = {
+  groupId: 'hg_demo_context',
+  purpose: 'helper_review',
+  helperThreadCount: 1,
+  memberScope: 'scope-demo-context',
+}
+// The helper-only group discovery shows, and the LATER one a grouped page two
+// carries: both owners are outside their result, so neither fabricates a row.
+const DISCOVERY_GROUP = {
+  groupId: 'hg_demo_discovery',
+  purpose: 'helper_review',
+  helperThreadCount: 1,
+  memberScope: 'scope-demo-discovery',
+}
+const LATER_GROUP = {
+  groupId: 'hg_demo_later',
+  purpose: 'helper_review',
+  helperThreadCount: 1,
+  memberScope: 'scope-demo-later',
+}
+
+/* One grouped context container: the primitive renders its authorized owner
+   status and its own disclosure, never a fabricated row or link. */
+const contextContainer = (group) => ({
+  kind: 'context_container',
+  context: { groupId: group.groupId, ownerStatus: 'known_unavailable' },
+  helperGroups: [group],
+})
+
+/* The first grouped page is FULL and the server reports exactly one more
+   top-level unit — the helper-only container page two carries. That is the
+   whole continuation: no client recomputation, one reachable next page. */
+const GROUPED_FIRST_PAGE = 100
+const groupedOrdinaryOwner = (index) =>
+  toListItem([`g${index}`, `saved session ${index}`, HASH_VILLAGE, 'village', '2026-08-10T09:00:00Z', 'claude-code'])
+const groupedScopedPage = (page) => ({
+  items: page === 1
+    ? Array.from({ length: GROUPED_FIRST_PAGE }, (_, index) => ({
+        kind: 'transcript',
+        transcript: { session: groupedOrdinaryOwner(index).transcript },
+      }))
+    : [contextContainer(LATER_GROUP)],
+  page,
+  limit: GROUPED_FIRST_PAGE,
+  totalItems: GROUPED_FIRST_PAGE + 1,
+  ordinarySessionTotal: GROUPED_FIRST_PAGE,
+  helperThreadTotal: LATER_GROUP.helperThreadCount,
+})
+const groupedDiscoveryPage = () => ({
+  items: [contextContainer(DISCOVERY_GROUP)],
+  page: 1,
+  limit: 24,
+  totalItems: 1,
+  ordinarySessionTotal: 0,
+  helperThreadTotal: DISCOVERY_GROUP.helperThreadCount,
+})
+
+// The one saved helper thread the owner row discloses. It is built from the
+// same full canonical row the list serves, then narrowed to the saved-review
+// identity, so the member payload validates end to end.
+const groupedPayload = () => ({
+  items: [
+    {
+      kind: 'transcript',
+      transcript: { session: toListItem(sessions[0]).transcript },
+      helperGroups: [HELPER_GROUP],
+    },
+    {
+      kind: 'context_container',
+      context: { groupId: CONTEXT_GROUP.groupId, ownerStatus: 'known_unavailable' },
+      helperGroups: [CONTEXT_GROUP],
+    },
+  ],
+  page: 1,
+  limit: 100,
+  totalItems: 2,
+  ordinarySessionTotal: 1,
+  helperThreadTotal: 2,
+})
+
 const toListItem = ([id, title, hash, project, publishedAt, provider, parentSessionID = null]) => ({
   transcript: {
-    id,
-    owner_id: user.id,
-    local_id: id,
+    id: GROUPED_IDS ? uuidFor(id) : id,
+    owner_id: GROUPED_IDS ? DEMO_OWNER_UUID : user.id,
+    local_id: GROUPED_IDS ? `ses_${id.replace(/[^a-zA-Z0-9]/g, '')}` : id,
     title,
     description: null,
     visibility: 'public',
@@ -127,9 +248,58 @@ const toListItem = ([id, title, hash, project, publishedAt, provider, parentSess
     subagent_count: 0,
     duration_ms: 1_800_000,
     session_origin: 'user',
+    // The canonical session summary carries these as nullable columns; the flat
+    // list ignores them, but the grouped payload validates the whole row, so
+    // they are stated rather than omitted.
+    tokens_in: null,
+    tokens_out: null,
+    subagents: null,
+    diagnostics_warnings: null,
+    diagnostics_partial: null,
+    title_generated: null,
+    outcome: null,
+    files_touched: null,
+    lines_changed: null,
+    retry_loops: null,
+    retry_tokens_wasted: null,
+    within_session_reverts: null,
+    signal_density: null,
+    spec_quality_score: null,
+    exploration_ratio: null,
+    scope_breadth: null,
+    discovery_turns: null,
+    m2_token_outcome_ratio: null,
+    m3_unique_tool_count: null,
+    m4_error_recovery_count: null,
+    m4_consecutive_error_max: null,
+    m5_context_utilization_pct: null,
+    m5_peak_context_tokens: null,
+    m5_avg_message_tokens: null,
+    m6_output_survival_pct: null,
+    m6_lines_survived: null,
+    m6_lines_total: null,
+    m7_spec_word_count: null,
+    m7_spec_has_examples: null,
+    m7_spec_has_constraints: null,
+    computed_at: null,
+    compute_version: null,
+    content_hash: null,
+    license_id: null,
   },
   tags: [],
   owner: user,
+})
+
+// A saved helper thread owned by the demo owner. Built from the same full
+// canonical row shape the list serves, so the member endpoint's validated
+// payload carries every nullable column rather than a hand-narrowed subset.
+const helperMemberSession = () => ({
+  ...toListItem(['a1h1', 'Guardian review of the migration', HASH_VILLAGE, 'village', '2026-08-27T14:35:00Z', 'claude-code']).transcript,
+  session_start: '2026-08-27T14:30:00Z',
+  session_end: '2026-08-27T14:35:00Z',
+  turn_count: 5,
+  input_submission_count: 1,
+  purpose: 'helper_review',
 })
 
 const send = (res, status, body) => {
@@ -163,16 +333,66 @@ const server = createServer((req, res) => {
     // The home page asks for its own rows. An unscoped request is discovery's,
     // and is answered empty so a capture cannot silently pass on the wrong list.
     const owner = url.searchParams.get('owner')
+    const projectHash = url.searchParams.get('project_hash')
+    const page = Number(url.searchParams.get('page') || '1')
+    if (url.searchParams.get('view') === 'grouped') {
+      // Only the home arm opens the grouped view; a project-scoped grouped read
+      // is answered empty so this fixture cannot claim another project's rows.
+      if (HELPER_GROUPS && owner === user.github_username && !projectHash) {
+        return send(res, 200, groupedPayload())
+      }
+      if (GROUPED_SURFACES) {
+        // Discovery has no owner; the profile and project reads are scoped.
+        // Every one of them pages: page one is full and page two carries the
+        // helper-only container the continuation reaches.
+        return send(res, 200, owner == null ? groupedDiscoveryPage() : groupedScopedPage(page))
+      }
+      return send(res, 200, {
+        items: [],
+        page,
+        limit: Number(url.searchParams.get('limit') || '100'),
+        totalItems: 0,
+        ordinarySessionTotal: 0,
+        helperThreadTotal: 0,
+      })
+    }
     if (owner === user.github_username && OWNER_LIST_FAILS) {
       return send(res, 500, { error: 'the session list is unavailable' })
     }
-    const rows = owner === user.github_username ? servedSessions.map(toListItem) : []
+    // Discovery lists the same commons rows the home page serves, so the
+    // helper-only section below its grid sits under a real result grid.
+    const rows =
+      owner === user.github_username || (owner == null && GROUPED_SURFACES)
+        ? servedSessions.map(toListItem)
+        : []
     return send(res, 200, {
       transcripts: rows,
       total: rows.length,
       agent_total: 0,
       page: Number(url.searchParams.get('page') || '1'),
       limit: Number(url.searchParams.get('limit') || '24'),
+    })
+  }
+  const membersMatch = path.match(/^\/transcript-groups\/([^/]+)\/members$/)
+  if (membersMatch) {
+    const scope = url.searchParams.get('scope')
+    const group = [HELPER_GROUP, CONTEXT_GROUP, DISCOVERY_GROUP, LATER_GROUP].find(
+      (candidate) => candidate.groupId === membersMatch[1] && candidate.memberScope === scope,
+    )
+    if (!group) {
+      return send(res, 409, { code: 'group_scope_expired', error: 'refresh the originating list' })
+    }
+    if (MEMBER_STATUS >= 400) {
+      return send(res, MEMBER_STATUS, {
+        code: 'member_load_failed',
+        error: 'these saved helpers could not be loaded',
+      })
+    }
+    return send(res, 200, {
+      members: [{ kind: 'transcript', transcript: { session: helperMemberSession() } }],
+      page: Number(url.searchParams.get('page') || '1'),
+      limit: Number(url.searchParams.get('limit') || '20'),
+      total: 1,
     })
   }
   if (/^\/users\/[^/]+$/.test(path)) return send(res, 200, user)

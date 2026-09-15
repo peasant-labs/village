@@ -153,8 +153,8 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 
 	switch boundary.shape {
 	case ShapeEnvelope:
-		var env schema.TranscriptContent
-		if err := json.Unmarshal(trimmed, &env); err != nil {
+		env, err := decodeMigratableEnvelope(trimmed, boundary.canonical != nil)
+		if err != nil {
 			return nil, false, fmt.Errorf("transcript migrate-on-read failed because the stored envelope could not be decoded as schema.TranscriptContent in handler.blobMigrator.Migrate during typed read normalization; no body was served and no stored generation was rewritten; repair or republish the transcript with a supported envelope, then retry: %w", err)
 		}
 		if env.Kind != schema.ContentKindSessionDetail || env.SessionDetail == nil {
@@ -201,6 +201,21 @@ func (m *blobMigrator) Migrate(ctx context.Context, raw []byte) (*schema.Session
 	default:
 		return nil, false, ErrEmptyBlob
 	}
+}
+
+// decodeMigratableEnvelope uses the strict canonical decoder only for content
+// the content boundary already classified as canonical. Legacy/observed
+// envelopes keep the historical lenient decode so migrate-on-read can still
+// serve, normalize, and rewrite them without losing the legacy shape.
+func decodeMigratableEnvelope(raw []byte, canonical bool) (schema.TranscriptContent, error) {
+	if canonical {
+		return schema.DecodeTranscriptContentRaw(normalizeEnvelopeHarnessJSON(raw))
+	}
+	var env schema.TranscriptContent
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return env, err
+	}
+	return env, nil
 }
 
 // encodeCanonicalTranscript is the sole typed rewrite/re-emit boundary used by
@@ -251,6 +266,9 @@ func canonicalHarness(legacy string) schema.Harness {
 // decodeLegacyPayload decodes a bare SessionDetailPayload, accepting the legacy
 // provider-keyed shape: if the canonical json:"harness" key is absent, it falls
 // back to json:"provider" then json:"modelHarness", and migrates the VALUE.
+// Content that declares a canonical harness is validated strictly by the
+// content boundary before reaching here, so this lenient typed decode only
+// serves genuinely sparse legacy payloads.
 func decodeLegacyPayload(raw []byte) (*schema.SessionDetailPayload, error) {
 	var p schema.SessionDetailPayload
 	if err := json.Unmarshal(raw, &p); err != nil {

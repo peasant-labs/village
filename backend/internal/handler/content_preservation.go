@@ -59,15 +59,30 @@ func (productionObservedModelPreservationEvaluator) Evaluate() error {
 type canonicalContentRewriteEncoder struct{}
 
 func (canonicalContentRewriteEncoder) Encode(version schema.PushContractVersion, payload *schema.SessionDetailPayload) ([]byte, error) {
-	encoded, err := json.Marshal(schema.TranscriptContent{
-		ContractVersion: version,
-		Kind:            schema.ContentKindSessionDetail,
-		SessionDetail:   payload,
-	})
+	if payload == nil {
+		return nil, publicationDetailError(fmt.Errorf("canonical rewrite requires a non-null durable detail"))
+	}
+	if err := schema.ValidateSessionDetailPayload(*payload); err != nil {
+		return nil, publicationDetailError(err)
+	}
+	encoded, err := marshalTranscriptContentEnvelope(version, payload)
 	if err != nil {
 		return nil, fmt.Errorf("canonical transcript rewrite encoding failed because the typed SessionDetailPayload could not be marshaled in handler.canonicalContentRewriteEncoder.Encode during migrate-on-read rewrite; the stored generation remains authoritative and no replacement can be advertised as preserving enriched evidence; repair the typed payload or schema pin, then retry: %w", err)
 	}
 	return encoded, nil
+}
+
+// marshalTranscriptContentEnvelope builds the durable envelope that declares the
+// envelope's contractVersion and kind around a migrated payload. The strict
+// canonical encoder validates the payload before calling this; the migrate-on-read
+// response wrapper also uses it to keep sparse legacy content readable without
+// installing a canonical generation it cannot validate.
+func marshalTranscriptContentEnvelope(version schema.PushContractVersion, payload *schema.SessionDetailPayload) ([]byte, error) {
+	return json.Marshal(schema.TranscriptContent{
+		ContractVersion: version,
+		Kind:            schema.ContentKindSessionDetail,
+		SessionDetail:   payload,
+	})
 }
 
 var productionContentRewriteEncoder contentRewriteEncoder = canonicalContentRewriteEncoder{}

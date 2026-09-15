@@ -257,6 +257,7 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
        t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at,
        t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key,
        t.encryption_algorithm, t.key_version, t.session_origin,
+       t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
        u.github_username   AS owner_username,
        u.avatar_url        AS owner_avatar_url,
        u.is_discoverable   AS owner_is_discoverable
@@ -344,6 +345,10 @@ type ListGroupTranscriptsRow struct {
 	EncryptionAlgorithm     string             `db:"encryption_algorithm" json:"encryption_algorithm"`
 	KeyVersion              int32              `db:"key_version" json:"key_version"`
 	SessionOrigin           string             `db:"session_origin" json:"session_origin"`
+	InputSubmissionCount    pgtype.Int8        `db:"input_submission_count" json:"input_submission_count"`
+	RootSessionID           pgtype.Text        `db:"root_session_id" json:"root_session_id"`
+	SessionPurpose          pgtype.Text        `db:"session_purpose" json:"session_purpose"`
+	SessionRelationships    []byte             `db:"session_relationships" json:"session_relationships"`
 	OwnerUsername           string             `db:"owner_username" json:"owner_username"`
 	OwnerAvatarUrl          pgtype.Text        `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerIsDiscoverable     bool               `db:"owner_is_discoverable" json:"owner_is_discoverable"`
@@ -432,6 +437,10 @@ func (q *Queries) ListGroupTranscripts(ctx context.Context, arg ListGroupTranscr
 			&i.EncryptionAlgorithm,
 			&i.KeyVersion,
 			&i.SessionOrigin,
+			&i.InputSubmissionCount,
+			&i.RootSessionID,
+			&i.SessionPurpose,
+			&i.SessionRelationships,
 			&i.OwnerUsername,
 			&i.OwnerAvatarUrl,
 			&i.OwnerIsDiscoverable,

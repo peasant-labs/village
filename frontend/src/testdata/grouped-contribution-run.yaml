@@ -1,0 +1,16 @@
+cases:
+  - name: second-helper-only
+    project: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    selected_ids: [10000000-0000-4000-8000-000000000002]
+    visibility_confirmed: true
+    expected_requests:
+      - project_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        transcript_ids: [10000000-0000-4000-8000-000000000002]
+        visibility_confirmed: true
+    error_contains: ""
+  - name: empty-selection-never-means-whole-project
+    project: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    selected_ids: []
+    visibility_confirmed: true
+    expected_requests: []
+    error_contains: no explicit transcript IDs

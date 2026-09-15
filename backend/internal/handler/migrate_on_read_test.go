@@ -9,7 +9,6 @@ package handler
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -135,10 +134,7 @@ func TestGetContent_LegacyBlob_MigratesAndRewrites(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("first read status: got %d, want 200 (body: %s)", w.Code, w.Body.String())
 	}
-	var got schema.SessionDetailPayload
-	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
-		t.Fatalf("response not a SessionDetailPayload: %v (body: %s)", err, w.Body.String())
-	}
+	got := decodeContentResponseEnvelope(t, w.Body.Bytes())
 	if got.Harness != schema.HarnessClaudeCode {
 		t.Errorf("served harness: got %q, want %q", got.Harness, schema.HarnessClaudeCode)
 	}
@@ -203,10 +199,10 @@ func TestGetContent_RewriteOnRead_UpdatesContentHash(t *testing.T) {
 	}
 }
 
-// TestGetContent_CurrentEnvelope_UnwrapsNoRewrite: a fresh-push TranscriptContent
-// envelope is unwrapped to a bare SessionDetailPayload for the frontend, with no
-// rewrite.
-func TestGetContent_CurrentEnvelope_UnwrapsNoRewrite(t *testing.T) {
+// TestGetContent_CurrentEnvelope_PreservesNoRewrite: a fresh-push
+// TranscriptContent envelope is shape-compatible, so it is served byte-for-byte
+// as the durable envelope, with no rewrite and no unwrapping.
+func TestGetContent_CurrentEnvelope_PreservesNoRewrite(t *testing.T) {
 	const key = "transcripts/10000000-0000-4000-8000-000000000001.bin"
 	id := uuid.New()
 	s3 := newFakeBlobStore()
@@ -217,16 +213,12 @@ func TestGetContent_CurrentEnvelope_UnwrapsNoRewrite(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200 (body: %s)", w.Code, w.Body.String())
 	}
-	var got schema.SessionDetailPayload
-	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
-		t.Fatalf("served body must be a bare SessionDetailPayload, not an envelope: %v", err)
-	}
+	got := decodeContentResponseEnvelope(t, w.Body.Bytes())
 	if got.Harness != schema.HarnessClaudeCode || got.ID != "sess-current" {
-		t.Errorf("unwrapped payload mismatch: harness=%q id=%q", got.Harness, got.ID)
+		t.Errorf("durable payload mismatch: harness=%q id=%q", got.Harness, got.ID)
 	}
-	// Body must NOT still be an envelope (no contractVersion key passed through).
-	if bytes.Contains(w.Body.Bytes(), []byte("contractVersion")) {
-		t.Error("served body still contains the envelope (contractVersion) — must be unwrapped")
+	if !bytes.Equal(w.Body.Bytes(), currentEnvelopeJSON(t, "claude-code")) {
+		t.Error("current durable envelope bytes changed during content read")
 	}
 	if s3.uploadCount() != 0 {
 		t.Errorf("current envelope must not rewrite, got %d uploads", s3.uploadCount())

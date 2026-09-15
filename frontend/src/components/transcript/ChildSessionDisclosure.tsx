@@ -30,6 +30,9 @@ interface ChildSessionDisclosureProps {
   viewerIsPrivileged?: boolean;
   /** Carried through so a revealed handle leads where the parent's does. */
   linkOwner?: boolean;
+  /** Carried through so a revealed row can disclose the helper groups the
+   *  grouped response attached to it, exactly like a top-level row. */
+  helperGroupSlot?: (item: TranscriptRow) => React.ReactNode;
 }
 
 /**
@@ -60,6 +63,7 @@ export default function ChildSessionDisclosure({
   selection,
   viewerIsPrivileged = false,
   linkOwner = false,
+  helperGroupSlot,
 }: ChildSessionDisclosureProps) {
   const [expanded, setExpanded] = useState(false);
   // How many of the rows behind this control the viewer has picked out.
@@ -111,6 +115,7 @@ export default function ChildSessionDisclosure({
             selection={selection}
             viewerIsPrivileged={viewerIsPrivileged}
             linkOwner={linkOwner}
+            helperGroupSlot={helperGroupSlot}
             bare
           />
         </div>

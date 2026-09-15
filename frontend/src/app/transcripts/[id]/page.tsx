@@ -98,6 +98,7 @@ export default function TranscriptDetailPage({
         <PendingApprovalBar transcriptId={t.id} reviews={pendingReviews} />
       )}
       <SessionDetailV2
+        key={t.id}
         sessionId={t.local_id || id}
         transcriptId={t.id}
         transcriptVisibility={t.visibility}
@@ -109,6 +110,8 @@ export default function TranscriptDetailPage({
         projectHash={t.project_hash}
         ownerUsername={data.owner?.github_username}
         detail={detail}
+        relationshipNavigation={data.relationshipNavigation}
+        transcriptContentHash={t.content_hash}
         error={contentError ? String((contentError as Error).message ?? contentError) : null}
       />
     </>

@@ -45,7 +45,8 @@ const transcriptSelectColumns = `t.id, t.owner_id, t.local_id, t.title, t.descri
 	t.m6_output_survival_pct, t.m6_lines_survived, t.m6_lines_total, t.m7_spec_word_count,
 	t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at, t.compute_version,
 	t.content_hash, t.license_id, t.wrapped_data_key, t.encryption_algorithm, t.key_version,
-	t.accepted_request_operation_fingerprint, t.session_origin`
+	t.accepted_request_operation_fingerprint, t.session_origin,
+	t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships`
 
 // publishRequest is the v2 nested metadata schema from the local transcript store.
 type publishRequest struct {
@@ -203,6 +204,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	authoritativeReq, authoritativeErr := schema.DecodeAuthoritativePublishMetadataRaw([]byte(metadataStr))
 	legacyErr := schema.ValidatePublishRequest(metaBytes)
 	authoritative := authoritativeErr == nil
+	if _, successor := metadataObject["contentHash"]; successor && authoritativeErr != nil {
+		writeError(w, http.StatusUnprocessableEntity, "metadata failed schema validation: "+authoritativeErr.Error())
+		return
+	}
 	if !authoritative && legacyErr != nil {
 		writeError(w, http.StatusUnprocessableEntity, "metadata failed schema validation: authoritative: "+authoritativeErr.Error()+"; legacy compatibility: "+legacyErr.Error())
 		return
@@ -272,8 +277,37 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to read file")
 		return
 	}
+	// An out-of-menu sessionOrigin declaration is refused here, before the
+	// first content decode would turn the documented 400 into a 422.
+	if err := refuseOutOfMenuSessionOrigin(content); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// The harness-aware content boundary owns "this content cannot be preserved"
+	// (409) before the durable graph decode below, which owns raw-shape
+	// disagreements (422). Keeping the boundary first preserves the published
+	// producer classifications it already pins.
 	if err := requireSupportedContentForHarness(content, string(req.Model.Harness), h.preservationProof()); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	durableDetail, err := decodePublicationDetail(content)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	var authoritativeMetadata *schema.AuthoritativePublishRequest
+	if authoritative {
+		authoritativeMetadata = &authoritativeReq
+	}
+	if err := validatePublicationGraphMirrors(durableDetail, &req, authoritativeMetadata); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	// Prepare the durable query projection before any external side effect.
+	graphParams := sqlc.CreateTranscriptParams{}
+	if err := installPublicationGraph(&graphParams, durableDetail); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -420,6 +454,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 
 		// Use mapper to convert schema.PublishRequest to DB params
 		params := schemaToTranscriptParams(req, blobKey, blobSize, schemaVersion, publishedOrigin)
+		params.InputSubmissionCount = graphParams.InputSubmissionCount
+		params.RootSessionID = graphParams.RootSessionID
+		params.SessionPurpose = graphParams.SessionPurpose
+		params.SessionRelationships = graphParams.SessionRelationships
 		params.ID = transcriptID
 		params.OwnerID = ownerPgID
 		params.LocalID = string(req.Identity.SessionID)
@@ -500,6 +538,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				EncryptionAlgorithm:     string(descriptor.Algorithm()),
 				KeyVersion:              int32(descriptor.KeyVersion()),
 				SessionOrigin:           params.SessionOrigin,
+				InputSubmissionCount:    params.InputSubmissionCount,
+				RootSessionID:           params.RootSessionID,
+				SessionPurpose:          params.SessionPurpose,
+				SessionRelationships:    params.SessionRelationships,
 			}
 			// One txn, actor = the publisher: pin the governance axes from the LOCKED
 			// narrow pre-image (visibility never changes on re-publish; an absent CLI
@@ -598,6 +640,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				EncryptionAlgorithm:     string(descriptor.Algorithm()),
 				KeyVersion:              int32(descriptor.KeyVersion()),
 				SessionOrigin:           params.SessionOrigin,
+				InputSubmissionCount:    params.InputSubmissionCount,
+				RootSessionID:           params.RootSessionID,
+				SessionPurpose:          params.SessionPurpose,
+				SessionRelationships:    params.SessionRelationships,
 			}
 			// One txn, actor = the publisher; the migration-026 AFTER INSERT trigger
 			// appends the 'published' snapshot — there is no application audit writer.
@@ -808,7 +854,12 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	identity := projectIdentityKey{OwnerID: transcript.OwnerID, ProjectHash: transcript.ProjectHash}
 	resolved := h.resolveProjectIdentities(r.Context(), []projectIdentityKey{identity})[identity]
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	navigation, err := h.relationshipNavigation(r.Context(), user, transcript)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response := map[string]any{
 		"transcript":      detailTranscriptResponse(transcript, resolved),
 		"tags":            tags,
 		"shares":          shares,
@@ -816,7 +867,11 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 		"owner":           owner,
 		"owner_orgs":      ownerOrgs,
 		"attestations":    attestations,
-	})
+	}
+	if len(navigation) > 0 {
+		response["relationshipNavigation"] = navigation
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
@@ -847,9 +902,12 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	}
 	raw := readResult.Plaintext
 
-	// Migrate-on-read: normalize legacy/older decrypted transcript content to the
-	// current SessionDetailPayload shape and serve the bare payload the viewer
-	// expects (unwrapping the TranscriptContent envelope that peasant uploads).
+	// Migrate-on-read: normalize legacy/older decrypted transcript content to
+	// the current SessionDetailPayload shape. The display contract always serves
+	// the durable TranscriptContent envelope (contractVersion/kind/sessionDetail);
+	// the migrated payload is its sessionDetail. A shape-compatible stored blob is
+	// already canonical and is served byte-for-byte; a normalized payload is
+	// re-stamped, installed, and served in the envelope.
 	payload, rewrite, err := defaultContentMigrator.Migrate(r.Context(), raw)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -859,27 +917,35 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	response := raw
 	if rewrite {
-		canonical, marshalErr := encodeCanonicalTranscript(payload)
-		if marshalErr != nil {
-			if payloadCarriesObservedModels(payload) {
-				writeError(w, http.StatusInternalServerError, marshalErr.Error())
-				return
+		encoded, encodeErr := encodeCanonicalTranscript(payload)
+		if encodeErr == nil {
+			response = encoded
+			if err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, encoded); err != nil {
+				if len(schema.RequiredContentCapabilities(*payload)) != 0 {
+					writeError(w, http.StatusInternalServerError, err.Error())
+					return
+				}
+				log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
 			}
-			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), marshalErr)
-			writeJSON(w, http.StatusOK, payload)
-			return
-		}
-		if err := h.rewriteCanonicalTranscript(r.Context(), readResult.Row, canonical); err != nil {
-			if payloadCarriesObservedModels(payload) {
+		} else {
+			// Sparse legacy content the strict canonical encoder cannot represent
+			// (for example a missing session harness) is still served, wrapped in
+			// the same durable envelope, so historical sessions stay readable. No
+			// canonical generation is installed here.
+			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), encodeErr)
+			response, err = marshalTranscriptContentEnvelope(currentContractVersion, payload)
+			if err != nil {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
-			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
 		}
 	}
 
-	writeJSON(w, http.StatusOK, payload)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(response)
 }
 
 func (h *Handler) rewriteCanonicalTranscript(ctx context.Context, row sqlc.Transcript, canonical []byte) error {
@@ -1319,6 +1385,10 @@ func (h *Handler) UnshareTranscript(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "grouped" {
+		h.listGroupedTranscripts(w, r)
+		return
+	}
 	user := GetUser(r.Context())
 	q := r.URL.Query()
 

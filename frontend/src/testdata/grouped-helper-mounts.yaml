@@ -1,0 +1,163 @@
+# Cases for the mounted helper-group host: disclosure, member paging, the
+# honest member-load state (including a denied or failing member request),
+# fail-closed scope expiry, per-member selection and helper-only context
+# containers.
+#
+# The host renders Fairtrade's published helper-group primitives with the real
+# member query hook; this corpus drives the HTTP boundary those cases observe.
+#
+# Every case declares its own ACTION (which group, whether to disclose it, which
+# member page to reach, which member to select, whether to press the failure
+# retry) AND its own EXPECTATIONS (the exact member requests, the mounted member
+# identities, the reported selection, the notice). The mounted test only
+# interprets those fields, so a wrong expectation stated here fails a test and a
+# removed or renamed case fails loader validation.
+
+groups:
+  owner:
+    groupId: "hg_fixture_owner"
+    purpose: helper_review
+    helperThreadCount: 21
+    memberScope: "scope-fixture-owner"
+  other:
+    groupId: "hg_fixture_other"
+    purpose: helper_review
+    helperThreadCount: 1
+    memberScope: "scope-fixture-other"
+  context:
+    groupId: "hg_fixture_context"
+    purpose: helper_review
+    helperThreadCount: 1
+    memberScope: "scope-fixture-context"
+
+context:
+  groupId: "hg_fixture_context"
+  ownerStatus: known_unavailable
+
+# The member pages each group's scope serves, keyed by page number. A display
+# row carries only the identity and quantities the primitive draws; the host
+# never invents the rest. `inputSubmissionCount: null` is a value the server did
+# not measure, which stays distinct from a measured zero.
+memberPages:
+  owner:
+    "1":
+      limit: 20
+      total: 21
+      members:
+        - id: helper-a
+          title: "helper a"
+          turnCount: 5
+          inputSubmissionCount: 0
+        - id: helper-b
+          title: "helper b"
+          turnCount: 7
+          inputSubmissionCount: null
+    "2":
+      limit: 20
+      total: 21
+      members:
+        - id: helper-c
+          title: "helper c"
+          turnCount: 3
+          inputSubmissionCount: 1
+  other:
+    "1":
+      limit: 20
+      total: 1
+      members:
+        - id: helper-z
+          title: "helper z"
+          turnCount: 2
+          inputSubmissionCount: 1
+  context:
+    "1":
+      limit: 20
+      total: 1
+      members:
+        - id: helper-x
+          title: "helper x"
+          turnCount: 4
+          inputSubmissionCount: 0
+
+cases:
+  - name: collapsed-sends-no-request
+    group: owner
+    expand: false
+    expectedRequests: []
+    expectedMembers: []
+
+  - name: expand-loads-exact-scope
+    group: owner
+    expand: true
+    loadingNotice: helper-group-loading
+    expectedRequests:
+      - {scope: scope-fixture-owner, page: "1", limit: "20"}
+    expectedMembers: [helper-a, helper-b]
+
+  - name: page-two-keeps-original-scope
+    group: owner
+    expand: true
+    page: 2
+    expectedRequests:
+      - {scope: scope-fixture-owner, page: "1", limit: "20"}
+      - {scope: scope-fixture-owner, page: "2", limit: "20"}
+    expectedMembers: [helper-c]
+
+  - name: expired-scope-hides-members
+    group: owner
+    expand: true
+    scopeStatus: 409
+    expectedRequests:
+      - {scope: scope-fixture-owner, page: "1", limit: "20"}
+    expectedMembers: []
+    expectedNotice: scope-expired
+    expectedOriginRefreshes: 1
+
+  - name: denied-member-request-states-failure
+    group: owner
+    expand: true
+    scopeStatus: 403
+    retry: true
+    expectedRequests:
+      - {scope: scope-fixture-owner, page: "1", limit: "20"}
+      - {scope: scope-fixture-owner, page: "1", limit: "20"}
+    expectedMembers: []
+    expectedNotice: member-load-failed
+    expectedOriginRefreshes: 0
+
+  - name: failing-member-request-states-failure
+    group: other
+    expand: true
+    scopeStatus: 500
+    retry: true
+    expectedRequests:
+      - {scope: scope-fixture-other, page: "1", limit: "20"}
+      - {scope: scope-fixture-other, page: "1", limit: "20"}
+    expectedMembers: []
+    expectedNotice: member-load-failed
+    expectedOriginRefreshes: 0
+
+  - name: selection-is-one-member
+    group: owner
+    expand: true
+    select: helper-b
+    expectedRequests:
+      - {scope: scope-fixture-owner, page: "1", limit: "20"}
+    expectedMembers: [helper-a, helper-b]
+    expectedSelected: [helper-b]
+
+  - name: independent-groups-are-independent
+    group: owner
+    expand: true
+    secondGroup: other
+    collapseSecond: true
+    expectedRequests:
+      - {scope: scope-fixture-owner, page: "1", limit: "20"}
+      - {scope: scope-fixture-other, page: "1", limit: "20"}
+    expectedMembers: [helper-a, helper-b, helper-z]
+
+  - name: context-container-has-no-row
+    group: context
+    expand: false
+    expectedRequests: []
+    expectedMembers: []

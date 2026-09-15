@@ -1160,6 +1160,38 @@ one fixture, not N tests.
 
 ### Enriched transcript preservation gate
 
+`internal/handler/testdata/session_graph_publication.yaml` drives the canonical
+raw-decoder rejection tests and typed migration/rewrite equality tests. It keeps
+input-count absence, measured zero, positive values, and invalid lexical values
+distinct; the full graph case retains separate source/starter targets, public
+anchor refs, folded tool provenance, and earlier-history bodies beyond preview
+limits. Required case names guard deletion independently of the fixture size.
+
+`TestSessionGraphEncryptedPublicationAndPull` uses real PostgreSQL and the real
+encrypted MinIO store through mounted publish, metadata, content, and pull
+handlers. It exercises explicit replacement and exact retry on one owner/local
+identity, the production immutable rewrite, and compares refused requests against
+the complete owner-scoped transcript/audit/share state plus observed writes to
+the real encrypted store. The migration's separate database fixture verifies
+historical NULL preservation, SQL shape constraints, and down migration.
+These tests require the released canonical graph APIs and run under the same
+no-skip encrypted aggregate as other preservation proofs; source-level fixtures
+are not proof of a deployed receiver's capability.
+
+Batch transcript upload is still unimplemented. The registered route is guarded
+by `internal/router/testdata/publish_batch_refusal.yaml`: anonymous requests keep
+their authentication refusal, and authenticated requests keep HTTP 501 regardless
+of body shape. Tests mount the real router and authentication middleware, assert
+no object write, and compare transcript, governance-audit, share-attempt, and
+derived-share rows against real PostgreSQL. This is not a successful batch-upload
+contract and does not change the implemented collective batch share/review flows.
+
+The database-only `grouped_query_projection.yaml` fixture executes generated
+global candidate, cycle, owner-local probe, and collective candidate queries on
+PostgreSQL independently of frontend or wire-package adoption. It protects the
+nullable count projection and the JSONB lateral-edge/cycle query's actual SQL
+execution, not merely whether sqlc can parse the source.
+
 The same family also contains `pi.yaml`, `pi_boundaries.yaml`, and
 `pi_field_loss.yaml`. These synthetic public fixtures cover all five native
 metadata attachment kinds, assistant/tool/summary owners, partial and absent

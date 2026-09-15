@@ -2,6 +2,13 @@
 
 import { use, useState } from "react";
 import { useTranscripts } from "@/lib/queries/transcripts";
+import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
+import {
+  ScopedContextContainerList,
+  ScopedOwnerHelperGroups,
+  helperGroupsByTranscript,
+} from "@/components/transcript/ScopedHelperGroups";
+import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { useDeleteAccount, usePublicProfile, useUpdateMySettings } from "@/lib/queries/auth";
 import { useAuth } from "@/providers/AuthProvider";
 import TranscriptList from "@/components/transcript/TranscriptList";
@@ -43,6 +50,15 @@ export default function UserProfilePage({
   const { user } = useAuth();
   const { data: profile, isError: isProfileError } = usePublicProfile(username);
   const { data, isLoading } = useTranscripts({ owner: username });
+  // The server's own helper-group fold for this person's library. Independent
+  // of the flat list above: the rows, the ordinary child chip and the project
+  // bucketing are unchanged, and a grouped read that fails contributes nothing.
+  // The grouped read pages, so an owner or helper-only context container past
+  // the first grouped page still reaches its grouped exit.
+  const grouped = useGroupedTranscriptsPaged({ owner: username });
+  const groupedItems = grouped.items;
+  const helperGroups = helperGroupsByTranscript(groupedItems);
+  const refreshGrouped = grouped.refreshOrigin;
   const deleteAccountMutation = useDeleteAccount();
   const updateSettingsMutation = useUpdateMySettings();
   const [importOpen, setImportOpen] = useState(false);
@@ -230,10 +246,30 @@ export default function UserProfilePage({
                   childSessions={childSessions}
                   showOwnerActions={isOwnProfile}
                   bare
+                  helperGroupSlot={(item) => (
+                    <ScopedOwnerHelperGroups
+                      groups={helperGroups.get(item.transcript.id)}
+                      onRefreshOrigin={refreshGrouped}
+                    />
+                  )}
                 />
               </div>
               );
             })}
+            {/* Helper-only containers carry no owner row, so they sit after
+                every project group rather than inside one. */}
+            <ScopedContextContainerList
+              items={groupedItems}
+              onRefreshOrigin={refreshGrouped}
+            />
+            {/* A grouped page holds at most one server page of top-level units;
+                the continuation reads the next one so a later owner or
+                helper-only container still gets its grouped exit. */}
+            <ScopedGroupedContinuation
+              remaining={grouped.remainingItems}
+              busy={grouped.isFetchingNextPage}
+              onLoadMore={() => void grouped.fetchNextPage()}
+            />
             {/* Agent-driven sessions are never mixed into the project groups:
                 they are not the work this person wrote, and grouping them by
                 project would bury the sessions that are. They sit after every
