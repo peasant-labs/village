@@ -4,6 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { FolderOpen, Library, Plus } from "lucide-react";
 import { useTranscripts } from "@/lib/queries/transcripts";
+import { useGroupedTranscripts } from "@/lib/queries/helperGroups";
+import {
+  ScopedContextContainerList,
+  ScopedOwnerHelperGroups,
+  helperGroupsByTranscript,
+} from "@/components/transcript/ScopedHelperGroups";
 import { useAuth } from "@/providers/AuthProvider";
 import TranscriptList from "@/components/transcript/TranscriptList";
 import { DataState, TeachingEmptyState } from "@/lib/ft-ui";
@@ -115,6 +121,22 @@ export default function HomePage() {
     { owner: username },
     { enabled: hasUsername },
   );
+
+  // The grouped response is the server's own fold of saved helper threads onto
+  // their owner rows. It is a second, independent read of the same route: the
+  // flat list above still owns the rows, the ordinary child chip and the
+  // pagination, so nothing a person could reach before is removed. The helper
+  // groups ride on whichever of those rows the server placed them on.
+  //
+  // A grouped read that fails is not a page failure: it simply contributes no
+  // helper groups, and the owner rows below render exactly as they did.
+  const grouped = useGroupedTranscripts(
+    { owner: username, limit: "100" },
+    { enabled: hasUsername },
+  );
+  const groupedItems = grouped.data?.items ?? [];
+  const helperGroups = helperGroupsByTranscript(groupedItems);
+  const refreshGrouped = grouped.refreshOrigin;
 
   // The failure has to OUTLIVE its own retry. With no rows to fall back on,
   // a refetch puts the query back into its pending state, so `isError` goes
@@ -359,6 +381,16 @@ export default function HomePage() {
               showOwnerActions
               hideOwner
               bare
+              helperGroupSlot={(item) => (
+                <ScopedOwnerHelperGroups
+                  groups={helperGroups.get(item.transcript.id)}
+                  onRefreshOrigin={refreshGrouped}
+                />
+              )}
+            />
+            <ScopedContextContainerList
+              items={groupedItems}
+              onRefreshOrigin={refreshGrouped}
             />
           </div>
 
