@@ -19,45 +19,69 @@ import (
 //go:embed testdata/relationship-navigation.yaml
 var relationshipNavigationFixtures []byte
 
-func TestRelationshipNavigation(t *testing.T) {
-	var corpus struct {
-		Required []string `yaml:"required_names"`
-		Cases    []struct {
-			Name     string                         `yaml:"name"`
-			State    schema.RelationshipTargetState `yaml:"state"`
-			Kind     schema.SessionRelationshipKind `yaml:"kind"`
-			Target   string                         `yaml:"target"`
-			Anchor   string                         `yaml:"anchor"`
-			Expected string                         `yaml:"expected"`
-		} `yaml:"cases"`
-	}
+type relationshipNavigationCase struct {
+	Name              string                         `yaml:"name"`
+	State             schema.RelationshipTargetState `yaml:"state"`
+	Kind              schema.SessionRelationshipKind `yaml:"kind"`
+	Evidence          schema.EvidenceKind            `yaml:"evidence"`
+	Target            string                         `yaml:"target"`
+	Lookup            string                         `yaml:"lookup"`
+	Collision         bool                           `yaml:"collision_owner_holds_local_id"`
+	TargetVisibility  string                         `yaml:"target_visibility"`
+	Viewer            string                         `yaml:"viewer"`
+	TargetContentHash string                         `yaml:"target_content_hash"`
+	Anchor            string                         `yaml:"anchor"`
+	Expected          string                         `yaml:"expected"`
+}
+
+type relationshipNavigationCorpus struct {
+	Required []string                     `yaml:"required_names"`
+	Cases    []relationshipNavigationCase `yaml:"cases"`
+}
+
+func loadRelationshipNavigationFixtures(t *testing.T) relationshipNavigationCorpus {
+	t.Helper()
+	var corpus relationshipNavigationCorpus
 	d := yaml.NewDecoder(bytes.NewReader(relationshipNavigationFixtures))
 	d.KnownFields(true)
 	if err := d.Decode(&corpus); err != nil {
 		t.Fatal(err)
 	}
-	seen := map[string]bool{}
-	for _, required := range []string{"missing-parent", "cross-owner-collision", "private-parent", "public-starter", "exact-claim-without-public-authority", "unknown-parent", "conflicting-parent", "explicit-none"} {
-		found := false
-		for _, name := range corpus.Required {
-			if name == required {
-				found = true
-			}
+	if len(corpus.Required) == 0 {
+		t.Fatal("relationship-navigation fixture has no required-name manifest")
+	}
+	names := map[string]bool{}
+	for _, c := range corpus.Cases {
+		if c.Name == "" || names[c.Name] {
+			t.Fatalf("duplicate or empty relationship-navigation case %q", c.Name)
 		}
-		if !found {
-			t.Fatalf("required-name manifest lost %s", required)
+		names[c.Name] = true
+	}
+	for _, required := range corpus.Required {
+		if !names[required] {
+			t.Fatalf("required-name manifest names a missing case %q", required)
 		}
 	}
+	if len(names) != len(corpus.Required) {
+		t.Fatalf("required-name manifest covers %d of %d cases; every case must be named", len(corpus.Required), len(names))
+	}
+	return corpus
+}
+
+func TestRelationshipNavigation(t *testing.T) {
+	corpus := loadRelationshipNavigationFixtures(t)
+	childOwner := toPgUUID(uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"))
+	otherOwner := toPgUUID(uuid.MustParse("550e8400-e29b-41d4-a716-446655440004"))
+	targetID := toPgUUID(uuid.MustParse("550e8400-e29b-41d4-a716-446655440002"))
+	otherTargetID := toPgUUID(uuid.MustParse("550e8400-e29b-41d4-a716-446655440005"))
+	localID := schema.SessionID("550e8400-e29b-41d4-a716-446655440003")
 	for _, c := range corpus.Cases {
-		if seen[c.Name] || c.Name == "" {
-			t.Fatal("duplicate or empty fixture name")
-		}
-		seen[c.Name] = true
 		t.Run(c.Name, func(t *testing.T) {
-			owner := toPgUUID(uuid.MustParse("550e8400-e29b-41d4-a716-446655440001"))
-			targetID := toPgUUID(uuid.MustParse("550e8400-e29b-41d4-a716-446655440002"))
-			localID := schema.SessionID("550e8400-e29b-41d4-a716-446655440003")
-			relation := schema.SessionRelationship{Kind: c.Kind, TargetState: c.State, Evidence: schema.EvidenceNativeTyped}
+			evidence := c.Evidence
+			if evidence == "" {
+				evidence = schema.EvidenceNativeTyped
+			}
+			relation := schema.SessionRelationship{Kind: c.Kind, TargetState: c.State, Evidence: evidence}
 			if c.Target != "" {
 				relation.TargetLocalID = &localID
 			}
@@ -73,26 +97,49 @@ func TestRelationshipNavigation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			child := sqlc.Transcript{OwnerID: owner, SessionRelationships: raw}
+			child := sqlc.Transcript{OwnerID: childOwner, SessionRelationships: raw}
 			q := &mockQuerier{
 				getTranscriptIDByOwnerAndLocalID: func(_ context.Context, p sqlc.GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error) {
-					if p.OwnerID != owner || p.LocalID != string(localID) {
-						t.Fatal("lookup escaped child owner-local identity")
+					if p.LocalID != string(localID) {
+						t.Fatalf("lookup used local id %q, want the stored target %q", p.LocalID, localID)
 					}
-					if c.Target == "missing" || c.Target == "other-owner" {
+					switch p.OwnerID {
+					case childOwner:
+						if c.Lookup == "found" {
+							return targetID, nil
+						}
 						return pgtype.UUID{}, pgx.ErrNoRows
+					case otherOwner:
+						if c.Collision {
+							return otherTargetID, nil
+						}
 					}
-					return targetID, nil
+					t.Fatalf("lookup escaped the child owner scope: %v", p.OwnerID)
+					return pgtype.UUID{}, pgx.ErrNoRows
 				},
 				getTranscriptByID: func(_ context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
-					if id != targetID {
-						t.Fatal("wrong public target")
+					if id == otherTargetID {
+						t.Fatal("a cross-owner same-local-id transcript was substituted for the child's target")
 					}
-					return sqlc.Transcript{ID: id, OwnerID: owner, LocalID: string(localID), Visibility: c.Target, Title: pgText("private target title")}, nil
+					if id != targetID {
+						t.Fatalf("read a target that is not the child's owner-local target: %v", id)
+					}
+					return sqlc.Transcript{
+						ID:          id,
+						OwnerID:     childOwner,
+						LocalID:     string(localID),
+						Visibility:  c.TargetVisibility,
+						ContentHash: pgtype.Text{String: c.TargetContentHash, Valid: c.TargetContentHash != ""},
+						Title:       pgText("target title that must never leak"),
+					}, nil
 				},
 			}
+			var user *AuthUser
+			if c.Viewer != "anonymous" {
+				user = &AuthUser{ID: uuidFromPg(childOwner)}
+			}
 			h := newTestHandler(q, nil)
-			got, err := h.relationshipNavigation(context.Background(), nil, child)
+			got, err := h.relationshipNavigation(context.Background(), user, child)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -114,10 +161,5 @@ func TestRelationshipNavigation(t *testing.T) {
 				t.Fatal("navigation mutated durable relationship evidence")
 			}
 		})
-	}
-	for _, name := range corpus.Required {
-		if !seen[name] {
-			t.Errorf("missing required fixture %s", name)
-		}
 	}
 }

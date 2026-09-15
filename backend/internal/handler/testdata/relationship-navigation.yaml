@@ -1,48 +1,111 @@
+# Relationship-navigation resolution matrix for the Village metadata read.
+#
+# Every case drives the REAL handler.relationshipNavigation over a mocked
+# owner-scoped Querier (dependency mock only). Real SQL owner scoping, current
+# access control, child-first/later-parent publication and blob immutability are
+# covered by the registered-route PostgreSQL test
+# (relationship_navigation_integration_test.go); this corpus isolates the
+# resolution decision itself.
+#
+# lookup: the result of the owner-scoped (child.owner_id, targetLocalId)
+#   identity probe. `absent` models both a missing target and the cross-owner
+#   collision case, where another owner holds the same local id but the child's
+#   owner does not; that other owner's row is never substituted.
+# target_visibility / viewer: current rights applied after resolution.
+# target_content_hash: the target's public representation revision (the
+#   server-computed digest of the exact redacted public bytes). Empty means no
+#   authority is stored.
 required_names:
   - missing-parent
   - cross-owner-collision
-  - private-parent
+  - same-owner-inaccessible
   - public-starter
-  - exact-claim-without-public-authority
+  - context-general-no-anchor
+  - context-exact-matching-revision
+  - context-changed-revision
+  - context-exact-without-public-authority
   - unknown-parent
   - conflicting-parent
   - explicit-none
 cases:
   - name: missing-parent
-    state: target_known
     kind: started_by
-    target: missing
+    state: target_known
+    target: ses_parent
+    lookup: absent
     expected: '[{"kind":"started_by","status":"known_unavailable"}]'
   - name: cross-owner-collision
-    state: target_known
     kind: started_by
-    target: other-owner
+    state: target_known
+    target: ses_parent
+    lookup: absent
+    collision_owner_holds_local_id: true
     expected: '[{"kind":"started_by","status":"known_unavailable"}]'
-  - name: private-parent
-    state: target_known
+  - name: same-owner-inaccessible
     kind: started_by
-    target: private
+    state: target_known
+    target: ses_parent
+    lookup: found
+    target_visibility: private
+    viewer: anonymous
     expected: '[{"kind":"started_by","status":"inaccessible"}]'
   - name: public-starter
-    state: target_known_retained
     kind: started_by
-    target: public
+    state: target_known_retained
+    evidence: retained_last_good
+    target: ses_parent
+    lookup: found
+    target_visibility: public
+    viewer: anonymous
     expected: '[{"kind":"started_by","status":"resolved","transcriptId":"550e8400-e29b-41d4-a716-446655440002"}]'
-  - name: exact-claim-without-public-authority
-    state: target_known
+  - name: context-general-no-anchor
     kind: context_from
-    target: public
-    anchor: '{"kind":"through_redacted_entry","sourceEntryRef":"e_public","sourceRevisionRef":"r_old"}'
+    state: target_known
+    target: ses_parent
+    lookup: found
+    target_visibility: public
+    viewer: anonymous
+    expected: '[{"kind":"context_from","status":"general_link_only","transcriptId":"550e8400-e29b-41d4-a716-446655440002","anchor":{"kind":"general_source_session"}}]'
+  - name: context-exact-matching-revision
+    kind: context_from
+    state: target_known_retained
+    evidence: retained_last_good
+    target: ses_parent
+    lookup: found
+    target_visibility: public
+    viewer: anonymous
+    target_content_hash: sha3-256:1111111111111111111111111111111111111111111111111111111111111111
+    anchor: '{"kind":"through_redacted_entry","sourceEntryRef":"e_parent","sourceRevisionRef":"sha3-256:1111111111111111111111111111111111111111111111111111111111111111"}'
+    expected: '[{"kind":"context_from","status":"resolved","transcriptId":"550e8400-e29b-41d4-a716-446655440002","anchor":{"kind":"through_redacted_entry","sourceEntryRef":"e_parent","sourceRevisionRef":"sha3-256:1111111111111111111111111111111111111111111111111111111111111111"}}]'
+  - name: context-changed-revision
+    kind: context_from
+    state: target_known_retained
+    evidence: retained_last_good
+    target: ses_parent
+    lookup: found
+    target_visibility: public
+    viewer: anonymous
+    target_content_hash: sha3-256:2222222222222222222222222222222222222222222222222222222222222222
+    anchor: '{"kind":"through_redacted_entry","sourceEntryRef":"e_parent","sourceRevisionRef":"sha3-256:1111111111111111111111111111111111111111111111111111111111111111"}'
+    expected: '[{"kind":"context_from","status":"general_link_only","transcriptId":"550e8400-e29b-41d4-a716-446655440002","anchor":{"kind":"general_source_session"}}]'
+  - name: context-exact-without-public-authority
+    kind: context_from
+    state: target_known
+    target: ses_parent
+    lookup: found
+    target_visibility: public
+    viewer: anonymous
+    anchor: '{"kind":"before_redacted_entry","sourceEntryRef":"e_parent","sourceRevisionRef":"r_parent"}'
     expected: '[{"kind":"context_from","status":"general_link_only","transcriptId":"550e8400-e29b-41d4-a716-446655440002","anchor":{"kind":"general_source_session"}}]'
   - name: unknown-parent
-    state: unknown
     kind: started_by
+    state: unknown
     expected: '[{"kind":"started_by","status":"unknown"}]'
   - name: conflicting-parent
-    state: conflicting_current_native_evidence
     kind: started_by
+    state: conflicting_current_native_evidence
     expected: '[{"kind":"started_by","status":"conflicting"}]'
   - name: explicit-none
-    state: explicit_none
     kind: started_by
+    state: explicit_none
     expected: 'null'

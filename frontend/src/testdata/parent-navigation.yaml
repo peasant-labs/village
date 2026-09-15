@@ -1,0 +1,82 @@
+# Mounted parent/context navigation cases for the production transcript route.
+#
+# Each case supplies the DURABLE relationships the content carries and the
+# viewer-authorized `relationshipNavigation` the metadata read serves. The test
+# mounts the real route (TranscriptDetailPage -> SessionDetailV2 -> fairtrade
+# TranscriptViewer), so Fairtrade's adapter cooks both sides and the assertions
+# read the rendered session-context markup.
+required_names:
+  - distinct-context-and-starter
+  - same-target-combines
+  - unavailable-shows-status
+  - inaccessible-shows-status
+  - context-general-note
+  - earlier-history-expands-locally
+cases:
+  - name: distinct-context-and-starter
+    relationships:
+      - {kind: started_by, targetState: target_known, targetLocalId: "5a5a5a5a-0000-4000-8000-000000000002", evidence: native_typed}
+      - kind: context_from
+        targetState: target_known_retained
+        targetLocalId: "c0c0c0c0-0000-4000-8000-000000000001"
+        evidence: retained_last_good
+        anchor: {kind: through_redacted_entry, sourceEntryRef: e_parent, sourceRevisionRef: "sha3-256:match"}
+    navigation:
+      - {kind: started_by, status: resolved, transcriptId: "d0d0d0d0-0000-4000-8000-000000000012"}
+      - kind: context_from
+        status: resolved
+        transcriptId: "e0e0e0e0-0000-4000-8000-000000000011"
+        anchor: {kind: through_redacted_entry, sourceEntryRef: e_parent, sourceRevisionRef: "sha3-256:match"}
+    expected:
+      labels: ["context inherited from", "started by"]
+      links: ["e0e0e0e0-0000-4000-8000-000000000011", "d0d0d0d0-0000-4000-8000-000000000012"]
+      note: "opens the current source at the recorded branch point"
+  - name: same-target-combines
+    relationships:
+      - {kind: started_by, targetState: target_known, targetLocalId: "abababab-0000-4000-8000-000000000003", evidence: native_typed}
+      - {kind: context_from, targetState: target_known, targetLocalId: "abababab-0000-4000-8000-000000000003", evidence: native_typed}
+    navigation:
+      - {kind: started_by, status: resolved, transcriptId: "bcbcbcbc-0000-4000-8000-000000000013"}
+      - {kind: context_from, status: resolved, transcriptId: "bcbcbcbc-0000-4000-8000-000000000013"}
+    expected:
+      labels: ["context inherited from and started by"]
+      links: ["bcbcbcbc-0000-4000-8000-000000000013"]
+  - name: unavailable-shows-status
+    relationships:
+      - {kind: started_by, targetState: target_known, targetLocalId: "5a5a5a5a-0000-4000-8000-000000000002", evidence: native_typed}
+    navigation:
+      - {kind: started_by, status: known_unavailable}
+    expected:
+      labels: ["started by"]
+      statuses: ["source unavailable"]
+      links: []
+  - name: inaccessible-shows-status
+    relationships:
+      - {kind: context_from, targetState: target_known, targetLocalId: "c0c0c0c0-0000-4000-8000-000000000001", evidence: native_typed}
+    navigation:
+      - {kind: context_from, status: inaccessible}
+    expected:
+      labels: ["context inherited from"]
+      statuses: ["source inaccessible"]
+      links: []
+  - name: context-general-note
+    relationships:
+      - kind: context_from
+        targetState: target_known_retained
+        targetLocalId: "c0c0c0c0-0000-4000-8000-000000000001"
+        evidence: retained_last_good
+        anchor: {kind: through_redacted_entry, sourceEntryRef: e_parent, sourceRevisionRef: "sha3-256:old"}
+    navigation:
+      - {kind: context_from, status: general_link_only, transcriptId: "e0e0e0e0-0000-4000-8000-000000000011", anchor: {kind: general_source_session}}
+    expected:
+      labels: ["context inherited from"]
+      links: ["e0e0e0e0-0000-4000-8000-000000000011"]
+      note: "the earlier source state is not verified"
+  - name: earlier-history-expands-locally
+    relationships: []
+    navigation: []
+    earlier_turn_content: "migrated earlier work"
+    expected:
+      labels: []
+      links: []
+      earlier_content: "migrated earlier work"

@@ -1,0 +1,16 @@
+# Sanitized scenarios for the registered-route relationship-navigation
+# integration test. Every name must be exercised by a subtest; the test fails
+# when the manifest and the executed scenario set disagree.
+required_names:
+  - child-first-parent-later
+  - matching-public-revision
+  - changed-public-revision
+  - missing-target-no-leak
+  - same-owner-inaccessible
+  - cross-owner-collision
+  - owner-match-beats-collision
+  - explicit-none
+# Distinctive strings that must never appear in a response that has no
+# authorized target: a leaked title or public id is the failure this detects.
+parent_title: PARENT-TITLE-MUST-NOT-LEAK
+child_title: child-session
