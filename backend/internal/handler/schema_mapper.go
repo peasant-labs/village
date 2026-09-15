@@ -14,6 +14,7 @@ import (
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/reponame"
 	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 )
 
@@ -163,61 +164,6 @@ func schemaToCommitRecords(commits []schema.CommitInfo) []commitJSONRecord {
 	return records
 }
 
-// extractRepoName derives a clean project display name.
-// It prefers parsing the git remote URL (e.g. "github.com/example-org/sample-app.git" → "sample-app"),
-// falling back to stripping known directory prefixes from the dash-delimited project name key
-// (e.g. "-Users-developer-Documents-GitHub-sample-app" → "sample-app").
-func extractRepoName(projectName string, gitRemote string) string {
-	// Try git remote first
-	if gitRemote != "" {
-		remote := strings.TrimSuffix(gitRemote, ".git")
-		if idx := strings.LastIndex(remote, "/"); idx >= 0 {
-			name := remote[idx+1:]
-			if name != "" {
-				return name
-			}
-		}
-	}
-
-	if projectName == "" {
-		return ""
-	}
-
-	// Slash-separated path: take last segment
-	if strings.Contains(projectName, "/") {
-		parts := strings.Split(projectName, "/")
-		for i := len(parts) - 1; i >= 0; i-- {
-			if parts[i] != "" {
-				return parts[i]
-			}
-		}
-	}
-
-	// Dash-delimited path key (e.g. "-Users-developer-Documents-GitHub-project-name")
-	// Strip leading dash, split into segments, find the last known directory
-	// marker and take everything after it as the project name.
-	knownDirs := []string{"github", "documents", "projects", "repos", "src", "code", "dev", "home"}
-	stripped := strings.TrimPrefix(projectName, "-")
-	segments := strings.Split(stripped, "-")
-
-	lastKnownIdx := -1
-	for i, seg := range segments {
-		lower := strings.ToLower(seg)
-		for _, d := range knownDirs {
-			if lower == d {
-				lastKnownIdx = i
-				break
-			}
-		}
-	}
-
-	if lastKnownIdx >= 0 && lastKnownIdx < len(segments)-1 {
-		return strings.Join(segments[lastKnownIdx+1:], "-")
-	}
-
-	return projectName
-}
-
 // formatModelShort strips date suffixes and title-cases model identifiers.
 // e.g. "claude-opus-4-5-20251101" → "Claude Opus 4.5"
 // e.g. "claude-sonnet-4-6" → "Claude Sonnet 4.6"
@@ -298,7 +244,7 @@ func deriveTitle(req schema.PublishRequest) pgtype.Text {
 	if req.Git.Remote != nil {
 		gitRemote = *req.Git.Remote
 	}
-	repoName := extractRepoName(req.Project.Name, gitRemote)
+	repoName := reponame.Normalize(req.Project.Name, gitRemote)
 	modelShort := formatModelShort(string(req.Model.Harness), string(req.Model.Model))
 
 	if repoName != "" && modelShort != "" {

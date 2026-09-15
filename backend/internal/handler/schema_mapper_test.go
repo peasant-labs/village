@@ -7,21 +7,11 @@ import (
 	"github.com/peasant-labs/schema"
 )
 
-//go:embed testdata/schema_mapping/repository_names.yaml
-var repositoryNameFixtureYAML []byte
-
 //go:embed testdata/schema_mapping/model_names.yaml
 var modelNameFixtureYAML []byte
 
 //go:embed testdata/schema_mapping/titles.yaml
 var titleFixtureYAML []byte
-
-type repositoryNameFixture struct {
-	Name        string `yaml:"name"`
-	ProjectName string `yaml:"project_name"`
-	GitRemote   string `yaml:"git_remote"`
-	Expected    string `yaml:"expected"`
-}
 
 type modelNameFixture struct {
 	Name     string `yaml:"name"`
@@ -40,18 +30,6 @@ type titleFixture struct {
 	GitRemote             string         `yaml:"git_remote"`
 	Expected              string         `yaml:"expected"`
 	ExpectedValid         bool           `yaml:"expected_valid"`
-}
-
-func TestExtractRepoName(t *testing.T) {
-	tests := loadFixtureRows[repositoryNameFixture](t, repositoryNameFixtureYAML, 10)
-	for _, tt := range tests {
-		t.Run(tt.Name, func(t *testing.T) {
-			got := extractRepoName(tt.ProjectName, tt.GitRemote)
-			if got != tt.Expected {
-				t.Errorf("extractRepoName(%q, %q) = %q, want %q", tt.ProjectName, tt.GitRemote, got, tt.Expected)
-			}
-		})
-	}
 }
 
 func TestFormatModelShort(t *testing.T) {
