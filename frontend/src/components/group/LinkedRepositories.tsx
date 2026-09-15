@@ -166,13 +166,12 @@ function RepositoryCommits({
 }
 
 // ---------------------------------------------------------------------------
-// Owner-only link form. Backend requires owner, name, AND a GitHub App
-// installation_id (the install that grants the App access to the repo).
+// Owner-only link form. Backend resolves the GitHub App installation from the
+// repository, so only owner/name are entered here.
 // ---------------------------------------------------------------------------
 
 function LinkRepoForm({ groupId }: { groupId: string }) {
   const [repoInput, setRepoInput] = useState("");
-  const [installationId, setInstallationId] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const link = useLinkRepository();
 
@@ -185,18 +184,12 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
       setValidationError("Enter a repository as owner/name (e.g. acme/widgets).");
       return;
     }
-    const instId = Number(installationId.trim());
-    if (!Number.isInteger(instId) || instId <= 0) {
-      setValidationError("Enter the numeric GitHub App installation ID.");
-      return;
-    }
 
     link.mutate(
-      { groupId, owner: parsed.owner, name: parsed.name, installationId: instId },
+      { groupId, owner: parsed.owner, name: parsed.name },
       {
         onSuccess: () => {
           setRepoInput("");
-          setInstallationId("");
         },
       }
     );
@@ -217,33 +210,20 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
             aria-label="Repository owner/name"
           />
         </div>
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1 [&_.is-field]:mb-0">
-            <Input
-              value={installationId}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setInstallationId(e.target.value.replace(/[^\d]/g, ""))
-              }
-              inputMode="numeric"
-              placeholder="installation id"
-              aria-label="GitHub App installation ID"
-            />
-          </div>
-          <Button
-            type="submit"
-            size="sm"
-            variant="primary"
-            icon={Github}
-            loading={link.isPending}
-            disabled={link.isPending}
-          >
-            Link
-          </Button>
-        </div>
+        <Button
+          type="submit"
+          size="sm"
+          variant="primary"
+          icon={Github}
+          loading={link.isPending}
+          disabled={link.isPending}
+        >
+          Link
+        </Button>
       </div>
       <p className="text-[11px] text-ink-3">
-        The GitHub App must already be installed on the repo. The installation
-        ID comes from that installation.
+        The GitHub App must be installed on the repository&apos;s account. The
+        installation is resolved from the repository.
       </p>
       {validationError && (
         <p className="text-[12px] text-danger">{validationError}</p>
