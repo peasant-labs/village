@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -86,6 +87,14 @@ type appServer struct {
 	notModified bool // when true, /commits returns 304
 	failToken   bool
 	failRepo    bool
+	// Pull-request commit listing. pullPath records the last path served so a
+	// test can prove the endpoint is the one that was called; pullPage2Body
+	// makes the first page advertise a second page through a Link header.
+	pullCalls     int32
+	pullPath      string
+	pullBody      string
+	pullPage2Body string
+	failPull      bool
 }
 
 func newAppServer(t *testing.T, a *appServer) {
@@ -107,8 +116,28 @@ func newAppServer(t *testing.T, a *appServer) {
 	})
 
 	mux.HandleFunc("/repos/", func(w http.ResponseWriter, r *http.Request) {
-		// /repos/{owner}/{name}            -> repo metadata
-		// /repos/{owner}/{name}/commits    -> commit list
+		// /repos/{owner}/{name}                     -> repo metadata
+		// /repos/{owner}/{name}/commits             -> commit list
+		// /repos/{owner}/{name}/pulls/{n}/commits   -> pull request commit list
+		if strings.HasSuffix(r.URL.Path, "/commits") && strings.Contains(r.URL.Path, "/pulls/") {
+			atomic.AddInt32(&a.pullCalls, 1)
+			a.pullPath = r.URL.Path
+			if a.failPull {
+				http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
+				return
+			}
+			if r.URL.Query().Get("page") == "2" {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, a.pullPage2Body)
+				return
+			}
+			if a.pullPage2Body != "" {
+				w.Header().Set("Link", fmt.Sprintf(`<%s%s?page=2>; rel="next"`, a.srv.URL, r.URL.Path))
+			}
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, a.pullBody)
+			return
+		}
 		if len(r.URL.Path) > len("/commits") && r.URL.Path[len(r.URL.Path)-len("/commits"):] == "/commits" {
 			atomic.AddInt32(&a.commitCalls, 1)
 			if a.notModified && r.Header.Get("If-None-Match") == a.commitsETag {
@@ -227,6 +256,74 @@ func TestListCommits_ConditionalNotModified(t *testing.T) {
 	}
 	if res.ETag != `"etag-v1"` {
 		t.Errorf("ETag should be preserved on 304, got %q", res.ETag)
+	}
+}
+
+func TestListPullRequestCommits_FetchesFromThePullRequestEndpoint(t *testing.T) {
+	a := &appServer{
+		pullBody: `[
+			{"sha":"aaa","commit":{"message":"first","author":{"name":"Alice","email":"a@x.io","date":"2024-01-01T10:00:00Z"},"committer":{"date":"2024-01-01T10:05:00Z"}}}
+		]`,
+	}
+	newAppServer(t, a)
+	c := newTestClient(t, a.srv.URL)
+
+	res, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 7, ListCommitsOptions{PerPage: 100})
+	if err != nil {
+		t.Fatalf("ListPullRequestCommits: %v", err)
+	}
+	if a.pullPath != "/repos/acme/repo/pulls/7/commits" {
+		t.Errorf("called %q, want the pull request commits endpoint", a.pullPath)
+	}
+	if len(res.Commits) != 1 || res.Commits[0].SHA != "aaa" || res.Commits[0].AuthorName != "Alice" {
+		t.Fatalf("commits = %+v, want one normalized commit aaa from Alice", res.Commits)
+	}
+}
+
+func TestListPullRequestCommits_Paginates(t *testing.T) {
+	a := &appServer{
+		pullBody:      `[{"sha":"aaa","commit":{"message":"first","author":{"name":"Alice"}}}]`,
+		pullPage2Body: `[{"sha":"bbb","commit":{"message":"second","author":{"name":"Bob"}}}]`,
+	}
+	newAppServer(t, a)
+	c := newTestClient(t, a.srv.URL)
+
+	res, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 7, ListCommitsOptions{MaxPages: 2})
+	if err != nil {
+		t.Fatalf("ListPullRequestCommits: %v", err)
+	}
+	if len(res.Commits) != 2 || res.Commits[0].SHA != "aaa" || res.Commits[1].SHA != "bbb" {
+		t.Fatalf("commits = %+v, want both pages in order", res.Commits)
+	}
+	if a.pullCalls != 2 {
+		t.Errorf("endpoint called %d times, want 2 (Link rel=next followed)", a.pullCalls)
+	}
+}
+
+func TestListPullRequestCommits_ErrorReportsStatus(t *testing.T) {
+	a := &appServer{failPull: true}
+	newAppServer(t, a)
+	c := newTestClient(t, a.srv.URL)
+
+	_, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 7, ListCommitsOptions{})
+	if err == nil {
+		t.Fatal("expected an error when GitHub answers non-200")
+	}
+	if !strings.Contains(err.Error(), "status 404") {
+		t.Errorf("error = %v, want it to report the status the way ListCommits does", err)
+	}
+}
+
+func TestListPullRequestCommits_RejectsNonPositiveNumberBeforeCalling(t *testing.T) {
+	a := &appServer{}
+	newAppServer(t, a)
+	c := newTestClient(t, a.srv.URL)
+
+	if _, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 0, ListCommitsOptions{}); err == nil {
+		t.Fatal("expected an error for a non-positive pull request number")
+	}
+	if a.pullCalls != 0 || a.tokenCalls != 0 {
+		t.Errorf("refused request still called GitHub: pull=%d token=%d", a.pullCalls, a.tokenCalls)
 	}
 }
 

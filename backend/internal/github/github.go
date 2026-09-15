@@ -480,6 +480,27 @@ type ListCommitsResult struct {
 // conditional requests (If-None-Match) so unchanged repos cost zero quota.
 // Pagination follows RFC5988 Link rel="next" headers up to MaxPages.
 func (c *Client) ListCommits(ctx context.Context, installationID int64, owner, name string, opts ListCommitsOptions) (*ListCommitsResult, error) {
+	return c.listCommits(ctx, installationID, fmt.Sprintf("/repos/%s/%s/commits", owner, name), opts)
+}
+
+// ListPullRequestCommits fetches the commits a pull request currently contains,
+// from GET /repos/{owner}/{repo}/pulls/{number}/commits, using the installation
+// token.
+//
+// It shares ListCommits' pagination, conditional-request, and error handling
+// exactly, through the same implementation. That is deliberate: the matcher
+// resolves a transcript's recorded commits against precisely this set, so two
+// endpoints that paginated or failed differently would be a matching bug.
+func (c *Client) ListPullRequestCommits(ctx context.Context, installationID int64, owner, name string, number int, opts ListCommitsOptions) (*ListCommitsResult, error) {
+	if number <= 0 {
+		return nil, errors.New("github: list pull request commits: pull request number must be positive")
+	}
+	return c.listCommits(ctx, installationID, fmt.Sprintf("/repos/%s/%s/pulls/%d/commits", owner, name, number), opts)
+}
+
+// listCommits is the one implementation behind ListCommits and
+// ListPullRequestCommits. path is the repository-relative endpoint.
+func (c *Client) listCommits(ctx context.Context, installationID int64, path string, opts ListCommitsOptions) (*ListCommitsResult, error) {
 	token, err := c.installationToken(ctx, installationID)
 	if err != nil {
 		return nil, err
@@ -490,7 +511,7 @@ func (c *Client) ListCommits(ctx context.Context, installationID int64, owner, n
 		maxPages = 1
 	}
 
-	url := fmt.Sprintf("%s/repos/%s/%s/commits", c.baseURL, owner, name)
+	url := c.baseURL + path
 	if opts.PerPage > 0 {
 		url += "?per_page=" + strconv.Itoa(opts.PerPage)
 	}
