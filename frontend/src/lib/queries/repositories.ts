@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { VillageAvailableRepositoriesResponse } from "@peasant-labs/schema";
 import { api, isApiErrorStatus } from "../api";
 import type {
-  AvailableRepositoriesResponse,
   LinkedRepositoriesResponse,
   RepositoryCommitsResponse,
   TranscriptCommitsResponse,
@@ -48,7 +48,7 @@ export function useAvailableRepositories(groupId: string, enabled = true) {
   return useQuery({
     queryKey: ["group-repositories-available", groupId],
     queryFn: () =>
-      api<AvailableRepositoriesResponse>(`/groups/${groupId}/repositories/available`),
+      api<VillageAvailableRepositoriesResponse>(`/groups/${groupId}/repositories/available`),
     enabled: enabled && !!groupId,
     retry: (failureCount, err) => {
       if (isNotConfigured(err) || isApiErrorStatus(err, 403)) return false;
