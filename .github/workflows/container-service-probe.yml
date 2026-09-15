@@ -1,0 +1,60 @@
+name: Container service probe
+
+# Trial only: proves GitHub service containers (postgres) work when the
+# runner itself is containerized (desktop-container-1, label `container`).
+# The runner container gets the host container socket plus host networking,
+# so services start as siblings and published ports behave like the
+# host-native pool. Delete with the trial branch once decided.
+on:
+  push:
+    branches: [trial/container-runner-probe]
+  workflow_dispatch:
+
+concurrency:
+  group: container-service-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe-postgres:
+    name: probe postgres service
+    runs-on: [self-hosted, container]
+    timeout-minutes: 15
+    services:
+      postgres:
+        # Same pin as the real backend workflow.
+        image: postgres@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: village_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d village_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Runner provenance
+        run: echo "runner: $RUNNER_NAME"
+
+      - name: Install postgres client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Wait for postgres and smoke test
+        env:
+          PGPASSWORD: test
+        run: |
+          for i in $(seq 1 24); do
+            if pg_isready -h localhost -U test -d village_test; then
+              break
+            fi
+            sleep 5
+          done
+          pg_isready -h localhost -U test -d village_test
+          psql -h localhost -U test -d village_test -c 'select version();'
