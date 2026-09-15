@@ -212,6 +212,13 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Get("/users/me/prompt-requests", h.ListMyPromptRequests)
 		r.With(h.AuthRequired).Get("/users/me/settings", h.GetUserSettings)
 		r.With(h.AuthRequired).Patch("/users/me/settings", h.UpdateUserSettings)
+
+		// GitHub App install handshake. Both routes are redirects, like the OAuth
+		// entry points, so neither is declared by the JSON contract; the install
+		// route requires a session (it acts only for a collective owner) and the
+		// callback verifies the signed state it carries.
+		r.With(h.AuthRequired).Get("/integrations/github/install", h.GitHubInstall)
+		r.With(h.AuthRequired).Get("/integrations/github/callback", h.GitHubInstallCallback)
 	})
 
 	return r
