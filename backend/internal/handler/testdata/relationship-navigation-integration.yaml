@@ -1,6 +1,48 @@
-# Sanitized scenarios for the registered-route relationship-navigation
-# integration test. Every name must be exercised by a subtest; the test fails
-# when the manifest and the executed scenario set disagree.
+# Registered-route relationship-navigation scenarios against real PostgreSQL and
+# encrypted object storage.
+#
+# Every case drives the REAL publish, metadata, and content routes mounted from
+# New(). The stateful actions stay in Go; this file holds the substantive case
+# inputs and expectations: relationship kind / target state / evidence, the
+# anchor revision mode, target ownership and visibility, the viewer, and the
+# expected status, anchor, and public identity of every navigation entry.
+#
+# The resolution decision itself (lookup result, access-control branch) is
+# isolated in relationship-navigation.yaml. This corpus proves the same
+# decisions survive the real routes, the real owner-scoped SQL, and the real
+# encrypted blob store: child-first publication followed by a later parent
+# publication, exact versus changed public revision, an inaccessible same-owner
+# target, a cross-owner local-id collision, the owner's own row winning that
+# collision, and the absence of any link for explicit-none.
+#
+# steps:
+#   publish    POST /transcripts/publish as the child's owner. `turn` names the
+#              single turn's content; `writes` pins how many blob objects this
+#              publish must write, so a later parent publication rewriting the
+#              child's object cannot pass unnoticed.
+#   insert     A direct owner-scoped row, used for private targets and for the
+#              collision rows a public publish cannot express. `owner` is `self`
+#              (the child's owner) or `other`; `visibility` is `public` or
+#              `private`; `title` names the row's DB title.
+#   read       GET /transcripts/{id} as `viewer` (`owner` or `viewer`). Either
+#              `navigation` lists one expectation per emitted entry, or `absent`
+#              states the response must carry no relationshipNavigation field.
+#              `leaks` names the identifiers a withheld target must never leak.
+#   capture_content / expect_content_unchanged
+#              Snapshot the child's durable content and prove a later parent
+#              publication did not change it.
+#   expect_revision_changed
+#              The parent republish changed its public revision, so a
+#              general-link assertion after it is not vacuous.
+#
+# markers are the distinctive strings a response must never leak; none may be a
+# substring of another, or a leak assertion could pass by matching a different
+# marker. `title` and `turns` both reference markers so the needle is the same
+# string whether a row was published or inserted.
+#
+# target is a local-id alias shared by every row created with that `local_id`.
+# An alias with no row at all is listed in absent_targets; that is how
+# missing-target-no-leak stays distinguishable from a mistyped alias.
 required_names:
   - child-first-parent-later
   - matching-public-revision
@@ -10,7 +52,281 @@ required_names:
   - cross-owner-collision
   - owner-match-beats-collision
   - explicit-none
-# Distinctive strings that must never appear in a response that has no
-# authorized target: a leaked title or public id is the failure this detects.
-parent_title: PARENT-TITLE-MUST-NOT-LEAK
-child_title: child-session
+
+markers:
+  parent: PARENT-MARKER-MUST-NOT-LEAK
+  parent_revised: PARENT-MARKER-REVISED-MUST-NOT-LEAK
+  child: CHILD-MARKER
+
+cases:
+  - name: child-first-parent-later
+    why: >
+      A child published before its parent cannot resolve the target yet. The later
+      parent publication must resolve the starter link and must not rewrite the
+      child's durable content. The context link captured no public revision of the
+      parent, so it stays general rather than claiming the branch point.
+    steps:
+      - do: publish
+        transcript: child
+        local_id: child
+        turn: child
+        relationships:
+          - kind: started_by
+            state: target_known
+            evidence: native_typed
+            target: parent
+          - kind: context_from
+            state: target_known_retained
+            evidence: retained_last_good
+            target: parent
+            anchor:
+              kind: through_redacted_entry
+              entry: e_parent
+              revision: literal
+              revision_ref: rev-before-parent-publish
+      - do: read
+        viewer: owner
+        transcript: child
+        navigation:
+          - {kind: started_by, status: known_unavailable, identity: none}
+          - {kind: context_from, status: known_unavailable, identity: none}
+      - do: capture_content
+        transcript: child
+      - do: publish
+        transcript: parent
+        local_id: parent
+        turn: parent
+        writes: 1
+      - do: read
+        viewer: owner
+        transcript: child
+        navigation:
+          - {kind: started_by, status: resolved, identity: parent}
+          - {kind: context_from, status: general_link_only, identity: parent, anchor_kind: general_source_session}
+      - do: expect_content_unchanged
+        transcript: child
+
+  - name: matching-public-revision
+    why: >
+      The child captured the parent's current public revision (the server-computed
+      digest of the exact redacted public bytes) in a through_redacted_entry anchor,
+      so the context link is exact and re-emits the recorded anchor unchanged.
+    steps:
+      - do: publish
+        transcript: parent
+        local_id: parent
+        turn: parent
+      - do: publish
+        transcript: child
+        local_id: child
+        turn: child
+        relationships:
+          - kind: context_from
+            state: target_known_retained
+            evidence: retained_last_good
+            target: parent
+            anchor:
+              kind: through_redacted_entry
+              entry: e_parent
+              revision: current_public_revision
+      - do: read
+        viewer: owner
+        transcript: child
+        navigation:
+          - kind: context_from
+            status: resolved
+            identity: parent
+            anchor_kind: through_redacted_entry
+            anchor_entry: e_parent
+            anchor_revision: current_public_revision
+
+  - name: changed-public-revision
+    why: >
+      The child captured the parent's public revision and the parent was then
+      republished with different bytes. The stored revision no longer identifies the
+      current public representation, so the context link downgrades to a general
+      link to the current parent while the child's durable content stays untouched.
+    steps:
+      - do: publish
+        transcript: parent
+        local_id: parent
+        turn: parent
+      - do: publish
+        transcript: child
+        local_id: child
+        turn: child
+        relationships:
+          - kind: context_from
+            state: target_known_retained
+            evidence: retained_last_good
+            target: parent
+            anchor:
+              kind: before_redacted_entry
+              entry: e_parent
+              revision: current_public_revision
+      - do: read
+        viewer: owner
+        transcript: child
+        navigation:
+          - kind: context_from
+            status: resolved
+            identity: parent
+            anchor_kind: before_redacted_entry
+            anchor_entry: e_parent
+            anchor_revision: current_public_revision
+      - do: capture_content
+        transcript: child
+      - do: publish
+        transcript: parent
+        local_id: parent
+        turn: parent_revised
+      - do: expect_revision_changed
+        transcript: parent
+      - do: read
+        viewer: owner
+        transcript: child
+        navigation:
+          - {kind: context_from, status: general_link_only, identity: parent, anchor_kind: general_source_session}
+      - do: expect_content_unchanged
+        transcript: child
+
+  - name: missing-target-no-leak
+    why: >
+      The child names a target its owner has never published. The answer is
+      known_unavailable with no public id, and the target's marker does not appear
+      anywhere in the response.
+    absent_targets: [parent]
+    steps:
+      - do: publish
+        transcript: child
+        local_id: child
+        turn: child
+        relationships:
+          - kind: started_by
+            state: target_known
+            evidence: native_typed
+            target: parent
+      - do: read
+        viewer: owner
+        transcript: child
+        navigation:
+          - {kind: started_by, status: known_unavailable, identity: none}
+        leaks:
+          titles: [parent]
+
+  - name: same-owner-inaccessible
+    why: >
+      The target belongs to the child's own owner but is private, so a different
+      signed-in viewer gets an honest inaccessible result with neither the target's
+      title nor its public id.
+    steps:
+      - do: insert
+        transcript: parent
+        local_id: parent
+        owner: self
+        visibility: private
+        title: parent
+      - do: insert
+        transcript: child
+        local_id: child
+        owner: self
+        visibility: public
+        title: child
+        relationships:
+          - kind: started_by
+            state: target_known
+            evidence: native_typed
+            target: parent
+      - do: read
+        viewer: viewer
+        transcript: child
+        navigation:
+          - {kind: started_by, status: inaccessible, identity: none}
+        leaks:
+          transcripts: [parent]
+          titles: [parent]
+
+  - name: cross-owner-collision
+    why: >
+      Another owner holds the same local id but the child's owner does not. The
+      owner-local lookup finds no row, so the answer is known_unavailable and
+      neither the other owner's public id nor the target marker leaks.
+    steps:
+      - do: insert
+        transcript: other_parent
+        local_id: shared
+        owner: other
+        visibility: public
+        title: parent
+      - do: publish
+        transcript: child
+        local_id: child
+        turn: child
+        relationships:
+          - kind: started_by
+            state: target_known
+            evidence: native_typed
+            target: shared
+      - do: read
+        viewer: owner
+        transcript: child
+        navigation:
+          - {kind: started_by, status: known_unavailable, identity: none}
+        leaks:
+          transcripts: [other_parent]
+          titles: [parent]
+
+  - name: owner-match-beats-collision
+    why: >
+      Both the other owner and the child's owner hold the same local id. The
+      owner-scoped lookup resolves the child's own row, and the other owner's public
+      id never appears in the response.
+    steps:
+      - do: insert
+        transcript: other_parent
+        local_id: shared
+        owner: other
+        visibility: public
+        title: parent
+      - do: insert
+        transcript: own_parent
+        local_id: shared
+        owner: self
+        visibility: public
+        title: parent
+      - do: publish
+        transcript: child
+        local_id: child
+        turn: child
+        relationships:
+          - kind: started_by
+            state: target_known
+            evidence: native_typed
+            target: shared
+      - do: read
+        viewer: owner
+        transcript: child
+        navigation:
+          - {kind: started_by, status: resolved, identity: own_parent}
+        leaks:
+          transcripts: [other_parent]
+
+  - name: explicit-none
+    why: >
+      The stored relationship declares that there is no target. Nothing resolves and
+      the response carries no relationshipNavigation field at all.
+    steps:
+      - do: insert
+        transcript: child
+        local_id: child
+        owner: self
+        visibility: public
+        title: child
+        relationships:
+          - kind: started_by
+            state: explicit_none
+            evidence: native_typed
+      - do: read
+        viewer: owner
+        transcript: child
+        absent: true
