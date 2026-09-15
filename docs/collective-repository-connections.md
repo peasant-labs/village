@@ -1,10 +1,10 @@
 # Design: Connecting repositories to a collective
 
-**Status:** Partly implemented. Repository linking and the commit overlay are
-live (migrations `021`/`022`, the `/groups/{id}/repositories` routes, and the
-collective "Repositories" / commit-timeline UI); the pull request prompt
-attachment work builds on the same App. What remains is the operator install
-handshake, still tracked separately as a follow-up.
+**Status:** Implemented. Repository linking, the commit overlay, the GitHub App
+install handshake, and the repository picker are live (migrations `021`/`022`,
+the `/groups/{id}/repositories` routes, and the collective "Repositories" /
+commit-timeline UI); the pull request prompt attachment work builds on the same
+App.
 
 **Context / what already exists.** Pushed transcripts already carry git context
 in their payload (`schema.GitContext`: `branch`, `remote`, `worktree`,
@@ -17,9 +17,9 @@ overlay is (a) the **commit SHAs** are dropped on ingest, and (b) we have no
 **authenticated link** to the live repo to fetch its commits/PRs. This doc
 covers both.
 
-> The registered GitHub App and its secrets now exist in production. The
-> remaining rough edge is the install flow: linking a repository still takes a
-> hand-entered installation id, which is a tracked follow-up.
+> The registered GitHub App and its secrets exist in production, with the install
+> handshake and repository picker live: a collective owner connects the App and
+> chooses a repository, so there is no hand-entered installation id.
 
 ---
 
@@ -211,6 +211,8 @@ New handlers mounted under the existing `/api/v1` group routes
 (`router/routes.go`), e.g.:
 - `POST /groups/{id}/repositories` — link a repo (owner-only).
 - `GET  /groups/{id}/repositories` — list linked repos + sync status.
+- `GET  /groups/{id}/repositories/available` — the repositories the App can offer
+  the collective (the picker's source).
 - `DELETE /groups/{id}/repositories/{repoID}` — unlink.
 - `GET  /groups/{id}/repositories/{repoID}/timeline` — merged commits + PRs +
   the transcripts that touched each commit.
@@ -284,8 +286,10 @@ do not refer to Village pull requests or repository history.
 4. **Commit-SHA backfill.** The ingest change captures SHAs going forward.
    Backfill historical transcripts (re-read stored blobs for `git.commits`) or
    only enrich new pushes?
-5. **Webhooks vs polling for v1.** Ship polling-only first (no webhook secret
-   needed) and add webhooks later, or set up webhooks from day one?
+5. **Webhooks vs polling for v1.** Settled: the HMAC-verified webhook receiver is
+   implemented and live (a verified delivery is recorded once, so a redelivery is
+   a no-op); the incremental-sync polling path remains for repositories without
+   webhooks.
 6. **Non-GitHub remotes.** Transcripts already carry GitLab/Codeberg/Bitbucket
    remotes (those providers exist for sign-in). Is GitHub-only acceptable for
    v1, with the schema left provider-agnostic for later?

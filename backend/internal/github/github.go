@@ -345,6 +345,118 @@ func (c *Client) GetRepositoryInstallation(ctx context.Context, owner, name stri
 	return body.ID, nil
 }
 
+// ListInstallations lists every installation of the App (App JWT). It is how a
+// collective's linked organization is resolved to an installation without a
+// stored installation id.
+func (c *Client) ListInstallations(ctx context.Context) ([]Installation, error) {
+	appJWT, err := c.appJWT()
+	if err != nil {
+		return nil, fmt.Errorf("github: mint app jwt: %w", err)
+	}
+
+	const maxPages = 10
+	url := fmt.Sprintf("%s/app/installations?per_page=100", c.baseURL)
+	var out []Installation
+	for page := 0; page < maxPages && url != ""; page++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+appJWT)
+		req.Header.Set("Accept", "application/vnd.github+json")
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("github: request installations: %w", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			err := apiError(resp, "list installations")
+			resp.Body.Close()
+			return nil, err
+		}
+		var raw []struct {
+			ID      int64 `json:"id"`
+			Account struct {
+				Login string `json:"login"`
+				ID    int64  `json:"id"`
+				Type  string `json:"type"`
+			} `json:"account"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("github: decode installations: %w", err)
+		}
+		url = nextPageURL(resp.Header.Get("Link"))
+		resp.Body.Close()
+		for _, r := range raw {
+			out = append(out, Installation{
+				ID:           r.ID,
+				AccountLogin: r.Account.Login,
+				AccountID:    r.Account.ID,
+				AccountType:  r.Account.Type,
+			})
+		}
+	}
+	return out, nil
+}
+
+// InstallationRepository is one repository an installation grants access to.
+type InstallationRepository struct {
+	Owner   string
+	Name    string
+	Private bool
+}
+
+// ListInstallationRepositories lists the repositories an installation grants,
+// using an installation token. Paginated.
+func (c *Client) ListInstallationRepositories(ctx context.Context, installationID int64) ([]InstallationRepository, error) {
+	token, err := c.installationToken(ctx, installationID)
+	if err != nil {
+		return nil, err
+	}
+
+	const maxPages = 10
+	url := fmt.Sprintf("%s/installation/repositories?per_page=100", c.baseURL)
+	var out []InstallationRepository
+	for page := 0; page < maxPages && url != ""; page++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "token "+token)
+		req.Header.Set("Accept", "application/vnd.github+json")
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("github: request installation repositories: %w", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			err := apiError(resp, "list installation repositories")
+			resp.Body.Close()
+			return nil, err
+		}
+		var body struct {
+			Repositories []struct {
+				Name    string `json:"name"`
+				Private bool   `json:"private"`
+				Owner   struct {
+					Login string `json:"login"`
+				} `json:"owner"`
+			} `json:"repositories"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("github: decode installation repositories: %w", err)
+		}
+		url = nextPageURL(resp.Header.Get("Link"))
+		resp.Body.Close()
+		for _, r := range body.Repositories {
+			out = append(out, InstallationRepository{Owner: r.Owner.Login, Name: r.Name, Private: r.Private})
+		}
+	}
+	return out, nil
+}
+
 // ListCommitsOptions tunes a commit fetch.
 type ListCommitsOptions struct {
 	// PerPage caps the page size (GitHub max 100). Zero means GitHub's default.
