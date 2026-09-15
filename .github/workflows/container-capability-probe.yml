@@ -1,0 +1,79 @@
+name: Container capability probe
+
+# Trial only: proves the container runner capabilities peasant's release jobs
+# need -- gh CLI, podman-remote against the host socket, sibling containers
+# with path-identical bind mounts, and `container:` job containers.
+on:
+  push:
+    branches: [trial/container-capabilities]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Mirrors release-validate's `makepkg`: the job itself runs inside a job
+  # container started over the host socket. Requires the path-identical work
+  # root so the workspace bind mount resolves on the host.
+  job-container:
+    name: job container
+    runs-on: [self-hosted, container]
+    timeout-minutes: 10
+    container:
+      image: alpine:3.20
+    steps:
+      - name: Workspace is real inside the job container
+        run: |
+          set -euxo pipefail
+          pwd
+          echo "hello from a job container" > probe.txt
+          cat probe.txt
+
+      - name: Host sees the same workspace file (path-identical mount)
+        run: |
+          set -euxo pipefail
+          test -s probe.txt
+
+  # Mirrors release-e2e: podman-remote drives sibling distro containers on the
+  # host, bind mounting workspace paths by identical absolute path, plus the
+  # gh CLI used by release.yml's smoke job.
+  podman-remote:
+    name: podman remote + gh
+    runs-on: [self-hosted, container]
+    timeout-minutes: 10
+    steps:
+      - name: gh is present
+        run: gh --version
+
+      - name: podman remote talks to the host service
+        run: |
+          set -euxo pipefail
+          podman version
+          podman info --format '{{.Host.OCIRuntime.Name}}'
+
+      - name: Sibling container with a path-identical workspace mount
+        run: |
+          set -euxo pipefail
+          mkdir -p "$PWD/xdg"
+          echo probe > "$PWD/xdg/marker"
+          podman run --rm \
+            -v "$PWD:$PWD:rw" \
+            alpine:3.20 \
+            cat "$PWD/xdg/marker"
+
+      - name: Sibling container from a TMPDIR (t.TempDir pattern)
+        run: |
+          set -euxo pipefail
+          tmp="$(mktemp -d)"
+          echo tmp-probe > "$tmp/marker"
+          podman run --rm \
+            -v "$tmp:$tmp:ro" \
+            alpine:3.20 \
+            cat "$tmp/marker"
+
+      - name: Show the workspace root the runner actually uses
+        run: |
+          set -euxo pipefail
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "RUNNER_TEMP=$RUNNER_TEMP"
+          echo "TMPDIR=${TMPDIR:-unset}"
