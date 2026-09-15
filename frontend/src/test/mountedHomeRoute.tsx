@@ -135,6 +135,20 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
     if (path.startsWith("/tags/popular")) return json([]);
     if (path.startsWith("/groups/search")) return json({ collectives: [] });
     if (path.startsWith("/transcripts")) {
+      // The grouped helper read is a separate, opt-in view of the same route. It
+      // is answered here (rather than through the flat owner-request failure
+      // schedule) so a page's helper groups can never change the flat list's
+      // retry behaviour under test.
+      if (path.includes("view=grouped")) {
+        return json({
+          items: [],
+          page: 1,
+          limit: 20,
+          totalItems: 0,
+          ordinarySessionTotal: 0,
+          helperThreadTotal: 0,
+        });
+      }
       // The owner-scoped request is the home page's; every other transcripts
       // request belongs to discovery, which these cases render empty.
       const isOwnerScoped = path.includes("owner=");

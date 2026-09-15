@@ -108,6 +108,10 @@ interface TranscriptListProps {
    *  the app's way into a contributor's library, so the handle is the way
    *  there; a list of one person's own sessions has nowhere to go. */
   linkOwner?: boolean;
+  /** Render the grouped helper disclosures an item carries, if any. Supplied by
+   *  a surface reading the grouped list response; omitted on a flat list, where
+   *  there is nothing to disclose and no request is made. */
+  helperGroupSlot?: (item: TranscriptRow) => React.ReactNode;
 }
 
 export default function TranscriptList({
@@ -123,6 +127,7 @@ export default function TranscriptList({
   selection,
   viewerIsPrivileged = false,
   linkOwner = false,
+  helperGroupSlot,
 }: TranscriptListProps) {
   const { user } = useAuth();
   const viewerId = user?.id;
@@ -149,10 +154,14 @@ export default function TranscriptList({
           // divided list, so the rule falls between a parent and the next
           // parent rather than between a parent and its own chip.
           return !carriesChip ? (
-            <div key={item.transcript.id}>{row}</div>
+            <div key={item.transcript.id}>
+              {row}
+              {helperGroupSlot?.(item)}
+            </div>
           ) : (
             <div key={item.transcript.id}>
               {row}
+              {helperGroupSlot?.(item)}
               <ChildSessionDisclosure
                 parentTranscriptID={item.transcript.id}
                 childSessions={started}
@@ -162,6 +171,7 @@ export default function TranscriptList({
                 selection={selection}
                 viewerIsPrivileged={viewerIsPrivileged}
                 linkOwner={linkOwner}
+                helperGroupSlot={helperGroupSlot}
               />
             </div>
           );

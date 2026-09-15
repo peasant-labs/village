@@ -216,6 +216,17 @@ export function installProfileRouteREST(
       return json(makeUser(viewer));
     }
     if (url.includes("/transcripts?")) {
+      // The grouped helper read is a separate, opt-in view of the same route.
+      if (url.includes("view=grouped")) {
+        return json({
+          items: [],
+          page: 1,
+          limit: 20,
+          totalItems: 0,
+          ordinarySessionTotal: 0,
+          helperThreadTotal: 0,
+        });
+      }
       return json({
         transcripts: projects.map((p, i) => ({
           transcript: makeTranscript({ title: `session ${i}` }, i, {

@@ -1,0 +1,95 @@
+# Cases for the mounted helper-group host: disclosure, paging, fail-closed
+# scope expiry, per-member selection, and helper-only context containers.
+#
+# The host renders Fairtrade's published helper-group primitives with the real
+# member query hook; this corpus drives the HTTP boundary those cases observe.
+group:
+  groupId: "hg_fixture_owner"
+  purpose: helper_review
+  helperThreadCount: 21
+  memberScope: "scope-fixture-owner"
+
+otherGroup:
+  groupId: "hg_fixture_other"
+  purpose: helper_review
+  helperThreadCount: 1
+  memberScope: "scope-fixture-other"
+
+context:
+  groupId: "hg_fixture_context"
+  ownerStatus: known_unavailable
+
+contextGroup:
+  groupId: "hg_fixture_context"
+  purpose: helper_review
+  helperThreadCount: 1
+  memberScope: "scope-fixture-context"
+
+# Member rows for the owner group's FIRST page. A display row carries only the
+# identity and quantities the primitive draws; the host never invents the rest.
+pageOne:
+  page: 1
+  limit: 20
+  total: 21
+  members:
+    - id: helper-a
+      title: "helper a"
+      turnCount: 5
+      inputSubmissionCount: 0
+    - id: helper-b
+      title: "helper b"
+      turnCount: 7
+      inputSubmissionCount: null
+
+# The owner group's SECOND page, and its own distinct identities.
+pageTwo:
+  page: 2
+  limit: 20
+  total: 21
+  members:
+    - id: helper-c
+      title: "helper c"
+      turnCount: 3
+      inputSubmissionCount: 1
+
+otherMembers:
+  page: 1
+  limit: 20
+  total: 1
+  members:
+    - id: helper-z
+      title: "helper z"
+      turnCount: 2
+      inputSubmissionCount: 1
+
+cases:
+  - name: collapsed-sends-no-request
+    group: owner
+    expand: false
+  - name: expand-loads-exact-scope
+    group: owner
+    expand: true
+    expectedMembers: [helper-a, helper-b]
+    expectedRequest: {scope: scope-fixture-owner, page: "1", limit: "20"}
+  - name: page-two-keeps-original-scope
+    group: owner
+    expand: true
+    page: 2
+    expectedMembers: [helper-c]
+    expectedRequest: {scope: scope-fixture-owner, page: "2", limit: "20"}
+  - name: expired-scope-hides-members
+    group: owner
+    expand: true
+    scopeStatus: 409
+  - name: selection-is-one-member
+    group: owner
+    expand: true
+    select: helper-b
+    expectedSelected: [helper-b]
+  - name: independent-groups-are-independent
+    group: owner
+    expand: true
+    secondGroup: other
+    expectedMembers: [helper-z]
+  - name: context-container-has-no-row
+    group: context

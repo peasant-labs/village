@@ -101,6 +101,20 @@ class Schedule {
     if (url.includes("/tags/popular")) return Promise.resolve(jsonResponse([]));
     if (url.includes("/groups/search")) return Promise.resolve(jsonResponse({ collectives: [] }));
     if (url.includes("/transcripts")) {
+      // The grouped helper read is a separate, opt-in view of the same route;
+      // it never participates in the flat pagination schedule.
+      if (url.includes("view=grouped")) {
+        return Promise.resolve(
+          jsonResponse({
+            items: [],
+            page: 1,
+            limit: PAGE_SIZE,
+            totalItems: 0,
+            ordinarySessionTotal: 0,
+            helperThreadTotal: 0,
+          }),
+        );
+      }
       const match = url.match(/[?&]page=(\d+)/);
       const page = match ? Number(match[1]) : 0;
       const signal = init?.signal ?? undefined;

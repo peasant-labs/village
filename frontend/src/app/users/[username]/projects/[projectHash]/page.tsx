@@ -21,12 +21,18 @@ import {
   StatGrid,
 } from "@/lib/ft-ui";
 import TranscriptList from "@/components/transcript/TranscriptList";
+import {
+  ScopedContextContainerList,
+  ScopedOwnerHelperGroups,
+  helperGroupsByTranscript,
+} from "@/components/transcript/ScopedHelperGroups";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   useClearProjectDisplayName,
   useSetProjectDisplayName,
   useUserProject,
 } from "@/lib/queries/transcripts";
+import { useGroupedTranscripts } from "@/lib/queries/helperGroups";
 import { describeNameSource } from "@/lib/format";
 import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
 import { isApiErrorStatus } from "@/lib/api";
@@ -57,6 +63,17 @@ export default function UserProjectPage({
   const { username, projectHash } = use(params);
   const { user } = useAuth();
   const { data, isLoading, error } = useUserProject(username, projectHash);
+  // The server's own helper-group fold, scoped to this project and owner. It
+  // rides beside the flat project list, whose rows, child chip and pagination
+  // are unchanged; a grouped read that fails contributes no groups.
+  const grouped = useGroupedTranscripts({
+    owner: username,
+    project_hash: projectHash,
+    limit: "100",
+  });
+  const groupedItems = grouped.data?.items ?? [];
+  const helperGroups = helperGroupsByTranscript(groupedItems);
+  const refreshGrouped = grouped.refreshOrigin;
   const setName = useSetProjectDisplayName();
   const clearName = useClearProjectDisplayName();
 
@@ -191,6 +208,16 @@ export default function UserProjectPage({
           showOwnerActions={isOwner}
           hideOwner
           bare
+          helperGroupSlot={(item) => (
+            <ScopedOwnerHelperGroups
+              groups={helperGroups.get(item.transcript.id)}
+              onRefreshOrigin={refreshGrouped}
+            />
+          )}
+        />
+        <ScopedContextContainerList
+          items={groupedItems}
+          onRefreshOrigin={refreshGrouped}
         />
       </DataState>
     </div>
