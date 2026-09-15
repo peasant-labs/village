@@ -39,7 +39,7 @@ jobs:
           --health-retries 10
     steps:
       - name: Runner provenance
-        run: echo "runner: $RUNNER_NAME"
+        run: 'echo "runner: $RUNNER_NAME"'
 
       - name: Install postgres client
         run: |
