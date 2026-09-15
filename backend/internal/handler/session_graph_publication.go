@@ -144,8 +144,14 @@ func validatePublicationGraphMirrors(detail *schema.SessionDetailPayload, req *s
 
 // installPublicationGraph projects only the already validated durable authority.
 // It never infers count or parentage from rendered turns or a nullable FK.
+//
+// Each projection is written only when the payload carries that evidence; an
+// absent member stays a zero-value SQL parameter (NULL for the scalar columns,
+// a nil slice for the relationships narg). CreateTranscript then inserts the
+// historical absent/empty shape, and UpdateTranscriptByOwnerAndLocalID coalesces
+// the NULL to the stored column so a republish without evidence preserves it.
+// A measured zero (inputSubmissionCount present as 0) is still a present value.
 func installPublicationGraph(params *sqlc.CreateTranscriptParams, detail *schema.SessionDetailPayload) error {
-	params.SessionRelationships = []byte("[]")
 	if detail == nil {
 		return nil
 	}

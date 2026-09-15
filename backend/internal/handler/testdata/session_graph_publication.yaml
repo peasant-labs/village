@@ -24,21 +24,61 @@ cases:
   - name: full-graph-long-history
     count_json: '1'
     accepted: true
+    projection:
+      count: true
+      count_value: 1
+      root: true
+      purpose: true
+      relationships: true
+  - name: graph-republish-updated
+    count_json: '2'
+    injected_json: '{"rootSessionId":"550e8400-e29b-41d4-a716-446655440099","purpose":"helper_review","relationships":[{"kind":"context_from","targetState":"target_known_retained","targetLocalId":"550e8400-e29b-41d4-a716-446655440003","evidence":"retained_last_good","anchor":{"kind":"through_redacted_entry","sourceEntryRef":"e_new","sourceRevisionRef":"r_new"}}]}'
+    accepted: true
+    projection:
+      count: true
+      count_value: 2
+      root: true
+      purpose: true
+      relationships: true
   - name: input-count-absent
     count_only: true
     accepted: true
+    projection:
+      count: false
+      count_value: 0
+      root: false
+      purpose: false
+      relationships: false
   - name: count-only-zero
     count_only: true
     count_json: '0'
     accepted: true
+    projection:
+      count: true
+      count_value: 0
+      root: false
+      purpose: false
+      relationships: false
   - name: count-only-positive
     count_only: true
     count_json: '1'
     accepted: true
+    projection:
+      count: true
+      count_value: 1
+      root: false
+      purpose: false
+      relationships: false
   - name: count-only-safe-maximum
     count_only: true
     count_json: '9007199254740991'
     accepted: true
+    projection:
+      count: true
+      count_value: 9007199254740991
+      root: false
+      purpose: false
+      relationships: false
   - name: input-count-null
     count_json: 'null'
     error: inputSubmissionCount

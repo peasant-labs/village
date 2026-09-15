@@ -108,10 +108,14 @@ UPDATE transcripts SET
     encryption_algorithm = $64,
     key_version = $65,
     session_origin = $66,
-    input_submission_count = $67,
-    root_session_id = $68,
-    session_purpose = $69,
-    session_relationships = COALESCE(sqlc.narg(session_relationships)::jsonb, '[]'::jsonb),
+    -- Absent graph evidence (SQL NULL) preserves the stored projection here;
+    -- only a present value, including a measured zero, overwrites it. The create
+    -- query separately coalesces a nil relationships narg to the NOT NULL default
+    -- '[]', so a first publish still inserts the historical absent/empty shape.
+    input_submission_count = COALESCE($67, input_submission_count),
+    root_session_id = COALESCE($68, root_session_id),
+    session_purpose = COALESCE($69, session_purpose),
+    session_relationships = COALESCE(sqlc.narg(session_relationships)::jsonb, session_relationships),
     updated_at = now()
 WHERE owner_id = $1 AND local_id = $2
 RETURNING id, owner_id, local_id, title, description, visibility, model_provider,

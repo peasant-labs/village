@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,13 +35,21 @@ func decodeContentResponseEnvelope(t *testing.T, raw []byte) *schema.SessionDeta
 	return envelope.SessionDetail
 }
 
+type graphProjection struct {
+	Count         bool  `yaml:"count"`
+	CountValue    int64 `yaml:"count_value"`
+	Root          bool  `yaml:"root"`
+	Purpose       bool  `yaml:"purpose"`
+	Relationships bool  `yaml:"relationships"`
+}
 type graphPublicationCase struct {
-	Name         string `yaml:"name"`
-	CountOnly    bool   `yaml:"count_only"`
-	CountJSON    string `yaml:"count_json"`
-	InjectedJSON string `yaml:"injected_json"`
-	Accepted     bool   `yaml:"accepted"`
-	Error        string `yaml:"error"`
+	Name         string           `yaml:"name"`
+	CountOnly    bool             `yaml:"count_only"`
+	CountJSON    string           `yaml:"count_json"`
+	InjectedJSON string           `yaml:"injected_json"`
+	Accepted     bool             `yaml:"accepted"`
+	Error        string           `yaml:"error"`
+	Projection   *graphProjection `yaml:"projection"`
 }
 type graphPublicationFixture struct {
 	LongText        string                 `yaml:"long_text"`
@@ -73,9 +82,15 @@ func loadGraphPublicationFixtures(t *testing.T) graphPublicationFixture {
 		if c.Name == "" || names[c.Name] || !c.Accepted && c.Error == "" {
 			t.Fatalf("invalid graph case %q", c.Name)
 		}
+		if c.Accepted && c.Projection == nil {
+			t.Fatalf("accepted graph case %q must declare its stored graph projection", c.Name)
+		}
+		if !c.Accepted && c.Projection != nil {
+			t.Fatalf("refused graph case %q must not declare a stored graph projection", c.Name)
+		}
 		names[c.Name] = true
 	}
-	for _, name := range strings.Fields("full-graph-long-history input-count-absent count-only-zero count-only-positive count-only-safe-maximum input-count-null input-count-string input-count-bool input-count-array input-count-object input-count-negative input-count-fraction input-count-overflow read-navigation-rejected read-wrapper-rejected") {
+	for _, name := range strings.Fields("full-graph-long-history graph-republish-updated input-count-absent count-only-zero count-only-positive count-only-safe-maximum input-count-null input-count-string input-count-bool input-count-array input-count-object input-count-negative input-count-fraction input-count-overflow read-navigation-rejected read-wrapper-rejected") {
 		if !names[name] {
 			t.Fatalf("missing graph case %q", name)
 		}
@@ -202,5 +217,56 @@ func TestSessionGraphPublishRejectionBeforeDependencies(t *testing.T) {
 				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+// installPublicationGraph projects a member only when the decoded payload
+// carries it: an absent member stays a zero-value parameter (NULL / nil narg)
+// so the create path inserts the historical absent shape and the update path
+// coalesces to the stored column. A measured zero is a present value.
+func TestSessionGraphPublicationProjectsOnlyPresentEvidence(t *testing.T) {
+	f := loadGraphPublicationFixtures(t)
+	for _, c := range f.Cases {
+		if !c.Accepted {
+			continue
+		}
+		t.Run(c.Name, func(t *testing.T) {
+			detail, err := decodePublicationDetail(graphPublicationContent(t, f, c))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var params sqlc.CreateTranscriptParams
+			if err := installPublicationGraph(&params, detail); err != nil {
+				t.Fatal(err)
+			}
+			want := *c.Projection
+			if params.InputSubmissionCount.Valid != want.Count {
+				t.Fatalf("input_submission_count present=%v want %v", params.InputSubmissionCount.Valid, want.Count)
+			}
+			if want.Count && params.InputSubmissionCount.Int64 != want.CountValue {
+				t.Fatalf("input_submission_count value=%d want %d", params.InputSubmissionCount.Int64, want.CountValue)
+			}
+			if params.RootSessionID.Valid != want.Root {
+				t.Fatalf("root_session_id present=%v want %v", params.RootSessionID.Valid, want.Root)
+			}
+			if params.SessionPurpose.Valid != want.Purpose {
+				t.Fatalf("session_purpose present=%v want %v", params.SessionPurpose.Valid, want.Purpose)
+			}
+			if (params.SessionRelationships != nil) != want.Relationships {
+				t.Fatalf("session_relationships present=%v want %v", params.SessionRelationships != nil, want.Relationships)
+			}
+		})
+	}
+}
+
+// A legacy/opaque payload decodes to no durable detail, so it projects no
+// evidence at all rather than erasing anything.
+func TestSessionGraphPublicationProjectsLegacyPayloadAsAbsent(t *testing.T) {
+	var params sqlc.CreateTranscriptParams
+	if err := installPublicationGraph(&params, nil); err != nil {
+		t.Fatal(err)
+	}
+	if params.InputSubmissionCount.Valid || params.RootSessionID.Valid || params.SessionPurpose.Valid || params.SessionRelationships != nil {
+		t.Fatalf("legacy payload projected graph evidence: %+v", params)
 	}
 }
