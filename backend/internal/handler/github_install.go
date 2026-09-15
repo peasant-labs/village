@@ -45,35 +45,27 @@ func (h *Handler) GitHubInstall(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, target, http.StatusFound)
 }
 
-// GitHubInstallCallback completes the install handshake: it verifies the signed
-// state, reads the installation with the App's own credentials, records it, and
-// returns the owner to the collective settings page.
+// GitHubInstallCallback completes the install handshake: it reads the
+// installation with the App's own credentials, records it, and returns the owner
+// to the collective it was installed for.
+//
+// It does not trust the redirect's parameters alone. GitHub warns the
+// installation_id can be spoofed and does not reliably forward the install URL's
+// state to the setup URL, so the callback requires a session and reads the
+// installation with the App JWT. The collective is the signed-in owner's
+// collective bound to the installation's account; the signed state, when present,
+// only selects among those. Nothing is exposed by a spoofed id: the account is
+// read from GitHub, never taken from the request.
+//
 // GET /api/v1/integrations/github/callback (AuthRequired)
 func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) {
 	if h.gh == nil {
 		writeError(w, http.StatusNotImplemented, "GitHub App installation is not configured on this server")
 		return
 	}
-
-	claims, err := auth.ValidateInstallState(h.cfg.JWTSecret, strings.TrimSpace(r.URL.Query().Get("state")))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid or expired GitHub App installation state")
-		return
-	}
-
 	user := GetUser(r.Context())
-	if user == nil || user.ID.String() != claims.UserID {
-		writeError(w, http.StatusForbidden, "The installation callback does not match the signed-in account")
-		return
-	}
-
-	gid, err := uuid.Parse(claims.GroupID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid collective in the installation state")
-		return
-	}
-	groupID := pgtype.UUID{Bytes: gid, Valid: true}
-	if !h.requireGroupOwner(w, r, groupID) {
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Authentication required")
 		return
 	}
 
@@ -98,6 +90,41 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	target := strings.TrimRight(h.cfg.FrontendURL, "/") + "/groups/" + claims.GroupID + "/settings?github_installed=1"
-	http.Redirect(w, r, target, http.StatusFound)
+	// Target collective: one the caller owns and that is bound to the
+	// installation's account. The signed state selects among them when forwarded.
+	groups, err := h.queries.ListUserGroups(r.Context(), user.PgID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not resolve the collective")
+		return
+	}
+	preferred := ""
+	if claims, err := auth.ValidateInstallState(h.cfg.JWTSecret, strings.TrimSpace(r.URL.Query().Get("state"))); err == nil && claims.UserID == user.ID.String() {
+		preferred = claims.GroupID
+	}
+	target := ""
+	for _, g := range groups {
+		if g.Role != "owner" || !g.LinkedGithubOrg.Valid {
+			continue
+		}
+		if !strings.EqualFold(strings.TrimSpace(g.LinkedGithubOrg.String), strings.TrimSpace(inst.AccountLogin)) {
+			continue
+		}
+		id := uuid.UUID(g.ID.Bytes).String()
+		if target == "" {
+			target = id
+		}
+		if preferred != "" && id == preferred {
+			target = id
+			break
+		}
+	}
+
+	frontend := strings.TrimRight(h.cfg.FrontendURL, "/")
+	if target == "" {
+		// Installed, but no owned collective is bound to that account yet. The
+		// installation is recorded; send the caller to their collectives.
+		http.Redirect(w, r, frontend+"/groups?github_installed=1", http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, frontend+"/groups/"+target+"/settings?github_installed=1", http.StatusFound)
 }

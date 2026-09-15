@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -39,6 +40,15 @@ func installHandler(t *testing.T, f *fakeGitHub, mq *mockQuerier) *Handler {
 	h.cfg.FrontendURL = "https://app.example.com"
 	h.cfg.GitHubAppSlug = "village-app"
 	return h
+}
+
+// ownerGroupRow is one ListUserGroups row a callback test can return.
+func ownerGroupRow(groupID, linkedOrg string) sqlc.ListUserGroupsRow {
+	return sqlc.ListUserGroupsRow{
+		ID:              toPgUUID(uuid.MustParse(groupID)),
+		Role:            "owner",
+		LinkedGithubOrg: pgtype.Text{String: linkedOrg, Valid: linkedOrg != ""},
+	}
 }
 
 // TestGitHubInstall_RedirectsToInstallPage proves an owner gets a redirect to
@@ -85,13 +95,16 @@ func TestGitHubInstall_NonOwnerRejected(t *testing.T) {
 	}
 }
 
-// TestGitHubInstallCallback_RecordsInstallation proves a valid state records the
-// installation and returns the owner to the collective settings page.
-func TestGitHubInstallCallback_RecordsInstallation(t *testing.T) {
+// TestGitHubInstallCallback_RecordsInstallationForBoundCollective proves the
+// callback reads the installation with the App credentials, records it, and
+// returns the owner to the collective bound to that account.
+func TestGitHubInstallCallback_RecordsInstallationForBoundCollective(t *testing.T) {
 	f := &fakeGitHub{installationID: 555, installationAccount: "acme"}
 	var upserted *sqlc.UpsertGitHubAppInstallationParams
 	mq := &mockQuerier{
-		getGroupMember: memberStub("owner"),
+		listUserGroups: func(context.Context, pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
+			return []sqlc.ListUserGroupsRow{ownerGroupRow(testGroupID, "acme")}, nil
+		},
 		upsertGitHubAppInstallation: func(_ context.Context, arg sqlc.UpsertGitHubAppInstallationParams) error {
 			upserted = &arg
 			return nil
@@ -99,12 +112,8 @@ func TestGitHubInstallCallback_RecordsInstallation(t *testing.T) {
 	}
 	h := installHandler(t, f, mq)
 	userID := uuid.New()
-	state, err := auth.CreateInstallState(installTestSecret, userID.String(), testGroupID)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	w := installRequest(h, "/integrations/github/callback?installation_id=555&setup_action=install&state="+url.QueryEscape(state), userID)
+	w := installRequest(h, "/integrations/github/callback?installation_id=555&setup_action=install", userID)
 	if w.Code != http.StatusFound {
 		t.Fatalf("status = %d, want 302 (body: %s)", w.Code, w.Body.String())
 	}
@@ -112,26 +121,64 @@ func TestGitHubInstallCallback_RecordsInstallation(t *testing.T) {
 		t.Fatalf("installation not recorded: %+v", upserted)
 	}
 	if loc := w.Header().Get("Location"); !strings.Contains(loc, "/groups/"+testGroupID+"/settings") {
-		t.Fatalf("redirect = %q, want the collective settings page", loc)
+		t.Fatalf("redirect = %q, want the bound collective's settings page", loc)
 	}
 }
 
-func TestGitHubInstallCallback_RejectsBadState(t *testing.T) {
-	h := installHandler(t, nil, &mockQuerier{getGroupMember: memberStub("owner")})
+// TestGitHubInstallCallback_DoesNotDependOnState proves the callback works when
+// GitHub does not forward the install URL's state: the bound collective is
+// resolved from the session and the installation's account instead.
+func TestGitHubInstallCallback_DoesNotDependOnState(t *testing.T) {
+	f := &fakeGitHub{installationID: 555, installationAccount: "acme"}
+	mq := &mockQuerier{
+		listUserGroups: func(context.Context, pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
+			return []sqlc.ListUserGroupsRow{ownerGroupRow(testGroupID, "acme")}, nil
+		},
+	}
+	h := installHandler(t, f, mq)
+
+	// A garbage state must not break the handshake.
 	w := installRequest(h, "/integrations/github/callback?installation_id=555&state=not-a-token", uuid.New())
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 for an invalid state", w.Code)
+	if w.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 even with an unusable state (body: %s)", w.Code, w.Body.String())
+	}
+	if loc := w.Header().Get("Location"); !strings.Contains(loc, "/groups/"+testGroupID+"/settings") {
+		t.Fatalf("redirect = %q, want the bound collective's settings page", loc)
 	}
 }
 
-func TestGitHubInstallCallback_RejectsMismatchedUser(t *testing.T) {
-	h := installHandler(t, nil, &mockQuerier{getGroupMember: memberStub("owner")})
-	state, err := auth.CreateInstallState(installTestSecret, uuid.New().String(), testGroupID)
-	if err != nil {
-		t.Fatal(err)
+// TestGitHubInstallCallback_NoBoundCollectiveLandsOnGroups proves the install is
+// still recorded when the caller owns no collective bound to that account.
+func TestGitHubInstallCallback_NoBoundCollectiveLandsOnGroups(t *testing.T) {
+	f := &fakeGitHub{installationID: 555, installationAccount: "acme"}
+	var recorded bool
+	mq := &mockQuerier{
+		listUserGroups: func(context.Context, pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
+			return []sqlc.ListUserGroupsRow{ownerGroupRow(testGroupID, "other-org")}, nil
+		},
+		upsertGitHubAppInstallation: func(context.Context, sqlc.UpsertGitHubAppInstallationParams) error {
+			recorded = true
+			return nil
+		},
 	}
-	w := installRequest(h, "/integrations/github/callback?installation_id=555&state="+url.QueryEscape(state), uuid.New())
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403 when the state belongs to another account", w.Code)
+	h := installHandler(t, f, mq)
+
+	w := installRequest(h, "/integrations/github/callback?installation_id=555", uuid.New())
+	if w.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", w.Code)
+	}
+	if !recorded {
+		t.Fatal("the installation was not recorded")
+	}
+	if loc := w.Header().Get("Location"); !strings.Contains(loc, "/groups?github_installed=1") {
+		t.Fatalf("redirect = %q, want the collectives list", loc)
+	}
+}
+
+func TestGitHubInstallCallback_RequiresInstallationID(t *testing.T) {
+	h := installHandler(t, nil, &mockQuerier{})
+	w := installRequest(h, "/integrations/github/callback?state=x", uuid.New())
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 without an installation_id", w.Code)
 	}
 }
