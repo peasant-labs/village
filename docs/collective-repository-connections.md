@@ -286,8 +286,10 @@ do not refer to Village pull requests or repository history.
 4. **Commit-SHA backfill.** The ingest change captures SHAs going forward.
    Backfill historical transcripts (re-read stored blobs for `git.commits`) or
    only enrich new pushes?
-5. **Webhooks vs polling for v1.** Ship polling-only first (no webhook secret
-   needed) and add webhooks later, or set up webhooks from day one?
+5. **Webhooks vs polling for v1.** Settled: the HMAC-verified webhook receiver is
+   implemented and live (a verified delivery is recorded once, so a redelivery is
+   a no-op); the incremental-sync polling path remains for repositories without
+   webhooks.
 6. **Non-GitHub remotes.** Transcripts already carry GitLab/Codeberg/Bitbucket
    remotes (those providers exist for sign-in). Is GitHub-only acceptable for
    v1, with the schema left provider-agnostic for later?
