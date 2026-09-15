@@ -131,8 +131,36 @@ boundary are documented in
   updates them one row at a time as the system actor. `'unknown'` is the
   fail-safe value: only `'agent'` is collapsed out of root-level discovery
   lists, and `'unknown'` is listed exactly like `'user'`. The column scopes
-  DISCOVERY only - it is not an access control, and a direct link to an
-  `'agent'` transcript still resolves normally.
+   DISCOVERY only - it is not an access control, and a direct link to an
+   `'agent'` transcript still resolves normally.
+- **037 makes the pull request prompt-attachment lifecycle representable.**
+  `pull_request_attachments` holds one row per observed pull request
+  (`UNIQUE (github_repo_id, number)`), one nullable timestamp per state, the
+  GitHub object ids the posting path later fills in, and a closed `state` menu
+  (`requested | waiting | preview | attached | detached`) under
+  `pull_request_attachments_state_menu`.   `pull_request_attachment_transcripts`
+  binds transcripts to an attachment by `position` and records
+  `previous_visibility`, the `transcripts.visibility` value read before an
+  attach widened it, which detach restores exactly. It is recorded once per
+  (attachment, transcript): re-binding preserves the first snapshot. **`state` is
+  changed by exactly one Go function**, `internal/promptattach.Transition`, over
+  the single statement `UpdatePullRequestAttachmentState`, which is conditional
+  on the state the caller read (`state = expected_state`). That is
+  expected-state matching, not a revision fence: two moves to the same target can
+  both succeed and an A->B->A sequence passes the predicate, so a caller that
+  needs serialized history binds its read and write in one transaction. Recording
+  a NEW attachment initialises `requested`; any other state is reachable only
+  through `Transition`. The transition
+  table is closed and exhaustively fixtured
+  (`internal/promptattach/testdata/transitions.yaml`); every pair it does not
+  name is refused. The same migration adds `users.preview_before_attach`
+  (default false), `groups.post_prompts_check` (default true), and
+  `groups.prompts_check_mode` (`informational | required`, default
+  `informational`, under `groups_prompts_check_mode_menu`), the mode menu
+  mirrored in Go by `promptattach.CheckMode` / `AllCheckModes`. The attachment
+  tables carry NO governance trigger and need no `app.actor_id`: they are not a
+  disclosure axis, and widening a transcript's visibility stays the audited
+  `transcripts` write it always was.
 
 ## 2. Licensing data model
 
@@ -184,6 +212,12 @@ boundary are documented in
   and PATCH switch. A partial widen is not merely incomplete - the audit
   triggers write `NEW.visibility` into the audit table's CHECK, so an
   unrecognized value **blocks the mutation**. See the AGENTS.md checklist.
+- `pull_request_attachment_transcripts.previous_visibility` (migration 037) is a
+  third stored copy of a visibility value, but it is **not a menu**: it is
+  deliberately unconstrained because it copies a value already constrained on
+  `transcripts.visibility`, and a third copy of the closed set is the drift this
+  split avoids. It exists to restore ONE specific prior value on detach, never to
+  be accepted from a caller.
 
 ## 4. Governance event taxonomy
 

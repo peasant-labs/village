@@ -31,7 +31,7 @@ func (q *Queries) AddGroupMember(ctx context.Context, arg AddGroupMemberParams) 
 const createGroup = `-- name: CreateGroup :one
 INSERT INTO groups (name, description, created_by, acceptance_mode, data_access, linked_github_org)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy
+RETURNING id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy, post_prompts_check, prompts_check_mode
 `
 
 type CreateGroupParams struct {
@@ -65,6 +65,8 @@ func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (Group
 		&i.LinkedGithubOrg,
 		&i.DisplayMembers,
 		&i.TranscriptDeletionPolicy,
+		&i.PostPromptsCheck,
+		&i.PromptsCheckMode,
 	)
 	return i, err
 }
@@ -79,7 +81,7 @@ func (q *Queries) DeleteGroup(ctx context.Context, id pgtype.UUID) error {
 }
 
 const getGroupByID = `-- name: GetGroupByID :one
-SELECT id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy FROM groups WHERE id = $1
+SELECT id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy, post_prompts_check, prompts_check_mode FROM groups WHERE id = $1
 `
 
 func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, error) {
@@ -97,6 +99,8 @@ func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, erro
 		&i.LinkedGithubOrg,
 		&i.DisplayMembers,
 		&i.TranscriptDeletionPolicy,
+		&i.PostPromptsCheck,
+		&i.PromptsCheckMode,
 	)
 	return i, err
 }
@@ -844,7 +848,7 @@ UPDATE groups SET
     transcript_deletion_policy = $8,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy
+RETURNING id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy, post_prompts_check, prompts_check_mode
 `
 
 type UpdateGroupParams struct {
@@ -882,6 +886,8 @@ func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group
 		&i.LinkedGithubOrg,
 		&i.DisplayMembers,
 		&i.TranscriptDeletionPolicy,
+		&i.PostPromptsCheck,
+		&i.PromptsCheckMode,
 	)
 	return i, err
 }
