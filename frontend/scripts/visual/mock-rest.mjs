@@ -849,6 +849,16 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && p === '/users/me/collectives/contributions') return send(res, 200, { collectives: myCollectiveContributions })
   if (req.method === 'GET' && p === `/groups/${groupId}`) return send(res, 200, groupDetail)
   if (req.method === 'GET' && p === `/groups/${groupId}/my-shares`) return send(res, 200, [])
+  if (req.method === 'GET' && p === `/groups/${groupId}/repositories`) return send(res, 200, { repositories: [] })
+  if (req.method === 'GET' && p === `/groups/${groupId}/repositories/available`) {
+    return send(res, 200, {
+      repositories: [
+        { owner: 'peasant-labs', name: 'village', is_private: false },
+        { owner: 'peasant-labs', name: 'peasant', is_private: false },
+        { owner: 'peasant-labs', name: 'schema', is_private: false },
+      ],
+    })
+  }
   if (req.method === 'GET' && p === `/groups/${groupId}/pending`) return send(res, 200, pendingShares)
   // The batch review decision. Every id is decided except a designated one,
   // so a capture can show BOTH outcomes the page has to render: rows that
