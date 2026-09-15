@@ -57,9 +57,11 @@ func (h *Handler) requireGroupOwner(w http.ResponseWriter, r *http.Request, grou
 
 // linkRepoRequest is the body for POST /groups/{id}/repositories.
 type linkRepoRequest struct {
-	Owner          string `json:"owner"`
-	Name           string `json:"name"`
-	InstallationID int64  `json:"installation_id"`
+	Owner string `json:"owner"`
+	Name  string `json:"name"`
+	// InstallationID is optional: when absent or non-positive, the installation
+	// is resolved from the repository with the App's own credentials.
+	InstallationID *int64 `json:"installation_id,omitempty"`
 }
 
 // repoResponse is the wire shape for a linked repository.
@@ -90,9 +92,10 @@ func toRepoResponse(row sqlc.CollectiveRepository) repoResponse {
 }
 
 // LinkRepository links a GitHub repository to a collective. Owner-only.
-// It validates that the supplied installation can actually access the repo
-// (via GetRepository) before persisting the link — so a bad installation_id or
-// a repo the App was never granted produces a clean 400/404, not a dangling row.
+// The installation id is optional: when omitted it is resolved from the
+// repository with the App's own credentials. Either way the App's access to the
+// repo is validated (via GetRepository) before persisting, so a bad id or a repo
+// the App was never granted produces a clean 400/404, not a dangling row.
 // POST /groups/{id}/repositories (AuthRequired)
 func (h *Handler) LinkRepository(w http.ResponseWriter, r *http.Request) {
 	gh, ok := h.githubGuard(w)
@@ -117,14 +120,24 @@ func (h *Handler) LinkRepository(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "owner and name are required")
 		return
 	}
-	if req.InstallationID <= 0 {
-		writeError(w, http.StatusBadRequest, "a valid installation_id is required")
-		return
+	installationID := int64(0)
+	if req.InstallationID != nil {
+		installationID = *req.InstallationID
+	}
+	if installationID <= 0 {
+		// Resolve the installation from the repository, so a caller that does
+		// not know the id (a repository chosen from a picker) links without one.
+		resolved, err := gh.GetRepositoryInstallation(r.Context(), req.Owner, req.Name)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "No GitHub App installation covers "+req.Owner+"/"+req.Name)
+			return
+		}
+		installationID = resolved
 	}
 
 	// Validate access through the installation. This both proves the App can
 	// reach the repo and tells us whether it's private.
-	repo, err := gh.GetRepository(r.Context(), req.InstallationID, req.Owner, req.Name)
+	repo, err := gh.GetRepository(r.Context(), installationID, req.Owner, req.Name)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "The configured installation cannot access "+req.Owner+"/"+req.Name)
 		return
@@ -135,7 +148,7 @@ func (h *Handler) LinkRepository(w http.ResponseWriter, r *http.Request) {
 		GroupID:        groupID,
 		Owner:          repo.Owner,
 		Name:           repo.Name,
-		InstallationID: req.InstallationID,
+		InstallationID: installationID,
 		IsPrivate:      repo.Private,
 		LinkedBy:       user.PgID(),
 	})

@@ -258,6 +258,93 @@ func (c *Client) GetRepository(ctx context.Context, installationID int64, owner,
 	return &Repository{Owner: body.Owner.Login, Name: body.Name, Private: body.Private}, nil
 }
 
+// Installation is the minimal GitHub App installation metadata we record.
+type Installation struct {
+	ID           int64
+	AccountLogin string
+	AccountID    int64
+	AccountType  string
+}
+
+// GetInstallation fetches an installation's metadata with the App JWT. It is
+// used by the install callback and to validate a caller-supplied installation.
+func (c *Client) GetInstallation(ctx context.Context, installationID int64) (*Installation, error) {
+	appJWT, err := c.appJWT()
+	if err != nil {
+		return nil, fmt.Errorf("github: mint app jwt: %w", err)
+	}
+	url := fmt.Sprintf("%s/app/installations/%d", c.baseURL, installationID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+appJWT)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("github: request installation: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, apiError(resp, "get installation")
+	}
+	var body struct {
+		ID      int64 `json:"id"`
+		Account struct {
+			Login string `json:"login"`
+			ID    int64  `json:"id"`
+			Type  string `json:"type"`
+		} `json:"account"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("github: decode installation: %w", err)
+	}
+	return &Installation{
+		ID:           body.ID,
+		AccountLogin: body.Account.Login,
+		AccountID:    body.Account.ID,
+		AccountType:  body.Account.Type,
+	}, nil
+}
+
+// GetRepositoryInstallation resolves which installation grants the App access
+// to owner/name, using the App JWT (GET /repos/{owner}/{repo}/installation). A
+// 404 means no installation covers the repository. This is what lets a
+// repository be linked without a caller-supplied installation id.
+func (c *Client) GetRepositoryInstallation(ctx context.Context, owner, name string) (int64, error) {
+	appJWT, err := c.appJWT()
+	if err != nil {
+		return 0, fmt.Errorf("github: mint app jwt: %w", err)
+	}
+	url := fmt.Sprintf("%s/repos/%s/%s/installation", c.baseURL, owner, name)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+appJWT)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("github: request repository installation: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, apiError(resp, "get repository installation")
+	}
+	var body struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return 0, fmt.Errorf("github: decode repository installation: %w", err)
+	}
+	if body.ID <= 0 {
+		return 0, errors.New("github: repository installation response carried no id")
+	}
+	return body.ID, nil
+}
+
 // ListCommitsOptions tunes a commit fetch.
 type ListCommitsOptions struct {
 	// PerPage caps the page size (GitHub max 100). Zero means GitHub's default.
