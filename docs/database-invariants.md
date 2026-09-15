@@ -191,6 +191,16 @@ quantities. Full graph semantics and forbidden read-only fields are enforced by
 the canonical schema boundary before publication side effects, not by this SQL
 shape backstop.
 
+Absence never erases durable evidence. On the owner re-publish path each graph
+column is written only when the uploaded durable detail carries that member; the
+update coalesces a SQL NULL to the stored column, and a present measured zero
+still writes `0`. A re-publish whose payload carries no graph evidence therefore
+preserves the previously stored count, root, purpose, and relationships instead
+of resetting them, while a first-time publish with no evidence inserts the
+historical absent shape (three NULLs and the default empty relationships array).
+The projection is per column, so a payload that carries one member does not clear
+the others.
+
 Graph targets are owner-local IDs without target foreign keys. Missing parents
 do not prevent publication; later publication changes authorized navigation, not
 the child's captured encrypted content. The partial owner/root index supports

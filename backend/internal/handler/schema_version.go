@@ -58,7 +58,7 @@ func (h *Handler) GetSchemaVersion(w http.ResponseWriter, r *http.Request) {
 		PullContractVersion:    pullContractVersion,
 		MinPullContractVersion: minPullContractVersion,
 	}
-	resp.ContentCapabilities = advertisedContentCapabilitiesWithEvaluator(h.preservationProof())
+	resp.ContentCapabilities = advertisedContentCapabilitiesWithEvaluators(h.preservationProof(), h.provenanceProof())
 	if err := schema.ValidateContentCapabilityAdvertisements(resp.ContentCapabilities); err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
 		return

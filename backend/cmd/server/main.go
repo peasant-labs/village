@@ -26,6 +26,7 @@ import (
 
 var constructObjectStore = storage.NewS3ObjectStore
 var startHTTPServing = serve
+var evaluatePreservationProofs = handler.EvaluatePreservationProofs
 var constructTitlePipeline = redact.NewTitlePipeline
 var executeTitleBackfill = func(ctx context.Context, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline, mode backfill.TitleBackfillMode) (backfill.TitleBackfillResult, error) {
 	job, err := backfill.NewTitleBackfill(pool, blobs, titles, slog.Default(), backfill.DefaultTitleBackfillBatchSize)
@@ -139,6 +140,7 @@ func dispatchRuntime(ctx context.Context, selection runtimeSelection, cfg *confi
 		return runSeedWithCreator(ctx, selection.Mode(), pool, blobs, handler.NewWithTitlePipeline(cfg, pool, blobs, titles))
 	case runtimeModeServe:
 		logTranscriptEncryptionAuthorityReady(keyring)
+		evaluateAndLogPreservationProofs()
 		return startHTTPServing(ctx, cfg, pool, blobs, titles)
 	default:
 		return errors.New("runtime dispatch failed because parsed mode is unknown in run after authority loading; no job or listener started; use a documented mode")
@@ -155,6 +157,34 @@ func logTranscriptEncryptionAuthorityReady(keyring *config.TranscriptKeyring) {
 		"active_key_version", keyring.ActiveVersion(),
 		"revision", revision,
 		"meaning", "serving authority and encrypted transcript storage are composed before listener startup")
+}
+
+// evaluateAndLogPreservationProofs evaluates the preservation proofs once at
+// boot and caches both verdicts for the process lifetime, then logs the
+// outcomes. A failing proof never aborts boot; it only withholds its
+// advertisement and refuses matching publishes, so the listener still starts.
+func evaluateAndLogPreservationProofs() {
+	baseErr, provenanceErr := evaluatePreservationProofs()
+	baseOutcome, provenanceOutcome := "pass", "pass"
+	if baseErr != nil {
+		baseOutcome = "fail"
+	}
+	if provenanceErr != nil {
+		provenanceOutcome = "fail"
+	}
+	slog.Info("preservation_proofs_evaluated",
+		"base_preservation", baseOutcome,
+		"provenance_preservation", provenanceOutcome,
+		"base_error", preservationProofErrorString(baseErr),
+		"provenance_error", preservationProofErrorString(provenanceErr),
+		"meaning", "cached preservation verdicts gate capability advertisement and publish refusal without aborting boot")
+}
+
+func preservationProofErrorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func withTranscriptStorage(cfg *config.Config, keyring *config.TranscriptKeyring, start func(storage.TranscriptBlobStore) error) error {

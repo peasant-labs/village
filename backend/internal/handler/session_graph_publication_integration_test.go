@@ -75,6 +75,16 @@ func TestSessionGraphEncryptedPublicationAndPull(t *testing.T) {
 			t.Errorf("remove test ciphertext: %v", err)
 		}
 	}()
+	// The stored graph columns are a cumulative projection: a payload that carries
+	// a member overwrites that column; a payload that omits it leaves the stored
+	// value untouched. Track the expected stored graph across cases so a graph-less
+	// republish is asserted to PRESERVE the durable evidence, not erase it.
+	var storedGraph struct {
+		count         *int64
+		root          *schema.SessionID
+		purpose       string
+		relationships []schema.SessionRelationship
+	}
 	// Cases deliberately reuse one owner/local identity. Accepted replacements
 	// and their exact retries must never create another transcript or merge by text.
 	for _, c := range f.Cases {
@@ -130,21 +140,33 @@ func TestSessionGraphEncryptedPublicationAndPull(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if expected.InputSubmissionCount != nil {
+				storedGraph.count = expected.InputSubmissionCount
+			}
+			if expected.RootSessionID != nil {
+				storedGraph.root = expected.RootSessionID
+			}
+			if expected.Purpose != "" {
+				storedGraph.purpose = string(expected.Purpose)
+			}
+			if len(expected.Relationships) != 0 {
+				storedGraph.relationships = expected.Relationships
+			}
 			row, err := queries.GetTranscriptByID(ctx, toPgUUID(id))
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(pgInt8ToInt64Ptr(row.InputSubmissionCount), expected.InputSubmissionCount) || int(row.TurnCount.Int32) != expected.TurnCount {
+			if !reflect.DeepEqual(pgInt8ToInt64Ptr(row.InputSubmissionCount), storedGraph.count) || int(row.TurnCount.Int32) != expected.TurnCount {
 				t.Fatal("stored input presence/value or independent turn total changed")
 			}
-			if !reflect.DeepEqual(pgTextToSessionIDPtr(row.RootSessionID), expected.RootSessionID) || row.SessionPurpose.String != string(expected.Purpose) {
+			if !reflect.DeepEqual(pgTextToSessionIDPtr(row.RootSessionID), storedGraph.root) || row.SessionPurpose.String != storedGraph.purpose {
 				t.Fatal("stored graph identity changed")
 			}
 			var relationships []schema.SessionRelationship
 			if err := json.Unmarshal(row.SessionRelationships, &relationships); err != nil {
 				t.Fatal(err)
 			}
-			if len(relationships) != len(expected.Relationships) || len(relationships) > 0 && !reflect.DeepEqual(relationships, expected.Relationships) {
+			if len(relationships) != len(storedGraph.relationships) || len(relationships) > 0 && !reflect.DeepEqual(relationships, storedGraph.relationships) {
 				t.Fatal("stored relationship/anchor evidence changed")
 			}
 			writesAfterPublish := blobs.writes.Load()
@@ -159,7 +181,7 @@ func TestSessionGraphEncryptedPublicationAndPull(t *testing.T) {
 			if err := json.Unmarshal(readMetadata.Body.Bytes(), &metadataResponse); err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(metadataResponse.Transcript.InputSubmissionCount, expected.InputSubmissionCount) || !reflect.DeepEqual(metadataResponse.Transcript.RootSessionID, expected.RootSessionID) || metadataResponse.Transcript.Purpose != expected.Purpose {
+			if !reflect.DeepEqual(metadataResponse.Transcript.InputSubmissionCount, storedGraph.count) || !reflect.DeepEqual(metadataResponse.Transcript.RootSessionID, storedGraph.root) || string(metadataResponse.Transcript.Purpose) != storedGraph.purpose {
 				t.Fatal("mounted metadata read lost count presence or durable graph projections")
 			}
 			retry := publish()
@@ -212,5 +234,82 @@ func TestSessionGraphEncryptedPublicationAndPull(t *testing.T) {
 				t.Fatalf("owner/local identity cardinality=%d want exactly one", count)
 			}
 		})
+	}
+}
+
+// A first-time publish that carries no provenance evidence must insert the
+// historical absent/empty shape: the three scalars stay NULL and the NOT NULL
+// relationships array takes its default. Absence is not a measured zero, and it
+// cannot be confused with a later measured zero on the same row.
+func TestSessionGraphLegacyFirstPublicationInsertsAbsentEmpty(t *testing.T) {
+	ctx := context.Background()
+	pool := govTestPool(t)
+	defer pool.Close()
+	if err := database.RunMigrations(pool); err != nil {
+		t.Fatal(err)
+	}
+	owner := pullInsertUser(t, ctx, pool, 99887766, "graph-absent-owner")
+	defer cleanupOwners(t, ctx, pool, owner)
+	blobs := authoritativeTestBlobStore(t)
+	h := New(&config.Config{FrontendURL: "https://example.test"}, pool, blobs)
+	user := &AuthUser{ID: uuidFromPg(owner), Username: "graph-absent-owner"}
+	routes := chi.NewRouter()
+	routes.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), UserContextKey, user)))
+		})
+	})
+	routes.Post("/api/v1/transcripts/publish", h.PublishTranscript)
+
+	f := loadGraphPublicationFixtures(t)
+	var content []byte
+	for _, c := range f.Cases {
+		if c.Name == "input-count-absent" {
+			content = graphPublicationContent(t, f, c)
+		}
+	}
+	if content == nil {
+		t.Fatal("fixture has no graph-less first-publish case")
+	}
+	body, boundary := multipartBody(t, map[string]string{"metadata": string(graphPublicationMetadata(t, content, f))}, string(content))
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/publish", body)
+	r.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+	w := httptest.NewRecorder()
+	routes.ServeHTTP(w, r)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("publish status=%d body=%s", w.Code, w.Body.String())
+	}
+	var response schema.AuthoritativePublishResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	id, err := uuid.Parse(string(response.TranscriptID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries := sqlc.New(pool)
+	row, err := queries.GetTranscriptByID(ctx, toPgUUID(id))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		descriptor, err := descriptorFromTranscript(row)
+		if err != nil {
+			t.Errorf("decode cleanup descriptor: %v", err)
+			return
+		}
+		if err := blobs.Delete(ctx, descriptor); err != nil {
+			t.Errorf("remove test ciphertext: %v", err)
+		}
+	}()
+	if row.InputSubmissionCount.Valid || row.RootSessionID.Valid || row.SessionPurpose.Valid {
+		t.Fatalf("graph-less first publish stored scalars: count=%+v root=%+v purpose=%+v", row.InputSubmissionCount, row.RootSessionID, row.SessionPurpose)
+	}
+	var relationships []schema.SessionRelationship
+	if err := json.Unmarshal(row.SessionRelationships, &relationships); err != nil {
+		t.Fatal(err)
+	}
+	if len(relationships) != 0 {
+		t.Fatalf("graph-less first publish stored relationships=%s", row.SessionRelationships)
 	}
 }
