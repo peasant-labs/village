@@ -143,6 +143,26 @@ func (h *Handler) LinkRepository(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A collective may only link repositories that belong to the GitHub account
+	// it is bound to. Without this, any collective owner could attach a repo the
+	// App happens to be installed on under a different organization.
+	group, err := h.queries.GetGroupByID(r.Context(), groupID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to read the collective")
+		return
+	}
+	if group.LinkedGithubOrg.Valid && strings.TrimSpace(group.LinkedGithubOrg.String) != "" {
+		installation, err := gh.GetInstallation(r.Context(), installationID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "Could not read the GitHub App installation")
+			return
+		}
+		if !strings.EqualFold(strings.TrimSpace(installation.AccountLogin), strings.TrimSpace(group.LinkedGithubOrg.String)) {
+			writeError(w, http.StatusForbidden, "This collective can only link repositories from "+group.LinkedGithubOrg.String)
+			return
+		}
+	}
+
 	user := GetUser(r.Context())
 	row, err := h.queries.LinkCollectiveRepository(r.Context(), sqlc.LinkCollectiveRepositoryParams{
 		GroupID:        groupID,
