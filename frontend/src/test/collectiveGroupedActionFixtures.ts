@@ -80,6 +80,19 @@ export interface CollectiveContinuationCase {
 /** A case for an identity the flat rendering and a helper disclosure both carry. */
 export type CollectiveOverlapCase = CollectiveActionCase;
 
+/** The mounted connector a case's grouped tree must hold, per disclosure state. */
+export interface AnchorCounts {
+  /** Anchors while the group is closed: no member row is mounted. */
+  collapsed: number;
+  /** Anchors once the group's members are mounted. */
+  expanded: number;
+}
+
+/** A case for the canonical helper tree a per-member disclosure mounts. */
+export interface CollectiveConnectorCase extends CollectiveActionCase {
+  expectedAnchorCounts: AnchorCounts;
+}
+
 export interface CollectiveGroupedActionFixtures {
   groupId: string;
   projectHash: string;
@@ -91,6 +104,7 @@ export interface CollectiveGroupedActionFixtures {
   overlapCases: CollectiveOverlapCase[];
   fallbackCases: CollectiveFallbackCase[];
   continuationCases: CollectiveContinuationCase[];
+  connectorCases: CollectiveConnectorCase[];
 }
 
 const REQUIRED_CASES = [
@@ -122,6 +136,11 @@ const REQUIRED_CONTINUATION_CASES = [
   "browse-continuation-reaches-later-owner-group",
   "contribute-continuation-reaches-later-owner-group",
   "review-continuation-reaches-later-owner-group",
+];
+
+const REQUIRED_CONNECTOR_CASES = [
+  "contribute-disclosure-mounts-the-canonical-tree",
+  "review-disclosure-mounts-the-canonical-tree",
 ];
 
 const CASE_FIELDS = new Set([
@@ -157,6 +176,8 @@ const CONTINUATION_FIELDS = new Set([
   "laterMember",
 ]);
 
+const CONNECTOR_FIELDS = new Set([...CASE_FIELDS, "expectedAnchorCounts"]);
+
 function fail(where: string, reason: string): never {
   throw new Error(`collective grouped helper fixture ${where} ${reason}`);
 }
@@ -166,7 +187,7 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     readFileSync(resolve(process.cwd(), "src/testdata/collective-grouped-actions.yaml"), "utf8"),
     { strict: true },
   );
-  assertExactKeys(root, ["groupId", "projectHash", "projectName", "groups", "members", "rows", "cases", "overlapCases", "fallbackCases", "continuationCases"], "root");
+  assertExactKeys(root, ["groupId", "projectHash", "projectName", "groups", "members", "rows", "cases", "overlapCases", "fallbackCases", "continuationCases", "connectorCases"], "root");
 
   const groups = {} as Record<GroupKey, HelperGroupSummary>;
   for (const key of GROUP_KEYS) {
@@ -198,10 +219,14 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     for (const member of members[key]) memberNames.add(member.name);
   }
 
-  function loadActionCase(value: CollectiveActionCase, where: string): CollectiveActionCase {
+  function loadActionCase(
+    value: CollectiveActionCase,
+    where: string,
+    allowedFields: ReadonlySet<string> = CASE_FIELDS,
+  ): CollectiveActionCase {
     const name = value.name;
     for (const field of Object.keys(value)) {
-      if (!CASE_FIELDS.has(field)) fail(`${where} "${name}"`, `states an unknown field "${field}"`);
+      if (!allowedFields.has(field)) fail(`${where} "${name}"`, `states an unknown field "${field}"`);
     }
     if (value.surface !== "contribute" && value.surface !== "review" && value.surface !== "browse") {
       fail(`${where} "${name}"`, `states an unknown surface "${String(value.surface)}"`);
@@ -331,6 +356,55 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     return value;
   });
 
+  const rawConnector = (root.connectorCases ?? []) as CollectiveConnectorCase[];
+  assertNamesMatch(
+    rawConnector.map((value) => value.name),
+    REQUIRED_CONNECTOR_CASES,
+    "collective grouped helper connector",
+  );
+  // A connector case is an ordinary action case that ALSO states the connector
+  // oracle its mounted tree must hold, so it is held to every rule an action
+  // case is and then to the anchors its own group can produce: every member the
+  // page serves mounts a checkbox, and a closed group mounts none of them.
+  const connectorCases = rawConnector.map((value): CollectiveConnectorCase => {
+    const action = loadActionCase(
+      value,
+      "connector case",
+      CONNECTOR_FIELDS,
+    ) as CollectiveConnectorCase;
+    const counts = action.expectedAnchorCounts;
+    if (counts == null || typeof counts !== "object" || Array.isArray(counts)) {
+      fail(`connector case "${action.name}"`, "must state expectedAnchorCounts as an object");
+    }
+    assertExactKeys(
+      counts,
+      ["collapsed", "expanded"],
+      `connector case "${action.name}" expectedAnchorCounts`,
+    );
+    for (const state of ["collapsed", "expanded"] as const) {
+      const count = counts[state];
+      if (!Number.isInteger(count) || count < 0) {
+        fail(
+          `connector case "${action.name}"`,
+          `states a ${state} anchor count of ${String(count)}`,
+        );
+      }
+    }
+    if (counts.expanded !== members[action.group].length) {
+      fail(
+        `connector case "${action.name}"`,
+        `expects ${counts.expanded} expanded anchors, but group "${action.group}" serves ${members[action.group].length} member rows`,
+      );
+    }
+    if (counts.collapsed >= counts.expanded) {
+      fail(
+        `connector case "${action.name}"`,
+        `expects ${counts.collapsed} anchors while closed and ${counts.expanded} while open, so opening the group would reveal nothing new to trace`,
+      );
+    }
+    return action;
+  });
+
   return {
     groupId: root.groupId,
     projectHash: root.projectHash,
@@ -342,6 +416,7 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     overlapCases,
     fallbackCases,
     continuationCases,
+    connectorCases,
   };
 }
 
