@@ -30,6 +30,16 @@ const GROUP_ID = '50000000-0000-4000-8000-000000000001'
 const OWNER_ID = '30000000-0000-4000-8000-000000000099'
 const VISITOR_ID = '30000000-0000-4000-8000-000000000010'
 const HASH = 'a'.repeat(64)
+/* Capture states for the grouped collective exits:
+     MOCK_COLLECTIVE_EMPTY_FLAT=1  every flat list is empty, while the grouped
+                                   pages still carry the saved helper groups.
+     MOCK_COLLECTIVE_LATER_PAGE=1  the grouped reads page: a full first page of
+                                   ordinary owners, then the grouped content on
+                                   page two, so the continuation is the only way
+                                   to reach it. */
+const EMPTY_FLAT = process.env.MOCK_COLLECTIVE_EMPTY_FLAT === '1'
+const LATER_PAGE = process.env.MOCK_COLLECTIVE_LATER_PAGE === '1'
+const LIST_PAGE_SIZE = 100
 
 const user = {
   id: OWNER_ID,
@@ -171,13 +181,14 @@ const pendingArm = (row) => ({
 })
 
 /* The flat contribute tree: the same submission set, drawn the way it was
-   before grouping existed. */
+   before grouping existed. An empty-flat capture serves none of it, so the
+   grouped content has no row to hang under. */
 const flatContributable = {
   group_id: GROUP_ID,
-  transcripts: [...owned, ...members].map(contributableArm),
+  transcripts: EMPTY_FLAT ? [] : [...owned, ...members].map(contributableArm),
 }
 
-const flatPending = [...owned, ...members].map(pendingArm)
+const flatPending = EMPTY_FLAT ? [] : [...owned, ...members].map(pendingArm)
 
 /* The grouped pages: each owner row keeps its place with the saved helper
    group nested, and one helper-only container names an owner this page does
@@ -200,9 +211,35 @@ const groupedItems = (arm, variant) => [
   },
 ]
 
-const listPage = (arm, variant) => {
-  const items = groupedItems(arm, variant)
-  return { items, page: 1, limit: 100, totalItems: items.length, ordinarySessionTotal: owned.length, helperThreadTotal: 3 }
+/* A page-one ordinary owner that carries no saved helpers, so it mounts no
+   grouped disclosure and draws no owner fallback row. */
+const ordinaryOwner = (index) => ({
+  id: `33333333-3333-4333-8333-${String(index).padStart(12, '0')}`,
+  local: `ses_laterordinary${index}`,
+  title: `ordinary grouped owner ${index}`,
+})
+
+const ordinaryPage = () =>
+  Array.from({ length: LIST_PAGE_SIZE }, (_, index) => ({
+    kind: 'transcript',
+    transcript: { session: session(ordinaryOwner(index)) },
+  }))
+
+const listPage = (arm, variant, requestedPage = 1) => {
+  if (!LATER_PAGE) {
+    const items = groupedItems(arm, variant)
+    return { items, page: 1, limit: LIST_PAGE_SIZE, totalItems: items.length, ordinarySessionTotal: owned.length, helperThreadTotal: 3 }
+  }
+  const page = requestedPage
+  const items = page === 1 ? ordinaryPage() : groupedItems(arm, variant)
+  return {
+    items,
+    page,
+    limit: LIST_PAGE_SIZE,
+    totalItems: LIST_PAGE_SIZE + 1,
+    ordinarySessionTotal: page === 1 ? LIST_PAGE_SIZE : owned.length,
+    helperThreadTotal: page === 1 ? 0 : 3,
+  }
 }
 
 const groupRecord = {
@@ -222,7 +259,7 @@ const groupRecord = {
 const flatGroupDetail = {
   group: { ...groupRecord, role: 'owner', member_since: '2026-06-01T12:00:00Z', member_count: 1, transcript_count: owned.length },
   members: [{ id: OWNER_ID, role: 'owner', joined_at: '2026-06-01T12:00:00Z', github_username: 'alice-dev', display_name: 'Alice Developer', avatar_url: null, github_orgs: [] }],
-  transcripts: owned.map((row) => ({ ...session(row), owner_username: 'bob-ai', owner_avatar_url: null, owner_is_discoverable: true })),
+  transcripts: EMPTY_FLAT ? [] : owned.map((row) => ({ ...session(row), owner_username: 'bob-ai', owner_avatar_url: null, owner_is_discoverable: true })),
   stats: { total_transcripts: owned.length, contributor_count: 1, total_turns: 0, total_duration_ms: 0, total_tokens: 0 },
   models: [],
   contributors: [],
@@ -231,11 +268,11 @@ const flatGroupDetail = {
   pending_members: [],
 }
 
-const groupedGroupDetail = {
+const groupedGroupDetail = (page = 1) => ({
   ...flatGroupDetail,
   transcripts: undefined,
-  transcriptList: listPage(null, 'collective'),
-}
+  transcriptList: listPage(null, 'collective', page),
+})
 
 const memberPayload = (arm) => ({
   members: members.map((row) => ({ kind: 'transcript', transcript: { session: session(row), ...withArm(row, arm) } })),
@@ -265,16 +302,22 @@ const server = createServer((req, res) => {
   if (path === '/groups/visible' || path === '/groups') return send(res, 200, [flatGroupDetail.group])
 
   if (req.method === 'GET' && path === `/groups/${GROUP_ID}`) {
-    return send(res, 200, url.searchParams.get('view') === 'grouped' ? groupedGroupDetail : flatGroupDetail)
+    const grouped = url.searchParams.get('view') === 'grouped'
+    const requestedPage = Number(url.searchParams.get('page') || 1)
+    return send(res, 200, grouped ? groupedGroupDetail(requestedPage) : flatGroupDetail)
   }
   if (req.method === 'GET' && path === `/groups/${GROUP_ID}/contributable`) {
     if (url.searchParams.get('view') === 'grouped') {
-      return send(res, 200, { groupId: GROUP_ID, transcriptList: listPage('contributable', 'contributable') })
+      const requestedPage = Number(url.searchParams.get('page') || 1)
+      return send(res, 200, { groupId: GROUP_ID, transcriptList: listPage('contributable', 'contributable', requestedPage) })
     }
     return send(res, 200, flatContributable)
   }
   if (req.method === 'GET' && path === `/groups/${GROUP_ID}/pending`) {
-    if (url.searchParams.get('view') === 'grouped') return send(res, 200, listPage('pending', 'pending'))
+    if (url.searchParams.get('view') === 'grouped') {
+      const requestedPage = Number(url.searchParams.get('page') || 1)
+      return send(res, 200, listPage('pending', 'pending', requestedPage))
+    }
     return send(res, 200, flatPending)
   }
   if (req.method === 'GET' && path === `/groups/${GROUP_ID}/my-shares`) {

@@ -331,20 +331,46 @@ grouped pages, the registered member endpoints (with the route's own row arm
 per scope), and `/auth/me` as the collective's owner, so the contribute and
 review surfaces both render their action bars. It refuses a busy port.
 
+Two capture states prove the grouped content no longer depends on the flat list:
+
+- `MOCK_COLLECTIVE_EMPTY_FLAT=1` — every flat list is empty while the grouped
+  pages still carry their saved helper groups. The arms
+  `collective-browse-empty-flat` and `collective-contribute-empty-flat` require
+  the grouped owner row and the helper-only context to mount WITHOUT the flat
+  list, and require the flat empty state NOT to replace them. The contribute arm
+  also ticks one disclosure member and requires the action bar to arm.
+- `MOCK_COLLECTIVE_LATER_PAGE=1` (with `MOCK_COLLECTIVE_EMPTY_FLAT=1`) — the
+  grouped reads page: a full first page of ordinary owners carrying no saved
+  helpers, then the grouped content on page two. The
+  `collective-contribute-later` arm requires the continuation to state the
+  server's remaining count, requires the later group to be absent until the
+  continuation is used, then requires it to mount exactly once when page two is
+  read.
+
 ```sh
 CHROME=/path/to/google-chrome
 BASE=/abs/path/to/capture-base
 
-MOCK_REST_PORT=8847 node scripts/visual/mock-rest-grouped-collective.mjs &
+MOCK_REST_PORT=8847 MOCK_COLLECTIVE_EMPTY_FLAT=1 node scripts/visual/mock-rest-grouped-collective.mjs &
 until curl -sf http://localhost:8847/api/v1/auth/me >/dev/null; do sleep 0.2; done
 NEXT_PUBLIC_API_URL=http://localhost:8847/api/v1 pnpm build
 PORT=3100 NEXT_PUBLIC_API_URL=http://localhost:8847/api/v1 pnpm start &
 
-for surface in collective-browse collective-contribute collective-review; do
+for surface in collective-browse-empty-flat collective-contribute-empty-flat; do
   for theme in dark light; do
     GROUPED_SHOOT_SURFACE=$surface VILLAGE_ORIGIN=http://localhost:3100 \
       CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/$surface/$theme
   done
+done
+
+# Restart the mock with the later page so page one carries no grouped content.
+kill %1; wait %1 2>/dev/null
+MOCK_REST_PORT=8847 MOCK_COLLECTIVE_EMPTY_FLAT=1 MOCK_COLLECTIVE_LATER_PAGE=1 \
+  node scripts/visual/mock-rest-grouped-collective.mjs &
+until curl -sf http://localhost:8847/api/v1/auth/me >/dev/null; do sleep 0.2; done
+for theme in dark light; do
+  GROUPED_SHOOT_SURFACE=collective-contribute-later VILLAGE_ORIGIN=http://localhost:3100 \
+    CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/collective-contribute-later/$theme
 done
 ```
 
