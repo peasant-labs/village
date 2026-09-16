@@ -56,6 +56,12 @@ func (h *Handler) confirmAttachment(ctx context.Context, attachment sqlc.PullReq
 	}
 	commentID, checkRunID, err := h.postAttachment(ctx, attachment, repo, value)
 	if err != nil {
+		// Posting failed, so undo the widening: an attachment that never
+		// attached must not leave a transcript shared. The retry then starts
+		// from exactly the state the caller saw.
+		if compensateErr := h.unwidenAttachedTranscripts(ctx, attachment); compensateErr != nil {
+			return attachment, fmt.Errorf("%w: and the widening could not be undone, so a retry will redo both: %v", err, compensateErr)
+		}
 		return attachment, err
 	}
 
@@ -112,9 +118,9 @@ func (h *Handler) widenOneTranscript(ctx context.Context, attachment sqlc.PullRe
 		return errors.New("refusing to widen a transcript the attachment's author does not own")
 	}
 
-	target := dbVisibilityPublic
+	desired := dbVisibilityPublic
 	if repo.isPrivate {
-		target = dbVisibilityShared
+		desired = dbVisibilityShared
 	}
 
 	return h.withPublishLocks(ctx, transcript.OwnerID, transcript.LocalID, nil, func(conn *pgxpool.Conn) error {
@@ -134,17 +140,44 @@ func (h *Handler) widenOneTranscript(ctx context.Context, attachment sqlc.PullRe
 			}); err != nil {
 				return fmt.Errorf("could not bind an accepted transcript to the attachment: %w", err)
 			}
+			// Attaching WIDENS; it never narrows content the owner had already
+			// made more public than the repository requires.
+			target := widestVisibility(pre.Visibility, desired)
 			if repo.isPrivate {
 				if err := ensureApprovedShare(ctx, q, transcriptID, repo.groupID); err != nil {
 					return err
 				}
 			}
-			if _, err := applyMetadataPatch(ctx, q, transcriptID, metadataPatch{Visibility: &target}); err != nil {
-				return fmt.Errorf("could not widen an accepted transcript's visibility: %w", err)
+			if target != pre.Visibility {
+				if _, err := applyMetadataPatch(ctx, q, transcriptID, metadataPatch{Visibility: &target}); err != nil {
+					return fmt.Errorf("could not widen an accepted transcript's visibility: %w", err)
+				}
 			}
 			return nil
 		})
 	})
+}
+
+// disclosureRank orders the visibility tiers by how widely they disclose:
+// private, then shared with a collective, then public. Attaching takes the
+// WIDER of the transcript's current tier and the repository's requirement, so a
+// private repository cannot narrow a transcript the owner already published.
+func disclosureRank(value string) int {
+	switch value {
+	case dbVisibilityPublic:
+		return 2
+	case dbVisibilityShared:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func widestVisibility(current, desired string) string {
+	if disclosureRank(current) >= disclosureRank(desired) {
+		return current
+	}
+	return desired
 }
 
 // ensureApprovedShare opens an approved share from the transcript to the
@@ -167,6 +200,27 @@ func ensureApprovedShare(ctx context.Context, q Querier, transcriptID, groupID p
 		Status:       string(ShareStatusApproved),
 	}); err != nil {
 		return fmt.Errorf("could not open the collective's share for an accepted transcript: %w", err)
+	}
+	return nil
+}
+
+// unwidenAttachedTranscripts restores each bound transcript from its recorded
+// snapshot and clears the bindings, undoing a widening whose posting failed. The
+// approved share is deliberately left in place: with the transcript private it
+// grants nothing, and a retry finds it already approved instead of appending a
+// second event to the share ledger.
+func (h *Handler) unwidenAttachedTranscripts(ctx context.Context, attachment sqlc.PullRequestAttachment) error {
+	bindings, err := h.queries.ListPullRequestAttachmentTranscripts(ctx, attachment.ID)
+	if err != nil {
+		return fmt.Errorf("could not read the bindings to undo a widening: %w", err)
+	}
+	for _, binding := range bindings {
+		if err := h.restoreTranscriptVisibility(ctx, binding); err != nil {
+			return err
+		}
+	}
+	if err := h.queries.DeletePullRequestAttachmentTranscripts(ctx, attachment.ID); err != nil {
+		return fmt.Errorf("could not clear the bindings to undo a widening: %w", err)
 	}
 	return nil
 }
