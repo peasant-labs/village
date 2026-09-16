@@ -96,15 +96,18 @@ function MemberLoadPending() {
 }
 
 /**
- * The host's per-member selection contract. Ids are individual transcript ids;
- * the component reports the exact row that was toggled and holds no state of
- * its own, so the surface that acts on a selection owns it.
+ * The host's per-member selection contract. The component reports the exact
+ * display item that was toggled — the same item the member endpoint served,
+ * carrying the route arm (`contributable`/`pending`) a collective action needs —
+ * and holds no state of its own, so the surface that acts on a selection owns
+ * it. A surface that only needs the id reads `item.transcript?.session.id`
+ * rather than receiving a second, partially-populated callback.
  */
 export interface ScopedHelperSelection {
   selectedIds: ReadonlySet<string>;
-  onToggle: (transcriptId: string, selected: boolean) => void;
-  /** Members the surface must not let the viewer pick (e.g. already shared). */
-  isDisabled?: (transcriptId: string) => boolean;
+  onToggle: (item: VillageSessionListItem, selected: boolean) => void;
+  /** Items the surface must not let the viewer pick (e.g. already shared). */
+  isDisabled?: (item: VillageSessionListItem) => boolean;
 }
 
 /** The transcript a display item carries, or undefined for a context container. */
@@ -218,11 +221,11 @@ export function ScopedHelperGroup({
           turnCount={session.turn_count ?? undefined}
           href={`/transcripts/${encodeURIComponent(session.id)}`}
           selected={selection == null ? undefined : selected}
-          selectionDisabled={selection?.isDisabled?.(session.id) ?? false}
+          selectionDisabled={selection?.isDisabled?.(member) ?? false}
           onSelect={
             selection == null
               ? undefined
-              : (id: string, nextSelected: boolean) => selection.onToggle(id, nextSelected)
+              : (_id: string, nextSelected: boolean) => selection.onToggle(member, nextSelected)
           }
         >
           {nested?.map((child) => (
@@ -388,10 +391,18 @@ export function ScopedHelperGroupedRow({
   item,
   onRefreshOrigin,
   selection,
+  selectOwner = true,
 }: {
   item: VillageSessionListItem;
   onRefreshOrigin: () => void;
   selection?: ScopedHelperSelection;
+  /**
+   * Whether the owner row itself is selectable. A surface whose ordinary list
+   * is the authority for its own owner rows mounts a fallback owner read-only
+   * and selects only inside the disclosures, so one transcript identity never
+   * gets two selection controls.
+   */
+  selectOwner?: boolean;
 }) {
   const session = itemSession(item);
   const groups = item.helperGroups ?? [];
@@ -404,6 +415,7 @@ export function ScopedHelperGroupedRow({
       />
     );
   }
+  const ownerSelection = selectOwner ? selection : undefined;
   return (
     <HelperGroupListItem
       owner={
@@ -414,12 +426,12 @@ export function ScopedHelperGroupedRow({
           inputSubmissionCount={session.input_submission_count ?? undefined}
           turnCount={session.turn_count ?? undefined}
           href={`/transcripts/${encodeURIComponent(session.id)}`}
-          selected={selection?.selectedIds.has(session.id)}
-          selectionDisabled={selection?.isDisabled?.(session.id) ?? false}
+          selected={ownerSelection?.selectedIds.has(session.id)}
+          selectionDisabled={ownerSelection?.isDisabled?.(item) ?? false}
           onSelect={
-            selection == null
+            ownerSelection == null
               ? undefined
-              : (id: string, nextSelected: boolean) => selection.onToggle(id, nextSelected)
+              : (_id: string, nextSelected: boolean) => ownerSelection.onToggle(item, nextSelected)
           }
         />
       }
@@ -447,10 +459,13 @@ export function ScopedGroupedHelperRows({
   items,
   onRefreshOrigin,
   selection,
+  selectOwner,
 }: {
   items: readonly VillageSessionListItem[];
   onRefreshOrigin: () => void;
   selection?: ScopedHelperSelection;
+  /** Forwarded to each owner row; see {@link ScopedHelperGroupedRow}. */
+  selectOwner?: boolean;
 }) {
   // A context container is read context whether or not it currently carries a
   // group summary, so it is kept in the list either way; an ordinary row with no
@@ -467,8 +482,61 @@ export function ScopedGroupedHelperRows({
           item={item}
           onRefreshOrigin={onRefreshOrigin}
           selection={selection}
+          selectOwner={selectOwner}
         />
       ))}
     </div>
+  );
+}
+
+/**
+ * The grouped items the flat rendering of THIS surface does not already draw:
+ * every helper-only context container, and each owner row whose transcript is
+ * not among `representedOwnerIds` and that carries at least one saved helper
+ * group.
+ *
+ * A flat surface consumes the grouped page through its row slots, so a grouped
+ * owner that the flat result does not carry has no slot to hang its group under
+ * — and a context container has no owner row at all. This derives the exit for
+ * exactly those items, from the admitted grouped page, so the grouped content is
+ * reachable whether the flat result is empty, partial, or in an alternate view.
+ * An owner the flat rendering DOES draw is named in `representedOwnerIds` and is
+ * skipped here, so no owner row and no group is ever mounted twice.
+ */
+export function unownedGroupedItems(
+  items: readonly VillageSessionListItem[],
+  representedOwnerIds: ReadonlySet<string>,
+): VillageSessionListItem[] {
+  return items.filter((item) => {
+    if (item.kind === "context_container") return true;
+    const id = itemSession(item)?.id;
+    return id != null && !representedOwnerIds.has(id) && (item.helperGroups ?? []).length > 0;
+  });
+}
+
+/**
+ * The grouped items a flat surface has not drawn, mounted below it. The owner
+ * row is drawn read-only — the ordinary list stays the authority for its own
+ * selectable rows — while each disclosure keeps its per-member selection
+ * semantics. Nothing here infers a group from a row or a row from a group.
+ */
+export function ScopedUnownedHelperGroups({
+  items,
+  representedOwnerIds,
+  onRefreshOrigin,
+  selection,
+}: {
+  items: readonly VillageSessionListItem[];
+  representedOwnerIds: ReadonlySet<string>;
+  onRefreshOrigin: () => void;
+  selection?: ScopedHelperSelection;
+}) {
+  return (
+    <ScopedGroupedHelperRows
+      items={unownedGroupedItems(items, representedOwnerIds)}
+      onRefreshOrigin={onRefreshOrigin}
+      selection={selection}
+      selectOwner={false}
+    />
   );
 }

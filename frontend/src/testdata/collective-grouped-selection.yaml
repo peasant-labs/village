@@ -1,0 +1,39 @@
+# The collective grouped selection contract: how individually ticked helper
+# members join the explicit transcript ids a contribution batch or a review
+# decision names. The merge cases state the union per project (tree selection
+# plus helper selection, one identity once); the review cases state which
+# selected rows a decision may name at all.
+rows:
+  - {name: G1, id: 70000000-0000-4000-8000-000000000001, project: p1}
+  - {name: G2, id: 70000000-0000-4000-8000-000000000002, project: p1}
+  - {name: H1, id: 70000000-0000-4000-8000-000000000003, project: p2}
+merge_cases:
+  - name: merge-keeps-the-tree-selection
+    tree: {p1: [G1]}
+    helpers: []
+    expected: {p1: [G1]}
+  - name: merge-adds-helper-ids-under-their-own-project
+    tree: {p1: [G1]}
+    helpers: [G2, H1]
+    expected: {p1: [G1, G2], p2: [H1]}
+  - name: merge-sends-a-repeated-identity-once
+    tree: {p1: [G1]}
+    helpers: [G1, G2]
+    expected: {p1: [G1, G2]}
+review_cases:
+  - name: review-names-the-explicit-individual-ids
+    kind: pending
+    selected: [G1, G2]
+    expected_ids: [G1, G2]
+  - name: review-names-a-repeated-identity-once
+    kind: pending
+    selected: [G1, G1]
+    expected_ids: [G1]
+  - name: review-refuses-a-context-container
+    kind: context
+    selected: [G1]
+    error_contains: context container
+  - name: review-refuses-a-row-that-is-not-pending
+    kind: contributable
+    selected: [G1]
+    error_contains: not a live pending submission

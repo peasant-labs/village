@@ -35,6 +35,7 @@
 !mock-rest-home.mjs
 !home-shoot.mjs
 !grouped-helper-shoot.mjs
+!mock-rest-grouped-collective.mjs
 !png-diff.mjs
 !determinism.mjs
 !probe-contribute-narrow.mjs

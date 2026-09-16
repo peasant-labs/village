@@ -16,6 +16,23 @@
      member-failure `/` — the registered member endpoint refuses, so the open
                     group must state the failure and offer a retry instead of
                     claiming a successful empty result.
+     collective-browse   `/groups/{id}` — the collective's own browse list
+                    carries the saved helper group under its owner row, read
+                    only (no per-member selection on a browse surface).
+     collective-contribute `/groups/{id}/contribute` — expanding the group and
+                    ticking ONE member arms the contribution action with exactly
+                    one transcript, and that SAME identity's flat tree row reads
+                    checked: one identity is one selection; no group id is ever
+                    sent.
+     collective-review   `/groups/{id}/review` — the same explicit per-member
+                    selection and the same one-identity rule on the owner's
+                    review queue.
+     collective-my-shares `/groups/{id}` — the "your contributions" panel keeps
+                    every contribution state it always stated (its link, its
+                    pending badge, its unshare control, the panel's count) while
+                    the saved helper group the server grouped under that
+                    contribution hangs beneath its own row and expands to
+                    individually linked members.
 
    Build provenance is asserted BEFORE any PNG is written: the served build must
    carry the grouped-helper host, the generated scope-first member requests, and
@@ -27,9 +44,14 @@
    radius and mono chrome on the element the capture is judged on.
 
    env:
-     GROUPED_SHOOT_SURFACE  discovery | profile | project | member-failure
+     GROUPED_SHOOT_SURFACE  discovery | profile | project | member-failure |
+                            collective-browse | collective-contribute |
+                            collective-review | collective-my-shares
      GROUPED_SHOOT_OWNER    profile/project owner handle (default alice-dev)
      GROUPED_SHOOT_HASH     64-hex project hash for the project arm
+     GROUPED_SHOOT_COLLECTIVE     collective id for the collective arms
+     GROUPED_SHOOT_COLLECTIVE_ROW the owner-row transcript id the group hangs under
+     GROUPED_SHOOT_MY_SHARES_GROUP the group id the my-shares contribution carries
      VILLAGE_ORIGIN         app origin (default http://localhost:3000)
      VILLAGE_URL            overrides the arm's URL
      CHROME_PATH            Chrome/Chromium binary (required)
@@ -43,7 +65,19 @@ const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core'))
 
 const CHROME = process.env.CHROME_PATH
 const SURFACE = process.env.GROUPED_SHOOT_SURFACE || 'discovery'
-const SURFACES = ['discovery', 'profile', 'project', 'member-failure']
+const SURFACES = [
+  'discovery',
+  'profile',
+  'project',
+  'member-failure',
+  'collective-browse',
+  'collective-contribute',
+  'collective-review',
+  'collective-my-shares',
+  'collective-browse-empty-flat',
+  'collective-contribute-empty-flat',
+  'collective-contribute-later',
+]
 const theme = process.argv[2] || 'dark'
 const out = process.argv[3] || `/tmp/village-grouped-${theme}`
 mkdirSync(out, { recursive: true })
@@ -60,6 +94,10 @@ if (!CHROME) {
 const ORIGIN = (process.env.VILLAGE_ORIGIN || 'http://localhost:3000').replace(/\/$/, '')
 const OWNER = process.env.GROUPED_SHOOT_OWNER || 'alice-dev'
 const HASH = process.env.GROUPED_SHOOT_HASH || '1'.repeat(64)
+const COLLECTIVE = process.env.GROUPED_SHOOT_COLLECTIVE || '50000000-0000-4000-8000-000000000001'
+const COLLECTIVE_ROW = process.env.GROUPED_SHOOT_COLLECTIVE_ROW || '22222222-2222-4222-8222-000000000001'
+const COLLECTIVE_GROUP = process.env.GROUPED_SHOOT_COLLECTIVE_GROUP || 'hg_capture_owner'
+const COLLECTIVE_MY_SHARES_GROUP = process.env.GROUPED_SHOOT_MY_SHARES_GROUP || 'hg_capture_my_share'
 const ARM_URL = {
   discovery: `${ORIGIN}/explore`,
   profile: `${ORIGIN}/users/${encodeURIComponent(OWNER)}`,
@@ -67,6 +105,13 @@ const ARM_URL = {
   // The failure arm reuses the home mount, whose grouped read is single-page:
   // one disclosure to open, one failing member request to state.
   'member-failure': `${ORIGIN}/`,
+  'collective-browse': `${ORIGIN}/groups/${COLLECTIVE}`,
+  'collective-contribute': `${ORIGIN}/groups/${COLLECTIVE}/contribute`,
+  'collective-review': `${ORIGIN}/groups/${COLLECTIVE}/review`,
+  'collective-my-shares': `${ORIGIN}/groups/${COLLECTIVE}`,
+  'collective-browse-empty-flat': `${ORIGIN}/groups/${COLLECTIVE}`,
+  'collective-contribute-empty-flat': `${ORIGIN}/groups/${COLLECTIVE}/contribute`,
+  'collective-contribute-later': `${ORIGIN}/groups/${COLLECTIVE}/contribute`,
 }
 const URL = process.env.VILLAGE_URL || ARM_URL[SURFACE]
 
@@ -152,6 +197,12 @@ const capture = async (name, panelSel, where) => {
     console.log('shot', `${name}-panel`.padEnd(34), `${measured.w}x${measured.h}`.padEnd(11), `nonbg=${(measured.nonbgRatio * 100).toFixed(2)}% colors=${measured.distinctColors} ${(statSync(panelFile).size / 1024).toFixed(1)}KB (focused, measured)`)
   }
   const file = `${out}/${name}.png`
+  // The panel screenshot above scrolls the panel into view, and a `position:
+  // fixed` app header composites at whatever offset the viewport last held, so
+  // the page is parked back at the top before the body raster — otherwise the
+  // header lands in the middle of the full-page image.
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await pause(150)
   await body.screenshot({ path: file, captureBeyondViewport: true })
   const r = await gate.assert(name, file, { sel: 'body', where: 'grouped-helper-shoot.mjs' })
   console.log('shot', name.padEnd(34), `${Math.round(box.width)}x${Math.round(box.height)}`.padEnd(11), `nonbg=${(r.nonbgRatio * 100).toFixed(2)}% colors=${r.distinctColors} ${(statSync(file).size / 1024).toFixed(1)}KB`)
@@ -292,7 +343,7 @@ if (SURFACE === 'discovery') {
   await capture(`village-${SURFACE}-grouped-continuation`, '.helper-group-item', SURFACE)
   console.log(`${SURFACE} provenance:`, JSON.stringify({ before, after }))
   console.log('computed helper-group count style:', JSON.stringify(style))
-} else {
+} else if (SURFACE === 'member-failure') {
   const ownerSel = '.helper-group[data-group-id="hg_demo_owner"]'
   const panel = await waitFor('[data-testid="home-page"]')
   const control = await waitFor(`${ownerSel} button.helper-group-trigger`)
@@ -341,6 +392,361 @@ if (SURFACE === 'discovery') {
   await capture('village-home-member-load-failed', '[data-testid="home-recent-sessions"]', 'member-failure')
   console.log('member-failure provenance:', JSON.stringify(shape))
   console.log('computed failure-notice style:', JSON.stringify(style))
+} else if (SURFACE === 'collective-browse-empty-flat' || SURFACE === 'collective-contribute-empty-flat') {
+  const ownerSel = '.helper-group[data-group-id="hg_capture_owner"]'
+  const contextSel = '.helper-group[data-group-id="hg_capture_context"]'
+  const fallback = await waitFor('[data-testid="grouped-helper-fallback"]')
+  if (!fallback) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} grouped fallback never mounted at ${URL}.
+  What failed: no [data-testid="grouped-helper-fallback"] appeared.
+  Why: the served build still gates the grouped content on a non-empty flat list, or the mock answered no grouped items.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm readiness wait.
+  Fix: restart the mock with MOCK_COLLECTIVE_EMPTY_FLAT=1, rebuild from this worktree, and retry.`, 2)
+  }
+  // The flat empty state must NOT replace the grouped content the server sent.
+  const emptyPanel = SURFACE === 'collective-contribute-empty-flat'
+    ? await page.$('[data-testid="contribute-member-panel"]')
+    : null
+  const state = await page.evaluate(
+    (ownerSelector, contextSelector) => ({
+      ownerGroups: document.querySelectorAll(ownerSelector).length,
+      contextGroups: document.querySelectorAll(contextSelector).length,
+      inFallback: document.querySelector('[data-testid="grouped-helper-fallback"]')
+        ?.querySelectorAll('.helper-group').length ?? -1,
+      emptyText: (document.body.textContent ?? '').includes('No transcripts shared yet.'),
+    }),
+    ownerSel,
+    contextSel,
+  )
+  if (
+    state.ownerGroups !== 1 ||
+    state.contextGroups !== 1 ||
+    state.inFallback !== 2 ||
+    state.emptyText ||
+    emptyPanel != null
+  ) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} empty flat result did not defer to the grouped content.
+  What failed: ${JSON.stringify({ state, emptyPanel: emptyPanel != null })}.
+  Why: the grouped owner or helper-only context is missing, or the flat empty state replaced it.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm provenance check.
+  Means: the capture would evidence the empty-state gate this change removes.
+  Fix: rebuild and restart the server from this worktree, restart the mock with MOCK_COLLECTIVE_EMPTY_FLAT=1, and retry.`, 2)
+  }
+  const ownerControl = await waitFor(`${ownerSel} button.helper-group-trigger`)
+  await ownerControl.click()
+  await waitFor(`${ownerSel} a.helper-thread-open`)
+  const memberLinks = await page.$$eval(`${ownerSel} a.helper-thread-open`, (links) =>
+    links.map((a) => a.getAttribute('href')),
+  )
+  if (memberLinks.length !== 2 || memberLinks.some((href) => !/^\/transcripts\/[0-9a-f-]+$/.test(href ?? ''))) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} fallback owner row is not explicit per-member links.
+  What failed: ${JSON.stringify(memberLinks)}.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm member-link check.
+  Fix: confirm the host links each member with its own transcript id, then retry.`, 2)
+  }
+  if (SURFACE === 'collective-contribute-empty-flat') {
+    const box = await page.$(`${ownerSel} input[aria-label^="select "]`)
+    if (!box) {
+      await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} fallback disclosure offers no per-member selection.`, 2)
+    }
+    await box.click()
+    const armed = await page.evaluate(() => (document.body.textContent ?? '').replace(/\s+/g, ' '))
+    if (!armed.includes('contribute 1 transcript')) {
+      await fail(`ERROR [grouped-helper-shoot.mjs] ticking one fallback member did not arm the contribute action.
+  What failed: the page does not state "contribute 1 transcript" after one member was ticked.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm selection check.
+  Fix: confirm the page's selection count includes helper members, then retry.`, 2)
+    }
+  }
+  const style = await assertComputed(
+    `${ownerSel} .helper-group-count`,
+    { fontFamily: isMono, borderRadius: isSquare },
+    `the ${SURFACE} helper group count`,
+  )
+  await capture(`village-${SURFACE}`, '[data-testid="grouped-helper-fallback"]', SURFACE)
+  console.log(`${SURFACE} provenance:`, JSON.stringify({ state, memberLinks }))
+  console.log('computed helper-group count style:', JSON.stringify(style))
+} else if (SURFACE === 'collective-contribute-later') {
+  const ownerSel = '.helper-group[data-group-id="hg_capture_owner"]'
+  const continuation = await waitFor('[data-testid="grouped-helper-continuation"]')
+  if (!continuation) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} grouped continuation never mounted at ${URL}.
+  What failed: no [data-testid="grouped-helper-continuation"] appeared.
+  Why: the served build still reads a single grouped page, or the mock reported no later page.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm readiness wait.
+  Fix: restart the mock with MOCK_COLLECTIVE_LATER_PAGE=1, rebuild from this worktree, and retry.`, 2)
+  }
+  const before = await page.evaluate(
+    (sel) => ({
+      text: document.querySelector('[data-testid="grouped-helper-continuation"]')?.textContent?.trim() ?? '',
+      laterGroups: document.querySelectorAll(sel).length,
+    }),
+    ownerSel,
+  )
+  if (!before.text.includes('1 more grouped result') || before.laterGroups !== 0) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} continuation is not the reachable next-page control.
+  What failed: ${JSON.stringify(before)}.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm provenance check.
+  Means: the capture would not evidence the continuation this change adds.
+  Fix: confirm the mock serves a second grouped page, then retry.`, 2)
+  }
+  await page.click('[data-testid="grouped-helper-continuation"] button')
+  const ownerControl = await waitFor(`${ownerSel} button.helper-group-trigger`)
+  if (!ownerControl) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} continuation reached no later grouped owner.
+  What failed: no "${ownerSel}" appeared after pressing load more.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm next-page check.
+  Fix: confirm the mock serves a second grouped page, then retry.`, 2)
+  }
+  const after = await page.evaluate(
+    (sel) => ({
+      continuation: document.querySelector('[data-testid="grouped-helper-continuation"]') != null,
+      inFallback: document.querySelector('[data-testid="grouped-helper-fallback"]')
+        ?.querySelectorAll(sel).length ?? -1,
+    }),
+    ownerSel,
+  )
+  if (after.continuation || after.inFallback !== 1) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} later group is not the single reachable disclosure.
+  What failed: ${JSON.stringify(after)}.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm post-continuation check.
+  Fix: rebuild and restart the server from this worktree, then retry.`, 2)
+  }
+  await ownerControl.click()
+  await waitFor(`${ownerSel} a.helper-thread-open`)
+  const laterLinks = await page.$$eval(`${ownerSel} a.helper-thread-open`, (links) =>
+    links.map((a) => a.getAttribute('href')),
+  )
+  if (laterLinks.length !== 2) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] expanding the later ${SURFACE} group loaded no individually linked members.
+  What failed: ${JSON.stringify(laterLinks)}.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm member check.
+  Fix: confirm the mock answers the later scope's member request, then retry.`, 2)
+  }
+  const style = await assertComputed(
+    `${ownerSel} .helper-group-count`,
+    { fontFamily: isMono, borderRadius: isSquare },
+    `the later ${SURFACE} helper group count`,
+  )
+  await capture(`village-${SURFACE}`, '[data-testid="grouped-helper-fallback"]', SURFACE)
+  console.log(`${SURFACE} provenance:`, JSON.stringify({ before, after, laterLinks }))
+  console.log('computed helper-group count style:', JSON.stringify(style))
+} else if (SURFACE === 'collective-my-shares') {
+  const panelSel = '[data-testid="my-contributions-panel"]'
+  const rowSel = `[data-helper-group-owner="${COLLECTIVE_ROW}"]`
+  const groupSel = `.helper-group[data-group-id="${COLLECTIVE_MY_SHARES_GROUP}"]`
+  // The panel's own contribution row can carry the same saved group the
+  // collective's browse list draws higher up the page, so every check below is
+  // scoped to the panel rather than to the document.
+  const panelGroupSel = `${panelSel} ${groupSel}`
+  const panel = await waitFor(panelSel)
+  const control = await waitFor(`${panelGroupSel} button.helper-group-trigger`)
+  if (!panel || !control) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} panel never mounted at ${URL}.
+  What failed: no [data-testid="my-contributions-panel"] / "${panelGroupSel}" appeared.
+  Why: the served build still reads only the flat contributions, or the mock served no grouped my-shares page.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm readiness wait.
+  Fix: restart the mock with MOCK_COLLECTIVE_MY_SHARES=1 (mock-rest-grouped-collective.mjs), rebuild from this worktree, and retry.`, 2)
+  }
+
+  // BEFORE expanding: the panel states the flat contribution it always did --
+  // its count, its link, its pending state and its unshare control -- and the
+  // saved helper group hangs under that very contribution, unexpanded.
+  const closed = await page.evaluate(
+    (panelSelector, rowSelector, sel, transcriptID) => {
+      const panelEl = document.querySelector(panelSelector)
+      const row = document.querySelector(rowSelector)
+      return {
+        rows: document.querySelectorAll(rowSelector).length,
+        inRow: row == null ? -1 : row.querySelectorAll(sel).length,
+        panelGroups: panelEl?.querySelectorAll(sel).length ?? -1,
+        panelMemberRows: panelEl?.querySelectorAll(`${sel} .helper-thread-row`).length ?? -1,
+        contributionLink: panelEl?.querySelector(`a[href="/transcripts/${transcriptID}"]`) != null,
+        statesPending: (panelEl?.textContent ?? '').includes('pending'),
+        unshareControls: panelEl?.querySelectorAll('button[title="Unshare from this collective"]').length ?? -1,
+      }
+    },
+    panelSel,
+    rowSel,
+    groupSel,
+    COLLECTIVE_ROW,
+  )
+  if (
+    closed.rows !== 1 ||
+    closed.inRow !== 1 ||
+    closed.panelGroups !== 1 ||
+    closed.panelMemberRows !== 0 ||
+    !closed.contributionLink ||
+    !closed.statesPending ||
+    closed.unshareControls !== 1
+  ) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} contribution did not keep its own state under its grouped disclosure.
+  What failed: ${JSON.stringify(closed)}.
+  Why: the contribution lost its row, its pending state or its unshare control, the group rendered outside its contribution, or members loaded before expansion.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm provenance check.
+  Means: the capture would evidence the contribution state this mount must not regress.
+  Fix: rebuild and restart the server from this worktree, then retry.`, 2)
+  }
+
+  await control.click()
+  const memberLink = await waitFor(`${panelGroupSel} a.helper-thread-open`)
+  if (!memberLink) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] expanding the ${SURFACE} group loaded no individually linked member.
+  What failed: no a.helper-thread-open appeared after the disclosure opened.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm expansion check.
+  Fix: confirm the mock answers the my-shares scope's member request, then retry.`, 2)
+  }
+  const openedLinks = await page.evaluate((sel) =>
+    [...document.querySelectorAll(`${sel} a.helper-thread-open`)].map((a) => a.getAttribute('href')), panelGroupSel)
+  if (openedLinks.length !== 2 || openedLinks.some((href) => !/^\/transcripts\/[0-9a-f-]+$/.test(href ?? ''))) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the expanded ${SURFACE} group is not explicit per-member links.
+  What failed: ${JSON.stringify(openedLinks)}.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm member-link check.
+  Fix: confirm the host links each member with its own transcript id, then retry.`, 2)
+  }
+  const style = await assertComputed(
+    `${panelGroupSel} .helper-group-count`,
+    { fontFamily: isMono, borderRadius: isSquare },
+    `the ${SURFACE} helper group count`,
+  )
+  await capture(`village-${SURFACE}`, panelSel, SURFACE)
+  console.log(`${SURFACE} provenance:`, JSON.stringify({ closed, openedLinks }))
+  console.log('computed helper-group count style:', JSON.stringify(style))
+} else {
+  const groupSel = `.helper-group[data-group-id="${COLLECTIVE_GROUP}"]`
+  const panelSel =
+    SURFACE === 'collective-contribute'
+      ? '[data-testid="contribute-member-panel"]'
+      : SURFACE === 'collective-review'
+        ? '[data-testid="review-panel"]'
+        : null
+  const readinessSel =
+    SURFACE === 'collective-browse'
+      ? '[data-testid="owner-helper-groups"]'
+      : panelSel
+  const panel = await waitFor(readinessSel)
+  if (!panel) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} surface never mounted at ${URL}.
+  What failed: no ${readinessSel} appeared.
+  Why: the served build predates the grouped collective mount, or the mock answered no grouped items.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm readiness wait.
+  Fix: restart the mock (mock-rest-grouped-collective.mjs), rebuild from this worktree, and retry.`, 2)
+  }
+
+  // BEFORE expanding: exactly ONE group, under the owner row the server
+  // grouped it with, and no member request yet. A page that doubled the group,
+  // moved it, or fetched members eagerly fails here.
+  const closed = await page.evaluate((rowSel, sel) => {
+    const slot = document.querySelector(rowSel)
+    return {
+      rowSlots: document.querySelectorAll(rowSel).length,
+      groups: document.querySelectorAll(sel).length,
+      inRow: slot == null ? -1 : slot.querySelectorAll(sel).length,
+      memberRows: [...document.querySelectorAll(`${sel} .helper-thread-row`)].length,
+      memberRowsInRow: slot == null ? -1 : slot.querySelectorAll(`${sel} .helper-thread-row`).length,
+    }
+  }, SURFACE === 'collective-browse'
+    ? '[data-testid="owner-helper-groups"]'
+    : `[data-helper-group-owner="${COLLECTIVE_ROW}"]`, groupSel)
+  if (closed.inRow !== 1 || closed.groups !== 1 || closed.memberRows !== 0 || closed.memberRowsInRow !== 0) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} group is not the single undisclosed mount.
+  What failed: ${JSON.stringify(closed)}.
+  Why: the group rendered more than once, rendered outside its owner row, or loaded members before expansion.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm provenance check.
+  Fix: rebuild and restart the server from this worktree, then retry.`, 2)
+  }
+
+  const control = await waitFor(`${groupSel} button.helper-group-trigger`)
+  if (!control) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} group carries no disclosure control.`, 2)
+  }
+  await control.click()
+  const memberLink = await waitFor(`${groupSel} a.helper-thread-open`)
+  const box = await page.$(`${groupSel} input[aria-label^="select "]`)
+  // A browse surface is read-only: it draws the individually linked members but
+  // offers no per-member selection.
+  const selectionExpected = SURFACE !== 'collective-browse'
+  if (!memberLink || (selectionExpected && !box)) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] expanding the ${SURFACE} group loaded no ${selectionExpected ? 'individually selectable' : 'linked'} member.
+  What failed: link=${memberLink != null} checkbox=${box != null} after the disclosure opened.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm expansion check.
+  Fix: confirm the mock answers /transcript-groups/{id}/members with the right route arm, then retry.`, 2)
+  }
+  if (!selectionExpected) {
+    const strayBox = await page.$(`${groupSel} input[type="checkbox"]`)
+    if (strayBox) {
+      await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} group offers a selection control on a read-only surface.`, 2)
+    }
+  }
+
+  const openedLinks = await page.evaluate((sel) =>
+    [...document.querySelectorAll(`${sel} a.helper-thread-open`)].map((a) => a.getAttribute('href')), groupSel)
+  if (openedLinks.length !== 2 || openedLinks.some((href) => !/^\/transcripts\/[0-9a-f-]+$/.test(href ?? ''))) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the expanded ${SURFACE} group is not explicit per-member links.
+  What failed: ${JSON.stringify(openedLinks)}.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm member-link check.
+  Fix: confirm the host links each member with its own transcript id, then retry.`, 2)
+  }
+
+  // The BROWSE list is read-only: no selection control belongs on it.
+  if (SURFACE === 'collective-browse') {
+    const style = await assertComputed(
+      `${groupSel} .helper-group-count`,
+      { fontFamily: isMono, borderRadius: isSquare },
+      'the collective browse helper group count',
+    )
+    await capture('village-collective-grouped-browse', null, 'collective-browse')
+    console.log('collective-browse provenance:', JSON.stringify({ closed, openedLinks }))
+    console.log('computed helper-group count style:', JSON.stringify(style))
+  } else {
+    // Selecting ONE member must arm the route's own action bar with exactly
+    // one transcript; the server never receives a group id.
+    await box.click()
+    const armed = await page.evaluate((linkCount) => ({
+      memberLinks: document.querySelectorAll('a.helper-thread-open').length,
+      sameCount: linkCount === document.querySelectorAll('a.helper-thread-open').length,
+      action: [...document.querySelectorAll('button')]
+        .map((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim())
+        .filter((label) => /transcript|selected/i.test(label)),
+    }), openedLinks.length)
+    const armedText = await page.evaluate(() =>
+      (document.body.textContent ?? '').replace(/\s+/g, ' '),
+    )
+    const expectedWord = SURFACE === 'collective-contribute' ? 'contribute 1 transcript' : '1 selected'
+    if (!armedText.includes(expectedWord)) {
+      await fail(`ERROR [grouped-helper-shoot.mjs] selecting one member did not arm the ${SURFACE} action.
+  What failed: the page does not state "${expectedWord}" after one member was ticked; action labels=${JSON.stringify(armed.action)}.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm selection check.
+  Means: the capture would not evidence an explicit per-helper selection.
+  Fix: confirm the page's selection count includes helper members, then retry.`, 2)
+    }
+    // The ticked disclosure member is an identity the flat list ALSO draws, so
+    // it is ONE selection: its flat tree row must read checked, and the bar must
+    // count exactly the one identity — never a second copy of the same transcript.
+    const overlap = await page.evaluate(() => {
+      const href = document.querySelector('a.helper-thread-open')?.getAttribute('href') ?? ''
+      const id = href.split('/').pop() ?? ''
+      const row = document.querySelector(`[data-testid="contribute-session-row-${id}"]`)
+      const box = row?.querySelector('input[type="checkbox"]')
+      return { id, flatRow: row != null, flatChecked: box instanceof HTMLInputElement ? box.checked : null }
+    })
+    if (overlap.id === '' || !overlap.flatRow || overlap.flatChecked !== true) {
+      await fail(`ERROR [grouped-helper-shoot.mjs] the ticked ${SURFACE} helper member is not one identity with its flat tree row.
+  What failed: ${JSON.stringify(overlap)}.
+  Why: the disclosure selection and the flat tree selection are counted separately, so the same identity has two states and two totals.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm overlap check.
+  Means: the capture would evidence the conflicting checkboxes this change removes.
+  Fix: confirm the served build shares one identity selection between the flat tree and the helper disclosures, then retry.`, 2)
+    }
+    const style = await assertComputed(
+      `${groupSel} .helper-group-count`,
+      { fontFamily: isMono, borderRadius: isSquare },
+      `the ${SURFACE} helper group count`,
+    )
+    await capture(`village-${SURFACE}-grouped-helper`, panelSel, SURFACE)
+    console.log(`${SURFACE} provenance:`, JSON.stringify({ closed, openedLinks, armed, overlap }))
+    console.log('computed helper-group count style:', JSON.stringify(style))
+  }
 }
 
 console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')

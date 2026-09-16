@@ -1,15 +1,27 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
+import type { VillageSessionListItem } from "@peasant-labs/schema";
 import { useGroup } from "@/lib/queries/groups";
 import { usePendingShares, useBatchReview } from "@/lib/queries/groupReview";
+import { useGroupedPendingShares } from "@/lib/queries/groupedCollectives";
+import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import { buildReviewTree, toReviewRows } from "@/lib/review/tree";
 import type { ReviewDecision } from "@/lib/review/types";
-import { toggleNode, type Selection } from "@/lib/contribute/selection";
+import { sessionRows, toggleNode } from "@/lib/contribute/selection";
+import { groupedReviewSelection } from "@/lib/contribute/groupedSelection";
+import { helperItemID, useCollectiveIdentitySelection } from "@/lib/contribute/helperSelection";
 import { applyFilters, harnessCounts, type ContributeFilters } from "@/lib/contribute/filter";
 import ContributeTree from "@/components/contribute/ContributeTree";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
+import {
+  ScopedOwnerHelperGroups,
+  ScopedUnownedHelperGroups,
+  helperGroupsByTranscript,
+  unownedGroupedItems,
+} from "@/components/transcript/ScopedHelperGroups";
+import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { Button } from "@/lib/ft-ui";
 
 /**
@@ -38,7 +50,6 @@ export default function GroupReviewPage({
   const { data: pending, isLoading: pendingLoading } = usePendingShares(id, isOwner);
   const review = useBatchReview(id);
 
-  const [selection, setSelection] = useState<Selection>(new Set());
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [filters, setFilters] = useState<ContributeFilters>({ search: "", harness: null });
   // Rows the server reported as already decided on the LAST action. They stay
@@ -47,11 +58,62 @@ export default function GroupReviewPage({
   // watch a selection silently shrink.
   const [stale, setStale] = useState<ReadonlySet<string>>(new Set());
 
+  // The grouped read of the SAME queue: it supplements the flat review tree
+  // with the saved helper threads the server grouped under each submission.
+  // A failed or still-loading grouped read removes nothing -- the flat tree
+  // above stays the authority for its own rows. The read pages, so a later
+  // grouped owner or helper-only context container still has its grouped exit;
+  // the server's own total decides the next page.
+  const grouped = useGroupedPendingShares(
+    id,
+    { limit: GROUPED_TOP_LEVEL_PAGE_SIZE },
+    isOwner,
+  );
+  const groupedItems = useMemo(() => grouped.items, [grouped.items]);
+  const helperGroups = useMemo(() => helperGroupsByTranscript(groupedItems), [groupedItems]);
+  // A helper is decidable only while the row it was served with is still a
+  // live pending submission for this collective, and not already answered by
+  // another reviewer on this page's last action.
+  const helperDisabled = useCallback(
+    (item: VillageSessionListItem) => {
+      const row = item.transcript;
+      const pendingRow = row?.pending;
+      const itemID = helperItemID(item);
+      return (
+        itemID == null ||
+        !row ||
+        !pendingRow ||
+        pendingRow.transcript_id !== row.session.id ||
+        stale.has(itemID)
+      );
+    },
+    [stale],
+  );
+  const helper = useCollectiveIdentitySelection(helperDisabled);
+  // The ONE identity set both surfaces read: a submission the flat queue draws
+  // and a helper disclosure nests is one selection, so it is counted once and
+  // both of its checkboxes state the same thing.
+  const selection = helper.selectedIds;
+
   const shares = useMemo(() => pending ?? [], [pending]);
   const rows = useMemo(() => toReviewRows(shares, stale), [shares, stale]);
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
   const tree = useMemo(() => buildReviewTree(filteredRows), [filteredRows]);
   const counts = useMemo(() => harnessCounts(rows, filters.search), [rows, filters.search]);
+  // Every transcript the flat tree actually draws, folded rows included. A
+  // grouped owner named here is ALREADY represented, so the grouped exit below
+  // skips it instead of mounting a second owner row.
+  const flatOwnerIds = useMemo(
+    () => new Set(tree.flatMap((project) => sessionRows(project).map((row) => row.id))),
+    [tree],
+  );
+  const groupedFallback = useMemo(
+    () => unownedGroupedItems(groupedItems, flatOwnerIds),
+    [groupedItems, flatOwnerIds],
+  );
+  // Grouped content the flat queue did not carry, plus the way to any grouped
+  // page not read yet. Either one is enough that the queue is not empty.
+  const hasGroupedExit = groupedFallback.length > 0 || grouped.remainingItems > 0;
 
   /**
    * The selection, narrowed to the rows the QUEUE still holds.
@@ -73,7 +135,22 @@ export default function GroupReviewPage({
     () => new Set([...selection].filter((id) => queuedIds.has(id))),
     [selection, queuedIds],
   );
-  const selectedCount = selected.size;
+  // The helper rows the queue still holds: one that left it since it was ticked
+  // must not be counted or resent. Their ids are already part of `selected` (the
+  // shared identity set), so the union below counts each identity once.
+  const queuedHelperItems = useMemo(
+    () =>
+      [...helper.helperItems.values()].filter((item) => {
+        const id = helperItemID(item);
+        return id != null && queuedIds.has(id);
+      }),
+    [helper.helperItems, queuedIds],
+  );
+  const queuedHelperIds = useMemo(
+    () => new Set(queuedHelperItems.map((item) => helperItemID(item)).filter((id): id is string => id != null)),
+    [queuedHelperItems],
+  );
+  const selectedCount = new Set([...selected, ...queuedHelperIds]).size;
 
   if (groupLoading || (isOwner && pendingLoading)) {
     return (
@@ -109,26 +186,27 @@ export default function GroupReviewPage({
   }
 
   function handleToggle(node: Parameters<typeof toggleNode>[1]) {
-    setSelection((prev) => toggleNode(prev, node));
+    helper.applyTreeSelection(toggleNode(selection, node));
   }
 
   // Select-all / deselect-all acts on the leaves the tree currently SHOWS, so
   // a row hidden by the search or harness filter keeps whatever state it had
   // and a filtered view can never silently add a row to a decision.
   function handleToggleAll(ids: string[], selectAll: boolean) {
-    setSelection((prev) => {
-      const next = new Set(prev);
-      for (const rowID of ids) {
-        if (selectAll) next.add(rowID);
-        else next.delete(rowID);
-      }
-      return next;
-    });
+    const next = new Set(selection);
+    for (const rowID of ids) {
+      if (selectAll) next.add(rowID);
+      else next.delete(rowID);
+    }
+    helper.applyTreeSelection(next);
   }
 
   async function decide(status: ReviewDecision) {
     if (selectedCount === 0) return;
-    const ids = [...selected];
+    // Tree rows and individually ticked helper members are ONE set of explicit
+    // transcript ids: the decision names submissions, never a group id and
+    // never a parent/sibling a helper happened to be grouped under.
+    const ids = [...new Set([...selected, ...groupedReviewSelection(queuedHelperItems)])];
     const outcome = await review.mutateAsync({ transcript_ids: ids, status });
     // Every id the server answered about leaves the selection: a decided row
     // is done, and a stale row can never be decided from here — leaving it
@@ -138,7 +216,7 @@ export default function GroupReviewPage({
     // decided instead of the rows simply vanishing.
     const answered = new Set([...outcome.decided, ...outcome.already_decided]);
     setStale(new Set(outcome.already_decided));
-    setSelection((prev) => new Set([...prev].filter((sel) => !answered.has(sel))));
+    helper.forget(answered);
   }
 
   const deciding = review.isPending;
@@ -165,33 +243,65 @@ export default function GroupReviewPage({
         </p>
       </div>
 
-      {tree.length === 0 ? (
+      {tree.length === 0 && !hasGroupedExit ? (
         <div className="border border-rule bg-surface px-5 py-12 text-center" data-testid="review-empty-queue">
           <p className="text-sm text-ink-3">nothing is waiting for review in this collective.</p>
         </div>
       ) : (
-        <div className="@container" data-testid="review-panel">
-          <div className="grid grid-cols-1 @[880px]:grid-cols-[minmax(20rem,2fr)_3fr] gap-4 border border-rule bg-surface min-h-[32rem]">
-            <div className="border-b @[880px]:border-b-0 @[880px]:border-r border-rule min-h-[20rem] @[880px]:min-h-[32rem]">
-              <ContributeTree
-                tree={tree}
-                selection={selected}
-                onToggleNode={handleToggle}
-                onToggleAll={handleToggleAll}
-                onPreview={setPreviewId}
-                previewId={previewId}
-                filters={filters}
-                onFiltersChange={setFilters}
-                harnessCounts={counts}
-                countNoun="contribution"
-                emptyLabel="no pending contributions match this filter."
+        <>
+          {tree.length > 0 && (
+            <div className="@container" data-testid="review-panel">
+              <div className="grid grid-cols-1 @[880px]:grid-cols-[minmax(20rem,2fr)_3fr] gap-4 border border-rule bg-surface min-h-[32rem]">
+                <div className="border-b @[880px]:border-b-0 @[880px]:border-r border-rule min-h-[20rem] @[880px]:min-h-[32rem]">
+                  <ContributeTree
+                    tree={tree}
+                    selection={selected}
+                    onToggleNode={handleToggle}
+                    onToggleAll={handleToggleAll}
+                    onPreview={setPreviewId}
+                    previewId={previewId}
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    harnessCounts={counts}
+                    countNoun="contribution"
+                    emptyLabel="no pending contributions match this filter."
+                    helperGroupSlot={(session) => (
+                      <ScopedOwnerHelperGroups
+                        groups={helperGroups.get(session.id)}
+                        onRefreshOrigin={grouped.refreshOrigin}
+                        selection={helper.contract}
+                      />
+                    )}
+                  />
+                </div>
+                <div className="min-h-[20rem] @[880px]:min-h-[32rem]">
+                  <TranscriptPreview transcriptId={previewId} />
+                </div>
+              </div>
+            </div>
+          )}
+          {/* The grouped exits the flat queue above did not draw: the context
+              containers it has no row for, and each submission it does not
+              carry. Mounted OUTSIDE the tree branch, so an empty or partial
+              queue still reaches the saved helper threads the server grouped --
+              and a submission the tree already draws is skipped, never mounted
+              twice. */}
+          {hasGroupedExit && (
+            <div className="border border-rule bg-surface" data-testid="grouped-helper-fallback">
+              <ScopedUnownedHelperGroups
+                items={groupedItems}
+                representedOwnerIds={flatOwnerIds}
+                onRefreshOrigin={grouped.refreshOrigin}
+                selection={helper.contract}
+              />
+              <ScopedGroupedContinuation
+                remaining={grouped.remainingItems}
+                busy={grouped.isFetchingNextPage}
+                onLoadMore={() => void grouped.fetchNextPage()}
               />
             </div>
-            <div className="min-h-[20rem] @[880px]:min-h-[32rem]">
-              <TranscriptPreview transcriptId={previewId} />
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
       <div className="fixed bottom-0 left-0 right-0 border-t border-rule bg-surface z-10">

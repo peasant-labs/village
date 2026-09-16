@@ -304,6 +304,92 @@ Manual click-through checklist for the non-automated part of the gate:
 4. Open transcript `d41a8e`, confirm the route changes to `/transcripts/d41a8e`, then open profile `alice-dev` and confirm `/users/alice-dev`.
 5. Search `ai` again, open `AI Research Team`, confirm `/groups/ai-research-team`, then back out and confirm the shell still renders the card grid.
 
+### Grouped helper threads on the collective routes
+
+`grouped-helper-shoot.mjs` also drives the collective surfaces whose grouped
+read hangs a saved helper group under its owner row:
+
+- `collective-browse` — `/groups/{id}`. The collective's own browse list draws
+  the server's saved helper group under the owner row it was grouped with, and
+  the group expands to individually linked members. The browse list is
+  read-only: it offers no per-member selection.
+- `collective-contribute` — `/groups/{id}/contribute`. Expanding the group and
+  ticking ONE member arms the contribution bar with exactly one transcript, and
+  the SAME transcript's flat tree row reads checked: one identity, one selection.
+- `collective-review` — `/groups/{id}/review`. The same explicit per-member
+  selection and the same one-identity rule on the owner's review queue; one tick
+  arms the decision bar.
+- `collective-my-shares` — `/groups/{id}`. The "your contributions" panel keeps
+  every contribution state it always stated (its count, its link, its pending
+  badge and its unshare control) while the saved helper group the server grouped
+  under that contribution hangs beneath its own row and expands to individually
+  linked members.
+
+Each arm asserts build provenance and capture geometry before writing a PNG:
+exactly one group, inside the owner row the server grouped it with, with no
+member request until the disclosure opens; the expanded group mounts
+individually linked members; and (on the two action surfaces) ticking one member
+arms the route's own action — never a group id, never an unticked sibling. The
+computed helper-group count style is probed too, because a scaled PNG cannot
+tell the design system's square radius and mono chrome apart from close values.
+
+`mock-rest-grouped-collective.mjs` serves the collective routes, the opt-in
+grouped pages, the registered member endpoints (with the route's own row arm
+per scope), and `/auth/me` as the collective's owner, so the contribute and
+review surfaces both render their action bars. It refuses a busy port.
+
+The `collective-my-shares` arm's state is `MOCK_COLLECTIVE_MY_SHARES=1` — the
+signed-in owner's own contributions carry a saved helper group, so the panel's
+grouped disclosure mounts under the contribution row the server grouped it
+with. Without that flag the panel serves no contributions and does not mount,
+which is what keeps every other arm's capture unchanged.
+
+Two capture states prove the grouped content no longer depends on the flat list:
+
+- `MOCK_COLLECTIVE_EMPTY_FLAT=1` — every flat list is empty while the grouped
+  pages still carry their saved helper groups. The arms
+  `collective-browse-empty-flat` and `collective-contribute-empty-flat` require
+  the grouped owner row and the helper-only context to mount WITHOUT the flat
+  list, and require the flat empty state NOT to replace them. The contribute arm
+  also ticks one disclosure member and requires the action bar to arm.
+- `MOCK_COLLECTIVE_LATER_PAGE=1` (with `MOCK_COLLECTIVE_EMPTY_FLAT=1`) — the
+  grouped reads page: a full first page of ordinary owners carrying no saved
+  helpers, then the grouped content on page two. The
+  `collective-contribute-later` arm requires the continuation to state the
+  server's remaining count, requires the later group to be absent until the
+  continuation is used, then requires it to mount exactly once when page two is
+  read.
+
+```sh
+CHROME=/path/to/google-chrome
+BASE=/abs/path/to/capture-base
+
+MOCK_REST_PORT=8847 MOCK_COLLECTIVE_EMPTY_FLAT=1 node scripts/visual/mock-rest-grouped-collective.mjs &
+until curl -sf http://localhost:8847/api/v1/auth/me >/dev/null; do sleep 0.2; done
+NEXT_PUBLIC_API_URL=http://localhost:8847/api/v1 pnpm build
+PORT=3100 NEXT_PUBLIC_API_URL=http://localhost:8847/api/v1 pnpm start &
+
+for surface in collective-browse-empty-flat collective-contribute-empty-flat; do
+  for theme in dark light; do
+    GROUPED_SHOOT_SURFACE=$surface VILLAGE_ORIGIN=http://localhost:3100 \
+      CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/$surface/$theme
+  done
+done
+
+# Restart the mock with the later page so page one carries no grouped content.
+kill %1; wait %1 2>/dev/null
+MOCK_REST_PORT=8847 MOCK_COLLECTIVE_EMPTY_FLAT=1 MOCK_COLLECTIVE_LATER_PAGE=1 \
+  node scripts/visual/mock-rest-grouped-collective.mjs &
+until curl -sf http://localhost:8847/api/v1/auth/me >/dev/null; do sleep 0.2; done
+for theme in dark light; do
+  GROUPED_SHOOT_SURFACE=collective-contribute-later VILLAGE_ORIGIN=http://localhost:3100 \
+    CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/collective-contribute-later/$theme
+done
+```
+
+Capture into `review-capture/` (gitignored). Per-round proof PNGs are never
+committed.
+
 ### Sessions started by another session
 
 `child-session-shoot.mjs` captures the one design on all three surfaces it
