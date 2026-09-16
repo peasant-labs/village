@@ -50,6 +50,42 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	return i, err
 }
 
+const getUserByProviderIdentity = `-- name: GetUserByProviderIdentity :one
+SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach FROM users WHERE provider = $1 AND provider_user_id = $2
+`
+
+type GetUserByProviderIdentityParams struct {
+	Provider       string `db:"provider" json:"provider"`
+	ProviderUserID string `db:"provider_user_id" json:"provider_user_id"`
+}
+
+// Resolves a signed-in identity to a user by the provider that authenticated
+// them, in the exact text form sign-in stored: GitHub OAuth writes
+// provider_user_id = github_id::text, so a webhook's numeric sender id is
+// compared as text and never by login (a login can be renamed and re-used).
+// A caller with no row — never signed in, or signed in through another provider
+// — is pgx.ErrNoRows, which the matcher reports as unresolved.
+func (q *Queries) GetUserByProviderIdentity(ctx context.Context, arg GetUserByProviderIdentityParams) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByProviderIdentity, arg.Provider, arg.ProviderUserID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.GithubID,
+		&i.GithubUsername,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDiscoverable,
+		&i.Provider,
+		&i.ProviderUserID,
+		&i.UsernameChosen,
+		&i.ProviderUsername,
+		&i.PreviewBeforeAttach,
+	)
+	return i, err
+}
+
 const getUserByUsername = `-- name: GetUserByUsername :one
 SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach FROM users WHERE lower(github_username) = lower($1)
 `

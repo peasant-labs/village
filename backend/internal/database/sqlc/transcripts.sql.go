@@ -703,6 +703,56 @@ func (q *Queries) ListOwnerProjectShareCandidates(ctx context.Context, arg ListO
 	return items, nil
 }
 
+const listOwnerTranscriptsForMatching = `-- name: ListOwnerTranscriptsForMatching :many
+SELECT t.id, t.git_remote, t.git_branch, t.session_start
+FROM transcripts t
+WHERE t.owner_id = $1
+  AND t.git_remote IS NOT NULL
+  AND t.git_remote <> ''
+ORDER BY t.session_start ASC NULLS LAST, t.id ASC
+`
+
+type ListOwnerTranscriptsForMatchingRow struct {
+	ID           pgtype.UUID        `db:"id" json:"id"`
+	GitRemote    pgtype.Text        `db:"git_remote" json:"git_remote"`
+	GitBranch    pgtype.Text        `db:"git_branch" json:"git_branch"`
+	SessionStart pgtype.Timestamptz `db:"session_start" json:"session_start"`
+}
+
+// Every transcript one author owns that carries a stored remote: the candidate
+// pool for pull-request matching. Ordered by session start so the accepted set
+// is already in attachment order.
+//
+// Repository normalization stays in Go (reponame.Normalize) instead of being
+// restated as SQL. The rule that reads a repository name out of a remote is
+// shared with the publish path, and a second copy here would let the two
+// answers drift; this query returns the raw field and the matcher applies the
+// one rule.
+func (q *Queries) ListOwnerTranscriptsForMatching(ctx context.Context, ownerID pgtype.UUID) ([]ListOwnerTranscriptsForMatchingRow, error) {
+	rows, err := q.db.Query(ctx, listOwnerTranscriptsForMatching, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnerTranscriptsForMatchingRow{}
+	for rows.Next() {
+		var i ListOwnerTranscriptsForMatchingRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GitRemote,
+			&i.GitBranch,
+			&i.SessionStart,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectTranscriptsForViewer = `-- name: ListProjectTranscriptsForViewer :many
 SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.model_provider,
     t.model_name, t.harness_version, t.session_start, t.session_end, t.turn_count, t.token_count,

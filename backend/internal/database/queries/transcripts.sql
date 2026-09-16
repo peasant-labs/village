@@ -357,3 +357,20 @@ SELECT t.id, t.local_id, t.title, t.visibility, t.project_hash, t.git_branch,
 FROM transcripts t
 WHERE t.owner_id = @owner_id
 ORDER BY t.published_at DESC, t.id ASC;
+
+-- name: ListOwnerTranscriptsForMatching :many
+-- Every transcript one author owns that carries a stored remote: the candidate
+-- pool for pull-request matching. Ordered by session start so the accepted set
+-- is already in attachment order.
+--
+-- Repository normalization stays in Go (reponame.Normalize) instead of being
+-- restated as SQL. The rule that reads a repository name out of a remote is
+-- shared with the publish path, and a second copy here would let the two
+-- answers drift; this query returns the raw field and the matcher applies the
+-- one rule.
+SELECT t.id, t.git_remote, t.git_branch, t.session_start
+FROM transcripts t
+WHERE t.owner_id = @owner_id
+  AND t.git_remote IS NOT NULL
+  AND t.git_remote <> ''
+ORDER BY t.session_start ASC NULLS LAST, t.id ASC;
