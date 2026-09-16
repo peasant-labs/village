@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -25,8 +26,8 @@ const (
 )
 
 // maxWebhookErrorBytes bounds the dispatcher error kept on the ledger row for an
-// operator. It is stored verbatim, so it is truncated rather than trusted to be
-// short.
+// operator. It is stored verbatim, so it is truncated on a rune boundary rather
+// than trusted to be short.
 const maxWebhookErrorBytes = 1024
 
 // noopGitHubDispatcher is production's placeholder handling point: it accepts
@@ -134,6 +135,12 @@ func (h *Handler) failGitHubWebhookDelivery(ctx context.Context, deliveryID stri
 	message := cause.Error()
 	if len(message) > maxWebhookErrorBytes {
 		message = message[:maxWebhookErrorBytes]
+		// A byte-boundary cut can split a multi-byte rune, and PostgreSQL
+		// rejects invalid UTF-8 in a text column, which would silently lose the
+		// bookkeeping this function exists to record. Back off to a boundary.
+		for len(message) > 0 && !utf8.ValidString(message) {
+			message = message[:len(message)-1]
+		}
 	}
 	if err := h.queries.CompleteGitHubWebhookDelivery(ctx, sqlc.CompleteGitHubWebhookDeliveryParams{
 		DeliveryID: deliveryID,
