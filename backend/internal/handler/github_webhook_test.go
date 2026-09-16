@@ -329,6 +329,17 @@ func TestReceiveGitHubWebhook_DispatchFailureIsServerError(t *testing.T) {
 	}
 }
 
+// TestWebhookDeliveryStatusConstantsMatchTheLedgerMenu pins the Go constants to
+// the three literal tokens migration 040's CHECK accepts (which that migration's
+// structure test asserts independently). A rename on either side then fails a
+// test instead of reaching production as a CHECK violation and a 500.
+func TestWebhookDeliveryStatusConstantsMatchTheLedgerMenu(t *testing.T) {
+	if webhookDeliveryPending != "pending" || webhookDeliveryHandled != "handled" || webhookDeliveryFailed != "failed" {
+		t.Fatalf("status constants = %q/%q/%q, want pending/handled/failed to match the ledger CHECK",
+			webhookDeliveryPending, webhookDeliveryHandled, webhookDeliveryFailed)
+	}
+}
+
 // TestReceiveGitHubWebhook_FailedDeliveryResumesOnRedelivery is the regression
 // for the old at-most-once ledger: a delivery whose attempt failed must be
 // dispatched again when GitHub redelivers it, because a redelivery is the only
