@@ -347,7 +347,8 @@ for (const testCase of fixtures.cases) {
  * selected identity. Ticking it on either surface must select it on both, the
  * displayed total must count it once, and the batch the route submits must name
  * it once — driven by `overlapCases` in the same corpus.
- */for (const testCase of fixtures.overlapCases) {
+ */
+for (const testCase of fixtures.overlapCases) {
   it(testCase.name, async () => {
     const row = fixtures.rows.find((candidate) => candidate.name === testCase.row)!;
     const selectedMember = fixtures.members[testCase.group].find(
