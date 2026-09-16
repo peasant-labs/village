@@ -161,19 +161,25 @@ boundary are documented in
   tables carry NO governance trigger and need no `app.actor_id`: they are not a
   disclosure axis, and widening a transcript's visibility stays the audited
   `transcripts` write it always was.
-- **038 records accepted webhook deliveries.** `github_webhook_deliveries`
-  holds one row per verified GitHub App delivery: `delivery_id` (the opaque
-  `X-GitHub-Delivery` value) is the PRIMARY KEY, so the receiver's
-  `INSERT ... ON CONFLICT (delivery_id) DO NOTHING` returns 1 for a first
-  delivery and 0 for a replay, and a redelivered event is acknowledged without
-  being dispatched twice. `received_at` is when this server first accepted it.
-  The table carries no FK and no trigger; it is a dedup ledger, not a disclosure
-  axis, so it needs no `app.actor_id`. The receiver authenticates the RAW body by
-  HMAC (`X-Hub-Signature-256`) before writing the row, and records the delivery
-  id BEFORE dispatch, so the order is verify, then record-once, then handle. A
-  dispatch failure after the insert leaves the delivery recorded, so a
-  redelivery returns replay and is not re-dispatched; effectful handlers must
-  account for that.
+- **038 records accepted webhook deliveries; 040 makes the ledger resumable.**
+  `github_webhook_deliveries` holds one row per verified GitHub App delivery:
+  `delivery_id` (the opaque `X-GitHub-Delivery` value) is the PRIMARY KEY.
+  Migration 040 adds `event_type` and the raw `payload`, so an attempt can be
+  resumed from the row alone, plus `status` (`pending`/`handled`/`failed`),
+  `attempts`, `last_error`, and `handled_at`/`failed_at`. The receiver
+  authenticates the RAW body by HMAC (`X-Hub-Signature-256`) before writing
+  anything, and records the delivery with its payload BEFORE dispatch, so the
+  order is verify, then record-with-payload, then handle, then mark handled.
+  A redelivery of a `handled` row is acknowledged as a replay and is not
+  dispatched again; a redelivery of a `pending` or `failed` row is dispatched
+  again, which is the only recovery there is, because GitHub does not redeliver
+  failed deliveries automatically and a redelivery carries the same id. Rows
+  written under 038's at-most-once model were backfilled to `handled`, since a
+  recorded delivery was never retried under that model. Resumption is only safe
+  because the effects are idempotent, so a handler that posts must key on the
+  pull request rather than append. The table carries no FK and no trigger: it is
+  a dedup and attempt ledger, not a disclosure axis, so it needs no
+  `app.actor_id`.
 
 ## 2. Licensing data model
 
