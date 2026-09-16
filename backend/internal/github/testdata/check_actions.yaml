@@ -1,0 +1,14 @@
+# The check run's action menu and GitHub's label limit. The labels are what a
+# reader clicks; the identifiers are what the click reports back, so they must
+# stay unique and stable.
+max_action_label: 20
+actions:
+  - name: attach-prompts
+    label: "Attach prompts"
+    identifier: attach
+  - name: detach
+    label: "Detach"
+    identifier: detach
+  - name: refresh
+    label: "Refresh"
+    identifier: refresh

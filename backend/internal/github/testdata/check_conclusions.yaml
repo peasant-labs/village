@@ -1,0 +1,33 @@
+# The conclusion matrix. informational reports without blocking, required
+# participates in branch protection, and a mode outside the menu fails closed
+# rather than silently becoming a neutral pass.
+cases:
+  - name: informational-nothing-attached-is-neutral
+    mode: informational
+    attached: false
+    conclusion: neutral
+
+  - name: informational-something-attached-is-success
+    mode: informational
+    attached: true
+    conclusion: success
+
+  - name: required-nothing-attached-is-failure
+    mode: required
+    attached: false
+    conclusion: failure
+
+  - name: required-something-attached-is-success
+    mode: required
+    attached: true
+    conclusion: success
+
+  - name: unknown-mode-nothing-attached-fails-closed
+    mode: something-else
+    attached: false
+    conclusion: failure
+
+  - name: unknown-mode-something-attached-is-still-success
+    mode: something-else
+    attached: true
+    conclusion: success

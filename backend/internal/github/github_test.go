@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -101,6 +102,37 @@ type appServer struct {
 	pullNotModified bool
 	pullPage2Body   string
 	failPull        bool
+	// Writes: every check-run and comment request is recorded so a test can
+	// assert the method, path, headers, and body GitHub would have received.
+	requests     []recordedRequest
+	checkRunBody string
+	commentBody  string
+	failWrite    bool
+}
+
+// recordedRequest is one request the fake GitHub received.
+type recordedRequest struct {
+	Method     string
+	Path       string
+	Body       string
+	AuthHeader string
+}
+
+func (a *appServer) recordRequest(r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	a.requests = append(a.requests, recordedRequest{
+		Method:     r.Method,
+		Path:       r.URL.Path,
+		Body:       string(body),
+		AuthHeader: r.Header.Get("Authorization"),
+	})
+}
+
+func (a *appServer) lastRequest() recordedRequest {
+	if len(a.requests) == 0 {
+		return recordedRequest{}
+	}
+	return a.requests[len(a.requests)-1]
 }
 
 func newAppServer(t *testing.T, a *appServer) {
@@ -122,6 +154,49 @@ func newAppServer(t *testing.T, a *appServer) {
 	})
 
 	mux.HandleFunc("/repos/", func(w http.ResponseWriter, r *http.Request) {
+		// /repos/{owner}/{name}/check-runs[/{id}]        -> check run write
+		// /repos/{owner}/{name}/issues/{n}/comments      -> comment create
+		// /repos/{owner}/{name}/issues/comments/{id}     -> comment edit/delete
+		if strings.Contains(r.URL.Path, "/check-runs") {
+			a.recordRequest(r)
+			if a.failWrite {
+				http.Error(w, `{"message":"Validation Failed"}`, http.StatusUnprocessableEntity)
+				return
+			}
+			if r.Method == http.MethodPatch {
+				w.WriteHeader(http.StatusOK)
+			} else {
+				w.WriteHeader(http.StatusCreated)
+			}
+			if a.checkRunBody != "" {
+				fmt.Fprint(w, a.checkRunBody)
+				return
+			}
+			fmt.Fprint(w, `{"id":77,"html_url":"https://example.test/check/77","status":"completed","conclusion":"success"}`)
+			return
+		}
+		if strings.Contains(r.URL.Path, "/issues/") && strings.Contains(r.URL.Path, "/comments") {
+			a.recordRequest(r)
+			if a.failWrite {
+				http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
+				return
+			}
+			if r.Method == http.MethodDelete {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			if r.Method == http.MethodPatch {
+				w.WriteHeader(http.StatusOK)
+			} else {
+				w.WriteHeader(http.StatusCreated)
+			}
+			if a.commentBody != "" {
+				fmt.Fprint(w, a.commentBody)
+				return
+			}
+			fmt.Fprint(w, `{"id":555,"html_url":"https://example.test/comment/555","body":"posted"}`)
+			return
+		}
 		// /repos/{owner}/{name}                     -> repo metadata
 		// /repos/{owner}/{name}/commits             -> commit list
 		// /repos/{owner}/{name}/pulls/{n}/commits   -> pull request commit list
