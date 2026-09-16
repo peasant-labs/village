@@ -43,6 +43,11 @@ export interface UpdateGroupForm {
   linked_github_org: string | null;
   display_members?: boolean;
   transcript_deletion_policy?: string;
+  // The prompts check a linked repository's pull requests receive. Named here
+  // because the contract parser below STRIPS unknown keys: a field absent from
+  // this shape never leaves the client, silently.
+  post_prompts_check?: boolean;
+  prompts_check_mode?: string;
 }
 
 /**

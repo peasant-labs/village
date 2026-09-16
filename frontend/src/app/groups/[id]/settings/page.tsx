@@ -49,6 +49,10 @@ export default function GroupSettingsPage({
   const [dataAccess, setDataAccess] = useState("members_only");
   const [linkedGithubOrg, setLinkedGithubOrg] = useState("");
   const [displayMembers, setDisplayMembers] = useState(true);
+  const [postPromptsCheck, setPostPromptsCheck] = useState(true);
+  const [promptsCheckMode, setPromptsCheckMode] = useState<"informational" | "required">(
+    "informational"
+  );
   const [deletionPolicy, setDeletionPolicy] = useState<"user_choice" | "mandatory">(
     "user_choice"
   );
@@ -101,6 +105,8 @@ export default function GroupSettingsPage({
     setDataAccess(group.data_access);
     setLinkedGithubOrg(group.linked_github_org ?? "");
     setDisplayMembers(group.display_members ?? true);
+    setPostPromptsCheck(group.post_prompts_check ?? true);
+    setPromptsCheckMode(group.prompts_check_mode ?? "informational");
     setDeletionPolicy(group.transcript_deletion_policy ?? "user_choice");
     setInitialized(true);
   }
@@ -138,6 +144,8 @@ export default function GroupSettingsPage({
         linked_github_org: linkedGithubOrg || null,
         display_members: displayMembers,
         transcript_deletion_policy: deletionPolicy,
+        post_prompts_check: postPromptsCheck,
+        prompts_check_mode: promptsCheckMode,
       },
       {
         onSuccess: () => {
@@ -323,6 +331,71 @@ export default function GroupSettingsPage({
                     onChange={(checked: boolean) => setDisplayMembers(checked)}
                   />
                 </div>
+              </div>
+
+              {/* The prompts check a linked repository's pull requests receive.
+                  Off means no check is posted; the mode decides only whether an
+                  attachment with nothing attached reports neutral or fails. */}
+              <div className="sw-stack">
+                <label htmlFor="group-post-prompts-check" className="sw-label">
+                  Post a prompts check on pull requests
+                </label>
+                <span className="sw-hint">
+                  The check reports how many prompts the collective has attached to a
+                  linked repository&apos;s pull requests.
+                </span>
+                <div className="sw-toggle-row">
+                  <Switch
+                    id="group-post-prompts-check"
+                    checked={postPromptsCheck}
+                    onChange={(checked: boolean) => setPostPromptsCheck(checked)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 mt-2">
+                <span className="label">Prompts check mode</span>
+                <p className="muted lowercase">
+                  Whether the check reports or blocks a pull request with no prompts
+                  attached.
+                </p>
+                <RadioGroup
+                  name="prompts-check-mode"
+                  ariaLabel="Prompts check mode"
+                  value={promptsCheckMode}
+                  onChange={(value) =>
+                    setPromptsCheckMode(value as "informational" | "required")
+                  }
+                  options={[
+                    {
+                      value: "informational",
+                      label: (
+                        <span className="flex flex-col gap-0.5">
+                          <span className="font-mono text-[14px] text-ink-2 lowercase">
+                            Informational
+                          </span>
+                          <span className="muted lowercase">
+                            Reports neutral when nothing is attached, success when
+                            something is.
+                          </span>
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "required",
+                      label: (
+                        <span className="flex flex-col gap-0.5">
+                          <span className="font-mono text-[14px] text-ink-2 lowercase">
+                            Required
+                          </span>
+                          <span className="muted lowercase">
+                            Fails when nothing is attached, so it can gate a merge.
+                          </span>
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
               </div>
 
               {/* Reuse the design-system label tiers and the form's 24px
