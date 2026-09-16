@@ -846,6 +846,8 @@ UPDATE groups SET
     linked_github_org = $6,
     display_members = $7,
     transcript_deletion_policy = $8,
+    post_prompts_check = $9,
+    prompts_check_mode = $10,
     updated_at = now()
 WHERE id = $1
 RETURNING id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy, post_prompts_check, prompts_check_mode
@@ -860,8 +862,13 @@ type UpdateGroupParams struct {
 	LinkedGithubOrg          pgtype.Text `db:"linked_github_org" json:"linked_github_org"`
 	DisplayMembers           bool        `db:"display_members" json:"display_members"`
 	TranscriptDeletionPolicy string      `db:"transcript_deletion_policy" json:"transcript_deletion_policy"`
+	PostPromptsCheck         bool        `db:"post_prompts_check" json:"post_prompts_check"`
+	PromptsCheckMode         string      `db:"prompts_check_mode" json:"prompts_check_mode"`
 }
 
+// The prompts-check settings are writable here because the served contract
+// declares them on the group update; a field the caller omitted is resolved to
+// the current value by the handler before this statement runs.
 func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group, error) {
 	row := q.db.QueryRow(ctx, updateGroup,
 		arg.ID,
@@ -872,6 +879,8 @@ func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group
 		arg.LinkedGithubOrg,
 		arg.DisplayMembers,
 		arg.TranscriptDeletionPolicy,
+		arg.PostPromptsCheck,
+		arg.PromptsCheckMode,
 	)
 	var i Group
 	err := row.Scan(
