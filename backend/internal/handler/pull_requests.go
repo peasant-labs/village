@@ -109,7 +109,7 @@ func (h *Handler) ConfirmPullRequestAttachment(w http.ResponseWriter, r *http.Re
 		if fresh.State != string(promptattach.Preview) {
 			return promptattach.ErrTransitionNotAllowed
 		}
-		updated, err = h.confirmAttachment(r.Context(), fresh)
+		updated, err = h.attachAcceptedAndPost(r.Context(), fresh)
 		return err
 	})
 	if err != nil {

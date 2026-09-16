@@ -70,6 +70,56 @@ func (p WebhookIssueCommentPayload) IsPullRequest() bool {
 	return p.Issue.PullRequest != nil
 }
 
+// WebhookRequestedAction is the action a person triggered on a check run. Its
+// identifier is the action's stable name (`attach`, `detach`, `refresh`), which
+// is what a click reports back.
+type WebhookRequestedAction struct {
+	Identifier string `json:"identifier"`
+}
+
+// WebhookCheckRunPullRequest is the minimal pull request reference a check run
+// carries, enough to address the attachment the button belongs to.
+type WebhookCheckRunPullRequest struct {
+	Number int `json:"number"`
+}
+
+// WebhookCheckRunObject is the check run a click acted on.
+type WebhookCheckRunObject struct {
+	ID           int64                        `json:"id"`
+	HeadSHA      string                       `json:"head_sha"`
+	PullRequests []WebhookCheckRunPullRequest `json:"pull_requests"`
+}
+
+// WebhookCheckRunPayload is the check_run event. A button click arrives as the
+// `requested_action` action, with the clicked action's identifier and no other
+// change; every other action (created, completed, rerequested) is not a command.
+type WebhookCheckRunPayload struct {
+	Action          string                  `json:"action"`
+	RequestedAction *WebhookRequestedAction `json:"requested_action"`
+	CheckRun        WebhookCheckRunObject   `json:"check_run"`
+	Repository      WebhookRepository       `json:"repository"`
+	Sender          WebhookUser             `json:"sender"`
+	Installation    *WebhookInstallation    `json:"installation"`
+}
+
+// RequestedActionIdentifier returns the clicked action's identifier, or "" when
+// this event is not a button click.
+func (p WebhookCheckRunPayload) RequestedActionIdentifier() string {
+	if p.Action != "requested_action" || p.RequestedAction == nil {
+		return ""
+	}
+	return p.RequestedAction.Identifier
+}
+
+// PullRequestNumber returns the pull request the check run belongs to, or 0 when
+// the event carries none.
+func (p WebhookCheckRunPayload) PullRequestNumber() int {
+	if len(p.CheckRun.PullRequests) == 0 {
+		return 0
+	}
+	return p.CheckRun.PullRequests[0].Number
+}
+
 // WebhookPullRequestRef is one side of a pull request: its ref name, the commit
 // it points at, and the repository it lives in.
 type WebhookPullRequestRef struct {

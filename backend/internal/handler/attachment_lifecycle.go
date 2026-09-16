@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -27,6 +28,10 @@ import (
 // actually applied to the stored content; this constant is the one place that
 // change lands, and nothing else in the lifecycle assumes a level.
 const attachmentRedactionLevel = string(redact.Standard)
+
+// attachmentHookTimeout bounds the post-publish completion work, which runs
+// inside the publish request but must not be tied to the client's connection.
+const attachmentHookTimeout = 30 * time.Second
 
 // Sentinel failures the attachment lifecycle reports so a caller can map them to
 // the right status: a collective that no longer exists or a repository that is
@@ -174,12 +179,17 @@ func (h *Handler) loadAttachmentCandidates(ctx context.Context, authorID pgtype.
 // digest. It reads each accepted transcript's turns through Village's single
 // decrypting read path, and takes its anchor time and change counts from the
 // transcript's own recorded commit, never from the pull request side.
-func (h *Handler) buildAttachmentDigest(ctx context.Context, match matcher.Result, commitSet []string) (schema.PromptDigest, error) {
-	sessions := make([]digest.Session, 0, len(match.Accepted))
+func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []schema.TranscriptID, commitSet []string, match matcher.Result) (schema.PromptDigest, error) {
+	sessions := make([]digest.Session, 0, len(transcriptIDs))
 	var commits []digest.CommitMatch
 
+	anchorsByTranscript := map[schema.TranscriptID][]matcher.Anchor{}
 	for _, accepted := range match.Accepted {
-		transcriptID, err := uuid.Parse(string(accepted.TranscriptID))
+		anchorsByTranscript[accepted.TranscriptID] = accepted.Anchors
+	}
+
+	for _, accepted := range transcriptIDs {
+		transcriptID, err := uuid.Parse(string(accepted))
 		if err != nil {
 			return schema.PromptDigest{}, fmt.Errorf("an accepted transcript id was not a uuid: %w", err)
 		}
@@ -213,16 +223,16 @@ func (h *Handler) buildAttachmentDigest(ctx context.Context, match matcher.Resul
 			})
 		}
 		sessions = append(sessions, digest.Session{
-			TranscriptID:   accepted.TranscriptID,
+			TranscriptID:   accepted,
 			Harness:        schema.Harness(row.ModelProvider),
 			RedactionLevel: attachmentRedactionLevel,
 			SessionStart:   row.SessionStart.Time,
 			Turns:          turns,
 		})
 
-		for _, anchor := range accepted.Anchors {
+		for _, anchor := range anchorsByTranscript[accepted] {
 			commits = append(commits, digest.CommitMatch{
-				TranscriptID: accepted.TranscriptID,
+				TranscriptID: accepted,
 				CommitSHA:    anchor.CommitSHA,
 				AuthoredAt:   anchor.AuthoredAt,
 				Additions:    anchor.Additions,

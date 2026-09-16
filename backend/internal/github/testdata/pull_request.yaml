@@ -1,0 +1,47 @@
+# A captured GET /repos/{owner}/{repo}/pulls/{number} response (trimmed to the
+# fields the client reads), so the decode is checked against a real wire shape
+# rather than against the struct that decodes it.
+cases:
+  - name: fork-pull-request
+    response: |
+      {
+        "number": 42,
+        "state": "open",
+        "merged": false,
+        "user": {"id": 1001, "login": "author"},
+        "head": {"ref": "feature/x", "sha": "headsha", "repo": {"id": 55, "name": "village-fork", "full_name": "author/village-fork", "owner": {"login": "author"}}},
+        "base": {"ref": "develop", "sha": "basesha", "repo": {"id": 7, "name": "village", "full_name": "peasant-labs/village", "owner": {"login": "peasant-labs"}}}
+      }
+    expect:
+      number: 42
+      repo_id: 7
+      head_sha: "headsha"
+      head_ref: "feature/x"
+      head_repo: "village-fork"
+      head_repo_full_name: "author/village-fork"
+      base_repo: "village"
+      author_id: 1001
+      is_fork: true
+      state: open
+
+  - name: same-repository-pull-request
+    response: |
+      {
+        "number": 43,
+        "state": "open",
+        "merged": false,
+        "user": {"id": 1001, "login": "author"},
+        "head": {"ref": "feature/y", "sha": "headsha2", "repo": {"id": 7, "name": "village", "full_name": "peasant-labs/village", "owner": {"login": "peasant-labs"}}},
+        "base": {"ref": "develop", "sha": "basesha2", "repo": {"id": 7, "name": "village", "full_name": "peasant-labs/village", "owner": {"login": "peasant-labs"}}}
+      }
+    expect:
+      number: 43
+      repo_id: 7
+      head_sha: "headsha2"
+      head_ref: "feature/y"
+      head_repo: "village"
+      head_repo_full_name: "peasant-labs/village"
+      base_repo: "village"
+      author_id: 1001
+      is_fork: false
+      state: open

@@ -127,3 +127,62 @@ cases:
       head_ref: feature/z
       base_repo_name: ""
       head_repo_name: village-fork
+
+  - name: check-run-requested-action-attach
+    payload: |
+      {
+        "action": "requested_action",
+        "requested_action": {"identifier": "attach"},
+        "check_run": {"id": 11, "head_sha": "aaaaaaa", "pull_requests": [{"number": 7}]},
+        "repository": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}},
+        "sender": {"id": 1001, "login": "author"},
+        "installation": {"id": 1234}
+      }
+    expect:
+      requested_action_identifier: attach
+      pull_request_number: 7
+      sender_id: 1001
+
+  - name: check-run-requested-action-detach
+    payload: |
+      {
+        "action": "requested_action",
+        "requested_action": {"identifier": "detach"},
+        "check_run": {"id": 11, "head_sha": "aaaaaaa", "pull_requests": [{"number": 7}]},
+        "repository": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}},
+        "sender": {"id": 1001, "login": "author"},
+        "installation": {"id": 1234}
+      }
+    expect:
+      requested_action_identifier: detach
+      pull_request_number: 7
+      sender_id: 1001
+
+  - name: check-run-completed-is-not-a-command
+    payload: |
+      {
+        "action": "completed",
+        "check_run": {"id": 11, "head_sha": "aaaaaaa", "pull_requests": [{"number": 7}]},
+        "repository": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}},
+        "sender": {"id": 1001, "login": "author"},
+        "installation": {"id": 1234}
+      }
+    expect:
+      requested_action_identifier: ""
+      pull_request_number: 7
+      sender_id: 1001
+
+  - name: check-run-click-without-a-pull-request
+    payload: |
+      {
+        "action": "requested_action",
+        "requested_action": {"identifier": "attach"},
+        "check_run": {"id": 11, "head_sha": "aaaaaaa", "pull_requests": []},
+        "repository": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}},
+        "sender": {"id": 1001, "login": "author"},
+        "installation": {"id": 1234}
+      }
+    expect:
+      requested_action_identifier: attach
+      pull_request_number: 0
+      sender_id: 1001

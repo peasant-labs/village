@@ -140,6 +140,14 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 		log.Println("GitHub App configured; collective-repository endpoints enabled")
 	}
 
+	// A configured App also handles the events it subscribes to: a clicked
+	// check-run button, a `/peasant attach` comment, and a push to a pull
+	// request that already has an attachment. Without the App the receiver
+	// answers 501 and the no-op dispatcher stays in place.
+	if h.gh != nil {
+		h.githubDispatcher = promptCommandDispatcher{h: h}
+	}
+
 	// The webhook receiver needs both the App (to act on events) and the secret
 	// (to authenticate GitHub's signature). Either missing leaves the route
 	// answering 501, fail-closed.
