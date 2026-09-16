@@ -164,9 +164,10 @@ boundary are documented in
 - **038 records accepted webhook deliveries; 040 makes the ledger resumable.**
   `github_webhook_deliveries` holds one row per verified GitHub App delivery:
   `delivery_id` (the opaque `X-GitHub-Delivery` value) is the PRIMARY KEY.
-  Migration 040 adds `event_type` and the raw `payload`, so an attempt can be
-  resumed from the row alone, plus `status` (`pending`/`handled`/`failed`),
-  `attempts`, `last_error`, and `handled_at`/`failed_at`. The receiver
+  Migration 040 adds `event_type` and the raw `payload`, which is what a poller
+  would need to work the row without another delivery, plus `status`
+  (`pending`/`handled`/`failed`), `attempts`, `last_error`, and
+  `handled_at`/`failed_at`. The receiver
   authenticates the RAW body by HMAC (`X-Hub-Signature-256`) before writing
   anything, and records the delivery with its payload BEFORE dispatch, so the
   order is verify, then record-with-payload, then handle, then mark handled.
@@ -175,9 +176,14 @@ boundary are documented in
   again, which is the only recovery there is, because GitHub does not redeliver
   failed deliveries automatically and a redelivery carries the same id. Rows
   written under 038's at-most-once model were backfilled to `handled`, since a
-  recorded delivery was never retried under that model. Resumption is only safe
-  because the effects are idempotent, so a handler that posts must key on the
-  pull request rather than append. The table carries no FK and no trigger: it is
+  recorded delivery was never retried under that model. `handled` is absorbing:
+  a late failure from a concurrent attempt cannot downgrade it.
+  This is AT-LEAST-ONCE, not exactly-once. The record, dispatch, and completion
+  writes are not one transaction, so a successful dispatch whose completion
+  write fails, or two concurrent deliveries of one id, can dispatch the same
+  effect more than once. That is safe only because the effects are idempotent,
+  so a handler that posts must key on the pull request rather than append. The
+  table carries no FK and no trigger: it is
   a dedup and attempt ledger, not a disclosure axis, so it needs no
   `app.actor_id`.
 
