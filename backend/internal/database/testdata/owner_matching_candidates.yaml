@@ -1,0 +1,67 @@
+# Rows for the candidate query that decides whose transcripts may be matched.
+#
+# The query is the pool's only boundary: it must return the requested owner's
+# transcripts and nothing else, and it must drop rows with no stored remote,
+# because the matcher compares a remote and a project path is not a remote.
+# Order is session start ascending with unknown last, so the accepted set is
+# already in attachment order.
+owners:
+  - key: a
+    github_id: 927101
+    username: owner-a
+  - key: b
+    github_id: 927102
+    username: owner-b
+
+rows:
+  - name: a-repo-oldest
+    owner: a
+    local_id: a-oldest
+    git_remote: "github.com/peasant-labs/village"
+    git_branch: ""
+    session_start: 2026-01-01T00:00:00Z
+  - name: a-repo-middle-other-project
+    owner: a
+    local_id: a-middle
+    git_remote: "https://github.com/peasant-labs/other-project.git"
+    git_branch: "feat/other"
+    session_start: 2026-02-01T00:00:00Z
+  - name: a-repo-newest
+    owner: a
+    local_id: a-newest
+    git_remote: "git@github.com:peasant-labs/village.git"
+    git_branch: "feat/picker"
+    session_start: 2026-03-01T00:00:00Z
+  - name: a-empty-remote
+    owner: a
+    local_id: a-empty
+    git_remote: ""
+    session_start: 2026-01-15T00:00:00Z
+  - name: a-null-remote
+    owner: a
+    local_id: a-null
+    session_start: 2026-01-16T00:00:00Z
+  - name: a-no-session-start
+    owner: a
+    local_id: a-no-start
+    git_remote: "git@github.com:peasant-labs/village.git"
+    git_branch: "feat/picker"
+  - name: b-other-owner
+    owner: b
+    local_id: b-only
+    git_remote: "git@github.com:peasant-labs/village.git"
+    git_branch: "feat/picker"
+    session_start: 2026-01-01T00:00:00Z
+
+expect:
+  a:
+    order: ["a-oldest", "a-middle", "a-newest", "a-no-start"]
+    branches:
+      a-oldest: ""
+      a-middle: "feat/other"
+      a-newest: "feat/picker"
+      a-no-start: "feat/picker"
+  b:
+    order: ["b-only"]
+    branches:
+      b-only: "feat/picker"

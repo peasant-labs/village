@@ -1,0 +1,86 @@
+# Resolving a webhook identity. The lookup key is the (provider, provider_user_id)
+# pair, and the login is never part of it: a login can be renamed and re-used, a
+# GitHub lookup must not find a user who only ever signed in elsewhere, and the
+# same numeric id on two providers is two different people.
+cases:
+  - name: github-id-resolves-the-signed-in-user
+    seed:
+      # Seeded through the GitHub sign-in writer, which is what stores
+      # provider_user_id = github_id::text, so the numeric webhook id and the
+      # stored identity are proven to be the same value.
+      - provider: github
+        provider_user_id: "1001"
+        github_id: 1001
+        username: author
+        sign_in: true
+    lookups:
+      - provider: github
+        provider_user_id: "1001"
+        expect: found
+        expect_username: author
+
+  - name: renamed-login-still-resolves-by-id
+    seed:
+      - provider: github
+        provider_user_id: "1002"
+        github_id: 1002
+        username: author-2
+        rename_to: renamed-2
+    lookups:
+      - provider: github
+        provider_user_id: "1002"
+        expect: found
+        expect_username: renamed-2
+
+  - name: login-string-is-not-a-provider-identity
+    seed:
+      - provider: github
+        provider_user_id: "1003"
+        github_id: 1003
+        username: author-3
+        rename_to: renamed-3
+    lookups:
+      - provider: github
+        provider_user_id: "renamed-3"
+        expect: not_found
+
+  - name: non-github-provider-user-does-not-resolve-a-github-lookup
+    seed:
+      - provider: gitlab
+        provider_user_id: "3001"
+        github_id: 53001
+        username: gitlab-only
+    lookups:
+      - provider: github
+        provider_user_id: "3001"
+        expect: not_found
+      - provider: gitlab
+        provider_user_id: "3001"
+        expect: found
+        expect_username: gitlab-only
+
+  - name: same-numeric-id-on-two-providers-is-two-people
+    seed:
+      - provider: github
+        provider_user_id: "4001"
+        github_id: 4001
+        username: github-4001
+      - provider: gitlab
+        provider_user_id: "4001"
+        github_id: 54001
+        username: gitlab-4001
+    lookups:
+      - provider: github
+        provider_user_id: "4001"
+        expect: found
+        expect_username: github-4001
+      - provider: gitlab
+        provider_user_id: "4001"
+        expect: found
+        expect_username: gitlab-4001
+
+  - name: unknown-id-resolves-nobody
+    lookups:
+      - provider: github
+        provider_user_id: "9999"
+        expect: not_found
