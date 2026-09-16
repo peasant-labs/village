@@ -16,7 +16,7 @@ import { applyFilters, harnessCounts, type ContributeFilters } from "@/lib/contr
 import ContributeTree from "@/components/contribute/ContributeTree";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 import {
-  ScopedOwnerHelperGroups,
+  ScopedOwnerHelperTree,
   ScopedUnownedHelperGroups,
   helperGroupsByTranscript,
   unownedGroupedItems,
@@ -265,13 +265,20 @@ export default function GroupReviewPage({
                     harnessCounts={counts}
                     countNoun="contribution"
                     emptyLabel="no pending contributions match this filter."
-                    helperGroupSlot={(session) => (
-                      <ScopedOwnerHelperGroups
-                        groups={helperGroups.get(session.id)}
-                        onRefreshOrigin={grouped.refreshOrigin}
-                        selection={helper.contract}
-                      />
-                    )}
+                    helperGroupSlot={(session, owner) => {
+                      const groups = helperGroups.get(session.id);
+                      // A submission with no saved helper group renders
+                      // unchanged: no tree, and no marker claiming one.
+                      if (groups == null || groups.length === 0) return undefined;
+                      return (
+                        <ScopedOwnerHelperTree
+                          owner={owner}
+                          groups={groups}
+                          onRefreshOrigin={grouped.refreshOrigin}
+                          selection={helper.contract}
+                        />
+                      );
+                    }}
                   />
                 </div>
                 <div className="min-h-[20rem] @[880px]:min-h-[32rem]">
