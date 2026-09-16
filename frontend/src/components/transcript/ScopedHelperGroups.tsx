@@ -326,6 +326,13 @@ export function ScopedContextHelperGroups({
  * The helper groups attached to one admitted owner row, rendered directly
  * beneath that row. The caller obtains them from the grouped list response and
  * passes them down; this component never infers a group from a row.
+ *
+ * A caller that does NOT keep its own ordinary row (its list draws the row
+ * elsewhere, or draws none at all) mounts this one: the groups render as one
+ * disclosure block and, because it mounts per-member checkboxes only when it is
+ * handed a selection, a display-only mount draws no connector. A caller that
+ * keeps its own ordinary row mounts {@link ScopedOwnerHelperTree} instead, so
+ * the tree has that row as its owner.
  */
 export function ScopedOwnerHelperGroups({
   groups,
@@ -348,6 +355,44 @@ export function ScopedOwnerHelperGroups({
         />
       ))}
     </div>
+  );
+}
+
+/**
+ * The same helper groups, mounted as Fairtrade's canonical helper tree around
+ * the ordinary owner row the caller already draws.
+ *
+ * The row is passed as `owner`, so the tree measures a single connector through
+ * the checkboxes of the rows it holds: the per-member checkboxes the members
+ * mount. The owner row stays the caller's own component - its own checkbox, its
+ * own selection behavior, its own hierarchy connector - which is the
+ * composition the design system documents for a host row it retains, and the
+ * caller mounts this only for a row that carries at least one saved helper
+ * group (a row without one renders unchanged, with no tree around it).
+ */
+export function ScopedOwnerHelperTree({
+  owner,
+  groups,
+  onRefreshOrigin,
+  selection,
+}: {
+  /** The ordinary owner row the caller draws, already mounted as `owner`. */
+  owner: ReactNode;
+  groups: readonly HelperGroupSummary[];
+  onRefreshOrigin: () => void;
+  selection?: ScopedHelperSelection;
+}) {
+  return (
+    <HelperGroupListItem owner={owner}>
+      {groups.map((group) => (
+        <ScopedHelperGroup
+          key={`${group.groupId}:${group.memberScope}`}
+          group={group}
+          onRefreshOrigin={onRefreshOrigin}
+          selection={selection}
+        />
+      ))}
+    </HelperGroupListItem>
   );
 }
 

@@ -421,3 +421,100 @@ for (const testCase of fixtures.overlapCases) {
     expect(JSON.stringify(calls.mutations[0].body)).not.toContain("groupId");
   });
 }
+
+/**
+ * The per-member disclosure mounts the CANONICAL helper tree, driven by
+ * `connectorCases` in the same corpus.
+ *
+ * The row the surface already draws is the tree's OWNER: it keeps its own
+ * checkbox and the surface's own hierarchy connector, while the group
+ * primitives measure ONE connector through the checkboxes of the member rows
+ * they hold. The mounted `data-anchor-count` is read back as the case's own
+ * oracle, so a disclosure that draws per-member checkboxes outside the tree
+ * (no connector at all) or that claims a traceable row it does not own fails
+ * here, and a tick inside the tree still names exactly one member.
+ */
+for (const testCase of fixtures.connectorCases) {
+  it(testCase.name, async () => {
+    const row = fixtures.rows.find((candidate) => candidate.name === testCase.row)!;
+    const member = fixtures.members[testCase.group].find(
+      (candidate) => candidate.name === testCase.select,
+    )!;
+    const calls = installREST(testCase.surface, testCase);
+
+    await act(async () => {
+      renderRoute(testCase.surface);
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId(`contribute-session-row-${row.id}`)).toBeInTheDocument(),
+    );
+    await waitFor(() => expect(calls.grouped).toHaveLength(1));
+
+    const slot = groupOwnerSlot(row.id);
+    const tree = slot.querySelector<HTMLElement>("[data-helper-tree]");
+    expect(tree, "the disclosure mounts Fairtrade's canonical helper tree").not.toBeNull();
+    expect(
+      tree!.querySelector(`[data-testid="contribute-session-row-${row.id}"]`),
+      "the row the surface already draws is the tree's owner",
+    ).not.toBeNull();
+    expect(
+      tree!.querySelector(
+        `.helper-group[data-group-id="${fixtures.groups[testCase.group].groupId}"]`,
+      ),
+      "the group hangs inside that tree",
+    ).not.toBeNull();
+
+    const connector = () => tree!.querySelector<SVGSVGElement>("svg.helper-tree-rail");
+    expect(connector(), "the tree owns the connector").not.toBeNull();
+    // Closed, the tree holds no member row: no anchor is traced, whatever
+    // checkbox the surface's OWN owner row carries.
+    await waitFor(() =>
+      expect(connector()!.dataset.anchorCount).toBe(
+        String(testCase.expectedAnchorCounts.collapsed),
+      ),
+    );
+    expect(tree!.querySelector(".helper-tree-rail__path")).toBeNull();
+
+    await expandGroupUnder(row.id, member.title);
+
+    const memberBoxes = tree!.querySelectorAll<HTMLInputElement>(
+      ".helper-group-members .helper-thread-row input[type=\"checkbox\"]",
+    );
+    expect(memberBoxes, "every mounted member row carries its own checkbox").toHaveLength(
+      testCase.expectedAnchorCounts.expanded,
+    );
+    await waitFor(() =>
+      expect(connector()!.dataset.anchorCount).toBe(
+        String(testCase.expectedAnchorCounts.expanded),
+      ),
+    );
+    const traced = await waitFor(() => {
+      const path = tree!.querySelector<SVGPathElement>(".helper-tree-rail__path");
+      expect(path, "the connector is traced through the mounted member checkboxes").not.toBeNull();
+      return path!;
+    });
+    expect(traced.getAttribute("d") ?? "").not.toBe("");
+
+    // The per-member checkbox is the tree's own member row, and ticking it
+    // still submits exactly the member that was ticked.
+    const box = memberCheckbox(member.title);
+    expect(tree!.contains(box), "the per-member checkbox is the tree's member row").toBe(true);
+    act(() => {
+      fireEvent.click(box);
+    });
+
+    const action =
+      testCase.surface === "contribute"
+        ? screen.getByRole("button", { name: /contribute 1 transcript/ })
+        : screen.getByRole("button", { name: /approve selected/ });
+    await act(async () => {
+      fireEvent.click(action);
+    });
+    await waitFor(() => expect(calls.mutations).toHaveLength(1));
+    expect(calls.mutations[0].body.transcript_ids).toEqual(
+      testCase.expected_ids.map((label) => memberUUID(label)),
+    );
+    expect(JSON.stringify(calls.mutations[0].body)).not.toContain("groupId");
+  });
+}
