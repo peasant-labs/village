@@ -21,9 +21,12 @@
                     only (no per-member selection on a browse surface).
      collective-contribute `/groups/{id}/contribute` — expanding the group and
                     ticking ONE member arms the contribution action with exactly
-                    one transcript; no group id is ever sent.
+                    one transcript, and that SAME identity's flat tree row reads
+                    checked: one identity is one selection; no group id is ever
+                    sent.
      collective-review   `/groups/{id}/review` — the same explicit per-member
-                    selection on the owner's review queue.
+                    selection and the same one-identity rule on the owner's
+                    review queue.
 
    Build provenance is asserted BEFORE any PNG is written: the served build must
    carry the grouped-helper host, the generated scope-first member requests, and
@@ -616,13 +619,31 @@ if (SURFACE === 'discovery') {
   Means: the capture would not evidence an explicit per-helper selection.
   Fix: confirm the page's selection count includes helper members, then retry.`, 2)
     }
+    // The ticked disclosure member is an identity the flat list ALSO draws, so
+    // it is ONE selection: its flat tree row must read checked, and the bar must
+    // count exactly the one identity — never a second copy of the same transcript.
+    const overlap = await page.evaluate(() => {
+      const href = document.querySelector('a.helper-thread-open')?.getAttribute('href') ?? ''
+      const id = href.split('/').pop() ?? ''
+      const row = document.querySelector(`[data-testid="contribute-session-row-${id}"]`)
+      const box = row?.querySelector('input[type="checkbox"]')
+      return { id, flatRow: row != null, flatChecked: box instanceof HTMLInputElement ? box.checked : null }
+    })
+    if (overlap.id === '' || !overlap.flatRow || overlap.flatChecked !== true) {
+      await fail(`ERROR [grouped-helper-shoot.mjs] the ticked ${SURFACE} helper member is not one identity with its flat tree row.
+  What failed: ${JSON.stringify(overlap)}.
+  Why: the disclosure selection and the flat tree selection are counted separately, so the same identity has two states and two totals.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm overlap check.
+  Means: the capture would evidence the conflicting checkboxes this change removes.
+  Fix: confirm the served build shares one identity selection between the flat tree and the helper disclosures, then retry.`, 2)
+    }
     const style = await assertComputed(
       `${groupSel} .helper-group-count`,
       { fontFamily: isMono, borderRadius: isSquare },
       `the ${SURFACE} helper group count`,
     )
     await capture(`village-${SURFACE}-grouped-helper`, panelSel, SURFACE)
-    console.log(`${SURFACE} provenance:`, JSON.stringify({ closed, openedLinks, armed }))
+    console.log(`${SURFACE} provenance:`, JSON.stringify({ closed, openedLinks, armed, overlap }))
     console.log('computed helper-group count style:', JSON.stringify(style))
   }
 }

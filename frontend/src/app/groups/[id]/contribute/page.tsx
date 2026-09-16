@@ -8,9 +8,9 @@ import { useContributable, useContributeRun, partitionRunOutcome } from "@/lib/q
 import { useGroupedContributable } from "@/lib/queries/groupedCollectives";
 import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import { buildContributeTree } from "@/lib/contribute/tree";
-import { groupByProject, privateIds, sessionRows, toggleNode, type Selection } from "@/lib/contribute/selection";
+import { groupByProject, privateIds, sessionRows, toggleNode } from "@/lib/contribute/selection";
 import { groupedContributionBatches, mergeContributionBatches } from "@/lib/contribute/groupedSelection";
-import { helperItemID, useExplicitHelperSelection } from "@/lib/contribute/helperSelection";
+import { helperItemID, useCollectiveIdentitySelection } from "@/lib/contribute/helperSelection";
 import { applyFilters, harnessCounts, type ContributeFilters } from "@/lib/contribute/filter";
 import ContributeTree from "@/components/contribute/ContributeTree";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
@@ -44,7 +44,6 @@ export default function GroupContributePage({
   const { data: contributable, isLoading: contributableLoading } = useContributable(id);
   const run = useContributeRun(id);
 
-  const [selection, setSelection] = useState<Selection>(new Set());
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [filters, setFilters] = useState<ContributeFilters>({ search: "", harness: null });
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -88,10 +87,14 @@ export default function GroupContributePage({
     const contribution = row?.contributable;
     return !row || !contribution || contribution.already_shared || contribution.id !== row.session.id;
   }, []);
-  const helper = useExplicitHelperSelection(helperDisabled);
+  const helper = useCollectiveIdentitySelection(helperDisabled);
+  // The ONE identity set both surfaces read: a transcript the tree draws and a
+  // helper disclosure nests is one selection, so it is counted once and both of
+  // its checkboxes state the same thing.
+  const selection = helper.selectedIds;
   const helperPrivateSelected = useMemo(
-    () => [...helper.selected.values()].filter((item) => item.transcript?.session.visibility === "private"),
-    [helper.selected],
+    () => [...helper.helperItems.values()].filter((item) => item.transcript?.session.visibility === "private"),
+    [helper.helperItems],
   );
   // The receipt list is keyed by `project_hash` (the run's grouping key), but
   // a viewer never sees a raw hash elsewhere on this page -- resolve it back
@@ -100,7 +103,7 @@ export default function GroupContributePage({
     () => new Map(rows.map((row) => [row.project_hash, row.project_display_name])),
     [rows],
   );
-  const selectedCount = selection.size + helper.selectedIds.size;
+  const selectedCount = selection.size;
 
   if (groupLoading || contributableLoading) {
     return (
@@ -136,7 +139,7 @@ export default function GroupContributePage({
   }
 
   function handleToggle(node: Parameters<typeof toggleNode>[1]) {
-    setSelection((prev) => toggleNode(prev, node));
+    helper.applyTreeSelection(toggleNode(selection, node));
   }
 
   // Select-all / deselect-all acts on the leaves the tree currently SHOWS: a
@@ -144,14 +147,12 @@ export default function GroupContributePage({
   // a filtered view can never silently drop (or silently add) a selection the
   // viewer cannot see.
   function handleToggleAll(ids: string[], selectAll: boolean) {
-    setSelection((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) {
-        if (selectAll) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
+    const next = new Set(selection);
+    for (const id of ids) {
+      if (selectAll) next.add(id);
+      else next.delete(id);
+    }
+    helper.applyTreeSelection(next);
   }
 
   async function startRun(visibilityConfirmed: boolean) {
@@ -162,40 +163,44 @@ export default function GroupContributePage({
     // per-transcript selection, and a helper is only ever its own id.
     const batches = mergeContributionBatches(
       groupByProject(selection, tree),
-      groupedContributionBatches([...helper.selected.values()]),
+      groupedContributionBatches([...helper.helperItems.values()]),
     );
     if (batches.size === 0) return;
     const results = await run.run(batches, visibilityConfirmed);
     const { clearedIds } = partitionRunOutcome(batches, results);
-    const cleared = new Set(clearedIds);
-    setSelection((prev) => new Set([...prev].filter((sel) => !cleared.has(sel))));
-    helper.forget(cleared);
+    helper.forget(clearedIds);
     setConfirmOpen(false);
   }
 
   function handleContributeClick() {
     if (selectedCount === 0) return;
-    const privates = [
+    // The confirm list and the gate are both derived from UNIQUE ids: one
+    // identity the tree and a helper disclosure both hold is one transcript to
+    // confirm, not two.
+    const privates = new Set([
       ...privateIds(selection, tree),
       ...helperPrivateSelected.map((item) => helperItemID(item)).filter((id): id is string => id != null),
-    ];
-    if (privates.length > 0) {
+    ]);
+    if (privates.size > 0) {
       setConfirmOpen(true);
       return;
     }
     void startRun(false);
   }
 
-  const privateSelectedItems = [
-    ...privateIds(selection, tree).map((transcriptId) => {
+  const privateSelectedItems = (() => {
+    const byID = new Map<string, { id: string; title: string }>();
+    for (const transcriptId of privateIds(selection, tree)) {
       const source = rows.find((row) => row.id === transcriptId);
-      return { id: transcriptId, title: source?.title ?? transcriptId };
-    }),
-    ...helperPrivateSelected.map((item) => ({
-      id: helperItemID(item) ?? "",
-      title: item.transcript?.session.title ?? helperItemID(item) ?? "",
-    })),
-  ];
+      byID.set(transcriptId, { id: transcriptId, title: source?.title ?? transcriptId });
+    }
+    for (const item of helperPrivateSelected) {
+      const id = helperItemID(item);
+      if (id == null || byID.has(id)) continue;
+      byID.set(id, { id, title: item.transcript?.session.title ?? id });
+    }
+    return [...byID.values()];
+  })();
 
   return (
     <div className="cmg-root max-w-[1600px] mx-auto px-6 pt-6 pb-24 flex flex-col gap-6 animate-fade-up">
@@ -291,7 +296,7 @@ export default function GroupContributePage({
       <div className="fixed bottom-0 left-0 right-0 border-t border-rule bg-surface z-10">
         <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
         <div className="flex flex-col gap-1 min-w-0">
-          <p className="text-xs font-mono text-ink-3 tabular-nums">{selectedCount} selected</p>
+          <p className="text-xs font-mono text-ink-3 tabular-nums" data-testid="contribute-selection-count">{selectedCount} selected</p>
           {run.state.running && (
             <div
               className="w-64 max-w-full h-1 bg-rule overflow-hidden"

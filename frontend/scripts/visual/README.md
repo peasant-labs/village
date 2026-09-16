@@ -314,9 +314,11 @@ read hangs a saved helper group under its owner row:
   the group expands to individually linked members. The browse list is
   read-only: it offers no per-member selection.
 - `collective-contribute` — `/groups/{id}/contribute`. Expanding the group and
-  ticking ONE member arms the contribution bar with exactly one transcript.
+  ticking ONE member arms the contribution bar with exactly one transcript, and
+  the SAME transcript's flat tree row reads checked: one identity, one selection.
 - `collective-review` — `/groups/{id}/review`. The same explicit per-member
-  selection on the owner's review queue; one tick arms the decision bar.
+  selection and the same one-identity rule on the owner's review queue; one tick
+  arms the decision bar.
 
 Each arm asserts build provenance and capture geometry before writing a PNG:
 exactly one group, inside the owner row the server grouped it with, with no

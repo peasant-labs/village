@@ -70,6 +70,25 @@ cases:
     group: other
     select: H1
     expected_ids: [H1]
+# An identity the flat rendering and a helper disclosure BOTH carry is ONE
+# selected identity: each displayed total counts it once, both of its checkboxes
+# state the same thing, and the batch a route submits names it once. A case ticks
+# it on one surface at a time and requires the other surface to follow.
+overlapCases:
+  - name: contribute-overlapping-identity-counts-once
+    surface: contribute
+    why: The flat tree and the owner's helper disclosure both carry the ticked identity, so one tick is one selected transcript on both surfaces.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
+  - name: review-overlapping-identity-counts-once
+    surface: review
+    why: The flat queue and the owner's helper disclosure both carry the ticked identity, so one tick is one selected submission on both surfaces.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
 # The flat rendering does not carry the grouped content, so the grouped read
 # must mount it on its own. `flat` is `empty` (nothing in the flat result) or
 # `rendered` (the flat result carries the owner row, so its group must mount

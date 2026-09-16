@@ -225,6 +225,15 @@ function memberCheckbox(label: string): HTMLInputElement {
   return box;
 }
 
+/** The ordinary flat tree checkbox drawn for one transcript identity. */
+function flatRowCheckbox(transcriptID: string): HTMLInputElement {
+  const row = document.querySelector<HTMLElement>(`[data-testid="contribute-session-row-${transcriptID}"]`);
+  if (row == null) throw new Error(`row ${transcriptID} is not drawn by the flat tree`);
+  const box = row.querySelector<HTMLInputElement>('input[type="checkbox"]');
+  if (box == null) throw new Error(`row ${transcriptID} has no flat tree checkbox`);
+  return box;
+}
+
 for (const testCase of fixtures.cases) {
   it(testCase.name, async () => {
     const row = fixtures.rows.find((candidate) => candidate.name === testCase.row)!;
@@ -330,5 +339,85 @@ for (const testCase of fixtures.cases) {
       expect(calls.mutations[0].body.status).toBe("approved");
       expect(JSON.stringify(calls.mutations[0].body)).not.toContain("groupId");
     }
+  });
+}
+
+/**
+ * An identity the flat rendering and a helper disclosure BOTH carry is ONE
+ * selected identity. Ticking it on either surface must select it on both, the
+ * displayed total must count it once, and the batch the route submits must name
+ * it once — driven by `overlapCases` in the same corpus.
+ */
+for (const testCase of fixtures.overlapCases) {
+  it(testCase.name, async () => {
+    const row = fixtures.rows.find((candidate) => candidate.name === testCase.row)!;
+    const selectedMember = fixtures.members[testCase.group].find(
+      (member) => member.name === testCase.select,
+    )!;
+    const memberID = memberUUID(selectedMember.name);
+    const calls = installREST(testCase.surface, testCase);
+
+    await act(async () => {
+      renderRoute(testCase.surface);
+    });
+
+    // The identity is drawn by the flat list ...
+    await waitFor(() =>
+      expect(screen.getByTestId(`contribute-session-row-${memberID}`)).toBeInTheDocument(),
+    );
+    await waitFor(() => expect(calls.grouped).toHaveLength(1));
+
+    // ... and it is the same identity the owner's helper disclosure nests.
+    await expandGroupUnder(row.id, selectedMember.title);
+
+    const helperBox = () => memberCheckbox(selectedMember.title);
+    const flatBox = () => flatRowCheckbox(memberID);
+    const tally = () =>
+      screen.getByTestId(
+        testCase.surface === "contribute" ? "contribute-selection-count" : "review-selection-count",
+      );
+
+    expect(flatBox().checked).toBe(false);
+    expect(helperBox().checked).toBe(false);
+    expect(tally().textContent).toBe("0 selected");
+
+    // One tick inside the disclosure selects the identity on BOTH surfaces and
+    // is counted once, never twice for the two places it is drawn.
+    act(() => {
+      fireEvent.click(helperBox());
+    });
+    await waitFor(() => expect(flatBox().checked).toBe(true));
+    expect(helperBox().checked).toBe(true);
+    expect(tally().textContent).toBe("1 selected");
+
+    // Clearing it on the flat surface clears the disclosure's checkbox too.
+    act(() => {
+      fireEvent.click(flatBox());
+    });
+    await waitFor(() => expect(helperBox().checked).toBe(false));
+    expect(flatBox().checked).toBe(false);
+    expect(tally().textContent).toBe("0 selected");
+
+    // One tick on the flat surface selects it on both surfaces as well.
+    act(() => {
+      fireEvent.click(flatBox());
+    });
+    await waitFor(() => expect(helperBox().checked).toBe(true));
+    expect(flatBox().checked).toBe(true);
+    expect(tally().textContent).toBe("1 selected");
+
+    // The submitted batch is the deduplicated set: this identity, once.
+    const action =
+      testCase.surface === "contribute"
+        ? screen.getByRole("button", { name: /contribute 1 transcript/ })
+        : screen.getByRole("button", { name: /approve selected/ });
+    await act(async () => {
+      fireEvent.click(action);
+    });
+    await waitFor(() => expect(calls.mutations).toHaveLength(1));
+    const submitted = calls.mutations[0].body.transcript_ids;
+    expect(submitted).toEqual(testCase.expected_ids.map((label) => memberUUID(label)));
+    expect(new Set(submitted).size).toBe(submitted.length);
+    expect(JSON.stringify(calls.mutations[0].body)).not.toContain("groupId");
   });
 }

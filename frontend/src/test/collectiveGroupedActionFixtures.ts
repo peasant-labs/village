@@ -77,6 +77,9 @@ export interface CollectiveContinuationCase {
   laterMember: string;
 }
 
+/** A case for an identity the flat rendering and a helper disclosure both carry. */
+export type CollectiveOverlapCase = CollectiveActionCase;
+
 export interface CollectiveGroupedActionFixtures {
   groupId: string;
   projectHash: string;
@@ -85,6 +88,7 @@ export interface CollectiveGroupedActionFixtures {
   members: Record<GroupKey, MemberSpec[]>;
   rows: RowSpec[];
   cases: CollectiveActionCase[];
+  overlapCases: CollectiveOverlapCase[];
   fallbackCases: CollectiveFallbackCase[];
   continuationCases: CollectiveContinuationCase[];
 }
@@ -95,6 +99,11 @@ const REQUIRED_CASES = [
   "contribute-context-container-is-not-selectable",
   "review-selects-one-helper-only",
   "review-other-owner-group-remains-independent",
+];
+
+const REQUIRED_OVERLAP_CASES = [
+  "contribute-overlapping-identity-counts-once",
+  "review-overlapping-identity-counts-once",
 ];
 
 const REQUIRED_FALLBACK_CASES = [
@@ -157,7 +166,7 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     readFileSync(resolve(process.cwd(), "src/testdata/collective-grouped-actions.yaml"), "utf8"),
     { strict: true },
   );
-  assertExactKeys(root, ["groupId", "projectHash", "projectName", "groups", "members", "rows", "cases", "fallbackCases", "continuationCases"], "root");
+  assertExactKeys(root, ["groupId", "projectHash", "projectName", "groups", "members", "rows", "cases", "overlapCases", "fallbackCases", "continuationCases"], "root");
 
   const groups = {} as Record<GroupKey, HelperGroupSummary>;
   for (const key of GROUP_KEYS) {
@@ -189,37 +198,50 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     for (const member of members[key]) memberNames.add(member.name);
   }
 
-  const cases = rawCases.map((value): CollectiveActionCase => {
+  function loadActionCase(value: CollectiveActionCase, where: string): CollectiveActionCase {
     const name = value.name;
     for (const field of Object.keys(value)) {
-      if (!CASE_FIELDS.has(field)) fail(`case "${name}"`, `states an unknown field "${field}"`);
+      if (!CASE_FIELDS.has(field)) fail(`${where} "${name}"`, `states an unknown field "${field}"`);
     }
     if (value.surface !== "contribute" && value.surface !== "review" && value.surface !== "browse") {
-      fail(`case "${name}"`, `states an unknown surface "${String(value.surface)}"`);
+      fail(`${where} "${name}"`, `states an unknown surface "${String(value.surface)}"`);
     }
-    if (!value.why?.trim()) fail(`case "${name}"`, "states no reason it exists");
-    if (!rowByName.has(value.row)) fail(`case "${name}"`, `names an undeclared row "${value.row}"`);
+    if (!value.why?.trim()) fail(`${where} "${name}"`, "states no reason it exists");
+    if (!rowByName.has(value.row)) fail(`${where} "${name}"`, `names an undeclared row "${value.row}"`);
     if (!(GROUP_KEYS as readonly string[]).includes(value.group)) {
-      fail(`case "${name}"`, `names an unknown group "${String(value.group)}"`);
+      fail(`${where} "${name}"`, `names an unknown group "${String(value.group)}"`);
     }
-    if (!Array.isArray(value.expected_ids)) fail(`case "${name}"`, "must state expected_ids as a list");
+    if (!Array.isArray(value.expected_ids)) fail(`${where} "${name}"`, "must state expected_ids as a list");
     for (const label of value.expected_ids) {
-      if (!memberNames.has(label)) fail(`case "${name}"`, `expects member "${label}", which no member page serves`);
+      if (!memberNames.has(label)) fail(`${where} "${name}"`, `expects member "${label}", which no member page serves`);
     }
     if (value.group === "context" && value.select !== undefined) {
-      fail(`case "${name}"`, "selects a member of a helper-only context container, which has no selectable row");
+      fail(`${where} "${name}"`, "selects a member of a helper-only context container, which has no selectable row");
     }
     if (value.select !== undefined && !members[value.group].some((member) => member.name === value.select)) {
-      fail(`case "${name}"`, `selects "${value.select}", which group "${value.group}" does not serve`);
+      fail(`${where} "${name}"`, `selects "${value.select}", which group "${value.group}" does not serve`);
     }
     if (value.select !== undefined && !value.expected_ids.includes(value.select)) {
-      fail(`case "${name}"`, `selects "${value.select}" but does not expect its id in the body`);
+      fail(`${where} "${name}"`, `selects "${value.select}" but does not expect its id in the body`);
     }
     if (value.select === undefined && value.expected_ids.length > 0) {
-      fail(`case "${name}"`, "expects selected ids but states nothing to select");
+      fail(`${where} "${name}"`, "expects selected ids but states nothing to select");
     }
     return value;
-  });
+  }
+
+  const cases = rawCases.map((value) => loadActionCase(value, "case"));
+
+  const rawOverlap = (root.overlapCases ?? []) as CollectiveOverlapCase[];
+  assertNamesMatch(
+    rawOverlap.map((value) => value.name),
+    REQUIRED_OVERLAP_CASES,
+    "collective grouped helper overlap",
+  );
+  // An overlap case is an ordinary action case whose identity both surfaces
+  // carry, so it is held to every rule an action case is; it exists as its own
+  // section only because its assertions span the two selection surfaces.
+  const overlapCases = rawOverlap.map((value) => loadActionCase(value, "overlap case"));
 
   const rawFallback = (root.fallbackCases ?? []) as CollectiveFallbackCase[];
   assertNamesMatch(
@@ -317,6 +339,7 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     members,
     rows,
     cases,
+    overlapCases,
     fallbackCases,
     continuationCases,
   };

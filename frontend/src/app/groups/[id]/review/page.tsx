@@ -9,9 +9,9 @@ import { useGroupedPendingShares } from "@/lib/queries/groupedCollectives";
 import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import { buildReviewTree, toReviewRows } from "@/lib/review/tree";
 import type { ReviewDecision } from "@/lib/review/types";
-import { sessionRows, toggleNode, type Selection } from "@/lib/contribute/selection";
+import { sessionRows, toggleNode } from "@/lib/contribute/selection";
 import { groupedReviewSelection } from "@/lib/contribute/groupedSelection";
-import { helperItemID, useExplicitHelperSelection } from "@/lib/contribute/helperSelection";
+import { helperItemID, useCollectiveIdentitySelection } from "@/lib/contribute/helperSelection";
 import { applyFilters, harnessCounts, type ContributeFilters } from "@/lib/contribute/filter";
 import ContributeTree from "@/components/contribute/ContributeTree";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
@@ -50,7 +50,6 @@ export default function GroupReviewPage({
   const { data: pending, isLoading: pendingLoading } = usePendingShares(id, isOwner);
   const review = useBatchReview(id);
 
-  const [selection, setSelection] = useState<Selection>(new Set());
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [filters, setFilters] = useState<ContributeFilters>({ search: "", harness: null });
   // Rows the server reported as already decided on the LAST action. They stay
@@ -90,7 +89,11 @@ export default function GroupReviewPage({
     },
     [stale],
   );
-  const helper = useExplicitHelperSelection(helperDisabled);
+  const helper = useCollectiveIdentitySelection(helperDisabled);
+  // The ONE identity set both surfaces read: a submission the flat queue draws
+  // and a helper disclosure nests is one selection, so it is counted once and
+  // both of its checkboxes state the same thing.
+  const selection = helper.selectedIds;
 
   const shares = useMemo(() => pending ?? [], [pending]);
   const rows = useMemo(() => toReviewRows(shares, stale), [shares, stale]);
@@ -132,13 +135,22 @@ export default function GroupReviewPage({
     () => new Set([...selection].filter((id) => queuedIds.has(id))),
     [selection, queuedIds],
   );
-  // Helper members are narrowed against the same queue: one that left it since
-  // it was ticked must not be counted or resent.
-  const queuedHelperIds = useMemo(
-    () => new Set([...helper.selectedIds].filter((id) => queuedIds.has(id))),
-    [helper.selectedIds, queuedIds],
+  // The helper rows the queue still holds: one that left it since it was ticked
+  // must not be counted or resent. Their ids are already part of `selected` (the
+  // shared identity set), so the union below counts each identity once.
+  const queuedHelperItems = useMemo(
+    () =>
+      [...helper.helperItems.values()].filter((item) => {
+        const id = helperItemID(item);
+        return id != null && queuedIds.has(id);
+      }),
+    [helper.helperItems, queuedIds],
   );
-  const selectedCount = selected.size + queuedHelperIds.size;
+  const queuedHelperIds = useMemo(
+    () => new Set(queuedHelperItems.map((item) => helperItemID(item)).filter((id): id is string => id != null)),
+    [queuedHelperItems],
+  );
+  const selectedCount = new Set([...selected, ...queuedHelperIds]).size;
 
   if (groupLoading || (isOwner && pendingLoading)) {
     return (
@@ -174,21 +186,19 @@ export default function GroupReviewPage({
   }
 
   function handleToggle(node: Parameters<typeof toggleNode>[1]) {
-    setSelection((prev) => toggleNode(prev, node));
+    helper.applyTreeSelection(toggleNode(selection, node));
   }
 
   // Select-all / deselect-all acts on the leaves the tree currently SHOWS, so
   // a row hidden by the search or harness filter keeps whatever state it had
   // and a filtered view can never silently add a row to a decision.
   function handleToggleAll(ids: string[], selectAll: boolean) {
-    setSelection((prev) => {
-      const next = new Set(prev);
-      for (const rowID of ids) {
-        if (selectAll) next.add(rowID);
-        else next.delete(rowID);
-      }
-      return next;
-    });
+    const next = new Set(selection);
+    for (const rowID of ids) {
+      if (selectAll) next.add(rowID);
+      else next.delete(rowID);
+    }
+    helper.applyTreeSelection(next);
   }
 
   async function decide(status: ReviewDecision) {
@@ -196,11 +206,7 @@ export default function GroupReviewPage({
     // Tree rows and individually ticked helper members are ONE set of explicit
     // transcript ids: the decision names submissions, never a group id and
     // never a parent/sibling a helper happened to be grouped under.
-    const helperItems = [...helper.selected.values()].filter((item) => {
-      const itemID = helperItemID(item);
-      return itemID != null && queuedHelperIds.has(itemID);
-    });
-    const ids = [...new Set([...selected, ...groupedReviewSelection(helperItems)])];
+    const ids = [...new Set([...selected, ...groupedReviewSelection(queuedHelperItems)])];
     const outcome = await review.mutateAsync({ transcript_ids: ids, status });
     // Every id the server answered about leaves the selection: a decided row
     // is done, and a stale row can never be decided from here — leaving it
@@ -210,7 +216,6 @@ export default function GroupReviewPage({
     // decided instead of the rows simply vanishing.
     const answered = new Set([...outcome.decided, ...outcome.already_decided]);
     setStale(new Set(outcome.already_decided));
-    setSelection((prev) => new Set([...prev].filter((sel) => !answered.has(sel))));
     helper.forget(answered);
   }
 
