@@ -35,6 +35,9 @@ const attachmentRedactionLevel = string(redact.Standard)
 var (
 	errAttachmentUnbound           = errors.New("this attachment's collective is gone or its repository is no longer linked, so nothing can be posted for it")
 	errAttachmentGitHubUnavailable = errors.New("the GitHub App client is not configured, so the pull request cannot be read or updated")
+	// errAttachmentGitHub wraps any failure of a GitHub call so the routes can
+	// answer 502 and leave the attachment untouched for a retry.
+	errAttachmentGitHub = errors.New("a GitHub call for this attachment failed")
 )
 
 // attachmentRepository is the repository context an attachment's effects need,
@@ -93,14 +96,14 @@ func (h *Handler) resolveAttachmentRepository(ctx context.Context, q Querier, at
 // The accepted result is the ONLY input to completion, refresh, and initial
 // attachment, so no caller can re-derive a weaker rule from a repository, a
 // branch name, or a stored SHA.
-func (h *Handler) matchAttachmentCandidates(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository) (matcher.Result, []matcher.PullCommit, error) {
+func (h *Handler) matchAttachmentCandidates(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository) (matcher.Result, []string, error) {
 	if h.gh == nil {
 		return matcher.Result{}, nil, errAttachmentGitHubUnavailable
 	}
 
 	listed, err := h.gh.ListPullRequestCommits(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, int(attachment.Number), github.ListCommitsOptions{})
 	if err != nil {
-		return matcher.Result{}, nil, fmt.Errorf("could not list the pull request's commits: %w", err)
+		return matcher.Result{}, nil, fmt.Errorf("%w: listing the pull request's commits: %v", errAttachmentGitHub, err)
 	}
 
 	candidates, err := h.loadAttachmentCandidates(ctx, attachment.AuthorID)
@@ -109,8 +112,10 @@ func (h *Handler) matchAttachmentCandidates(ctx context.Context, attachment sqlc
 	}
 
 	commits := make([]matcher.PullCommit, 0, len(listed.Commits))
+	commitSet := make([]string, 0, len(listed.Commits))
 	for _, commit := range listed.Commits {
 		commits = append(commits, matcher.PullCommit{SHA: commit.SHA})
+		commitSet = append(commitSet, commit.SHA)
 	}
 
 	baseRepo := reponame.NormalizeRemote(attachment.BaseRemote)
@@ -126,7 +131,7 @@ func (h *Handler) matchAttachmentCandidates(ctx context.Context, attachment sqlc
 		Commits:           commits,
 	}
 
-	return matcher.Match(pullRequest, candidates), commits, nil
+	return matcher.Match(pullRequest, candidates), commitSet, nil
 }
 
 // loadAttachmentCandidates reads the author's own transcripts that carry a
