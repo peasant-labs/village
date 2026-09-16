@@ -37,7 +37,9 @@
     "mock:rest:profile": "node scripts/visual/mock-rest-profile.mjs",
     "mock:rest:project": "node scripts/visual/mock-rest-project.mjs",
     "shoot:project": "node scripts/visual/project-page-shoot.mjs",
-    "probe:collectives": "node scripts/visual/probe-collectives-standing.mjs"
+    "probe:collectives": "node scripts/visual/probe-collectives-standing.mjs",
+    "shoot:pull-request": "node scripts/visual/pull-request-shoot.mjs",
+    "shoot:profile-prompt-settings": "node scripts/visual/profile-prompt-settings-shoot.mjs"
   },
   "dependencies": {
     "@peasant-labs/fairtrade": "0.0.20",

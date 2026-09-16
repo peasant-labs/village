@@ -190,6 +190,20 @@ await page.setViewport({ width: 1460, height: 1000, deviceScaleFactor: 1 })
 if (VIEWER_ROLE === 'owner') {
   await page.goto(`${ORIGIN}/groups/${encodeURIComponent(GROUP_ID)}/settings`, { waitUntil: 'domcontentloaded' })
   await pause(900)
+  // Provenance for THIS change: the prompts-check switch and its mode radios must
+  // be in the served build before the settings surface is captured, or a stale
+  // build would produce a valid-looking settings PNG without them.
+  const promptsCheck = await page.$('#group-post-prompts-check')
+  const promptsMode = await page.$('input[name="prompts-check-mode"]')
+  if (!promptsCheck || !promptsMode) {
+    console.error(
+      `ERROR [manage-shoot.mjs] the settings form is missing the prompts-check controls ` +
+        `(switch=${!!promptsCheck} mode=${!!promptsMode}); the served build predates them, ` +
+        `so the capture would document a form this change does not produce.`,
+    )
+    await browser.close()
+    process.exit(2)
+  }
   await shot('manage-settings', '.cmg-settings form', { fullPage: true })
 } else {
   console.log('skip manage-settings: the settings route is owner-only and MOCK_ROLE=' + VIEWER_ROLE)

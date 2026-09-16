@@ -26,6 +26,7 @@ import {
   Button as FtButton,
   Checkbox as FtCheckbox,
   Input as FtInput,
+  PromptDigest as FtPromptDigest,
   Radio as FtRadio,
   RadioGroup as FtRadioGroup,
   RailSection as FtRailSection,
@@ -311,6 +312,14 @@ export const RadioGroup = FtRadioGroup as ComponentType<{
  * (no `& any` widening needed) — re-exported as shipped.
  */
 export const Switch = FtSwitch;
+
+/**
+ * fairtrade PromptDigest — the prompts behind a pull request, rendered read-only
+ * from the schema type. The design system owns this rendering (labels, clamping,
+ * counts, the chain's own structure) and the consuming page supplies only the
+ * link for each item, so a page cannot fork the way a digest reads.
+ */
+export const PromptDigest = FtPromptDigest;
 
 // ── Role roster + inline danger ───────────────────────────────────────────────
 

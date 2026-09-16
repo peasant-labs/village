@@ -278,6 +278,7 @@ const shoot = async (rawName, sel) => {
 
 await page.evaluate(() => document.querySelector('[data-testid="profile-collectives"]').scrollIntoView({ block: 'center' }))
 await pause(300)
+await shoot('profile-prompt-settings', '[data-testid="profile-prompt-settings"]')
 await shoot('profile-collectives', '[data-testid="profile-collectives"]')
 
 // Open "Strict Curators" — the collective whose only pair was refused three

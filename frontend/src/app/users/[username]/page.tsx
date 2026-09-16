@@ -10,6 +10,10 @@ import {
 } from "@/components/transcript/ScopedHelperGroups";
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { useDeleteAccount, usePublicProfile, useUpdateMySettings } from "@/lib/queries/auth";
+import {
+  useUpdateUserPromptSettings,
+  useUserPromptSettings,
+} from "@/lib/queries/pulls";
 import { useAuth } from "@/providers/AuthProvider";
 import TranscriptList from "@/components/transcript/TranscriptList";
 import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
@@ -19,6 +23,7 @@ import {
   RailSection,
   RailShell,
   StatGrid,
+  Switch,
   TeachingEmptyState,
 } from "@/lib/ft-ui";
 import PublishImportDialog from "@/app/publish/PublishImportDialog";
@@ -33,6 +38,7 @@ import {
   EyeOff,
   FileText,
   FolderOpen,
+  Layers,
   Library,
   Plus,
   Trash2,
@@ -65,6 +71,10 @@ export default function UserProfilePage({
 
   const isOwnProfile =
     !!user && user.github_username.toLowerCase() === username.toLowerCase();
+  // The attachment preference is served by /users/me/settings, not /auth/me, so
+  // it is read only for the caller's own profile and never for a visitor.
+  const promptSettings = useUserPromptSettings(isOwnProfile, username);
+  const updatePromptSettings = useUpdateUserPromptSettings(username);
   const { groups, malformed: malformedProjectItems } = data?.transcripts
     ? groupByProject(data.transcripts)
     : { groups: [], malformed: [] };
@@ -324,6 +334,42 @@ export default function UserProfilePage({
                 className="h-4 w-4 border border-rule bg-surface focus-mono cursor-pointer disabled:cursor-wait"
               />
             </label>
+          </div>
+        </RailSection>
+
+        <RailSection title="pull requests" icon={Layers} meta={undefined}>
+          <div className="sw-stack" data-testid="profile-prompt-settings">
+            <label htmlFor="user-preview-before-attach" className="sw-label">
+              Preview before attaching
+            </label>
+            <span className="sw-hint">
+              When on, a pull request you authored stops at a preview you confirm before
+              your prompts are shared with the collective. When off, your prompts attach
+              as soon as the pull request&apos;s author action runs.
+            </span>
+            <div className="sw-toggle-row">
+              <Switch
+                id="user-preview-before-attach"
+                checked={promptSettings.data?.preview_before_attach ?? false}
+                // Nothing is togglable until the stored value is known: an
+                // un-fetched control would read "off" to a user whose setting is
+                // on, and a click while it is absent could only send that wrong
+                // value.
+                disabled={!promptSettings.isFetched || updatePromptSettings.isPending}
+                busy={updatePromptSettings.isPending}
+                onChange={(checked: boolean) => updatePromptSettings.mutate(checked)}
+              />
+            </div>
+            {promptSettings.error && (
+              <p className="text-[13px] text-danger" role="alert">
+                {promptSettings.error.message}
+              </p>
+            )}
+            {updatePromptSettings.error && (
+              <p className="text-[13px] text-danger" role="alert">
+                {updatePromptSettings.error.message}
+              </p>
+            )}
           </div>
         </RailSection>
 

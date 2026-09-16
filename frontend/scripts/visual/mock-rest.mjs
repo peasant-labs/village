@@ -842,6 +842,77 @@ const server = createServer((req, res) => {
     })
     return
   }
+  // The pull request page (#113): one attached attachment with a digest, plus
+  // the caller's own attachment preference. The digest is the shape the backend
+  // builds, so a capture shows real session/prompt/skill/commit rows.
+  if (req.method === 'GET' && /^\/users\/me\/settings$/.test(p)) {
+    return send(res, 200, { preview_before_attach: process.env.MOCK_PREVIEW_BEFORE_ATTACH === '0' ? false : true })
+  }
+  if (req.method === 'PATCH' && p === '/users/me/settings') {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk })
+    req.on('end', () => {
+      const parsed = JSON.parse(body || '{}')
+      send(res, 200, { preview_before_attach: Boolean(parsed.preview_before_attach) })
+    })
+    return
+  }
+  const pullMatch = /^\/pulls\/([^/]+)\/([^/]+)\/(\d+)(\/confirm)?$/.exec(p)
+  if (pullMatch) {
+    const [, owner, name, number, confirm] = pullMatch
+    const attached = req.method !== 'DELETE' && confirm !== undefined
+    const state = req.method === 'DELETE' ? 'detached' : attached ? 'attached' : 'preview'
+    return send(res, 200, {
+      attachment: {
+        id: '7f3c1a2b-4d5e-4f60-8a9b-0c1d2e3f4a5b',
+        owner,
+        name,
+        number: Number(number),
+        head_sha: '0123456789abcdef0123456789abcdef01234567',
+        is_private_repository: false,
+        state,
+        author_user_id: user.id,
+        requested_by_github_id: null,
+        comment_id: state === 'attached' ? 4242 : null,
+        check_run_id: state === 'attached' ? 77 : null,
+        created_at: '2026-06-28T12:00:00Z',
+        updated_at: '2026-06-28T12:00:00Z',
+        confirmed_at: state === 'attached' ? '2026-06-28T12:05:00Z' : null,
+        detached_at: state === 'detached' ? '2026-06-28T12:10:00Z' : null,
+      },
+      digest: {
+        header: {
+          sessionCount: 2,
+          promptCount: 3,
+          commitsCovered: 2,
+          commitsTotal: 3,
+          harness: 'claude-code',
+          redactionLevel: 'standard',
+          villageUrl: 'http://localhost:3000',
+        },
+        skills: [
+          { name: 'commit', invocationCount: 2 },
+          { name: 'review', invocationCount: 1 },
+        ],
+        items: [
+          { kind: 'session', transcriptId: '11111111-1111-1111-1111-111111111111', timestamp: '2026-06-28T11:00:00Z', text: 'session 1', promptCount: 2, commitCount: 1 },
+          { kind: 'prompt', transcriptId: '11111111-1111-1111-1111-111111111111', timestamp: '2026-06-28T11:01:00Z', text: 'attach the prompts behind a pull request', ordinal: 1, turnIndex: 0 },
+          { kind: 'commit', transcriptId: '11111111-1111-1111-1111-111111111111', timestamp: '2026-06-28T11:10:00Z', text: 'abc1234', commitSha: 'abc1234000000000000000000000000000000001', additions: 42, deletions: 7, filesChanged: 3 },
+          { kind: 'session', transcriptId: '22222222-2222-2222-2222-222222222222', timestamp: '2026-06-28T12:00:00Z', text: 'session 2', promptCount: 1, commitCount: 1 },
+          { kind: 'prompt', transcriptId: '22222222-2222-2222-2222-222222222222', timestamp: '2026-06-28T12:01:00Z', text: 'render the digest plainly until the component ships', ordinal: 2, turnIndex: 4 },
+          { kind: 'skill', transcriptId: '22222222-2222-2222-2222-222222222222', timestamp: '2026-06-28T12:02:00Z', text: '/commit', args: '-m "render the digest"', turnIndex: 5 },
+          // A long prompt carrying an unbroken token, so the capture shows the
+          // clamp and the wrap rather than a row that happens to be short.
+          { kind: 'prompt', transcriptId: '22222222-2222-2222-2222-222222222222', timestamp: '2026-06-28T12:03:00Z', text: 'please make the pull request page read the same way as the transcript viewer: the chain should show every session boundary, then each prompt in order, and each commit anchor with its change counts, and it must not overflow the panel when a prompt contains something long like https://github.com/peasant-labs/village/blob/0123456789abcdef0123456789abcdef01234567/frontend/src/app/pulls/%5Bowner%5D/%5Bname%5D/%5Bnumber%5D/page.tsx?plain=1#L120-L180 or a minified line of configuration, so clamp the preview and let the link carry the reader to the exact turn that produced it. This sentence repeats so the row is certainly longer than the clamp: the chain must stay complete while each prompt stays a readable preview, the chain must stay complete while each prompt stays a readable preview, the chain must stay complete while each prompt stays a readable preview, the chain must stay complete while each prompt stays a readable preview, the chain must stay complete while each prompt stays a readable preview, and the reader reaches the rest through the link.', ordinal: 3, turnIndex: 6 },
+        ],
+      },
+      transcripts: [
+        { transcript_id: '11111111-1111-1111-1111-111111111111', position: 0, previous_visibility: 'private', title: 'attachment lifecycle', session_start: '2026-06-28T11:00:00Z' },
+        { transcript_id: '22222222-2222-2222-2222-222222222222', position: 1, previous_visibility: 'private', title: 'pull request page', session_start: '2026-06-28T12:00:00Z' },
+      ],
+      viewer_is_author: true,
+    })
+  }
   if (req.method === 'GET' && p === '/auth/me') return send(res, 200, user)
   if (req.method === 'GET' && p === '/auth/orgs') return send(res, 200, [{ org_id: 1, org_login: 'anthropic-labs', avatar_url: null, visible: true, fetched_at: '2026-06-28T12:00:00Z' }])
   if (req.method === 'GET' && p === '/groups') return send(res, 200, groupsList)

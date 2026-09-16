@@ -1,0 +1,45 @@
+# The pull request page, one case per state a reader can land in. The page
+# renders the digest the server computed and offers a confirm or a detach only
+# where the state and the viewer allow it; a refused action shows the server's
+# message rather than a crash. Cases are named in the loader's manifest, so a
+# removed row fails rather than shrinking the corpus.
+cases:
+  - name: author viewing an attached digest
+    viewer_is_author: true
+    state: attached
+    digest: present
+    confirm_status: null
+    expect_confirm: false
+    expect_detach: true
+
+  - name: author viewing a preview with confirm available
+    viewer_is_author: true
+    state: preview
+    digest: present
+    confirm_status: null
+    expect_confirm: true
+    expect_detach: true
+
+  - name: non-author viewing an attached digest
+    viewer_is_author: false
+    state: attached
+    digest: present
+    confirm_status: null
+    expect_confirm: false
+    expect_detach: false
+
+  - name: non-author viewing a preview without a digest
+    viewer_is_author: false
+    state: preview
+    digest: absent
+    confirm_status: null
+    expect_confirm: false
+    expect_detach: false
+
+  - name: confirm refused with a conflict
+    viewer_is_author: true
+    state: preview
+    digest: present
+    confirm_status: 409
+    expect_confirm: true
+    expect_detach: true
