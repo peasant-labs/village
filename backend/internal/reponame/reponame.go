@@ -22,14 +22,8 @@ import "strings"
 // "no repository", never as a match.
 func Normalize(projectName string, gitRemote string) string {
 	// Try git remote first
-	if gitRemote != "" {
-		remote := strings.TrimSuffix(gitRemote, ".git")
-		if idx := strings.LastIndex(remote, "/"); idx >= 0 {
-			name := remote[idx+1:]
-			if name != "" {
-				return name
-			}
-		}
+	if name := NormalizeRemote(gitRemote); name != "" {
+		return name
 	}
 
 	if projectName == "" {
@@ -69,4 +63,26 @@ func Normalize(projectName string, gitRemote string) string {
 	}
 
 	return projectName
+}
+
+// NormalizeRemote derives the repository name a stored git remote names, using
+// exactly the remote half of Normalize's rule. It returns "" when the remote is
+// empty or names no repository.
+//
+// It is separate because a caller that must not guess cannot use Normalize.
+// Normalize falls back to the project path, which is a display-name heuristic
+// for the publish path where no remote was recorded; the pull-request matcher
+// must consider only the stored remote, because a local directory name is not
+// evidence that a transcript belongs to a pull request's repository.
+func NormalizeRemote(gitRemote string) string {
+	if gitRemote == "" {
+		return ""
+	}
+	remote := strings.TrimSuffix(gitRemote, ".git")
+	if idx := strings.LastIndex(remote, "/"); idx >= 0 {
+		if name := remote[idx+1:]; name != "" {
+			return name
+		}
+	}
+	return ""
 }
