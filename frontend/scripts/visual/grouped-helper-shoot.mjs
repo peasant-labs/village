@@ -58,9 +58,15 @@
      PUPPETEER_CORE         explicit module path to puppeteer-core (optional)
    usage: GROUPED_SHOOT_SURFACE=discovery CHROME_PATH=... node grouped-helper-shoot.mjs <theme> <outdir>
 */
-import { mkdirSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { SurfaceGate } from './surface-gate.mjs'
 import { applyDeterminism } from './determinism.mjs'
+import {
+  COLLECTIVE_ARMS,
+  describeWrap,
+  measureCollectiveStyles,
+  sha256Hex,
+} from './collective-sxs.mjs'
 const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core')).default
 
 const CHROME = process.env.CHROME_PATH
@@ -207,6 +213,118 @@ const capture = async (name, panelSel, where) => {
   const r = await gate.assert(name, file, { sel: 'body', where: 'grouped-helper-shoot.mjs' })
   console.log('shot', name.padEnd(34), `${Math.round(box.width)}x${Math.round(box.height)}`.padEnd(11), `nonbg=${(r.nonbgRatio * 100).toFixed(2)}% colors=${r.distinctColors} ${(statSync(file).size / 1024).toFixed(1)}KB`)
   return r
+}
+
+/* ── the collective side-by-side arms' evidence ──────────────────────────────
+
+   The four arms that feed `collective-stitch-sxs.mjs` record, per arm, the served
+   bundle they were captured from (both markers present, sha256 of the served
+   bytes) and the shared computed-style + wrap readings. The stitcher compares
+   those readings against the demo side's and fails closed on a mismatch, so the
+   comparison is an implemented gate rather than a report claim. */
+/* NOTE: this script already shadows the global `URL` constructor with the target
+   URL constant, so the served asset paths are joined by hand rather than with
+   `new URL(...)`. */
+const absoluteAssetUrl = (src) =>
+  /^https?:/.test(src) ? src : `${ORIGIN}${src.startsWith('/') ? '' : '/'}${src}`
+const fetchedAssets = new Map()
+const servedAppAssets = async (markers) => {
+  // Route chunks are fetched lazily, so the marker bundle is not always among the
+  // page's <script src> tags: every loaded script resource counts as well, or an
+  // arm on a lazily-loaded route would fail to attribute its own bundle.
+  const sources = await page.evaluate(() => {
+    const scripts = [...document.querySelectorAll('script[src]')].map((el) => el.getAttribute('src'))
+    const resources = performance.getEntriesByType('resource').map((entry) => entry.name)
+    return [...new Set([...scripts, ...resources].filter((url) => url && /\.js(\?|$)/.test(url)))]
+  })
+  const matches = []
+  for (const src of sources) {
+    const url = absoluteAssetUrl(src)
+    if (!fetchedAssets.has(url)) {
+      try {
+        const response = await fetch(url)
+        if (!response.ok) {
+          fetchedAssets.set(url, null)
+          continue
+        }
+        const body = Buffer.from(await response.arrayBuffer())
+        fetchedAssets.set(url, {
+          url,
+          file: src.split('/').pop().split('?')[0],
+          bytes: body.length,
+          sha256: sha256Hex(body),
+          text: body.toString('utf8'),
+        })
+      } catch {
+        fetchedAssets.set(url, null)
+        continue
+      }
+    }
+    const record = fetchedAssets.get(url)
+    if (record && markers.every((marker) => record.text.includes(marker))) matches.push(record)
+  }
+  return matches.map((record) => ({ url: record.url, file: record.file, bytes: record.bytes, sha256: record.sha256 }))
+}
+let provenAsset = null
+
+const recordCollectiveArm = async (shootSurface) => {
+  const arm = COLLECTIVE_ARMS.find((entry) => entry.shootSurface === shootSurface)
+  if (!arm) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] "${shootSurface}" is not a registered side-by-side arm.
+  What failed: no COLLECTIVE_ARMS entry names this shoot surface.
+  Where: grouped-helper-shoot.mjs recordCollectiveArm.
+  Fix: register the arm in collective-sxs.mjs or stop recording it here.`, 2)
+  }
+  const matches = await servedAppAssets(arm.appMarkers)
+  if (matches.length < 1) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the served page carries no attributable bundle for "${shootSurface}".
+  What failed: no loaded bundle carried every marker this route must carry (${arm.appMarkers.join(', ')}).
+  Why: the server is serving another worktree, a stale build, or a dev server.
+  Where: grouped-helper-shoot.mjs served-bytes check at ${ORIGIN}.
+  Means: the subject pane could not be tied to the build under review.
+  Fix: rebuild and restart from this worktree, then re-capture.`, 2)
+  }
+  const asset = matches.sort((a, b) => b.bytes - a.bytes)[0]
+  if (provenAsset && provenAsset.sha256 !== asset.sha256) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the served build changed between arms.
+  What failed: "${shootSurface}" resolved ${asset.file} (sha256 ${asset.sha256.slice(0, 16)}…) but an earlier arm resolved ${provenAsset.file} (sha256 ${provenAsset.sha256.slice(0, 16)}…).
+  Why: the server was rebuilt or restarted against another build between arms.
+  Where: grouped-helper-shoot.mjs per-arm served-bytes check.
+  Means: the subject panes of one theme would not be the same build.
+  Fix: restart one build and re-capture the whole theme.`, 2)
+  }
+  provenAsset = asset
+
+  const styles = await measureCollectiveStyles(page, arm.styleScope.subject)
+  if (styles.missingScope) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the app style scope "${arm.styleScope.subject}" did not mount for "${shootSurface}".
+  What failed: no element matched that selector on ${URL}.
+  Where: grouped-helper-shoot.mjs shared style probe.
+  Fix: confirm the arm's styleScope in collective-sxs.mjs matches the mounted region, then retry.`, 2)
+  }
+
+  const stylesPath = `${out}/styles.json`
+  const previousStyles = existsSync(stylesPath) ? JSON.parse(readFileSync(stylesPath, 'utf8')) : { arms: {} }
+  writeFileSync(stylesPath, JSON.stringify({ theme, arms: { ...previousStyles.arms, [arm.surface]: styles } }, null, 2))
+  const provenancePath = `${out}/provenance.json`
+  const previousProvenance = existsSync(provenancePath) ? JSON.parse(readFileSync(provenancePath, 'utf8')) : { theme }
+  writeFileSync(provenancePath, JSON.stringify({
+    ...previousProvenance,
+    theme,
+    proof: 'served-bundle',
+    remote: ORIGIN,
+    markers: arm.appMarkers,
+    asset,
+    // Every arm keeps ITS OWN served bundle + marker set: the routes serve
+    // different chunks, so one arm's bundle must never be reported for another.
+    arms: [
+      ...(previousProvenance.arms ?? []).filter((entry) => entry.surface !== arm.surface),
+      { surface: arm.surface, asset, markers: arm.appMarkers },
+    ],
+  }, null, 2))
+  console.log('arm', shootSurface.padEnd(26), `bundle=${asset.file}`,
+    `sha256=${asset.sha256.slice(0, 16)}…`,
+    `| wrap count ${describeWrap(styles.wrap.count)} · facts ${describeWrap(styles.wrap.facts)}`)
 }
 
 await page.goto(URL, { waitUntil: 'networkidle0' })
@@ -610,6 +728,7 @@ if (SURFACE === 'discovery') {
     `the ${SURFACE} helper group count`,
   )
   await capture(`village-${SURFACE}`, panelSel, SURFACE)
+  await recordCollectiveArm(SURFACE)
   console.log(`${SURFACE} provenance:`, JSON.stringify({ closed, openedLinks }))
   console.log('computed helper-group count style:', JSON.stringify(style))
 } else {
@@ -695,7 +814,11 @@ if (SURFACE === 'discovery') {
       { fontFamily: isMono, borderRadius: isSquare },
       'the collective browse helper group count',
     )
-    await capture('village-collective-grouped-browse', null, 'collective-browse')
+    await capture('village-collective-grouped-browse', 'div:has(> [data-testid="owner-helper-groups"])', 'collective-browse')
+    // The crop above is the owner row AND its grouped children: `owner-helper-groups`
+    // alone holds only the group, so a crop of it would omit the owner anchor the
+    // arm's mapping is about.
+    await recordCollectiveArm('collective-browse')
     console.log('collective-browse provenance:', JSON.stringify({ closed, openedLinks }))
     console.log('computed helper-group count style:', JSON.stringify(style))
   } else {
@@ -744,6 +867,7 @@ if (SURFACE === 'discovery') {
       `the ${SURFACE} helper group count`,
     )
     await capture(`village-${SURFACE}-grouped-helper`, panelSel, SURFACE)
+    await recordCollectiveArm(SURFACE)
     console.log(`${SURFACE} provenance:`, JSON.stringify({ closed, openedLinks, armed, overlap }))
     console.log('computed helper-group count style:', JSON.stringify(style))
   }

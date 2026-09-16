@@ -26,10 +26,18 @@ interface ContributeTreeProps {
   countNoun?: string;
   emptyLabel?: string;
   /** The saved helper groups hanging off one session row, mounted by the page
-   *  that owns the grouped read. A group renders directly beneath the row it
-   *  belongs to, so the group's members are selectable without a second,
-   *  duplicated copy of the owner row. The page owns the selection state. */
-  helperGroupSlot?: (session: SessionNode<TreeRowFacts>) => React.ReactNode;
+   *  that owns the grouped read. The slot receives the row this tree already
+   *  draws (and the sessions it started) so the page can mount that very row as
+   *  the OWNER of the canonical helper tree the groups hang in; the connector
+   *  then traces the per-member checkboxes. The group renders directly beneath
+   *  the row it belongs to, so the group's members are selectable without a
+   *  second, duplicated copy of the owner row. Returning null (or undefined)
+   *  means "this row carries no saved helper group": the row renders unchanged.
+   *  The page owns the selection state. */
+  helperGroupSlot?: (
+    session: SessionNode<TreeRowFacts>,
+    owner: React.ReactNode,
+  ) => React.ReactNode;
 }
 
 /** Depth column each row type occupies in the connector: project 0, branch (or
@@ -149,7 +157,10 @@ function SessionRow({
   setRowElement: (key: string, element: HTMLElement | null) => void;
   openChildren: ReadonlySet<string>;
   onToggleChildren: (sessionId: string) => void;
-  helperGroupSlot?: (session: SessionNode<TreeRowFacts>) => React.ReactNode;
+  helperGroupSlot?: (
+    session: SessionNode<TreeRowFacts>,
+    owner: React.ReactNode,
+  ) => React.ReactNode;
 }) {
   const childrenOpen = openChildren.has(session.id);
   const state = nodeState(selection, session);
@@ -159,95 +170,112 @@ function SessionRow({
     [session.id, setRowElement],
   );
 
+  const row = (
+    <div
+      ref={rowRef}
+      className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+        isActive ? "bg-surface-hover" : "hover:bg-surface-hover"
+      }`}
+      data-testid={`contribute-session-row-${session.id}`}
+    >
+      <TriStateCheckbox
+        state={state}
+        disabled={session.locked}
+        onChange={() => onToggleNode(session)}
+        label={`select session ${session.label}`}
+      />
+      {/* Title and its row-level marks share ONE line; the metadata line owns
+          the full width below them. Keeping the marks out of the metadata
+          line is what stops a narrow column from truncating (or wrapping)
+          the very facts the row exists to state. */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => onPreview(session.id)}
+            className="min-w-0 flex-1 text-sm text-ink truncate text-left cursor-pointer focus-mono"
+          >
+            {session.label}
+          </button>
+          {session.mark != null && <Tag className="shrink-0">{session.mark}</Tag>}
+        </div>
+        <div className="font-mono text-xs text-ink-3 tabular-nums [overflow-wrap:anywhere]">{session.meta}</div>
+      </div>
+    </div>
+  );
+
+  // The sessions this one started, behind the SAME control the home page
+  // and every other transcript list uses. The marker attribute is the same
+  // one those lists carry, so what a control belongs to is observable here
+  // in the same way rather than inferred from the order elements happen to
+  // appear in.
+  const startedSessions = session.children.length > 0 && (
+    <div className="pl-4" data-parent-transcript-id={session.id}>
+      <SessionGroupDisclosure
+        // Open, the rows are on screen and their own ticks say what is
+        // selected. CLOSED, they are not, so the control carries the count
+        // itself. A session's checkbox governs its whole subtree, so a
+        // selected hidden row does leave this row ticked or part-ticked --
+        // but an indeterminate mark is something a reader has to infer,
+        // and a count is something the control states.
+        label={childSessionGroupLabel(session.children.length)}
+        collapsedLabel={childSessionGroupSelectionLabel(
+          session.children.length,
+          session.children.filter((child) => selection.has(child.id)).length,
+        )}
+        expanded={childrenOpen}
+        onToggle={() => onToggleChildren(session.id)}
+        rowsID={`contribute-child-sessions-${session.id}`}
+        testID="child-session-disclosure"
+        bare
+      >
+        <div
+          id={`contribute-child-sessions-${session.id}`}
+          data-testid="child-session-disclosure-rows"
+          className="contribute-subtree"
+        >
+          {session.children.map((child) => (
+            <SessionRow
+              key={child.id}
+              session={child}
+              depth={depth + 1}
+              selection={selection}
+              onToggleNode={onToggleNode}
+              onPreview={onPreview}
+              previewId={previewId}
+              setRowElement={setRowElement}
+              openChildren={openChildren}
+              onToggleChildren={onToggleChildren}
+              helperGroupSlot={helperGroupSlot}
+            />
+          ))}
+        </div>
+      </SessionGroupDisclosure>
+    </div>
+  );
+
+  // The row and the sessions it started are ONE owner slot: the page mounts
+  // them as the owner of the canonical helper tree it composes around the saved
+  // helper groups, so the row keeps its own checkbox and this tree's own
+  // hierarchy connector while the helper tree adds its connector over the
+  // members. Both stay inside that slot, so the order a reader sees - the row,
+  // its started sessions, then its saved helpers - does not move.
+  const ownerRow = (
+    <>
+      {row}
+      {startedSessions}
+    </>
+  );
+  const grouped = helperGroupSlot?.(session, ownerRow);
+
   return (
     <div>
-      <div
-        ref={rowRef}
-        className={`flex items-center gap-3 px-4 py-3 transition-colors ${
-          isActive ? "bg-surface-hover" : "hover:bg-surface-hover"
-        }`}
-        data-testid={`contribute-session-row-${session.id}`}
-      >
-        <TriStateCheckbox
-          state={state}
-          disabled={session.locked}
-          onChange={() => onToggleNode(session)}
-          label={`select session ${session.label}`}
-        />
-        {/* Title and its row-level marks share ONE line; the metadata line owns
-            the full width below them. Keeping the marks out of the metadata
-            line is what stops a narrow column from truncating (or wrapping)
-            the very facts the row exists to state. */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => onPreview(session.id)}
-              className="min-w-0 flex-1 text-sm text-ink truncate text-left cursor-pointer focus-mono"
-            >
-              {session.label}
-            </button>
-            {session.mark != null && <Tag className="shrink-0">{session.mark}</Tag>}
-          </div>
-          <div className="font-mono text-xs text-ink-3 tabular-nums [overflow-wrap:anywhere]">{session.meta}</div>
-        </div>
-      </div>
-      {/* The sessions this one started, behind the SAME control the home page
-          and every other transcript list uses. The marker attribute is the same
-          one those lists carry, so what a control belongs to is observable here
-          in the same way rather than inferred from the order elements happen to
-          appear in. */}
-      {session.children.length > 0 && (
-        <div className="pl-4" data-parent-transcript-id={session.id}>
-          <SessionGroupDisclosure
-            // Open, the rows are on screen and their own ticks say what is
-            // selected. CLOSED, they are not, so the control carries the count
-            // itself. A session's checkbox governs its whole subtree, so a
-            // selected hidden row does leave this row ticked or part-ticked --
-            // but an indeterminate mark is something a reader has to infer,
-            // and a count is something the control states.
-            label={childSessionGroupLabel(session.children.length)}
-            collapsedLabel={childSessionGroupSelectionLabel(
-              session.children.length,
-              session.children.filter((child) => selection.has(child.id)).length,
-            )}
-            expanded={childrenOpen}
-            onToggle={() => onToggleChildren(session.id)}
-            rowsID={`contribute-child-sessions-${session.id}`}
-            testID="child-session-disclosure"
-            bare
-          >
-            <div
-              id={`contribute-child-sessions-${session.id}`}
-              data-testid="child-session-disclosure-rows"
-              className="contribute-subtree"
-            >
-              {session.children.map((child) => (
-                <SessionRow
-                  key={child.id}
-                  session={child}
-                  depth={depth + 1}
-                  selection={selection}
-                  onToggleNode={onToggleNode}
-                  onPreview={onPreview}
-                  previewId={previewId}
-                  setRowElement={setRowElement}
-                  openChildren={openChildren}
-                  onToggleChildren={onToggleChildren}
-                  helperGroupSlot={helperGroupSlot}
-                />
-              ))}
-            </div>
-          </SessionGroupDisclosure>
-        </div>
-      )}
-      {/* The saved helper groups that hang off THIS row, drawn under it by the
-          page that owns the grouped read. The marker names the owner row so a
-          group's place in the tree is observable rather than inferred. */}
-      {helperGroupSlot != null && (
-        <div className="pl-4" data-helper-group-owner={session.id}>
-          {helperGroupSlot(session)}
-        </div>
+      {grouped == null ? (
+        ownerRow
+      ) : (
+        // The marker names the owner row a group hangs under, so a group's place
+        // in the tree is observable rather than inferred.
+        <div data-helper-group-owner={session.id}>{grouped}</div>
       )}
     </div>
   );
@@ -273,7 +301,10 @@ function GroupRow({
   setRowElement: (key: string, element: HTMLElement | null) => void;
   openChildren: ReadonlySet<string>;
   onToggleChildren: (sessionId: string) => void;
-  helperGroupSlot?: (session: SessionNode<TreeRowFacts>) => React.ReactNode;
+  helperGroupSlot?: (
+    session: SessionNode<TreeRowFacts>,
+    owner: React.ReactNode,
+  ) => React.ReactNode;
 }) {
   const state = nodeState(selection, node);
   // A branch names itself; the synthetic orphans grouping is not a branch and
@@ -341,7 +372,10 @@ function ProjectRow({
   setRowElement: (key: string, element: HTMLElement | null) => void;
   openChildren: ReadonlySet<string>;
   onToggleChildren: (sessionId: string) => void;
-  helperGroupSlot?: (session: SessionNode<TreeRowFacts>) => React.ReactNode;
+  helperGroupSlot?: (
+    session: SessionNode<TreeRowFacts>,
+    owner: React.ReactNode,
+  ) => React.ReactNode;
 }) {
   const state = nodeState(selection, project);
   const projectRef = useCallback(

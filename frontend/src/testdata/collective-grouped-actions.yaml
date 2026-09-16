@@ -192,3 +192,31 @@ continuationCases:
     laterRow: P2
     laterGroup: other
     laterMember: H1
+# The per-member disclosure mounts the CANONICAL helper tree. The row the
+# surface already draws is that tree's owner, so the tree measures one connector
+# through the checkboxes of the member rows it holds; a tick inside it still
+# names exactly one member.
+#
+# `expectedAnchorCounts` is the connector oracle, read back from
+# `data-anchor-count` on the mounted connector: the anchors a COLLAPSED tree
+# holds (no member row is mounted, and the surface's own owner-row checkbox is
+# not a helper-tree anchor) and the anchors once its members are mounted. A
+# disclosure that draws per-member checkboxes outside the tree, or that traces a
+# row it does not own, is not the canonical composition and fails here.
+connectorCases:
+  - name: contribute-disclosure-mounts-the-canonical-tree
+    surface: contribute
+    why: The contribute tree's own row is the helper tree's owner, so the connector traces its member checkboxes while the row keeps its own selection state.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
+    expectedAnchorCounts: {collapsed: 0, expanded: 2}
+  - name: review-disclosure-mounts-the-canonical-tree
+    surface: review
+    why: The review tree's own row is the helper tree's owner, so the connector traces its member checkboxes while the row keeps its own decision state.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
+    expectedAnchorCounts: {collapsed: 0, expanded: 2}
