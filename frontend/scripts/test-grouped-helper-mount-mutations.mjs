@@ -45,6 +45,10 @@ const requiredNames = [
   "shape-oracle-served-measure-drift",
   "shape-oracle-expected-label-drift",
   "shape-oracle-required-case-renamed",
+  "shape-oracle-member-fact-row-scope",
+  "shape-oracle-unknown-root-field",
+  "shape-oracle-manifest-drifted",
+  "shape-oracle-manifest-missing",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (

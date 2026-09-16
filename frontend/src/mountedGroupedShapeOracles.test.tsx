@@ -112,6 +112,20 @@ function memberRowIds(groupId: string): string[] {
   );
 }
 
+/**
+ * The one member row with this identity inside its own group body. A fact is
+ * asserted on THIS row, never on the document, so another owner or helper that
+ * happens to state the same literal cannot satisfy a missing member fact.
+ */
+function memberRow(groupId: string, memberId: string): HTMLElement {
+  const root = document.querySelector<HTMLElement>(`.helper-group[data-group-id="${groupId}"]`);
+  const row = root?.querySelector<HTMLElement>(
+    `.helper-group-body .helper-thread-row[data-thread-id="${memberUUID(memberId)}"]`,
+  );
+  if (row == null) throw new Error(`member row ${memberId} is not mounted in group ${groupId}`);
+  return row;
+}
+
 for (const testCase of fixtures.cases) {
   it(testCase.name, async () => {
     const calls = installREST();
@@ -168,8 +182,9 @@ for (const testCase of fixtures.cases) {
         ),
       );
       for (const memberId of testCase.expectedMemberIds[groupKey]) {
+        const row = memberRow(group.groupId, memberId);
         for (const fact of testCase.expectedMemberFacts[memberId]) {
-          expect(document.body.textContent).toContain(fact);
+          expect(row.textContent).toContain(fact);
         }
       }
       expect(calls.some((call) => call.includes(`scope=${group.memberScope}`))).toBe(true);

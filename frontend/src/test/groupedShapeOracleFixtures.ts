@@ -6,7 +6,6 @@ import {
   type HelperGroupSummary,
   type VillageSessionListItem,
 } from "@peasant-labs/schema";
-import { assertNamesMatch } from "@/test/fixtureAssertions";
 import { memberUUID, type MemberSpec } from "@/test/groupedHelperMountFixtures";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 
@@ -21,9 +20,10 @@ import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
  * SERVED DATA and EXPECTED TEXT are declared apart, so an edit to the served
  * measures changes the rendered text without changing the pinned expectation and
  * the case fails instead of agreeing with itself. This loader refuses a corpus
- * that loses a required NAME, repeats one, states an unknown field, or declares
- * an expectation/total its owner rows and groups cannot produce -- so a case
- * cannot silently disappear and an inert expectation cannot survive.
+ * that loses a required NAME, repeats one, states an unknown root or row field,
+ * drifts or drops the `requiredNames` manifest, or declares an expectation/total
+ * its owner rows and groups cannot produce -- so a case cannot silently
+ * disappear and an inert expectation cannot survive.
  */
 
 export interface ShapeOwnerSpec {
@@ -78,6 +78,7 @@ const REQUIRED_CASES = [
   "ordinary3-helper3-top3",
 ];
 
+const ROOT_FIELDS = ["requiredNames", "owners", "groups", "memberPages", "cases"];
 const OWNER_FIELDS = ["title", "turnCount", "inputSubmissionCount", "groups"];
 const CASE_FIELDS = [
   "name",
@@ -110,6 +111,29 @@ function stringList(value: unknown, location: string): string[] {
     fail(location, "must be a non-empty list of literal strings");
   }
   return value as string[];
+}
+
+/**
+ * The YAML `requiredNames` manifest, the loader's own independent required-case
+ * inventory, and the cases actually declared are three separate statements of
+ * the same set. Each pair is compared on its own so a drift is reported against
+ * the reference it drifted from, rather than one opaque name mismatch.
+ */
+function requireSameNames(
+  declared: readonly string[],
+  reference: readonly string[],
+  location: string,
+  referenceLabel: string,
+): void {
+  const got = [...declared].sort();
+  const want = [...reference].sort();
+  if (JSON.stringify(got) !== JSON.stringify(want)) {
+    fail(
+      location,
+      `names ${got.join(", ")}; the ${referenceLabel} is ${want.join(", ")}. ` +
+        `A name was added, renamed or deleted without updating the other, so the corpus no longer covers what it claims.`,
+    );
+  }
 }
 
 function memberSpec(value: MemberSpec, location: string): MemberSpec {
@@ -146,6 +170,18 @@ export function loadGroupedShapeOracleFixtures(): GroupedShapeOracleFixtures {
     readFileSync(resolve(process.cwd(), "src/testdata/grouped-shape-oracles.yaml"), "utf8"),
     { strict: true },
   );
+
+  // The root is a closed set, and its own manifest is consumed rather than
+  // trusted: an unknown root field or a drifted/missing manifest fails closed
+  // below instead of being silently ignored.
+  if (root == null || typeof root !== "object" || Array.isArray(root)) {
+    fail("root", "must be a mapping with requiredNames, owners, groups, memberPages and cases");
+  }
+  exactKeys(root as object, ROOT_FIELDS, "root");
+  const manifest = stringList(root.requiredNames, "root.requiredNames");
+  if (new Set(manifest).size !== manifest.length) {
+    fail("root.requiredNames", "repeats a case name");
+  }
 
   const groups: Record<string, HelperGroupSummary> = {};
   for (const [key, value] of Object.entries((root.groups ?? {}) as Record<string, HelperGroupSummary>)) {
@@ -218,11 +254,15 @@ export function loadGroupedShapeOracleFixtures(): GroupedShapeOracleFixtures {
   }
 
   const rawCases = (root.cases ?? []) as RawShapeOracleCase[];
-  assertNamesMatch(
-    rawCases.map((value) => value.name),
+  const actualNames = rawCases.map((value) => value.name);
+  if (new Set(actualNames).size !== actualNames.length) fail("cases", "repeats a case name");
+  requireSameNames(
+    manifest,
     REQUIRED_CASES,
-    "grouped shape oracle",
+    "root.requiredNames",
+    "loader's independent required-case inventory",
   );
+  requireSameNames(manifest, actualNames, "root.requiredNames", "declared case names");
 
   const cases = rawCases.map((value): ShapeOracleCase => {
     const name = value.name;

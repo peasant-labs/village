@@ -18,9 +18,9 @@
 # agreeing with itself.
 #
 # The loader refuses a corpus that drops a required NAME, repeats one, states an
-# unknown field, or declares expectations and totals its owner rows and groups
-# cannot produce, so a case cannot silently disappear and an inert expectation
-# cannot survive.
+# unknown root or row field, drifts or drops the `requiredNames` manifest, or
+# declares expectations and totals its owner rows and groups cannot produce, so
+# a case cannot silently disappear and an inert expectation cannot survive.
 
 requiredNames:
   - owner-input1-main5-with-two-helpers
@@ -112,5 +112,10 @@ cases:
       shape-b-single: [shape-b-helper-three]
     expectedMemberFacts:
       shape-b-helper-one: ["1 input submission", "2 turns"]
+      # Deliberately shares "3 turns" with owner `shape-b-first` above, and
+      # "0 input submissions" with helper `shape-b-helper-three` below. The
+      # mounted test asserts every member fact on that member's OWN row, so a
+      # missing or swapped member measure cannot be satisfied by another row
+      # that states the same literal.
       shape-b-helper-two: ["unknown input submissions", "3 turns"]
       shape-b-helper-three: ["0 input submissions", "6 turns"]
