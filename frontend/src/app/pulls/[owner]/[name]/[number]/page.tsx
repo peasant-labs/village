@@ -108,7 +108,7 @@ export default function PullRequestPage({
           <Layers className="size-3.5" />
           <span className="text-xs font-mono lowercase">pull request prompts</span>
         </div>
-        <h1 className="text-lg font-medium text-ink" data-testid="pull-request-title">
+        <h1 className="text-lg font-medium text-ink break-words" data-testid="pull-request-title">
           {data.attachment.owner}/{data.attachment.name} #{data.attachment.number}
         </h1>
         <div className="flex items-center gap-2 text-[13px] text-ink-3">
@@ -251,7 +251,10 @@ function DigestRow({
   if (item.kind === "session") {
     return (
       <li className="px-5 py-3 border-b border-rule last:border-b-0 flex items-center justify-between gap-3 bg-surface-elev">
-        <Link href={transcriptHref} className={`text-sm text-ink-2 lowercase ${linkClass}`}>
+        <Link
+          href={transcriptHref}
+          className={`text-sm text-ink-2 lowercase min-w-0 break-words ${linkClass}`}
+        >
           {item.text}
         </Link>
         <span className="text-xs font-mono text-ink-3 tabular-nums">
@@ -267,7 +270,18 @@ function DigestRow({
         <span className="text-xs font-mono text-ink-3 tabular-nums w-8 shrink-0">
           {item.ordinal}
         </span>
-        <Link href={transcriptHref} className={`text-sm text-ink ${linkClass}`}>
+        {/* A digest carries the COMPLETE chain, and a prompt's text is the whole
+            turn content, so this row is a preview rather than the full text: it
+            is clamped to a few lines and the link opens the exact turn. Without
+            the clamp a session with hundreds of long prompts renders an
+            unreadable wall, and without break-words a single unbroken token (a
+            URL, minified code) overflows the panel. */}
+        <Link
+          href={transcriptHref}
+          title={item.text}
+          data-testid="digest-prompt"
+          className={`text-sm text-ink min-w-0 line-clamp-6 whitespace-pre-wrap break-words ${linkClass}`}
+        >
           {item.text}
         </Link>
       </li>
@@ -278,7 +292,10 @@ function DigestRow({
     return (
       <li className="px-5 py-3 border-b border-rule last:border-b-0 flex gap-3">
         <span className="text-xs font-mono text-ink-3 w-8 shrink-0">skill</span>
-        <Link href={transcriptHref} className={`text-sm text-ink-2 font-mono ${linkClass}`}>
+        <Link
+          href={transcriptHref}
+          className={`text-sm text-ink-2 font-mono min-w-0 break-words ${linkClass}`}
+        >
           {item.text}
           {item.args ? <span className="text-ink-3"> {item.args}</span> : null}
         </Link>
@@ -328,7 +345,7 @@ function AttachedTranscripts({
           >
             <Link
               href={`/transcripts/${transcript.transcript_id}`}
-              className="text-sm text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer"
+              className="text-sm text-ink min-w-0 break-words hover:text-ink-2 transition-colors focus-mono cursor-pointer"
             >
               {transcript.title ?? transcript.transcript_id}
             </Link>
