@@ -1,0 +1,62 @@
+# Self-check corpus for the collective grouped side-by-side gate
+# (scripts/visual/collective-sxs.mjs + collective-stitch-sxs.mjs).
+#
+# The cases below drive the SAME predicate the stitcher fails closed with
+# (`sideProblem`), so a composite can never be built from a side that is absent,
+# blank, or byte-identical to its counterpart. Each case names the one branch it
+# must exercise; `expected` is the substring the resulting reason must carry, and
+# `null` means the side must be accepted.
+
+# Deletion-protection manifest: every arm this gate stitches is present by NAME,
+# never as a bare count, and renaming one away is a failure. Keep in step with
+# REQUIRED_ARM_SURFACES in collective-sxs.mjs.
+requiredArms:
+  - collective-grouped-browse
+  - collective-grouped-contribute
+  - collective-grouped-review
+  - collective-grouped-my-shares
+
+cases:
+  - name: reference-absent
+    side: reference
+    exists: false
+    expected: no capture at
+  - name: subject-absent
+    side: subject
+    exists: false
+    expected: no capture at
+  - name: reference-undersized
+    side: reference
+    exists: true
+    measurement: { bytes: 5900, nonbgRatio: 0.0, distinctColors: 1, md5: aaaa }
+    expected: content floor
+  - name: reference-uniform-fill
+    side: reference
+    exists: true
+    measurement: { bytes: 24000, nonbgRatio: 0.001, distinctColors: 3, md5: bbbb }
+    expected: near-uniform fill
+  - name: subject-flat-fill
+    side: subject
+    exists: true
+    measurement: { bytes: 24000, nonbgRatio: 0.09, distinctColors: 2, md5: cccc }
+    expected: flat fill
+  - name: sides-byte-identical
+    side: subject
+    exists: true
+    measurement: { bytes: 24000, nonbgRatio: 0.09, distinctColors: 40, md5: dddd }
+    otherMd5: dddd
+    expected: byte-identical
+  - name: reference-real-content
+    side: reference
+    exists: true
+    measurement: { bytes: 240000, nonbgRatio: 0.08, distinctColors: 90, md5: eeee }
+    expected: null
+  - name: subject-real-content
+    side: subject
+    exists: true
+    measurement: { bytes: 180000, nonbgRatio: 0.12, distinctColors: 120, md5: ffff }
+    expected: null
+  - name: unmeasurable-side
+    side: reference
+    exists: true
+    expected: unmeasurable
