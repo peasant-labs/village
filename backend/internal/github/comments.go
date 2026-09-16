@@ -71,6 +71,11 @@ func (c *Client) DeleteIssueComment(ctx context.Context, installationID int64, o
 //
 // The branch lives here rather than at the call site so no caller can post a
 // second comment for a later push by forgetting to look up the id.
+//
+// The guarantee rests on the caller persisting the id the create returned. A
+// stored id whose comment was deleted out of band (by a user, say) makes the
+// edit fail with a 404 rather than silently posting a second comment; the
+// caller decides whether to clear the id and create again.
 func (c *Client) UpsertIssueComment(ctx context.Context, installationID int64, owner, name string, number int, existingCommentID int64, body string) (*IssueComment, error) {
 	if existingCommentID > 0 {
 		return c.UpdateIssueComment(ctx, installationID, owner, name, existingCommentID, body)

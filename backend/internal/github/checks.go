@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"unicode/utf8"
 
 	"github.com/peasant-labs/village/backend/internal/promptattach"
 )
@@ -15,6 +16,11 @@ const (
 	PromptCheckName = "peasant / prompts"
 	// maxCheckActionLabel is GitHub's limit for a check-run action label.
 	maxCheckActionLabel = 20
+	// maxCheckActionDescription is GitHub's limit for an action description.
+	// The field is REQUIRED, so a run posted without one is rejected outright.
+	maxCheckActionDescription = 40
+	// maxCheckActionIdentifier is GitHub's limit for an action identifier.
+	maxCheckActionIdentifier = 20
 	// maxCheckActions is GitHub's limit for the number of actions on a run.
 	maxCheckActions = 3
 )
@@ -34,21 +40,24 @@ const (
 	CheckConclusionNeutral = "neutral"
 )
 
-// CheckAction is one button on the check run.
+// CheckAction is one button on the check run. Every field is required by
+// GitHub, and each has a length limit the menu below is held inside.
 type CheckAction struct {
 	Label       string `json:"label"`
-	Description string `json:"description,omitempty"`
+	Description string `json:"description"`
 	Identifier  string `json:"identifier"`
 }
 
 // PromptCheckActions is the action menu, in the order GitHub renders it. The
 // labels are the exact strings the check displays; the identifiers are what a
-// later click reports back.
+// later click reports back; the descriptions are the tooltips GitHub requires.
+// All three are within GitHub's limits (label 20, description 40, identifier
+// 20 characters), which a fixture asserts.
 func PromptCheckActions() []CheckAction {
 	return []CheckAction{
-		{Label: CheckActionAttach, Identifier: "attach", Description: "Match and attach this author's prompts to the pull request"},
-		{Label: CheckActionDetach, Identifier: "detach", Description: "Detach the attached prompts from this pull request"},
-		{Label: CheckActionRefresh, Identifier: "refresh", Description: "Recompute the attached prompts and the digest"},
+		{Label: CheckActionAttach, Identifier: "attach", Description: "Match and attach prompts"},
+		{Label: CheckActionDetach, Identifier: "detach", Description: "Detach attached prompts"},
+		{Label: CheckActionRefresh, Identifier: "refresh", Description: "Recompute prompts and digest"},
 	}
 }
 
@@ -136,8 +145,8 @@ func (c *Client) CreateCheckRun(ctx context.Context, installationID int64, owner
 }
 
 // UpdateCheckRun updates the recorded check run in place. GitHub's update
-// endpoint takes no name or head SHA, which is why the caller must have stored
-// the id the create returned.
+// endpoint takes no head SHA — that is fixed by the run — which is why the
+// caller must have stored the id the create returned.
 func (c *Client) UpdateCheckRun(ctx context.Context, installationID int64, owner, name string, checkRunID int64, req CheckRunRequest) (*CheckRun, error) {
 	if checkRunID <= 0 {
 		return nil, fmt.Errorf("github: update check run: check run id must be positive")
@@ -150,6 +159,11 @@ func (c *Client) UpdateCheckRun(ctx context.Context, installationID int64, owner
 		"status":     "completed",
 		"conclusion": req.Conclusion,
 		"output":     map[string]string{"title": req.Title, "summary": req.Summary},
+	}
+	// GitHub's update endpoint accepts external_id and details_url too, so an
+	// update keeps them current rather than only the create setting them.
+	if req.ExternalID != "" {
+		payload["external_id"] = req.ExternalID
 	}
 	if req.DetailsURL != "" {
 		payload["details_url"] = req.DetailsURL
@@ -185,13 +199,19 @@ func validateCheckRunRequest(req CheckRunRequest, creating bool) error {
 	if len(req.Actions) > maxCheckActions {
 		return fmt.Errorf("github: check run: at most %d actions, got %d", maxCheckActions, len(req.Actions))
 	}
+	// Lengths are counted in characters, which is what GitHub documents: a byte
+	// count would reject a valid label that happens to contain a multi-byte rune.
 	seen := map[string]bool{}
 	for _, action := range req.Actions {
-		if action.Label == "" || len(action.Label) > maxCheckActionLabel {
+		if action.Label == "" || utf8.RuneCountInString(action.Label) > maxCheckActionLabel {
 			return fmt.Errorf("github: check run: action label %q must be 1-%d characters", action.Label, maxCheckActionLabel)
 		}
-		if action.Identifier == "" {
-			return fmt.Errorf("github: check run: action %q has no identifier", action.Label)
+		if action.Description == "" || utf8.RuneCountInString(action.Description) > maxCheckActionDescription {
+			return fmt.Errorf("github: check run: action %q needs a description of 1-%d characters, which GitHub requires",
+				action.Label, maxCheckActionDescription)
+		}
+		if action.Identifier == "" || utf8.RuneCountInString(action.Identifier) > maxCheckActionIdentifier {
+			return fmt.Errorf("github: check run: action %q needs an identifier of 1-%d characters", action.Label, maxCheckActionIdentifier)
 		}
 		if seen[action.Identifier] {
 			return fmt.Errorf("github: check run: action identifier %q is repeated", action.Identifier)

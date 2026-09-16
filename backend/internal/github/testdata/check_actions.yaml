@@ -1,14 +1,21 @@
-# The check run's action menu and GitHub's label limit. The labels are what a
-# reader clicks; the identifiers are what the click reports back, so they must
-# stay unique and stable.
+# The check run's action menu and GitHub's per-field limits. The labels are what
+# a reader clicks, the descriptions are the tooltips GitHub requires, and the
+# identifiers are what a click reports back, so they must stay unique and
+# stable. GitHub counts characters (label 20, description 40, identifier 20),
+# so every field here is held inside its limit.
 max_action_label: 20
+max_action_description: 40
+max_action_identifier: 20
 actions:
   - name: attach-prompts
     label: "Attach prompts"
+    description: "Match and attach prompts"
     identifier: attach
   - name: detach
     label: "Detach"
+    description: "Detach attached prompts"
     identifier: detach
   - name: refresh
     label: "Refresh"
+    description: "Recompute prompts and digest"
     identifier: refresh

@@ -1,6 +1,7 @@
 # The check-run request validation, so a request GitHub would reject fails
 # locally as an error the caller can act on rather than as a 422 it retries
-# forever.
+# forever. GitHub requires every action field (label, description, identifier)
+# and caps each: label 20, description 40, identifier 20 characters.
 cases:
   - name: create-requires-a-head-sha
     creating: true
@@ -32,12 +33,16 @@ cases:
       title: "3 prompts attached"
       actions:
         - label: "Attach prompts"
+          description: "Match and attach prompts"
           identifier: attach
         - label: "Detach"
+          description: "Detach attached prompts"
           identifier: detach
         - label: "Refresh"
+          description: "Recompute prompts and digest"
           identifier: refresh
         - label: "Fourth"
+          description: "One action too many"
           identifier: fourth
     expect_error: true
 
@@ -49,6 +54,30 @@ cases:
       title: "3 prompts attached"
       actions:
         - label: "attach every matching prompt"
+          description: "Match and attach prompts"
+          identifier: attach
+    expect_error: true
+
+  - name: action-description-is-required
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "3 prompts attached"
+      actions:
+        - label: "Attach prompts"
+          identifier: attach
+    expect_error: true
+
+  - name: action-description-must-fit-the-limit
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "3 prompts attached"
+      actions:
+        - label: "Attach prompts"
+          description: "Match and attach every one of this author's prompts"
           identifier: attach
     expect_error: true
 
@@ -60,6 +89,19 @@ cases:
       title: "3 prompts attached"
       actions:
         - label: "Attach prompts"
+          description: "Match and attach prompts"
+    expect_error: true
+
+  - name: action-identifier-must-fit-the-limit
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "3 prompts attached"
+      actions:
+        - label: "Attach prompts"
+          description: "Match and attach prompts"
+          identifier: "attach-every-matching-prompt"
     expect_error: true
 
   - name: action-identifiers-must-be-unique
@@ -70,8 +112,10 @@ cases:
       title: "3 prompts attached"
       actions:
         - label: "Attach prompts"
+          description: "Match and attach prompts"
           identifier: attach
         - label: "Detach"
+          description: "Detach attached prompts"
           identifier: attach
     expect_error: true
 
@@ -86,10 +130,13 @@ cases:
       summary: "The author's prompts will appear here once attached."
       actions:
         - label: "Attach prompts"
+          description: "Match and attach prompts"
           identifier: attach
         - label: "Detach"
+          description: "Detach attached prompts"
           identifier: detach
         - label: "Refresh"
+          description: "Recompute prompts and digest"
           identifier: refresh
     expect_error: false
 
@@ -101,7 +148,9 @@ cases:
       summary: "3 sessions, 5 commits."
       actions:
         - label: "Detach"
+          description: "Detach attached prompts"
           identifier: detach
         - label: "Refresh"
+          description: "Recompute prompts and digest"
           identifier: refresh
     expect_error: false

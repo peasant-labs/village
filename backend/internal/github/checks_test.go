@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/peasant-labs/village/backend/internal/promptattach"
 	"gopkg.in/yaml.v3"
@@ -36,10 +37,13 @@ var requiredActionCaseNames = []string{"attach-prompts", "detach", "refresh"}
 
 var requiredValidationCaseNames = []string{
 	"a-complete-create-request-is-accepted",
-	"an-action-needs-an-identifier",
-	"an-update-does-not-need-a-head-sha",
+	"action-description-is-required",
+	"action-description-must-fit-the-limit",
+	"action-identifier-must-fit-the-limit",
 	"action-identifiers-must-be-unique",
 	"action-label-must-fit-the-limit",
+	"an-action-needs-an-identifier",
+	"an-update-does-not-need-a-head-sha",
 	"at-most-three-actions",
 	"conclusion-must-be-in-the-menu",
 	"create-requires-a-head-sha",
@@ -58,19 +62,23 @@ type conclusionFixture struct {
 }
 
 type actionCase struct {
-	Name       string `yaml:"name"`
-	Label      string `yaml:"label"`
-	Identifier string `yaml:"identifier"`
+	Name        string `yaml:"name"`
+	Label       string `yaml:"label"`
+	Description string `yaml:"description"`
+	Identifier  string `yaml:"identifier"`
 }
 
 type actionFixture struct {
-	MaxActionLabel int          `yaml:"max_action_label"`
-	Actions        []actionCase `yaml:"actions"`
+	MaxActionLabel       int          `yaml:"max_action_label"`
+	MaxActionDescription int          `yaml:"max_action_description"`
+	MaxActionIdentifier  int          `yaml:"max_action_identifier"`
+	Actions              []actionCase `yaml:"actions"`
 }
 
 type actionFixtureEntry struct {
-	Label      string `yaml:"label"`
-	Identifier string `yaml:"identifier"`
+	Label       string `yaml:"label"`
+	Description string `yaml:"description"`
+	Identifier  string `yaml:"identifier"`
 }
 
 type checkRunRequestFixture struct {
@@ -182,7 +190,7 @@ func toCheckRunRequest(f checkRunRequestFixture) CheckRunRequest {
 		DetailsURL: f.DetailsURL,
 	}
 	for _, a := range f.Actions {
-		req.Actions = append(req.Actions, CheckAction{Label: a.Label, Identifier: a.Identifier})
+		req.Actions = append(req.Actions, CheckAction{Label: a.Label, Description: a.Description, Identifier: a.Identifier})
 	}
 	return req
 }
@@ -209,16 +217,26 @@ func TestPromptCheckActions(t *testing.T) {
 		if got[i].Label != want.Label {
 			t.Errorf("action %d label = %q, want %q", i, got[i].Label, want.Label)
 		}
+		if got[i].Description != want.Description {
+			t.Errorf("action %d description = %q, want %q", i, got[i].Description, want.Description)
+		}
 		if got[i].Identifier != want.Identifier {
 			t.Errorf("action %d identifier = %q, want %q", i, got[i].Identifier, want.Identifier)
 		}
 	}
-	// GitHub rejects a run whose action label is longer than the limit, so the
-	// menu must stay inside it rather than surfacing as a 422 at click time.
+	// GitHub rejects a run whose action field is over its limit, and requires a
+	// description outright, so the menu must stay inside all three rather than
+	// surfacing as a 422 at click time. Lengths are characters, as GitHub counts
+	// them, not bytes.
 	for _, action := range got {
-		if len(action.Label) > fixture.MaxActionLabel {
-			t.Errorf("action label %q is %d characters, over GitHub's limit of %d",
-				action.Label, len(action.Label), fixture.MaxActionLabel)
+		if n := utf8.RuneCountInString(action.Label); n > fixture.MaxActionLabel {
+			t.Errorf("action label %q is %d characters, over GitHub's limit of %d", action.Label, n, fixture.MaxActionLabel)
+		}
+		if n := utf8.RuneCountInString(action.Description); n == 0 || n > fixture.MaxActionDescription {
+			t.Errorf("action description %q is %d characters, want 1-%d (GitHub requires it)", action.Description, n, fixture.MaxActionDescription)
+		}
+		if n := utf8.RuneCountInString(action.Identifier); n == 0 || n > fixture.MaxActionIdentifier {
+			t.Errorf("action identifier %q is %d characters, want 1-%d", action.Identifier, n, fixture.MaxActionIdentifier)
 		}
 	}
 }
@@ -283,6 +301,7 @@ func TestUpdateCheckRun_PatchesTheRecordedID(t *testing.T) {
 	c := newTestClient(t, a.srv.URL)
 
 	if _, err := c.UpdateCheckRun(context.Background(), 42, "acme", "repo", 77, CheckRunRequest{
+		ExternalID: "peasant-village",
 		Conclusion: CheckConclusionFailure,
 		Title:      "No prompts attached yet",
 		Actions:    PromptCheckActions(),
@@ -296,13 +315,15 @@ func TestUpdateCheckRun_PatchesTheRecordedID(t *testing.T) {
 	}
 	payload := decodeObject(t, req.Body)
 	if _, present := payload["head_sha"]; present {
-		t.Error("an update must not carry a head sha: GitHub's update endpoint takes none")
-	}
-	if _, present := payload["name"]; present {
-		t.Error("an update must not carry a name: GitHub's update endpoint takes none")
+		t.Error("an update must not carry a head sha: the run's commit is fixed at create")
 	}
 	if payload["conclusion"] != CheckConclusionFailure {
 		t.Errorf("conclusion = %v, want failure", payload["conclusion"])
+	}
+	// GitHub's update endpoint accepts external_id, so an update keeps it
+	// current rather than only the create setting it.
+	if payload["external_id"] != "peasant-village" {
+		t.Errorf("external_id = %v, want it carried on update too", payload["external_id"])
 	}
 }
 
