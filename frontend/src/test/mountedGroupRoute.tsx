@@ -6,6 +6,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { parse } from "yaml";
 import { AuthProvider } from "@/providers/AuthProvider";
+import type { VillageSessionListItem, VillageSessionListPayload } from "@peasant-labs/schema";
 import GroupDetailPage from "@/app/groups/[id]/page";
 import GroupContributePage from "@/app/groups/[id]/contribute/page";
 import type {
@@ -144,6 +145,18 @@ export function loadGroupsContributeNavFixtures(): ContributeNavFixtures {
  */
 export type PendingShareFixtureRow = PendingShare;
 
+/**
+ * One page of the saved helper members a group's own opaque scope answers with,
+ * as `GET /transcript-groups/{groupId}/members` serves it. The page and limit
+ * are echoed from the request, so a mount that asked for a different page or
+ * size cannot silently receive this one.
+ */
+export interface HelperMemberPageFixture {
+  members: VillageSessionListItem[];
+  limit: number;
+  total: number;
+}
+
 export interface GroupRouteFixture {
   /** Signed-in viewer's GitHub username, or `null` for an anonymous one (`/auth/me` answers 401). */
   viewer: string | null;
@@ -163,6 +176,13 @@ export interface GroupRouteFixture {
   pendingShares?: PendingShareFixtureRow[];
   /** `GET /groups/{id}/my-shares`, this person's own contributions. */
   myShares?: UserGroupShare[];
+  /** `GET /groups/{id}/my-shares?view=grouped`, the same contributions with the
+   *  saved helper groups the server grouped under each owner row. The panel
+   *  reads it as a supplement; omitting it serves one empty grouped page. */
+  groupedMyShares?: (page: number) => VillageSessionListPayload;
+  /** `GET /transcript-groups/{groupId}/members?scope=...`, the saved helper
+   *  members one expanded group serves, keyed by that group's opaque scope. */
+  helperMembers?: Record<string, HelperMemberPageFixture>;
   /** `GET /groups/{id}/contributable`, what the contribute tree offers. */
   contributable?: ContributableTranscript[];
 }
@@ -219,6 +239,20 @@ const json = (body: unknown, status = 200) =>
     headers: { "content-type": "application/json" },
   });
 
+/**
+ * An empty grouped my-shares page at the page size the panel requests. A
+ * fixture that names no grouped contributions serves this, so the panel reads a
+ * well-formed empty page rather than a flat array it cannot decode.
+ */
+const EMPTY_GROUPED_MY_SHARES: VillageSessionListPayload = {
+  items: [],
+  page: 1,
+  limit: 100,
+  totalItems: 0,
+  ordinarySessionTotal: 0,
+  helperThreadTotal: 0,
+};
+
 /** One request the mounted route made, with its parsed body, so a test asserts
  *  WHAT was sent rather than only that something was. */
 export interface RecordedGroupRequest {
@@ -261,7 +295,26 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
       return json(makeUser(fixture.viewer));
     }
     if (url.includes("/my-shares")) {
+      // The panel reads the grouped variant as a supplement to the flat one;
+      // only the `view=grouped` opt-in gets the grouped page.
+      const params = new URL(url, "https://village.test").searchParams;
+      if (params.get("view") === "grouped") {
+        const page = Number(params.get("page") ?? 1);
+        return json(fixture.groupedMyShares?.(page) ?? { ...EMPTY_GROUPED_MY_SHARES, page });
+      }
       return json(fixture.myShares ?? []);
+    }
+    if (url.includes("/transcript-groups/")) {
+      const params = new URL(url, "https://village.test").searchParams;
+      const spec = fixture.helperMembers?.[params.get("scope") ?? ""];
+      // No declared page for this scope is the fail-closed 409 the host states.
+      if (spec == null) return json({ error: "unknown scope" }, 409);
+      return json({
+        members: spec.members,
+        page: Number(params.get("page") ?? 1),
+        limit: spec.limit,
+        total: spec.total,
+      });
     }
     if (url.includes("/pending")) {
       return json(fixture.pendingShares ?? []);
