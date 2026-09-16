@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -76,25 +77,30 @@ func TestNewClient_AcceptsPKCS1AndPKCS8(t *testing.T) {
 // newAppServer returns an httptest server that emulates the two GitHub
 // endpoints we use, plus counters so tests can assert how often each was hit.
 type appServer struct {
-	srv         *httptest.Server
-	tokenCalls  int32
-	commitCalls int32
-	repoCalls   int32
-	tokenExpiry time.Time
-	commitsETag string
-	commitsBody string
-	repoBody    string
-	notModified bool // when true, /commits returns 304
-	failToken   bool
-	failRepo    bool
+	srv              *httptest.Server
+	tokenCalls       int32
+	commitCalls      int32
+	repoCalls        int32
+	tokenExpiry      time.Time
+	commitsETag      string
+	commitsBody      string
+	commitsPage2Body string
+	repoBody         string
+	notModified      bool // when true, /commits returns 304
+	failToken        bool
+	failRepo         bool
 	// Pull-request commit listing. pullPath records the last path served so a
 	// test can prove the endpoint is the one that was called; pullPage2Body
 	// makes the first page advertise a second page through a Link header.
-	pullCalls     int32
-	pullPath      string
-	pullBody      string
-	pullPage2Body string
-	failPull      bool
+	pullCalls       int32
+	pullPath        string
+	pullAuthHeader  string
+	pullPerPage     string
+	pullBody        string
+	pullETag        string
+	pullNotModified bool
+	pullPage2Body   string
+	failPull        bool
 }
 
 func newAppServer(t *testing.T, a *appServer) {
@@ -122,9 +128,18 @@ func newAppServer(t *testing.T, a *appServer) {
 		if strings.HasSuffix(r.URL.Path, "/commits") && strings.Contains(r.URL.Path, "/pulls/") {
 			atomic.AddInt32(&a.pullCalls, 1)
 			a.pullPath = r.URL.Path
+			a.pullAuthHeader = r.Header.Get("Authorization")
+			a.pullPerPage = r.URL.Query().Get("per_page")
 			if a.failPull {
 				http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
 				return
+			}
+			if a.pullNotModified && a.pullETag != "" && r.Header.Get("If-None-Match") == a.pullETag {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+			if a.pullETag != "" {
+				w.Header().Set("ETag", a.pullETag)
 			}
 			if r.URL.Query().Get("page") == "2" {
 				w.WriteHeader(http.StatusOK)
@@ -146,6 +161,9 @@ func newAppServer(t *testing.T, a *appServer) {
 			}
 			if a.commitsETag != "" {
 				w.Header().Set("ETag", a.commitsETag)
+			}
+			if a.commitsPage2Body != "" {
+				w.Header().Set("Link", fmt.Sprintf(`<%s%s?page=2>; rel="next"`, a.srv.URL, r.URL.Path))
 			}
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprint(w, a.commitsBody)
@@ -268,7 +286,7 @@ func TestListPullRequestCommits_FetchesFromThePullRequestEndpoint(t *testing.T) 
 	newAppServer(t, a)
 	c := newTestClient(t, a.srv.URL)
 
-	res, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 7, ListCommitsOptions{PerPage: 100})
+	res, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 7, ListCommitsOptions{})
 	if err != nil {
 		t.Fatalf("ListPullRequestCommits: %v", err)
 	}
@@ -277,6 +295,20 @@ func TestListPullRequestCommits_FetchesFromThePullRequestEndpoint(t *testing.T) 
 	}
 	if len(res.Commits) != 1 || res.Commits[0].SHA != "aaa" || res.Commits[0].AuthorName != "Alice" {
 		t.Fatalf("commits = %+v, want one normalized commit aaa from Alice", res.Commits)
+	}
+	if !res.Complete {
+		t.Error("a walk that ran out of pages must report the list as complete")
+	}
+	// M1: the same installation token, header, and page size the repository
+	// walk uses, so a difference cannot hide in the shared implementation.
+	if a.tokenCalls != 1 {
+		t.Errorf("token minted %d times, want 1", a.tokenCalls)
+	}
+	if a.pullAuthHeader != "token ghs_installtoken" {
+		t.Errorf("Authorization = %q, want the installation token header", a.pullAuthHeader)
+	}
+	if a.pullPerPage != strconv.Itoa(maxGitHubPerPage) {
+		t.Errorf("per_page = %q, want %d so completeness is not lost to a small page", a.pullPerPage, maxGitHubPerPage)
 	}
 }
 
@@ -288,7 +320,7 @@ func TestListPullRequestCommits_Paginates(t *testing.T) {
 	newAppServer(t, a)
 	c := newTestClient(t, a.srv.URL)
 
-	res, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 7, ListCommitsOptions{MaxPages: 2})
+	res, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 7, ListCommitsOptions{})
 	if err != nil {
 		t.Fatalf("ListPullRequestCommits: %v", err)
 	}
@@ -297,6 +329,93 @@ func TestListPullRequestCommits_Paginates(t *testing.T) {
 	}
 	if a.pullCalls != 2 {
 		t.Errorf("endpoint called %d times, want 2 (Link rel=next followed)", a.pullCalls)
+	}
+	if !res.Complete {
+		t.Error("following every page must report the list as complete")
+	}
+}
+
+// TestListPullRequestCommits_PageCapLeavesTheListIncomplete is the B1
+// reproduction: a page cap reached while a next page is still advertised must
+// never be reported as a complete list, because the matcher would then resolve
+// an abbreviation against a set that is missing commits.
+func TestListPullRequestCommits_PageCapLeavesTheListIncomplete(t *testing.T) {
+	a := &appServer{
+		pullBody:      `[{"sha":"aaa","commit":{"message":"first","author":{"name":"Alice"}}}]`,
+		pullPage2Body: `[{"sha":"abc1234000000000000000000000000000000002","commit":{"message":"colliding","author":{"name":"Bob"}}}]`,
+	}
+	newAppServer(t, a)
+	c := newTestClient(t, a.srv.URL)
+
+	res, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 7, ListCommitsOptions{MaxPages: 1})
+	if err != nil {
+		t.Fatalf("ListPullRequestCommits: %v", err)
+	}
+	if a.pullCalls != 1 {
+		t.Fatalf("endpoint called %d times, want 1 for a one-page cap", a.pullCalls)
+	}
+	if res.Complete {
+		t.Fatal("a truncated walk reported the list as complete; an omitted page could hold a colliding commit")
+	}
+}
+
+// TestListPullRequestCommits_CapOf250IsIncomplete pins the endpoint's documented
+// maximum: at the cap we cannot tell whether more commits exist, so the list is
+// not provably complete even though no page was left to follow.
+func TestListPullRequestCommits_CapOf250IsIncomplete(t *testing.T) {
+	var body strings.Builder
+	body.WriteString("[")
+	for i := 0; i < maxPullRequestCommits; i++ {
+		if i > 0 {
+			body.WriteString(",")
+		}
+		fmt.Fprintf(&body, `{"sha":"%040x","commit":{"message":"c","author":{"name":"A"}}}`, i)
+	}
+	body.WriteString("]")
+
+	a := &appServer{pullBody: body.String()}
+	newAppServer(t, a)
+	c := newTestClient(t, a.srv.URL)
+
+	res, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 7, ListCommitsOptions{})
+	if err != nil {
+		t.Fatalf("ListPullRequestCommits: %v", err)
+	}
+	if len(res.Commits) != maxPullRequestCommits {
+		t.Fatalf("got %d commits, want %d", len(res.Commits), maxPullRequestCommits)
+	}
+	if res.Complete {
+		t.Fatalf("a list at the %d-commit endpoint cap reported itself complete", maxPullRequestCommits)
+	}
+}
+
+// TestListPullRequestCommits_ConditionalNotModifiedIsNotEmpty pins that a 304
+// refers to the caller's cached set rather than to an empty pull request: no
+// commits and never a complete list.
+func TestListPullRequestCommits_ConditionalNotModifiedIsNotEmpty(t *testing.T) {
+	a := &appServer{
+		pullBody:        `[{"sha":"aaa","commit":{"message":"first","author":{"name":"Alice"}}}]`,
+		pullETag:        `"pr-etag-v1"`,
+		pullNotModified: true,
+	}
+	newAppServer(t, a)
+	c := newTestClient(t, a.srv.URL)
+
+	res, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 7, ListCommitsOptions{ETag: `"pr-etag-v1"`})
+	if err != nil {
+		t.Fatalf("ListPullRequestCommits: %v", err)
+	}
+	if !res.NotModified {
+		t.Fatal("expected NotModified on a matching ETag")
+	}
+	if len(res.Commits) != 0 {
+		t.Fatalf("got %d commits on a 304, want none", len(res.Commits))
+	}
+	if res.Complete {
+		t.Fatal("a 304 is not an empty complete list; the caller must reuse its cached set")
+	}
+	if res.ETag != `"pr-etag-v1"` {
+		t.Errorf("ETag = %q, want the offered ETag preserved", res.ETag)
 	}
 }
 
@@ -314,6 +433,19 @@ func TestListPullRequestCommits_ErrorReportsStatus(t *testing.T) {
 	}
 }
 
+func TestListPullRequestCommits_TokenErrorPropagates(t *testing.T) {
+	a := &appServer{failToken: true}
+	newAppServer(t, a)
+	c := newTestClient(t, a.srv.URL)
+
+	if _, err := c.ListPullRequestCommits(context.Background(), 42, "acme", "repo", 7, ListCommitsOptions{}); err == nil {
+		t.Fatal("expected the token error to propagate")
+	}
+	if a.pullCalls != 0 {
+		t.Errorf("endpoint called %d times after a failed token mint, want 0", a.pullCalls)
+	}
+}
+
 func TestListPullRequestCommits_RejectsNonPositiveNumberBeforeCalling(t *testing.T) {
 	a := &appServer{}
 	newAppServer(t, a)
@@ -324,6 +456,26 @@ func TestListPullRequestCommits_RejectsNonPositiveNumberBeforeCalling(t *testing
 	}
 	if a.pullCalls != 0 || a.tokenCalls != 0 {
 		t.Errorf("refused request still called GitHub: pull=%d token=%d", a.pullCalls, a.tokenCalls)
+	}
+}
+
+// TestListCommits_TruncationIsReportedIncomplete covers the repository walk as
+// well: its bounded default now says so instead of truncating silently.
+func TestListCommits_TruncationIsReportedIncomplete(t *testing.T) {
+	a := &appServer{
+		commitsBody:      `[{"sha":"aaa","commit":{"message":"first","author":{"name":"Alice"}}}]`,
+		commitsETag:      `"etag-v1"`,
+		commitsPage2Body: `[{"sha":"bbb","commit":{"message":"second","author":{"name":"Bob"}}}]`,
+	}
+	newAppServer(t, a)
+	c := newTestClient(t, a.srv.URL)
+
+	res, err := c.ListCommits(context.Background(), 42, "acme", "repo", ListCommitsOptions{})
+	if err != nil {
+		t.Fatalf("ListCommits: %v", err)
+	}
+	if res.Complete {
+		t.Fatal("the default one-page repository walk must report truncation, not claim completeness")
 	}
 }
 

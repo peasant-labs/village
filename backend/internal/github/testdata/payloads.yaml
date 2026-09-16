@@ -101,3 +101,29 @@ cases:
       head_ref: feature/y
       base_repo_name: village
       head_repo_name: village
+
+  - name: pull-request-with-missing-base-repository-is-not-a-fork
+    payload: |
+      {
+        "action": "synchronize",
+        "number": 44,
+        "pull_request": {
+          "number": 44,
+          "user": {"id": 1001, "login": "author"},
+          "head": {"ref": "feature/z", "sha": "eeeeeee", "repo": {"id": 55, "name": "village-fork", "owner": {"id": 1001, "login": "author"}}},
+          "base": {"ref": "develop", "sha": "fffffff"},
+          "merged": false
+        },
+        "repository": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}},
+        "sender": {"id": 1001, "login": "author"},
+        "installation": {"id": 1234}
+      }
+    expect:
+      number: 44
+      sender_id: 1001
+      author_id: 1001
+      # An absent base repository is not "some other repository": fail closed.
+      is_fork: false
+      head_ref: feature/z
+      base_repo_name: ""
+      head_repo_name: village-fork

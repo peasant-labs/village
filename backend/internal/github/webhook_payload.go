@@ -101,8 +101,13 @@ type WebhookPullRequestPayload struct {
 // IsFork reports whether the pull request's commits come from a repository
 // other than the one it targets, which is what lets the matcher also consider
 // the head repository when it decides which repository a transcript named.
+//
+// It fails closed: both repository ids must be present and different. A payload
+// missing its base repository is not classified as a fork, because treating an
+// absent target as "some other repository" would widen matching on a malformed
+// event.
 func (p WebhookPullRequestPayload) IsFork() bool {
-	if p.PullRequest.Head.Repo.ID == 0 {
+	if p.PullRequest.Head.Repo.ID <= 0 || p.PullRequest.Base.Repo.ID <= 0 {
 		return false
 	}
 	return p.PullRequest.Head.Repo.ID != p.PullRequest.Base.Repo.ID

@@ -22,6 +22,7 @@ var requiredPayloadCaseNames = []string{
 	"issue-comment-on-a-plain-issue",
 	"pull-request-from-a-fork",
 	"pull-request-from-the-same-repository",
+	"pull-request-with-missing-base-repository-is-not-a-fork",
 }
 
 type payloadExpectation struct {
