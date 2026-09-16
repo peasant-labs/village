@@ -171,3 +171,18 @@ cases:
       requested_action_identifier: ""
       pull_request_number: 7
       sender_id: 1001
+
+  - name: check-run-click-without-a-pull-request
+    payload: |
+      {
+        "action": "requested_action",
+        "requested_action": {"identifier": "attach"},
+        "check_run": {"id": 11, "head_sha": "aaaaaaa", "pull_requests": []},
+        "repository": {"id": 7, "name": "village", "owner": {"id": 9, "login": "peasant-labs"}},
+        "sender": {"id": 1001, "login": "author"},
+        "installation": {"id": 1234}
+      }
+    expect:
+      requested_action_identifier: attach
+      pull_request_number: 0
+      sender_id: 1001

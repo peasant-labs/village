@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -46,20 +47,23 @@ func attachmentPublicationContent() []byte {
 // counts the writes, so a test can prove what was posted and, with failWrites,
 // that a failure changes nothing.
 type attachmentGitHubFake struct {
-	srv         *httptest.Server
-	private     bool
-	pullCommits []string
-	prHeadSHA   string
-	prAuthorID  int64
+	srv            *httptest.Server
+	private        bool
+	pullCommits    []string
+	prHeadSHA      string
+	prAuthorID     int64
+	prHeadFullName string
+	prBaseFullName string
 
-	mu             sync.Mutex
-	failWrites     bool
-	deleteNotFound bool
-	checkCreates   int
-	checkUpdates   int
-	commentCreates int
-	commentEdits   int
-	commentDeletes int
+	mu              sync.Mutex
+	failWrites      bool
+	deleteNotFound  bool
+	checkCreates    int
+	checkCreateSHAs []string
+	checkUpdates    int
+	commentCreates  int
+	commentEdits    int
+	commentDeletes  int
 }
 
 func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
@@ -82,10 +86,23 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			fmt.Fprintf(w, `{"token":"ghs_attachment","expires_at":%q}`, time.Now().Add(time.Hour).UTC().Format(time.RFC3339))
 		case strings.Contains(r.URL.Path, "/pulls/") && !strings.HasSuffix(r.URL.Path, "/commits"):
 			fake.mu.Lock()
-			headSHA, authorID, repoID := fake.prHeadSHA, fake.prAuthorID, int64(4242)
+			headSHA, authorID := fake.prHeadSHA, fake.prAuthorID
+			headFull, baseFull := fake.prHeadFullName, fake.prBaseFullName
 			fake.mu.Unlock()
+			if headFull == "" {
+				headFull = "acme/widgets"
+			}
+			if baseFull == "" {
+				baseFull = "acme/widgets"
+			}
+			headID := int64(4242)
+			if headFull != baseFull {
+				headID = 55
+			}
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, `{"number":7,"state":"open","head":{"sha":%q,"ref":"feat/x","repo":{"id":4242,"name":"widgets","owner":{"login":"acme"}}},"base":{"repo":{"id":%d,"name":"widgets","owner":{"login":"acme"}}},"user":{"id":%d},"merged":false}`, headSHA, repoID, authorID)
+			fmt.Fprintf(w, `{"number":7,"state":"open","head":{"sha":%q,"ref":"feat/x","repo":{"id":%d,"name":%q,"full_name":%q,"owner":{"login":%q}}},"base":{"repo":{"id":4242,"name":%q,"full_name":%q,"owner":{"login":%q}}},"user":{"id":%d},"merged":false}`,
+				headSHA, headID, lastPathSegment(headFull), headFull, firstPathSegment(headFull),
+				lastPathSegment(baseFull), baseFull, firstPathSegment(baseFull), authorID)
 		case strings.Contains(r.URL.Path, "/pulls/") && strings.HasSuffix(r.URL.Path, "/commits"):
 			commits := make([]string, 0)
 			fake.mu.Lock()
@@ -98,18 +115,26 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "[%s]", strings.Join(parts, ","))
 		case strings.Contains(r.URL.Path, "/check-runs"):
+			raw, _ := io.ReadAll(r.Body)
 			if writeFailure() {
 				return
 			}
 			fake.mu.Lock()
+			id := int64(11)
 			if r.Method == http.MethodPatch {
 				fake.checkUpdates++
 			} else {
 				fake.checkCreates++
+				id = int64(10 + fake.checkCreates)
+				var payload struct {
+					HeadSHA string `json:"head_sha"`
+				}
+				_ = json.Unmarshal(raw, &payload)
+				fake.checkCreateSHAs = append(fake.checkCreateSHAs, payload.HeadSHA)
 			}
 			fake.mu.Unlock()
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprint(w, `{"id":11,"html_url":"https://example.test/check/11","status":"completed","conclusion":"success"}`)
+			fmt.Fprintf(w, `{"id":%d,"html_url":"https://example.test/check/%d","status":"completed","conclusion":"success"}`, id, id)
 		case strings.Contains(r.URL.Path, "/issues/") && strings.Contains(r.URL.Path, "/comments"):
 			if writeFailure() {
 				return
@@ -148,6 +173,29 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 	fake.srv = httptest.NewServer(mux)
 	t.Cleanup(fake.srv.Close)
 	return fake
+}
+
+func firstPathSegment(full string) string {
+	if idx := strings.Index(full, "/"); idx >= 0 {
+		return full[:idx]
+	}
+	return full
+}
+
+func lastPathSegment(full string) string {
+	if idx := strings.LastIndex(full, "/"); idx >= 0 {
+		return full[idx+1:]
+	}
+	return full
+}
+
+func (f *attachmentGitHubFake) setPullRequestDetail(headSHA string, authorID int64, headFullName, baseFullName string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.prHeadSHA = headSHA
+	f.prAuthorID = authorID
+	f.prHeadFullName = headFullName
+	f.prBaseFullName = baseFullName
 }
 
 func (f *attachmentGitHubFake) setPullRequest(headSHA string, authorID int64) {

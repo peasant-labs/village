@@ -5,6 +5,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -279,10 +280,19 @@ func TestPullRequestPushRefreshesAnAttachedAttachment(t *testing.T) {
 		t.Fatal("the refresh changed nothing")
 	}
 	fake.mu.Lock()
-	edits, updates := fake.commentEdits, fake.checkUpdates
+	edits, updates, creates := fake.commentEdits, fake.checkUpdates, fake.checkCreates
+	createdSHAs := append([]string(nil), fake.checkCreateSHAs...)
 	fake.mu.Unlock()
-	if edits != 1 || updates != 1 {
-		t.Fatalf("comment edits = %d and check updates = %d, want one each", edits, updates)
+	if edits != 1 {
+		t.Fatalf("comment edits = %d, want the one sticky comment edited in place", edits)
+	}
+	// A check run's head SHA is fixed at creation, so the new head needs a NEW
+	// run: an update would leave the new commit with no check at all.
+	if creates != 2 || updates != 0 {
+		t.Fatalf("check creates = %d and updates = %d, want a new run for the new head and no update", creates, updates)
+	}
+	if len(createdSHAs) != 2 || createdSHAs[1] != next {
+		t.Fatalf("check runs were created for %v, want the second for the pushed head %q", createdSHAs, next)
 	}
 	// The transcript was already bound and stays exactly as it was.
 	var bindings int
@@ -308,4 +318,145 @@ func TestPullRequestPushRefreshesAnAttachedAttachment(t *testing.T) {
 	if derived != "approved" {
 		t.Fatalf("derived share = %q, want approved", derived)
 	}
+}
+
+// TestCheckRunRefreshButtonRecomputes proves the Refresh button is real: it is
+// the author's recovery path when a publish-driven refresh failed, and it must
+// not be silently dropped.
+func TestCheckRunRefreshButtonRecomputes(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 993010)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "refresh-button-" + fmt.Sprintf("%d", time.Now().UnixNano())[:8]
+	attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	sha := "5551234000000000000000000000000000000035"
+	attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
+
+	fake.setPullRequest(sha, 993010)
+	fake.setPullCommits(sha)
+	h.githubDispatcher = promptCommandDispatcher{h: h}
+	if err := dispatchEvent(t, h, "issue_comment", issueCommentEvent(repoName, 51, 993010, "NONE", "/peasant attach")); err != nil {
+		t.Fatal(err)
+	}
+	attached, err := h.queries.GetPullRequestAttachmentForPull(ctx, sqlc.GetPullRequestAttachmentForPullParams{Lower: "acme", Lower_2: repoName, Number: 51})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A refresh with nothing changed is a no-op by design; move the head so the
+	// button has work to do, which is the state a failed publish-driven refresh
+	// leaves behind.
+	moved := "aaa9999000000000000000000000000000000039"
+	fake.setPullRequest(moved, 993010)
+	fake.setPullCommits(sha)
+
+	fake.mu.Lock()
+	editsBefore := fake.commentEdits
+	fake.mu.Unlock()
+
+	if err := dispatchEvent(t, h, "check_run", checkRunEvent(repoName, 51, 993010, "refresh")); err != nil {
+		t.Fatalf("dispatch the refresh button: %v", err)
+	}
+
+	fake.mu.Lock()
+	editsAfter := fake.commentEdits
+	fake.mu.Unlock()
+	if editsAfter != editsBefore+1 {
+		t.Fatalf("refresh button edited the comment %d times, want once: the button is a recovery path and must act", editsAfter-editsBefore)
+	}
+	updated, err := h.queries.GetPullRequestAttachment(ctx, attached.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.State != "attached" {
+		t.Fatalf("state = %q after refresh, want attached", updated.State)
+	}
+}
+
+// TestDeletedCommandCommentDoesNotReexecute proves the action guard: GitHub
+// sends the comment body on edit and delete too, and acting on those would
+// re-run a command the author withdrew.
+func TestDeletedCommandCommentDoesNotReexecute(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 993011)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "deleted-command-" + fmt.Sprintf("%d", time.Now().UnixNano())[:8]
+	attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	sha := "6661234000000000000000000000000000000036"
+	attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
+
+	fake.setPullRequest(sha, 993011)
+	fake.setPullCommits(sha)
+	h.githubDispatcher = promptCommandDispatcher{h: h}
+
+	deleted := strings.Replace(issueCommentEvent(repoName, 52, 993011, "NONE", "/peasant attach"), `"action": "created"`, `"action": "deleted"`, 1)
+	if err := dispatchEvent(t, h, "issue_comment", deleted); err != nil {
+		t.Fatalf("dispatch the deleted command: %v", err)
+	}
+	if _, err := h.queries.GetPullRequestAttachmentForPull(ctx, sqlc.GetPullRequestAttachmentForPullParams{Lower: "acme", Lower_2: repoName, Number: 52}); err == nil {
+		t.Fatal("deleting a command comment re-executed it")
+	}
+}
+
+// TestForkPullRequestMatchesTheHeadRepository proves the fork branch is
+// reachable: the head repository's own remote is what the matcher can match, so
+// a transcript recorded from the fork is accepted and the base name alone is not
+// used for it.
+func TestForkPullRequestMatchesTheHeadRepository(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 993012)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "fork-" + fmt.Sprintf("%d", time.Now().UnixNano())[:8]
+	forkName := "fork-of-" + repoName
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	_ = groupID
+	sha := "7771234000000000000000000000000000000037"
+	transcriptID := attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:author/"+forkName+".git", sha, "private", "feat/x", time.Now().Add(-time.Hour))
+
+	// The pull request is a fork: head repo author/fork-of-<repo>, base
+	// acme/<repo>. The attachment is created by the comment, so its stored head
+	// remote is the fork the resolver read, which is what the matcher must match.
+	fake.setPullRequestDetail(sha, 993012, "author/"+forkName, "acme/"+repoName)
+	fake.setPullCommits(sha)
+	h.githubDispatcher = promptCommandDispatcher{h: h}
+	if err := dispatchEvent(t, h, "issue_comment", issueCommentEvent(repoName, 53, 993012, "NONE", "/peasant attach")); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := h.queries.GetPullRequestAttachmentForPull(ctx, sqlc.GetPullRequestAttachmentForPullParams{Lower: "acme", Lower_2: repoName, Number: 53})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.State != "attached" {
+		t.Fatalf("state = %q, want attached: the fork head remote must be matchable", stored.State)
+	}
+	var visibility string
+	if err := pool.QueryRow(ctx, "SELECT visibility FROM transcripts WHERE id = $1", transcriptID).Scan(&visibility); err != nil {
+		t.Fatal(err)
+	}
+	if visibility != "shared" {
+		t.Fatalf("visibility = %q, want shared", visibility)
+	}
+	_ = fake
+}
+
+func pullRequestForkEvent(repoName, forkName string, number int, authorID int64, headSHA string) string {
+	return fmt.Sprintf(`{
+		"action": "synchronize",
+		"number": %d,
+		"pull_request": {
+			"number": %d,
+			"user": {"id": %d, "login": "author"},
+			"head": {"ref": "feat/x", "sha": %q, "repo": {"id": 55, "name": %q, "full_name": "author/%s", "owner": {"id": %d, "login": "author"}}},
+			"base": {"ref": "main", "sha": "base", "repo": {"id": 4242, "name": %q, "full_name": "acme/%s", "owner": {"id": 9, "login": "acme"}}},
+			"merged": false
+		},
+		"repository": {"id": 4242, "name": %q, "owner": {"id": 9, "login": "acme"}},
+		"sender": {"id": %d, "login": "author"},
+		"installation": {"id": 4242}
+	}`, number, number, authorID, headSHA, forkName, forkName, authorID, repoName, repoName, repoName, authorID)
 }

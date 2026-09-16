@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -27,6 +28,10 @@ import (
 // actually applied to the stored content; this constant is the one place that
 // change lands, and nothing else in the lifecycle assumes a level.
 const attachmentRedactionLevel = string(redact.Standard)
+
+// attachmentHookTimeout bounds the post-publish completion work, which runs
+// inside the publish request but must not be tied to the client's connection.
+const attachmentHookTimeout = 30 * time.Second
 
 // Sentinel failures the attachment lifecycle reports so a caller can map them to
 // the right status: a collective that no longer exists or a repository that is

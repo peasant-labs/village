@@ -59,7 +59,7 @@ func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.Pul
 	if err := h.widenAttachedTranscripts(ctx, attachment, repo, match.Accepted, 0); err != nil {
 		return attachment, err
 	}
-	commentID, checkRunID, err := h.postAttachment(ctx, attachment, repo, value)
+	commentID, checkRunID, err := h.postAttachment(ctx, attachment, repo, value, false)
 	if err != nil {
 		// Posting failed, so undo the widening: an attachment that never
 		// attached must not leave a transcript shared. The retry then starts
@@ -265,7 +265,7 @@ func (h *Handler) undoWidening(ctx context.Context, attachmentID pgtype.UUID, tr
 // postAttachment posts the check (when the collective asked for one) and the one
 // sticky comment, returning the ids to record. A GitHub failure is returned
 // unwrapped so the caller answers 502 with the state unchanged.
-func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, value schema.PromptDigest) (commentID, checkRunID int64, err error) {
+func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, value schema.PromptDigest, headChanged bool) (commentID, checkRunID int64, err error) {
 	if h.gh == nil {
 		return 0, 0, errAttachmentGitHubUnavailable
 	}
@@ -288,18 +288,21 @@ func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullReques
 			Summary:    summary,
 			Actions:    github.PromptCheckActions(),
 		}
-		if attachment.CheckRunID.Valid {
-			updated, updateErr := h.gh.UpdateCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, attachment.CheckRunID.Int64, request)
-			if updateErr != nil {
-				return 0, 0, fmt.Errorf("%w: updating the check run: %v", errAttachmentGitHub, updateErr)
-			}
-			checkRunID = updated.ID
-		} else {
+		// A check run's head SHA is fixed when it is created; an update cannot
+		// move it. So a new head needs a NEW run, or the new commit has no check
+		// at all and a required check never satisfies branch protection.
+		if !attachment.CheckRunID.Valid || headChanged {
 			created, createErr := h.gh.CreateCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, request)
 			if createErr != nil {
 				return 0, 0, fmt.Errorf("%w: creating the check run: %v", errAttachmentGitHub, createErr)
 			}
 			checkRunID = created.ID
+		} else {
+			updated, updateErr := h.gh.UpdateCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, attachment.CheckRunID.Int64, request)
+			if updateErr != nil {
+				return 0, 0, fmt.Errorf("%w: updating the check run: %v", errAttachmentGitHub, updateErr)
+			}
+			checkRunID = updated.ID
 		}
 	}
 

@@ -26,6 +26,7 @@ var requiredPayloadCaseNames = []string{
 	"check-run-completed-is-not-a-command",
 	"check-run-requested-action-attach",
 	"check-run-requested-action-detach",
+	"check-run-click-without-a-pull-request",
 }
 
 type payloadExpectation struct {

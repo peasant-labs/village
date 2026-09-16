@@ -32,6 +32,15 @@ const (
 	CheckActionRefresh = "Refresh"
 )
 
+// The action identifiers are what a click reports back, published by the check
+// run's actions and read from the check_run webhook's requested_action. The
+// dispatcher matches on THESE, so the menu and the handling cannot drift.
+const (
+	CheckActionIdentifierAttach  = "attach"
+	CheckActionIdentifierDetach  = "detach"
+	CheckActionIdentifierRefresh = "refresh"
+)
+
 // Check conclusions Village uses. A check is always posted completed, so one of
 // these is always set.
 const (
@@ -55,9 +64,9 @@ type CheckAction struct {
 // 20 characters), which a fixture asserts.
 func PromptCheckActions() []CheckAction {
 	return []CheckAction{
-		{Label: CheckActionAttach, Identifier: "attach", Description: "Match and attach prompts"},
-		{Label: CheckActionDetach, Identifier: "detach", Description: "Detach attached prompts"},
-		{Label: CheckActionRefresh, Identifier: "refresh", Description: "Recompute prompts and digest"},
+		{Label: CheckActionAttach, Identifier: CheckActionIdentifierAttach, Description: "Match and attach prompts"},
+		{Label: CheckActionDetach, Identifier: CheckActionIdentifierDetach, Description: "Detach attached prompts"},
+		{Label: CheckActionRefresh, Identifier: CheckActionIdentifierRefresh, Description: "Recompute prompts and digest"},
 	}
 }
 

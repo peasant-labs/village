@@ -11,16 +11,16 @@ import (
 // the head SHA or the base/head repositories, so the lifecycle reads them here
 // rather than guessing.
 type PullRequest struct {
-	Number   int
-	RepoID   int64
-	HeadSHA  string
-	HeadRef  string
-	HeadRepo string
-	BaseRepo string
-	AuthorID int64
-	IsFork   bool
-	State    string
-	Merged   bool
+	Number           int
+	RepoID           int64
+	HeadSHA          string
+	HeadRef          string
+	HeadRepo         string
+	HeadRepoFullName string
+	BaseRepo         string
+	AuthorID         int64
+	IsFork           bool
+	State            string
 }
 
 // GetPullRequest reads one pull request through the installation token. It is
@@ -38,9 +38,10 @@ func (c *Client) GetPullRequest(ctx context.Context, installationID int64, owner
 			SHA  string `json:"sha"`
 			Ref  string `json:"ref"`
 			Repo struct {
-				ID    int64  `json:"id"`
-				Name  string `json:"name"`
-				Owner struct {
+				ID       int64  `json:"id"`
+				Name     string `json:"name"`
+				FullName string `json:"full_name"`
+				Owner    struct {
 					Login string `json:"login"`
 				} `json:"owner"`
 			} `json:"repo"`
@@ -67,16 +68,16 @@ func (c *Client) GetPullRequest(ctx context.Context, installationID int64, owner
 	}
 
 	pr := &PullRequest{
-		Number:   out.Number,
-		RepoID:   out.Base.Repo.ID,
-		HeadSHA:  out.Head.SHA,
-		HeadRef:  out.Head.Ref,
-		HeadRepo: out.Head.Repo.Name,
-		BaseRepo: out.Base.Repo.Name,
-		AuthorID: out.User.ID,
-		IsFork:   out.Head.Repo.ID != 0 && out.Base.Repo.ID != 0 && out.Head.Repo.ID != out.Base.Repo.ID,
-		State:    out.State,
-		Merged:   out.Merged,
+		Number:           out.Number,
+		RepoID:           out.Base.Repo.ID,
+		HeadSHA:          out.Head.SHA,
+		HeadRef:          out.Head.Ref,
+		HeadRepo:         out.Head.Repo.Name,
+		HeadRepoFullName: out.Head.Repo.FullName,
+		BaseRepo:         out.Base.Repo.Name,
+		AuthorID:         out.User.ID,
+		IsFork:           out.Head.Repo.ID != 0 && out.Base.Repo.ID != 0 && out.Head.Repo.ID != out.Base.Repo.ID,
+		State:            out.State,
 	}
 	return pr, nil
 }
