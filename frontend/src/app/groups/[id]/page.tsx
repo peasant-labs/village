@@ -45,8 +45,9 @@ import {
   unownedGroupedItems,
 } from "@/components/transcript/ScopedHelperGroups";
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
-import { useGroupedCollective } from "@/lib/queries/groupedCollectives";
+import { useGroupedCollective, useGroupedMyShares } from "@/lib/queries/groupedCollectives";
 import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
+import type { HelperGroupSummary } from "@peasant-labs/schema";
 import {
   Button,
   ProviderBars,
@@ -84,13 +85,19 @@ function MyContributionRow({
   groupID,
   onUnshare,
   unsharing,
+  helperGroups,
+  onRefreshOrigin,
 }: {
   share: UserGroupShare;
   groupID: string;
   onUnshare: (input: { transcriptId: string; groupId: string }) => void;
   unsharing: boolean;
+  /** The saved helper groups the server grouped under this contribution. */
+  helperGroups?: readonly HelperGroupSummary[];
+  /** Refresh of the originating grouped list, offered by an expired scope. */
+  onRefreshOrigin: () => void;
 }) {
-  return (
+  const row = (
     <div className="flex items-center gap-3 px-5 py-2.5 hover:bg-surface-hover transition-colors">
       <ProviderBadge provider={share.model_provider} />
       <Link
@@ -121,6 +128,17 @@ function MyContributionRow({
       </button>
     </div>
   );
+  // A contribution the server grouped helpers under reads them beneath its own
+  // row, exactly like every other collective surface. A contribution with no
+  // saved helpers is drawn as the row alone, so nothing else on this list
+  // changes shape.
+  if (helperGroups == null || helperGroups.length === 0) return row;
+  return (
+    <div data-helper-group-owner={share.id}>
+      {row}
+      <ScopedOwnerHelperGroups groups={helperGroups} onRefreshOrigin={onRefreshOrigin} />
+    </div>
+  );
 }
 
 /**
@@ -136,12 +154,16 @@ function MyContributionChildren({
   groupID,
   onUnshare,
   unsharing,
+  helperGroupsByRowID,
+  onRefreshOrigin,
 }: {
   parentShareID: string;
   startedShares: UserGroupShare[];
   groupID: string;
   onUnshare: (input: { transcriptId: string; groupId: string }) => void;
   unsharing: boolean;
+  helperGroupsByRowID: ReadonlyMap<string, HelperGroupSummary[]>;
+  onRefreshOrigin: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const rowsID = `my-contribution-children-${parentShareID}`;
@@ -169,6 +191,8 @@ function MyContributionChildren({
               groupID={groupID}
               onUnshare={onUnshare}
               unsharing={unsharing}
+              helperGroups={helperGroupsByRowID.get(child.id)}
+              onRefreshOrigin={onRefreshOrigin}
             />
           ))}
         </div>
@@ -280,6 +304,25 @@ export default function GroupDetailPage({
   );
   const groupedItems = useMemo(() => grouped.items, [grouped.items]);
   const helperGroups = useMemo(() => helperGroupsByTranscript(groupedItems), [groupedItems]);
+
+  // The grouped read of "your contributions": the saved helper threads the
+  // server grouped under each of the caller's own contributions. The flat
+  // contributions stay the authority for their own rows -- the unshare control,
+  // the pending state and the count -- because the grouped page nests helper
+  // members behind a disclosure that carries no unshare control, and its total
+  // counts grouped top-level units rather than contributions. A failed, refused
+  // or still-loading grouped read removes nothing and changes no row; it only
+  // adds the disclosures.
+  const groupedMyShares = useGroupedMyShares(
+    id,
+    { limit: GROUPED_TOP_LEVEL_PAGE_SIZE },
+    !!user,
+  );
+  const myShareGroupedItems = useMemo(() => groupedMyShares.items, [groupedMyShares.items]);
+  const myShareHelperGroups = useMemo(
+    () => helperGroupsByTranscript(myShareGroupedItems),
+    [myShareGroupedItems],
+  );
 
   if (isLoading) {
     return (
@@ -611,6 +654,15 @@ export default function GroupDetailPage({
   // whose starter was not offered to this collective keeps its ordinary row.
   const myShareFold = groupSessionRows(mySharesList, myShareIdentity);
   const myShareChildren = childSessionsByRowID(myShareFold, myShareIdentity);
+  // Every contribution the flat rendering draws, folded children included. A
+  // grouped owner named here is ALREADY represented, so the grouped exit below
+  // skips it instead of mounting a second contribution row.
+  const flatMyShareOwnerIds = new Set(mySharesList.map((s) => s.id));
+  const myShareGroupedFallback = unownedGroupedItems(myShareGroupedItems, flatMyShareOwnerIds);
+  // Grouped content the flat contributions did not carry, plus the way to any
+  // grouped page not read yet. Either one is enough that the panel is not empty.
+  const hasMyShareGroupedExit =
+    myShareGroupedFallback.length > 0 || groupedMyShares.remainingItems > 0;
   const currentUserId = user?.id;
 
   const railContent = (
@@ -1065,9 +1117,15 @@ export default function GroupDetailPage({
           </div>
         )}
 
-      {/* Your contributions */}
-      {isMember && user && mySharesList.length > 0 && (
-        <div className="border border-rule bg-surface">
+      {/* Your contributions. The flat contributions are the authority for their
+          own rows; the grouped exits the flat rendering did not draw -- the
+          context containers it has no row for, and each owner row it does not
+          carry -- are mounted below, outside the flat branch, so a partial or
+          empty flat result still reaches the saved helper threads the server
+          grouped. An owner the flat list already draws keeps its group under its
+          own row and is never mounted twice. */}
+      {isMember && user && (mySharesList.length > 0 || hasMyShareGroupedExit) && (
+        <div className="border border-rule bg-surface" data-testid="my-contributions-panel">
           <div className="flex items-center justify-between gap-2 px-5 py-3 border-b border-rule">
             <span className="text-sm font-medium text-ink">Your contributions</span>
             <span className="text-xs font-mono text-ink-3 tabular-nums">
@@ -1078,25 +1136,48 @@ export default function GroupDetailPage({
               that started it, behind the same control every other list in this
               app uses. A contribution whose starter was not offered to this
               collective keeps its ordinary row. */}
-          <div className="divide-y divide-rule">
-            {myShareFold.rootItems.map((s) => (
-              <div key={s.id}>
-                <MyContributionRow
-                  share={s}
-                  groupID={id}
-                  onUnshare={unshareTranscript.mutate}
-                  unsharing={unshareTranscript.isPending}
-                />
-                <MyContributionChildren
-                  parentShareID={s.id}
-                  startedShares={myShareChildren.get(s.id) ?? []}
-                  groupID={id}
-                  onUnshare={unshareTranscript.mutate}
-                  unsharing={unshareTranscript.isPending}
-                />
-              </div>
-            ))}
-          </div>
+          {mySharesList.length > 0 && (
+            <div className="divide-y divide-rule">
+              {myShareFold.rootItems.map((s) => (
+                <div key={s.id}>
+                  <MyContributionRow
+                    share={s}
+                    groupID={id}
+                    onUnshare={unshareTranscript.mutate}
+                    unsharing={unshareTranscript.isPending}
+                    helperGroups={myShareHelperGroups.get(s.id)}
+                    onRefreshOrigin={groupedMyShares.refreshOrigin}
+                  />
+                  <MyContributionChildren
+                    parentShareID={s.id}
+                    startedShares={myShareChildren.get(s.id) ?? []}
+                    groupID={id}
+                    onUnshare={unshareTranscript.mutate}
+                    unsharing={unshareTranscript.isPending}
+                    helperGroupsByRowID={myShareHelperGroups}
+                    onRefreshOrigin={groupedMyShares.refreshOrigin}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          {hasMyShareGroupedExit && (
+            <div
+              className={mySharesList.length > 0 ? "border-t border-rule" : undefined}
+              data-testid="grouped-helper-fallback"
+            >
+              <ScopedUnownedHelperGroups
+                items={myShareGroupedItems}
+                representedOwnerIds={flatMyShareOwnerIds}
+                onRefreshOrigin={groupedMyShares.refreshOrigin}
+              />
+              <ScopedGroupedContinuation
+                remaining={groupedMyShares.remainingItems}
+                busy={groupedMyShares.isFetchingNextPage}
+                onLoadMore={() => void groupedMyShares.fetchNextPage()}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

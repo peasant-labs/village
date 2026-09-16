@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import {
   zVillageGroupedContributableResponse,
   zVillageGroupedGroupDetailResponse,
@@ -26,27 +26,6 @@ function listQuery(filters: CollectiveListFilters): string {
 // The decoder is the published canonical validator, not a host wire model.
 // Existing mutation-key prefixes remain valid, with viewer and filter identity
 // below them so an account/filter change cannot borrow another list's scopes.
-function useCollectiveRead<T>(key: string, groupId: string, suffix: string, filters: CollectiveListFilters, enabled: boolean, decode: (value: unknown) => T, pageOf: (value: T) => { page: number; limit: number }) {
-  const { user, isLoading } = useAuth();
-  const client = useQueryClient();
-  const queryKey = [key, groupId, "grouped", user?.id ?? "anonymous", filters] as const;
-  const query = useQuery({
-    queryKey,
-    queryFn: async ({ signal }) => {
-      const raw = await api<unknown>(`/groups/${encodeURIComponent(groupId)}${suffix}?${listQuery(filters)}`, { signal });
-      const response = decode(raw);
-      const page = pageOf(response);
-      if (page.page !== (filters.page ?? 1) || page.limit !== (filters.limit ?? 20)) {
-        throw new Error("collective grouped read refused before caching: the response pagination differs from the requested scope; no selectable rows were retained; refresh the originating collective list");
-      }
-      return response;
-    },
-    enabled: !isLoading && !!groupId && enabled,
-    retry: false,
-    staleTime: 0,
-  });
-  return { ...query, data: query.isError ? undefined : query.data, refreshOrigin: () => client.invalidateQueries({ queryKey, exact: true }) };
-}
 
 /** The fields every collective grouped page shares, whatever its route arm carries. */
 interface CollectiveGroupedPage {
@@ -137,6 +116,12 @@ export function useGroupedPendingShares(groupId: string, filters: CollectiveList
   return useCollectiveReadPaged("group-pending", groupId, "/pending", filters, enabled, (raw) => zVillageSessionListPayload.parse(raw), (response) => response);
 }
 
+// One grouped read per collective route variant, each with a reachable
+// continuation. The my-shares arm is the same `VillageSessionListPayload` the
+// pending arm serves, so it uses the identical paged read: the panel's own flat
+// contribution list stays the authority for its rows, and a grouped page holds
+// only `limit` top-level units, so the later owner rows would otherwise never
+// get their grouped exit.
 export function useGroupedMyShares(groupId: string, filters: CollectiveListFilters, enabled = true) {
-  return useCollectiveRead("group-my-shares", groupId, "/my-shares", filters, enabled, (raw) => zVillageSessionListPayload.parse(raw), (response) => response);
+  return useCollectiveReadPaged("group-my-shares", groupId, "/my-shares", filters, enabled, (raw) => zVillageSessionListPayload.parse(raw), (response) => response);
 }
