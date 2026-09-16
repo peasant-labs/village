@@ -7,6 +7,9 @@ RETURNING *;
 SELECT * FROM groups WHERE id = $1;
 
 -- name: UpdateGroup :one
+-- The prompts-check settings are writable here because the served contract
+-- declares them on the group update; a field the caller omitted is resolved to
+-- the current value by the handler before this statement runs.
 UPDATE groups SET
     name = $2,
     description = $3,
@@ -15,6 +18,8 @@ UPDATE groups SET
     linked_github_org = $6,
     display_members = $7,
     transcript_deletion_policy = $8,
+    post_prompts_check = $9,
+    prompts_check_mode = $10,
     updated_at = now()
 WHERE id = $1
 RETURNING *;

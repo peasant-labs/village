@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/promptattach"
 )
 
 var validAcceptanceModes = map[string]bool{
@@ -343,6 +344,8 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 		LinkedGitHubOrg          *string `json:"linked_github_org"`
 		DisplayMembers           *bool   `json:"display_members"`
 		TranscriptDeletionPolicy string  `json:"transcript_deletion_policy"`
+		PostPromptsCheck         *bool   `json:"post_prompts_check"`
+		PromptsCheckMode         string  `json:"prompts_check_mode"`
 	}
 	if !h.decodeContractBody(w, r, opUpdateGroup, &req) {
 		return
@@ -358,6 +361,15 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	if req.TranscriptDeletionPolicy != "" && !validDeletionPolicies[req.TranscriptDeletionPolicy] {
 		writeError(w, http.StatusBadRequest, "Invalid transcript deletion policy")
 		return
+	}
+	// The check mode is a closed menu shared with the attachment lifecycle; a
+	// value outside it must be refused before any write rather than reaching the
+	// database CHECK.
+	if req.PromptsCheckMode != "" {
+		if err := promptattach.CheckMode(req.PromptsCheckMode).Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid prompts check mode")
+			return
+		}
 	}
 
 	// Fetch current group to use existing values if not provided.
@@ -381,6 +393,14 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	deletionPolicy := currentGroup.TranscriptDeletionPolicy
 	if req.TranscriptDeletionPolicy != "" {
 		deletionPolicy = req.TranscriptDeletionPolicy
+	}
+	postPromptsCheck := currentGroup.PostPromptsCheck
+	if req.PostPromptsCheck != nil {
+		postPromptsCheck = *req.PostPromptsCheck
+	}
+	promptsCheckMode := currentGroup.PromptsCheckMode
+	if req.PromptsCheckMode != "" {
+		promptsCheckMode = req.PromptsCheckMode
 	}
 
 	// linked_github_org: nil pointer => no change; non-nil empty => clear;
@@ -416,6 +436,8 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 		LinkedGithubOrg:          linkedOrg,
 		DisplayMembers:           displayMembers,
 		TranscriptDeletionPolicy: deletionPolicy,
+		PostPromptsCheck:         postPromptsCheck,
+		PromptsCheckMode:         promptsCheckMode,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to update group")
