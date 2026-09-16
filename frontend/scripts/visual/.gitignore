@@ -36,6 +36,12 @@
 !home-shoot.mjs
 !grouped-helper-shoot.mjs
 !mock-rest-grouped-collective.mjs
+!collective-sxs.mjs
+!demo-helper-groups-shoot.mjs
+!collective-stitch-sxs.mjs
+!collective-sxs-selfcheck.test.mjs
+!testdata/
+!testdata/**
 !png-diff.mjs
 !determinism.mjs
 !probe-contribute-narrow.mjs
