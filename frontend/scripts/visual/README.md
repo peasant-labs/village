@@ -90,9 +90,9 @@ mounted into the composer's `renderTurnActions` slot exactly as the production p
 | `child-session-shoot.mjs` | Capture how one surface treats a session that another session started, in one theme, from one live page: `explore` (folded away, no control), `home` and `project` (collapsed and expanded chip), and the six lists sharing that same design — `profile`, `collective-data`, `collective-repos`, `collective-contributions`, `contribute-tree` (each closed and open), plus `collective-pending`, which does NOT fold and is captured once, flat (see "The six lists that fold behind the same control"). Asserts build provenance against the live DOM before writing any PNG — on discovery, that the started rows are off the grid, that a row whose parent the response does not carry still browses, that NO control rendered, and that the count above the grid matches the cards under it; on the other two, that the chip carries a bare counted label with nothing in front of it (it is read from the label element, not the whole control, so a leading mark cannot hide inside the show/hide affordance), that it sits in the same list unit as its own parent row, and that its VERTICAL RHYTHM holds as computed style — the row carrying a chip one design-system step tighter underneath, still opening its original distance above, an ordinary row in the same list unchanged, the indentation untouched, and the rendered gap within its band. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the whole document inside the viewport, and the clip box covering the document — so the fixed app header cannot composite over the middle of the image and the bottom of the list cannot be cut. |
 | `surface-gate.mjs` | The non-empty-surface gate (vendored, self-contained copy of the fairtrade `scripts/surface-gate.mjs`). Fails a capture that is blank / near-empty / byte-identical to another surface — closing the silent-blank hole a valid-but-empty bounding box leaves open (e.g. an empty graph). |
 | `demo-helper-groups-shoot.mjs` | Capture the canonical Fairtrade grouped-helper demonstration (the demo REFERENCE side of the collective SxS arms) from a SERVED demo build, both themes. Before writing any PNG it proves the **exact release** (`FAIRTRADE_CHECKOUT`'s `package.json` version equals this app's `@peasant-labs/fairtrade` pin AND `git describe --tags --exact-match` names `fairtrade-v<version>`), digsests the **served asset** (sha256) and cross-checks it byte-for-byte against the same file in that checkout's `dist/`, and checks the content markers (the arm's `[data-helper-demo]` case in the live DOM and the demonstration + connector markers in that served chunk). `DEMO_ASSET_SHA256` substitutes a served-bytes pin (recorded as digest-only). It writes `provenance.json` + `styles.json` (the shared computed readings and wrap measurements) next to the captures. |
-| `collective-stitch-sxs.mjs` | Compose the collective grouped arms as the fairtrade demo on the left and the village app on the right, per theme, at both a whole-surface and a bounded grouped-region level. Fails closed on (a) a missing/blank/byte-identical side, (b) any computed-property mismatch against `COMPARED_PROPERTIES` — the ONE set both shoots read — or an element missing on one side that is neither a contract-expected `STYLE_EXCEPTIONS` entry nor a `STYLE_DIVERGENCES` record, and (c) a side with no `styles.json`/`provenance.json`, so the comparison and the attribution can never silently not run. Recorded divergences are printed on every composite and in the run log. Each composite header carries the mapping, both provenance lines (with what each does NOT prove), the compared-property count, the named exceptions and the measured wrap readings. The printed pixel-diff stays informational, because these pairs are deliberately different surfaces. |
-| `collective-sxs.mjs` | The arms table, the side check, the one compared property set with its named exceptions, the wrap measurement and the exact-release/served-digest predicates the two shoots, the stitcher and the self-check all read. |
-| `collective-sxs-selfcheck.test.mjs` | The self-check (`testdata/collective-sxs-selfcheck.yaml` drives it; no inline case table). Pins every required arm by NAME and drives the SAME predicates the harness fails closed with: `sideProblem` (missing/blank/byte-identical side), `releaseProofProblem` (exact release), `digestProblem` (served bytes), and `compareStyleRecords` (property match, named exceptions, the one font-alias normalization). |
+| `collective-stitch-sxs.mjs` | Compose the collective grouped arms as the fairtrade demo on the left and the village app on the right, per theme, at both a whole-surface and a bounded grouped-region level. Fails closed on (a) a missing/blank/byte-identical side, (b) any computed-property mismatch against `COMPARED_PROPERTIES` — the ONE set both shoots read — or an element missing on one side that is not a contract-expected `STYLE_EXCEPTIONS` entry, (c) an arm in `CONNECTOR_ARMS` whose canonical connector is missing on either side, and (d) a side with no `styles.json`/`provenance.json`, so the comparison and the attribution can never silently not run. Each composite header carries the mapping, both provenance lines (with what each does NOT prove), the compared-property count, the named exceptions and the measured wrap readings. The printed pixel-diff stays informational, because these pairs are deliberately different surfaces. |
+| `collective-sxs.mjs` | The arms table, the side check, the one compared property set with its named exceptions, the positive connector assertion (`CONNECTOR_ARMS`/`connectorProblem`), the wrap measurement and the exact-release/served-digest predicates the two shoots, the stitcher and the self-check all read. |
+| `collective-sxs-selfcheck.test.mjs` | The self-check (`testdata/collective-sxs-selfcheck.yaml` drives it; no inline case table). Pins every required arm by NAME and drives the SAME predicates the harness fails closed with: `sideProblem` (missing/blank/byte-identical side), `releaseProofProblem` (exact release), `digestProblem` (served bytes), `compareStyleRecords` (property match, named exceptions, the one font-alias normalization), and `connectorProblem` (the connector present on both sides of every member-selecting arm). |
 | `stitch-sxs.mjs` | Compose labeled, **height-matched** side-by-side composites (`REFERENCE | SUBJECT`) per surface per theme. The shorter pane is padded (never scaled) with its own border-sampled background; a dashed hairline marks where the shorter capture ends. A surface missing a subject capture gets a labeled placeholder panel so the set stays complete. The reference side defaults to the **committed `baseline/tb/`** (the same-component `<SessionDetail>` "before"); `REF_DIR=demo` is the optional non-gating design-language sanity panel (see **Oracle**). |
 | `baseline/tb/{dark,light}/` | The **committed** same-component reference: an earlier `<SessionDetail>` capture of the same `sess_demo_0001` session, recorded before theme convergence. It is a **frozen, non-regenerable** snapshot, so unlike the regenerable `demo/` it is tracked in the repository. The default `stitch` reads it directly, so the oracle works on a clean checkout with no staging. |
 
@@ -412,8 +412,8 @@ mapping, and each arm records what its pair can and cannot compare:
 | arm | demo reference (case · state) | what the pair compares |
 |---|---|---|
 | `collective-grouped-browse` | `three-independent-counts` · expanded | the owner anchor, the single indent step, the count chip and the individually linked members. Two limits, stated rather than implied: the browse list is read-only, so the demo's per-member checkboxes AND the connector they trace have no counterpart (the app crop carries no connector), and the app's owner row is the transcript list row it always was rather than the reference's generic owner row. |
-| `collective-grouped-contribute` | `three-independent-counts` · one member ticked | the per-member selection: the app arms its own bar (`contribute 1 transcript`) where the demo states the selected identity in its summary line. The reference also draws the traced connector between its checkboxes and this app surface does not (recorded divergence; see below). |
-| `collective-grouped-review` | `trunk-replacement` · one member ticked | a tick names ONE identity, never a group: the reference group holds two members with the same title plus a third that differs, and the app states `1 selected` on its decision bar. As on contribute, the reference draws the traced connector and this app surface does not (recorded divergence). |
+| `collective-grouped-contribute` | `three-independent-counts` · one member ticked | the per-member selection: the app arms its own bar (`contribute 1 transcript`) where the demo states the selected identity in its summary line. Both sides trace the canonical connector between their member checkboxes, which the harness asserts (`CONNECTOR_ARMS`); its absence fails the gate. |
+| `collective-grouped-review` | `trunk-replacement` · one member ticked | a tick names ONE identity, never a group: the reference group holds two members with the same title plus a third that differs, and the app states `1 selected` on its decision bar. As on contribute, both sides trace the canonical connector, asserted by `CONNECTOR_ARMS`. |
 | `collective-grouped-my-shares` | `ordinary-child-exit` · expanded | the host row keeps its own exits (the contribution link, pending state and unshare control) with the grouped disclosure hanging beneath it, which is what that reference example demonstrates. The panel's grouped read is display-only: its members are individually linked, with no per-member tick and no traced connector. |
 
 #### What the reference proof does and does not establish
@@ -460,24 +460,24 @@ normalization is the font-family alias the app resolves through Next
 (`atkinsonHyperlegibleMono` vs `"Atkinson Hyperlegible Mono"`), named in
 `normalizeValue`.
 
-An element one side does not mount is one of three things, and the harness keeps
-them apart rather than lumping them into one allowance:
+An element one side does not mount is one of two things, and the harness fails
+closed on everything else rather than lumping them into one allowance:
 
 - **expected by the design system's own contract** (`STYLE_EXCEPTIONS`, exactly
   two entries, both the same fact): a display-only grouped read mounts no
   checkbox, so no connector is drawn — the browse list and the contributions
   panel;
-- **a recorded divergence** (`STYLE_DIVERGENCES`): the app's contribute and review
-  disclosures mount per-member checkboxes **without** the `HelperGroupListItem`
-  tree that owns the traced connector, so the connector the canonical composition
-  draws is absent. This is a product gap, so the harness reports it loudly — on
-  every composite header and in the run log — instead of explaining it away, and
-  it is NOT fixed here (this change touches the harness and its docs only);
+- **asserted present** (`CONNECTOR_ARMS`/`connectorProblem`): the arms that DO
+  mount per-member checkboxes — contribute and review — must compose the
+  design system's helper tree, which owns the traced connector. The connector is
+  asserted POSITIVELY on both sides: a missing connector on either side of one of
+  those arms aborts the stitch with an actionable reason, and the self-check pins
+  the arm list by NAME, so it cannot silently stop being asserted;
 - **unexplained**, which fails the stitch closed.
 
 The measured wrap readings below are on the same artifacts: the contribute and
-review panels wrap their closed chip label to two lines at 236px and their facts
-line to four lines at 281px, where the reference reads one line at 248px and
+review panels keep their closed chip label on ONE line at 248px and wrap their
+facts line to two lines at 317px, where the reference reads one line at 248px and
 1302px respectively — measured per arm on both sides (`WRAP_ELEMENTS`), reported
 and never gated, because the two containers are legitimately different widths.
 
@@ -566,7 +566,8 @@ done
 
 # 6. compose both levels for both themes. Fails closed on a missing/blank side, a
 #    computed-style mismatch against COMPARED_PROPERTIES, an element missing
-#    without a named STYLE_EXCEPTIONS entry, or a side with no styles.json /
+#    without a named STYLE_EXCEPTIONS entry, an arm in CONNECTOR_ARMS whose
+#    connector is absent on either side, or a side with no styles.json /
 #    provenance.json (the comparison and the attribution can never not run).
 CHROME_PATH=$CHROME node scripts/visual/collective-stitch-sxs.mjs $BASE
 
