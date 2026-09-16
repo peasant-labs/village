@@ -33,7 +33,7 @@ const attachmentCheckTitle = "peasant / prompts"
 // per-transcript widening is idempotent (a binding preserves its first snapshot,
 // an already-approved share is not reopened) so a retry completes rather than
 // duplicates.
-func (h *Handler) confirmAttachment(ctx context.Context, attachment sqlc.PullRequestAttachment) (sqlc.PullRequestAttachment, error) {
+func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.PullRequestAttachment) (sqlc.PullRequestAttachment, error) {
 	repo, err := h.resolveAttachmentRepository(ctx, h.queries, attachment)
 	if err != nil {
 		return attachment, err
@@ -47,12 +47,16 @@ func (h *Handler) confirmAttachment(ctx context.Context, attachment sqlc.PullReq
 		// preview stays a preview rather than becoming an empty attachment.
 		return attachment, errAttachmentNothingAccepted
 	}
-	value, err := h.buildAttachmentDigest(ctx, match, commitSet)
+	acceptedIDs := make([]schema.TranscriptID, 0, len(match.Accepted))
+	for _, accepted := range match.Accepted {
+		acceptedIDs = append(acceptedIDs, accepted.TranscriptID)
+	}
+	value, err := h.buildAttachmentDigest(ctx, acceptedIDs, commitSet, match)
 	if err != nil {
 		return attachment, err
 	}
 
-	if err := h.widenAttachedTranscripts(ctx, attachment, repo, match.Accepted); err != nil {
+	if err := h.widenAttachedTranscripts(ctx, attachment, repo, match.Accepted, 0); err != nil {
 		return attachment, err
 	}
 	commentID, checkRunID, err := h.postAttachment(ctx, attachment, repo, value)
@@ -60,7 +64,7 @@ func (h *Handler) confirmAttachment(ctx context.Context, attachment sqlc.PullReq
 		// Posting failed, so undo the widening: an attachment that never
 		// attached must not leave a transcript shared. The retry then starts
 		// from exactly the state the caller saw.
-		if compensateErr := h.unwidenAttachedTranscripts(ctx, attachment); compensateErr != nil {
+		if compensateErr := h.undoWidening(ctx, attachment.ID, acceptedIDs); compensateErr != nil {
 			return attachment, fmt.Errorf("%w: and the widening could not be undone, so a retry will redo both: %v", err, compensateErr)
 		}
 		return attachment, err
@@ -97,13 +101,16 @@ var errAttachmentNothingAccepted = errors.New("no transcript was accepted for th
 // whose owner opted in by linking the repository, or public when the repository
 // is public. Ownership is re-checked here, so the lifecycle never widens a
 // transcript the attachment's author does not own.
-func (h *Handler) widenAttachedTranscripts(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, accepted []matcher.AcceptedTranscript) error {
-	for position, item := range accepted {
+// startPosition is where this batch's positions begin. A refresh passes the
+// number of transcripts already bound, because positions are unique per
+// attachment and re-using one would collide with an existing binding.
+func (h *Handler) widenAttachedTranscripts(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, accepted []matcher.AcceptedTranscript, startPosition int) error {
+	for index, item := range accepted {
 		transcriptID, err := uuid.Parse(string(item.TranscriptID))
 		if err != nil {
 			return fmt.Errorf("an accepted transcript id was not a uuid: %w", err)
 		}
-		if err := h.widenOneTranscript(ctx, attachment, repo, pgtype.UUID{Bytes: transcriptID, Valid: true}, position); err != nil {
+		if err := h.widenOneTranscript(ctx, attachment, repo, pgtype.UUID{Bytes: transcriptID, Valid: true}, startPosition+index); err != nil {
 			return err
 		}
 	}
@@ -229,18 +236,28 @@ func ensureApprovedShare(ctx context.Context, q Querier, transcriptID, groupID p
 // approved share is deliberately left in place: with the transcript private it
 // grants nothing, and a retry finds it already approved instead of appending a
 // second event to the share ledger.
-func (h *Handler) unwidenAttachedTranscripts(ctx context.Context, attachment sqlc.PullRequestAttachment) error {
-	bindings, err := h.queries.ListPullRequestAttachmentTranscripts(ctx, attachment.ID)
-	if err != nil {
-		return fmt.Errorf("could not read the bindings to undo a widening: %w", err)
-	}
-	for _, binding := range bindings {
+func (h *Handler) undoWidening(ctx context.Context, attachmentID pgtype.UUID, transcripts []schema.TranscriptID) error {
+	for _, transcriptID := range transcripts {
+		parsed, err := uuid.Parse(string(transcriptID))
+		if err != nil {
+			return fmt.Errorf("a widened transcript id was not a uuid: %w", err)
+		}
+		binding, err := h.queries.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{
+			AttachmentID: attachmentID,
+			TranscriptID: pgtype.UUID{Bytes: parsed, Valid: true},
+		})
+		if err != nil {
+			return fmt.Errorf("could not read a binding to undo a widening: %w", err)
+		}
 		if err := h.restoreTranscriptVisibility(ctx, binding); err != nil {
 			return err
 		}
-	}
-	if err := h.queries.DeletePullRequestAttachmentTranscripts(ctx, attachment.ID); err != nil {
-		return fmt.Errorf("could not clear the bindings to undo a widening: %w", err)
+		if err := h.queries.DeletePullRequestAttachmentTranscript(ctx, sqlc.DeletePullRequestAttachmentTranscriptParams{
+			AttachmentID: attachmentID,
+			TranscriptID: pgtype.UUID{Bytes: parsed, Valid: true},
+		}); err != nil {
+			return fmt.Errorf("could not remove a binding to undo a widening: %w", err)
+		}
 	}
 	return nil
 }

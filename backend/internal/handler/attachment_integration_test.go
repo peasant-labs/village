@@ -49,6 +49,8 @@ type attachmentGitHubFake struct {
 	srv         *httptest.Server
 	private     bool
 	pullCommits []string
+	prHeadSHA   string
+	prAuthorID  int64
 
 	mu             sync.Mutex
 	failWrites     bool
@@ -78,6 +80,12 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 		case strings.HasPrefix(r.URL.Path, "/app/installations/"):
 			w.WriteHeader(http.StatusCreated)
 			fmt.Fprintf(w, `{"token":"ghs_attachment","expires_at":%q}`, time.Now().Add(time.Hour).UTC().Format(time.RFC3339))
+		case strings.Contains(r.URL.Path, "/pulls/") && !strings.HasSuffix(r.URL.Path, "/commits"):
+			fake.mu.Lock()
+			headSHA, authorID, repoID := fake.prHeadSHA, fake.prAuthorID, int64(4242)
+			fake.mu.Unlock()
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, `{"number":7,"state":"open","head":{"sha":%q,"ref":"feat/x","repo":{"id":4242,"name":"widgets","owner":{"login":"acme"}}},"base":{"repo":{"id":%d,"name":"widgets","owner":{"login":"acme"}}},"user":{"id":%d},"merged":false}`, headSHA, repoID, authorID)
 		case strings.Contains(r.URL.Path, "/pulls/") && strings.HasSuffix(r.URL.Path, "/commits"):
 			commits := make([]string, 0)
 			fake.mu.Lock()
@@ -140,6 +148,13 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 	fake.srv = httptest.NewServer(mux)
 	t.Cleanup(fake.srv.Close)
 	return fake
+}
+
+func (f *attachmentGitHubFake) setPullRequest(headSHA string, authorID int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.prHeadSHA = headSHA
+	f.prAuthorID = authorID
 }
 
 func (f *attachmentGitHubFake) setPullCommits(shas ...string) {

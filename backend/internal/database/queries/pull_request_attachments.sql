@@ -118,3 +118,33 @@ ORDER BY pt.position ASC, pt.transcript_id ASC;
 -- records the visibility that is true at that time rather than replaying a
 -- snapshot from a cycle that is over.
 DELETE FROM pull_request_attachment_transcripts WHERE attachment_id = $1;
+
+-- name: GetPullRequestAttachmentTranscript :one
+-- One binding, for a compensation that must undo exactly the transcripts one
+-- attempt widened rather than every binding the attachment holds.
+SELECT * FROM pull_request_attachment_transcripts
+WHERE attachment_id = $1 AND transcript_id = $2;
+
+-- name: DeletePullRequestAttachmentTranscript :exec
+-- Removes one binding, paired with restoring its recorded visibility.
+DELETE FROM pull_request_attachment_transcripts
+WHERE attachment_id = $1 AND transcript_id = $2;
+
+-- name: ListAuthorAttachmentsForRepo :many
+-- The author's attachments for one repository name in the states a publish can
+-- move: a waiting request it can complete, or an attached one it can refresh.
+-- Matched on the repository NAME, which is the equality the matcher itself
+-- applies after normalization.
+SELECT * FROM pull_request_attachments
+WHERE author_id = @author_id
+  AND lower(repo_name) = lower(@repo_name)
+  AND state = ANY(@states::text[])
+ORDER BY updated_at ASC, id ASC;
+
+-- name: SetPullRequestAttachmentRequester :one
+-- Records which GitHub account asked the author to attach, so the author's
+-- request list can say who is waiting on them.
+UPDATE pull_request_attachments
+SET requester_github_id = @requester_github_id, updated_at = now()
+WHERE id = @id
+RETURNING *;

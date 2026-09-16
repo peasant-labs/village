@@ -1407,3 +1407,23 @@ func (m *mockQuerier) SetUserPreviewBeforeAttach(ctx context.Context, arg sqlc.S
 func (m *mockQuerier) GetCollectiveRepositoryByRepo(ctx context.Context, arg sqlc.GetCollectiveRepositoryByRepoParams) (sqlc.CollectiveRepository, error) {
 	return sqlc.CollectiveRepository{}, nil
 }
+
+func (m *mockQuerier) GetPullRequestAttachmentTranscript(ctx context.Context, arg sqlc.GetPullRequestAttachmentTranscriptParams) (sqlc.PullRequestAttachmentTranscript, error) {
+	return sqlc.PullRequestAttachmentTranscript{}, nil
+}
+
+func (m *mockQuerier) DeletePullRequestAttachmentTranscript(ctx context.Context, arg sqlc.DeletePullRequestAttachmentTranscriptParams) error {
+	return nil
+}
+
+func (m *mockQuerier) ListAuthorAttachmentsForRepo(ctx context.Context, arg sqlc.ListAuthorAttachmentsForRepoParams) ([]sqlc.PullRequestAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) SetPullRequestAttachmentRequester(ctx context.Context, arg sqlc.SetPullRequestAttachmentRequesterParams) (sqlc.PullRequestAttachment, error) {
+	return sqlc.PullRequestAttachment{}, nil
+}
+
+func (m *mockQuerier) GetUserByProviderIdentity(ctx context.Context, arg sqlc.GetUserByProviderIdentityParams) (sqlc.User, error) {
+	return sqlc.User{}, nil
+}

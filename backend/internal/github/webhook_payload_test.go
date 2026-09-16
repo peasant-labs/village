@@ -23,6 +23,9 @@ var requiredPayloadCaseNames = []string{
 	"pull-request-from-a-fork",
 	"pull-request-from-the-same-repository",
 	"pull-request-with-missing-base-repository-is-not-a-fork",
+	"check-run-completed-is-not-a-command",
+	"check-run-requested-action-attach",
+	"check-run-requested-action-detach",
 }
 
 type payloadExpectation struct {
@@ -39,6 +42,9 @@ type payloadExpectation struct {
 	HeadRef        string `yaml:"head_ref"`
 	BaseRepoName   string `yaml:"base_repo_name"`
 	HeadRepoName   string `yaml:"head_repo_name"`
+
+	RequestedActionIdentifier string `yaml:"requested_action_identifier"`
+	PullRequestNumber         int    `yaml:"pull_request_number"`
 }
 
 type payloadCase struct {
@@ -110,24 +116,50 @@ func TestWebhookPayloadDecoding(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			raw := []byte(tc.Payload)
 
-			var pr WebhookPullRequestPayload
-			if err := json.Unmarshal(raw, &pr); err != nil {
-				t.Fatalf("decode pull_request payload: %v", err)
-			}
-			if pr.PullRequest.Number != 0 {
-				assertPullRequestPayload(t, pr, tc.Expect)
-				return
+			var envelope map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &envelope); err != nil {
+				t.Fatalf("decode payload envelope: %v", err)
 			}
 
-			var comment WebhookIssueCommentPayload
-			if err := json.Unmarshal(raw, &comment); err != nil {
-				t.Fatalf("decode issue_comment payload: %v", err)
+			switch {
+			case envelope["check_run"] != nil:
+				var checkRun WebhookCheckRunPayload
+				if err := json.Unmarshal(raw, &checkRun); err != nil {
+					t.Fatalf("decode check_run payload: %v", err)
+				}
+				assertCheckRunPayload(t, checkRun, tc.Expect)
+			case envelope["pull_request"] != nil:
+				var pr WebhookPullRequestPayload
+				if err := json.Unmarshal(raw, &pr); err != nil {
+					t.Fatalf("decode pull_request payload: %v", err)
+				}
+				assertPullRequestPayload(t, pr, tc.Expect)
+			case envelope["issue"] != nil:
+				var comment WebhookIssueCommentPayload
+				if err := json.Unmarshal(raw, &comment); err != nil {
+					t.Fatalf("decode issue_comment payload: %v", err)
+				}
+				assertIssueCommentPayload(t, comment, tc.Expect)
+			default:
+				t.Fatal("payload decoded as none of check_run, pull_request, or issue_comment")
 			}
-			if comment.Issue.Number == 0 {
-				t.Fatal("payload decoded as neither a pull_request nor an issue_comment event")
-			}
-			assertIssueCommentPayload(t, comment, tc.Expect)
 		})
+	}
+}
+
+// assertCheckRunPayload checks the click a button reports: its action
+// identifier (empty when the event is not a click) and the pull request it
+// belongs to, which is how a click addresses an attachment.
+func assertCheckRunPayload(t *testing.T, p WebhookCheckRunPayload, want payloadExpectation) {
+	t.Helper()
+	if got := p.RequestedActionIdentifier(); got != want.RequestedActionIdentifier {
+		t.Errorf("requested action identifier = %q, want %q", got, want.RequestedActionIdentifier)
+	}
+	if got := p.PullRequestNumber(); got != want.PullRequestNumber {
+		t.Errorf("pull request number = %d, want %d", got, want.PullRequestNumber)
+	}
+	if p.Sender.ID != want.SenderID {
+		t.Errorf("sender id = %d, want %d", p.Sender.ID, want.SenderID)
 	}
 }
 

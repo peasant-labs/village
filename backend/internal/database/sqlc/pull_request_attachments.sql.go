@@ -129,6 +129,22 @@ func (q *Queries) CreatePullRequestAttachment(ctx context.Context, arg CreatePul
 	return i, err
 }
 
+const deletePullRequestAttachmentTranscript = `-- name: DeletePullRequestAttachmentTranscript :exec
+DELETE FROM pull_request_attachment_transcripts
+WHERE attachment_id = $1 AND transcript_id = $2
+`
+
+type DeletePullRequestAttachmentTranscriptParams struct {
+	AttachmentID pgtype.UUID `db:"attachment_id" json:"attachment_id"`
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+}
+
+// Removes one binding, paired with restoring its recorded visibility.
+func (q *Queries) DeletePullRequestAttachmentTranscript(ctx context.Context, arg DeletePullRequestAttachmentTranscriptParams) error {
+	_, err := q.db.Exec(ctx, deletePullRequestAttachmentTranscript, arg.AttachmentID, arg.TranscriptID)
+	return err
+}
+
 const deletePullRequestAttachmentTranscripts = `-- name: DeletePullRequestAttachmentTranscripts :exec
 DELETE FROM pull_request_attachment_transcripts WHERE attachment_id = $1
 `
@@ -219,6 +235,91 @@ func (q *Queries) GetPullRequestAttachmentForPull(ctx context.Context, arg GetPu
 		&i.GroupID,
 	)
 	return i, err
+}
+
+const getPullRequestAttachmentTranscript = `-- name: GetPullRequestAttachmentTranscript :one
+SELECT attachment_id, transcript_id, position, previous_visibility FROM pull_request_attachment_transcripts
+WHERE attachment_id = $1 AND transcript_id = $2
+`
+
+type GetPullRequestAttachmentTranscriptParams struct {
+	AttachmentID pgtype.UUID `db:"attachment_id" json:"attachment_id"`
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+}
+
+// One binding, for a compensation that must undo exactly the transcripts one
+// attempt widened rather than every binding the attachment holds.
+func (q *Queries) GetPullRequestAttachmentTranscript(ctx context.Context, arg GetPullRequestAttachmentTranscriptParams) (PullRequestAttachmentTranscript, error) {
+	row := q.db.QueryRow(ctx, getPullRequestAttachmentTranscript, arg.AttachmentID, arg.TranscriptID)
+	var i PullRequestAttachmentTranscript
+	err := row.Scan(
+		&i.AttachmentID,
+		&i.TranscriptID,
+		&i.Position,
+		&i.PreviousVisibility,
+	)
+	return i, err
+}
+
+const listAuthorAttachmentsForRepo = `-- name: ListAuthorAttachmentsForRepo :many
+SELECT id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at, group_id FROM pull_request_attachments
+WHERE author_id = $1
+  AND lower(repo_name) = lower($2)
+  AND state = ANY($3::text[])
+ORDER BY updated_at ASC, id ASC
+`
+
+type ListAuthorAttachmentsForRepoParams struct {
+	AuthorID pgtype.UUID `db:"author_id" json:"author_id"`
+	RepoName string      `db:"repo_name" json:"repo_name"`
+	States   []string    `db:"states" json:"states"`
+}
+
+// The author's attachments for one repository name in the states a publish can
+// move: a waiting request it can complete, or an attached one it can refresh.
+// Matched on the repository NAME, which is the equality the matcher itself
+// applies after normalization.
+func (q *Queries) ListAuthorAttachmentsForRepo(ctx context.Context, arg ListAuthorAttachmentsForRepoParams) ([]PullRequestAttachment, error) {
+	rows, err := q.db.Query(ctx, listAuthorAttachmentsForRepo, arg.AuthorID, arg.RepoName, arg.States)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PullRequestAttachment{}
+	for rows.Next() {
+		var i PullRequestAttachment
+		if err := rows.Scan(
+			&i.ID,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.GithubRepoID,
+			&i.Number,
+			&i.HeadSha,
+			&i.BaseRemote,
+			&i.HeadRemote,
+			&i.AuthorID,
+			&i.RequesterGithubID,
+			&i.State,
+			&i.CommentID,
+			&i.CheckRunID,
+			&i.Digest,
+			&i.RequestedAt,
+			&i.WaitingAt,
+			&i.PreviewAt,
+			&i.AttachedAt,
+			&i.DetachedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GroupID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAuthorWaitingPromptRequests = `-- name: ListAuthorWaitingPromptRequests :many
@@ -397,6 +498,50 @@ type SetPullRequestAttachmentDigestParams struct {
 func (q *Queries) SetPullRequestAttachmentDigest(ctx context.Context, arg SetPullRequestAttachmentDigestParams) error {
 	_, err := q.db.Exec(ctx, setPullRequestAttachmentDigest, arg.Digest, arg.ID)
 	return err
+}
+
+const setPullRequestAttachmentRequester = `-- name: SetPullRequestAttachmentRequester :one
+UPDATE pull_request_attachments
+SET requester_github_id = $1, updated_at = now()
+WHERE id = $2
+RETURNING id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at, group_id
+`
+
+type SetPullRequestAttachmentRequesterParams struct {
+	RequesterGithubID pgtype.Int8 `db:"requester_github_id" json:"requester_github_id"`
+	ID                pgtype.UUID `db:"id" json:"id"`
+}
+
+// Records which GitHub account asked the author to attach, so the author's
+// request list can say who is waiting on them.
+func (q *Queries) SetPullRequestAttachmentRequester(ctx context.Context, arg SetPullRequestAttachmentRequesterParams) (PullRequestAttachment, error) {
+	row := q.db.QueryRow(ctx, setPullRequestAttachmentRequester, arg.RequesterGithubID, arg.ID)
+	var i PullRequestAttachment
+	err := row.Scan(
+		&i.ID,
+		&i.RepoOwner,
+		&i.RepoName,
+		&i.GithubRepoID,
+		&i.Number,
+		&i.HeadSha,
+		&i.BaseRemote,
+		&i.HeadRemote,
+		&i.AuthorID,
+		&i.RequesterGithubID,
+		&i.State,
+		&i.CommentID,
+		&i.CheckRunID,
+		&i.Digest,
+		&i.RequestedAt,
+		&i.WaitingAt,
+		&i.PreviewAt,
+		&i.AttachedAt,
+		&i.DetachedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GroupID,
+	)
+	return i, err
 }
 
 const updatePullRequestAttachmentState = `-- name: UpdatePullRequestAttachmentState :one

@@ -22,6 +22,7 @@ import (
 
 	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/reponame"
 	"github.com/peasant-labs/village/backend/internal/scanner"
 	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 	"github.com/peasant-labs/village/backend/internal/storage"
@@ -705,6 +706,16 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	if hasSuperseded && deleteSuperseded {
 		_ = h.deleteBlobForCleanup(r.Context(), cleanupRepublishSuperseded, transcript.ID, superseded, TransactionCommitted)
+	}
+
+	// The transcript is stored, so it can complete a waiting request or refresh
+	// an attachment for the same repository without a second click. A failure
+	// here must not fail the publish: the transcript is already durable, and the
+	// next push or a Refresh retries the attachment work.
+	if repoName := reponame.NormalizeRemote(transcript.GitRemote.String); repoName != "" {
+		if err := h.completeAttachmentsForPublishedTranscript(r.Context(), transcript.OwnerID, repoName); err != nil {
+			log.Printf("pull request attachment completion after publish failed: %v", err)
+		}
 	}
 
 	// Note: Tags are not part of schema.PublishRequest in the new wire format
