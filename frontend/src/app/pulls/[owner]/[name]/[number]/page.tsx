@@ -108,7 +108,7 @@ export default function PullRequestPage({
           <Layers className="size-3.5" />
           <span className="text-xs font-mono lowercase">pull request prompts</span>
         </div>
-        <h1 className="text-lg font-medium text-ink">
+        <h1 className="text-lg font-medium text-ink" data-testid="pull-request-title">
           {data.attachment.owner}/{data.attachment.name} #{data.attachment.number}
         </h1>
         <div className="flex items-center gap-2 text-[13px] text-ink-3">

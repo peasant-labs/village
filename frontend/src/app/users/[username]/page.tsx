@@ -338,15 +338,15 @@ export default function UserProfilePage({
         </RailSection>
 
         <RailSection title="pull requests" icon={Layers} meta={undefined}>
-          <div className="flex flex-col gap-4">
-            <div>
-              <p className="text-sm font-medium text-ink">Preview before attaching</p>
-              <p className="text-[13px] text-ink-3 mt-1 leading-relaxed">
-                When on, a pull request you authored stops at a preview you confirm
-                before your prompts are shared with the collective. When off, your
-                prompts attach as soon as the pull request&apos;s author action runs.
-              </p>
-            </div>
+          <div className="sw-stack">
+            <label htmlFor="user-preview-before-attach" className="sw-label">
+              Preview before attaching
+            </label>
+            <span className="sw-hint">
+              When on, a pull request you authored stops at a preview you confirm before
+              your prompts are shared with the collective. When off, your prompts attach
+              as soon as the pull request&apos;s author action runs.
+            </span>
             <div className="sw-toggle-row">
               <Switch
                 id="user-preview-before-attach"
