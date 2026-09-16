@@ -667,5 +667,24 @@ func apiError(resp *http.Response, op string) error {
 	if msg == "" {
 		msg = http.StatusText(resp.StatusCode)
 	}
-	return fmt.Errorf("github: %s: status %d: %s", op, resp.StatusCode, msg)
+	return &StatusError{Operation: op, Status: resp.StatusCode, Message: msg}
+}
+
+// StatusError is a non-2xx GitHub response. It is a type rather than a formatted
+// string so a caller can act on the status: an already-deleted comment is a 404
+// that a detach treats as satisfied rather than as a permanent failure.
+type StatusError struct {
+	Operation string
+	Status    int
+	Message   string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("github: %s: status %d: %s", e.Operation, e.Status, e.Message)
+}
+
+// IsNotFound reports whether err is a GitHub 404.
+func IsNotFound(err error) bool {
+	var status *StatusError
+	return errors.As(err, &status) && status.Status == http.StatusNotFound
 }

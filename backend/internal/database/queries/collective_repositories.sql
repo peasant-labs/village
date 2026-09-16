@@ -77,3 +77,13 @@ LIMIT $3;
 -- name: CountRepositoryCommits :one
 SELECT count(*) FROM repository_commits
 WHERE lower(owner) = lower($1) AND lower(name) = lower($2);
+
+-- name: GetCollectiveRepositoryByRepo :one
+-- Resolves a repository to the collective that linked it, for a webhook that
+-- names a repository and no collective. Several collectives may link the same
+-- repository; the EARLIEST link is canonical, so the choice is deterministic
+-- rather than an unordered LIMIT that could vary between runs.
+SELECT * FROM collective_repositories
+WHERE lower(owner) = lower(@owner) AND lower(name) = lower(@name)
+ORDER BY created_at ASC NULLS LAST, id ASC
+LIMIT 1;

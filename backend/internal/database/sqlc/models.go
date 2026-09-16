@@ -170,6 +170,7 @@ type PullRequestAttachment struct {
 	DetachedAt        pgtype.Timestamptz `db:"detached_at" json:"detached_at"`
 	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	GroupID           pgtype.UUID        `db:"group_id" json:"group_id"`
 }
 
 type PullRequestAttachmentTranscript struct {

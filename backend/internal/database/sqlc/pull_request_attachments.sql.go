@@ -47,10 +47,10 @@ func (q *Queries) AttachPullRequestTranscript(ctx context.Context, arg AttachPul
 const createPullRequestAttachment = `-- name: CreatePullRequestAttachment :one
 
 INSERT INTO pull_request_attachments (
-    repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote,
+    group_id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote,
     author_id, requester_github_id, state, requested_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, 'requested', now()
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'requested', now()
 )
 ON CONFLICT (github_repo_id, number) DO UPDATE SET
     repo_owner   = EXCLUDED.repo_owner,
@@ -59,10 +59,11 @@ ON CONFLICT (github_repo_id, number) DO UPDATE SET
     base_remote  = EXCLUDED.base_remote,
     head_remote  = EXCLUDED.head_remote,
     updated_at   = now()
-RETURNING id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at
+RETURNING id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at, group_id
 `
 
 type CreatePullRequestAttachmentParams struct {
+	GroupID           pgtype.UUID `db:"group_id" json:"group_id"`
 	RepoOwner         string      `db:"repo_owner" json:"repo_owner"`
 	RepoName          string      `db:"repo_name" json:"repo_name"`
 	GithubRepoID      int64       `db:"github_repo_id" json:"github_repo_id"`
@@ -80,13 +81,16 @@ type CreatePullRequestAttachmentParams struct {
 // and only from internal/promptattach.Transition, which enforces the closed
 // transition table in Go. Every other statement here reads the state or writes
 // rows keyed to an already-decided attachment.
-// Records (or re-observes) the attachment row for one pull request. Creation
-// initialises the closed lifecycle at 'requested' with its timestamp; every later
-// move goes through the Go transition function. A repeated observation of the same
-// (github_repo_id, number) refreshes the head and remotes it was seen at, but
-// never resets the lifecycle state.
+// Records (or re-observes) the attachment row for one pull request, bound to the
+// collective whose link enabled it. Creation initialises the closed lifecycle at
+// 'requested' with its timestamp; every later move goes through the Go
+// transition function. A repeated observation of the same (github_repo_id,
+// number) refreshes the head and remotes it was seen at, but never resets the
+// lifecycle state and never re-binds the collective: consent belongs to the
+// collective that first enabled the attachment.
 func (q *Queries) CreatePullRequestAttachment(ctx context.Context, arg CreatePullRequestAttachmentParams) (PullRequestAttachment, error) {
 	row := q.db.QueryRow(ctx, createPullRequestAttachment,
+		arg.GroupID,
 		arg.RepoOwner,
 		arg.RepoName,
 		arg.GithubRepoID,
@@ -120,12 +124,26 @@ func (q *Queries) CreatePullRequestAttachment(ctx context.Context, arg CreatePul
 		&i.DetachedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
 
+const deletePullRequestAttachmentTranscripts = `-- name: DeletePullRequestAttachmentTranscripts :exec
+DELETE FROM pull_request_attachment_transcripts WHERE attachment_id = $1
+`
+
+// Clears an attachment's transcript bindings. Called after a detach has restored
+// each transcript from its recorded previous_visibility, so the next attach
+// records the visibility that is true at that time rather than replaying a
+// snapshot from a cycle that is over.
+func (q *Queries) DeletePullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deletePullRequestAttachmentTranscripts, attachmentID)
+	return err
+}
+
 const getPullRequestAttachment = `-- name: GetPullRequestAttachment :one
-SELECT id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at FROM pull_request_attachments WHERE id = $1
+SELECT id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at, group_id FROM pull_request_attachments WHERE id = $1
 `
 
 func (q *Queries) GetPullRequestAttachment(ctx context.Context, id pgtype.UUID) (PullRequestAttachment, error) {
@@ -153,13 +171,16 @@ func (q *Queries) GetPullRequestAttachment(ctx context.Context, id pgtype.UUID) 
 		&i.DetachedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
 
 const getPullRequestAttachmentForPull = `-- name: GetPullRequestAttachmentForPull :one
-SELECT id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at FROM pull_request_attachments
+SELECT id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at, group_id FROM pull_request_attachments
 WHERE lower(repo_owner) = lower($1) AND lower(repo_name) = lower($2) AND number = $3
+ORDER BY created_at DESC, id DESC
+LIMIT 1
 `
 
 type GetPullRequestAttachmentForPullParams struct {
@@ -195,8 +216,106 @@ func (q *Queries) GetPullRequestAttachmentForPull(ctx context.Context, arg GetPu
 		&i.DetachedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
+}
+
+const listAuthorWaitingPromptRequests = `-- name: ListAuthorWaitingPromptRequests :many
+SELECT id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at, group_id FROM pull_request_attachments
+WHERE author_id = $1 AND state = 'waiting'
+ORDER BY requested_at ASC NULLS LAST, updated_at ASC, id ASC
+`
+
+// The prompt requests waiting on one author, oldest first, for
+// GET /users/me/prompt-requests. A waiting attachment is one a non-author asked
+// for and no matching publish has completed yet.
+func (q *Queries) ListAuthorWaitingPromptRequests(ctx context.Context, authorID pgtype.UUID) ([]PullRequestAttachment, error) {
+	rows, err := q.db.Query(ctx, listAuthorWaitingPromptRequests, authorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PullRequestAttachment{}
+	for rows.Next() {
+		var i PullRequestAttachment
+		if err := rows.Scan(
+			&i.ID,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.GithubRepoID,
+			&i.Number,
+			&i.HeadSha,
+			&i.BaseRemote,
+			&i.HeadRemote,
+			&i.AuthorID,
+			&i.RequesterGithubID,
+			&i.State,
+			&i.CommentID,
+			&i.CheckRunID,
+			&i.Digest,
+			&i.RequestedAt,
+			&i.WaitingAt,
+			&i.PreviewAt,
+			&i.AttachedAt,
+			&i.DetachedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GroupID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPullRequestAttachmentTranscriptSummaries = `-- name: ListPullRequestAttachmentTranscriptSummaries :many
+SELECT pt.transcript_id, pt.position, pt.previous_visibility, t.title, t.session_start
+FROM pull_request_attachment_transcripts pt
+JOIN transcripts t ON t.id = pt.transcript_id
+WHERE pt.attachment_id = $1
+ORDER BY pt.position ASC, pt.transcript_id ASC
+`
+
+type ListPullRequestAttachmentTranscriptSummariesRow struct {
+	TranscriptID       pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	Position           int32              `db:"position" json:"position"`
+	PreviousVisibility string             `db:"previous_visibility" json:"previous_visibility"`
+	Title              pgtype.Text        `db:"title" json:"title"`
+	SessionStart       pgtype.Timestamptz `db:"session_start" json:"session_start"`
+}
+
+// The transcripts one attachment holds, with the fields the response shows, in
+// attachment order. Reads the binding and the transcript together so the caller
+// does not stitch two queries per row.
+func (q *Queries) ListPullRequestAttachmentTranscriptSummaries(ctx context.Context, attachmentID pgtype.UUID) ([]ListPullRequestAttachmentTranscriptSummariesRow, error) {
+	rows, err := q.db.Query(ctx, listPullRequestAttachmentTranscriptSummaries, attachmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPullRequestAttachmentTranscriptSummariesRow{}
+	for rows.Next() {
+		var i ListPullRequestAttachmentTranscriptSummariesRow
+		if err := rows.Scan(
+			&i.TranscriptID,
+			&i.Position,
+			&i.PreviousVisibility,
+			&i.Title,
+			&i.SessionStart,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listPullRequestAttachmentTranscripts = `-- name: ListPullRequestAttachmentTranscripts :many
@@ -230,6 +349,56 @@ func (q *Queries) ListPullRequestAttachmentTranscripts(ctx context.Context, atta
 	return items, nil
 }
 
+const setPullRequestAttachmentArtifacts = `-- name: SetPullRequestAttachmentArtifacts :exec
+UPDATE pull_request_attachments
+SET head_sha     = $1,
+    comment_id   = $2,
+    check_run_id = $3,
+    digest       = $4,
+    updated_at   = now()
+WHERE id = $5
+`
+
+type SetPullRequestAttachmentArtifactsParams struct {
+	HeadSha    string      `db:"head_sha" json:"head_sha"`
+	CommentID  pgtype.Int8 `db:"comment_id" json:"comment_id"`
+	CheckRunID pgtype.Int8 `db:"check_run_id" json:"check_run_id"`
+	Digest     []byte      `db:"digest" json:"digest"`
+	ID         pgtype.UUID `db:"id" json:"id"`
+}
+
+// Records what an attach posted and against which commit. head_sha moves when a
+// new head is attached or refreshed; comment_id and check_run_id are the GitHub
+// objects a later refresh edits and a detach deletes or resets.
+func (q *Queries) SetPullRequestAttachmentArtifacts(ctx context.Context, arg SetPullRequestAttachmentArtifactsParams) error {
+	_, err := q.db.Exec(ctx, setPullRequestAttachmentArtifacts,
+		arg.HeadSha,
+		arg.CommentID,
+		arg.CheckRunID,
+		arg.Digest,
+		arg.ID,
+	)
+	return err
+}
+
+const setPullRequestAttachmentDigest = `-- name: SetPullRequestAttachmentDigest :exec
+UPDATE pull_request_attachments
+SET digest = $1, updated_at = now()
+WHERE id = $2
+`
+
+type SetPullRequestAttachmentDigestParams struct {
+	Digest []byte      `db:"digest" json:"digest"`
+	ID     pgtype.UUID `db:"id" json:"id"`
+}
+
+// Stores the digest a preview computed without changing the state: a preview
+// exposes the digest on the pull request page but shares and posts nothing.
+func (q *Queries) SetPullRequestAttachmentDigest(ctx context.Context, arg SetPullRequestAttachmentDigestParams) error {
+	_, err := q.db.Exec(ctx, setPullRequestAttachmentDigest, arg.Digest, arg.ID)
+	return err
+}
+
 const updatePullRequestAttachmentState = `-- name: UpdatePullRequestAttachmentState :one
 UPDATE pull_request_attachments
 SET state        = $1,
@@ -240,7 +409,7 @@ SET state        = $1,
     attached_at  = CASE WHEN $1 = 'attached'  THEN now() ELSE attached_at  END,
     detached_at  = CASE WHEN $1 = 'detached'  THEN now() ELSE detached_at  END
 WHERE id = $2 AND state = $3
-RETURNING id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at
+RETURNING id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at, group_id
 `
 
 type UpdatePullRequestAttachmentStateParams struct {
@@ -278,6 +447,7 @@ func (q *Queries) UpdatePullRequestAttachmentState(ctx context.Context, arg Upda
 		&i.DetachedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }

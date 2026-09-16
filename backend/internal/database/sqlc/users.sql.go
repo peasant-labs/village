@@ -113,6 +113,41 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 	return i, err
 }
 
+const setUserPreviewBeforeAttach = `-- name: SetUserPreviewBeforeAttach :one
+UPDATE users
+SET preview_before_attach = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach
+`
+
+type SetUserPreviewBeforeAttachParams struct {
+	ID                  pgtype.UUID `db:"id" json:"id"`
+	PreviewBeforeAttach bool        `db:"preview_before_attach" json:"preview_before_attach"`
+}
+
+// Sets whether this user's own pull request attachments stop at a preview the
+// user confirms, instead of attaching immediately.
+func (q *Queries) SetUserPreviewBeforeAttach(ctx context.Context, arg SetUserPreviewBeforeAttachParams) (User, error) {
+	row := q.db.QueryRow(ctx, setUserPreviewBeforeAttach, arg.ID, arg.PreviewBeforeAttach)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.GithubID,
+		&i.GithubUsername,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDiscoverable,
+		&i.Provider,
+		&i.ProviderUserID,
+		&i.UsernameChosen,
+		&i.ProviderUsername,
+		&i.PreviewBeforeAttach,
+	)
+	return i, err
+}
+
 const setUsername = `-- name: SetUsername :one
 UPDATE users SET
     github_username = $2,

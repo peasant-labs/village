@@ -1,0 +1,35 @@
+# The anonymous status of the pull request attachment routes, driven through the
+# production router. This is the guard the 501 stub fixture used to provide: a
+# silent flip of AuthOptional to AuthRequired (or the reverse) on these routes
+# would break public reads or expose an owner-only action, and nothing else
+# asserts the router's own policy.
+routes:
+  - name: get pull request attachment is reachable anonymously
+    method: GET
+    path: /api/v1/pulls/acme/widgets/7
+    anonymous: 404
+
+  - name: confirm requires a session
+    method: POST
+    path: /api/v1/pulls/acme/widgets/7/confirm
+    anonymous: 401
+
+  - name: detach requires a session
+    method: DELETE
+    path: /api/v1/pulls/acme/widgets/7
+    anonymous: 401
+
+  - name: prompt requests require a session
+    method: GET
+    path: /api/v1/users/me/prompt-requests
+    anonymous: 401
+
+  - name: reading settings requires a session
+    method: GET
+    path: /api/v1/users/me/settings
+    anonymous: 401
+
+  - name: updating settings requires a session
+    method: PATCH
+    path: /api/v1/users/me/settings
+    anonymous: 401
