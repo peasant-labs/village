@@ -125,6 +125,20 @@ func TestMigration040DeliveryLedgerTransitions(t *testing.T) {
 		handledAt: true, failedAt: true,
 	})
 
+	// handled is ABSORBING: a late failure from a concurrent attempt must not
+	// downgrade a handled row, or the effect would be re-dispatched forever.
+	if err := queries.CompleteGitHubWebhookDelivery(ctx, sqlc.CompleteGitHubWebhookDeliveryParams{
+		DeliveryID: "delivery-2",
+		Status:     "failed",
+		LastError:  pgtype.Text{String: "late failure", Valid: true},
+	}); err != nil {
+		t.Fatalf("complete late failure: %v", err)
+	}
+	assertDeliveryRow(t, ctx, pool, "delivery-2", deliveryRow{
+		status: "handled", attempts: 2, payload: payload,
+		handledAt: true, failedAt: true,
+	})
+
 	// The status menu is enforced by the database, not only by Go.
 	if _, err := pool.Exec(ctx,
 		`UPDATE github_webhook_deliveries SET status = 'bogus' WHERE delivery_id = 'delivery-1'`); err == nil {

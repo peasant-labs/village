@@ -12,6 +12,13 @@ RETURNING status, attempts;
 -- name: CompleteGitHubWebhookDelivery :exec
 -- Records one attempt's outcome and counts the attempt. A handled delivery is
 -- never dispatched again; a failed one is a candidate for the next redelivery.
+--
+-- handled is ABSORBING. Two attempts can run concurrently for one id, and a
+-- slower one that fails after another already handled the delivery must not
+-- downgrade the row to failed: the effect would then be re-dispatched forever,
+-- which is the opposite of what this state is for. A late failure therefore
+-- writes nothing and is not counted.
+--
 -- The caller bounds last_error before passing it, since it is stored verbatim
 -- for an operator rather than shown to a user.
 UPDATE github_webhook_deliveries SET
@@ -20,4 +27,5 @@ UPDATE github_webhook_deliveries SET
     last_error = @last_error,
     handled_at = CASE WHEN @status = 'handled' THEN now() ELSE handled_at END,
     failed_at = CASE WHEN @status = 'failed' THEN now() ELSE failed_at END
-WHERE delivery_id = @delivery_id;
+WHERE delivery_id = @delivery_id
+  AND (@status = 'handled' OR status <> 'handled');
