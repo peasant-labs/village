@@ -34,7 +34,9 @@ rows:
 # `flat` is whether the flat contributions the panel already reads carry the
 # case's row. `grouped` is the grouped item the same route's grouped page
 # serves: an owner row with its saved helper group, the helper-only context
-# container, or nothing.
+# container, or nothing. The two empty-flat cases hold the panel's guard honest:
+# they serve grouped content with NO flat contribution at all, so a guard that
+# only mounted the panel on a non-empty flat list would fail them.
 cases:
   - name: my-shares-nests-the-group-under-its-contribution
     why: The flat contribution row is on the page and the grouped page carries its saved helper group, which must render beneath that contribution.
@@ -45,6 +47,16 @@ cases:
     why: A helper whose starter was not shared with this collective has no owner row at all, so its saved helper group must mount on the grouped exit.
     row: H1
     flat: rendered
+    grouped: context
+  - name: my-shares-empty-flat-mounts-a-grouped-owner-group
+    why: The flat contributions are empty while the grouped page names an owner with a saved helper group, so the panel and its disclosure must mount from the grouped read alone.
+    row: S1
+    flat: empty
+    grouped: owner
+  - name: my-shares-empty-flat-mounts-a-helper-only-context
+    why: The flat contributions are empty while the grouped page carries a helper-only context container, so its saved helper group must mount without any flat row.
+    row: H1
+    flat: empty
     grouped: context
   - name: my-shares-empty-both-reads-mount-no-panel
     why: Neither read carries a contribution, so the panel must not mount at all.

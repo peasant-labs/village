@@ -111,9 +111,48 @@ for (const testCase of fixtures.cases) {
 
     const row = myShareRow(fixtures, testCase.row);
     const panel = await screen.findByTestId("my-contributions-panel");
-    // The panel still counts the flat contributions it always counted.
-    expect(panel.textContent).toContain("Your contributions");
-    expect(panel.textContent).toContain(String(flatRows(testCase).length));
+    // The panel keeps its own header and the count of the flat contributions it
+    // always counted, whether or not the grouped read supplements them.
+    const header = panel.firstElementChild as HTMLElement;
+    expect(header.textContent).toContain("Your contributions");
+    expect(header.textContent).toContain(String(flatRows(testCase).length));
+
+    if (testCase.flat === "empty") {
+      // The flat contributions carry NOTHING, so the grouped read alone has to
+      // mount the panel and the saved helper thread: no flat contribution row is
+      // drawn (the unshare control belongs to those rows alone), the grouped
+      // owner row is the disclosure's own row rather than a second contribution,
+      // and the disclosure still expands to individually linked members.
+      const fallback = await waitFor(() => {
+        const found = panel.querySelector<HTMLElement>('[data-testid="grouped-helper-fallback"]');
+        expect(found, "the grouped exit mounts with no flat contribution").not.toBeNull();
+        return found!;
+      });
+      expect(
+        panel.querySelectorAll('button[title="Unshare from this collective"]'),
+        "no flat contribution row is drawn",
+      ).toHaveLength(0);
+      const groupKey = testCase.grouped === "context" ? "context" : "owner";
+      if (testCase.grouped === "context") {
+        expect(within(fallback).getByText(/owner is unavailable/i)).toBeInTheDocument();
+      } else {
+        expect(
+          fallback.querySelector(`a.helper-thread-open[href="/transcripts/${row.id}"]`),
+          "the grouped owner row is the disclosure's own row",
+        ).not.toBeNull();
+      }
+      const group = fallback.querySelector<HTMLElement>(
+        `.helper-group[data-group-id="${fixtures.groups[groupKey].groupId}"]`,
+      );
+      expect(group, "the saved helper group mounts on the grouped exit").not.toBeNull();
+      act(() => {
+        fireEvent.click(group!.querySelector<HTMLButtonElement>("button.helper-group-trigger")!);
+      });
+      for (const member of fixtures.members[groupKey]) {
+        await linkedMember(memberUUIDFor(member.name));
+      }
+      return;
+    }
 
     if (testCase.grouped === "context") {
       // A helper whose starter was not shared has no owner row: its group

@@ -79,6 +79,8 @@ export interface CollectiveMyShareFixtures {
 const REQUIRED_CASES = [
   "my-shares-nests-the-group-under-its-contribution",
   "my-shares-context-container-mounts-on-the-grouped-exit",
+  "my-shares-empty-flat-mounts-a-grouped-owner-group",
+  "my-shares-empty-flat-mounts-a-helper-only-context",
   "my-shares-empty-both-reads-mount-no-panel",
 ];
 
