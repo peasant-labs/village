@@ -563,3 +563,110 @@ func TestReadRouteIsAuthorOrCollectiveForPrivateRepositories(t *testing.T) {
 		t.Error("transcripts must serialise as an empty array, not null")
 	}
 }
+
+// TestPromptRequestsListWaitingAttachments proves the author's waiting request
+// list: the attachment a non-author asked for is returned to the author, keyed
+// by the repository it is about.
+func TestPromptRequestsListWaitingAttachments(t *testing.T) {
+	h, pool, _, _ := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 992006)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "requests-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	attachment, err := h.queries.CreatePullRequestAttachment(ctx, sqlc.CreatePullRequestAttachmentParams{
+		GroupID: groupID, RepoOwner: "acme", RepoName: repoName, GithubRepoID: 4242, Number: 12,
+		HeadSha: "abc1234", BaseRemote: "acme/" + repoName, HeadRemote: "acme/" + repoName, AuthorID: owner,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := promptattach.Transition(ctx, h.queries, attachment.ID, promptattach.Waiting); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := attachmentServe(t, attachmentRouter(h), http.MethodGet, "/api/v1/users/me/prompt-requests", owner)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("prompt requests = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	var response schema.VillagePromptRequestsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Requests) != 1 {
+		t.Fatalf("requests = %+v, want exactly the waiting attachment", response.Requests)
+	}
+	got := response.Requests[0]
+	if got.Owner != "acme" || got.Name != repoName || got.Number != 12 || got.State != schema.VillagePullRequestAttachmentState("waiting") {
+		t.Fatalf("request = %+v, want acme/%s #12 waiting", got, repoName)
+	}
+	if got.Remote != "acme/"+repoName {
+		t.Errorf("remote = %q, want the attachment's remote", got.Remote)
+	}
+}
+
+// TestUserSettingsRoundTrip proves the preview preference reads back after it is
+// written, which is what decides whether an author's own pull request stops at a
+// preview.
+func TestUserSettingsRoundTrip(t *testing.T) {
+	h, pool, _, _ := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 992007)
+	defer cleanupOwners(t, ctx, pool, owner)
+	router := attachmentRouter(h)
+
+	rec := attachmentServe(t, router, http.MethodGet, "/api/v1/users/me/settings", owner)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get settings = %d, want 200", rec.Code)
+	}
+	var settings schema.VillageUserSettings
+	if err := json.Unmarshal(rec.Body.Bytes(), &settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings.PreviewBeforeAttach {
+		t.Fatal("preview_before_attach = true before it was set")
+	}
+
+	patched := attachmentServe(t, router, http.MethodPatch, "/api/v1/users/me/settings", owner)
+	if patched.Code != http.StatusOK {
+		t.Fatalf("patch settings = %d (%s), want 200", patched.Code, patched.Body.String())
+	}
+	if err := json.Unmarshal(patched.Body.Bytes(), &settings); err != nil {
+		t.Fatal(err)
+	}
+	if !settings.PreviewBeforeAttach {
+		t.Fatal("preview_before_attach = false after it was set to true")
+	}
+
+	again := attachmentServe(t, router, http.MethodGet, "/api/v1/users/me/settings", owner)
+	if err := json.Unmarshal(again.Body.Bytes(), &settings); err != nil {
+		t.Fatal(err)
+	}
+	if !settings.PreviewBeforeAttach {
+		t.Fatal("preview_before_attach did not persist")
+	}
+}
+
+// TestDetachIsConflictWhenNothingCanBeDetached proves the other 409: a request
+// that was never attached has nothing to detach.
+func TestDetachIsConflictWhenNothingCanBeDetached(t *testing.T) {
+	h, pool, _, _ := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 992008)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "nodetach-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	if _, err := h.queries.CreatePullRequestAttachment(ctx, sqlc.CreatePullRequestAttachmentParams{
+		GroupID: groupID, RepoOwner: "acme", RepoName: repoName, GithubRepoID: 4242, Number: 13,
+		HeadSha: "abc1234", BaseRemote: "acme/" + repoName, HeadRemote: "acme/" + repoName, AuthorID: owner,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := attachmentServe(t, attachmentRouter(h), http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/13", owner)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("detach from requested = %d (%s), want 409", rec.Code, rec.Body.String())
+	}
+}
