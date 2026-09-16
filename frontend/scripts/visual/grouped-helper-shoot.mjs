@@ -27,6 +27,12 @@
      collective-review   `/groups/{id}/review` — the same explicit per-member
                     selection and the same one-identity rule on the owner's
                     review queue.
+     collective-my-shares `/groups/{id}` — the "your contributions" panel keeps
+                    every contribution state it always stated (its link, its
+                    pending badge, its unshare control, the panel's count) while
+                    the saved helper group the server grouped under that
+                    contribution hangs beneath its own row and expands to
+                    individually linked members.
 
    Build provenance is asserted BEFORE any PNG is written: the served build must
    carry the grouped-helper host, the generated scope-first member requests, and
@@ -40,11 +46,12 @@
    env:
      GROUPED_SHOOT_SURFACE  discovery | profile | project | member-failure |
                             collective-browse | collective-contribute |
-                            collective-review
+                            collective-review | collective-my-shares
      GROUPED_SHOOT_OWNER    profile/project owner handle (default alice-dev)
      GROUPED_SHOOT_HASH     64-hex project hash for the project arm
      GROUPED_SHOOT_COLLECTIVE     collective id for the collective arms
      GROUPED_SHOOT_COLLECTIVE_ROW the owner-row transcript id the group hangs under
+     GROUPED_SHOOT_MY_SHARES_GROUP the group id the my-shares contribution carries
      VILLAGE_ORIGIN         app origin (default http://localhost:3000)
      VILLAGE_URL            overrides the arm's URL
      CHROME_PATH            Chrome/Chromium binary (required)
@@ -66,6 +73,7 @@ const SURFACES = [
   'collective-browse',
   'collective-contribute',
   'collective-review',
+  'collective-my-shares',
   'collective-browse-empty-flat',
   'collective-contribute-empty-flat',
   'collective-contribute-later',
@@ -89,6 +97,7 @@ const HASH = process.env.GROUPED_SHOOT_HASH || '1'.repeat(64)
 const COLLECTIVE = process.env.GROUPED_SHOOT_COLLECTIVE || '50000000-0000-4000-8000-000000000001'
 const COLLECTIVE_ROW = process.env.GROUPED_SHOOT_COLLECTIVE_ROW || '22222222-2222-4222-8222-000000000001'
 const COLLECTIVE_GROUP = process.env.GROUPED_SHOOT_COLLECTIVE_GROUP || 'hg_capture_owner'
+const COLLECTIVE_MY_SHARES_GROUP = process.env.GROUPED_SHOOT_MY_SHARES_GROUP || 'hg_capture_my_share'
 const ARM_URL = {
   discovery: `${ORIGIN}/explore`,
   profile: `${ORIGIN}/users/${encodeURIComponent(OWNER)}`,
@@ -99,6 +108,7 @@ const ARM_URL = {
   'collective-browse': `${ORIGIN}/groups/${COLLECTIVE}`,
   'collective-contribute': `${ORIGIN}/groups/${COLLECTIVE}/contribute`,
   'collective-review': `${ORIGIN}/groups/${COLLECTIVE}/review`,
+  'collective-my-shares': `${ORIGIN}/groups/${COLLECTIVE}`,
   'collective-browse-empty-flat': `${ORIGIN}/groups/${COLLECTIVE}`,
   'collective-contribute-empty-flat': `${ORIGIN}/groups/${COLLECTIVE}/contribute`,
   'collective-contribute-later': `${ORIGIN}/groups/${COLLECTIVE}/contribute`,
@@ -187,6 +197,12 @@ const capture = async (name, panelSel, where) => {
     console.log('shot', `${name}-panel`.padEnd(34), `${measured.w}x${measured.h}`.padEnd(11), `nonbg=${(measured.nonbgRatio * 100).toFixed(2)}% colors=${measured.distinctColors} ${(statSync(panelFile).size / 1024).toFixed(1)}KB (focused, measured)`)
   }
   const file = `${out}/${name}.png`
+  // The panel screenshot above scrolls the panel into view, and a `position:
+  // fixed` app header composites at whatever offset the viewport last held, so
+  // the page is parked back at the top before the body raster — otherwise the
+  // header lands in the middle of the full-page image.
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await pause(150)
   await body.screenshot({ path: file, captureBeyondViewport: true })
   const r = await gate.assert(name, file, { sel: 'body', where: 'grouped-helper-shoot.mjs' })
   console.log('shot', name.padEnd(34), `${Math.round(box.width)}x${Math.round(box.height)}`.padEnd(11), `nonbg=${(r.nonbgRatio * 100).toFixed(2)}% colors=${r.distinctColors} ${(statSync(file).size / 1024).toFixed(1)}KB`)
@@ -510,6 +526,87 @@ if (SURFACE === 'discovery') {
   )
   await capture(`village-${SURFACE}`, '[data-testid="grouped-helper-fallback"]', SURFACE)
   console.log(`${SURFACE} provenance:`, JSON.stringify({ before, after, laterLinks }))
+  console.log('computed helper-group count style:', JSON.stringify(style))
+} else if (SURFACE === 'collective-my-shares') {
+  const panelSel = '[data-testid="my-contributions-panel"]'
+  const rowSel = `[data-helper-group-owner="${COLLECTIVE_ROW}"]`
+  const groupSel = `.helper-group[data-group-id="${COLLECTIVE_MY_SHARES_GROUP}"]`
+  // The panel's own contribution row can carry the same saved group the
+  // collective's browse list draws higher up the page, so every check below is
+  // scoped to the panel rather than to the document.
+  const panelGroupSel = `${panelSel} ${groupSel}`
+  const panel = await waitFor(panelSel)
+  const control = await waitFor(`${panelGroupSel} button.helper-group-trigger`)
+  if (!panel || !control) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} panel never mounted at ${URL}.
+  What failed: no [data-testid="my-contributions-panel"] / "${panelGroupSel}" appeared.
+  Why: the served build still reads only the flat contributions, or the mock served no grouped my-shares page.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm readiness wait.
+  Fix: restart the mock with MOCK_COLLECTIVE_MY_SHARES=1 (mock-rest-grouped-collective.mjs), rebuild from this worktree, and retry.`, 2)
+  }
+
+  // BEFORE expanding: the panel states the flat contribution it always did --
+  // its count, its link, its pending state and its unshare control -- and the
+  // saved helper group hangs under that very contribution, unexpanded.
+  const closed = await page.evaluate(
+    (panelSelector, rowSelector, sel, transcriptID) => {
+      const panelEl = document.querySelector(panelSelector)
+      const row = document.querySelector(rowSelector)
+      return {
+        rows: document.querySelectorAll(rowSelector).length,
+        inRow: row == null ? -1 : row.querySelectorAll(sel).length,
+        panelGroups: panelEl?.querySelectorAll(sel).length ?? -1,
+        panelMemberRows: panelEl?.querySelectorAll(`${sel} .helper-thread-row`).length ?? -1,
+        contributionLink: panelEl?.querySelector(`a[href="/transcripts/${transcriptID}"]`) != null,
+        statesPending: (panelEl?.textContent ?? '').includes('pending'),
+        unshareControls: panelEl?.querySelectorAll('button[title="Unshare from this collective"]').length ?? -1,
+      }
+    },
+    panelSel,
+    rowSel,
+    groupSel,
+    COLLECTIVE_ROW,
+  )
+  if (
+    closed.rows !== 1 ||
+    closed.inRow !== 1 ||
+    closed.panelGroups !== 1 ||
+    closed.panelMemberRows !== 0 ||
+    !closed.contributionLink ||
+    !closed.statesPending ||
+    closed.unshareControls !== 1
+  ) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the ${SURFACE} contribution did not keep its own state under its grouped disclosure.
+  What failed: ${JSON.stringify(closed)}.
+  Why: the contribution lost its row, its pending state or its unshare control, the group rendered outside its contribution, or members loaded before expansion.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm provenance check.
+  Means: the capture would evidence the contribution state this mount must not regress.
+  Fix: rebuild and restart the server from this worktree, then retry.`, 2)
+  }
+
+  await control.click()
+  const memberLink = await waitFor(`${panelGroupSel} a.helper-thread-open`)
+  if (!memberLink) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] expanding the ${SURFACE} group loaded no individually linked member.
+  What failed: no a.helper-thread-open appeared after the disclosure opened.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm expansion check.
+  Fix: confirm the mock answers the my-shares scope's member request, then retry.`, 2)
+  }
+  const openedLinks = await page.evaluate((sel) =>
+    [...document.querySelectorAll(`${sel} a.helper-thread-open`)].map((a) => a.getAttribute('href')), panelGroupSel)
+  if (openedLinks.length !== 2 || openedLinks.some((href) => !/^\/transcripts\/[0-9a-f-]+$/.test(href ?? ''))) {
+    await fail(`ERROR [grouped-helper-shoot.mjs] the expanded ${SURFACE} group is not explicit per-member links.
+  What failed: ${JSON.stringify(openedLinks)}.
+  Where: grouped-helper-shoot.mjs ${SURFACE}-arm member-link check.
+  Fix: confirm the host links each member with its own transcript id, then retry.`, 2)
+  }
+  const style = await assertComputed(
+    `${panelGroupSel} .helper-group-count`,
+    { fontFamily: isMono, borderRadius: isSquare },
+    `the ${SURFACE} helper group count`,
+  )
+  await capture(`village-${SURFACE}`, panelSel, SURFACE)
+  console.log(`${SURFACE} provenance:`, JSON.stringify({ closed, openedLinks }))
   console.log('computed helper-group count style:', JSON.stringify(style))
 } else {
   const groupSel = `.helper-group[data-group-id="${COLLECTIVE_GROUP}"]`

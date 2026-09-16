@@ -36,9 +36,14 @@ const HASH = 'a'.repeat(64)
      MOCK_COLLECTIVE_LATER_PAGE=1  the grouped reads page: a full first page of
                                    ordinary owners, then the grouped content on
                                    page two, so the continuation is the only way
-                                   to reach it. */
+                                   to reach it.
+     MOCK_COLLECTIVE_MY_SHARES=1   the viewer's own contributions carry a saved
+                                   helper group, so the collective page's
+                                   "your contributions" panel mounts its grouped
+                                   disclosure under the contribution row. */
 const EMPTY_FLAT = process.env.MOCK_COLLECTIVE_EMPTY_FLAT === '1'
 const LATER_PAGE = process.env.MOCK_COLLECTIVE_LATER_PAGE === '1'
+const MY_SHARES = process.env.MOCK_COLLECTIVE_MY_SHARES === '1'
 const LIST_PAGE_SIZE = 100
 
 const user = {
@@ -68,6 +73,15 @@ const contextGroup = (variant) => ({
   purpose: 'helper_review',
   helperThreadCount: 1,
   memberScope: `scope-capture-context-${variant}`,
+})
+/* The caller's own contribution carries a DISTINCT group id, so a page that
+   draws it beside the collective's browse list never has two groups claiming
+   one identity. */
+const myShareGroup = () => ({
+  groupId: 'hg_capture_my_share',
+  purpose: 'helper_review',
+  helperThreadCount: 2,
+  memberScope: 'scope-capture-my-share',
 })
 
 /* Rows, in one table so the flat list and the grouped page cannot disagree
@@ -180,6 +194,33 @@ const pendingArm = (row) => ({
   shared_at: '2026-09-02T10:00:00Z',
 })
 
+/* The caller's OWN contribution, as `GET /groups/{id}/my-shares` serves it. The
+   viewer is the collective's owner here, so the contribution belongs to them. */
+const myShareArm = (row, status = 'approved') => ({
+  id: row.id,
+  owner_id: OWNER_ID,
+  local_id: row.local,
+  parent_session_id: null,
+  title: row.title,
+  model_provider: 'claude-code',
+  model_name: 'claude-opus-4-8',
+  visibility: 'shared',
+  published_at: '2026-09-01T11:00:00Z',
+  turn_count: 12,
+  tokens_in: null,
+  tokens_out: null,
+  status,
+  shared_at: '2026-09-02T10:00:00Z',
+})
+
+const myShareRows = [
+  { id: '22222222-2222-4222-8222-000000000001', local: 'ses_captureparent', title: 'Rework the grouped collective browse' },
+]
+const myShareMembers = [
+  { id: '22222222-2222-4222-8222-0000000000b1', local: 'ses_capturemysharehelper1', title: 'Guardian review of the contribution flow' },
+  { id: '22222222-2222-4222-8222-0000000000b2', local: 'ses_capturemysharehelper2', title: 'Guardian review of the unshare path' },
+]
+
 /* The flat contribute tree: the same submission set, drawn the way it was
    before grouping existed. An empty-flat capture serves none of it, so the
    grouped content has no row to hang under. */
@@ -198,6 +239,7 @@ const flatPending = EMPTY_FLAT ? [] : [...owned, ...members].map(pendingArm)
 const withArm = (row, arm) => {
   if (arm === 'contributable') return { contributable: contributableArm(row) }
   if (arm === 'pending') return { pending: pendingArm(row) }
+  if (arm === 'my-share') return { myShare: myShareArm(row) }
   return {}
 }
 
@@ -281,6 +323,45 @@ const memberPayload = (arm) => ({
   total: members.length,
 })
 
+/* The caller's own contributions, for the collective page's "your
+   contributions" panel: the flat list the panel always drew, and the grouped
+   page that nests the saved helper group under the contribution the server
+   grouped it with. Both the panel's rows and the nested members belong to the
+   signed-in owner. */
+const myShareSession = (row) => session({ ...row, ownerID: OWNER_ID })
+const flatMyShares = MY_SHARES ? myShareRows.map((row) => myShareArm(row, 'pending')) : []
+const groupedMySharesPage = () => {
+  const items = MY_SHARES
+    ? [
+        {
+          kind: 'transcript',
+          transcript: {
+            session: myShareSession(myShareRows[0]),
+            myShare: myShareArm(myShareRows[0], 'pending'),
+          },
+          helperGroups: [myShareGroup()],
+        },
+      ]
+    : []
+  return {
+    items,
+    page: 1,
+    limit: LIST_PAGE_SIZE,
+    totalItems: items.length,
+    ordinarySessionTotal: items.length,
+    helperThreadTotal: MY_SHARES ? 2 : 0,
+  }
+}
+const myShareMemberPayload = {
+  members: myShareMembers.map((row) => ({
+    kind: 'transcript',
+    transcript: { session: myShareSession(row), myShare: myShareArm(row) },
+  })),
+  page: 1,
+  limit: 20,
+  total: myShareMembers.length,
+}
+
 const send = (res, status, body) => {
   res.writeHead(status, {
     'content-type': 'application/json',
@@ -321,8 +402,8 @@ const server = createServer((req, res) => {
     return send(res, 200, flatPending)
   }
   if (req.method === 'GET' && path === `/groups/${GROUP_ID}/my-shares`) {
-    if (url.searchParams.get('view') === 'grouped') return send(res, 200, { items: [], page: 1, limit: 100, totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 })
-    return send(res, 200, [])
+    if (url.searchParams.get('view') === 'grouped') return send(res, 200, groupedMySharesPage())
+    return send(res, 200, flatMyShares)
   }
   if (req.method === 'GET' && path === `/groups/${GROUP_ID}/repositories`) {
     // The repository feature is optional server-side; 501 is a clean
@@ -337,6 +418,7 @@ const server = createServer((req, res) => {
       ownerGroup('collective'),
       ownerGroup('contributable'),
       ownerGroup('pending'),
+      myShareGroup(),
       contextGroup('collective'),
       contextGroup('contributable'),
       contextGroup('pending'),
@@ -344,6 +426,7 @@ const server = createServer((req, res) => {
     if (!known.some((candidate) => candidate.groupId === membersMatch[1] && candidate.memberScope === scope)) {
       return send(res, 409, { code: 'group_scope_expired', error: 'refresh the originating list' })
     }
+    if (scope.endsWith('-my-share')) return send(res, 200, myShareMemberPayload)
     return send(res, 200, scope.endsWith('-pending') ? memberPayload('pending') : memberPayload('contributable'))
   }
 

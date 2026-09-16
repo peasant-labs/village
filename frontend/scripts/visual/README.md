@@ -319,6 +319,11 @@ read hangs a saved helper group under its owner row:
 - `collective-review` — `/groups/{id}/review`. The same explicit per-member
   selection and the same one-identity rule on the owner's review queue; one tick
   arms the decision bar.
+- `collective-my-shares` — `/groups/{id}`. The "your contributions" panel keeps
+  every contribution state it always stated (its count, its link, its pending
+  badge and its unshare control) while the saved helper group the server grouped
+  under that contribution hangs beneath its own row and expands to individually
+  linked members.
 
 Each arm asserts build provenance and capture geometry before writing a PNG:
 exactly one group, inside the owner row the server grouped it with, with no
@@ -332,6 +337,12 @@ tell the design system's square radius and mono chrome apart from close values.
 grouped pages, the registered member endpoints (with the route's own row arm
 per scope), and `/auth/me` as the collective's owner, so the contribute and
 review surfaces both render their action bars. It refuses a busy port.
+
+The `collective-my-shares` arm's state is `MOCK_COLLECTIVE_MY_SHARES=1` — the
+signed-in owner's own contributions carry a saved helper group, so the panel's
+grouped disclosure mounts under the contribution row the server grouped it
+with. Without that flag the panel serves no contributions and does not mount,
+which is what keeps every other arm's capture unchanged.
 
 Two capture states prove the grouped content no longer depends on the flat list:
 
