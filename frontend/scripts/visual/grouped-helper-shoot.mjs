@@ -695,7 +695,10 @@ if (SURFACE === 'discovery') {
       { fontFamily: isMono, borderRadius: isSquare },
       'the collective browse helper group count',
     )
-    await capture('village-collective-grouped-browse', null, 'collective-browse')
+    // The browse list section is captured on its own as well: it is the bounded
+    // grouped region the demo side-by-side pairs the canonical demonstration
+    // against, and a whole-page raster cannot bound it.
+    await capture('village-collective-grouped-browse', '[data-testid="owner-helper-groups"]', 'collective-browse')
     console.log('collective-browse provenance:', JSON.stringify({ closed, openedLinks }))
     console.log('computed helper-group count style:', JSON.stringify(style))
   } else {
