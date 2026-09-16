@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/peasant-labs/redact"
 	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -18,6 +19,14 @@ import (
 	"github.com/peasant-labs/village/backend/internal/promptattach"
 	"github.com/peasant-labs/village/backend/internal/reponame"
 )
+
+// attachmentRedactionLevel is the level Village reports for an attached
+// transcript. Standard is the only level the offer policy allows today, and the
+// redact module owns that menu, so the value comes from there rather than from a
+// literal here. When more levels are offered, the source becomes the level
+// actually applied to the stored content; this constant is the one place that
+// change lands, and nothing else in the lifecycle assumes a level.
+const attachmentRedactionLevel = string(redact.Standard)
 
 // Sentinel failures the attachment lifecycle reports so a caller can map them to
 // the right status: a collective that no longer exists or a repository that is
@@ -199,12 +208,9 @@ func (h *Handler) buildAttachmentDigest(ctx context.Context, match matcher.Resul
 			})
 		}
 		sessions = append(sessions, digest.Session{
-			TranscriptID: accepted.TranscriptID,
-			Harness:      schema.Harness(row.ModelProvider),
-			// Standard is the only offered redaction level, so a stored
-			// transcript is standardized; the digest reports what a reader can
-			// expect, and the contract's own fixture default is the same value.
-			RedactionLevel: string(schema.RedactionLevelStandard),
+			TranscriptID:   accepted.TranscriptID,
+			Harness:        schema.Harness(row.ModelProvider),
+			RedactionLevel: attachmentRedactionLevel,
 			SessionStart:   row.SessionStart.Time,
 			Turns:          turns,
 		})
