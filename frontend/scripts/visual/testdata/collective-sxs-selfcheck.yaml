@@ -60,3 +60,150 @@ cases:
     side: reference
     exists: true
     expected: unmeasurable
+
+# ── the exact-release proof the demo shoot refuses to capture without ─────────
+# `describeTag` is `git describe --tags --exact-match` in the named checkout; an
+# empty string is what git answers for a checkout sitting between releases.
+releaseProofCases:
+  - name: pinned-release-passes
+    checkout: /srv/fairtrade
+    pinnedVersion: 0.0.20
+    checkoutVersion: 0.0.20
+    describeTag: fairtrade-v0.0.20
+    expected: null
+  - name: no-checkout-named
+    checkout: ''
+    pinnedVersion: 0.0.20
+    checkoutVersion: null
+    describeTag: ''
+    expected: no demo checkout was named
+  - name: checkout-version-drift
+    checkout: /srv/fairtrade
+    pinnedVersion: 0.0.20
+    checkoutVersion: 0.0.21
+    describeTag: fairtrade-v0.0.21
+    expected: but this app pins
+  - name: checkout-between-releases
+    checkout: /srv/fairtrade
+    pinnedVersion: 0.0.20
+    checkoutVersion: 0.0.20
+    describeTag: ''
+    expected: (no exact tag)
+  - name: checkout-on-another-release
+    checkout: /srv/fairtrade
+    pinnedVersion: 0.0.20
+    checkoutVersion: 0.0.20
+    describeTag: fairtrade-v0.0.19
+    expected: instead of "fairtrade-v0.0.20"
+
+# ── the served bytes must be the proven build's bytes ─────────────────────────
+digestCases:
+  - name: served-bytes-equal-the-proven-build
+    served: { url: http://127.0.0.1:5190/assets/index-D0h_RPqm.js, sha256: aaaaaaaaaaaaaaaa }
+    local: { sha256: aaaaaaaaaaaaaaaa }
+    expected: null
+  - name: served-bytes-drifted-from-the-proven-build
+    served: { url: http://127.0.0.1:5190/assets/index-D0h_RPqm.js, sha256: bbbbbbbbbbbbbbbb }
+    local: { sha256: aaaaaaaaaaaaaaaa }
+    expected: differs from the same file
+  - name: the-proven-build-has-no-matching-file
+    served: { url: http://127.0.0.1:5190/assets/index-unknown.js, sha256: aaaaaaaaaaaaaaaa }
+    local: null
+    expected: no file matching
+  - name: the-served-asset-cannot-be-fetched
+    served: null
+    local: { sha256: aaaaaaaaaaaaaaaa }
+    expected: could not be fetched
+
+# ── the computed-style comparison: one property set, named exceptions ─────────
+# `styleBase` is what a faithful pair reads out. A case patches the reference or
+# the subject (or removes an element) and names the mismatches it must produce,
+# as `<element>.<property>` keys.
+styleBase:
+  elements:
+    trigger: { fontFamily: '"Atkinson Hyperlegible Mono", ui-monospace, Menlo, Consolas, monospace', fontSize: 14px, borderRadius: 0px, minHeight: 44px, textTransform: lowercase, paddingLeft: 16px }
+    count: { fontFamily: '"Atkinson Hyperlegible Mono", ui-monospace, Menlo, Consolas, monospace', fontSize: 14px, fontVariantNumeric: tabular-nums, textTransform: lowercase, borderRadius: 0px }
+    facts: { fontFamily: '"Atkinson Hyperlegible Mono", ui-monospace, Menlo, Consolas, monospace', fontSize: 14px, fontVariantNumeric: tabular-nums, whiteSpace: normal }
+    title: { fontFamily: '"Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif', fontSize: 14px, textTransform: none, whiteSpace: nowrap, textOverflow: ellipsis, lineHeight: 21px }
+    rail: { stroke: 'rgb(60, 56, 47)', strokeWidth: 1px }
+styleCases:
+  - name: faithful-pair-compares-clean
+    subjectPatch: {}
+    expectedMismatches: []
+    expectedExceptions: []
+    expectedDivergences: []
+  - name: the-app-font-alias-is-normalized
+    referencePatch:
+      count: { fontFamily: 'atkinsonHyperlegibleMono, "atkinsonHyperlegibleMono Fallback", ui-monospace, monospace' }
+      title: { fontFamily: 'atkinsonHyperlegible, "atkinsonHyperlegible Fallback", ui-sans-serif, system-ui, sans-serif' }
+    expectedMismatches: []
+    expectedExceptions: []
+    expectedDivergences: []
+  - name: a-different-typeface-fails
+    subjectPatch: { count: { fontFamily: '"Inter", sans-serif' } }
+    expectedMismatches: [count.fontFamily]
+    expectedExceptions: []
+    expectedDivergences: []
+  - name: a-size-drift-fails
+    subjectPatch: { facts: { fontSize: 15px } }
+    expectedMismatches: [facts.fontSize]
+    expectedExceptions: []
+    expectedDivergences: []
+  - name: a-numeric-variant-drift-fails
+    subjectPatch: { count: { fontVariantNumeric: normal } }
+    expectedMismatches: [count.fontVariantNumeric]
+    expectedExceptions: []
+    expectedDivergences: []
+  - name: a-square-radius-drift-fails
+    subjectPatch: { trigger: { borderRadius: 4px } }
+    expectedMismatches: [trigger.borderRadius]
+    expectedExceptions: []
+    expectedDivergences: []
+  - name: an-unexplained-missing-element-fails
+    arm: collective-grouped-contribute
+    subjectRemove: [facts]
+    expectedMismatches: [facts.(element not mounted)]
+    expectedExceptions: []
+    expectedDivergences: []
+  - name: the-named-read-only-exception-covers-the-rail
+    arm: collective-grouped-browse
+    subjectRemove: [rail]
+    expectedMismatches: []
+    expectedExceptions: [rail]
+    expectedDivergences: []
+  - name: the-named-exception-does-not-cover-another-element
+    arm: collective-grouped-browse
+    subjectRemove: [facts]
+    expectedMismatches: [facts.(element not mounted)]
+    expectedExceptions: []
+    expectedDivergences: []
+  # Neither expected-by-contract nor unexplained: the app mounts per-member
+  # checkboxes without the tree container, so the connector is absent. It must be
+  # recorded as a divergence (never as an exception, never as silence).
+  - name: the-composition-gap-is-a-recorded-divergence
+    arm: collective-grouped-contribute
+    subjectRemove: [rail]
+    expectedMismatches: []
+    expectedExceptions: []
+    expectedDivergences: [rail]
+  - name: the-composition-gap-is-recorded-on-review-too
+    arm: collective-grouped-review
+    subjectRemove: [rail]
+    expectedMismatches: []
+    expectedExceptions: []
+    expectedDivergences: [rail]
+
+# ── the markers each arm's OWN route bundle must carry ────────────────────────
+# The contribute and review routes do not load the contributions panel's chunk, so
+# requiring the panel marker there would refuse an attributable build; the two
+# arms whose route does load it must require it. Pinned by name so a route that
+# starts (or stops) loading a chunk cannot silently weaken the check.
+armMarkers:
+  - arm: collective-grouped-browse
+    markers: [data-helper-group-owner, my-contributions-panel]
+  - arm: collective-grouped-contribute
+    markers: [data-helper-group-owner]
+  - arm: collective-grouped-review
+    markers: [data-helper-group-owner]
+  - arm: collective-grouped-my-shares
+    markers: [data-helper-group-owner, my-contributions-panel]

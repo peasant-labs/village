@@ -1,5 +1,6 @@
 /* Capture the canonical Fairtrade grouped-helper demonstration — the REFERENCE
-   (left) side of the collective grouped side-by-side arms.
+   (left) side of the collective grouped side-by-side arms — from a SERVED demo
+   build whose release is proven.
 
    The live in-use demo is the fidelity oracle, and it mounts no collective
    surface that reads the grouped helper pages (its collective browse is a flat
@@ -9,35 +10,61 @@
    every arm. Which case and which state each arm pairs against is the ARM table
    in `collective-sxs.mjs` — read its comment before changing anything here.
 
-   Provenance is asserted BEFORE any PNG is written, from the SERVED build:
-     - the live DOM must carry the demonstration marker for the arm's case, the
-       mounted demo shell, the disclosure control and its counted label;
-     - the served JavaScript chunk must contain the demonstration marker and the
-       traced-connector class, and that exact asset URL is printed, so a stale
-       dist/ or a dev server (unbundled modules) fails instead of producing a
-       capture nobody can attribute. Run this against the built demo
-       (`vite preview` over `dist/`), never `pnpm dev`.
+   WHAT THIS PROVES, AND WHAT IT DOES NOT (asserted before any PNG is written):
+     1. EXACT RELEASE — the checkout named by FAIRTRADE_CHECKOUT carries the same
+        package version this app pins and `git describe --tags --exact-match`
+        names exactly `fairtrade-v<version>`. A checkout between releases cannot
+        pass. Without a checkout, an operator may instead pin the served bytes
+        with DEMO_ASSET_SHA256, which is recorded as `digest-only`.
+     2. SERVED BYTES — the served asset is fetched and digested (sha256), and
+        cross-checked byte-for-byte against the same file inside that checkout's
+        `dist/` (or against the pinned digest). A server serving another dist
+        fails here.
+     3. CONTENT MARKERS — the live DOM carries the arm's demonstration and the
+        demo shell, and the served asset carries the demonstration and connector
+        markers. This is a content check, not the release proof.
+     It does NOT prove the build was never rebuilt, that the tree the dist was
+     built from was clean, or that these bytes were the published ones. The
+     composite header repeats that limit on every artifact.
 
-   Computed styles are read from the live DOM and printed too, because a scaled
-   PNG cannot tell two close token values apart: they are the demo-side readings
-   the app-side probe is compared against.
+   The demo-side computed readings use the SAME property set the app side reads
+   (`measureCollectiveStyles`), and are written to `styles.json` next to the
+   captures for the stitcher's comparison. Element widths + wrap state are
+   measured and recorded too, never eyeballed.
 
    env:
-     CHROME_PATH   Chrome/Chromium binary (required)
-     DEMO_ORIGIN   served demo origin (default http://localhost:5180)
-     PUPPETEER_CORE explicit module path to puppeteer-core (optional)
-   usage: CHROME_PATH=... DEMO_ORIGIN=http://127.0.0.1:5190 \
+     CHROME_PATH          Chrome/Chromium binary (required)
+     DEMO_ORIGIN          served demo origin (default http://localhost:5180)
+     FAIRTRADE_CHECKOUT   the fairtrade checkout the served dist was built from
+                          (required unless DEMO_ASSET_SHA256 is set)
+     DEMO_ASSET_SHA256    the served asset's expected sha256 (digest-only proof)
+     PUPPETEER_CORE       explicit module path to puppeteer-core (optional)
+   usage: CHROME_PATH=... FAIRTRADE_CHECKOUT=<checkout> DEMO_ORIGIN=http://127.0.0.1:5190 \
             node scripts/visual/demo-helper-groups-shoot.mjs <theme> <outdir>
 */
-import { mkdirSync, statSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createConnection } from 'node:net'
-import { COLLECTIVE_ARMS } from './collective-sxs.mjs'
+import { basename, join } from 'node:path'
+import {
+  COLLECTIVE_ARMS,
+  DEMO_MARKERS,
+  describeWrap,
+  digestProblem,
+  measureCollectiveStyles,
+  pinnedFairtradeVersion,
+  provenanceLine,
+  releaseProofProblem,
+  sha256Hex,
+} from './collective-sxs.mjs'
 import { SurfaceGate } from './surface-gate.mjs'
 import { applyDeterminism } from './determinism.mjs'
 const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core')).default
 
 const CHROME = process.env.CHROME_PATH
 const ORIGIN = (process.env.DEMO_ORIGIN || 'http://localhost:5180').replace(/\/$/, '')
+const CHECKOUT = process.env.FAIRTRADE_CHECKOUT || ''
+const PINNED_DIGEST = (process.env.DEMO_ASSET_SHA256 || '').toLowerCase()
 const THEMES = ['dark', 'light']
 const theme = process.argv[2] || 'dark'
 const out = process.argv[3] || `/tmp/demo-collective-${theme}`
@@ -60,6 +87,41 @@ if (!CHROME) {
   process.exit(1)
 }
 
+const pinnedVersion = pinnedFairtradeVersion()
+const PROOF = CHECKOUT ? 'exact-release' : PINNED_DIGEST ? 'digest-only' : ''
+if (!PROOF) {
+  console.error(
+    `ERROR [demo-helper-groups-shoot.mjs] no exact release proof was supplied for the demo reference.\n` +
+    `  What failed: neither FAIRTRADE_CHECKOUT nor DEMO_ASSET_SHA256 is set.\n` +
+    `  Why: content markers alone cannot attribute a capture to the release this app pins (${pinnedVersion}).\n` +
+    `  Where: demo-helper-groups-shoot.mjs startup, release-proof selection.\n` +
+    `  Means: the reference pane would be unattributable, which is the claim this gate exists to make exact.\n` +
+    `  Fix: set FAIRTRADE_CHECKOUT to the checkout you built the served dist from (preferred), or pin the\n` +
+    `       served bytes with DEMO_ASSET_SHA256=<sha256> (recorded as digest-only).`,
+  )
+  process.exit(1)
+}
+
+const gitDescribeExact = (dir) => {
+  try {
+    return execFileSync('git', ['-C', dir, 'describe', '--tags', '--exact-match'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim()
+  } catch {
+    return ''
+  }
+}
+const checkoutVersion = CHECKOUT ? JSON.parse(readFileSync(join(CHECKOUT, 'package.json'), 'utf8')).version : null
+const describeTag = CHECKOUT ? gitDescribeExact(CHECKOUT) : ''
+if (PROOF === 'exact-release') {
+  const problem = releaseProofProblem({ checkout: CHECKOUT, pinnedVersion, checkoutVersion, describeTag })
+  if (problem) {
+    console.error(problem)
+    process.exit(1)
+  }
+}
+
 /* The demo must be SERVED before the browser starts: an empty page looks like a
    successful capture, which would silently corrupt the reference pane. */
 const probePort = (host, port) =>
@@ -77,8 +139,8 @@ if (!(await probePort(parsed.hostname, port))) {
     `  Why: the demo build is not being served (or DEMO_ORIGIN points elsewhere).\n` +
     `  Where: demo-helper-groups-shoot.mjs startup, liveness check.\n` +
     `  Means: every capture would be of an empty page.\n` +
-    `  Fix: serve the built demo from the fairtrade checkout, e.g.\n` +
-    `    cd <fairtrade checkout> && node_modules/.bin/vite preview --port 5190 --strictPort --host 127.0.0.1\n` +
+    `  Fix: serve the built demo from the proven checkout, e.g.\n` +
+    `    cd ${CHECKOUT || '<fairtrade checkout>'} && node_modules/.bin/vite preview --port 5190 --strictPort --host 127.0.0.1\n` +
     `  then re-run with DEMO_ORIGIN=http://127.0.0.1:5190.`,
   )
   process.exit(1)
@@ -115,26 +177,46 @@ const waitForAnchors = (wanted) =>
     wanted,
   )
 
-/* THE SERVED-BUILD PROVENANCE. Both markers exist only in the release that
-   rewrote the helper list as a tree, so a stale dist/ or a dev server (which
-   serves unbundled modules) fails here rather than producing an unattributable
-   capture. The matching asset URL is returned for the run log. */
-const servedChunkProvenance = async () => {
-  const sources = await page.$$eval('script[src]', (els) => els.map((el) => el.getAttribute('src')).filter(Boolean))
+/* THE SERVED BYTES. Fetch every bundle the page loads, keep the ones carrying
+   ALL of this side's markers, digest them, and require the SAME asset for every
+   arm of the run — a page that mixed two builds could otherwise pass arm by arm.
+   Returns the provenance record's `asset` field. */
+const fetchedAssets = new Map()
+const servedAssets = async () => {
+  const sources = await page.evaluate(() => {
+    const scripts = [...document.querySelectorAll('script[src]')].map((el) => el.getAttribute('src'))
+    const resources = performance.getEntriesByType('resource').map((entry) => entry.name)
+    return [...new Set([...scripts, ...resources].filter((url) => url && /\.js(\?|$)/.test(url)))]
+  })
+  const matches = []
   for (const src of sources) {
     const url = new URL(src, ORIGIN).href
-    let body = ''
-    try {
-      const response = await fetch(url)
-      if (!response.ok) continue
-      body = await response.text()
-    } catch {
-      continue
+    if (!fetchedAssets.has(url)) {
+      try {
+        const response = await fetch(url)
+        if (!response.ok) {
+          fetchedAssets.set(url, null)
+          continue
+        }
+        const body = Buffer.from(await response.arrayBuffer())
+        fetchedAssets.set(url, {
+          url,
+          file: basename(new URL(url).pathname),
+          bytes: body.length,
+          sha256: sha256Hex(body),
+          text: body.toString('utf8'),
+        })
+      } catch {
+        fetchedAssets.set(url, null)
+        continue
+      }
     }
-    if (body.includes('data-helper-demo') && body.includes('helper-tree-rail__path')) return url
+    const record = fetchedAssets.get(url)
+    if (record && DEMO_MARKERS.every((marker) => record.text.includes(marker))) matches.push(record)
   }
-  return null
+  return matches.map((record) => ({ url: record.url, file: record.file, bytes: record.bytes, sha256: record.sha256 }))
 }
+let provenAsset = null
 
 /* One capture, live-composited: `.iu-stage` is a fixed-height internal scroller,
    so an off-screen raster (`captureBeyondViewport:true`) paints a blank rectangle
@@ -148,7 +230,7 @@ const shot = async (name, sel, where) => {
       `  What failed: no element matched "${sel}".\n` +
       `  Why: the demo build predates the grouped-helper demonstration, or the arm's case/state did not apply.\n` +
       `  Where: demo-helper-groups-shoot.mjs shot("${name}").\n` +
-      `  Fix: confirm DEMO_ORIGIN serves the built demo, then retry.`)
+      `  Fix: confirm DEMO_ORIGIN serves the proven build, then retry.`)
   }
   const box = await el.boundingBox()
   const viewport = page.viewport()
@@ -170,26 +252,8 @@ const shot = async (name, sel, where) => {
   return measured
 }
 
-/* The demo-side design-system readings the app-side probe is compared against. */
-const COMPUTED_PROBE = {
-  trigger: ['.helper-group-trigger', ['fontFamily', 'fontSize', 'borderRadius', 'minHeight', 'textTransform', 'color']],
-  count: ['.helper-group-count', ['fontFamily', 'fontSize', 'fontVariantNumeric', 'textTransform', 'borderRadius']],
-  facts: ['.helper-thread-facts', ['fontFamily', 'fontSize', 'fontVariantNumeric']],
-  title: ['.helper-thread-open, .helper-thread-title', ['fontFamily', 'fontSize', 'textTransform', 'whiteSpace', 'textOverflow']],
-  rail: ['.helper-tree-rail__path', ['stroke', 'strokeWidth']],
-}
-const computedProbe = () =>
-  page.evaluate((probe) => {
-    const read = (sel, props) => {
-      const el = document.querySelector(sel)
-      if (!el) return null
-      const style = getComputedStyle(el)
-      return Object.fromEntries(props.map((p) => [p, style[p]]))
-    }
-    return Object.fromEntries(Object.entries(probe).map(([key, [sel, props]]) => [key, read(sel, props)]))
-  }, COMPUTED_PROBE)
-
-const provenance = []
+const provenanceArms = []
+const styleArms = {}
 for (const arm of COLLECTIVE_ARMS) {
   const url = `${ORIGIN}/?app=commons&helpers=${encodeURIComponent(arm.demoCase)}${theme === 'light' ? '&theme=light' : ''}#inuse`
   await page.goto(url, { waitUntil: 'networkidle2' })
@@ -202,7 +266,7 @@ for (const arm of COLLECTIVE_ARMS) {
     await die(browser,
       `ERROR [demo-helper-groups-shoot.mjs] the demo mounts no "${arm.demoCase}" demonstration at ${url}.\n` +
       `  What failed: no [data-helper-demo="${arm.demoCase}"] appeared within 20s.\n` +
-      `  Why: the demo case was renamed or removed, or this is not the built demo.\n` +
+      `  Why: the demo case was renamed or removed, or this is not the proven build.\n` +
       `  Where: demo-helper-groups-shoot.mjs arm "${arm.surface}" readiness wait.\n` +
       `  Means: the reference pane for this arm cannot be attributed to any canonical demonstration.\n` +
       `  Fix: point the arm's demoCase in collective-sxs.mjs at a case the served demo still mounts.`)
@@ -219,7 +283,7 @@ for (const arm of COLLECTIVE_ARMS) {
       `  What failed: [data-theme]="${actualTheme}" after requesting "${theme}".\n` +
       `  Why: the demo reads the theme from ?theme=light; a dark reference paired with a light app (or vice versa) is not comparable.\n` +
       `  Where: demo-helper-groups-shoot.mjs theme preflight.\n` +
-      `  Fix: confirm the demo build applies ?theme=light, then retry.`)
+      `  Fix: confirm the proven build applies ?theme=light, then retry.`)
   }
 
   // Normalize the disclosure state first: `page.goto` to the same URL (as two
@@ -264,29 +328,74 @@ for (const arm of COLLECTIVE_ARMS) {
   const label = await page.$eval('.helper-group-count', (el) => el.textContent.trim())
   await waitForAnchors(await page.$$eval('.helper-tree input[type="checkbox"]', (els) => els.length))
 
-  const chunk = await servedChunkProvenance()
-  if (!chunk) {
+  const matches = await servedAssets()
+  if (matches.length < 1) {
     await die(browser,
       `ERROR [demo-helper-groups-shoot.mjs] the served page carries no attributable bundle for arm "${arm.surface}".\n` +
-      `  What failed: no <script src> body contained both "data-helper-demo" and "helper-tree-rail__path".\n` +
-      `  Why: DEMO_ORIGIN is serving the unbundled dev server (or a stale dist with no helper demo).\n` +
-      `  Where: demo-helper-groups-shoot.mjs served-build provenance check at ${ORIGIN}.\n` +
+      `  What failed: no <script src> body carried every marker (${DEMO_MARKERS.join(', ')}).\n` +
+      `  Why: DEMO_ORIGIN is serving the unbundled dev server or a stale dist.\n` +
+      `  Where: demo-helper-groups-shoot.mjs served-bytes check at ${ORIGIN}.\n` +
       `  Means: the reference pane could not be tied to a build someone can inspect.\n` +
-      `  Fix: serve the built demo (vite preview over dist/) and re-run.`)
+      `  Fix: serve the dist built by the proven checkout (vite preview over dist/) and re-run.`)
+  }
+  const asset = matches.sort((a, b) => b.bytes - a.bytes)[0]
+  if (provenAsset && provenAsset.sha256 !== asset.sha256) {
+    await die(browser,
+      `ERROR [demo-helper-groups-shoot.mjs] the served build changed between arms.\n` +
+      `  What failed: arm "${arm.surface}" resolved ${asset.file} (sha256 ${asset.sha256.slice(0, 16)}…) but an earlier arm resolved ${provenAsset.file} (sha256 ${provenAsset.sha256.slice(0, 16)}…).\n` +
+      `  Why: the server was rebuilt, restarted from another dist, or is answering two builds.\n` +
+      `  Where: demo-helper-groups-shoot.mjs per-arm served-bytes check.\n` +
+      `  Means: the reference panes of one run would not be the same build.\n` +
+      `  Fix: stop the server, serve one dist, and re-run the whole theme.`)
+  }
+  provenAsset = asset
+  const localFile = CHECKOUT ? join(CHECKOUT, 'dist', 'assets', asset.file) : null
+  const local = PROOF === 'exact-release'
+    ? (existsSync(localFile)
+        ? { file: localFile, bytes: statSync(localFile).size, sha256: sha256Hex(readFileSync(localFile)) }
+        : null)
+    : { file: `DEMO_ASSET_SHA256`, bytes: null, sha256: PINNED_DIGEST }
+  const digestIssue = digestProblem({ served: asset, local, source: PROOF === 'exact-release' ? `checkout dist ${localFile}` : 'DEMO_ASSET_SHA256' })
+  if (digestIssue) {
+    await die(browser, digestIssue)
   }
 
   await shot(arm.demo, '#inuse', `arm "${arm.surface}"`)
   await shot(arm.demoGrouped, '.helper-demo', `arm "${arm.surface}" grouped region`)
-  const styles = await computedProbe()
-  await waitForAnchors(await page.$$eval('.helper-tree input[type="checkbox"]', (els) => els.length))
+  const styles = await measureCollectiveStyles(page, arm.styleScope.reference)
+  if (styles.missingScope) {
+    await die(browser,
+      `ERROR [demo-helper-groups-shoot.mjs] the demo style scope "${arm.styleScope.reference}" did not mount for arm "${arm.surface}".`)
+  }
+  styleArms[arm.surface] = styles
 
-  provenance.push({ arm: arm.surface, case: arm.demoCase, state: arm.demoState, theme, label, chunk, styles })
-  console.log('arm', arm.surface.padEnd(34), `case=${arm.demoCase}`, `state=${arm.demoState}`, `label="${label}"`)
+  const record = { surface: arm.surface, case: arm.demoCase, state: arm.demoState, label, asset, local }
+  provenanceArms.push(record)
+  console.log('arm', arm.surface.padEnd(34), `case=${arm.demoCase}`, `state=${arm.demoState}`, `label="${label}"`,
+    `| wrap count ${describeWrap(styles.wrap.count)} · facts ${describeWrap(styles.wrap.facts)}`)
 }
 
-console.log(`\nserved-build provenance (${theme}):`)
-for (const entry of provenance) console.log(`  ${entry.arm}: ${entry.chunk}`)
-console.log('demo computed styles:', JSON.stringify(Object.fromEntries(provenance.map((p) => [p.arm, p.styles])), null, 2))
+const provenance = {
+  theme,
+  proof: PROOF,
+  pinnedVersion,
+  tag: describeTag || null,
+  checkout: CHECKOUT || null,
+  checkoutVersion,
+  remote: ORIGIN,
+  markers: DEMO_MARKERS,
+  asset: provenanceArms[0].asset,
+  local: provenanceArms[0].local,
+  arms: provenanceArms,
+}
+writeFileSync(`${out}/provenance.json`, JSON.stringify(provenance, null, 2))
+const stylesPath = `${out}/styles.json`
+const previousStyles = existsSync(stylesPath) ? JSON.parse(readFileSync(stylesPath, 'utf8')) : { arms: {} }
+writeFileSync(stylesPath, JSON.stringify({ theme, arms: { ...previousStyles.arms, ...styleArms } }, null, 2))
+
+console.log(`\n${provenanceLine(provenance)}`)
+console.log('demo computed styles:', JSON.stringify(Object.fromEntries(Object.entries(styleArms).map(([arm, s]) => [arm, s.elements])), null, 2))
+console.log('demo wrap measurements:', JSON.stringify(Object.fromEntries(Object.entries(styleArms).map(([arm, s]) => [arm, s.wrap])), null, 2))
 console.log(`PROVENANCE_JSON=${JSON.stringify(provenance)}`)
 console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
 await browser.close()
