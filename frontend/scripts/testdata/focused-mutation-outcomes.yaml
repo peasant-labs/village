@@ -1,0 +1,79 @@
+# Classifying one focused Vitest JSON report for the mutation runner.
+#
+# The three reports below are the real shapes a focused run produces. The
+# loader-failure report is the dangerous one: its suite-level error names the
+# case, and the case name is the focused test's name, so a runner that searched
+# console output for the name would call a broken fixture a killed assertion.
+# Every case is a closed-set member; the loader-failure report's message is
+# required to carry the fixture loader's own words.
+cases:
+  - name: executed-assertion-failure-kills
+    testName: contribute-selects-one-helper-only
+    expected: assertion-failure
+    detail_contains: "AssertionError"
+    report:
+      numTotalTests: 5
+      numFailedTests: 1
+      numTotalTestSuites: 1
+      numFailedTestSuites: 1
+      testResults:
+        - name: src/mountedCollectiveGroupedActions.test.tsx
+          status: failed
+          message: ""
+          assertionResults:
+            - title: contribute-selects-one-helper-only
+              fullName: contribute-selects-one-helper-only
+              status: failed
+              failureMessages:
+                - "AssertionError: expected [ Array(1) ] to deeply equal [ …(2) ]"
+            - title: review-selects-one-helper-only
+              fullName: review-selects-one-helper-only
+              status: skipped
+              failureMessages: []
+
+  - name: loader-failure-naming-the-test-is-not-a-kill
+    testName: contribute-selects-one-helper-only
+    expected: load-failure
+    detail_contains: "collective grouped helper"
+    report:
+      numTotalTests: 0
+      numFailedTests: 0
+      numTotalTestSuites: 1
+      numFailedTestSuites: 1
+      testResults:
+        - name: src/mountedCollectiveGroupedActions.test.tsx
+          status: failed
+          message: 'collective grouped helper fixture case "contribute-selects-one-helper-only" selects "G2" but does not expect its id in the body'
+          assertionResults: []
+
+  - name: all-green-focused-run-survived
+    testName: contribute-selects-one-helper-only
+    expected: passed
+    report:
+      numTotalTests: 5
+      numFailedTests: 0
+      numTotalTestSuites: 1
+      numFailedTestSuites: 0
+      testResults:
+        - name: src/mountedCollectiveGroupedActions.test.tsx
+          status: passed
+          message: ""
+          assertionResults:
+            - title: contribute-selects-one-helper-only
+              fullName: contribute-selects-one-helper-only
+              status: passed
+              failureMessages: []
+
+  - name: silent-load-failure-is-never-a-pass
+    testName: contribute-selects-one-helper-only
+    expected: unknown
+    report:
+      numTotalTests: 0
+      numFailedTests: 0
+      numTotalTestSuites: 1
+      numFailedTestSuites: 1
+      testResults:
+        - name: src/mountedCollectiveGroupedActions.test.tsx
+          status: failed
+          message: ""
+          assertionResults: []
