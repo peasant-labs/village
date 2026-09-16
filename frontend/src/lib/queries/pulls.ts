@@ -65,16 +65,23 @@ export function useDetachPullRequestAttachment(owner: string, name: string, numb
  * payload carries no such field, and this setting belongs to the attachment
  * lifecycle rather than to the account.
  */
-export function useUserPromptSettings(enabled: boolean) {
+// The key carries the viewer it belongs to: the route is always "me", but a
+// sign-out followed by a different sign-in must not serve the previous
+// account's value from the cache.
+export function userPromptSettingsKey(username: string) {
+  return ["user-prompt-settings", username.toLowerCase()] as const;
+}
+
+export function useUserPromptSettings(enabled: boolean, username: string) {
   return useQuery({
-    queryKey: ["user-prompt-settings"],
+    queryKey: userPromptSettingsKey(username),
     queryFn: () => api<VillageUserSettings>("/users/me/settings"),
     retry: false,
-    enabled,
+    enabled: enabled && !!username,
   });
 }
 
-export function useUpdateUserPromptSettings() {
+export function useUpdateUserPromptSettings(username: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (previewBeforeAttach: boolean) =>
@@ -83,7 +90,7 @@ export function useUpdateUserPromptSettings() {
         body: JSON.stringify({ preview_before_attach: previewBeforeAttach }),
       }),
     onSuccess: (updated) => {
-      qc.setQueryData(["user-prompt-settings"], updated);
+      qc.setQueryData(userPromptSettingsKey(username), updated);
     },
   });
 }

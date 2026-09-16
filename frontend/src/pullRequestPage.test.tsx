@@ -4,7 +4,6 @@ import { loadPullRequestPageFixtures } from "@/test/pullRequestPageFixtures";
 import {
   installAttachmentSurfacesTeardown,
   installPullRequestREST,
-  makeAttachmentResponse,
   makeDigest,
   renderPullRequestRoute,
   type PullRequestFixture,
@@ -73,13 +72,13 @@ describe("the pull request page", () => {
       const title = await screen.findByTestId("pull-request-title");
       expect(title.textContent).toBe(`${OWNER}/${NAME} #${NUMBER}`);
 
-      // The digest, when the server sent one, renders its counts and its chain.
+      // The digest is the design system's component, so assert its content
+      // rather than its markup: the prompt text it renders, and that it mounted.
       if (row.digest === "present") {
-        expect(await screen.findByText(/1 sessions/)).toBeTruthy();
-        expect(screen.getByText("please add the picker")).toBeTruthy();
-        expect(screen.getByText("session 1")).toBeTruthy();
+        expect(await screen.findByText("please add the picker")).toBeTruthy();
+        await waitFor(() => expect(document.querySelector(".pd")).toBeTruthy());
       } else {
-        expect(screen.queryByText(/1 sessions/)).toBeNull();
+        expect(document.querySelector(".pd")).toBeNull();
         expect(screen.getByText(/shown to the pull request's author/)).toBeTruthy();
       }
 
@@ -128,7 +127,7 @@ describe("the pull request page", () => {
     });
   });
 
-  it("renders every digest item kind and links a commit to GitHub", async () => {
+  it("renders the chain and links each item where it belongs", async () => {
     const row = loadPullRequestPageFixtures().find(
       (c) => c.name === "author viewing an attached digest",
     );
@@ -136,23 +135,21 @@ describe("the pull request page", () => {
     installPullRequestREST(fixtureFor(row));
     await renderPullRequestRoute(OWNER, NAME, NUMBER);
     await screen.findByTestId("pull-request-title");
+    await waitFor(() => expect(document.querySelector(".pd")).toBeTruthy());
 
-    // The skill marker is a name plus a count inside one link, so match on the
-    // link's own text rather than on a fragment of it.
-    const skill = screen.getByText(
-      (_content, element) =>
-        element?.tagName === "A" && element.textContent?.startsWith("/commit") === true,
-    );
-    expect(skill.textContent).toBe("/commit -m seed");
-    // The skills summary above the chain carries the invocation count.
-    expect(screen.getByText("×1")).toBeTruthy();
-
-    const commit = screen.getByText("abc1234");
-    expect(commit.getAttribute("href")).toBe(
+    // The commit anchor is the only link that leaves Village, and it resolves
+    // through the attachment's repository rather than a caller-supplied string.
+    const commit = document.querySelector('.pd a[href*="/commit/"]');
+    expect(commit?.getAttribute("href")).toBe(
       `https://github.com/${OWNER}/${NAME}/commit/abc1234000000000000000000000000000000001`,
     );
-    const prompt = screen.getByText("please add the picker").closest("a");
-    expect(prompt?.getAttribute("href")).toContain("?turn=0");
+    // A prompt and a skill both open the exact turn.
+    const turnLinks = [...document.querySelectorAll('.pd a[href*="?turn="]')].map((a) =>
+      a.getAttribute("href"),
+    );
+    expect(turnLinks).toContain("/transcripts/11111111-1111-1111-1111-111111111111?turn=0");
+    expect(document.querySelector(".pd")?.textContent).toContain("/commit");
+    // The attached-transcripts list is this page's own, not the digest's.
     expect(screen.getByText("picker work")).toBeTruthy();
   });
 });

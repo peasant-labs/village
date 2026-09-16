@@ -369,6 +369,7 @@ export default function GroupSettingsPage({
                   options={[
                     {
                       value: "informational",
+                      disabled: !postPromptsCheck,
                       label: (
                         <span className="flex flex-col gap-0.5">
                           <span className="font-mono text-[14px] text-ink-2 lowercase">
@@ -383,6 +384,7 @@ export default function GroupSettingsPage({
                     },
                     {
                       value: "required",
+                      disabled: !postPromptsCheck,
                       label: (
                         <span className="flex flex-col gap-0.5">
                           <span className="font-mono text-[14px] text-ink-2 lowercase">

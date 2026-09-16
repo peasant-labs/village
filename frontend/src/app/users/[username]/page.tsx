@@ -73,8 +73,8 @@ export default function UserProfilePage({
     !!user && user.github_username.toLowerCase() === username.toLowerCase();
   // The attachment preference is served by /users/me/settings, not /auth/me, so
   // it is read only for the caller's own profile and never for a visitor.
-  const promptSettings = useUserPromptSettings(isOwnProfile);
-  const updatePromptSettings = useUpdateUserPromptSettings();
+  const promptSettings = useUserPromptSettings(isOwnProfile, username);
+  const updatePromptSettings = useUpdateUserPromptSettings(username);
   const { groups, malformed: malformedProjectItems } = data?.transcripts
     ? groupByProject(data.transcripts)
     : { groups: [], malformed: [] };
@@ -351,9 +351,20 @@ export default function UserProfilePage({
               <Switch
                 id="user-preview-before-attach"
                 checked={promptSettings.data?.preview_before_attach ?? false}
+                // Nothing is togglable until the stored value is known: an
+                // un-fetched control would read "off" to a user whose setting is
+                // on, and a click while it is absent could only send that wrong
+                // value.
+                disabled={!promptSettings.isFetched || updatePromptSettings.isPending}
+                busy={updatePromptSettings.isPending}
                 onChange={(checked: boolean) => updatePromptSettings.mutate(checked)}
               />
             </div>
+            {promptSettings.error && (
+              <p className="text-[13px] text-danger" role="alert">
+                {promptSettings.error.message}
+              </p>
+            )}
             {updatePromptSettings.error && (
               <p className="text-[13px] text-danger" role="alert">
                 {updatePromptSettings.error.message}
