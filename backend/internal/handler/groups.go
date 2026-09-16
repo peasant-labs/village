@@ -367,7 +367,7 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	// database CHECK.
 	if req.PromptsCheckMode != "" {
 		if err := promptattach.CheckMode(req.PromptsCheckMode).Validate(); err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid prompts check mode")
+			writeError(w, http.StatusBadRequest, "Invalid prompts check mode; it must be one of "+promptattach.CheckModeMenu())
 			return
 		}
 	}

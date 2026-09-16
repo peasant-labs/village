@@ -91,9 +91,17 @@ func TestUpdateGroupAppliesPromptCheckSettings(t *testing.T) {
 		t.Fatalf("flag-only update = post=%v mode=%q, want true/required", post, mode)
 	}
 
-	// A mode outside the menu is refused before any write.
-	if rec := patch(`{"prompts_check_mode":"sometimes"}`); rec.Code != http.StatusBadRequest {
+	// A mode outside the menu is refused before any write. The CONTRACT refuses
+	// it first (its enum is the same closed set the handler mirrors), so assert
+	// that the refusal names that layer: the handler's own guard is
+	// defense-in-depth for a body that reached it another way, and a test that
+	// only checked the status could not tell which layer answered.
+	rec := patch(`{"prompts_check_mode":"sometimes"}`)
+	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("invalid mode = %d (%s), want 400", rec.Code, rec.Body.String())
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "failed contract validation") {
+		t.Fatalf("invalid mode body = %s, want the contract validator to name the field", body)
 	}
 	if post, mode := settings(); !post || mode != "required" {
 		t.Fatalf("a refused update changed the row: post=%v mode=%q", post, mode)
