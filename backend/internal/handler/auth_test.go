@@ -1345,3 +1345,65 @@ func TestCLIExchange_InvalidRequestBody(t *testing.T) {
 		t.Errorf("status: got %d, want %d", w.Code, http.StatusBadRequest)
 	}
 }
+
+// ----------------------------------------------------------------------------
+// Pull request prompt-attachment lifecycle. These default to the empty result;
+// the lifecycle's own behaviour is proven against a real database, so the mock
+// only has to satisfy the interface.
+// ----------------------------------------------------------------------------
+
+func (m *mockQuerier) ListOwnerTranscriptsForMatching(ctx context.Context, ownerID pgtype.UUID) ([]sqlc.ListOwnerTranscriptsForMatchingRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) CreatePullRequestAttachment(ctx context.Context, arg sqlc.CreatePullRequestAttachmentParams) (sqlc.PullRequestAttachment, error) {
+	return sqlc.PullRequestAttachment{}, nil
+}
+
+func (m *mockQuerier) GetPullRequestAttachment(ctx context.Context, id pgtype.UUID) (sqlc.PullRequestAttachment, error) {
+	return sqlc.PullRequestAttachment{}, nil
+}
+
+func (m *mockQuerier) GetPullRequestAttachmentForPull(ctx context.Context, arg sqlc.GetPullRequestAttachmentForPullParams) (sqlc.PullRequestAttachment, error) {
+	return sqlc.PullRequestAttachment{}, nil
+}
+
+func (m *mockQuerier) UpdatePullRequestAttachmentState(ctx context.Context, arg sqlc.UpdatePullRequestAttachmentStateParams) (sqlc.PullRequestAttachment, error) {
+	return sqlc.PullRequestAttachment{}, nil
+}
+
+func (m *mockQuerier) AttachPullRequestTranscript(ctx context.Context, arg sqlc.AttachPullRequestTranscriptParams) error {
+	return nil
+}
+
+func (m *mockQuerier) ListPullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.PullRequestAttachmentTranscript, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ListPullRequestAttachmentTranscriptSummaries(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.ListPullRequestAttachmentTranscriptSummariesRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) DeletePullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) error {
+	return nil
+}
+
+func (m *mockQuerier) SetPullRequestAttachmentDigest(ctx context.Context, arg sqlc.SetPullRequestAttachmentDigestParams) error {
+	return nil
+}
+
+func (m *mockQuerier) SetPullRequestAttachmentArtifacts(ctx context.Context, arg sqlc.SetPullRequestAttachmentArtifactsParams) error {
+	return nil
+}
+
+func (m *mockQuerier) ListAuthorWaitingPromptRequests(ctx context.Context, authorID pgtype.UUID) ([]sqlc.PullRequestAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) SetUserPreviewBeforeAttach(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error) {
+	return sqlc.User{}, nil
+}
+
+func (m *mockQuerier) GetCollectiveRepositoryByRepo(ctx context.Context, arg sqlc.GetCollectiveRepositoryByRepoParams) (sqlc.CollectiveRepository, error) {
+	return sqlc.CollectiveRepository{}, nil
+}
