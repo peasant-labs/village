@@ -99,3 +99,69 @@ mutations:
     testFile: src/mountedCollectiveGroupedFallback.test.tsx
     testName: review-continuation-reaches-later-owner-group-renamed
     failure: loader
+
+  # The two named grouping oracles. A drift in the SERVED measure must fail the
+  # mounted owner-facts assertion, a drift in the PINNED disclosure label must
+  # fail the mounted group-label assertion, and a renamed required case must fail
+  # fixture-loader validation.
+  - name: shape-oracle-served-measure-drift
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "    title: \"shape a owner\"\n    turnCount: 5\n"
+    replacement: "    title: \"shape a owner\"\n    turnCount: 6\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: owner-input1-main5-with-two-helpers
+    failure: assertion
+
+  - name: shape-oracle-expected-label-drift
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "      shape-a-pair: \"2 helper threads\"\n"
+    replacement: "      shape-a-pair: \"3 helper threads\"\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: owner-input1-main5-with-two-helpers
+    failure: assertion
+
+  - name: shape-oracle-required-case-renamed
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "- name: ordinary3-helper3-top3\n"
+    replacement: "- name: ordinary3-helper3-top3-renamed\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: ordinary3-helper3-top3-renamed
+    failure: loader
+
+  # The per-row member assertion: `shape-b-helper-two` is served a different
+  # turn count while owner `shape-b-first` still states the pinned "3 turns", so
+  # a document-wide search would still find the literal and pass. Only asserting
+  # the fact on the member's OWN row kills this.
+  - name: shape-oracle-member-fact-row-scope
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "        - {id: shape-b-helper-two, title: \"shape b helper two\", turnCount: 3, inputSubmissionCount: null}\n"
+    replacement: "        - {id: shape-b-helper-two, title: \"shape b helper two\", turnCount: 4, inputSubmissionCount: null}\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: ordinary3-helper3-top3
+    failure: assertion
+
+  # Root/manifest validation: an unknown root field, a drifted manifest name,
+  # and a removed manifest block must each fail the loader, not pass silently.
+  - name: shape-oracle-unknown-root-field
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "requiredNames:\n  - owner-input1-main5-with-two-helpers\n"
+    replacement: "rogueRoot: true\nrequiredNames:\n  - owner-input1-main5-with-two-helpers\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: owner-input1-main5-with-two-helpers
+    failure: loader
+
+  - name: shape-oracle-manifest-drifted
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "  - ordinary3-helper3-top3\n"
+    replacement: "  - ordinary3-helper3-top3-drifted\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: ordinary3-helper3-top3
+    failure: loader
+
+  - name: shape-oracle-manifest-missing
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "requiredNames:\n  - owner-input1-main5-with-two-helpers\n  - ordinary3-helper3-top3\n"
+    replacement: ""
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: owner-input1-main5-with-two-helpers
+    failure: loader

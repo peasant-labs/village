@@ -42,6 +42,13 @@ const requiredNames = [
   "collective-fallback-flat-mode-invalid",
   "collective-continuation-total-drift",
   "collective-continuation-case-renamed",
+  "shape-oracle-served-measure-drift",
+  "shape-oracle-expected-label-drift",
+  "shape-oracle-required-case-renamed",
+  "shape-oracle-member-fact-row-scope",
+  "shape-oracle-unknown-root-field",
+  "shape-oracle-manifest-drifted",
+  "shape-oracle-manifest-missing",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (
@@ -122,7 +129,7 @@ for (const mutation of root.mutations) {
           `MISDECLARED MUTATION ${mutation.name}: it declares a fixture-loader kill but the run failed at an executed assertion instead. assertion detail: ${outcome.detail}`,
         );
       }
-      if (!outcome.detail.includes("grouped helper")) {
+      if (!outcome.detail.includes("grouped helper") && !outcome.detail.includes("grouped shape oracle")) {
         throw new Error(
           `${mutation.name} failed at load without the fixture loader naming the corpus violation: ${outcome.detail}`,
         );
