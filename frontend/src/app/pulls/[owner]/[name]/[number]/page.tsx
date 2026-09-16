@@ -102,7 +102,7 @@ export default function PullRequestPage({
   const actionPending = confirm.isPending || detach.isPending;
 
   return (
-    <div className={shell}>
+    <div className={shell} data-testid="pull-request-page">
       <header className="flex flex-col gap-1">
         <div className="flex items-center gap-2 text-ink-3">
           <Layers className="size-3.5" />
@@ -126,6 +126,7 @@ export default function PullRequestPage({
         <section
           className="border border-rule bg-surface px-5 py-4 flex flex-col gap-3"
           aria-label="attachment actions"
+          data-testid="pull-request-actions"
         >
           <div className="flex items-center gap-2">
             {state === "preview" && (

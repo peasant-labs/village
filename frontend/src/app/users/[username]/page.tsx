@@ -338,7 +338,7 @@ export default function UserProfilePage({
         </RailSection>
 
         <RailSection title="pull requests" icon={Layers} meta={undefined}>
-          <div className="sw-stack">
+          <div className="sw-stack" data-testid="profile-prompt-settings">
             <label htmlFor="user-preview-before-attach" className="sw-label">
               Preview before attaching
             </label>
