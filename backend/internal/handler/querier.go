@@ -166,8 +166,10 @@ type Querier interface {
 	ListRepositoryCommits(ctx context.Context, arg sqlc.ListRepositoryCommitsParams) ([]sqlc.RepositoryCommit, error)
 	CountRepositoryCommits(ctx context.Context, arg sqlc.CountRepositoryCommitsParams) (int64, error)
 
-	// GitHub webhook delivery idempotency
-	RecordGitHubWebhookDelivery(ctx context.Context, deliveryID string) (int64, error)
+	// GitHub webhook delivery ledger: record an attempt (with the payload a
+	// resume needs) and record its outcome.
+	RecordGitHubWebhookDelivery(ctx context.Context, arg sqlc.RecordGitHubWebhookDeliveryParams) (sqlc.RecordGitHubWebhookDeliveryRow, error)
+	CompleteGitHubWebhookDelivery(ctx context.Context, arg sqlc.CompleteGitHubWebhookDeliveryParams) error
 }
 
 // Compile-time assertion: *sqlc.Queries must satisfy Querier.

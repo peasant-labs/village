@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/github"
 )
 
@@ -13,6 +16,18 @@ import (
 // GitHub's largest event payloads are well under this; a body over the cap is
 // refused rather than read into memory.
 const maxGitHubWebhookBodyBytes = 10 << 20 // 10 MiB
+
+// The github_webhook_deliveries.status menu, mirroring migration 040's CHECK.
+const (
+	webhookDeliveryPending = "pending"
+	webhookDeliveryHandled = "handled"
+	webhookDeliveryFailed  = "failed"
+)
+
+// maxWebhookErrorBytes bounds the dispatcher error kept on the ledger row for an
+// operator. It is stored verbatim, so it is truncated rather than trusted to be
+// short.
+const maxWebhookErrorBytes = 1024
 
 // noopGitHubDispatcher is production's placeholder handling point: it accepts
 // every subscribed event and does nothing. The matching, digest, and posting
@@ -26,10 +41,16 @@ func (noopGitHubDispatcher) CheckRun(context.Context, github.Event) error     { 
 func (noopGitHubDispatcher) IssueComment(context.Context, github.Event) error { return nil }
 
 // ReceiveGitHubWebhook is POST /api/v1/integrations/github/webhook. It verifies
-// GitHub's HMAC signature over the raw body, records the delivery id exactly
-// once, dispatches the four subscribed event types to their handling point, and
-// acknowledges everything else. It carries no session auth: the HMAC over the
-// raw bytes is the trust boundary.
+// GitHub's HMAC signature over the raw body, records the delivery with the type
+// and payload it needs to be resumed, dispatches the subscribed event types to
+// their handling point, and acknowledges everything else. It carries no session
+// auth: the HMAC over the raw bytes is the trust boundary.
+//
+// The delivery is recorded BEFORE dispatch, so the work survives a crash. A
+// delivery that was already handled is acknowledged as a replay without being
+// dispatched again; one whose earlier attempt failed (or never finished) is
+// dispatched again, which is how GitHub's only recovery path — a redelivery,
+// which GitHub does not perform automatically — can actually recover it.
 func (h *Handler) ReceiveGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 	if h.gh == nil || h.cfg == nil || h.cfg.GitHubAppWebhookSecret == "" {
 		writeError(w, http.StatusNotImplemented, "GitHub webhook receiver is not configured on this server")
@@ -62,14 +83,18 @@ func (h *Handler) ReceiveGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inserted, err := h.queries.RecordGitHubWebhookDelivery(r.Context(), deliveryID)
+	state, err := h.queries.RecordGitHubWebhookDelivery(r.Context(), sqlc.RecordGitHubWebhookDeliveryParams{
+		DeliveryID: deliveryID,
+		EventType:  eventType,
+		Payload:    body,
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not record the webhook delivery")
 		return
 	}
-	if inserted == 0 {
-		// Already recorded: GitHub redelivered a delivery this server accepted
-		// before. Acknowledge without dispatching it a second time.
+	if state.Status == webhookDeliveryHandled {
+		// Already handled: GitHub redelivered a delivery this server finished.
+		// Acknowledge without dispatching it a second time.
 		writeJSON(w, http.StatusAccepted, map[string]string{"status": "replay"})
 		return
 	}
@@ -83,9 +108,40 @@ func (h *Handler) ReceiveGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 		DeliveryID: deliveryID,
 		Payload:    body,
 	}); err != nil {
+		h.failGitHubWebhookDelivery(r.Context(), deliveryID, err)
 		writeError(w, http.StatusInternalServerError, "the webhook event could not be handled")
 		return
 	}
 
+	if err := h.queries.CompleteGitHubWebhookDelivery(r.Context(), sqlc.CompleteGitHubWebhookDeliveryParams{
+		DeliveryID: deliveryID,
+		Status:     webhookDeliveryHandled,
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not record the webhook delivery outcome")
+		return
+	}
+
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+}
+
+// failGitHubWebhookDelivery records a failed attempt so the delivery reads as
+// failed for an operator and a redelivery resumes it.
+//
+// It is best effort: if this write fails too, the row is still pending from the
+// record, and a pending row resumes on redelivery just as a failed one does, so
+// the 500 the caller returns is honest in either case.
+func (h *Handler) failGitHubWebhookDelivery(ctx context.Context, deliveryID string, cause error) {
+	message := cause.Error()
+	if len(message) > maxWebhookErrorBytes {
+		message = message[:maxWebhookErrorBytes]
+	}
+	if err := h.queries.CompleteGitHubWebhookDelivery(ctx, sqlc.CompleteGitHubWebhookDeliveryParams{
+		DeliveryID: deliveryID,
+		Status:     webhookDeliveryFailed,
+		LastError:  pgtype.Text{String: message, Valid: message != ""},
+	}); err != nil {
+		// The row stays pending, which is also resumable; the response already
+		// reports the failure, so there is nothing further to change.
+		return
+	}
 }

@@ -91,6 +91,13 @@ type GithubAppInstallation struct {
 type GithubWebhookDelivery struct {
 	DeliveryID string             `db:"delivery_id" json:"delivery_id"`
 	ReceivedAt pgtype.Timestamptz `db:"received_at" json:"received_at"`
+	EventType  string             `db:"event_type" json:"event_type"`
+	Payload    []byte             `db:"payload" json:"payload"`
+	Status     string             `db:"status" json:"status"`
+	Attempts   int32              `db:"attempts" json:"attempts"`
+	LastError  pgtype.Text        `db:"last_error" json:"last_error"`
+	HandledAt  pgtype.Timestamptz `db:"handled_at" json:"handled_at"`
+	FailedAt   pgtype.Timestamptz `db:"failed_at" json:"failed_at"`
 }
 
 type GovernanceEventType struct {

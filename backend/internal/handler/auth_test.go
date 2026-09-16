@@ -137,7 +137,8 @@ type mockQuerier struct {
 	upsertRepositoryCommit         func(ctx context.Context, arg sqlc.UpsertRepositoryCommitParams) error
 	listRepositoryCommits          func(ctx context.Context, arg sqlc.ListRepositoryCommitsParams) ([]sqlc.RepositoryCommit, error)
 	countRepositoryCommits         func(ctx context.Context, arg sqlc.CountRepositoryCommitsParams) (int64, error)
-	recordGitHubWebhookDelivery    func(ctx context.Context, deliveryID string) (int64, error)
+	recordGitHubWebhookDelivery    func(ctx context.Context, arg sqlc.RecordGitHubWebhookDeliveryParams) (sqlc.RecordGitHubWebhookDeliveryRow, error)
+	completeGitHubWebhookDelivery  func(ctx context.Context, arg sqlc.CompleteGitHubWebhookDeliveryParams) error
 }
 
 // ---- CLI session ---------------------------------------------------------
@@ -804,11 +805,18 @@ func (m *mockQuerier) CountRepositoryCommits(ctx context.Context, arg sqlc.Count
 	return 0, nil
 }
 
-func (m *mockQuerier) RecordGitHubWebhookDelivery(ctx context.Context, deliveryID string) (int64, error) {
+func (m *mockQuerier) RecordGitHubWebhookDelivery(ctx context.Context, arg sqlc.RecordGitHubWebhookDeliveryParams) (sqlc.RecordGitHubWebhookDeliveryRow, error) {
 	if m.recordGitHubWebhookDelivery != nil {
-		return m.recordGitHubWebhookDelivery(ctx, deliveryID)
+		return m.recordGitHubWebhookDelivery(ctx, arg)
 	}
-	return 1, nil
+	return sqlc.RecordGitHubWebhookDeliveryRow{Status: "pending"}, nil
+}
+
+func (m *mockQuerier) CompleteGitHubWebhookDelivery(ctx context.Context, arg sqlc.CompleteGitHubWebhookDeliveryParams) error {
+	if m.completeGitHubWebhookDelivery != nil {
+		return m.completeGitHubWebhookDelivery(ctx, arg)
+	}
+	return nil
 }
 
 // ----------------------------------------------------------------------------
