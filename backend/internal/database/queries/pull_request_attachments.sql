@@ -35,7 +35,9 @@ SELECT * FROM pull_request_attachments WHERE id = $1;
 -- Addresses an attachment the way the routes do: repository owner/name plus the
 -- pull request number, case-insensitively on the owner and name.
 SELECT * FROM pull_request_attachments
-WHERE lower(repo_owner) = lower($1) AND lower(repo_name) = lower($2) AND number = $3;
+WHERE lower(repo_owner) = lower($1) AND lower(repo_name) = lower($2) AND number = $3
+ORDER BY created_at DESC, id DESC
+LIMIT 1;
 
 -- name: UpdatePullRequestAttachmentState :one
 -- The ONLY statement that changes pull_request_attachments.state. The

@@ -52,6 +52,7 @@ type attachmentGitHubFake struct {
 
 	mu             sync.Mutex
 	failWrites     bool
+	deleteNotFound bool
 	checkCreates   int
 	checkUpdates   int
 	commentCreates int
@@ -116,6 +117,13 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			}
 			fake.mu.Unlock()
 			if r.Method == http.MethodDelete {
+				fake.mu.Lock()
+				notFound := fake.deleteNotFound
+				fake.mu.Unlock()
+				if notFound {
+					http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
+					return
+				}
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
@@ -668,5 +676,195 @@ func TestDetachIsConflictWhenNothingCanBeDetached(t *testing.T) {
 	rec := attachmentServe(t, attachmentRouter(h), http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/13", owner)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("detach from requested = %d (%s), want 409", rec.Code, rec.Body.String())
+	}
+}
+
+// TestDetachRetractsTheCollectiveShare is the privacy rule: detaching ends the
+// collective's access to the prompts, so the approved share the attach opened is
+// retracted and the derived current-state row disappears, rather than leaving a
+// live grant on a transcript that is private again.
+func TestDetachRetractsTheCollectiveShare(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 992009)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "retract-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	sha := "1111234000000000000000000000000000000031"
+	transcriptID := attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
+	attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 41)
+	fake.setPullCommits(sha)
+
+	router := attachmentRouter(h)
+	if rec := attachmentServe(t, router, http.MethodPost, "/api/v1/pulls/acme/"+repoName+"/41/confirm", owner); rec.Code != http.StatusOK {
+		t.Fatalf("confirm = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	var shareStatus string
+	if err := pool.QueryRow(ctx, `SELECT status FROM transcript_shares WHERE transcript_id = $1 AND group_id = $2`, transcriptID, groupID).Scan(&shareStatus); err != nil {
+		t.Fatalf("the attach opened no share: %v", err)
+	}
+	if shareStatus != "approved" {
+		t.Fatalf("share status = %q, want approved", shareStatus)
+	}
+
+	if rec := attachmentServe(t, router, http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/41", owner); rec.Code != http.StatusOK {
+		t.Fatalf("detach = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+
+	var derived int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM transcript_shares WHERE transcript_id = $1 AND group_id = $2`, transcriptID, groupID).Scan(&derived); err != nil {
+		t.Fatal(err)
+	}
+	if derived != 0 {
+		t.Fatal("the collective's share survived the detach, so its access did not end")
+	}
+	var latest string
+	if err := pool.QueryRow(ctx, `
+		SELECT status FROM transcript_share_attempts WHERE transcript_id = $1 AND group_id = $2
+		ORDER BY event_num DESC LIMIT 1
+	`, transcriptID, groupID).Scan(&latest); err != nil {
+		t.Fatal(err)
+	}
+	if latest != "retracted" {
+		t.Fatalf("latest attempt = %q, want retracted (the ledger keeps the history)", latest)
+	}
+}
+
+// TestDetachKeepsANarrowingTheOwnerMade proves the restore never re-widens: an
+// owner who made a transcript private while it was attached keeps it private.
+func TestDetachKeepsANarrowingTheOwnerMade(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 992010)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "narrow-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	sha := "2221234000000000000000000000000000000032"
+	transcriptID := attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "shared", "", time.Now().Add(-time.Hour))
+	attachment := attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 42)
+	fake.setPullCommits(sha)
+
+	router := attachmentRouter(h)
+	if rec := attachmentServe(t, router, http.MethodPost, "/api/v1/pulls/acme/"+repoName+"/42/confirm", owner); rec.Code != http.StatusOK {
+		t.Fatalf("confirm = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+
+	// The owner narrows it to private while it is attached, through the same
+	// governance path the PATCH route uses.
+	if err := h.withPublishLocks(ctx, owner, "narrow", nil, func(conn *pgxpool.Conn) error {
+		return h.inTxAsOnConn(ctx, conn, owner, func(q Querier) error {
+			private := dbVisibilityPrivate
+			_, err := applyMetadataPatch(ctx, q, transcriptID, metadataPatch{Visibility: &private})
+			return err
+		})
+	}); err != nil {
+		t.Fatalf("narrow the transcript: %v", err)
+	}
+
+	if rec := attachmentServe(t, router, http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/42", owner); rec.Code != http.StatusOK {
+		t.Fatalf("detach = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	var visibility string
+	if err := pool.QueryRow(ctx, "SELECT visibility FROM transcripts WHERE id = $1", transcriptID).Scan(&visibility); err != nil {
+		t.Fatal(err)
+	}
+	if visibility != "private" {
+		t.Fatalf("visibility = %q, want the owner's private narrowing kept", visibility)
+	}
+	_ = attachment
+}
+
+// TestConcurrentConfirmsPostOnce is the serialization rule: two confirms at the
+// same time must produce one comment and one state change, not two posts.
+func TestConcurrentConfirmsPostOnce(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 992011)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "concurrent-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	sha := "3331234000000000000000000000000000000033"
+	attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
+	attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 43)
+	fake.setPullCommits(sha)
+
+	router := attachmentRouter(h)
+	codes := make(chan int, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			codes <- attachmentServe(t, router, http.MethodPost, "/api/v1/pulls/acme/"+repoName+"/43/confirm", owner).Code
+		}()
+	}
+	wg.Wait()
+	close(codes)
+
+	ok, conflict := 0, 0
+	for code := range codes {
+		switch code {
+		case http.StatusOK:
+			ok++
+		case http.StatusConflict:
+			conflict++
+		default:
+			t.Fatalf("concurrent confirm answered %d, want only 200 or 409", code)
+		}
+	}
+	if ok != 1 || conflict != 1 {
+		t.Fatalf("confirm outcomes = %d ok and %d conflict, want exactly one of each", ok, conflict)
+	}
+	fake.mu.Lock()
+	comments := fake.commentCreates
+	fake.mu.Unlock()
+	if comments != 1 {
+		t.Fatalf("comment creates = %d, want exactly one sticky comment", comments)
+	}
+}
+
+// TestDetachToleratesAnAlreadyDeletedComment proves detach is idempotent against
+// the comment being gone, which is what a retry or an out-of-band deletion
+// leaves behind: it must finish the restore rather than fail forever.
+func TestDetachToleratesAnAlreadyDeletedComment(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 992012)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "deleted-comment-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	sha := "4441234000000000000000000000000000000034"
+	transcriptID := attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
+	attachment := attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 44)
+	fake.setPullCommits(sha)
+
+	router := attachmentRouter(h)
+	if rec := attachmentServe(t, router, http.MethodPost, "/api/v1/pulls/acme/"+repoName+"/44/confirm", owner); rec.Code != http.StatusOK {
+		t.Fatalf("confirm = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	fake.mu.Lock()
+	fake.deleteNotFound = true
+	fake.mu.Unlock()
+
+	if rec := attachmentServe(t, router, http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/44", owner); rec.Code != http.StatusOK {
+		t.Fatalf("detach with the comment already gone = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	updated, err := h.queries.GetPullRequestAttachment(ctx, attachment.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.State != "detached" {
+		t.Fatalf("state = %q, want detached", updated.State)
+	}
+	var visibility string
+	if err := pool.QueryRow(ctx, "SELECT visibility FROM transcripts WHERE id = $1", transcriptID).Scan(&visibility); err != nil {
+		t.Fatal(err)
+	}
+	if visibility != "private" {
+		t.Fatalf("visibility = %q, want the restore to have happened", visibility)
 	}
 }

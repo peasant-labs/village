@@ -18,8 +18,8 @@
 -- restores exactly what was recorded; an attachment whose collective is gone
 -- cannot post, and the lifecycle fails closed rather than guessing.
 --
--- No backfill is needed: the table has no writer until the change that lands
--- the lifecycle handlers, so a pre-existing row (there is none in an
+-- No backfill is needed: no caller created an attachment row before the change
+-- that lands the lifecycle handlers, so a pre-existing row (there is none in an
 -- environment that never ran unreleased code) correctly starts unbound.
 
 ALTER TABLE pull_request_attachments

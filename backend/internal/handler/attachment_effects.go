@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -164,13 +165,32 @@ func (h *Handler) widenOneTranscript(ctx context.Context, attachment sqlc.PullRe
 // private repository cannot narrow a transcript the owner already published.
 func disclosureRank(value string) int {
 	switch value {
-	case dbVisibilityPublic:
-		return 2
+	case dbVisibilityPrivate:
+		return 0
 	case dbVisibilityShared:
 		return 1
+	case dbVisibilityPublic:
+		return 2
 	default:
-		return 0
+		// An unknown tier ranks above every known one, so a widening decision
+		// leaves it alone and a restore never downgrades it. Adding a tier to the
+		// menu must update this ordering deliberately.
+		return 3
 	}
+}
+
+// narrowestVisibility is the restore rule: the recorded tier is applied only
+// when it is not wider than the tier now, so an owner who narrowed the
+// transcript while it was attached keeps that narrowing. An unknown current tier
+// is left alone for the same reason.
+func narrowestVisibility(current, recorded string) string {
+	if disclosureRank(current) >= 3 {
+		return current
+	}
+	if disclosureRank(recorded) < disclosureRank(current) {
+		return recorded
+	}
+	return current
 }
 
 func widestVisibility(current, desired string) string {
@@ -306,16 +326,18 @@ func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequ
 	}
 
 	if attachment.CommentID.Valid {
-		if err := h.gh.DeleteIssueComment(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, attachment.CommentID.Int64); err != nil {
+		if err := h.gh.DeleteIssueComment(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, attachment.CommentID.Int64); err != nil && !github.IsNotFound(err) {
 			return attachment, fmt.Errorf("%w: deleting the comment: %v", errAttachmentGitHub, err)
 		}
+		// A 404 means the comment is already gone, which is the outcome detach
+		// wants; failing here would leave a partial detach stuck forever.
 	}
 	if repo.postCheck && attachment.CheckRunID.Valid {
 		if _, err := h.gh.UpdateCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, attachment.CheckRunID.Int64, github.CheckRunRequest{
 			Conclusion: github.CheckConclusionNeutral,
 			Title:      attachmentCheckTitle,
 			Summary:    "Prompts are no longer attached to this pull request.",
-		}); err != nil {
+		}); err != nil && !github.IsNotFound(err) {
 			return attachment, fmt.Errorf("%w: resetting the check run: %v", errAttachmentGitHub, err)
 		}
 	}
@@ -325,6 +347,13 @@ func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequ
 		return attachment, fmt.Errorf("could not read the attachment's transcripts before restoring them: %w", err)
 	}
 	for _, binding := range bindings {
+		// Retract the grant BEFORE restoring visibility: detaching ends the
+		// collective's access, so the share the attach opened goes with it. If a
+		// restore then fails, the transcript is shared with nobody and the access
+		// is already gone, which is the safe direction.
+		if err := h.retractAttachmentShare(ctx, binding.TranscriptID, repo.groupID); err != nil {
+			return attachment, err
+		}
 		if err := h.restoreTranscriptVisibility(ctx, binding); err != nil {
 			return attachment, err
 		}
@@ -360,13 +389,45 @@ func (h *Handler) restoreTranscriptVisibility(ctx context.Context, binding sqlc.
 	if err != nil {
 		return fmt.Errorf("could not read a bound transcript before restoring it: %w", err)
 	}
-	previous := binding.PreviousVisibility
 	return h.withPublishLocks(ctx, transcript.OwnerID, transcript.LocalID, nil, func(conn *pgxpool.Conn) error {
 		return h.inTxAsOnConn(ctx, conn, transcript.OwnerID, func(q Querier) error {
-			if _, err := applyMetadataPatch(ctx, q, binding.TranscriptID, metadataPatch{Visibility: &previous}); err != nil {
+			// Restore the recorded value only when it is not WIDER than the tier
+			// now: if the owner widened the transcript while it was attached,
+			// detaching must not undo their later choice.
+			pre, err := q.GetTranscriptGovernanceForUpdate(ctx, binding.TranscriptID)
+			if err != nil {
+				return fmt.Errorf("could not lock a bound transcript before restoring it: %w", err)
+			}
+			target := narrowestVisibility(pre.Visibility, binding.PreviousVisibility)
+			if target == pre.Visibility {
+				return nil
+			}
+			if _, err := applyMetadataPatch(ctx, q, binding.TranscriptID, metadataPatch{Visibility: &target}); err != nil {
 				return fmt.Errorf("could not restore a transcript's recorded visibility: %w", err)
 			}
 			return nil
 		})
 	})
+}
+
+// retractAttachmentShare withdraws the approved share the attach opened to the
+// linking collective, so detaching ends the collective's access instead of
+// leaving a live grant on a transcript that may be private again. The share
+// ledger appends a retraction, so the acceptance's history is preserved rather
+// than rewritten. A pair with no live attempt is already retracted.
+func (h *Handler) retractAttachmentShare(ctx context.Context, transcriptID, groupID pgtype.UUID) error {
+	latest, err := h.queries.GetLatestShareAttempt(ctx, sqlc.GetLatestShareAttemptParams{TranscriptID: transcriptID, GroupID: groupID})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("could not read a transcript's share before retracting it: %w", err)
+	}
+	if latest.Status != string(ShareStatusApproved) && latest.Status != string(ShareStatusPending) {
+		return nil
+	}
+	if err := h.queries.UnshareTranscript(ctx, sqlc.UnshareTranscriptParams{TranscriptID: transcriptID, GroupID: groupID}); err != nil {
+		return fmt.Errorf("could not retract the collective's share: %w", err)
+	}
+	return nil
 }

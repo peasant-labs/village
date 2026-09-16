@@ -179,6 +179,8 @@ func (q *Queries) GetPullRequestAttachment(ctx context.Context, id pgtype.UUID) 
 const getPullRequestAttachmentForPull = `-- name: GetPullRequestAttachmentForPull :one
 SELECT id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at, group_id FROM pull_request_attachments
 WHERE lower(repo_owner) = lower($1) AND lower(repo_name) = lower($2) AND number = $3
+ORDER BY created_at DESC, id DESC
+LIMIT 1
 `
 
 type GetPullRequestAttachmentForPullParams struct {

@@ -96,12 +96,22 @@ func (h *Handler) ConfirmPullRequestAttachment(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	if attachment.State != string(promptattach.Preview) {
-		writeError(w, http.StatusConflict, "This pull request is not waiting for confirmation")
-		return
-	}
 
-	updated, err := h.confirmAttachment(r.Context(), attachment)
+	var updated sqlc.PullRequestAttachment
+	err := h.withAttachmentLock(r.Context(), attachment.ID, func() error {
+		// Re-read inside the lock: a concurrent confirm may have attached it
+		// between the load above and here, and the state that allows this action
+		// must be checked against the row as it is now.
+		fresh, err := h.queries.GetPullRequestAttachment(r.Context(), attachment.ID)
+		if err != nil {
+			return err
+		}
+		if fresh.State != string(promptattach.Preview) {
+			return promptattach.ErrTransitionNotAllowed
+		}
+		updated, err = h.confirmAttachment(r.Context(), fresh)
+		return err
+	})
 	if err != nil {
 		writeAttachmentActionError(w, err)
 		return
@@ -133,12 +143,19 @@ func (h *Handler) DetachPullRequestAttachment(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	if !promptattach.CanTransition(promptattach.State(attachment.State), promptattach.Detached) {
-		writeError(w, http.StatusConflict, "This pull request has nothing attached to detach")
-		return
-	}
 
-	updated, err := h.detachAttachment(r.Context(), attachment)
+	var updated sqlc.PullRequestAttachment
+	err := h.withAttachmentLock(r.Context(), attachment.ID, func() error {
+		fresh, err := h.queries.GetPullRequestAttachment(r.Context(), attachment.ID)
+		if err != nil {
+			return err
+		}
+		if !promptattach.CanTransition(promptattach.State(fresh.State), promptattach.Detached) {
+			return promptattach.ErrTransitionNotAllowed
+		}
+		updated, err = h.detachAttachment(r.Context(), fresh)
+		return err
+	})
 	if err != nil {
 		writeAttachmentActionError(w, err)
 		return

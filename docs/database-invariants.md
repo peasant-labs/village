@@ -133,21 +133,6 @@ boundary are documented in
   lists, and `'unknown'` is listed exactly like `'user'`. The column scopes
    DISCOVERY only - it is not an access control, and a direct link to an
    `'agent'` transcript still resolves normally.
-- **041 binds an attachment to the collective that enabled it.**
-  `pull_request_attachments.group_id` names the collective whose owner opted in
-  by linking the repository. The installation and the repository's privacy are
-  NOT stored: they are read through the collective's current
-  `collective_repositories` row at call time, so a re-link refreshes them
-  instead of freezing a value a reinstall or a visibility change would
-  invalidate. The column is NULLABLE with `ON DELETE SET NULL`, and that is the
-  point: a collective can be deleted and its repository links cascade with it,
-  so a CASCADE here would delete the attachment's transcripts and the
-  `previous_visibility` snapshots they hold, leaving those transcripts shared
-  with a collective that no longer exists and nothing left to restore them.
-  SET NULL keeps the snapshot so a detach still restores exactly what was
-  recorded; an attachment whose collective is gone cannot post and the lifecycle
-  fails closed rather than guessing.
-
 - **037 makes the pull request prompt-attachment lifecycle representable.**
   `pull_request_attachments` holds one row per observed pull request
   (`UNIQUE (github_repo_id, number)`), one nullable timestamp per state, the
@@ -201,6 +186,21 @@ boundary are documented in
   table carries no FK and no trigger: it is
   a dedup and attempt ledger, not a disclosure axis, so it needs no
   `app.actor_id`.
+
+- **041 binds an attachment to the collective that enabled it.**
+  `pull_request_attachments.group_id` names the collective whose owner opted in
+  by linking the repository. The installation and the repository's privacy are
+  NOT stored: they are read through the collective's current
+  `collective_repositories` row at call time, so a re-link refreshes them
+  instead of freezing a value a reinstall or a visibility change would
+  invalidate. The column is NULLABLE with `ON DELETE SET NULL`, and that is the
+  point: a collective can be deleted and its repository links cascade with it,
+  so a CASCADE here would delete the attachment's transcripts and the
+  `previous_visibility` snapshots they hold, leaving those transcripts shared
+  with a collective that no longer exists and nothing left to restore them.
+  SET NULL keeps the snapshot so a detach still restores exactly what was
+  recorded; an attachment whose collective is gone cannot post and the lifecycle
+  fails closed rather than guessing.
 
 ## 2. Licensing data model
 

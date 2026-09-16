@@ -36,8 +36,14 @@ func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.Pull
 		transcripts = append(transcripts, wire)
 	}
 
+	// The digest is prompt text. It is only served to the author, or once the
+	// attachment is attached: a preview digest is the author's own review step,
+	// and a detached one describes prompts that are no longer shared.
+	viewerIsAuthor := viewerKnown && viewer.Valid && viewer == attachment.AuthorID
+	includeDigest := viewerIsAuthor || attachment.State == string(promptattach.Attached)
+
 	var digestValue *schema.PromptDigest
-	if len(attachment.Digest) > 0 {
+	if includeDigest && len(attachment.Digest) > 0 {
 		var parsed schema.PromptDigest
 		if err := json.Unmarshal(attachment.Digest, &parsed); err != nil {
 			return schema.VillagePullRequestAttachmentResponse{}, fmt.Errorf("the digest stored for this attachment is not readable, so it cannot be served: %w", err)
@@ -49,7 +55,7 @@ func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.Pull
 		Attachment:     mapped,
 		Digest:         digestValue,
 		Transcripts:    transcripts,
-		ViewerIsAuthor: viewerKnown && viewer.Valid && viewer == attachment.AuthorID,
+		ViewerIsAuthor: viewerIsAuthor,
 	}, nil
 }
 
@@ -154,8 +160,9 @@ func (h *Handler) isCollectiveMember(ctx context.Context, userID, groupID pgtype
 	if !groupID.Valid {
 		return false
 	}
-	_, err := h.queries.GetGroupMember(ctx, sqlc.GetGroupMemberParams{GroupID: groupID, UserID: userID})
-	return err == nil
+	member, err := h.queries.GetGroupMember(ctx, sqlc.GetGroupMemberParams{GroupID: groupID, UserID: userID})
+	// A pending join request is not membership: it grants no read access.
+	return err == nil && member.Role != "pending"
 }
 
 // mapVillageUserSettings maps the stored user settings to the wire type.
