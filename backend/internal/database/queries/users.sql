@@ -68,3 +68,11 @@ UPDATE users SET
     updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: SetUserPreviewBeforeAttach :one
+-- Sets whether this user's own pull request attachments stop at a preview the
+-- user confirms, instead of attaching immediately.
+UPDATE users
+SET preview_before_attach = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;

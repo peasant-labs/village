@@ -57,6 +57,40 @@ func (q *Queries) GetCollectiveRepository(ctx context.Context, arg GetCollective
 	return i, err
 }
 
+const getCollectiveRepositoryByRepo = `-- name: GetCollectiveRepositoryByRepo :one
+SELECT id, group_id, owner, name, installation_id, is_private, linked_by, commits_etag, last_synced_at, created_at FROM collective_repositories
+WHERE lower(owner) = lower($1) AND lower(name) = lower($2)
+ORDER BY created_at ASC NULLS LAST, id ASC
+LIMIT 1
+`
+
+type GetCollectiveRepositoryByRepoParams struct {
+	Owner string `db:"owner" json:"owner"`
+	Name  string `db:"name" json:"name"`
+}
+
+// Resolves a repository to the collective that linked it, for a webhook that
+// names a repository and no collective. Several collectives may link the same
+// repository; the EARLIEST link is canonical, so the choice is deterministic
+// rather than an unordered LIMIT that could vary between runs.
+func (q *Queries) GetCollectiveRepositoryByRepo(ctx context.Context, arg GetCollectiveRepositoryByRepoParams) (CollectiveRepository, error) {
+	row := q.db.QueryRow(ctx, getCollectiveRepositoryByRepo, arg.Owner, arg.Name)
+	var i CollectiveRepository
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.Owner,
+		&i.Name,
+		&i.InstallationID,
+		&i.IsPrivate,
+		&i.LinkedBy,
+		&i.CommitsEtag,
+		&i.LastSyncedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getGitHubAppInstallation = `-- name: GetGitHubAppInstallation :one
 SELECT installation_id, account_login, account_id, account_type, created_at, updated_at FROM github_app_installations WHERE installation_id = $1
 `
