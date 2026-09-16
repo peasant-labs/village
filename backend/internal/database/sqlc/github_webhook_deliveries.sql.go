@@ -7,21 +7,69 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const recordGitHubWebhookDelivery = `-- name: RecordGitHubWebhookDelivery :execrows
-INSERT INTO github_webhook_deliveries (delivery_id)
-VALUES ($1)
-ON CONFLICT (delivery_id) DO NOTHING
+const completeGitHubWebhookDelivery = `-- name: CompleteGitHubWebhookDelivery :exec
+UPDATE github_webhook_deliveries SET
+    status = $1,
+    attempts = attempts + 1,
+    last_error = $2,
+    handled_at = CASE WHEN $1 = 'handled' THEN now() ELSE handled_at END,
+    failed_at = CASE WHEN $1 = 'failed' THEN now() ELSE failed_at END
+WHERE delivery_id = $3
+  AND ($1 = 'handled' OR status <> 'handled')
 `
 
-// Records one webhook delivery id. Returns the number of rows inserted: 1 for a
-// first delivery, 0 when the id was already recorded (a replay), which is how
-// the receiver tells the two apart without a second round trip.
-func (q *Queries) RecordGitHubWebhookDelivery(ctx context.Context, deliveryID string) (int64, error) {
-	result, err := q.db.Exec(ctx, recordGitHubWebhookDelivery, deliveryID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+type CompleteGitHubWebhookDeliveryParams struct {
+	Status     string      `db:"status" json:"status"`
+	LastError  pgtype.Text `db:"last_error" json:"last_error"`
+	DeliveryID string      `db:"delivery_id" json:"delivery_id"`
+}
+
+// Records one attempt's outcome and counts the attempt. A handled delivery is
+// never dispatched again; a failed one is a candidate for the next redelivery.
+//
+// handled is ABSORBING. Two attempts can run concurrently for one id, and a
+// slower one that fails after another already handled the delivery must not
+// downgrade the row to failed: the effect would then be re-dispatched forever,
+// which is the opposite of what this state is for. A late failure therefore
+// writes nothing and is not counted.
+//
+// The caller bounds last_error before passing it, since it is stored verbatim
+// for an operator rather than shown to a user.
+func (q *Queries) CompleteGitHubWebhookDelivery(ctx context.Context, arg CompleteGitHubWebhookDeliveryParams) error {
+	_, err := q.db.Exec(ctx, completeGitHubWebhookDelivery, arg.Status, arg.LastError, arg.DeliveryID)
+	return err
+}
+
+const recordGitHubWebhookDelivery = `-- name: RecordGitHubWebhookDelivery :one
+INSERT INTO github_webhook_deliveries (delivery_id, event_type, payload, status)
+VALUES ($1, $2, $3, 'pending')
+ON CONFLICT (delivery_id) DO UPDATE SET delivery_id = EXCLUDED.delivery_id
+RETURNING status, attempts
+`
+
+type RecordGitHubWebhookDeliveryParams struct {
+	DeliveryID string `db:"delivery_id" json:"delivery_id"`
+	EventType  string `db:"event_type" json:"event_type"`
+	Payload    []byte `db:"payload" json:"payload"`
+}
+
+type RecordGitHubWebhookDeliveryRow struct {
+	Status   string `db:"status" json:"status"`
+	Attempts int32  `db:"attempts" json:"attempts"`
+}
+
+// Records a delivery together with the type and raw payload an attempt needs to
+// be resumed, and returns the ledger's current state for it in one round trip.
+// A new delivery starts pending; an existing row keeps its payload and status,
+// so the receiver can tell a first or resumable attempt (pending, failed) from
+// an already-handled replay (handled) without a second statement.
+func (q *Queries) RecordGitHubWebhookDelivery(ctx context.Context, arg RecordGitHubWebhookDeliveryParams) (RecordGitHubWebhookDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, recordGitHubWebhookDelivery, arg.DeliveryID, arg.EventType, arg.Payload)
+	var i RecordGitHubWebhookDeliveryRow
+	err := row.Scan(&i.Status, &i.Attempts)
+	return i, err
 }
