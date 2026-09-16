@@ -118,7 +118,8 @@ digestCases:
 # ── the computed-style comparison: one property set, named exceptions ─────────
 # `styleBase` is what a faithful pair reads out. A case patches the reference or
 # the subject (or removes an element) and names the mismatches it must produce,
-# as `<element>.<property>` keys.
+# as `<element>.<property>` keys. An absence with no STYLE_EXCEPTIONS entry fails
+# closed — there is no recorded-but-allowed category.
 styleBase:
   elements:
     trigger: { fontFamily: '"Atkinson Hyperlegible Mono", ui-monospace, Menlo, Consolas, monospace', fontSize: 14px, borderRadius: 0px, minHeight: 44px, textTransform: lowercase, paddingLeft: 16px }
@@ -131,67 +132,85 @@ styleCases:
     subjectPatch: {}
     expectedMismatches: []
     expectedExceptions: []
-    expectedDivergences: []
   - name: the-app-font-alias-is-normalized
     referencePatch:
       count: { fontFamily: 'atkinsonHyperlegibleMono, "atkinsonHyperlegibleMono Fallback", ui-monospace, monospace' }
       title: { fontFamily: 'atkinsonHyperlegible, "atkinsonHyperlegible Fallback", ui-sans-serif, system-ui, sans-serif' }
     expectedMismatches: []
     expectedExceptions: []
-    expectedDivergences: []
   - name: a-different-typeface-fails
     subjectPatch: { count: { fontFamily: '"Inter", sans-serif' } }
     expectedMismatches: [count.fontFamily]
     expectedExceptions: []
-    expectedDivergences: []
   - name: a-size-drift-fails
     subjectPatch: { facts: { fontSize: 15px } }
     expectedMismatches: [facts.fontSize]
     expectedExceptions: []
-    expectedDivergences: []
   - name: a-numeric-variant-drift-fails
     subjectPatch: { count: { fontVariantNumeric: normal } }
     expectedMismatches: [count.fontVariantNumeric]
     expectedExceptions: []
-    expectedDivergences: []
   - name: a-square-radius-drift-fails
     subjectPatch: { trigger: { borderRadius: 4px } }
     expectedMismatches: [trigger.borderRadius]
     expectedExceptions: []
-    expectedDivergences: []
   - name: an-unexplained-missing-element-fails
     arm: collective-grouped-contribute
     subjectRemove: [facts]
     expectedMismatches: [facts.(element not mounted)]
     expectedExceptions: []
-    expectedDivergences: []
   - name: the-named-read-only-exception-covers-the-rail
     arm: collective-grouped-browse
     subjectRemove: [rail]
     expectedMismatches: []
     expectedExceptions: [rail]
-    expectedDivergences: []
   - name: the-named-exception-does-not-cover-another-element
     arm: collective-grouped-browse
     subjectRemove: [facts]
     expectedMismatches: [facts.(element not mounted)]
     expectedExceptions: []
-    expectedDivergences: []
-  # Neither expected-by-contract nor unexplained: the app mounts per-member
-  # checkboxes without the tree container, so the connector is absent. It must be
-  # recorded as a divergence (never as an exception, never as silence).
-  - name: the-composition-gap-is-a-recorded-divergence
+  # The member-selecting arms mount per-member checkboxes, so their connector is
+  # asserted: dropping it on either side is an unexplained absence and fails the
+  # stitch closed. There is no recorded-but-allowed category.
+  - name: the-connector-is-asserted-on-contribute
     arm: collective-grouped-contribute
     subjectRemove: [rail]
-    expectedMismatches: []
+    expectedMismatches: [rail.(element not mounted)]
     expectedExceptions: []
-    expectedDivergences: [rail]
-  - name: the-composition-gap-is-recorded-on-review-too
+  - name: the-connector-is-asserted-on-review
     arm: collective-grouped-review
     subjectRemove: [rail]
-    expectedMismatches: []
+    expectedMismatches: [rail.(element not mounted)]
     expectedExceptions: []
-    expectedDivergences: [rail]
+
+# ── the positive connector assertion the member-selecting arms carry ──────────
+# `connectorProblem` fails the stitch when an arm listed in CONNECTOR_ARMS does not
+# mount the canonical connector on both sides. A display-only arm is not in that
+# list and is never failed here; its absence is the STYLE_EXCEPTIONS case above.
+connectorArms:
+  - collective-grouped-contribute
+  - collective-grouped-review
+connectorCases:
+  - name: both-sides-mount-the-connector
+    arm: collective-grouped-contribute
+    expected: null
+  - name: the-subject-drops-the-connector
+    arm: collective-grouped-contribute
+    subjectRemove: [rail]
+    expected: is absent on the subject side
+  - name: the-reference-drops-the-connector
+    arm: collective-grouped-review
+    referenceRemove: [rail]
+    expected: is absent on the reference side
+  - name: both-sides-drop-the-connector
+    arm: collective-grouped-review
+    subjectRemove: [rail]
+    referenceRemove: [rail]
+    expected: is absent on both sides
+  - name: a-display-only-arm-is-not-asserted
+    arm: collective-grouped-browse
+    subjectRemove: [rail]
+    expected: null
 
 # ── the markers each arm's OWN route bundle must carry ────────────────────────
 # The contribute and review routes do not load the contributions panel's chunk, so

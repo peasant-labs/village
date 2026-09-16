@@ -15,7 +15,9 @@
         `styles.json`; this script compares them property by property. A mismatch
         aborts the run. An element one side does not mount aborts it too, unless
         the arm names that element in `STYLE_EXCEPTIONS` with its reason (exactly
-        two, both the same design-system fact).
+        two, both the same design-system fact, both on display-only arms). The
+        connector on the member-selecting arms is asserted POSITIVELY through
+        `CONNECTOR_ARMS`/`connectorProblem`, so its absence is always a failure.
      3. THE REFERENCE IS ATTRIBUTED — each side's `provenance.json` (written by its
         shoot) supplies the release proof and the served asset's sha256; the
         composite header states those, and what they do NOT prove.
@@ -42,6 +44,7 @@ import {
   THEMES,
   appDir,
   compareStyleRecords,
+  connectorProblem,
   demoDir,
   describeStyleCheck,
   describeWrap,
@@ -236,6 +239,15 @@ for (const theme of THEMES) {
       reference: refStyles.arms?.[arm.surface],
       subject: subStyles.arms?.[arm.surface],
     })
+    /* The member-selecting arms must mount the canonical connector on BOTH sides.
+       Asserted before the generic mismatch report so the failure names the
+       connector rather than only the missing reading. */
+    const connectorIssue = connectorProblem({
+      arm: arm.surface,
+      reference: refStyles.arms?.[arm.surface],
+      subject: subStyles.arms?.[arm.surface],
+    })
+    if (connectorIssue) await abort(connectorIssue)
     if (compare.mismatches.length > 0) {
       await abort(
         `ERROR [collective-stitch-sxs] arm "${arm.surface}" (${theme}) does not match the demo's computed styles.\n` +
@@ -260,13 +272,7 @@ for (const theme of THEMES) {
     }
     const styleLine = describeStyleCheck(compare)
     const wrapLine = `wrap (measured, not gated) · count: demo ${describeWrap(refStyles.arms?.[arm.surface]?.wrap?.count)} / app ${describeWrap(subStyles.arms?.[arm.surface]?.wrap?.count)} · facts: demo ${describeWrap(refStyles.arms?.[arm.surface]?.wrap?.facts)} / app ${describeWrap(subStyles.arms?.[arm.surface]?.wrap?.facts)}`
-    styleSummary.push({ theme, arm: arm.surface, compared: compare.compared, exceptions: compare.exceptions, divergences: compare.divergences, reference: refStyles.arms?.[arm.surface], subject: subStyles.arms?.[arm.surface] })
-    for (const divergence of compare.divergences) {
-      // Loud in the run log, printed on every composite, and never an exception:
-      // a product divergence the harness records rather than explains away.
-      console.log('DIVERGENCE', `${theme}/${arm.surface}`.padEnd(40), `${divergence.element} absent on ${divergence.missingOn}`)
-      console.log('           ', divergence.reason)
-    }
+    styleSummary.push({ theme, arm: arm.surface, compared: compare.compared, exceptions: compare.exceptions, reference: refStyles.arms?.[arm.surface], subject: subStyles.arms?.[arm.surface] })
 
     const levels = [
       { level: '', paths: sidePaths(BASE, theme, arm), refLabel: `${REF_LABEL}  helpers=${arm.demoCase} · ${arm.demoState}`, appLabel: APP_LABEL },
@@ -301,7 +307,7 @@ for (const theme of THEMES) {
       console.log('sxs', `${theme}/${file}`.padEnd(46), padNote.padEnd(20), r.dim ? 'informational diff: n/a' : `informational diff: ${pct.toFixed(2)}%`)
     }
   }
-  console.log(`styles ${theme}: ${styleSummary.filter((s) => s.theme === theme).map((s) => `${s.arm.slice('collective-grouped-'.length)}=${s.compared} compared/${s.exceptions.length} named exceptions/${s.divergences.length} recorded divergences`).join(' · ')}`)
+  console.log(`styles ${theme}: ${styleSummary.filter((s) => s.theme === theme).map((s) => `${s.arm.slice('collective-grouped-'.length)}=${s.compared} compared/${s.exceptions.length} named exceptions`).join(' · ')}`)
 }
 
 await browser.close()

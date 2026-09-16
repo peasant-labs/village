@@ -40,7 +40,10 @@
    `compareStyleRecords`. A property mismatch fails the stitch. An element that
    one side does not mount is a mismatch UNLESS it is named in `STYLE_EXCEPTIONS`
    for that arm with its reason; there are exactly two, both the same
-   design-system fact. The only value normalization is the font-family alias
+   design-system fact and both on display-only arms. Every other absence fails the
+   run — including the canonical connector on the arms that select members, which
+   `CONNECTOR_ARMS`/`connectorProblem` assert POSITIVELY rather than as the
+   absence of an allowance. The only value normalization is the font-family alias
    named in `normalizeValue`. Element WIDTHS and wrap state are measured
    (`WRAP_ELEMENTS`) and reported, never gated: the two panes are different
    surfaces and their containers are legitimately different widths. */
@@ -98,7 +101,7 @@ export const COLLECTIVE_ARMS = [
     demoSelectThread: 'G2',
     styleScope: { reference: '.helper-demo', subject: '[data-testid="contribute-member-panel"]' },
     mapping:
-      'both sides tick exactly one member. The app states `contribute 1 transcript` on the route\'s own action bar where the demo states the selected identity in its summary line, and each side keeps its own closure, so off-primitive chrome is not comparable. The reference also draws the traced connector between its checkboxes and this app surface does not: see the recorded divergence on the composite.',
+      'both sides tick exactly one member. The app states `contribute 1 transcript` on the route\'s own action bar where the demo states the selected identity in its summary line, and each side keeps its own closure, so off-primitive chrome is not comparable. Both sides also trace the canonical connector between their member checkboxes; the harness asserts it (CONNECTOR_ARMS), so its absence fails the gate.',
   },
   {
     surface: 'collective-grouped-review',
@@ -113,7 +116,7 @@ export const COLLECTIVE_ARMS = [
     demoSelectThread: 'G4',
     styleScope: { reference: '.helper-demo', subject: '[data-testid="review-panel"]' },
     mapping:
-      'the review queue selects one identity, never a group. The reference is the named example whose group holds two members carrying the same title and a third that does not, so a tick visibly names ONE row; the app states `1 selected` on its decision bar where the demo states the identity in its summary line. As on contribute, the reference draws the traced connector and this app surface does not (recorded divergence).',
+      'the review queue selects one identity, never a group. The reference is the named example whose group holds two members carrying the same title and a third that does not, so a tick visibly names ONE row; the app states `1 selected` on its decision bar where the demo states the identity in its summary line. As on contribute, both sides trace the canonical connector, which the harness asserts (CONNECTOR_ARMS).',
   },
   {
     surface: 'collective-grouped-my-shares',
@@ -203,39 +206,40 @@ export const STYLE_EXCEPTIONS = [
       'the contributions panel is a display-only grouped read, so no checkbox is mounted and no connector is traced',
   },
 ]
-/* Absences the design system's own contract does NOT explain. They are RECORDED
-   and printed on the composite and in the run log, never silenced and never
-   treated as an expected exception: a surface that mounts per-member checkboxes
-   without the `HelperGroupListItem` tree draws no connector, which the canonical
-   composition does draw. Fixing that is a product change, not this harness's. */
-export const STYLE_DIVERGENCES = [
-  {
-    arm: 'collective-grouped-contribute',
-    element: 'rail',
-    reason:
-      'the app mounts the grouped disclosure with per-member checkboxes but without the HelperGroupListItem tree container that owns the traced connector, so the connector the canonical composition draws is absent; a recorded product divergence, not a design-system contract case',
-  },
-  {
-    arm: 'collective-grouped-review',
-    element: 'rail',
-    reason:
-      'same composition gap as contribute: per-member checkboxes are mounted without the tree container that traces the connector, so the canonical connector is absent; a recorded product divergence',
-  },
-]
+/* The arms that DO select members: each mounts per-member checkboxes, so each
+   must compose the design system's helper tree, which owns the traced connector
+   (`.helper-tree-rail__path`). Named here so the connector is asserted POSITIVELY
+   — a present element on both sides — rather than as the absence of an allowance;
+   the self-check pins this list by NAME like the arm manifest, so an arm cannot
+   drop its assertion silently. The display-only arms are the opposite case and
+   are covered by `STYLE_EXCEPTIONS` instead. */
+export const CONNECTOR_ARMS = ['collective-grouped-contribute', 'collective-grouped-review']
 
-/* Classify an element that one side does not mount: expected-by-contract, a
-   recorded divergence, or unexplained (which fails the gate). */
-export const deviationFor = (arm, element) => {
-  const expected = STYLE_EXCEPTIONS.find((entry) => entry.arm === arm && entry.element === element)
-  if (expected) return { kind: 'expected', reason: expected.reason }
-  const divergence = STYLE_DIVERGENCES.find((entry) => entry.arm === arm && entry.element === element)
-  if (divergence) return { kind: 'divergence', reason: divergence.reason }
-  return null
+/* Null when every connector arm mounts the canonical connector on BOTH sides,
+   else the actionable reason the stitch must stop. A display-only arm is not in
+   `CONNECTOR_ARMS` and is never failed here. */
+export const connectorProblem = ({ arm, reference, subject }) => {
+  if (!CONNECTOR_ARMS.includes(arm)) return null
+  const ref = reference?.elements?.rail ?? null
+  const sub = subject?.elements?.rail ?? null
+  if (ref != null && sub != null) return null
+  const missingOn =
+    ref == null && sub == null ? 'both sides' : ref == null ? 'the reference side' : 'the subject side'
+  return (
+    `ERROR [collective-stitch-sxs] arm "${arm}" does not mount the canonical helper connector.\n` +
+    `  What failed: the traced connector (${COMPARED_PROPERTIES.rail.selector}) is absent on ${missingOn}.\n` +
+    `  Why: this arm mounts per-member checkboxes, and the design system traces the connector only when those checkboxes sit inside its helper-tree composition.\n` +
+    `  Where: collective-sxs.mjs CONNECTOR_ARMS + COMPARED_PROPERTIES.rail, read on both sides by measureCollectiveStyles.\n` +
+    `  Means: the pair would be composed without the canonical connector this arm claims to compare.\n` +
+    `  Fix: compose the owner row through the design system's helper tree; if the arm really is display-only, move it to STYLE_EXCEPTIONS with its reason and out of CONNECTOR_ARMS.\n`
+  )
 }
-export const exceptionFor = (arm, element) => {
-  const deviation = deviationFor(arm, element)
-  return deviation?.kind === 'expected' ? deviation : null
-}
+
+/* The named exception an arm carries for an element, or null. An absence with no
+   exception is a mismatch (fail closed); there is no third, recorded-but-allowed
+   category. */
+export const exceptionFor = (arm, element) =>
+  STYLE_EXCEPTIONS.find((entry) => entry.arm === arm && entry.element === element) ?? null
 
 /* Element WIDTHS and wrap state are measured and reported, never gated: the panes
    are different surfaces whose containers are legitimately different widths, and
@@ -259,21 +263,18 @@ export const normalizeValue = (property, value) => {
 export const compareStyleRecords = ({ arm, reference, subject }) => {
   const mismatches = []
   const exceptions = []
-  const divergences = []
   let compared = 0
   for (const [element, spec] of Object.entries(COMPARED_PROPERTIES)) {
     const ref = reference?.elements?.[element] ?? null
     const sub = subject?.elements?.[element] ?? null
     if (ref == null || sub == null) {
-      const deviation = deviationFor(arm, element)
-      if (deviation) {
-        const entry = {
+      const expected = exceptionFor(arm, element)
+      if (expected) {
+        exceptions.push({
           element,
           missingOn: ref == null && sub == null ? 'both sides' : ref == null ? 'the reference side' : 'the subject side',
-          reason: deviation.reason,
-        }
-        if (deviation.kind === 'expected') exceptions.push(entry)
-        else divergences.push(entry)
+          reason: expected.reason,
+        })
       } else {
         mismatches.push({
           element,
@@ -292,19 +293,16 @@ export const compareStyleRecords = ({ arm, reference, subject }) => {
       if (a !== b) mismatches.push({ element, property, reference: ref[property], subject: sub[property] })
     }
   }
-  return { compared, mismatches, exceptions, divergences }
+  return { compared, mismatches, exceptions }
 }
 
 /* One prose line for a composite header and the run log: what was compared and
    which named exceptions applied. */
-export const describeStyleCheck = ({ compared, mismatches, exceptions, divergences }) =>
+export const describeStyleCheck = ({ compared, mismatches, exceptions }) =>
   `styles · ${compared} properties compared on both sides · ${mismatches.length} mismatch(es) · ` +
   (exceptions.length
     ? `${exceptions.length} named exception(s): ${exceptions.map((e) => `${e.element} absent on ${e.missingOn}`).join(', ')}`
-    : 'no named exception applied') +
-  (divergences?.length
-    ? ` · RECORDED DIVERGENCE(S): ${divergences.map((d) => `${d.element} absent on ${d.missingOn}`).join(', ')} (see STYLE_DIVERGENCES)`
-    : '')
+    : 'no named exception applied')
 
 /* Read the shared property set + the wrap measurements from the live page inside
    `scope` (the arm's container on the side being measured). Both shoots call this

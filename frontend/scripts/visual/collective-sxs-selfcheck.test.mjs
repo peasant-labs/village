@@ -8,7 +8,8 @@
  *     served-bytes match (`releaseProofProblem`, `digestProblem`);
  *   - the app surface is never attested against the demo unless every property in
  *     the one compared set matches, or the missing element is a NAMED exception
- *     (`compareStyleRecords`).
+ *     (`compareStyleRecords`), and the member-selecting arms always mount the
+ *     canonical connector (`connectorProblem`).
  * The cases live in testdata/collective-sxs-selfcheck.yaml (never inline here).
  */
 import { readFileSync } from 'node:fs'
@@ -21,11 +22,12 @@ import {
   APP_PANEL_MARKER,
   COLLECTIVE_ARMS,
   COMPARED_PROPERTIES,
+  CONNECTOR_ARMS,
   REQUIRED_ARM_SURFACES,
-  STYLE_DIVERGENCES,
   STYLE_EXCEPTIONS,
   appDir,
   compareStyleRecords,
+  connectorProblem,
   demoDir,
   digestProblem,
   groupedSidePaths,
@@ -85,18 +87,24 @@ describe('collective grouped side-by-side arms', () => {
     expect(panelArms.sort()).toEqual(['collective-grouped-browse', 'collective-grouped-my-shares'])
   })
 
-  it('separates contract-expected absences from recorded divergences, each named with its reason', () => {
-    for (const list of [STYLE_EXCEPTIONS, STYLE_DIVERGENCES]) {
-      for (const entry of list) {
-        expect(COLLECTIVE_ARMS.some((arm) => arm.surface === entry.arm), `${entry.arm} is not a carried arm`).toBe(true)
-        expect(Object.keys(COMPARED_PROPERTIES)).toContain(entry.element)
-        expect(entry.reason.length, `${entry.arm}.${entry.element} must state why`).toBeGreaterThan(60)
-      }
-    }
-    // No arm may appear on both lists for the same element: a gap is either the
-    // contract's own behaviour or a recorded divergence, never both.
+  it('keeps the display-only arms as named exceptions and asserts the connector on the rest', () => {
+    // The exception set is exactly the display-only arms, each named with a reason.
+    // An exception without a reason would be a silent skip.
     for (const exception of STYLE_EXCEPTIONS) {
-      expect(STYLE_DIVERGENCES.some((entry) => entry.arm === exception.arm && entry.element === exception.element)).toBe(false)
+      expect(COLLECTIVE_ARMS.some((arm) => arm.surface === exception.arm), `${exception.arm} is not a carried arm`).toBe(true)
+      expect(Object.keys(COMPARED_PROPERTIES)).toContain(exception.element)
+      expect(exception.reason.length, `${exception.arm}.${exception.element} must state why`).toBeGreaterThan(60)
+    }
+    // The connector arms are pinned by NAME, and no arm is both an exception and
+    // an asserted connector: a gap is either the contract's own behaviour or an
+    // asserted element, never both.
+    expect([...CONNECTOR_ARMS].sort()).toEqual([...fixture.connectorArms].sort())
+    for (const arm of CONNECTOR_ARMS) {
+      expect(COLLECTIVE_ARMS.some((candidate) => candidate.surface === arm), `${arm} is not a carried arm`).toBe(true)
+      expect(
+        STYLE_EXCEPTIONS.some((entry) => entry.arm === arm && entry.element === 'rail'),
+        `${arm} cannot be both an asserted connector and a named exception`,
+      ).toBe(false)
     }
   })
 
@@ -181,10 +189,23 @@ describe('collective grouped side-by-side arms', () => {
     const result = compareStyleRecords({ arm, reference, subject })
     expect(mismatchKeys(result)).toEqual([...entry.expectedMismatches].sort())
     expect(result.exceptions.map((exception) => exception.element).sort()).toEqual([...entry.expectedExceptions].sort())
-    expect(result.divergences.map((divergence) => divergence.element).sort()).toEqual([...(entry.expectedDivergences ?? [])].sort())
     expect(result.compared).toBeGreaterThan(0)
-    // A recorded divergence is a report, never a silent skip: it names why.
-    for (const divergence of result.divergences) expect(divergence.reason.length).toBeGreaterThan(60)
+    // A named exception is never a silent skip: it names why.
+    for (const exception of result.exceptions) expect(exception.reason.length).toBeGreaterThan(40)
+  })
+
+  it.each(fixture.connectorCases.map((entry) => [entry.name, entry]))('connector assertion: %s', (_name, entry) => {
+    const reference = sideFromBase(fixture.styleBase, {}, entry.referenceRemove ?? [])
+    const subject = sideFromBase(fixture.styleBase, {}, entry.subjectRemove ?? [])
+    const problem = connectorProblem({ arm: entry.arm, reference, subject })
+    if (entry.expected === null) {
+      expect(problem).toBeNull()
+      return
+    }
+    expect(problem).not.toBeNull()
+    expect(problem).toContain(entry.expected)
+    // Every refusal must be actionable: what failed, where, what it means, how to fix.
+    for (const section of ['What failed:', 'Where:', 'Means:', 'Fix:']) expect(problem).toContain(section)
   })
 
   it('attributes an arm only by the bundle its own route served', () => {
