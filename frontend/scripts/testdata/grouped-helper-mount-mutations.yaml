@@ -71,3 +71,27 @@ mutations:
     testFile: src/mountedCollectiveGroupedActions.test.tsx
     testName: review-other-owner-group-remains-independent-renamed
     failure: loader
+
+  - name: collective-fallback-flat-mode-invalid
+    file: ../../src/testdata/collective-grouped-actions.yaml
+    original: "  - name: browse-empty-flat-mounts-helper-only-context\n    surface: browse\n    why: The flat browse result is empty, so the helper-only context container must mount without a flat row.\n    flat: empty\n    grouped: context\n"
+    replacement: "  - name: browse-empty-flat-mounts-helper-only-context\n    surface: browse\n    why: The flat browse result is empty, so the helper-only context container must mount without a flat row.\n    flat: bogus\n    grouped: context\n"
+    testFile: src/mountedCollectiveGroupedFallback.test.tsx
+    testName: browse-empty-flat-mounts-helper-only-context
+    failure: loader
+
+  - name: collective-continuation-total-drift
+    file: ../../src/testdata/collective-grouped-actions.yaml
+    original: "    pageSize: 100\n    firstPageItems: 100\n    totalItems: 101\n    laterRow: P2\n    laterGroup: other\n    laterMember: H1\n  - name: contribute-continuation-reaches-later-owner-group\n"
+    replacement: "    pageSize: 100\n    firstPageItems: 100\n    totalItems: 100\n    laterRow: P2\n    laterGroup: other\n    laterMember: H1\n  - name: contribute-continuation-reaches-later-owner-group\n"
+    testFile: src/mountedCollectiveGroupedFallback.test.tsx
+    testName: browse-continuation-reaches-later-owner-group
+    failure: loader
+
+  - name: collective-continuation-case-renamed
+    file: ../../src/testdata/collective-grouped-actions.yaml
+    original: "- name: review-continuation-reaches-later-owner-group\n"
+    replacement: "- name: review-continuation-reaches-later-owner-group-renamed\n"
+    testFile: src/mountedCollectiveGroupedFallback.test.tsx
+    testName: review-continuation-reaches-later-owner-group-renamed
+    failure: loader

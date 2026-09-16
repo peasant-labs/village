@@ -8,17 +8,19 @@ import { useContributable, useContributeRun, partitionRunOutcome } from "@/lib/q
 import { useGroupedContributable } from "@/lib/queries/groupedCollectives";
 import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import { buildContributeTree } from "@/lib/contribute/tree";
-import { groupByProject, privateIds, toggleNode, type Selection } from "@/lib/contribute/selection";
+import { groupByProject, privateIds, sessionRows, toggleNode, type Selection } from "@/lib/contribute/selection";
 import { groupedContributionBatches, mergeContributionBatches } from "@/lib/contribute/groupedSelection";
 import { helperItemID, useExplicitHelperSelection } from "@/lib/contribute/helperSelection";
 import { applyFilters, harnessCounts, type ContributeFilters } from "@/lib/contribute/filter";
 import ContributeTree from "@/components/contribute/ContributeTree";
 import TranscriptPreview from "@/components/contribute/TranscriptPreview";
 import {
-  ScopedContextContainerList,
   ScopedOwnerHelperGroups,
+  ScopedUnownedHelperGroups,
   helperGroupsByTranscript,
+  unownedGroupedItems,
 } from "@/components/transcript/ScopedHelperGroups";
+import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import ConfirmContributeDialog from "@/components/transcript/ConfirmContributeDialog";
 import { Button } from "@/lib/ft-ui";
 
@@ -57,13 +59,27 @@ export default function GroupContributePage({
   // The grouped read of the SAME route. It supplements the flat tree with the
   // saved helper threads the server grouped under each owner row; it is not a
   // second list. A failed or still-loading grouped read removes nothing -- the
-  // flat tree above stays the authority for its own rows and pages.
-  const grouped = useGroupedContributable(id, { page: 1, limit: GROUPED_TOP_LEVEL_PAGE_SIZE });
-  const groupedItems = useMemo(
-    () => grouped.data?.transcriptList.items ?? [],
-    [grouped.data],
-  );
+  // flat tree above stays the authority for its own rows and pages. The read
+  // pages, so a later grouped owner or helper-only context container still has
+  // its grouped exit; the server's own total, never a flat offset, decides the
+  // next page.
+  const grouped = useGroupedContributable(id, { limit: GROUPED_TOP_LEVEL_PAGE_SIZE });
+  const groupedItems = useMemo(() => grouped.items, [grouped.items]);
   const helperGroups = useMemo(() => helperGroupsByTranscript(groupedItems), [groupedItems]);
+  // Every transcript the flat tree actually draws, including the sessions folded
+  // under another row. A grouped owner named here is ALREADY represented, so the
+  // grouped exit below skips it instead of mounting a second owner row.
+  const flatOwnerIds = useMemo(
+    () => new Set(tree.flatMap((project) => sessionRows(project).map((row) => row.id))),
+    [tree],
+  );
+  const groupedFallback = useMemo(
+    () => unownedGroupedItems(groupedItems, flatOwnerIds),
+    [groupedItems, flatOwnerIds],
+  );
+  // Grouped content the flat tree did not carry, plus the way to any grouped
+  // page not read yet. Either one is enough that the page is not empty.
+  const hasGroupedExit = groupedFallback.length > 0 || grouped.remainingItems > 0;
   // A member is selectable only while the row it was served with is still a
   // live contributable submission: an already-shared row stays visible in the
   // group but can never re-enter a contribution batch.
@@ -210,7 +226,7 @@ export default function GroupContributePage({
           shell); kept on the tree+preview composition that replaces that
           panel's body so a caller keyed on "the member sees SOME contribute
           UI" does not need to know which body variant is mounted. */}
-      {tree.length === 0 ? (
+      {tree.length === 0 && !hasGroupedExit ? (
         <div className="border border-rule bg-surface px-5 py-12 text-center" data-testid="contribute-member-panel">
           <p className="text-sm text-ink-3">
             all your transcripts are already shared with this collective, or you have no
@@ -218,38 +234,58 @@ export default function GroupContributePage({
           </p>
         </div>
       ) : (
-        <div className="@container" data-testid="contribute-member-panel">
-          <div className="grid grid-cols-1 @[880px]:grid-cols-[minmax(20rem,2fr)_3fr] gap-4 border border-rule bg-surface min-h-[32rem]">
-            <div className="border-b @[880px]:border-b-0 @[880px]:border-r border-rule min-h-[20rem] @[880px]:min-h-[32rem]">
-              <ContributeTree
-                tree={tree}
-                selection={selection}
-                onToggleNode={handleToggle}
-                onToggleAll={handleToggleAll}
-                onPreview={setPreviewId}
-                previewId={previewId}
-                filters={filters}
-                onFiltersChange={setFilters}
-                harnessCounts={counts}
-                helperGroupSlot={(session) => (
-                  <ScopedOwnerHelperGroups
-                    groups={helperGroups.get(session.id)}
-                    onRefreshOrigin={grouped.refreshOrigin}
-                    selection={helper.contract}
+        <>
+          {tree.length > 0 && (
+            <div className="@container" data-testid="contribute-member-panel">
+              <div className="grid grid-cols-1 @[880px]:grid-cols-[minmax(20rem,2fr)_3fr] gap-4 border border-rule bg-surface min-h-[32rem]">
+                <div className="border-b @[880px]:border-b-0 @[880px]:border-r border-rule min-h-[20rem] @[880px]:min-h-[32rem]">
+                  <ContributeTree
+                    tree={tree}
+                    selection={selection}
+                    onToggleNode={handleToggle}
+                    onToggleAll={handleToggleAll}
+                    onPreview={setPreviewId}
+                    previewId={previewId}
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    harnessCounts={counts}
+                    helperGroupSlot={(session) => (
+                      <ScopedOwnerHelperGroups
+                        groups={helperGroups.get(session.id)}
+                        onRefreshOrigin={grouped.refreshOrigin}
+                        selection={helper.contract}
+                      />
+                    )}
                   />
-                )}
-              />
-              <ScopedContextContainerList
+                </div>
+                <div className="min-h-[20rem] @[880px]:min-h-[32rem]">
+                  <TranscriptPreview transcriptId={previewId} />
+                </div>
+              </div>
+            </div>
+          )}
+          {/* The grouped exits the flat tree above did not draw: the context
+              containers it has no row for, and each owner row it does not
+              carry. Mounted OUTSIDE the tree branch, so an empty or partial
+              flat result still reaches the saved helper threads the server
+              grouped -- and an owner the tree already draws is skipped, never
+              mounted twice. */}
+          {hasGroupedExit && (
+            <div className="border border-rule bg-surface" data-testid="grouped-helper-fallback">
+              <ScopedUnownedHelperGroups
                 items={groupedItems}
+                representedOwnerIds={flatOwnerIds}
                 onRefreshOrigin={grouped.refreshOrigin}
                 selection={helper.contract}
               />
+              <ScopedGroupedContinuation
+                remaining={grouped.remainingItems}
+                busy={grouped.isFetchingNextPage}
+                onLoadMore={() => void grouped.fetchNextPage()}
+              />
             </div>
-            <div className="min-h-[20rem] @[880px]:min-h-[32rem]">
-              <TranscriptPreview transcriptId={previewId} />
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
       <div className="fixed bottom-0 left-0 right-0 border-t border-rule bg-surface z-10">

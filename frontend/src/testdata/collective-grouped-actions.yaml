@@ -70,3 +70,106 @@ cases:
     group: other
     select: H1
     expected_ids: [H1]
+# The flat rendering does not carry the grouped content, so the grouped read
+# must mount it on its own. `flat` is `empty` (nothing in the flat result) or
+# `rendered` (the flat result carries the owner row, so its group must mount
+# under that row once and the fallback must not draw a second owner). `grouped`
+# is the grouped item the page serves; `group` is the key it carries and `row`
+# is the owner it hangs under (declared even for a context container, which has
+# no owner row of its own).
+fallbackCases:
+  - name: browse-empty-flat-mounts-helper-only-context
+    surface: browse
+    why: The flat browse result is empty, so the helper-only context container must mount without a flat row.
+    flat: empty
+    grouped: context
+    row: P1
+    group: context
+  - name: browse-grouped-owner-absent-from-flat-mounts-its-group
+    surface: browse
+    why: The grouped page names an owner the flat result omits, and its saved helper group must still mount under that owner row.
+    flat: empty
+    grouped: owner
+    row: P1
+    group: owner
+  - name: browse-grouped-owner-in-flat-mounts-its-group-once
+    surface: browse
+    why: The flat result carries the owner row, so its group mounts under it once and the grouped fallback draws no second owner row.
+    flat: rendered
+    grouped: owner
+    row: P1
+    group: owner
+  - name: contribute-empty-flat-mounts-helper-only-context
+    surface: contribute
+    why: The flat contributable tree is empty, so the helper-only context container must mount without a tree row.
+    flat: empty
+    grouped: context
+    row: P1
+    group: context
+  - name: contribute-grouped-owner-absent-from-flat-mounts-its-group
+    surface: contribute
+    why: The grouped page names an owner the flat tree omits, and its saved helper group must still mount under that owner row.
+    flat: empty
+    grouped: owner
+    row: P1
+    group: owner
+  - name: contribute-grouped-owner-in-tree-mounts-its-group-once
+    surface: contribute
+    why: The flat tree carries the owner row, so its group mounts under it once and the grouped fallback draws no second owner row.
+    flat: rendered
+    grouped: owner
+    row: P1
+    group: owner
+  - name: review-empty-flat-mounts-helper-only-context
+    surface: review
+    why: The flat review queue is empty, so the helper-only context container must mount without a queue row.
+    flat: empty
+    grouped: context
+    row: P1
+    group: context
+  - name: review-grouped-owner-absent-from-flat-mounts-its-group
+    surface: review
+    why: The grouped page names a submission the flat queue omits, and its saved helper group must still mount under that owner row.
+    flat: empty
+    grouped: owner
+    row: P1
+    group: owner
+  - name: review-grouped-owner-in-tree-mounts-its-group-once
+    surface: review
+    why: The flat queue carries the owner row, so its group mounts under it once and the grouped fallback draws no second owner row.
+    flat: rendered
+    grouped: owner
+    row: P1
+    group: owner
+# A grouped read pages. The first page is full of ordinary owners that carry no
+# saved helpers, so the owner group on page two is unreachable until the
+# continuation reads it; the same `pageSize` the route requests is stated here so
+# a case cannot declare a page the grouped endpoint could not serve.
+continuationCases:
+  - name: browse-continuation-reaches-later-owner-group
+    surface: browse
+    why: A grouped owner on page two is unreachable until the continuation reads page two, and must mount once when it does.
+    pageSize: 100
+    firstPageItems: 100
+    totalItems: 101
+    laterRow: P2
+    laterGroup: other
+    laterMember: H1
+  - name: contribute-continuation-reaches-later-owner-group
+    surface: contribute
+    why: A grouped owner on page two is unreachable until the continuation reads page two, and must mount once when it does.
+    pageSize: 100
+    firstPageItems: 100
+    totalItems: 101
+    laterRow: P2
+    laterGroup: other
+    laterMember: H1
+  - name: review-continuation-reaches-later-owner-group
+    surface: review
+    why: A grouped submission on page two is unreachable until the continuation reads page two, and must mount once when it does.
+    pageSize: 100
+    firstPageItems: 100
+    totalItems: 101
+    laterRow: P2
+    laterGroup: other
+    laterMember: H1

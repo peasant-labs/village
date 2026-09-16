@@ -39,10 +39,12 @@ import TranscriptList, {
   type TranscriptRowSelection,
 } from "@/components/transcript/TranscriptList";
 import {
-  ScopedContextContainerList,
   ScopedOwnerHelperGroups,
+  ScopedUnownedHelperGroups,
   helperGroupsByTranscript,
+  unownedGroupedItems,
 } from "@/components/transcript/ScopedHelperGroups";
+import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { useGroupedCollective } from "@/lib/queries/groupedCollectives";
 import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import {
@@ -268,13 +270,15 @@ export default function GroupDetailPage({
   // The grouped read of the SAME collective route: it supplements the flat
   // transcript list with the saved helper threads the server grouped under
   // each owner row. A failed, refused or still-loading grouped read removes
-  // nothing -- the flat list stays the authority for its own rows.
+  // nothing -- the flat list stays the authority for its own rows. The read
+  // pages, so a later grouped owner or helper-only context container still has
+  // its grouped exit; the server's own total decides the next page.
   const grouped = useGroupedCollective(
     id,
-    { page: 1, limit: GROUPED_TOP_LEVEL_PAGE_SIZE },
+    { limit: GROUPED_TOP_LEVEL_PAGE_SIZE },
     !!data?.can_read,
   );
-  const groupedItems = useMemo(() => grouped.data?.transcriptList.items ?? [], [grouped.data]);
+  const groupedItems = useMemo(() => grouped.items, [grouped.items]);
   const helperGroups = useMemo(() => helperGroupsByTranscript(groupedItems), [groupedItems]);
 
   if (isLoading) {
@@ -463,6 +467,15 @@ export default function GroupDetailPage({
   const allBrowserRowsSelected =
     browserTranscripts.length > 0 && browserTranscripts.every((t) => rowSelected.has(t.id));
   const someBrowserRowsSelected = browserTranscripts.some((t) => rowSelected.has(t.id));
+
+  // Every transcript the flat browse rendering draws, folded child rows
+  // included. A grouped owner named here is ALREADY represented, so the grouped
+  // exit below skips it instead of mounting a second owner row.
+  const flatBrowseOwnerIds = new Set(browserTranscripts.map((t) => t.id));
+  const groupedFallback = unownedGroupedItems(groupedItems, flatBrowseOwnerIds);
+  // Grouped content the flat rendering did not carry, plus the way to any
+  // grouped page not read yet. Either one is enough that the panel is not empty.
+  const hasGroupedExit = groupedFallback.length > 0 || grouped.remainingItems > 0;
 
   const handleInvite = (e: React.FormEvent) => {
     e.preventDefault();
@@ -778,7 +791,7 @@ export default function GroupDetailPage({
             </div>
           </div>
 
-          {transcripts && transcripts.length === 0 ? (
+          {transcripts && transcripts.length === 0 && !hasGroupedExit ? (
             <div className="px-5 py-8 text-center">
               <p className="text-[13px] text-ink-3">No transcripts shared yet.</p>
             </div>
@@ -896,11 +909,6 @@ export default function GroupDetailPage({
                   />
                 )}
               />
-              <ScopedContextContainerList
-                items={groupedItems}
-                onRefreshOrigin={grouped.refreshOrigin}
-              />
-
               {showDataBrowser && totalPages > 1 && (
                 <div className="flex items-center justify-between px-5 py-3 border-t border-rule">
                   <span className="text-[11px] font-mono text-ink-3 tabular-nums">
@@ -935,6 +943,28 @@ export default function GroupDetailPage({
               )}
             </>
           ) : null}
+
+          {/* The grouped exits the flat rendering above did not draw: the
+              context containers it has no row for, and each owner row it does
+              not carry. Appended OUTSIDE the flat branches (and outside the
+              browse-view choice), so an empty or partial flat result -- or the
+              repos view -- still reaches the saved helper threads the server
+              grouped. An owner the flat list already draws is skipped, never
+              mounted twice. */}
+          {hasGroupedExit && (
+            <div className="border-t border-rule" data-testid="grouped-helper-fallback">
+              <ScopedUnownedHelperGroups
+                items={groupedItems}
+                representedOwnerIds={flatBrowseOwnerIds}
+                onRefreshOrigin={grouped.refreshOrigin}
+              />
+              <ScopedGroupedContinuation
+                remaining={grouped.remainingItems}
+                busy={grouped.isFetchingNextPage}
+                onLoadMore={() => void grouped.fetchNextPage()}
+              />
+            </div>
+          )}
         </div>
       ) : (
         <div className="border border-rule bg-surface px-5 py-10 flex flex-col items-center gap-3 text-center">

@@ -5,6 +5,8 @@ import { zHelperGroupSummary, type HelperGroupSummary, type VillageSessionListIt
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 import { memberUUID } from "@/test/groupedHelperMountFixtures";
+import { ordinaryOwnerUUID } from "@/test/groupedHelperSurfaceFixtures";
+import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import type { ContributableTranscript } from "@/lib/contribute/types";
 import type { PendingShare } from "@/lib/review/types";
 
@@ -47,6 +49,34 @@ export interface CollectiveActionCase {
   expected_ids: string[];
 }
 
+/** Whether a fallback case's flat result carries the case's owner row. */
+export type FallbackFlat = "empty" | "rendered";
+/** The grouped item a fallback case's page serves. */
+export type FallbackGrouped = "owner" | "context";
+
+export interface CollectiveFallbackCase {
+  name: string;
+  surface: ActionSurface;
+  why: string;
+  flat: FallbackFlat;
+  grouped: FallbackGrouped;
+  /** The owner row the group hangs under (declared even for a context case). */
+  row: string;
+  group: GroupKey;
+}
+
+export interface CollectiveContinuationCase {
+  name: string;
+  surface: ActionSurface;
+  why: string;
+  pageSize: number;
+  firstPageItems: number;
+  totalItems: number;
+  laterRow: string;
+  laterGroup: GroupKey;
+  laterMember: string;
+}
+
 export interface CollectiveGroupedActionFixtures {
   groupId: string;
   projectHash: string;
@@ -55,6 +85,8 @@ export interface CollectiveGroupedActionFixtures {
   members: Record<GroupKey, MemberSpec[]>;
   rows: RowSpec[];
   cases: CollectiveActionCase[];
+  fallbackCases: CollectiveFallbackCase[];
+  continuationCases: CollectiveContinuationCase[];
 }
 
 const REQUIRED_CASES = [
@@ -63,6 +95,24 @@ const REQUIRED_CASES = [
   "contribute-context-container-is-not-selectable",
   "review-selects-one-helper-only",
   "review-other-owner-group-remains-independent",
+];
+
+const REQUIRED_FALLBACK_CASES = [
+  "browse-empty-flat-mounts-helper-only-context",
+  "browse-grouped-owner-absent-from-flat-mounts-its-group",
+  "browse-grouped-owner-in-flat-mounts-its-group-once",
+  "contribute-empty-flat-mounts-helper-only-context",
+  "contribute-grouped-owner-absent-from-flat-mounts-its-group",
+  "contribute-grouped-owner-in-tree-mounts-its-group-once",
+  "review-empty-flat-mounts-helper-only-context",
+  "review-grouped-owner-absent-from-flat-mounts-its-group",
+  "review-grouped-owner-in-tree-mounts-its-group-once",
+];
+
+const REQUIRED_CONTINUATION_CASES = [
+  "browse-continuation-reaches-later-owner-group",
+  "contribute-continuation-reaches-later-owner-group",
+  "review-continuation-reaches-later-owner-group",
 ];
 
 const CASE_FIELDS = new Set([
@@ -76,8 +126,30 @@ const CASE_FIELDS = new Set([
   "expected_ids",
 ]);
 
+const FALLBACK_FIELDS = new Set([
+  "name",
+  "surface",
+  "why",
+  "flat",
+  "grouped",
+  "row",
+  "group",
+]);
+
+const CONTINUATION_FIELDS = new Set([
+  "name",
+  "surface",
+  "why",
+  "pageSize",
+  "firstPageItems",
+  "totalItems",
+  "laterRow",
+  "laterGroup",
+  "laterMember",
+]);
+
 function fail(where: string, reason: string): never {
-  throw new Error(`collective grouped action fixture ${where} ${reason}`);
+  throw new Error(`collective grouped helper fixture ${where} ${reason}`);
 }
 
 export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFixtures {
@@ -85,7 +157,7 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     readFileSync(resolve(process.cwd(), "src/testdata/collective-grouped-actions.yaml"), "utf8"),
     { strict: true },
   );
-  assertExactKeys(root, ["groupId", "projectHash", "projectName", "groups", "members", "rows", "cases"], "root");
+  assertExactKeys(root, ["groupId", "projectHash", "projectName", "groups", "members", "rows", "cases", "fallbackCases", "continuationCases"], "root");
 
   const groups = {} as Record<GroupKey, HelperGroupSummary>;
   for (const key of GROUP_KEYS) {
@@ -149,6 +221,94 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     return value;
   });
 
+  const rawFallback = (root.fallbackCases ?? []) as CollectiveFallbackCase[];
+  assertNamesMatch(
+    rawFallback.map((value) => value.name),
+    REQUIRED_FALLBACK_CASES,
+    "collective grouped helper fallback",
+  );
+  const fallbackCases = rawFallback.map((value): CollectiveFallbackCase => {
+    const name = value.name;
+    for (const field of Object.keys(value)) {
+      if (!FALLBACK_FIELDS.has(field)) fail(`fallback case "${name}"`, `states an unknown field "${field}"`);
+    }
+    if (value.surface !== "contribute" && value.surface !== "review" && value.surface !== "browse") {
+      fail(`fallback case "${name}"`, `states an unknown surface "${String(value.surface)}"`);
+    }
+    if (!value.why?.trim()) fail(`fallback case "${name}"`, "states no reason it exists");
+    if (value.flat !== "empty" && value.flat !== "rendered") {
+      fail(`fallback case "${name}"`, `states an unknown flat mode "${String(value.flat)}"`);
+    }
+    if (value.grouped !== "owner" && value.grouped !== "context") {
+      fail(`fallback case "${name}"`, `states an unknown grouped item "${String(value.grouped)}"`);
+    }
+    if (!rowByName.has(value.row)) fail(`fallback case "${name}"`, `names an undeclared row "${value.row}"`);
+    if (!(GROUP_KEYS as readonly string[]).includes(value.group)) {
+      fail(`fallback case "${name}"`, `names an unknown group "${String(value.group)}"`);
+    }
+    if (value.grouped === "context" && value.group !== "context") {
+      fail(`fallback case "${name}"`, `serves a context container but names group "${value.group}"`);
+    }
+    if (value.grouped === "owner" && value.group === "context") {
+      fail(`fallback case "${name}"`, "serves an owner row but names the helper-only context group");
+    }
+    if (value.flat === "rendered" && value.grouped !== "owner") {
+      fail(`fallback case "${name}"`, "renders a flat owner row but serves no owner group to hang under it");
+    }
+    return value;
+  });
+
+  const rawContinuation = (root.continuationCases ?? []) as CollectiveContinuationCase[];
+  assertNamesMatch(
+    rawContinuation.map((value) => value.name),
+    REQUIRED_CONTINUATION_CASES,
+    "collective grouped helper continuation",
+  );
+  const continuationCases = rawContinuation.map((value): CollectiveContinuationCase => {
+    const name = value.name;
+    for (const field of Object.keys(value)) {
+      if (!CONTINUATION_FIELDS.has(field)) fail(`continuation case "${name}"`, `states an unknown field "${field}"`);
+    }
+    if (value.surface !== "contribute" && value.surface !== "review" && value.surface !== "browse") {
+      fail(`continuation case "${name}"`, `states an unknown surface "${String(value.surface)}"`);
+    }
+    if (!value.why?.trim()) fail(`continuation case "${name}"`, "states no reason it exists");
+    if (value.pageSize !== GROUPED_TOP_LEVEL_PAGE_SIZE) {
+      fail(
+        `continuation case "${name}"`,
+        `states page size ${value.pageSize}; the route requests ${GROUPED_TOP_LEVEL_PAGE_SIZE}`,
+      );
+    }
+    if (value.firstPageItems !== value.pageSize) {
+      fail(
+        `continuation case "${name}"`,
+        `states a first page of ${value.firstPageItems}; the first grouped page must be full for a later page to exist`,
+      );
+    }
+    if (value.totalItems <= value.firstPageItems) {
+      fail(
+        `continuation case "${name}"`,
+        `states ${value.totalItems} grouped results for a first page of ${value.firstPageItems}, so no continuation exists to test`,
+      );
+    }
+    if (!rowByName.has(value.laterRow)) {
+      fail(`continuation case "${name}"`, `names an undeclared later row "${value.laterRow}"`);
+    }
+    if (!(GROUP_KEYS as readonly string[]).includes(value.laterGroup)) {
+      fail(`continuation case "${name}"`, `names an unknown later group "${String(value.laterGroup)}"`);
+    }
+    if (value.laterGroup === "context") {
+      fail(`continuation case "${name}"`, "names the helper-only context group as a later owner group");
+    }
+    if (!members[value.laterGroup].some((member) => member.name === value.laterMember)) {
+      fail(
+        `continuation case "${name}"`,
+        `expects later member "${value.laterMember}", which group "${value.laterGroup}" does not serve`,
+      );
+    }
+    return value;
+  });
+
   return {
     groupId: root.groupId,
     projectHash: root.projectHash,
@@ -157,6 +317,8 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     members,
     rows,
     cases,
+    fallbackCases,
+    continuationCases,
   };
 }
 
@@ -231,14 +393,19 @@ export function memberPage(fixtures: CollectiveGroupedActionFixtures, groupKey: 
   return { members, page: 1, limit: 20, total: members.length };
 }
 
-/** The flat tree rows the route renders under its project/branch fold.
- *
- * The flat route is the SAME submission set the grouped view nests, so the
- * helper members appear here too — as ordinary rows, exactly as they did before
- * the grouping existed. The grouped read only adds the disclosure that hangs
- * them off their owner. */
-export function flatContributeRows(fixtures: CollectiveGroupedActionFixtures): ContributableTranscript[] {
-  const owned: ContributableTranscript[] = fixtures.rows.map((row) => ({
+/** The declared row behind a name, or a loud failure for an undeclared one. */
+function rowSpec(fixtures: CollectiveGroupedActionFixtures, name: string): RowSpec {
+  const row = fixtures.rows.find((candidate) => candidate.name === name);
+  if (row == null) throw new Error(`collective grouped action fixture: no declared row "${name}"`);
+  return row;
+}
+
+/** One flat contributable row for a declared row identity. */
+function contributableRow(
+  fixtures: CollectiveGroupedActionFixtures,
+  row: RowSpec,
+): ContributableTranscript {
+  return {
     id: row.id,
     local_id: row.local_id,
     title: row.title,
@@ -252,7 +419,17 @@ export function flatContributeRows(fixtures: CollectiveGroupedActionFixtures): C
     model_provider: "claude-code",
     published_at: "2026-09-01T10:00:00Z",
     already_shared: false,
-  }));
+  };
+}
+
+/** The flat tree rows the route renders under its project/branch fold.
+ *
+ * The flat route is the SAME submission set the grouped view nests, so the
+ * helper members appear here too — as ordinary rows, exactly as they did before
+ * the grouping existed. The grouped read only adds the disclosure that hangs
+ * them off their owner. */
+export function flatContributeRows(fixtures: CollectiveGroupedActionFixtures): ContributableTranscript[] {
+  const owned = fixtures.rows.map((row) => contributableRow(fixtures, row));
   const members = GROUP_KEYS.flatMap((key) =>
     fixtures.members[key].map((member) => {
       const item = memberItem(member.name, member.title, "contribute", key);
@@ -262,10 +439,9 @@ export function flatContributeRows(fixtures: CollectiveGroupedActionFixtures): C
   return [...owned, ...members];
 }
 
-/** The flat collective browse rows: the same submission set the grouped page
- *  nests, drawn by the pre-existing list. */
-export function flatBrowseRows(fixtures: CollectiveGroupedActionFixtures) {
-  return fixtures.rows.map((row) => ({
+/** One flat collective browse row for a declared row identity. */
+function collectiveBrowseRow(fixtures: CollectiveGroupedActionFixtures, row: RowSpec) {
+  return {
     ...makeTranscriptFixture({
       id: row.id,
       local_id: row.local_id,
@@ -280,11 +456,21 @@ export function flatBrowseRows(fixtures: CollectiveGroupedActionFixtures) {
     owner_username: "member-owner",
     owner_avatar_url: null,
     owner_is_discoverable: true,
-  }));
+  };
 }
 
-export function flatPendingRows(fixtures: CollectiveGroupedActionFixtures): PendingShare[] {
-  const owned: PendingShare[] = fixtures.rows.map((row) => ({
+/** The flat collective browse rows: the same submission set the grouped page
+ *  nests, drawn by the pre-existing list. */
+export function flatBrowseRows(fixtures: CollectiveGroupedActionFixtures) {
+  return fixtures.rows.map((row) => collectiveBrowseRow(fixtures, row));
+}
+
+/** One flat pending-share row for a declared row identity. */
+function pendingShareRow(
+  fixtures: CollectiveGroupedActionFixtures,
+  row: RowSpec,
+): PendingShare {
+  return {
     transcript_id: row.id,
     title: row.title,
     model_provider: "claude-code",
@@ -297,7 +483,11 @@ export function flatPendingRows(fixtures: CollectiveGroupedActionFixtures): Pend
     owner_username: "member-owner",
     owner_is_discoverable: true,
     shared_at: "2026-09-01T10:00:00Z",
-  }));
+  };
+}
+
+export function flatPendingRows(fixtures: CollectiveGroupedActionFixtures): PendingShare[] {
+  const owned = fixtures.rows.map((row) => pendingShareRow(fixtures, row));
   const members = GROUP_KEYS.flatMap((key) =>
     fixtures.members[key].map((member) => {
       const item = memberItem(member.name, member.title, "review", key);
@@ -305,6 +495,68 @@ export function flatPendingRows(fixtures: CollectiveGroupedActionFixtures): Pend
     }),
   );
   return [...owned, ...members];
+}
+
+/**
+ * The flat rows a fallback case's own surface serves: none for an empty flat
+ * result, the case's owner row alone for a rendered one. The route's flat list
+ * is what decides whether the grouped content has a row to hang under, so a case
+ * states exactly which of the two it is.
+ */
+export function fallbackFlatContributeRows(
+  fixtures: CollectiveGroupedActionFixtures,
+  testCase: CollectiveFallbackCase,
+): ContributableTranscript[] {
+  return testCase.flat === "empty" ? [] : [contributableRow(fixtures, rowSpec(fixtures, testCase.row))];
+}
+
+export function fallbackFlatPendingRows(
+  fixtures: CollectiveGroupedActionFixtures,
+  testCase: CollectiveFallbackCase,
+): PendingShare[] {
+  return testCase.flat === "empty" ? [] : [pendingShareRow(fixtures, rowSpec(fixtures, testCase.row))];
+}
+
+export function fallbackFlatBrowseRows(
+  fixtures: CollectiveGroupedActionFixtures,
+  testCase: CollectiveFallbackCase,
+) {
+  return testCase.flat === "empty" ? [] : [collectiveBrowseRow(fixtures, rowSpec(fixtures, testCase.row))];
+}
+
+/** One ordinary grouped owner item, with any saved helper groups attached. */
+export function groupedOwnerItem(
+  fixtures: CollectiveGroupedActionFixtures,
+  row: RowSpec,
+  groups: readonly HelperGroupSummary[] = [],
+): VillageSessionListItem {
+  return {
+    kind: "transcript",
+    transcript: {
+      session: makeTranscriptFixture({
+        id: row.id,
+        local_id: row.local_id,
+        owner_id: "30000000-0000-4000-8000-000000000010",
+        title: row.title,
+        project_hash: fixtures.projectHash,
+        project_name: fixtures.projectName,
+        project_display_name: fixtures.projectName,
+        parent_session_id: null,
+      }),
+    },
+    helperGroups: groups.length > 0 ? [...groups] : undefined,
+  } as VillageSessionListItem;
+}
+
+/** The helper-only context container of the declared context group. */
+export function contextContainerItem(
+  fixtures: CollectiveGroupedActionFixtures,
+): VillageSessionListItem {
+  return {
+    kind: "context_container",
+    context: { groupId: fixtures.groups.context.groupId, ownerStatus: "known_unavailable" },
+    helperGroups: [fixtures.groups.context],
+  } as VillageSessionListItem;
 }
 
 /**
@@ -316,42 +568,32 @@ export function groupedItems(
   fixtures: CollectiveGroupedActionFixtures,
   testCase: CollectiveActionCase,
 ): VillageSessionListItem[] {
-  const items: VillageSessionListItem[] = fixtures.rows.map((row) => {
-    const groups = row.name === testCase.row ? [fixtures.groups[testCase.group]] : [];
-    return {
-      kind: "transcript",
-      transcript: {
-        session: makeTranscriptFixture({
-          id: row.id,
-          local_id: row.local_id,
-          owner_id: "30000000-0000-4000-8000-000000000010",
-          title: row.title,
-          project_hash: fixtures.projectHash,
-          project_name: fixtures.projectName,
-          project_display_name: fixtures.projectName,
-          parent_session_id: null,
-        }),
-      },
-      helperGroups: groups.length > 0 ? groups : undefined,
-    } as VillageSessionListItem;
-  });
-  if (testCase.context) {
-    items.push({
-      kind: "context_container",
-      context: { groupId: fixtures.groups.context.groupId, ownerStatus: "known_unavailable" },
-      helperGroups: [fixtures.groups.context],
-    } as VillageSessionListItem);
-  }
+  const items: VillageSessionListItem[] = fixtures.rows.map((row) =>
+    groupedOwnerItem(
+      fixtures,
+      row,
+      row.name === testCase.row ? [fixtures.groups[testCase.group]] : [],
+    ),
+  );
+  if (testCase.context) items.push(contextContainerItem(fixtures));
   return items;
 }
 
-/** The `GET /groups/{id}?view=grouped` body: the flat collective metadata with
- *  only its transcript collection replaced by the grouped page. */
-export function groupedDetailPayload(
+/** One full grouped page, in the shared shape every grouped route validates. */
+export interface GroupedPageShape {
+  items: VillageSessionListItem[];
+  page: number;
+  limit: number;
+  totalItems: number;
+  ordinarySessionTotal: number;
+  helperThreadTotal: number;
+}
+
+/** The `GET /groups/{id}?view=grouped` body carrying an explicit page. */
+export function groupedDetailPage(
   fixtures: CollectiveGroupedActionFixtures,
-  testCase: CollectiveActionCase,
+  page: GroupedPageShape,
 ) {
-  const items = groupedItems(fixtures, testCase);
   return {
     group: {
       id: fixtures.groupId,
@@ -379,13 +621,79 @@ export function groupedDetailPayload(
     can_read: true,
     your_role: "owner",
     pending_members: [],
-    transcriptList: {
-      items,
-      page: 1,
-      limit: 100,
-      totalItems: items.length,
-      ordinarySessionTotal: fixtures.rows.length,
-      helperThreadTotal: 2,
-    },
+    transcriptList: page,
   };
+}
+
+/** The `GET /groups/{id}?view=grouped` body: the flat collective metadata with
+ *  only its transcript collection replaced by the grouped page. */
+export function groupedDetailPayload(
+  fixtures: CollectiveGroupedActionFixtures,
+  testCase: CollectiveActionCase,
+) {
+  const items = groupedItems(fixtures, testCase);
+  return groupedDetailPage(fixtures, {
+    items,
+    page: 1,
+    limit: 100,
+    totalItems: items.length,
+    ordinarySessionTotal: fixtures.rows.length,
+    helperThreadTotal: 2,
+  });
+}
+
+/** The grouped items one fallback case's page serves. */
+export function fallbackGroupedItems(
+  fixtures: CollectiveGroupedActionFixtures,
+  testCase: CollectiveFallbackCase,
+): VillageSessionListItem[] {
+  if (testCase.grouped === "context") return [contextContainerItem(fixtures)];
+  const row = fixtures.rows.find((candidate) => candidate.name === testCase.row)!;
+  return [groupedOwnerItem(fixtures, row, [fixtures.groups[testCase.group]])];
+}
+
+/** One grouped page for a continuation case: a full first page of ordinary
+ *  owners that carry no saved helpers, then the later owner group. */
+export function continuationPage(
+  fixtures: CollectiveGroupedActionFixtures,
+  testCase: CollectiveContinuationCase,
+  page: number,
+): GroupedPageShape {
+  const items =
+    page === 1
+      ? Array.from({ length: testCase.firstPageItems }, (_, index) => ordinaryGroupedOwner(fixtures, index))
+      : (() => {
+          const row = fixtures.rows.find((candidate) => candidate.name === testCase.laterRow)!;
+          return [groupedOwnerItem(fixtures, row, [fixtures.groups[testCase.laterGroup]])];
+        })();
+  return {
+    items,
+    page,
+    limit: testCase.pageSize,
+    totalItems: testCase.totalItems,
+    ordinarySessionTotal: testCase.firstPageItems,
+    helperThreadTotal: 1,
+  };
+}
+
+/** One ordinary grouped owner with no saved helpers, for a full first page. */
+function ordinaryGroupedOwner(
+  fixtures: CollectiveGroupedActionFixtures,
+  index: number,
+): VillageSessionListItem {
+  return {
+    kind: "transcript",
+    transcript: {
+      session: makeTranscriptFixture({
+        id: ordinaryOwnerUUID(index),
+        local_id: `ses_ordinarygrouped${index}`,
+        owner_id: "30000000-0000-4000-8000-000000000010",
+        title: `ordinary grouped owner ${index}`,
+        project_hash: fixtures.projectHash,
+        project_name: fixtures.projectName,
+        project_display_name: fixtures.projectName,
+        parent_session_id: null,
+      }),
+    },
+  } as VillageSessionListItem;
 }

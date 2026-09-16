@@ -33,6 +33,9 @@ const requiredNames = [
   "continuation-total-drift",
   "collective-expected-id-drift",
   "collective-required-case-renamed",
+  "collective-fallback-flat-mode-invalid",
+  "collective-continuation-total-drift",
+  "collective-continuation-case-renamed",
 ];
 const names = root.mutations.map(({ name }) => name);
 if (
