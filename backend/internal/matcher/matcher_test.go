@@ -32,21 +32,25 @@ var requiredMatchCaseNames = []string{
 	"branch-only-evidence-stays-unresolved",
 	"fork-pull-request-matches-its-head-repository",
 	"historical-commit-on-another-ref-is-not-coverage",
+	"incomplete-commit-set-resolves-only-exact-full-sha",
 	"no-recorded-commits-branch-match-unresolved",
 	"one-commit-recorded-twice-is-one-anchor",
 	"one-unresolved-commit-does-not-hold-back-an-accepted-anchor",
 	"over-attributed-legacy-sha-is-retained-not-accepted",
+	"project-path-only-transcript-is-not-a-candidate",
 	"reused-branch-name-does-not-prove-relevance",
 	"same-repository-pull-request-cannot-match-a-stray-head-repo",
 	"sha-only-evidence-accepts",
 	"sha-shorter-than-a-resolving-prefix-unresolved",
 	"still-existing-branch-after-rebase-unresolved",
+	"two-anchors-are-both-kept",
+	"unknown-session-start-orders-last",
 	"unrelated-repository-is-not-even-a-candidate",
 }
 
 // requiredAuthorizationCaseNames is the name manifest for
-// testdata/authorization.yaml: one case per row of the actor table plus the two
-// unresolved-sender arms.
+// testdata/authorization.yaml: one case per row of the actor table, the two
+// unresolved-sender arms, and the fail-closed arms.
 var requiredAuthorizationCaseNames = []string{
 	"author-attach-proceeds",
 	"author-detach-proceeds",
@@ -57,8 +61,10 @@ var requiredAuthorizationCaseNames = []string{
 	"member-attach-records-a-request",
 	"member-detach-is-ignored",
 	"owner-attach-records-a-request",
+	"unknown-command-from-the-author-is-ignored",
 	"unknown-sender-id-is-not-the-author",
 	"unresolved-sender-is-ignored-even-when-the-id-is-the-author",
+	"zero-sender-id-owner-attach-is-ignored",
 }
 
 // requiredCommandCaseNames is the name manifest for testdata/commands.yaml.
@@ -82,11 +88,12 @@ type commitFixture struct {
 }
 
 type pullRequestFixture struct {
-	BaseRepo string          `yaml:"base_repo"`
-	HeadRepo string          `yaml:"head_repo"`
-	HeadRef  string          `yaml:"head_ref"`
-	IsFork   bool            `yaml:"is_fork"`
-	Commits  []commitFixture `yaml:"commits"`
+	BaseRepo          string   `yaml:"base_repo"`
+	HeadRepo          string   `yaml:"head_repo"`
+	HeadRef           string   `yaml:"head_ref"`
+	IsFork            bool     `yaml:"is_fork"`
+	CommitSetComplete bool     `yaml:"commit_set_complete"`
+	Commits           []string `yaml:"commits"`
 }
 
 type candidateFixture struct {
@@ -98,10 +105,19 @@ type candidateFixture struct {
 	Commits      []commitFixture `yaml:"commits"`
 }
 
+type anchorDetailFixture struct {
+	SHA          string    `yaml:"sha"`
+	AuthoredAt   time.Time `yaml:"authored_at"`
+	Additions    *int      `yaml:"additions"`
+	Deletions    *int      `yaml:"deletions"`
+	FilesChanged *int      `yaml:"files_changed"`
+}
+
 type acceptedFixture struct {
-	Transcript string            `yaml:"transcript"`
-	Anchors    []string          `yaml:"anchors"`
-	Unresolved map[string]string `yaml:"unresolved"`
+	Transcript    string                `yaml:"transcript"`
+	Anchors       []string              `yaml:"anchors"`
+	AnchorDetails []anchorDetailFixture `yaml:"anchor_details"`
+	Unresolved    map[string]string     `yaml:"unresolved"`
 }
 
 type unresolvedFixture struct {
@@ -259,19 +275,14 @@ func loadCommandCases(t *testing.T) []commandCase {
 
 func toPullRequest(f pullRequestFixture) PullRequest {
 	pr := PullRequest{
-		BaseRepo: f.BaseRepo,
-		HeadRepo: f.HeadRepo,
-		HeadRef:  f.HeadRef,
-		IsFork:   f.IsFork,
+		BaseRepo:          f.BaseRepo,
+		HeadRepo:          f.HeadRepo,
+		HeadRef:           f.HeadRef,
+		IsFork:            f.IsFork,
+		CommitSetComplete: f.CommitSetComplete,
 	}
-	for _, c := range f.Commits {
-		pr.Commits = append(pr.Commits, PullCommit{
-			SHA:          c.SHA,
-			AuthoredAt:   c.AuthoredAt,
-			Additions:    c.Additions,
-			Deletions:    c.Deletions,
-			FilesChanged: c.FilesChanged,
-		})
+	for _, sha := range f.Commits {
+		pr.Commits = append(pr.Commits, PullCommit{SHA: sha})
 	}
 	return pr
 }
@@ -336,6 +347,7 @@ func TestMatch(t *testing.T) {
 					t.Fatalf("expected %q to be accepted, got neither accepted nor (in the fixture) unresolved", want.Transcript)
 				}
 				assertSameStrings(t, "anchors for "+want.Transcript, anchorSHAs(got.Anchors), want.Anchors)
+				assertAnchorDetails(t, want.Transcript, got.Anchors, want.AnchorDetails)
 				assertSameReasons(t, "unresolved commits for accepted "+want.Transcript, got.UnresolvedCommits, want.Unresolved)
 			}
 			for _, want := range tc.Expect.Unresolved {
@@ -404,13 +416,54 @@ func TestParseCommand(t *testing.T) {
 	}
 }
 
+// anchorSHAs lists the anchors in the order the matcher produced them, so the
+// fixture also pins anchor order rather than just membership.
 func anchorSHAs(anchors []Anchor) []string {
 	var out []string
 	for _, a := range anchors {
 		out = append(out, a.CommitSHA)
 	}
-	sort.Strings(out)
 	return out
+}
+
+// assertAnchorDetails checks an accepted transcript's anchor fields when the
+// fixture describes them, so time and statistics are pinned and not only SHAs.
+func assertAnchorDetails(t *testing.T, transcript string, anchors []Anchor, want []anchorDetailFixture) {
+	t.Helper()
+	if len(want) == 0 {
+		return
+	}
+	bySHA := map[string]Anchor{}
+	for _, a := range anchors {
+		bySHA[a.CommitSHA] = a
+	}
+	if len(bySHA) != len(want) {
+		t.Fatalf("anchors for %s = %d, want the %d the fixture describes", transcript, len(bySHA), len(want))
+	}
+	for _, w := range want {
+		got, ok := bySHA[w.SHA]
+		if !ok {
+			t.Fatalf("no anchor for %s on %s", w.SHA, transcript)
+		}
+		if !w.AuthoredAt.IsZero() && !got.AuthoredAt.Equal(w.AuthoredAt) {
+			t.Errorf("anchor %s authored_at = %v, want %v", w.SHA, got.AuthoredAt, w.AuthoredAt)
+		}
+		assertIntPointer(t, "additions", got.Additions, w.Additions)
+		assertIntPointer(t, "deletions", got.Deletions, w.Deletions)
+		assertIntPointer(t, "files_changed", got.FilesChanged, w.FilesChanged)
+	}
+}
+
+func assertIntPointer(t *testing.T, what string, got, want *int) {
+	t.Helper()
+	switch {
+	case want == nil && got != nil:
+		t.Errorf("%s = %d, want absent", what, *got)
+	case want != nil && got == nil:
+		t.Errorf("%s absent, want %d", what, *want)
+	case want != nil && got != nil && *got != *want:
+		t.Errorf("%s = %d, want %d", what, *got, *want)
+	}
 }
 
 func assertSameStrings(t *testing.T, what string, got, want []string) {

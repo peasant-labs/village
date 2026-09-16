@@ -34,6 +34,17 @@ func ParseCommand(body string) (Command, bool) {
 	return "", false
 }
 
+// Valid reports whether the command is one Village acts on. It is fail-closed:
+// an empty or unknown command is not a command, so it can never be mistaken for
+// a default action.
+func (c Command) Valid() bool {
+	switch c {
+	case CommandAttach, CommandDetach:
+		return true
+	}
+	return false
+}
+
 // Action is what Village does with a command, once it knows who sent it.
 type Action string
 
@@ -78,8 +89,16 @@ type Actor struct {
 // whole authorization policy: the author may act, a repository owner, member,
 // or collaborator may record an attach request for the author, and nobody else
 // may do anything. Detaching is the author's alone.
+//
+// It is fail-closed on every input it cannot vouch for: an unknown or empty
+// command, an unresolved sender, and a sender with no positive numeric id are
+// all ignored before any standing is considered, so a caller cannot turn a
+// missing field into permission by leaving it zero.
 func Authorize(actor Actor, command Command) Action {
-	if !actor.SenderResolved {
+	if !command.Valid() {
+		return ActionIgnore
+	}
+	if !actor.SenderResolved || actor.SenderGitHubID <= 0 {
 		return ActionIgnore
 	}
 	if isAuthor(actor) {
@@ -95,7 +114,7 @@ func Authorize(actor Actor, command Command) Action {
 // request. It compares numeric GitHub ids, which are stable, rather than
 // logins, which can be renamed and re-used.
 func isAuthor(actor Actor) bool {
-	return actor.SenderGitHubID != 0 && actor.SenderGitHubID == actor.PullRequestAuthorGitHubID
+	return actor.SenderGitHubID > 0 && actor.SenderGitHubID == actor.PullRequestAuthorGitHubID
 }
 
 // hasRepositoryStanding reports whether GitHub's author_association for the

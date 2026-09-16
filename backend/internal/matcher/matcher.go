@@ -14,7 +14,10 @@
 //     That is only a reason to look, never a reason to attach.
 //   - Acceptance is strict. A candidate is accepted only when at least one of
 //     its recorded commits resolves, unambiguously, to a commit the pull
-//     request currently contains. That intersection is the evidence.
+//     request currently contains. That intersection is the evidence. Because an
+//     anchor is only as good as the commit set it resolved against, a set that
+//     is not known to be complete may resolve exact full SHAs but never an
+//     abbreviation, and may not call an absent commit absent.
 //
 // Branch names are reused, rewritten, and force-pushed, and a recorded
 // session-to-commit association is heuristic, so neither is acceptance on its
@@ -65,26 +68,34 @@ type Transcript struct {
 }
 
 // PullCommit is one commit the pull request currently contains, from
-// GET /repos/{owner}/{repo}/pulls/{number}/commits. The change counts are
-// optional because GitHub's list endpoint does not carry stats.
+// GET /repos/{owner}/{repo}/pulls/{number}/commits. Only the SHA is modelled:
+// an anchor's time and statistics come from the transcript's own recorded
+// commit, never from the pull request side.
 type PullCommit struct {
-	SHA          string
-	AuthoredAt   time.Time
-	Additions    *int
-	Deletions    *int
-	FilesChanged *int
+	SHA string
 }
 
-// PullRequest is the pull request side of the comparison. For a pull request
-// from a fork, HeadRepo is the fork the commits came from; it is only consulted
-// when IsFork is set, so a same-repository pull request cannot be matched by a
-// stray HeadRepo value.
+// PullRequest is the pull request side of the comparison.
+//
+// CommitSetComplete says whether Commits is the pull request's COMPLETE commit
+// list. It is fail-closed: the zero value means incomplete, and an incomplete
+// set supports only exact full-SHA matches. Prefix resolution needs a complete
+// set, because an abbreviation that matches one supplied commit may match
+// another that was never fetched, and "not in the pull request" is unknowable
+// when part of the pull request was not read. Callers must set this only on
+// evidence that nothing was omitted — for example a paginated fetch that
+// finished with no page left to follow and did not reach GitHub's endpoint cap.
+//
+// For a pull request from a fork, HeadRepo is the fork the commits came from;
+// it is only consulted when IsFork is set, so a same-repository pull request
+// cannot be matched by a stray HeadRepo value.
 type PullRequest struct {
-	BaseRepo string
-	HeadRepo string
-	HeadRef  string
-	IsFork   bool
-	Commits  []PullCommit
+	BaseRepo          string
+	HeadRepo          string
+	HeadRef           string
+	IsFork            bool
+	CommitSetComplete bool
+	Commits           []PullCommit
 }
 
 // Anchor is an accepted session-to-pull-request-commit relationship: the
@@ -127,6 +138,11 @@ const (
 	// ReasonAmbiguous means the recorded abbreviation prefixes more than one of
 	// the pull request's commits, so it names no single commit.
 	ReasonAmbiguous UnresolvedReason = "ambiguous"
+	// ReasonIncomplete means the pull request's commit list is not known to be
+	// complete, so the recorded commit was not resolved to anything: an
+	// abbreviation cannot be trusted against a partial list, and a full SHA that
+	// is absent proves nothing when part of the pull request was never read.
+	ReasonIncomplete UnresolvedReason = "incomplete_commit_list"
 )
 
 // UnresolvedCommit is one recorded commit that did not resolve, with the
@@ -168,7 +184,7 @@ func Match(pr PullRequest, candidates []Transcript) Result {
 			continue
 		}
 
-		anchors, unresolved := resolveRecordedCommits(candidate, pr.Commits, commits)
+		anchors, unresolved := resolveRecordedCommits(candidate, pr.Commits, commits, pr.CommitSetComplete)
 
 		if len(anchors) == 0 {
 			result.Unresolved = append(result.Unresolved, UnresolvedCandidate{
@@ -193,10 +209,15 @@ func Match(pr PullRequest, candidates []Transcript) Result {
 // namesPullRequestRepository reports whether the candidate's stored remote
 // names the pull request's base repository, or its head repository when the
 // pull request comes from a fork. The comparison is case-insensitive because
-// GitHub repository names are, and it goes through reponame.Normalize so the
-// publish path and the matcher cannot disagree about what a remote names.
+// GitHub repository names are, and it goes through reponame.NormalizeRemote so
+// the publish path and the matcher cannot disagree about what a remote names.
+//
+// Only the remote is consulted. A transcript with no remote is not a candidate
+// even when its local project path happens to name the repository: the project
+// path is a display-name fallback, and the candidate query the caller runs
+// requires a remote anyway, so a directory name must never widen the pool.
 func namesPullRequestRepository(pr PullRequest, candidate Transcript) bool {
-	name := reponame.Normalize(candidate.ProjectName, candidate.GitRemote)
+	name := reponame.NormalizeRemote(candidate.GitRemote)
 	if name == "" {
 		return false
 	}
@@ -217,13 +238,13 @@ func branchMatches(pr PullRequest, candidate Transcript) bool {
 // that did not resolve. Anchors are deduplicated by the commit they resolved
 // to, keeping the earliest authored time, so recording both a full SHA and an
 // abbreviation of one commit is one anchor.
-func resolveRecordedCommits(candidate Transcript, commits []PullCommit, index map[string]PullCommit) ([]Anchor, []UnresolvedCommit) {
+func resolveRecordedCommits(candidate Transcript, commits []PullCommit, index map[string]PullCommit, complete bool) ([]Anchor, []UnresolvedCommit) {
 	var anchors []Anchor
 	var unresolved []UnresolvedCommit
 	byResolved := map[string]int{}
 
 	for _, recorded := range candidate.Commits {
-		commit, reason, ok := resolveCommit(recorded.SHA, commits, index)
+		commit, reason, ok := resolveCommit(recorded.SHA, commits, index, complete)
 		if !ok {
 			unresolved = append(unresolved, UnresolvedCommit{RecordedSHA: recorded.SHA, Reason: reason})
 			continue
@@ -250,16 +271,26 @@ func resolveRecordedCommits(candidate Transcript, commits []PullCommit, index ma
 }
 
 // resolveCommit maps a recorded (possibly abbreviated) SHA to the one commit in
-// the pull request it names. Exactly one commit must match: an abbreviation
-// that prefixes two commits names neither, and a recorded commit absent from
-// the pull request's current commits is reported, not substituted.
-func resolveCommit(recorded string, commits []PullCommit, index map[string]PullCommit) (PullCommit, UnresolvedReason, bool) {
+// the pull request it names.
+//
+// An exact match against a supplied commit is sound whatever the set: a commit
+// the pull request returned IS a commit the pull request contains. Everything
+// else needs a complete set. An abbreviation that prefixes exactly one supplied
+// commit may prefix another that was never fetched, so on an incomplete set it
+// is not resolved at all; and a recorded commit absent from a partial list
+// proves nothing, so it is reported as incomplete rather than "not in the pull
+// request". On a complete set, an abbreviation prefixing two commits names
+// neither, and one absent from the list is genuinely not in the pull request.
+func resolveCommit(recorded string, commits []PullCommit, index map[string]PullCommit, complete bool) (PullCommit, UnresolvedReason, bool) {
 	sha := strings.ToLower(strings.TrimSpace(recorded))
 	if len(sha) < minSHALength {
 		return PullCommit{}, ReasonTooShort, false
 	}
 	if commit, ok := index[sha]; ok {
 		return commit, "", true
+	}
+	if !complete {
+		return PullCommit{}, ReasonIncomplete, false
 	}
 
 	found := -1
@@ -288,10 +319,16 @@ func indexCommits(commits []PullCommit) map[string]PullCommit {
 }
 
 // sortAcceptedBySessionStart orders the accepted transcripts by session start,
-// which is attachment order. It is stable, so transcripts with no recorded
-// session start keep discovery order rather than shuffling between runs.
+// which is attachment order. A transcript with no recorded session start is
+// ordered last, matching the candidate query's NULLS LAST, so the database and
+// the matcher cannot disagree about attachment order. It is stable, so
+// transcripts that tie keep discovery order rather than shuffling between runs.
 func sortAcceptedBySessionStart(accepted []AcceptedTranscript) {
 	sort.SliceStable(accepted, func(i, j int) bool {
-		return accepted[i].SessionStart.Before(accepted[j].SessionStart)
+		left, right := accepted[i].SessionStart, accepted[j].SessionStart
+		if left.IsZero() != right.IsZero() {
+			return !left.IsZero()
+		}
+		return left.Before(right)
 	})
 }

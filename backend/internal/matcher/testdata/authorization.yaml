@@ -102,3 +102,24 @@ cases:
       association: NONE
     command: attach
     expect: ignore
+
+  # Fail-closed arms: a command nobody defined, and a sender whose id is absent
+  # even though GitHub reported repository standing. Neither may be read as
+  # permission just because the remaining fields look plausible.
+  - name: unknown-command-from-the-author-is-ignored
+    actor:
+      sender_resolved: true
+      sender_github_id: 1001
+      author_github_id: 1001
+      association: NONE
+    command: refresh
+    expect: ignore
+
+  - name: zero-sender-id-owner-attach-is-ignored
+    actor:
+      sender_resolved: true
+      sender_github_id: 0
+      author_github_id: 1001
+      association: OWNER
+    command: attach
+    expect: ignore
