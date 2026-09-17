@@ -1852,7 +1852,10 @@ func (h *Handler) canViewTranscript(ctx context.Context, user *AuthUser, t sqlc.
 			}
 		}
 	}
-	return false
+	// Last, and only for a reader every collected check has refused: GitHub is
+	// the only party that knows who may read a private repository, so it answers
+	// for the prompts attached to that repository's pull request.
+	return h.canReadThroughAttachedRepository(ctx, user, t)
 }
 
 // persistCommits replaces a transcript's stored git commits with the payload's

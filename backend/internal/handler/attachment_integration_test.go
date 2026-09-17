@@ -57,6 +57,9 @@ type attachmentGitHubFake struct {
 
 	mu              sync.Mutex
 	failWrites      bool
+	userLogins      map[string]string
+	permissions     map[string]string
+	repoReadFailure bool
 	deleteNotFound  bool
 	checkCreates    int
 	checkCreateSHAs []string
@@ -143,6 +146,39 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			fake.mu.Unlock()
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, `{"id":%d,"html_url":"https://example.test/check/%d","status":"completed","conclusion":"success"}`, id, id)
+		case strings.HasPrefix(r.URL.Path, "/user/"):
+			fake.mu.Lock()
+			login, failed := fake.userLogins[strings.TrimPrefix(r.URL.Path, "/user/")], fake.repoReadFailure
+			fake.mu.Unlock()
+			if failed {
+				http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
+				return
+			}
+			if login == "" {
+				http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, `{"login":%q}`, login)
+		case strings.Contains(r.URL.Path, "/collaborators/") && strings.HasSuffix(r.URL.Path, "/permission"):
+			// The login is the segment before the trailing /permission.
+			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+			if len(parts) < 2 {
+				http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
+				return
+			}
+			fake.mu.Lock()
+			permission, failed := fake.permissions[parts[len(parts)-2]], fake.repoReadFailure
+			fake.mu.Unlock()
+			if failed {
+				http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
+				return
+			}
+			if permission == "" {
+				permission = "none"
+			}
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w, `{"permission":%q}`, permission)
 		case strings.Contains(r.URL.Path, "/issues/") && strings.Contains(r.URL.Path, "/comments"):
 			if writeFailure() {
 				return
@@ -205,6 +241,29 @@ func lastPathSegment(full string) string {
 		return full[idx+1:]
 	}
 	return full
+}
+
+// setRepoReader makes the fake answer the two calls the repository-reader
+// fallback makes: the login an immutable account id has now, and what that login
+// may do in the repository.
+func (f *attachmentGitHubFake) setRepoReader(accountID, login, permission string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.userLogins == nil {
+		f.userLogins = map[string]string{}
+	}
+	if f.permissions == nil {
+		f.permissions = map[string]string{}
+	}
+	f.userLogins[accountID] = login
+	f.permissions[login] = permission
+}
+
+// failRepoReads makes the reader lookups fail, which must deny rather than admit.
+func (f *attachmentGitHubFake) failRepoReads(fail bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.repoReadFailure = fail
 }
 
 func (f *attachmentGitHubFake) setPullRequestDetail(headSHA string, authorID int64, headFullName, baseFullName string) {
