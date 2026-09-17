@@ -126,12 +126,19 @@ if (!audience) {
     'confirm the served build is from THIS worktree and the mock serves an author-visible preview, then retry.')
 }
 const audienceText = await page.evaluate((el) => el.textContent.replace(/\s+/g, ' ').trim(), audience)
-if (!/^attaching makes the transcripts behind these prompts readable by (anyone|members of this collective)\.$/.test(audienceText)) {
+// The expected sentence comes from the repository kind the mock serves, not from
+// either sentence being acceptable: a capture pointed at a private repository
+// that rendered the public copy, or the reverse, must fail rather than pass on a
+// statement merely existing.
+const expectedAudience = process.env.PULL_PRIVATE === '1'
+  ? 'attaching makes the transcripts behind these prompts readable by members of this collective. a transcript that is already shared or public keeps its own audience.'
+  : 'attaching makes the transcripts behind these prompts readable by anyone.'
+if (audienceText !== expectedAudience) {
   await browser.close()
-  die(1, `the audience statement reads ${JSON.stringify(audienceText)}.`,
-    'the copy names neither of the two audiences this page may describe.',
-    'the capture would document copy the page does not ship.',
-    'confirm the mock repository kind and the page copy agree, then retry.')
+  die(1, `the audience statement reads ${JSON.stringify(audienceText)}, want ${JSON.stringify(expectedAudience)}.`,
+    'the copy does not match the repository kind the mock serves, so the page names the wrong audience.',
+    'the capture would document the wrong audience for this repository.',
+    'serve the mock with the PULL_PRIVATE the capture means and retry.')
 }
 
 const probe = await page.evaluate(() => {
