@@ -5,18 +5,17 @@ import { afterEach, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import PullRequestPage from "@/app/pulls/[owner]/[name]/[number]/page";
 import GroupSettingsPage from "@/app/groups/[id]/settings/page";
-import UserProfilePage from "@/app/users/[username]/page";
 import type { PromptDigest, VillagePullRequestAttachmentResponse } from "@peasant-labs/schema";
 
 /**
- * Mount support for the real routes this change touches: the pull request page,
- * the collective settings page, and the signed-in user's own profile rail, with
- * REST stubbed at `fetch` and every outbound request recorded so a test asserts
- * the route a control hit rather than inspecting a mutation object.
+ * Mount support for the real routes this change touches: the pull request page
+ * and the collective settings page, with REST stubbed at `fetch` and every
+ * outbound request recorded so a test asserts the route a control hit rather
+ * than inspecting a mutation object.
  *
  * The pull request page reads everything it needs from its own payload, so it
- * mounts without an auth provider; the two settings surfaces read the caller, so
- * they mount inside the provider the app mounts them in.
+ * mounts without an auth provider; the settings surface reads the caller, so it
+ * mounts inside the provider the app mounts it in.
  */
 
 /** One recorded outbound request. */
