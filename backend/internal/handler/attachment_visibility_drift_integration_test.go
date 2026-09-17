@@ -191,3 +191,75 @@ func TestWideningAnAttachedTranscriptRestoresIt_RealPostgres(t *testing.T) {
 		t.Errorf("the comment must not keep saying a row is gone after it came back; body=%s", fake.lastCommentBody)
 	}
 }
+
+// TestRepublishedNarrowingDropsTheDigestRow_RealPostgres covers the path that
+// had no test: a republish narrows a transcript before replacing its content,
+// and that narrowing commits even though the publish hook cannot see it —
+// nothing new is accepted for the attachment and the head has not moved. The
+// digest must stop advertising the transcript, without a second click.
+func TestRepublishedNarrowingDropsTheDigestRow_RealPostgres(t *testing.T) {
+	t.Parallel()
+	h, pool, _, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 992006)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "widgets-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, false, "informational")
+	sha := "abc1234000000000000000000000000000000006"
+	remote := "git@github.com:acme/" + repoName + ".git"
+	sessionID := uuid.NewString()
+
+	code, body := attachmentPublishSession(t, h, owner, "attachment-owner", remote, sha, sessionID, attachmentPublicationContent())
+	if code != http.StatusCreated {
+		t.Fatalf("first publish status = %d (%s), want 201", code, body)
+	}
+
+	var transcriptID pgtype.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM transcripts WHERE owner_id = $1 AND local_id = $2`, owner, sessionID).Scan(&transcriptID); err != nil {
+		t.Fatalf("read the published transcript: %v", err)
+	}
+
+	attachment := attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 9)
+	fake.setPullCommits(sha)
+	if rec := attachmentServe(t, attachmentRouter(h), http.MethodPost, "/api/v1/pulls/acme/"+repoName+"/9/confirm", owner); rec.Code != http.StatusOK {
+		t.Fatalf("confirm status = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+
+	transcriptKey := uuidFromPg(transcriptID).String()
+	if digest := attachmentDigestOf(t, ctx, h, attachment.ID); !strings.Contains(digest, transcriptKey) {
+		t.Fatalf("the confirmed digest must advertise the attached transcript; digest=%s", digest)
+	}
+
+	// The same session, republished with different content: the handler replaces
+	// the stored content, and narrows the transcript before it does.
+	revised := bytes.Replace(attachmentPublicationContent(),
+		[]byte("please attach my prompts"), []byte("please attach my prompts, revised"), 1)
+	code, body = attachmentPublishSession(t, h, owner, "attachment-owner", remote, sha, sessionID, revised)
+	if code != http.StatusCreated && code != http.StatusOK {
+		t.Fatalf("republish status = %d (%s), want 201 or 200", code, body)
+	}
+
+	if digest := attachmentDigestOf(t, ctx, h, attachment.ID); strings.Contains(digest, transcriptKey) {
+		t.Errorf("a republish that narrowed the transcript must drop it from the digest; digest=%s", digest)
+	}
+	if !strings.Contains(fake.lastCommentBody, "no longer listed here") {
+		t.Errorf("the comment must say the row is gone; body=%s", fake.lastCommentBody)
+	}
+	var visibility string
+	if err := pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id = $1`, transcriptID).Scan(&visibility); err != nil {
+		t.Fatalf("read visibility after the republish: %v", err)
+	}
+	if visibility != "private" {
+		t.Errorf("visibility = %q after the republish, want private", visibility)
+	}
+	binding, err := h.queries.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{
+		AttachmentID: attachment.ID, TranscriptID: transcriptID,
+	})
+	if err != nil {
+		t.Fatalf("the binding must survive the republish: %v", err)
+	}
+	if binding.PreviousVisibility != "private" {
+		t.Errorf("previous_visibility = %q, want the value recorded at attach", binding.PreviousVisibility)
+	}
+}
