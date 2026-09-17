@@ -13,6 +13,7 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 const REQUIRED_CASE_NAMES = [
   "author viewing an attached digest",
   "author viewing a preview with confirm available",
+  "author viewing a preview on a public repository",
   "confirm refused with a conflict",
   "non-author viewing an attached digest",
   "non-author viewing a preview without a digest",
@@ -23,6 +24,7 @@ const REQUIRED_CASE_NAMES = [
 export interface PullRequestPageCase {
   name: string;
   viewer_is_author: boolean;
+  is_private_repository: boolean;
   state: "requested" | "waiting" | "preview" | "attached" | "detached";
   digest: "present" | "absent";
   transcript_ids: string[];
@@ -31,11 +33,13 @@ export interface PullRequestPageCase {
   confirm_status: number | null;
   expect_confirm: boolean;
   expect_detach: boolean;
+  expect_audience: "anyone" | "collective" | "none";
 }
 
 const CASE_FIELDS = [
   "name",
   "viewer_is_author",
+  "is_private_repository",
   "state",
   "digest",
   "transcript_ids",
@@ -44,6 +48,7 @@ const CASE_FIELDS = [
   "confirm_status",
   "expect_confirm",
   "expect_detach",
+  "expect_audience",
 ] as const;
 
 export function loadPullRequestPageFixtures(): PullRequestPageCase[] {

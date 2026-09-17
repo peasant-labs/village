@@ -30,7 +30,7 @@ function fixtureFor(
       name: NAME,
       number: NUMBER,
       head_sha: "0123456789abcdef0123456789abcdef01234567",
-      is_private_repository: true,
+      is_private_repository: row.is_private_repository,
       state: row.state,
       author_user_id: "11111111-1111-1111-1111-111111111111",
       requested_by_github_id: null,
@@ -87,6 +87,26 @@ describe("the pull request page", () => {
       // Confirm and detach appear only where the state and the viewer allow.
       expect(screen.queryByTestId("confirm-attachment") !== null).toBe(row.expect_confirm);
       expect(screen.queryByTestId("detach-attachment") !== null).toBe(row.expect_detach);
+
+      // Where the author is asked to confirm, they are told the audience the
+      // attach makes the transcripts readable by, and only that one: a public
+      // repository must not be described in a private one's terms or the other
+      // way around. Everywhere else there is no statement to read.
+      const audience = screen.queryByTestId("attachment-audience");
+      if (row.expect_audience === "none") {
+        expect(audience).toBeNull();
+      } else {
+        const named =
+          row.expect_audience === "anyone"
+            ? "readable by anyone"
+            : "readable by members of this collective";
+        const other =
+          row.expect_audience === "anyone"
+            ? "members of this collective"
+            : "readable by anyone";
+        expect(audience?.textContent).toContain(named);
+        expect(audience?.textContent ?? "").not.toContain(other);
+      }
     });
   }
 

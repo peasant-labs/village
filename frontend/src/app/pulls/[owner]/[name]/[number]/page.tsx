@@ -156,6 +156,15 @@ export default function PullRequestPage({
           aria-label="attachment actions"
           data-testid="pull-request-actions"
         >
+          {state === "preview" && (
+            <p className="text-[13px] text-ink-3" data-testid="attachment-audience">
+              attaching makes the transcripts behind these prompts readable by{" "}
+              {data.attachment.is_private_repository
+                ? "members of this collective"
+                : "anyone"}
+              .
+            </p>
+          )}
           <div className="flex items-center gap-2">
             {state === "preview" && (
               <Button

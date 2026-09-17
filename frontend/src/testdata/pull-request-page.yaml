@@ -8,8 +8,14 @@
 # are the ones the stored digest still advertises. A bound transcript the digest
 # does not advertise is what the page marks "not available", so those two
 # columns, not the state, decide the marking.
+#
+# is_private_repository is the repository the attachment belongs to, and
+# expect_audience is the audience the page must name where the author is asked
+# to confirm: "anyone" on a public repository, "collective" on a private one,
+# and "none" wherever there is no confirmation to read (no panel, no preview).
 cases:
   - name: author viewing an attached digest
+    is_private_repository: true
     viewer_is_author: true
     state: attached
     digest: present
@@ -21,8 +27,10 @@ cases:
     confirm_status: null
     expect_confirm: false
     expect_detach: true
+    expect_audience: none
 
   - name: author viewing a preview with confirm available
+    is_private_repository: true
     viewer_is_author: true
     state: preview
     digest: present
@@ -33,8 +41,10 @@ cases:
     confirm_status: null
     expect_confirm: true
     expect_detach: true
+    expect_audience: collective
 
   - name: non-author viewing an attached digest
+    is_private_repository: true
     viewer_is_author: false
     state: attached
     digest: present
@@ -46,8 +56,10 @@ cases:
     confirm_status: null
     expect_confirm: false
     expect_detach: false
+    expect_audience: none
 
   - name: non-author viewing a preview without a digest
+    is_private_repository: true
     viewer_is_author: false
     state: preview
     digest: absent
@@ -57,8 +69,24 @@ cases:
     confirm_status: null
     expect_confirm: false
     expect_detach: false
+    expect_audience: none
+
+  - name: author viewing a preview on a public repository
+    is_private_repository: false
+    viewer_is_author: true
+    state: preview
+    digest: present
+    transcript_ids: []
+    digest_transcript_ids:
+      - "11111111-1111-1111-1111-111111111111"
+    expect_unavailable_marks: 0
+    confirm_status: null
+    expect_confirm: true
+    expect_detach: true
+    expect_audience: anyone
 
   - name: confirm refused with a conflict
+    is_private_repository: true
     viewer_is_author: true
     state: preview
     digest: present
@@ -69,8 +97,10 @@ cases:
     confirm_status: 409
     expect_confirm: true
     expect_detach: true
+    expect_audience: collective
 
   - name: a bound transcript the digest no longer advertises
+    is_private_repository: true
     viewer_is_author: true
     state: attached
     digest: present
@@ -83,8 +113,10 @@ cases:
     confirm_status: null
     expect_confirm: false
     expect_detach: true
+    expect_audience: none
 
   - name: an attached attachment with no digest marks nothing
+    is_private_repository: true
     viewer_is_author: false
     state: attached
     digest: absent
@@ -95,3 +127,4 @@ cases:
     confirm_status: null
     expect_confirm: false
     expect_detach: false
+    expect_audience: none
