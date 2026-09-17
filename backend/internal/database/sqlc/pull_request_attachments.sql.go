@@ -261,6 +261,60 @@ func (q *Queries) GetPullRequestAttachmentTranscript(ctx context.Context, arg Ge
 	return i, err
 }
 
+const listAttachmentsBindingTranscript = `-- name: ListAttachmentsBindingTranscript :many
+SELECT a.id, a.repo_owner, a.repo_name, a.github_repo_id, a.number, a.head_sha, a.base_remote, a.head_remote, a.author_id, a.requester_github_id, a.state, a.comment_id, a.check_run_id, a.digest, a.requested_at, a.waiting_at, a.preview_at, a.attached_at, a.detached_at, a.created_at, a.updated_at, a.group_id FROM pull_request_attachments a
+JOIN pull_request_attachment_transcripts pt ON pt.attachment_id = a.id
+WHERE pt.transcript_id = $1 AND a.state = 'attached'
+ORDER BY a.id ASC
+`
+
+// The attachments that bind one transcript. The owner's visibility change reads
+// them so an attachment stops advertising prompts that are no longer as visible
+// as the repository it belongs to requires. Only attached attachments can be
+// advertising anything.
+func (q *Queries) ListAttachmentsBindingTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]PullRequestAttachment, error) {
+	rows, err := q.db.Query(ctx, listAttachmentsBindingTranscript, transcriptID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PullRequestAttachment{}
+	for rows.Next() {
+		var i PullRequestAttachment
+		if err := rows.Scan(
+			&i.ID,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.GithubRepoID,
+			&i.Number,
+			&i.HeadSha,
+			&i.BaseRemote,
+			&i.HeadRemote,
+			&i.AuthorID,
+			&i.RequesterGithubID,
+			&i.State,
+			&i.CommentID,
+			&i.CheckRunID,
+			&i.Digest,
+			&i.RequestedAt,
+			&i.WaitingAt,
+			&i.PreviewAt,
+			&i.AttachedAt,
+			&i.DetachedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GroupID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAuthorAttachmentsForRepo = `-- name: ListAuthorAttachmentsForRepo :many
 SELECT id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at, group_id FROM pull_request_attachments
 WHERE author_id = $1

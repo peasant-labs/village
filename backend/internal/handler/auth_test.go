@@ -1380,6 +1380,10 @@ func (m *mockQuerier) ListPullRequestAttachmentTranscripts(ctx context.Context, 
 	return nil, nil
 }
 
+func (m *mockQuerier) ListAttachmentsBindingTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.PullRequestAttachment, error) {
+	return nil, nil
+}
+
 func (m *mockQuerier) ListPullRequestAttachmentTranscriptSummaries(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.ListPullRequestAttachmentTranscriptSummariesRow, error) {
 	return nil, nil
 }

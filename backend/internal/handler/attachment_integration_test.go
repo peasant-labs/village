@@ -64,6 +64,8 @@ type attachmentGitHubFake struct {
 	commentCreates  int
 	commentEdits    int
 	commentDeletes  int
+	lastCheckText   string
+	lastCommentBody string
 }
 
 func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
@@ -121,16 +123,22 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			}
 			fake.mu.Lock()
 			id := int64(11)
+			var payload struct {
+				HeadSHA string `json:"head_sha"`
+				Output  struct {
+					Summary string `json:"summary"`
+				} `json:"output"`
+			}
+			_ = json.Unmarshal(raw, &payload)
 			if r.Method == http.MethodPatch {
 				fake.checkUpdates++
 			} else {
 				fake.checkCreates++
 				id = int64(10 + fake.checkCreates)
-				var payload struct {
-					HeadSHA string `json:"head_sha"`
-				}
-				_ = json.Unmarshal(raw, &payload)
 				fake.checkCreateSHAs = append(fake.checkCreateSHAs, payload.HeadSHA)
+			}
+			if payload.Output.Summary != "" {
+				fake.lastCheckText = payload.Output.Summary
 			}
 			fake.mu.Unlock()
 			w.WriteHeader(http.StatusOK)
@@ -138,6 +146,16 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 		case strings.Contains(r.URL.Path, "/issues/") && strings.Contains(r.URL.Path, "/comments"):
 			if writeFailure() {
 				return
+			}
+			if raw, err := io.ReadAll(r.Body); err == nil && len(raw) > 0 {
+				var payload struct {
+					Body string `json:"body"`
+				}
+				if json.Unmarshal(raw, &payload) == nil && payload.Body != "" {
+					fake.mu.Lock()
+					fake.lastCommentBody = payload.Body
+					fake.mu.Unlock()
+				}
 			}
 			fake.mu.Lock()
 			switch r.Method {

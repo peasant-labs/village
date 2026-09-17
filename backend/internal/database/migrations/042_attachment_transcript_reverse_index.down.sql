@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_pull_request_attachment_transcripts_transcript;

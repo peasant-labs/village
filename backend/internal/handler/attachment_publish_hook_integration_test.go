@@ -30,10 +30,18 @@ import (
 // commit, which is what makes it a candidate for the attachment's repository.
 func attachmentPublish(t *testing.T, h *Handler, owner pgtype.UUID, username, remote, commitSHA string) (int, string) {
 	t.Helper()
+	return attachmentPublishSession(t, h, owner, username, remote, commitSHA, uuid.NewString(), attachmentPublicationContent())
+}
+
+// attachmentPublishSession publishes under a chosen session id and body, so a
+// test can publish the same session twice and drive the republish path: the
+// second publish replaces the content of a transcript that already exists.
+func attachmentPublishSession(t *testing.T, h *Handler, owner pgtype.UUID, username, remote, commitSHA, sessionID string, content []byte) (int, string) {
+	t.Helper()
 	remoteCopy := remote
 	branch := "feat/x"
 	metadata := schema.PublishRequest{
-		Identity:    schema.SessionIdentity{SessionID: schema.SessionID(uuid.NewString()), SchemaVersion: 2},
+		Identity:    schema.SessionIdentity{SessionID: schema.SessionID(sessionID), SchemaVersion: 2},
 		Model:       schema.ModelInfo{Harness: schema.HarnessClaudeCode, Model: "attachment-test"},
 		Timestamp:   schema.TimestampInfo{Start: 1700000000000, End: 1700000060000},
 		Source:      schema.SourceInfo{FilePath: "/fixtures/attachment.jsonl", Format: "jsonl"},
@@ -46,7 +54,7 @@ func attachmentPublish(t *testing.T, h *Handler, owner pgtype.UUID, username, re
 	if err != nil {
 		t.Fatalf("marshal attachment publish metadata: %v", err)
 	}
-	body, boundary := multipartBody(t, map[string]string{"metadata": string(metadataJSON)}, string(attachmentPublicationContent()))
+	body, boundary := multipartBody(t, map[string]string{"metadata": string(metadataJSON)}, string(content))
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/publish", body)
 	r.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	r = r.WithContext(context.WithValue(context.Background(), UserContextKey, &AuthUser{ID: uuid.UUID(owner.Bytes), Username: username}))
