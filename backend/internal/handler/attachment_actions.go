@@ -317,15 +317,10 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 	return err
 }
 
-// completeAttachmentsForPublishedTranscript is the publish hook: after a
-// transcript is stored, the owner's attachments for its repository are re-read
-// and the new transcript is put through the same acceptance policy. A waiting
-// attachment completes when the acceptance accepts; an attached one is
-// refreshed. An unrelated transcript accepts nothing and therefore changes
-// nothing.
 // refreshAttachmentsForTranscriptVisibility reposts the attachments that bind a
-// transcript whose owner has just narrowed its visibility, so a pull request
-// stops advertising prompts its readers can no longer open.
+// transcript whose visibility its owner just changed, so a pull request stops
+// advertising prompts its readers can no longer open — and starts advertising
+// them again when the owner widens the transcript back.
 //
 // It is the publish hook's sibling and follows the same discipline: the work
 // runs on a detached, bounded context, each attachment is taken under its own
@@ -369,6 +364,12 @@ func (h *Handler) refreshAttachmentsForTranscriptVisibility(ctx context.Context,
 	return errors.Join(failures...)
 }
 
+// completeAttachmentsForPublishedTranscript is the publish hook: after a
+// transcript is stored, the owner's attachments for its repository are re-read
+// and the new transcript is put through the same acceptance policy. A waiting
+// attachment completes when the acceptance accepts; an attached one is
+// refreshed. An unrelated transcript accepts nothing and therefore changes
+// nothing.
 func (h *Handler) completeAttachmentsForPublishedTranscript(ctx context.Context, owner pgtype.UUID, repoName string) error {
 	if repoName == "" {
 		return nil

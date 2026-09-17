@@ -175,13 +175,18 @@ func requiredAttachmentVisibility(repo attachmentRepository) string {
 }
 
 // attachmentDroppedNote is the line a digest carries when transcripts it used to
-// advertise are no longer available, so a reader learns why a row is gone
-// instead of being left to notice the absence.
+// advertise are no longer listed, so a reader is told something is missing
+// rather than left to notice the absence.
+//
+// It counts and says nothing else. A reason — even a true one — would describe a
+// transcript and its owner's action to every reader of the pull request, and the
+// page's own marking is deliberately as general, so this surface does not
+// become the one that says more.
 func attachmentDroppedNote(dropped int) string {
 	if dropped == 1 {
-		return "\n_1 transcript is no longer listed here: its author made it less visible than this repository requires._\n"
+		return "\n_1 transcript is no longer listed here._\n"
 	}
-	return fmt.Sprintf("\n_%d transcripts are no longer listed here: their author made them less visible than this repository requires._\n", dropped)
+	return fmt.Sprintf("\n_%d transcripts are no longer listed here._\n", dropped)
 }
 
 // disclosureRank orders the visibility tiers by how widely they disclose:

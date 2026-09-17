@@ -356,6 +356,12 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	var superseded storage.BlobDescriptor
 	var hasSuperseded bool
 	var deleteSuperseded bool
+	// A republish narrows a non-private transcript before replacing its content,
+	// which is a narrowing the publish hook cannot notice: nothing new is
+	// accepted for the attachment and the head has not moved, so the refresh
+	// returns without rebuilding the digest. The attachments that bind this
+	// transcript need the same repost an owner's own visibility change gets.
+	var narrowedForRepublish bool
 	responseWritten := false
 	err = h.withPublishLocks(r.Context(), ownerPgID, string(req.Identity.SessionID), req.Git.Associations, func(conn *pgxpool.Conn) error {
 		lockedQueries := h.queries
@@ -440,6 +446,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				}); currentErr != nil {
 					return fmt.Errorf("narrow transcript before encrypted content replacement: %w", currentErr)
 				}
+				narrowedForRepublish = true
 			}
 		}
 		descriptor, identity, err := h.blobs.Write(r.Context(), uuid.UUID(transcriptID.Bytes), content)
@@ -715,6 +722,14 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	if repoName := reponame.NormalizeRemote(transcript.GitRemote.String); repoName != "" {
 		if err := h.completeAttachmentsForPublishedTranscript(r.Context(), transcript.OwnerID, repoName); err != nil {
 			log.Printf("pull request attachment completion after publish failed: %v", err)
+		}
+	}
+	// After the completion, so a waiting attachment completes first and then
+	// sees the narrowing: a republish that made this transcript private must not
+	// leave a pull request advertising it.
+	if narrowedForRepublish {
+		if err := h.refreshAttachmentsForTranscriptVisibility(r.Context(), transcript.ID); err != nil {
+			log.Printf("pull request attachment refresh after a republish narrowing failed: %v", err)
 		}
 	}
 
@@ -1125,14 +1140,16 @@ func (h *Handler) UpdateTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// An attachment advertises the prompts behind a pull request, so an owner
-	// who makes one of them less visible has changed what that pull request
-	// claims. The repost happens here, where the owner's own change is known,
-	// rather than waiting for some later GitHub event to notice.
+	// who changes one of them has changed what that pull request claims — in
+	// either direction: narrowing must withdraw the row, and widening it back
+	// must put the row where it was. The repost happens here, where the owner's
+	// own change is known, rather than waiting for some later GitHub event to
+	// notice.
 	//
 	// It must not fail the update the owner asked for: a GitHub failure is
 	// logged and the next refresh retries, which is the publish hook's
 	// discipline too.
-	if patch.Visibility != nil && disclosureRank(updated.Visibility) < disclosureRank(transcript.Visibility) {
+	if patch.Visibility != nil && updated.Visibility != transcript.Visibility {
 		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), pgID); refreshErr != nil {
 			log.Printf("pull request attachment refresh after a visibility change failed: %v", refreshErr)
 		}

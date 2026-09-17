@@ -255,7 +255,7 @@ function AttachedTranscripts({
                   <span className="flex items-center gap-1 text-xs font-mono lowercase text-ink-3">
                     not available
                     <Tooltip
-                      content="this transcript is attached, but the digest no longer lists it. the prompts behind it may have been withdrawn, or the digest may predate them."
+                      content="this transcript is no longer listed in the digest."
                       id={`transcript-not-available-${transcript.transcript_id}`}
                     >
                       <button
