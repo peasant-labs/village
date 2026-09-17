@@ -869,7 +869,9 @@ const server = createServer((req, res) => {
         name,
         number: Number(number),
         head_sha: '0123456789abcdef0123456789abcdef01234567',
-        is_private_repository: false,
+        // PULL_PRIVATE=1 serves a private repository, so the page's audience
+        // statement can be captured naming the collective instead of everyone.
+        is_private_repository: process.env.PULL_PRIVATE === '1',
         state,
         author_user_id: user.id,
         requested_by_github_id: null,

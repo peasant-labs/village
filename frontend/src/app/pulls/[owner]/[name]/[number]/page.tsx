@@ -157,7 +157,7 @@ export default function PullRequestPage({
           data-testid="pull-request-actions"
         >
           {state === "preview" && (
-            <p className="text-[13px] text-ink-3" data-testid="attachment-audience">
+            <p className="text-ink-2" data-testid="attachment-audience">
               attaching makes the transcripts behind these prompts readable by{" "}
               {data.attachment.is_private_repository
                 ? "members of this collective"
