@@ -115,6 +115,19 @@ cases:
     expect_detach: true
     expect_audience: none
 
+  - name: a public repository with no digest names anyone
+    is_private_repository: false
+    viewer_is_author: false
+    state: attached
+    digest: absent
+    transcript_ids: []
+    digest_transcript_ids: []
+    expect_unavailable_marks: 0
+    confirm_status: null
+    expect_confirm: false
+    expect_detach: false
+    expect_audience: none
+
   - name: an attached attachment with no digest marks nothing
     is_private_repository: true
     viewer_is_author: false

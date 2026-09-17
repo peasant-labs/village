@@ -74,7 +74,12 @@ describe("the pull request page", () => {
         await waitFor(() => expect(document.querySelector(".pd")).toBeTruthy());
       } else {
         expect(document.querySelector(".pd")).toBeNull();
-        expect(screen.getByText(/shown to the pull request's author/)).toBeTruthy();
+        // The sentence naming who the digest is shown to must match the
+        // repository: a private repository's digest never goes to just anyone.
+        const sentence = screen.getByText(/shown to the pull request's author/);
+        expect(sentence.textContent).toContain(
+          row.is_private_repository ? "members of this collective" : "anyone",
+        );
       }
 
       // A bound transcript the digest no longer advertises is marked, and only
