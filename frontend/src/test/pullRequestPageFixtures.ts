@@ -18,6 +18,7 @@ const REQUIRED_CASE_NAMES = [
   "non-author viewing an attached digest",
   "non-author viewing a preview without a digest",
   "a bound transcript the digest no longer advertises",
+  "a public repository with no digest names anyone",
   "an attached attachment with no digest marks nothing",
 ] as const;
 
