@@ -156,6 +156,19 @@ export default function PullRequestPage({
           aria-label="attachment actions"
           data-testid="pull-request-actions"
         >
+          {state === "preview" && (
+            <p className="text-ink-2" data-testid="attachment-audience">
+              {data.attachment.is_private_repository ? (
+                <>
+                  attaching makes the transcripts behind these prompts readable by
+                  members of this collective. a transcript that is already shared or
+                  public keeps its own audience.
+                </>
+              ) : (
+                <>attaching makes the transcripts behind these prompts readable by anyone.</>
+              )}
+            </p>
+          )}
           <div className="flex items-center gap-2">
             {state === "preview" && (
               <Button
@@ -206,8 +219,9 @@ export default function PullRequestPage({
       ) : (
         <section className="border border-rule bg-surface px-5 py-6 text-sm text-ink-3">
           <p>
-            The digest is shown to the pull request&apos;s author, or to anyone once it is
-            attached.
+            The digest is shown to the pull request&apos;s author, or to{" "}
+            {data.attachment.is_private_repository ? "members of this collective" : "anyone"} once
+            it is attached.
           </p>
         </section>
       )}

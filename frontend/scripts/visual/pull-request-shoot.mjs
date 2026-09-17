@@ -114,6 +114,33 @@ if (!commit || !promptLink) {
     'confirm the mock serves a digest with a commit item and a prompt item and retry.')
 }
 
+// The audience statement is this change's surface: a page that offers the
+// confirm button without it is not the page under test, and capturing it would
+// document the very gap this closes.
+const audience = await waitFor('[data-testid="attachment-audience"]')
+if (!audience) {
+  await browser.close()
+  die(2, 'the confirmation did not state the audience.',
+    'the author-only panel mounted without the statement naming who the transcripts become readable by.',
+    'the capture would document the confirm step without the thing this change adds.',
+    'confirm the served build is from THIS worktree and the mock serves an author-visible preview, then retry.')
+}
+const audienceText = await page.evaluate((el) => el.textContent.replace(/\s+/g, ' ').trim(), audience)
+// The expected sentence comes from the repository kind the mock serves, not from
+// either sentence being acceptable: a capture pointed at a private repository
+// that rendered the public copy, or the reverse, must fail rather than pass on a
+// statement merely existing.
+const expectedAudience = process.env.PULL_PRIVATE === '1'
+  ? 'attaching makes the transcripts behind these prompts readable by members of this collective. a transcript that is already shared or public keeps its own audience.'
+  : 'attaching makes the transcripts behind these prompts readable by anyone.'
+if (audienceText !== expectedAudience) {
+  await browser.close()
+  die(1, `the audience statement reads ${JSON.stringify(audienceText)}, want ${JSON.stringify(expectedAudience)}.`,
+    'the copy does not match the repository kind the mock serves, so the page names the wrong audience.',
+    'the capture would document the wrong audience for this repository.',
+    'serve the mock with the PULL_PRIVATE the capture means and retry.')
+}
+
 const probe = await page.evaluate(() => {
   const cs = (sel) => {
     const el = document.querySelector(sel)
@@ -127,6 +154,10 @@ const probe = await page.evaluate(() => {
     canvasToken: root.getPropertyValue('--canvas').trim(),
     ink2Token: root.getPropertyValue('--ink-2').trim(),
     ink3Token: root.getPropertyValue('--ink-3').trim(),
+    audienceText: (() => {
+      const el = document.querySelector('[data-testid="attachment-audience"]')
+      return el ? el.textContent.replace(/\s+/g, ' ').trim() : null
+    })(),
     page: cs('[data-testid="pull-request-page"]'),
     panel: cs('[data-testid="pull-request-page"] section'),
     // A prompt row is a preview, not the whole turn. The clamp comes from the
@@ -183,6 +214,6 @@ if (errs.length) {
     'a page that errored is not a page to document.', 'fix the error and recapture.')
 }
 
-writeFileSync(`${out}/probe.json`, JSON.stringify({ theme, titleText, probe }, null, 2))
+writeFileSync(`${out}/probe.json`, JSON.stringify({ theme, titleText, audienceText, probe }, null, 2))
 console.log('probe', JSON.stringify(probe))
 await browser.close()

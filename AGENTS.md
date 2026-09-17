@@ -87,6 +87,14 @@ Contract changes land and receive a module tag before Village updates its
 `go.mod` pin. Do not fork or vendor a local contract copy, and do not add an
 undocumented handler-only validation rule.
 
+Before extending the contract or adding a migration, take the first path that
+fits: whether the answer is already derivable from data both sides hold, whether
+the consumer can compute it from what it already receives, and whether an
+existing field, route, or read already carries it. A migration adds state that
+has to be kept true; an index adds no semantics and is often the right answer.
+Say in the pull request which paths were tried and why the earlier ones did not
+fit, so a reviewer can see the expensive path was chosen deliberately.
+
 Two tests keep the served document honest. The route drift gate
 (`backend/internal/router/contract_drift_test.go`) fails when a mounted
 `/api/v1` route is neither declared by the served document nor listed, with a

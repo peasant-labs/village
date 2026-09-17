@@ -379,6 +379,18 @@ func attachmentServe(t *testing.T, router http.Handler, method, target string, v
 	return rec
 }
 
+// attachmentConfirm drives the author's confirm through the mounted route, so a
+// test that needs an attached attachment takes the path production takes: a
+// click previews, and the author confirms what it says before anything widens.
+func attachmentConfirm(t *testing.T, h *Handler, owner pgtype.UUID, repoOwner, repoName string, number int) {
+	t.Helper()
+	rec := attachmentServe(t, attachmentRouter(h), http.MethodPost,
+		fmt.Sprintf("/api/v1/pulls/%s/%s/%d/confirm", repoOwner, repoName, number), owner)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("confirm the previewed attachment: status = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+}
+
 // TestConfirmWidensSharesAndPosts_RealPostgres is the attached path end to end:
 // a preview whose recorded commit is in the pull request is confirmed, the
 // transcript is shared with the linking collective through an APPROVED share

@@ -188,13 +188,14 @@ func TestPublishedAcceptedSessionRefreshesAnAttachedAttachment(t *testing.T) {
 	attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", first, "private", "", time.Now().Add(-2*time.Hour))
 	secondTranscript := attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", second, "private", "", time.Now().Add(-time.Hour))
 
-	// Attach through the author's comment first.
+	// Preview through the author's comment, then confirm: a click asks first.
 	fake.setPullRequest(first, 993008)
 	fake.setPullCommits(first)
 	h.githubDispatcher = promptCommandDispatcher{h: h}
 	if err := dispatchEvent(t, h, "issue_comment", issueCommentEvent(repoName, 33, 993008, "NONE", "/peasant attach")); err != nil {
 		t.Fatal(err)
 	}
+	attachmentConfirm(t, h, owner, "acme", repoName, 33)
 	attached, err := h.queries.GetPullRequestAttachmentForPull(ctx, sqlc.GetPullRequestAttachmentForPullParams{Lower: "acme", Lower_2: repoName, Number: 33})
 	if err != nil {
 		t.Fatal(err)
@@ -253,7 +254,7 @@ func TestPublishedAcceptedSessionRefreshesAnAttachedAttachment(t *testing.T) {
 // TestPublishedUnrelatedSessionDoesNotRepost proves the other half: an unrelated
 // publish on an attached pull request does not edit the digest at all.
 func TestPublishedUnrelatedSessionDoesNotRepost(t *testing.T) {
-	h, pool, _, fake := attachmentTestHandler(t)
+	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
 	owner := attachmentInsertOwner(t, ctx, pool, 993009)
 	defer cleanupOwners(t, ctx, pool, owner)
@@ -261,6 +262,7 @@ func TestPublishedUnrelatedSessionDoesNotRepost(t *testing.T) {
 	repoName := "publish-noop-" + fmt.Sprintf("%d", time.Now().UnixNano())[:8]
 	attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
 	sha := "eee1234000000000000000000000000000000027"
+	attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
 
 	fake.setPullRequest(sha, 993009)
 	fake.setPullCommits(sha)
@@ -268,9 +270,16 @@ func TestPublishedUnrelatedSessionDoesNotRepost(t *testing.T) {
 	if err := dispatchEvent(t, h, "issue_comment", issueCommentEvent(repoName, 34, 993009, "NONE", "/peasant attach")); err != nil {
 		t.Fatal(err)
 	}
+	// Attach it before publishing, or the attachment would not be in a state the
+	// hook considers and the publish below would never reach the branch this test
+	// claims to cover.
+	attachmentConfirm(t, h, owner, "acme", repoName, 34)
 	attached, err := h.queries.GetPullRequestAttachmentForPull(ctx, sqlc.GetPullRequestAttachmentForPullParams{Lower: "acme", Lower_2: repoName, Number: 34})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if attached.State != "attached" {
+		t.Fatalf("state = %q before the unrelated publish, want attached: an attachment that never attached cannot prove what a publish does to one", attached.State)
 	}
 	fake.mu.Lock()
 	editsBefore := fake.commentEdits
@@ -294,5 +303,58 @@ func TestPublishedUnrelatedSessionDoesNotRepost(t *testing.T) {
 	fake.mu.Unlock()
 	if editsAfter != editsBefore {
 		t.Fatalf("an unrelated publish edited the comment %d times, want none", editsAfter-editsBefore)
+	}
+}
+
+// TestPublishedTranscriptDoesNotAnswerForAPendingPreview pins the other half of
+// the waiting carve-out: a publish completes a WAITING request, but it must not
+// answer a preview the author has been shown and has not confirmed.
+//
+// Two independent things stop it: the hook only considers waiting and attached
+// attachments, and the direct-attach path requires the waiting state. This pins
+// the guarantee they serve — a publish leaves a preview alone.
+func TestPublishedTranscriptDoesNotAnswerForAPendingPreview(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 993013)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "publish-preview-" + fmt.Sprintf("%d", time.Now().UnixNano())[:8]
+	attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	sha := "eee1234000000000000000000000000000000031"
+	attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
+
+	// A click previews, because a transcript already matches.
+	fake.setPullRequest(sha, 993013)
+	fake.setPullCommits(sha)
+	h.githubDispatcher = promptCommandDispatcher{h: h}
+	if err := dispatchEvent(t, h, "issue_comment", issueCommentEvent(repoName, 41, 993013, "NONE", "/peasant attach")); err != nil {
+		t.Fatalf("dispatch the attach comment: %v", err)
+	}
+	before, err := h.queries.GetPullRequestAttachmentForPull(ctx, sqlc.GetPullRequestAttachmentForPullParams{Lower: "acme", Lower_2: repoName, Number: 41})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.State != "preview" {
+		t.Fatalf("state = %q after the click, want preview", before.State)
+	}
+
+	code, body := attachmentPublish(t, h, owner, "attachment-owner", "git@github.com:acme/"+repoName+".git", sha)
+	if code != http.StatusCreated {
+		t.Fatalf("publish status = %d (%s), want 201", code, body)
+	}
+
+	after, err := h.queries.GetPullRequestAttachment(ctx, before.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.State != "preview" {
+		t.Fatalf("state = %q after a publish, want preview: the author has been asked and has not answered, so a publish must not answer for them", after.State)
+	}
+	fake.mu.Lock()
+	comments := fake.commentCreates
+	fake.mu.Unlock()
+	if comments != 0 {
+		t.Fatalf("comment creates = %d after a publish over a pending preview, want 0: nothing is posted before the author confirms", comments)
 	}
 }

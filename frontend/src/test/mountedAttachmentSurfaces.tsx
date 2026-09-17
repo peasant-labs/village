@@ -5,18 +5,17 @@ import { afterEach, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import PullRequestPage from "@/app/pulls/[owner]/[name]/[number]/page";
 import GroupSettingsPage from "@/app/groups/[id]/settings/page";
-import UserProfilePage from "@/app/users/[username]/page";
 import type { PromptDigest, VillagePullRequestAttachmentResponse } from "@peasant-labs/schema";
 
 /**
- * Mount support for the real routes this change touches: the pull request page,
- * the collective settings page, and the signed-in user's own profile rail, with
- * REST stubbed at `fetch` and every outbound request recorded so a test asserts
- * the route a control hit rather than inspecting a mutation object.
+ * Mount support for the real routes this change touches: the pull request page
+ * and the collective settings page, with REST stubbed at `fetch` and every
+ * outbound request recorded so a test asserts the route a control hit rather
+ * than inspecting a mutation object.
  *
  * The pull request page reads everything it needs from its own payload, so it
- * mounts without an auth provider; the two settings surfaces read the caller, so
- * they mount inside the provider the app mounts them in.
+ * mounts without an auth provider; the settings surface reads the caller, so it
+ * mounts inside the provider the app mounts it in.
  */
 
 /** One recorded outbound request. */
@@ -263,74 +262,6 @@ export async function renderGroupSettingsRoute(id: string): Promise<void> {
   });
 }
 
-// ---------------------------------------------------------------------------
-// The signed-in user's own profile
-// ---------------------------------------------------------------------------
-
-export interface ProfileSettingsFixture {
-  username: string;
-  previewBeforeAttach: boolean;
-}
-
-export function installProfileSettingsREST(fixture: ProfileSettingsFixture): RecordedRequest[] {
-  const requests: RecordedRequest[] = [];
-  let settings = { preview_before_attach: fixture.previewBeforeAttach };
-  const user = {
-    id: "33333333-3333-3333-3333-333333333333",
-    github_username: fixture.username,
-    display_name: fixture.username,
-    avatar_url: "",
-    is_discoverable: true,
-    created_at: "2026-01-01T00:00:00Z",
-  };
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
-    const method = (init?.method ?? "GET").toUpperCase();
-    let body: unknown = null;
-    if (typeof init?.body === "string") {
-      try {
-        body = JSON.parse(init.body);
-      } catch {
-        body = init.body;
-      }
-    }
-    requests.push({ method, url, body });
-
-    if (url.endsWith("/users/me/settings")) {
-      if (method === "PATCH") {
-        settings = { preview_before_attach: Boolean((body as { preview_before_attach?: boolean })?.preview_before_attach) };
-      }
-      return json(settings);
-    }
-    if (url.endsWith("/auth/me")) {
-      return json(user);
-    }
-    if (url.includes("/transcripts")) {
-      return json({ transcripts: [], total: 0, agent_total: 0 });
-    }
-    if (url.includes("/users/")) {
-      return json(user);
-    }
-    if (url.includes("/collectives")) {
-      return json({ collectives: [] });
-    }
-    throw new Error(`profile fixture received an unexpected ${method} request to ${url}`);
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return requests;
-}
-
-export async function renderProfileSettingsRoute(username: string): Promise<void> {
-  await act(async () => {
-    render(
-      <WithAuth>
-        <UserProfilePage params={Promise.resolve({ username })} />
-      </WithAuth>,
-    );
-  });
-}
-
-/** Shared teardown: unmount, drop the `fetch` stub, reset the document theme. */
 export function installAttachmentSurfacesTeardown(): void {
   afterEach(() => {
     cleanup();
