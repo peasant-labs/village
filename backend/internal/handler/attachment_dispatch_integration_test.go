@@ -72,9 +72,9 @@ func pullRequestEvent(repoName string, number int, authorID int64, headSHA strin
 	}`, number, number, authorID, headSHA, repoName, repoName, repoName, authorID)
 }
 
-// TestIssueCommentFromAuthorAttaches_RealPostgres is the command path end to
+// TestIssueCommentFromAuthorPreviews_RealPostgres is the command path end to
 // end: the author comments `/peasant attach` and the accepted transcript is
-// attached, shared, and posted for.
+// previewed — nothing widened, nothing posted — until the author confirms.
 func TestIssueCommentFromAuthorPreviews_RealPostgres(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
@@ -192,8 +192,8 @@ func TestIssueCommentFromStrangerIsIgnored(t *testing.T) {
 	}
 }
 
-// TestCheckRunButtonAttachesForTheAuthor proves the check run's own buttons reach
-// the same policy as a comment.
+// TestCheckRunButtonPreviewsForTheAuthor proves the check run's own buttons reach
+// the same policy as a comment: a click asks first.
 func TestCheckRunButtonPreviewsForTheAuthor(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()

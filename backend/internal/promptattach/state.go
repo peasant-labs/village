@@ -28,8 +28,8 @@ const (
 	Waiting State = "waiting"
 
 	// Preview: the digest is computed, but nothing is posted and no visibility
-	// changed. A public repository or the author's preview_before_attach setting
-	// lands here; confirm on Village moves it to Attached.
+	// changed. Every author action lands here; a confirm on Village moves it to
+	// Attached, and only a publish may complete a waiting request without one.
 	Preview State = "preview"
 
 	// Attached: the comment is posted, the check is green, and the transcripts

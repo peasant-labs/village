@@ -254,7 +254,7 @@ func TestPublishedAcceptedSessionRefreshesAnAttachedAttachment(t *testing.T) {
 // TestPublishedUnrelatedSessionDoesNotRepost proves the other half: an unrelated
 // publish on an attached pull request does not edit the digest at all.
 func TestPublishedUnrelatedSessionDoesNotRepost(t *testing.T) {
-	h, pool, _, fake := attachmentTestHandler(t)
+	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
 	owner := attachmentInsertOwner(t, ctx, pool, 993009)
 	defer cleanupOwners(t, ctx, pool, owner)
@@ -262,6 +262,7 @@ func TestPublishedUnrelatedSessionDoesNotRepost(t *testing.T) {
 	repoName := "publish-noop-" + fmt.Sprintf("%d", time.Now().UnixNano())[:8]
 	attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
 	sha := "eee1234000000000000000000000000000000027"
+	attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
 
 	fake.setPullRequest(sha, 993009)
 	fake.setPullCommits(sha)
@@ -269,9 +270,16 @@ func TestPublishedUnrelatedSessionDoesNotRepost(t *testing.T) {
 	if err := dispatchEvent(t, h, "issue_comment", issueCommentEvent(repoName, 34, 993009, "NONE", "/peasant attach")); err != nil {
 		t.Fatal(err)
 	}
+	// Attach it before publishing, or the attachment would not be in a state the
+	// hook considers and the publish below would never reach the branch this test
+	// claims to cover.
+	attachmentConfirm(t, h, owner, "acme", repoName, 34)
 	attached, err := h.queries.GetPullRequestAttachmentForPull(ctx, sqlc.GetPullRequestAttachmentForPullParams{Lower: "acme", Lower_2: repoName, Number: 34})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if attached.State != "attached" {
+		t.Fatalf("state = %q before the unrelated publish, want attached: an attachment that never attached cannot prove what a publish does to one", attached.State)
 	}
 	fake.mu.Lock()
 	editsBefore := fake.commentEdits
@@ -302,9 +310,9 @@ func TestPublishedUnrelatedSessionDoesNotRepost(t *testing.T) {
 // the waiting carve-out: a publish completes a WAITING request, but it must not
 // answer a preview the author has been shown and has not confirmed.
 //
-// The hook only considers waiting and attached attachments, so a publish cannot
-// confirm on the author's behalf — the guarantee this asserts. It is cheap now
-// and would be invisible if that state filter were ever widened.
+// Two independent things stop it: the hook only considers waiting and attached
+// attachments, and the direct-attach path requires the waiting state. This pins
+// the guarantee they serve — a publish leaves a preview alone.
 func TestPublishedTranscriptDoesNotAnswerForAPendingPreview(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
