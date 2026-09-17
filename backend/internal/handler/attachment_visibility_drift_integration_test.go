@@ -108,6 +108,9 @@ func TestNarrowingAnAttachedTranscriptStopsAdvertisingIt_RealPostgres(t *testing
 	if !strings.Contains(fake.lastCheckText, "no longer listed here") {
 		t.Errorf("the check must say a row is gone; summary=%s", fake.lastCheckText)
 	}
+	if strings.Contains(fake.lastCheckText, "author") {
+		t.Errorf("the check must not attribute the change to anyone; summary=%s", fake.lastCheckText)
+	}
 
 	// The binding survives, so detach can still restore what it recorded.
 	binding, err := h.queries.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{AttachmentID: attachment.ID, TranscriptID: transcriptID})

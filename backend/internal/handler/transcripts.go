@@ -701,6 +701,25 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 
 		return nil
 	})
+	// A republish narrows the transcript before replacing its content, and that
+	// narrowing is part of what just committed — including on the paths below
+	// that report a failure after the closure returned nil (a blob write that
+	// fails writes its own response, so the work already done is committed).
+	// The attachments that advertise this transcript are therefore refreshed on
+	// the way out, whatever this handler answers, rather than only on the happy
+	// path: a retry finds the transcript already private and would never fire
+	// the owner-change trigger.
+	//
+	// This runs at return, so a waiting attachment is completed first and the
+	// refresh sees the state completion left behind. (Completion may widen the
+	// transcript back: a pending request is completed by the publish.)
+	if narrowedForRepublish {
+		defer func() {
+			if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), transcript.ID); refreshErr != nil {
+				log.Printf("pull request attachment refresh after a republish narrowing failed: %v", refreshErr)
+			}
+		}()
+	}
 	if err != nil {
 		if candidateWritten {
 			emitBlobReconciliation("publish", candidateID, candidate, TransactionCommitAmbiguous)
@@ -724,14 +743,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 			log.Printf("pull request attachment completion after publish failed: %v", err)
 		}
 	}
-	// After the completion, so a waiting attachment completes first and then
-	// sees the narrowing: a republish that made this transcript private must not
-	// leave a pull request advertising it.
-	if narrowedForRepublish {
-		if err := h.refreshAttachmentsForTranscriptVisibility(r.Context(), transcript.ID); err != nil {
-			log.Printf("pull request attachment refresh after a republish narrowing failed: %v", err)
-		}
-	}
+	_ = narrowedForRepublish
 
 	// Note: Tags are not part of schema.PublishRequest in the new wire format
 	// Tags linking is deferred to a future enhancement
@@ -1110,8 +1122,18 @@ func (h *Handler) UpdateTranscript(w http.ResponseWriter, r *http.Request) {
 	// axis actually moved (its WHEN clause is the no-op suppression).
 	var updated sqlc.Transcript
 	var tags []sqlc.Tag
+	// The visibility this transaction replaces, read under the lock it takes.
+	// The handler's own read above happened before the lock, so a second update
+	// serialized between them could make it stale — and the refresh below
+	// depends on knowing whether this change crossed anything.
+	var lockedVisibility string
 	err = h.withPublishLocks(r.Context(), user.PgID(), transcript.LocalID, nil, func(conn *pgxpool.Conn) error {
 		return h.inTxAsOnConn(r.Context(), conn, user.PgID(), func(q Querier) error {
+			pre, preErr := q.GetTranscriptGovernanceForUpdate(r.Context(), pgID)
+			if preErr != nil {
+				return preErr
+			}
+			lockedVisibility = pre.Visibility
 			var txErr error
 			updated, txErr = applyMetadataPatch(r.Context(), q, pgID, patch)
 			if txErr != nil {
@@ -1149,7 +1171,7 @@ func (h *Handler) UpdateTranscript(w http.ResponseWriter, r *http.Request) {
 	// It must not fail the update the owner asked for: a GitHub failure is
 	// logged and the next refresh retries, which is the publish hook's
 	// discipline too.
-	if patch.Visibility != nil && updated.Visibility != transcript.Visibility {
+	if patch.Visibility != nil && updated.Visibility != lockedVisibility {
 		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), pgID); refreshErr != nil {
 			log.Printf("pull request attachment refresh after a visibility change failed: %v", refreshErr)
 		}
