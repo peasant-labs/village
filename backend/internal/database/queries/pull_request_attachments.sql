@@ -148,3 +148,13 @@ UPDATE pull_request_attachments
 SET requester_github_id = @requester_github_id, updated_at = now()
 WHERE id = @id
 RETURNING *;
+
+-- name: ListAttachmentsBindingTranscript :many
+-- The attachments that bind one transcript. The owner's visibility change reads
+-- them so an attachment stops advertising prompts that are no longer as visible
+-- as the repository it belongs to requires. Only attached attachments can be
+-- advertising anything.
+SELECT a.* FROM pull_request_attachments a
+JOIN pull_request_attachment_transcripts pt ON pt.attachment_id = a.id
+WHERE pt.transcript_id = @transcript_id AND a.state = 'attached'
+ORDER BY a.id ASC;
