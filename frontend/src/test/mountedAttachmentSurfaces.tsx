@@ -73,13 +73,43 @@ export interface PullRequestFixture {
   confirmMessage?: string;
 }
 
-/** A minimal but complete digest, so every branch of the renderer is exercised. */
-export function makeDigest(): PromptDigest {
-  const transcriptId = "11111111-1111-1111-1111-111111111111";
+/**
+ * A minimal but complete digest, so every branch of the renderer is exercised.
+ * It advertises one transcript per id it is given, because the page decides a
+ * row is "not available" by asking whether the digest still carries its id.
+ */
+export function makeDigest(
+  transcriptIds: string[] = ["11111111-1111-1111-1111-111111111111"],
+): PromptDigest {
   const timestamp = "2026-01-01T00:00:00Z";
+  const items: PromptDigest["items"] = [];
+  transcriptIds.forEach((transcriptId, index) => {
+    items.push(
+      { kind: "session", transcriptId, timestamp, text: `session ${index + 1}`, promptCount: 2, commitCount: 1 },
+      {
+        kind: "prompt",
+        transcriptId,
+        timestamp,
+        text: index === 0 ? "please add the picker" : `prompt for ${transcriptId}`,
+        ordinal: 1,
+        turnIndex: 0,
+      },
+      { kind: "skill", transcriptId, timestamp, text: "/commit", args: "-m seed", turnIndex: 1 },
+      {
+        kind: "commit",
+        transcriptId,
+        timestamp,
+        text: "abc1234",
+        commitSha: "abc1234000000000000000000000000000000001",
+        additions: 3,
+        deletions: 1,
+        filesChanged: 2,
+      },
+    );
+  });
   return {
     header: {
-      sessionCount: 1,
+      sessionCount: transcriptIds.length,
       promptCount: 2,
       commitsCovered: 1,
       commitsTotal: 2,
@@ -88,12 +118,7 @@ export function makeDigest(): PromptDigest {
       villageUrl: "https://village.test",
     },
     skills: [{ name: "commit", invocationCount: 1 }],
-    items: [
-      { kind: "session", transcriptId, timestamp, text: "session 1", promptCount: 2, commitCount: 1 },
-      { kind: "prompt", transcriptId, timestamp, text: "please add the picker", ordinal: 1, turnIndex: 0 },
-      { kind: "skill", transcriptId, timestamp, text: "/commit", args: "-m seed", turnIndex: 1 },
-      { kind: "commit", transcriptId, timestamp, text: "abc1234", commitSha: "abc1234000000000000000000000000000000001", additions: 3, deletions: 1, filesChanged: 2 },
-    ],
+    items,
   };
 }
 

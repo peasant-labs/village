@@ -909,6 +909,9 @@ const server = createServer((req, res) => {
       transcripts: [
         { transcript_id: '11111111-1111-1111-1111-111111111111', position: 0, previous_visibility: 'private', title: 'attachment lifecycle', session_start: '2026-06-28T11:00:00Z' },
         { transcript_id: '22222222-2222-2222-2222-222222222222', position: 1, previous_visibility: 'private', title: 'pull request page', session_start: '2026-06-28T12:00:00Z' },
+        // Bound, but advertised by no digest item above: the capture exercises
+        // the mark the page shows for a transcript the digest no longer lists.
+        { transcript_id: '33333333-3333-3333-3333-333333333333', position: 2, previous_visibility: 'private', title: 'prompt request hint', session_start: '2026-06-28T13:00:00Z' },
       ],
       viewer_is_author: true,
     })

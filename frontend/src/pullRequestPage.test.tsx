@@ -41,19 +41,14 @@ function fixtureFor(
       confirmed_at: null,
       detached_at: null,
     },
-    digest: row.digest === "present" ? makeDigest() : null,
-    transcripts:
-      row.state === "attached"
-        ? [
-            {
-              transcript_id: "11111111-1111-1111-1111-111111111111",
-              position: 0,
-              previous_visibility: "private",
-              title: "picker work",
-              session_start: "2026-01-01T00:00:00Z",
-            },
-          ]
-        : [],
+    digest: row.digest === "present" ? makeDigest(row.digest_transcript_ids) : null,
+    transcripts: row.transcript_ids.map((transcriptId, index) => ({
+      transcript_id: transcriptId,
+      position: index,
+      previous_visibility: "private",
+      title: index === 0 ? "picker work" : `session ${index + 1}`,
+      session_start: "2026-01-01T00:00:00Z",
+    })),
     confirmStatus: row.confirm_status ?? undefined,
     confirmMessage: "This pull request is not in a state that allows that action",
   };
@@ -81,6 +76,13 @@ describe("the pull request page", () => {
         expect(document.querySelector(".pd")).toBeNull();
         expect(screen.getByText(/shown to the pull request's author/)).toBeTruthy();
       }
+
+      // A bound transcript the digest no longer advertises is marked, and only
+      // that one: the reader is told something is missing without being told
+      // which transcript or why.
+      expect(screen.queryAllByText("not available").length).toBe(
+        row.expect_unavailable_marks,
+      );
 
       // Confirm and detach appear only where the state and the viewer allow.
       expect(screen.queryByTestId("confirm-attachment") !== null).toBe(row.expect_confirm);

@@ -16,6 +16,8 @@ const REQUIRED_CASE_NAMES = [
   "confirm refused with a conflict",
   "non-author viewing an attached digest",
   "non-author viewing a preview without a digest",
+  "a bound transcript the digest no longer advertises",
+  "an attached attachment with no digest marks nothing",
 ] as const;
 
 export interface PullRequestPageCase {
@@ -23,6 +25,9 @@ export interface PullRequestPageCase {
   viewer_is_author: boolean;
   state: "requested" | "waiting" | "preview" | "attached" | "detached";
   digest: "present" | "absent";
+  transcript_ids: string[];
+  digest_transcript_ids: string[];
+  expect_unavailable_marks: number;
   confirm_status: number | null;
   expect_confirm: boolean;
   expect_detach: boolean;
@@ -33,6 +38,9 @@ const CASE_FIELDS = [
   "viewer_is_author",
   "state",
   "digest",
+  "transcript_ids",
+  "digest_transcript_ids",
+  "expect_unavailable_marks",
   "confirm_status",
   "expect_confirm",
   "expect_detach",

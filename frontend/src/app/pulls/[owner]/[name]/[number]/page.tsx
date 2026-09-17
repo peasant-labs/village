@@ -2,8 +2,8 @@
 
 import { use } from "react";
 import Link from "next/link";
-import { Check, Layers, Unlink } from "lucide-react";
-import { Button, EmptyState, PromptDigest, Tag } from "@/lib/ft-ui";
+import { Check, Info, Layers, Unlink } from "lucide-react";
+import { Button, EmptyState, PromptDigest, Tag, Tooltip } from "@/lib/ft-ui";
 import { isApiErrorStatus } from "@/lib/api";
 import {
   useConfirmPullRequestAttachment,
@@ -111,6 +111,14 @@ export default function PullRequestPage({
 
   const data = attachment.data;
   const state = data.attachment.state;
+  // A transcript is "advertised" when the digest still carries an item for it.
+  // The digest is built from every bound transcript and gives each one a session
+  // item, so a row the digest no longer lists is a row it dropped. A missing
+  // digest means there is nothing to compare against, so nothing is marked:
+  // silence is the only safe direction when the evidence is absent.
+  const advertisedTranscriptIds = data.digest
+    ? new Set(data.digest.items.map((item) => item.transcriptId))
+    : null;
   const viewerIsAuthor = data.viewer_is_author;
   // The last action to fail is what the reader needs to see; a success clears
   // the other mutation's error so a stale message cannot outlive the attempt it
@@ -205,7 +213,10 @@ export default function PullRequestPage({
       )}
 
       {data.transcripts.length > 0 && (
-        <AttachedTranscripts transcripts={data.transcripts} />
+        <AttachedTranscripts
+          transcripts={data.transcripts}
+          advertisedTranscriptIds={advertisedTranscriptIds}
+        />
       )}
     </div>
   );
@@ -213,8 +224,10 @@ export default function PullRequestPage({
 
 function AttachedTranscripts({
   transcripts,
+  advertisedTranscriptIds,
 }: {
   transcripts: VillagePullRequestAttachedTranscript[];
+  advertisedTranscriptIds: Set<string> | null;
 }) {
   return (
     <section className="border border-rule bg-surface" aria-label="attached transcripts">
@@ -236,8 +249,28 @@ function AttachedTranscripts({
             >
               {transcript.title ?? transcript.transcript_id}
             </Link>
-            <span className="text-xs font-mono text-ink-3 tabular-nums shrink-0">
-              visibility before attach: {transcript.previous_visibility}
+            <span className="flex shrink-0 items-center gap-3">
+              {advertisedTranscriptIds !== null &&
+                !advertisedTranscriptIds.has(transcript.transcript_id) && (
+                  <span className="flex items-center gap-1 text-xs font-mono lowercase text-ink-3">
+                    not available
+                    <Tooltip
+                      content="this transcript is attached, but the digest no longer lists it. the prompts behind it may have been withdrawn, or the digest may predate them."
+                      id={`transcript-not-available-${transcript.transcript_id}`}
+                    >
+                      <button
+                        type="button"
+                        aria-label="why this transcript is not listed in the digest"
+                        className="cursor-help text-ink-3 hover:text-ink focus-mono"
+                      >
+                        <Info className="size-3.5" aria-hidden="true" />
+                      </button>
+                    </Tooltip>
+                  </span>
+                )}
+              <span className="text-xs font-mono text-ink-3 tabular-nums">
+                visibility before attach: {transcript.previous_visibility}
+              </span>
             </span>
           </li>
         ))}

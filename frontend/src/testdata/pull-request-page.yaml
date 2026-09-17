@@ -3,11 +3,21 @@
 # where the state and the viewer allow it; a refused action shows the server's
 # message rather than a crash. Cases are named in the loader's manifest, so a
 # removed row fails rather than shrinking the corpus.
+#
+# transcript_ids are the attachment's bound transcripts; digest_transcript_ids
+# are the ones the stored digest still advertises. A bound transcript the digest
+# does not advertise is what the page marks "not available", so those two
+# columns, not the state, decide the marking.
 cases:
   - name: author viewing an attached digest
     viewer_is_author: true
     state: attached
     digest: present
+    transcript_ids:
+      - "11111111-1111-1111-1111-111111111111"
+    digest_transcript_ids:
+      - "11111111-1111-1111-1111-111111111111"
+    expect_unavailable_marks: 0
     confirm_status: null
     expect_confirm: false
     expect_detach: true
@@ -16,6 +26,10 @@ cases:
     viewer_is_author: true
     state: preview
     digest: present
+    transcript_ids: []
+    digest_transcript_ids:
+      - "11111111-1111-1111-1111-111111111111"
+    expect_unavailable_marks: 0
     confirm_status: null
     expect_confirm: true
     expect_detach: true
@@ -24,6 +38,11 @@ cases:
     viewer_is_author: false
     state: attached
     digest: present
+    transcript_ids:
+      - "11111111-1111-1111-1111-111111111111"
+    digest_transcript_ids:
+      - "11111111-1111-1111-1111-111111111111"
+    expect_unavailable_marks: 0
     confirm_status: null
     expect_confirm: false
     expect_detach: false
@@ -32,6 +51,9 @@ cases:
     viewer_is_author: false
     state: preview
     digest: absent
+    transcript_ids: []
+    digest_transcript_ids: []
+    expect_unavailable_marks: 0
     confirm_status: null
     expect_confirm: false
     expect_detach: false
@@ -40,6 +62,36 @@ cases:
     viewer_is_author: true
     state: preview
     digest: present
+    transcript_ids: []
+    digest_transcript_ids:
+      - "11111111-1111-1111-1111-111111111111"
+    expect_unavailable_marks: 0
     confirm_status: 409
     expect_confirm: true
     expect_detach: true
+
+  - name: a bound transcript the digest no longer advertises
+    viewer_is_author: true
+    state: attached
+    digest: present
+    transcript_ids:
+      - "11111111-1111-1111-1111-111111111111"
+      - "22222222-2222-2222-2222-222222222222"
+    digest_transcript_ids:
+      - "11111111-1111-1111-1111-111111111111"
+    expect_unavailable_marks: 1
+    confirm_status: null
+    expect_confirm: false
+    expect_detach: true
+
+  - name: an attached attachment with no digest marks nothing
+    viewer_is_author: false
+    state: attached
+    digest: absent
+    transcript_ids:
+      - "11111111-1111-1111-1111-111111111111"
+    digest_transcript_ids: []
+    expect_unavailable_marks: 0
+    confirm_status: null
+    expect_confirm: false
+    expect_detach: false
