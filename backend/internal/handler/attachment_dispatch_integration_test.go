@@ -75,7 +75,7 @@ func pullRequestEvent(repoName string, number int, authorID int64, headSHA strin
 // TestIssueCommentFromAuthorAttaches_RealPostgres is the command path end to
 // end: the author comments `/peasant attach` and the accepted transcript is
 // attached, shared, and posted for.
-func TestIssueCommentFromAuthorAttaches_RealPostgres(t *testing.T) {
+func TestIssueCommentFromAuthorPreviews_RealPostgres(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
 	owner := attachmentInsertOwner(t, ctx, pool, 993001)
@@ -98,8 +98,8 @@ func TestIssueCommentFromAuthorAttaches_RealPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the author's comment created no attachment: %v", err)
 	}
-	if attachment.State != "attached" {
-		t.Fatalf("state = %q, want attached for a private repository without a preview preference", attachment.State)
+	if attachment.State != "preview" {
+		t.Fatalf("state = %q, want preview: a person's click asks the author to confirm before any visibility changes", attachment.State)
 	}
 	if !attachment.GroupID.Valid || attachment.GroupID != groupID {
 		t.Fatalf("attachment group = %v, want the linking collective", attachment.GroupID)
@@ -108,14 +108,14 @@ func TestIssueCommentFromAuthorAttaches_RealPostgres(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT visibility FROM transcripts WHERE id = $1", transcriptID).Scan(&visibility); err != nil {
 		t.Fatal(err)
 	}
-	if visibility != "shared" {
-		t.Fatalf("visibility = %q, want shared", visibility)
+	if visibility != "private" {
+		t.Fatalf("visibility = %q before the author confirmed, want private: a preview widens and shares nothing", visibility)
 	}
 	fake.mu.Lock()
 	comments, checks := fake.commentCreates, fake.checkCreates
 	fake.mu.Unlock()
-	if comments != 1 || checks != 1 {
-		t.Fatalf("comment creates = %d and check creates = %d, want one each", comments, checks)
+	if comments != 0 || checks != 0 {
+		t.Fatalf("comment creates = %d and check creates = %d before the author confirmed, want none: nothing is posted until they do", comments, checks)
 	}
 }
 
@@ -194,7 +194,7 @@ func TestIssueCommentFromStrangerIsIgnored(t *testing.T) {
 
 // TestCheckRunButtonAttachesForTheAuthor proves the check run's own buttons reach
 // the same policy as a comment.
-func TestCheckRunButtonAttachesForTheAuthor(t *testing.T) {
+func TestCheckRunButtonPreviewsForTheAuthor(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
 	owner := attachmentInsertOwner(t, ctx, pool, 993004)
@@ -216,8 +216,8 @@ func TestCheckRunButtonAttachesForTheAuthor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the button created no attachment: %v", err)
 	}
-	if attachment.State != "attached" {
-		t.Fatalf("state = %q, want attached", attachment.State)
+	if attachment.State != "preview" {
+		t.Fatalf("state = %q, want preview: the button asks the author to confirm like every other click", attachment.State)
 	}
 }
 
@@ -236,13 +236,15 @@ func TestPullRequestPushRefreshesAnAttachedAttachment(t *testing.T) {
 	next := "fff1234000000000000000000000000000000014"
 	transcriptID := attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
 
-	// Attach first through the author's comment.
+	// Preview through the author's comment, then confirm, which is how an
+	// attachment becomes attached: a click asks first.
 	fake.setPullRequest(sha, 993005)
 	fake.setPullCommits(sha)
 	h.githubDispatcher = promptCommandDispatcher{h: h}
 	if err := dispatchEvent(t, h, "issue_comment", issueCommentEvent(repoName, 25, 993005, "NONE", "/peasant attach")); err != nil {
 		t.Fatal(err)
 	}
+	attachmentConfirm(t, h, owner, "acme", repoName, 25)
 	attached, err := h.queries.GetPullRequestAttachmentForPull(ctx, sqlc.GetPullRequestAttachmentForPullParams{Lower: "acme", Lower_2: repoName, Number: 25})
 	if err != nil {
 		t.Fatal(err)
@@ -340,6 +342,7 @@ func TestCheckRunRefreshButtonRecomputes(t *testing.T) {
 	if err := dispatchEvent(t, h, "issue_comment", issueCommentEvent(repoName, 51, 993010, "NONE", "/peasant attach")); err != nil {
 		t.Fatal(err)
 	}
+	attachmentConfirm(t, h, owner, "acme", repoName, 51)
 	attached, err := h.queries.GetPullRequestAttachmentForPull(ctx, sqlc.GetPullRequestAttachmentForPullParams{Lower: "acme", Lower_2: repoName, Number: 51})
 	if err != nil {
 		t.Fatal(err)
@@ -431,15 +434,15 @@ func TestForkPullRequestMatchesTheHeadRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored.State != "attached" {
-		t.Fatalf("state = %q, want attached: the fork head remote must be matchable", stored.State)
+	if stored.State != "preview" {
+		t.Fatalf("state = %q, want preview: the fork head remote must be matchable, and a click still asks first", stored.State)
 	}
 	var visibility string
 	if err := pool.QueryRow(ctx, "SELECT visibility FROM transcripts WHERE id = $1", transcriptID).Scan(&visibility); err != nil {
 		t.Fatal(err)
 	}
-	if visibility != "shared" {
-		t.Fatalf("visibility = %q, want shared", visibility)
+	if visibility != "private" {
+		t.Fatalf("visibility = %q before the author confirmed, want private", visibility)
 	}
 	_ = fake
 }

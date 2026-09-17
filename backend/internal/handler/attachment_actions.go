@@ -166,15 +166,22 @@ func (h *Handler) applyPromptCommand(ctx context.Context, command matcher.Comman
 		_, err := h.detachAttachment(ctx, attachment)
 		return err
 	case matcher.CommandAttach:
-		return h.authorAttachOrPreview(ctx, attachment, repo)
+		return h.authorAttachOrPreview(ctx, attachment, repo, false)
 	default:
 		return nil
 	}
 }
 
-// authorAttachOrPreview applies the author's click: attach directly, stop at a
-// preview, or record a wait when nothing is accepted yet.
-func (h *Handler) authorAttachOrPreview(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository) error {
+// authorAttachOrPreview applies the author's click: stop at a preview for the
+// author to confirm, or record a wait when nothing is accepted yet.
+//
+// publishDriven marks the one caller that is not a person: the hook running the
+// author's own push. That path completes a waiting request directly, because the
+// author's publish is the consent and a hook has no page to confirm on.
+// Everything a person clicks previews, on every repository — attaching widens
+// the transcripts' visibility, and a private repository's audience is no more
+// obvious than a public one's.
+func (h *Handler) authorAttachOrPreview(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, publishDriven bool) error {
 	match, commitSet, err := h.matchAttachmentCandidates(ctx, attachment, repo)
 	if err != nil {
 		return err
@@ -191,11 +198,10 @@ func (h *Handler) authorAttachOrPreview(ctx context.Context, attachment sqlc.Pul
 		return err
 	}
 
-	user, err := h.queries.GetUserByID(ctx, attachment.AuthorID)
-	if err != nil {
-		return fmt.Errorf("could not read the author's settings: %w", err)
-	}
-	if repo.isPrivate && !user.PreviewBeforeAttach {
+	// A publish completes a WAITING request without a second click. A preview is
+	// different: the author has been asked and has not answered, so a publish
+	// refreshes what they are being asked about rather than answering for them.
+	if publishDriven && promptattach.State(attachment.State) == promptattach.Waiting {
 		if _, err := h.attachAcceptedAndPost(ctx, attachment); err != nil {
 			return err
 		}
@@ -219,8 +225,12 @@ func (h *Handler) previewWithMatch(ctx context.Context, attachment sqlc.PullRequ
 	if err := h.queries.SetPullRequestAttachmentDigest(ctx, sqlc.SetPullRequestAttachmentDigestParams{ID: attachment.ID, Digest: encoded}); err != nil {
 		return fmt.Errorf("could not store the preview digest: %w", err)
 	}
-	_, err = promptattach.Transition(ctx, h.queries, attachment.ID, promptattach.Preview)
-	return err
+	if promptattach.State(attachment.State) != promptattach.Preview {
+		if _, err := promptattach.Transition(ctx, h.queries, attachment.ID, promptattach.Preview); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // refreshAttachedAttachment recomputes an attached attachment for a new head:
@@ -406,7 +416,7 @@ func (h *Handler) completeAttachmentsForPublishedTranscript(ctx context.Context,
 			if promptattach.State(fresh.State) == promptattach.Attached {
 				return h.refreshAttachedAttachment(ctx, fresh, repo, fresh.HeadSha, false)
 			}
-			return h.authorAttachOrPreview(ctx, fresh, repo)
+			return h.authorAttachOrPreview(ctx, fresh, repo, true)
 		})
 		if err != nil {
 			failures = append(failures, err)
