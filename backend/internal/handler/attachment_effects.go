@@ -51,7 +51,7 @@ func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.Pul
 	for _, accepted := range match.Accepted {
 		acceptedIDs = append(acceptedIDs, accepted.TranscriptID)
 	}
-	value, err := h.buildAttachmentDigest(ctx, acceptedIDs, commitSet, match)
+	value, _, err := h.buildAttachmentDigest(ctx, acceptedIDs, commitSet, match, "")
 	if err != nil {
 		return attachment, err
 	}
@@ -59,7 +59,7 @@ func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.Pul
 	if err := h.widenAttachedTranscripts(ctx, attachment, repo, match.Accepted, 0); err != nil {
 		return attachment, err
 	}
-	commentID, checkRunID, err := h.postAttachment(ctx, attachment, repo, value, false)
+	commentID, checkRunID, err := h.postAttachment(ctx, attachment, repo, value, false, 0)
 	if err != nil {
 		// Posting failed, so undo the widening: an attachment that never
 		// attached must not leave a transcript shared. The retry then starts
@@ -126,10 +126,7 @@ func (h *Handler) widenOneTranscript(ctx context.Context, attachment sqlc.PullRe
 		return errors.New("refusing to widen a transcript the attachment's author does not own")
 	}
 
-	desired := dbVisibilityPublic
-	if repo.isPrivate {
-		desired = dbVisibilityShared
-	}
+	desired := requiredAttachmentVisibility(repo)
 
 	return h.withPublishLocks(ctx, transcript.OwnerID, transcript.LocalID, nil, func(conn *pgxpool.Conn) error {
 		return h.inTxAsOnConn(ctx, conn, transcript.OwnerID, func(q Querier) error {
@@ -164,6 +161,27 @@ func (h *Handler) widenOneTranscript(ctx context.Context, attachment sqlc.PullRe
 			return nil
 		})
 	})
+}
+
+// requiredAttachmentVisibility is the visibility an attachment's repository
+// requires of the transcripts it advertises: public for a public repository,
+// shared with the collective for a private one. The widening path raises
+// transcripts to it, and the refresh path drops rows that have fallen below it.
+func requiredAttachmentVisibility(repo attachmentRepository) string {
+	if repo.isPrivate {
+		return dbVisibilityShared
+	}
+	return dbVisibilityPublic
+}
+
+// attachmentDroppedNote is the line a digest carries when transcripts it used to
+// advertise are no longer available, so a reader learns why a row is gone
+// instead of being left to notice the absence.
+func attachmentDroppedNote(dropped int) string {
+	if dropped == 1 {
+		return "\n_1 transcript is no longer listed here: its author made it less visible than this repository requires._\n"
+	}
+	return fmt.Sprintf("\n_%d transcripts are no longer listed here: their author made them less visible than this repository requires._\n", dropped)
 }
 
 // disclosureRank orders the visibility tiers by how widely they disclose:
@@ -265,7 +283,7 @@ func (h *Handler) undoWidening(ctx context.Context, attachmentID pgtype.UUID, tr
 // postAttachment posts the check (when the collective asked for one) and the one
 // sticky comment, returning the ids to record. A GitHub failure is returned
 // unwrapped so the caller answers 502 with the state unchanged.
-func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, value schema.PromptDigest, headChanged bool) (commentID, checkRunID int64, err error) {
+func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, value schema.PromptDigest, headChanged bool, dropped int) (commentID, checkRunID int64, err error) {
 	if h.gh == nil {
 		return 0, 0, errAttachmentGitHubUnavailable
 	}
@@ -277,6 +295,14 @@ func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullReques
 	summary, err := digest.Render(value, digest.CheckRunTier)
 	if err != nil {
 		return 0, 0, fmt.Errorf("could not render the digest for the check: %w", err)
+	}
+	if dropped > 0 {
+		// The reader is told why a row is gone rather than left to notice the
+		// absence. The note is added after rendering because the digest payload
+		// is the wire contract and carries no such field.
+		note := attachmentDroppedNote(dropped)
+		comment += note
+		summary += note
 	}
 
 	if repo.postCheck {

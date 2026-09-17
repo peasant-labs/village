@@ -208,7 +208,7 @@ func (h *Handler) authorAttachOrPreview(ctx context.Context, attachment sqlc.Pul
 // widening anything, and moves the attachment to preview.
 func (h *Handler) previewWithMatch(ctx context.Context, attachment sqlc.PullRequestAttachment, match matcher.Result, commitSet []string) error {
 	acceptedIDs := acceptedTranscriptIDs(match)
-	value, err := h.buildAttachmentDigest(ctx, acceptedIDs, commitSet, match)
+	value, _, err := h.buildAttachmentDigest(ctx, acceptedIDs, commitSet, match, "")
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,11 @@ func (h *Handler) previewWithMatch(ctx context.Context, attachment sqlc.PullRequ
 // history rather than disappearing), and the comment is edited and the check
 // updated for the new head SHA. An acceptance result that adds nothing leaves
 // the digest as it was rather than posting a changed one.
-func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, headSHA string) error {
+// forceRepost re-renders and reposts even when nothing new was accepted and the
+// head has not moved. The publish and webhook paths leave it false, because an
+// unrelated publish must not edit the comment; the visibility change sets it,
+// because there the edit IS the point.
+func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, headSHA string, forceRepost bool) error {
 	match, commitSet, err := h.matchAttachmentCandidates(ctx, attachment, repo)
 	if err != nil {
 		return err
@@ -253,7 +257,7 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 			newlyAccepted = append(newlyAccepted, accepted)
 		}
 	}
-	if len(newlyAccepted) == 0 && (headSHA == "" || headSHA == attachment.HeadSha) {
+	if len(newlyAccepted) == 0 && !forceRepost && (headSHA == "" || headSHA == attachment.HeadSha) {
 		// Nothing new is accepted and the head did not move: an unrelated
 		// publish must not edit the comment or post the digest again.
 		return nil
@@ -278,7 +282,7 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 		return nil
 	}
 
-	value, err := h.buildAttachmentDigest(ctx, ordered, commitSet, match)
+	value, dropped, err := h.buildAttachmentDigest(ctx, ordered, commitSet, match, requiredAttachmentVisibility(repo))
 	if err != nil {
 		return err
 	}
@@ -288,7 +292,7 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 	scoped := attachment
 	scoped.HeadSha = headSHA
 
-	commentID, checkRunID, err := h.postAttachment(ctx, scoped, repo, value, headSHA != attachment.HeadSha)
+	commentID, checkRunID, err := h.postAttachment(ctx, scoped, repo, value, headSHA != attachment.HeadSha, dropped)
 	if err != nil {
 		if compensateErr := h.undoWidening(ctx, attachment.ID, acceptedTranscriptIDs(matcher.Result{Accepted: newlyAccepted})); compensateErr != nil {
 			return fmt.Errorf("%w: and the widening could not be undone, so a retry will redo both: %v", err, compensateErr)
@@ -319,6 +323,52 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 // attachment completes when the acceptance accepts; an attached one is
 // refreshed. An unrelated transcript accepts nothing and therefore changes
 // nothing.
+// refreshAttachmentsForTranscriptVisibility reposts the attachments that bind a
+// transcript whose owner has just narrowed its visibility, so a pull request
+// stops advertising prompts its readers can no longer open.
+//
+// It is the publish hook's sibling and follows the same discipline: the work
+// runs on a detached, bounded context, each attachment is taken under its own
+// lock and re-read inside it, and failures are collected rather than raised. The
+// owner's update must not fail because GitHub was unreachable; the next refresh
+// retries, exactly as the publish path assumes.
+func (h *Handler) refreshAttachmentsForTranscriptVisibility(ctx context.Context, transcriptID pgtype.UUID) error {
+	attachments, err := h.queries.ListAttachmentsBindingTranscript(ctx, transcriptID)
+	if err != nil {
+		return fmt.Errorf("could not read the attachments binding a transcript whose visibility changed: %w", err)
+	}
+	if len(attachments) == 0 {
+		return nil
+	}
+
+	hookCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), attachmentHookTimeout)
+	defer cancel()
+	ctx = hookCtx
+
+	var failures []error
+	for _, attachment := range attachments {
+		repo, err := h.resolveAttachmentRepository(ctx, h.queries, attachment)
+		if err != nil {
+			// Unbound or unlinked: nothing is advertising anything.
+			continue
+		}
+		err = h.withAttachmentLock(ctx, attachment.ID, func() error {
+			fresh, err := h.queries.GetPullRequestAttachment(ctx, attachment.ID)
+			if err != nil {
+				return err
+			}
+			if promptattach.State(fresh.State) != promptattach.Attached {
+				return nil
+			}
+			return h.refreshAttachedAttachment(ctx, fresh, repo, fresh.HeadSha, true)
+		})
+		if err != nil {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
+}
+
 func (h *Handler) completeAttachmentsForPublishedTranscript(ctx context.Context, owner pgtype.UUID, repoName string) error {
 	if repoName == "" {
 		return nil
@@ -353,7 +403,7 @@ func (h *Handler) completeAttachmentsForPublishedTranscript(ctx context.Context,
 				return err
 			}
 			if promptattach.State(fresh.State) == promptattach.Attached {
-				return h.refreshAttachedAttachment(ctx, fresh, repo, fresh.HeadSha)
+				return h.refreshAttachedAttachment(ctx, fresh, repo, fresh.HeadSha, false)
 			}
 			return h.authorAttachOrPreview(ctx, fresh, repo)
 		})
@@ -387,7 +437,7 @@ func (h *Handler) syncAttachmentForPullRequest(ctx context.Context, pull attachm
 	if err != nil {
 		return err
 	}
-	return h.refreshAttachedAttachment(ctx, attachment, repo, pull.headSHA)
+	return h.refreshAttachedAttachment(ctx, attachment, repo, pull.headSHA, false)
 }
 
 // refreshAttachmentForCommand recomputes an attached attachment and reposts it:
@@ -426,7 +476,7 @@ func (h *Handler) refreshAttachmentForCommand(ctx context.Context, owner, name s
 		if promptattach.State(fresh.State) != promptattach.Attached {
 			return nil
 		}
-		return h.refreshAttachedAttachment(ctx, fresh, repo, pull.headSHA)
+		return h.refreshAttachedAttachment(ctx, fresh, repo, pull.headSHA, false)
 	})
 }
 

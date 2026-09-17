@@ -179,8 +179,13 @@ func (h *Handler) loadAttachmentCandidates(ctx context.Context, authorID pgtype.
 // digest. It reads each accepted transcript's turns through Village's single
 // decrypting read path, and takes its anchor time and change counts from the
 // transcript's own recorded commit, never from the pull request side.
-func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []schema.TranscriptID, commitSet []string, match matcher.Result) (schema.PromptDigest, error) {
+// requiredVisibility, when set, drops every transcript whose current visibility
+// is narrower than it, and counts the rows it dropped. It is set only on the
+// refresh path: an attach or a preview builds the digest it is about to widen
+// for, so filtering there would empty it.
+func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []schema.TranscriptID, commitSet []string, match matcher.Result, requiredVisibility string) (schema.PromptDigest, int, error) {
 	sessions := make([]digest.Session, 0, len(transcriptIDs))
+	dropped := 0
 	var commits []digest.CommitMatch
 
 	anchorsByTranscript := map[schema.TranscriptID][]matcher.Anchor{}
@@ -191,25 +196,33 @@ func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []sch
 	for _, accepted := range transcriptIDs {
 		transcriptID, err := uuid.Parse(string(accepted))
 		if err != nil {
-			return schema.PromptDigest{}, fmt.Errorf("an accepted transcript id was not a uuid: %w", err)
+			return schema.PromptDigest{}, 0, fmt.Errorf("an accepted transcript id was not a uuid: %w", err)
 		}
 		row, err := h.queries.GetTranscriptByID(ctx, pgtype.UUID{Bytes: transcriptID, Valid: true})
 		if err != nil {
-			return schema.PromptDigest{}, fmt.Errorf("could not read an accepted transcript for the digest: %w", err)
+			return schema.PromptDigest{}, 0, fmt.Errorf("could not read an accepted transcript for the digest: %w", err)
+		}
+		if requiredVisibility != "" && disclosureRank(row.Visibility) < disclosureRank(requiredVisibility) {
+			// The owner has made this transcript less visible than the repository
+			// the attachment belongs to requires, so the pull request must stop
+			// advertising it. The binding stays: detach still restores the value
+			// it recorded.
+			dropped++
+			continue
 		}
 
 		read, err := h.readEncryptedTranscript(ctx, row, "", func(candidate sqlc.Transcript) bool {
 			return candidate.ID == row.ID
 		})
 		if err != nil {
-			return schema.PromptDigest{}, fmt.Errorf("could not read an accepted transcript's turns for the digest: %w", err)
+			return schema.PromptDigest{}, 0, fmt.Errorf("could not read an accepted transcript's turns for the digest: %w", err)
 		}
 		detail, err := decodePublicationDetail(read.Plaintext)
 		if err != nil {
-			return schema.PromptDigest{}, fmt.Errorf("could not decode an accepted transcript's turns for the digest: %w", err)
+			return schema.PromptDigest{}, 0, fmt.Errorf("could not decode an accepted transcript's turns for the digest: %w", err)
 		}
 		if detail == nil {
-			return schema.PromptDigest{}, errors.New("an accepted transcript's stored content was not a decodable publication, so no digest could be built")
+			return schema.PromptDigest{}, 0, errors.New("an accepted transcript's stored content was not a decodable publication, so no digest could be built")
 		}
 
 		turns := make([]digest.Turn, 0, len(detail.Turns))
@@ -242,12 +255,16 @@ func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []sch
 		}
 	}
 
-	return digest.Build(digest.Input{
+	value, err := digest.Build(digest.Input{
 		VillageURL: strings.TrimRight(h.cfg.FrontendURL, "/"),
 		CommitSet:  commitSet,
 		Sessions:   sessions,
 		Commits:    commits,
 	})
+	if err != nil {
+		return schema.PromptDigest{}, 0, err
+	}
+	return value, dropped, nil
 }
 
 // intPointerFromPg converts a nullable integer column to the optional count the

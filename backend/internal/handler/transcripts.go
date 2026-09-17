@@ -1124,6 +1124,20 @@ func (h *Handler) UpdateTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// An attachment advertises the prompts behind a pull request, so an owner
+	// who makes one of them less visible has changed what that pull request
+	// claims. The repost happens here, where the owner's own change is known,
+	// rather than waiting for some later GitHub event to notice.
+	//
+	// It must not fail the update the owner asked for: a GitHub failure is
+	// logged and the next refresh retries, which is the publish hook's
+	// discipline too.
+	if patch.Visibility != nil && disclosureRank(updated.Visibility) < disclosureRank(transcript.Visibility) {
+		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), pgID); refreshErr != nil {
+			log.Printf("pull request attachment refresh after a visibility change failed: %v", refreshErr)
+		}
+	}
+
 	// Note: Tags are not part of schema.PublishRequest in the new wire format
 
 	transcriptID, err := schema.NewTranscriptID(id.String())
