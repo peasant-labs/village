@@ -220,8 +220,10 @@ export default function PullRequestPage({
         <section className="border border-rule bg-surface px-5 py-6 text-sm text-ink-3">
           <p>
             The digest is shown to the pull request&apos;s author, or to{" "}
-            {data.attachment.is_private_repository ? "members of this collective" : "anyone"} once
-            it is attached.
+            {data.attachment.is_private_repository
+              ? "members of this collective and this repository's collaborators"
+              : "anyone"}{" "}
+            once it is attached.
           </p>
         </section>
       )}

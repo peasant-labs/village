@@ -80,6 +80,9 @@ describe("the pull request page", () => {
         expect(sentence.textContent).toContain(
           row.is_private_repository ? "members of this collective" : "anyone",
         );
+        if (row.is_private_repository) {
+          expect(sentence.textContent).toContain("this repository's collaborators");
+        }
       }
 
       // A bound transcript the digest no longer advertises is marked, and only
