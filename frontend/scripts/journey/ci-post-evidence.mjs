@@ -120,14 +120,18 @@ try {
   const login = execFileSync('gh', ['api', 'user', '--jq', '.login'], { encoding: 'utf8' }).trim()
   const ids = execFileSync(
     'gh',
-    ['api', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '--paginate', '--jq', `.[] | select((.body | contains("${MARKER}")) and (.user.login == "${login}")) | .id`],
+    ['api', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '--paginate', '--jq', `.[] | select((.body | contains("${MARKER}")) and ((.user.login == "${login}") or (.user.type == "Bot"))) | .id`],
     { encoding: 'utf8' },
   )
     .trim()
     .split('\n')
     .filter(Boolean)
   for (const id of ids) {
-    execFileSync('gh', ['api', '--method', 'DELETE', `repos/${GITHUB_REPOSITORY}/issues/comments/${id}`], { stdio: 'inherit' })
+    try {
+      execFileSync('gh', ['api', '--method', 'DELETE', `repos/${GITHUB_REPOSITORY}/issues/comments/${id}`], { stdio: 'inherit' })
+    } catch (e) {
+      console.error(`ci-post-evidence: could not delete prior comment ${id}: ${e.message}`)
+    }
   }
 } catch (e) {
   console.error('ci-post-evidence: could not prune prior evidence comments:', e.message)
