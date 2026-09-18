@@ -87,6 +87,25 @@ off for a full-catalog run. Agents do not need the HTML report (`report.json`
 plus the persisted `axe.json`/ARIA files are ~1 KB), so a CI run can drop the
 HTML reporter, or `JOURNEY_SCREENSHOT=off`, to avoid the duplicated media.
 
+## CI and PR evidence
+
+`.github/workflows/journey.yml` runs `pnpm journey:ci` on every pull request,
+uploads `scripts/journey/.artifacts/` as a workflow artifact, and posts inline
+evidence to the PR through `scripts/journey/ci-post-evidence.mjs`:
+
+- screenshots first (failing tests' frames, then a few passing dark-theme frames);
+- on failure, the failing tests' videos, converted to H.264 mp4;
+- one bot comment, replaced on every run (marker `journey-evidence`).
+
+GitHub plays video inline only as a comment attachment, so clips are attached
+with `gh pr comment --attach`; full traces stay in the workflow artifact.
+
+Required repository setup (once): a GitHub App with **Issues: write**, installed
+on the repository, with its client id in the `JOURNEY_APP_CLIENT_ID` repository
+variable and its private key in the `JOURNEY_APP_PRIVATE_KEY` secret. Using an
+App (not the default `GITHUB_TOKEN`) gives the bot identity and lets the job
+comment on pull requests opened from forks.
+
 ## Layout
 
 | File | Role |

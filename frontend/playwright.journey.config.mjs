@@ -21,8 +21,9 @@ const APP_PORT = Number(process.env.JOURNEY_APP_PORT || 3010)
 const MOCK_PORT = Number(process.env.JOURNEY_MOCK_PORT || 8799)
 const APP_URL = `http://localhost:${APP_PORT}`
 const API_URL = `http://localhost:${MOCK_PORT}/api/v1`
-const CHROME =
-  process.env.CHROME_PATH || '/home/minttea/.nix-profile/bin/google-chrome'
+// Optional browser override. When unset, Playwright uses its own installed
+// Chromium (as on CI); set CHROME_PATH to drive a platform browser instead.
+const CHROME = process.env.CHROME_PATH || undefined
 const ARTIFACTS = 'scripts/journey/.artifacts'
 
 // Capture viewport. 720p keeps the desktop (lg/xl) layout while cutting screenshot

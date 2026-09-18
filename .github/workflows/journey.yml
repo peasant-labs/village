@@ -1,0 +1,81 @@
+name: journey
+
+# Runs the Playwright journey harness on every pull request, keeps the JSON
+# report and artifacts, and posts inline evidence (screenshots, plus failing
+# tests' videos) to the PR as a GitHub App bot.
+#
+# Required repository configuration (once):
+#   - GitHub App with "Issues: write" (and "Pull requests: write" optional),
+#     installed on this repository
+#   - repository variable  JOURNEY_APP_CLIENT_ID
+#   - repository secret    JOURNEY_APP_PRIVATE_KEY
+# Using an App (not the default GITHUB_TOKEN) is what gives a bot identity and,
+# importantly, lets the job comment on pull requests opened from forks.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: journey-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  journey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Playwright's own Chromium (and its bundled ffmpeg). CHROME_PATH is left
+      # unset so the journey config falls back to this browser.
+      - run: pnpm --filter frontend exec playwright install --with-deps chromium
+
+      - name: Run journeys
+        id: journey
+        continue-on-error: true
+        run: pnpm --filter frontend run journey:ci
+
+      - name: Upload journey artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journey-artifacts
+          path: frontend/scripts/journey/.artifacts/
+          retention-days: 14
+
+      - name: Mint bot token
+        id: bot
+        if: always()
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.JOURNEY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.JOURNEY_APP_PRIVATE_KEY }}
+          permission-issues: write
+
+      - name: Post evidence
+        if: always()
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: node frontend/scripts/journey/ci-post-evidence.mjs
+
+      - name: Fail if journeys failed
+        if: steps.journey.outcome == 'failure'
+        run: exit 1
