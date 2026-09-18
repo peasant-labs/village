@@ -80,6 +80,9 @@ describe("the pull request page", () => {
         expect(sentence.textContent).toContain(
           row.is_private_repository ? "members of this collective" : "anyone",
         );
+        if (row.is_private_repository) {
+          expect(sentence.textContent).toContain("this repository's collaborators");
+        }
       }
 
       // A bound transcript the digest no longer advertises is marked, and only
@@ -100,17 +103,17 @@ describe("the pull request page", () => {
       const audience = screen.queryByTestId("attachment-audience");
       if (row.expect_audience === "none") {
         expect(audience).toBeNull();
+      } else if (row.expect_audience === "anyone") {
+        expect(audience?.textContent).toContain("readable by anyone");
+        expect(audience?.textContent ?? "").not.toContain("members of this collective");
+        expect(audience?.textContent ?? "").not.toContain("collaborators");
       } else {
-        const named =
-          row.expect_audience === "anyone"
-            ? "readable by anyone"
-            : "readable by members of this collective";
-        const other =
-          row.expect_audience === "anyone"
-            ? "members of this collective"
-            : "readable by anyone";
-        expect(audience?.textContent).toContain(named);
-        expect(audience?.textContent ?? "").not.toContain(other);
+        // A private repository's audience is the collective AND the repository's
+        // own collaborators, and both are named: a reader deciding whether to
+        // attach is entitled to the whole audience, not the reassuring half.
+        expect(audience?.textContent).toContain("readable by members of this collective");
+        expect(audience?.textContent).toContain("by this repository's collaborators");
+        expect(audience?.textContent ?? "").not.toContain("readable by anyone");
       }
     });
   }

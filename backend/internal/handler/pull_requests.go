@@ -68,8 +68,16 @@ func (h *Handler) GetPullRequestAttachment(w http.ResponseWriter, r *http.Reques
 	}
 	if repo.isPrivate && !(viewerKnown && viewerID == attachment.AuthorID) {
 		if !viewerKnown || !h.isCollectiveMember(r.Context(), viewerID, attachment.GroupID) {
-			writeError(w, http.StatusNotFound, "No attachment exists for this pull request")
-			return
+			// The repository's own readers reach the prompts attached to its pull
+			// requests through the same live question the transcripts ask, so they
+			// can arrive where the transcripts are listed rather than needing the
+			// link already. Only an attached attachment: a preview is the author's
+			// own review step and is not the repository's to show.
+			if attachment.State != string(promptattach.Attached) ||
+				!h.repositoryAdmitsViewer(r.Context(), viewerID, repo.installationID, attachment.RepoOwner, attachment.RepoName) {
+				writeError(w, http.StatusNotFound, "No attachment exists for this pull request")
+				return
+			}
 		}
 	}
 

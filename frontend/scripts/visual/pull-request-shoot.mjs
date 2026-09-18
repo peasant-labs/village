@@ -131,7 +131,7 @@ const audienceText = await page.evaluate((el) => el.textContent.replace(/\s+/g, 
 // that rendered the public copy, or the reverse, must fail rather than pass on a
 // statement merely existing.
 const expectedAudience = process.env.PULL_PRIVATE === '1'
-  ? 'attaching makes the transcripts behind these prompts readable by members of this collective. a transcript that is already shared or public keeps its own audience.'
+  ? "attaching makes the transcripts behind these prompts readable by members of this collective and by this repository's collaborators. a transcript that is already shared or public keeps its own audience."
   : 'attaching makes the transcripts behind these prompts readable by anyone.'
 if (audienceText !== expectedAudience) {
   await browser.close()
