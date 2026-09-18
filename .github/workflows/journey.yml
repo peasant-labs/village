@@ -9,8 +9,10 @@ name: journey
 #     installed on this repository
 #   - repository variable  JOURNEY_APP_CLIENT_ID
 #   - repository secret    JOURNEY_APP_PRIVATE_KEY
-# Using an App (not the default GITHUB_TOKEN) is what gives a bot identity and,
-# importantly, lets the job comment on pull requests opened from forks.
+# Using an App (not the default GITHUB_TOKEN) gives a stable bot identity
+# instead of github-actions[bot]. Note: pull_request workflows from forks do not
+# receive repository secrets, so fork PRs cannot mint this token; use
+# pull_request_target or workflow_run if fork coverage is needed.
 
 on:
   pull_request:

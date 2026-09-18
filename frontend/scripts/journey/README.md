@@ -103,8 +103,10 @@ with `gh pr comment --attach`; full traces stay in the workflow artifact.
 Required repository setup (once): a GitHub App with **Issues: write**, installed
 on the repository, with its client id in the `JOURNEY_APP_CLIENT_ID` repository
 variable and its private key in the `JOURNEY_APP_PRIVATE_KEY` secret. Using an
-App (not the default `GITHUB_TOKEN`) gives the bot identity and lets the job
-comment on pull requests opened from forks.
+App (not the default `GITHUB_TOKEN`) gives a stable bot identity instead of
+`github-actions[bot]`. Pull request workflows from forks do not receive
+repository secrets, so fork PRs would need `pull_request_target` or
+`workflow_run` instead.
 
 ## Layout
 
