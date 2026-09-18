@@ -75,9 +75,9 @@ jobs:
         if: always()
         continue-on-error: true
         env:
-          # A machine-account PAT (JOURNEY_MEDIA_TOKEN) can upload inline
+          # A machine-account PAT (JOURNEY_GITHUB_USER_PAT) can upload inline
           # attachments; the App token is the fallback and cannot.
-          GH_TOKEN: ${{ secrets.JOURNEY_MEDIA_TOKEN || steps.bot.outputs.token }}
+          GH_TOKEN: ${{ secrets.JOURNEY_GITHUB_USER_PAT || steps.bot.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
