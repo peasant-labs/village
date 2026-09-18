@@ -94,6 +94,7 @@ const clipPath = (webm) => {
 }
 
 const runUrl = GITHUB_RUN_ID ? `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}` : null
+const heading = (suffix) => `## workflow ${GITHUB_RUN_ID || 'unknown'}: journey ${suffix}`
 const header = `| journey | ${themes.join(' | ')} |`
 const sep = `|---|${themes.map(() => '---').join('|')}|`
 const imageRows = labels.map((l) => `| ${l} | ${themes.map((t) => { const m = cell(l, t); return m?.image ? `![${t}](${m.image})` : '—' }).join(' | ')} |`)
@@ -101,8 +102,8 @@ const videoRows = labels.map((l) => `| ${l} | ${themes.map((t) => { const m = ce
 const imageAttachments = labels.flatMap((l) => themes.map((t) => cell(l, t)?.image).filter(Boolean))
 const videoAttachments = labels.flatMap((l) => themes.map((t) => cell(l, t)?.video).filter(Boolean)).map(clipPath)
 
-const summaryLines = (title) => [
-  `## journey: ${failed.length ? 'failed' : 'passed'}`,
+const summaryLines = () => [
+  heading(`results, ${failed.length ? `${failed.length} failed` : 'all passed'}`),
   '',
   `**${passed.length} passed**, **${failed.length} failed**, ${skipped.length} skipped (both themes).`,
   ...(failed.length ? ['', 'Failing:', ...failed.map((f) => `- [${f.project}] ${f.title}`)] : []),
@@ -113,7 +114,7 @@ const summaryLines = (title) => [
 const imagesBody = [`<!-- ${MARKER} -->`, ...summaryLines(), '', header, sep, ...imageRows].join('\n')
 const videosBody = [
   `<!-- ${MARKER}-videos -->`,
-  `## journey clips`,
+  heading('clips'),
   '',
   `One clip per journey and theme (${videoAttachments.length}), in the screenshot table order above.`,
   '',
