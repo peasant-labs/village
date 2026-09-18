@@ -108,7 +108,7 @@ need either a machine-user PAT for the posting step, or the App plus hosted
 image links (no inline video).
 
 Required organization setup (once): a GitHub App with **Issues: Read and write**
-and **Pull requests: Read** (Metadata: Read is implicit), installed on the
+and **Pull requests: Read and write** (Metadata: Read is implicit), installed on the
 organization with access to this repository. Store the App's client id in the
 `JOURNEY_APP_CLIENT_ID` org **variable** and its private key in the
 `JOURNEY_APP_PRIVATE_KEY` org **secret**. Using an

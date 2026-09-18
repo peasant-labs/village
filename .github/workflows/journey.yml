@@ -66,22 +66,10 @@ jobs:
         with:
           client-id: ${{ vars.JOURNEY_APP_CLIENT_ID }}
           private-key: ${{ secrets.JOURNEY_APP_PRIVATE_KEY }}
-          # Least privilege: Issues: write posts the comment; Pull requests: read
-          # lets the App resolve the PR.
+          # A PR comment needs both Issues: write and Pull requests: write for an
+          # App token (X-Accepted-Github-Permissions: issues=write; pull_requests=write).
           permission-issues: write
-          permission-pull-requests: read
-
-      - name: Bot write diagnostic
-        if: always()
-        env:
-          GH_TOKEN: ${{ steps.bot.outputs.token }}
-        run: |
-          echo "=== gh pr comment (GraphQL) ==="
-          gh pr comment 226 --repo peasant-labs/village --body "journey bot diagnostic" 2>&1 | head -6 || true
-          echo "=== REST POST comments (headers) ==="
-          gh api -i --method POST repos/peasant-labs/village/issues/226/comments -f body='journey bot diagnostic' 2>&1 | grep -iE '^HTTP/|^x-accepted|^x-oauth|^x-ratelimit' | head -12 || true
-          echo "=== app permissions on this token ==="
-          gh api /installation/repositories --jq '.repositories | length' 2>&1 | head -2 || true
+          permission-pull-requests: write
 
       - name: Post evidence
         if: always()
