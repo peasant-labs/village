@@ -161,8 +161,8 @@ export default function PullRequestPage({
               {data.attachment.is_private_repository ? (
                 <>
                   attaching makes the transcripts behind these prompts readable by
-                  members of this collective. a transcript that is already shared or
-                  public keeps its own audience.
+                  members of this collective and by this repository&apos;s collaborators. a
+                  transcript that is already shared or public keeps its own audience.
                 </>
               ) : (
                 <>attaching makes the transcripts behind these prompts readable by anyone.</>
