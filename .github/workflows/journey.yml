@@ -67,6 +67,7 @@ jobs:
           client-id: ${{ vars.JOURNEY_APP_CLIENT_ID }}
           private-key: ${{ secrets.JOURNEY_APP_PRIVATE_KEY }}
           permission-issues: write
+          permission-pull-requests: read
 
       - name: Post evidence
         if: always()
