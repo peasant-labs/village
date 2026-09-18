@@ -131,7 +131,24 @@ try {
   console.error('ci-post-evidence: could not prune prior evidence comments:', e.message)
 }
 
-const args = ['pr', 'comment', PR_NUMBER, '--repo', GITHUB_REPOSITORY, '--body-file', bodyFile]
-for (const a of attachments) args.push('--attach', a)
-execFileSync('gh', args, { stdio: 'inherit' })
-console.log(`ci-post-evidence: posted to PR #${PR_NUMBER} with ${attachments.length} attachment(s)`)
+const runWithAttachments = () => {
+  const args = ['pr', 'comment', PR_NUMBER, '--repo', GITHUB_REPOSITORY, '--body-file', bodyFile]
+  for (const a of attachments) args.push('--attach', a)
+  return execFileSync('gh', args, { stdio: 'inherit' })
+}
+
+const runTextOnly = () => {
+  execFileSync('gh', ['pr', 'comment', PR_NUMBER, '--repo', GITHUB_REPOSITORY, '--body-file', bodyFile], { stdio: 'inherit' })
+}
+
+try {
+  runWithAttachments()
+  console.log(`ci-post-evidence: posted to PR #${PR_NUMBER} with ${attachments.length} attachment(s)`)
+} catch (e) {
+  // gh refuses to upload attachments with a GitHub App installation token
+  // ("unsupported authentication type"; see cli/cli internal/attachments).
+  // Fall back to a text comment so the run still reports and links its artifacts.
+  console.error(`ci-post-evidence: attachment upload failed (${e.message}); falling back to a text comment`)
+  runTextOnly()
+  console.log(`ci-post-evidence: posted a text-only comment to PR #${PR_NUMBER}`)
+}

@@ -100,6 +100,13 @@ evidence to the PR through `scripts/journey/ci-post-evidence.mjs`:
 GitHub plays video inline only as a comment attachment, so clips are attached
 with `gh pr comment --attach`; full traces stay in the workflow artifact.
 
+**Limitation:** `gh --attach` rejects GitHub App installation tokens
+("unsupported authentication type"; gh only allows OAuth/PAT/fine-grained-PAT
+for asset uploads, and the endpoint needs repo write access). So with the App
+token the script falls back to a text-only comment. To get inline media you
+need either a machine-user PAT for the posting step, or the App plus hosted
+image links (no inline video).
+
 Required organization setup (once): a GitHub App with **Issues: Read and write**
 and **Pull requests: Read** (Metadata: Read is implicit), installed on the
 organization with access to this repository. Store the App's client id in the

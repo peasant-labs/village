@@ -70,6 +70,7 @@ jobs:
 
       - name: Post evidence
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
