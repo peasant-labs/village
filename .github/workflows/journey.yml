@@ -69,17 +69,6 @@ jobs:
           permission-issues: write
           permission-pull-requests: read
 
-      - name: Bot access diagnostic
-        if: always()
-        env:
-          GH_TOKEN: ${{ steps.bot.outputs.token }}
-        run: |
-          echo "token prefix: ${GH_TOKEN:0:4}"
-          echo -n "installation repos: "; gh api /installation/repositories --jq '.repositories | length' || true
-          echo -n "village listed: "; gh api /installation/repositories --jq '[.repositories[].full_name] | index("peasant-labs/village")' || true
-          echo -n "read issue: "; gh api repos/peasant-labs/village/issues/226 --jq '.number' || true
-          echo -n "viewer permission: "; gh api repos/peasant-labs/village --jq '.permissions' || true
-
       - name: Post evidence
         if: always()
         continue-on-error: true
