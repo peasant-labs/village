@@ -114,11 +114,13 @@ const body = [
 const bodyFile = join(tmp, 'body.md')
 writeFileSync(bodyFile, body)
 
-// Replace any prior bot evidence comment.
+// Replace any prior evidence comment authored by the acting identity (the App
+// bot, or the machine account whose PAT posts inline media).
 try {
+  const login = execFileSync('gh', ['api', 'user', '--jq', '.login'], { encoding: 'utf8' }).trim()
   const ids = execFileSync(
     'gh',
-    ['api', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '--paginate', '--jq', `.[] | select((.body | contains("${MARKER}")) and (.user.type == "Bot")) | .id`],
+    ['api', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '--paginate', '--jq', `.[] | select((.body | contains("${MARKER}")) and (.user.login == "${login}")) | .id`],
     { encoding: 'utf8' },
   )
     .trim()
