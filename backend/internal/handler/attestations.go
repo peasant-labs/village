@@ -124,7 +124,7 @@ func (h *Handler) ListTranscriptAttestations(w http.ResponseWriter, r *http.Requ
 	}
 
 	user := GetUser(r.Context())
-	if !h.canViewTranscript(r.Context(), user, transcript) {
+	if !h.canReadTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}

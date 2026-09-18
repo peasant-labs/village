@@ -1075,7 +1075,7 @@ func (h *Handler) ListTranscriptCollectives(w http.ResponseWriter, r *http.Reque
 	user := GetUser(r.Context())
 	// One answer for "no such transcript" and "not yours to see", so that asking
 	// cannot be used to discover which transcripts exist.
-	if err != nil || !h.canViewTranscript(r.Context(), user, transcript) {
+	if err != nil || !h.canReadTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound,
 			"Cannot list this transcript's collectives: no transcript with that id is visible to you. Either it does "+
 				"not exist, or it is not public and has not been shared with a collective you belong to. Sign in as its "+

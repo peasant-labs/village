@@ -41,7 +41,7 @@ func transcriptViewAs(t *testing.T, h *Handler, user *AuthUser, transcriptID pgt
 // repository, with the attachment reached the way production reaches it (preview,
 // then the author's confirm). It returns the transcript id and the repository
 // name so a test can ask who may read it.
-func attachPrivateRepoTranscript(t *testing.T, h *Handler, pool *pgxpool.Pool, blobs *recordingTranscriptBlobStore, fake *attachmentGitHubFake, author pgtype.UUID, number int, sha string) (pgtype.UUID, string) {
+func attachPrivateRepoTranscript(t *testing.T, h *Handler, pool *pgxpool.Pool, blobs *recordingTranscriptBlobStore, fake *attachmentGitHubFake, author pgtype.UUID, number int, sha string) (pgtype.UUID, string, pgtype.UUID) {
 	t.Helper()
 	ctx := context.Background()
 	repoName := "readers-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
@@ -52,7 +52,7 @@ func attachPrivateRepoTranscript(t *testing.T, h *Handler, pool *pgxpool.Pool, b
 	attachmentCreatePreview(t, ctx, h, groupID, author, "acme", repoName, sha, number)
 	fake.setPullCommits(sha)
 	attachmentConfirm(t, h, author, "acme", repoName, number)
-	return transcriptID, repoName
+	return transcriptID, repoName, groupID
 }
 
 // TestRepositoryReadersOpenAttachedPrompts_RealPostgres is the private path end
@@ -62,13 +62,15 @@ func attachPrivateRepoTranscript(t *testing.T, h *Handler, pool *pgxpool.Pool, b
 //
 // Nothing about the admission is recorded, so the same reader is refused again
 // the moment GitHub's answer changes — which is what makes the grant live rather
-// than a row that would need revoking.
+// than a row that would need revoking. A refusal alone is remembered, briefly, so
+// that repeated probes do not each cost a GitHub call; an admission is asked
+// every time, so an owner's withdrawal is not held behind a cache.
 func TestRepositoryReadersOpenAttachedPrompts_RealPostgres(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
 	author := attachmentInsertOwner(t, ctx, pool, 994001)
 	defer cleanupOwners(t, ctx, pool, author)
-	transcriptID, _ := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 7, "abc9999000000000000000000000000000000001")
+	transcriptID, _, _ := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 7, "abc9999000000000000000000000000000000001")
 
 	reader := attachmentInsertOwner(t, ctx, pool, 994002)
 	defer cleanupOwners(t, ctx, pool, reader)
@@ -88,20 +90,20 @@ func TestRepositoryReadersOpenAttachedPrompts_RealPostgres(t *testing.T) {
 		t.Fatalf("status = %d for a reader GitHub calls admin, want 200", rec.Code)
 	}
 
-	// GitHub refusing is the collective-only refusal, unchanged, and it takes
-	// effect with nothing else happening: the answer is not remembered.
-	fake.setRepoReader("994002", "reader-login", "none")
-	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusNotFound {
-		t.Fatalf("status = %d for a reader GitHub refuses, want 404: a reader with no repository access is refused exactly as a stranger is", rec.Code)
-	}
-
-	// A GitHub failure denies rather than admits.
-	fake.setRepoReader("994002", "reader-login", "read")
+	// A GitHub failure denies rather than admits. This runs before any refusal is
+	// remembered, so the answer comes from the failed question itself.
 	fake.failRepoReads(true)
 	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d while GitHub was failing, want 404: an access question that cannot be answered must deny", rec.Code)
 	}
 	fake.failRepoReads(false)
+
+	// GitHub refusing is the collective-only refusal, unchanged, and it takes
+	// effect with nothing else happening: an admission is never remembered.
+	fake.setRepoReader("994002", "reader-login", "none")
+	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d for a reader GitHub refuses, want 404: a reader with no repository access is refused exactly as a stranger is", rec.Code)
+	}
 
 	// A reader who signed in through another provider has no GitHub identity to
 	// ask about, so nothing can answer for them.
@@ -122,7 +124,7 @@ func TestRepositoryReadIsScopedToTheAttachment_RealPostgres(t *testing.T) {
 	ctx := context.Background()
 	author := attachmentInsertOwner(t, ctx, pool, 994011)
 	defer cleanupOwners(t, ctx, pool, author)
-	transcriptID, repoName := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 11, "abc9999000000000000000000000000000000011")
+	transcriptID, repoName, _ := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 11, "abc9999000000000000000000000000000000011")
 
 	// A second transcript from the same repository that no attachment binds.
 	sibling := attachmentSeedTranscript(t, ctx, pool, blobs, author,
@@ -180,7 +182,7 @@ func TestRepositoryReadersOpenThePullRequestPage_RealPostgres(t *testing.T) {
 	author := attachmentInsertOwner(t, ctx, pool, 994021)
 	defer cleanupOwners(t, ctx, pool, author)
 	authorAuth := &AuthUser{ID: uuid.UUID(author.Bytes), Username: "attachment-author"}
-	_, repoName := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 21, "abc9999000000000000000000000000000000021")
+	_, repoName, _ := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 21, "abc9999000000000000000000000000000000021")
 
 	reader := attachmentInsertOwner(t, ctx, pool, 994022)
 	defer cleanupOwners(t, ctx, pool, reader)
@@ -221,5 +223,173 @@ func TestRepositoryReadersOpenThePullRequestPage_RealPostgres(t *testing.T) {
 	}
 	if rec := pageAs(t, h, authorAuth, "acme", previewRepo, 22); rec.Code != http.StatusOK {
 		t.Fatalf("status = %d for the author on their own preview, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+// transcriptVisibilityPatch narrows or widens a transcript through the mounted
+// route its owner uses.
+func transcriptVisibilityPatch(t *testing.T, h *Handler, user *AuthUser, transcriptID pgtype.UUID, visibility string) *httptest.ResponseRecorder {
+	t.Helper()
+	id := uuid.UUID(transcriptID.Bytes).String()
+	r := httptest.NewRequest(http.MethodPatch, "/api/v1/transcripts/"+id, strings.NewReader(`{"visibility":"`+visibility+`"}`))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	ctx := context.WithValue(r.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, UserContextKey, user)
+	w := httptest.NewRecorder()
+	h.UpdateTranscript(w, r.WithContext(ctx))
+	return w
+}
+
+// transcriptAnnotationsAs drives the annotation routes as the given viewer.
+func transcriptAnnotationsAs(t *testing.T, h *Handler, user *AuthUser, transcriptID pgtype.UUID, method string) *httptest.ResponseRecorder {
+	t.Helper()
+	id := uuid.UUID(transcriptID.Bytes).String()
+	var body *strings.Reader
+	if method == http.MethodPost {
+		body = strings.NewReader(`{"turn_index":0,"turns":[]}`)
+	} else {
+		body = strings.NewReader("")
+	}
+	r := httptest.NewRequest(method, "/api/v1/transcripts/"+id+"/annotations", body)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	ctx := context.WithValue(r.Context(), chi.RouteCtxKey, rctx)
+	ctx = context.WithValue(ctx, UserContextKey, user)
+	w := httptest.NewRecorder()
+	if method == http.MethodPost {
+		h.CreateTranscriptAnnotation(w, r.WithContext(ctx))
+	} else {
+		h.ListTranscriptAnnotations(w, r.WithContext(ctx))
+	}
+	return w
+}
+
+// TestRepositoryReadEndsWhenTheOwnerNarrows_RealPostgres pins the grant to the
+// share the attach opened. The binding outlives an owner narrowing the
+// transcript — it has to, so detach can restore what the attach recorded — so the
+// narrowing must end the repository readers' access by itself.
+func TestRepositoryReadEndsWhenTheOwnerNarrows_RealPostgres(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	author := attachmentInsertOwner(t, ctx, pool, 994031)
+	defer cleanupOwners(t, ctx, pool, author)
+	authorAuth := &AuthUser{ID: uuid.UUID(author.Bytes), Username: "attachment-author"}
+	transcriptID, _, _ := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 31, "abc9999000000000000000000000000000000031")
+
+	reader := attachmentInsertOwner(t, ctx, pool, 994032)
+	defer cleanupOwners(t, ctx, pool, reader)
+	readerAuth := &AuthUser{ID: uuid.UUID(reader.Bytes), Username: "repo-reader"}
+	fake.setRepoReader("994032", "reader-login", "read")
+
+	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d before the narrowing, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+
+	if rec := transcriptVisibilityPatch(t, h, authorAuth, transcriptID, "private"); rec.Code != http.StatusOK {
+		t.Fatalf("narrow status = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+
+	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d after the owner narrowed the transcript to private, want 404: the grant is the share the attach opened, and the owner has withdrawn it", rec.Code)
+	}
+}
+
+// TestRepositoryReadEndsWhenTheOwnerUnshares_RealPostgres is the other half: the
+// share is retracted without the transcript's tier changing, which the binding
+// and the visibility both survive, and the access must end anyway.
+func TestRepositoryReadEndsWhenTheOwnerUnshares_RealPostgres(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	author := attachmentInsertOwner(t, ctx, pool, 994041)
+	defer cleanupOwners(t, ctx, pool, author)
+	authorAuth := &AuthUser{ID: uuid.UUID(author.Bytes), Username: "attachment-author"}
+	transcriptID, repoName, groupID := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 41, "abc9999000000000000000000000000000000041")
+	_ = repoName
+
+	reader := attachmentInsertOwner(t, ctx, pool, 994042)
+	defer cleanupOwners(t, ctx, pool, reader)
+	readerAuth := &AuthUser{ID: uuid.UUID(reader.Bytes), Username: "repo-reader"}
+	fake.setRepoReader("994042", "reader-login", "read")
+
+	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d before the unshare, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+
+	// The owner retracts the collective's share through the mounted route.
+	id := uuid.UUID(transcriptID.Bytes).String()
+	r := httptest.NewRequest(http.MethodDelete, "/api/v1/transcripts/"+id+"/share/"+uuid.UUID(groupID.Bytes).String(), nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	rctx.URLParams.Add("groupID", uuid.UUID(groupID.Bytes).String())
+	ctx2 := context.WithValue(r.Context(), chi.RouteCtxKey, rctx)
+	ctx2 = context.WithValue(ctx2, UserContextKey, authorAuth)
+	w := httptest.NewRecorder()
+	h.UnshareTranscript(w, r.WithContext(ctx2))
+	if w.Code != http.StatusOK {
+		t.Fatalf("unshare status = %d (%s), want 200", w.Code, w.Body.String())
+	}
+
+	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d after the owner retracted the share, want 404: a repository reader is admitted by the attachment's share and no further", rec.Code)
+	}
+}
+
+// TestRepositoryReadsDoNotWrite_RealPostgres keeps the grant to reads. It rides
+// the same predicate the annotation write uses, and a non-member repository
+// reader must not be handed a write on somebody else's transcript.
+func TestRepositoryReadsDoNotWrite_RealPostgres(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	author := attachmentInsertOwner(t, ctx, pool, 994051)
+	defer cleanupOwners(t, ctx, pool, author)
+	transcriptID, _, _ := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 51, "abc9999000000000000000000000000000000051")
+
+	reader := attachmentInsertOwner(t, ctx, pool, 994052)
+	defer cleanupOwners(t, ctx, pool, reader)
+	readerAuth := &AuthUser{ID: uuid.UUID(reader.Bytes), Username: "repo-reader"}
+	fake.setRepoReader("994052", "reader-login", "read")
+
+	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d for the transcript itself, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	// Reading what has been written about the prompts is a read.
+	if rec := transcriptAnnotationsAs(t, h, readerAuth, transcriptID, http.MethodGet); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d reading annotations as a repository reader, want 200", rec.Code)
+	}
+	// Writing one is not: the grant opens the prompts, it does not give a
+	// non-member a label on another person's work.
+	if rec := transcriptAnnotationsAs(t, h, readerAuth, transcriptID, http.MethodPost); rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d writing an annotation as a repository reader, want 404: repository access is a grant to read", rec.Code)
+	}
+}
+
+// TestRepositoryRefusalsAreRememberedBriefly_RealPostgres proves the refusal
+// cache does the one job it has: a stranger probing one pull request repeatedly
+// costs one GitHub question, not one per probe.
+func TestRepositoryRefusalsAreRememberedBriefly_RealPostgres(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	author := attachmentInsertOwner(t, ctx, pool, 994061)
+	defer cleanupOwners(t, ctx, pool, author)
+	transcriptID, _, _ := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 61, "abc9999000000000000000000000000000000061")
+
+	reader := attachmentInsertOwner(t, ctx, pool, 994062)
+	defer cleanupOwners(t, ctx, pool, reader)
+	readerAuth := &AuthUser{ID: uuid.UUID(reader.Bytes), Username: "repo-reader"}
+	fake.setRepoReader("994062", "reader-login", "none")
+
+	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d for a reader GitHub refuses, want 404", rec.Code)
+	}
+	asked := fake.permissionAskCount()
+	if asked == 0 {
+		t.Fatal("the fake was never asked for a permission, so the refusal did not come from GitHub")
+	}
+	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d on the repeat read, want 404", rec.Code)
+	}
+	if again := fake.permissionAskCount(); again != asked {
+		t.Fatalf("GitHub was asked again for a refusal it had just given (%d -> %d): repeated probes of one pull request must not each cost a call", asked, again)
 	}
 }

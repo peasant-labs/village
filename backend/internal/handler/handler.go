@@ -80,6 +80,10 @@ type Handler struct {
 	// githubClient() and respond 501. Tests inject a client pointed at httptest.
 	gh *github.Client
 
+	// repoAccess remembers for a short time whether one GitHub account may read
+	// one repository. The zero value is usable, so nothing has to construct it.
+	repoAccess repositoryAccessCache
+
 	// githubDispatcher is the handling point for each subscribed webhook event
 	// type. Production uses noopGitHubDispatcher until the matching, digest, and
 	// posting work fills it in; a test injects a recording dispatcher to prove

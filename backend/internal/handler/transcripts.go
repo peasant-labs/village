@@ -875,7 +875,7 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := GetUser(r.Context())
-	if !h.canViewTranscript(r.Context(), user, transcript) {
+	if !h.canReadTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}
@@ -926,13 +926,13 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := GetUser(r.Context())
-	if !h.canViewTranscript(r.Context(), user, transcript) {
+	if !h.canReadTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}
 
 	readResult, err := h.readEncryptedTranscript(r.Context(), transcript, "", func(fresh sqlc.Transcript) bool {
-		return h.canViewTranscript(r.Context(), user, fresh)
+		return h.canReadTranscript(r.Context(), user, fresh)
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -1852,9 +1852,17 @@ func (h *Handler) canViewTranscript(ctx context.Context, user *AuthUser, t sqlc.
 			}
 		}
 	}
-	// Last, and only for a reader every collected check has refused: GitHub is
-	// the only party that knows who may read a private repository, so it answers
-	// for the prompts attached to that repository's pull request.
+	return false
+}
+
+// canReadTranscript is canViewTranscript plus the one grant Village cannot make
+// on its own: a reader GitHub admits to the private repository the prompts are
+// attached to. Reads use this. Writes do not, so repository access opens the
+// prompts and never lets a non-member label somebody else's transcript.
+func (h *Handler) canReadTranscript(ctx context.Context, user *AuthUser, t sqlc.Transcript) bool {
+	if h.canViewTranscript(ctx, user, t) {
+		return true
+	}
 	return h.canReadThroughAttachedRepository(ctx, user, t)
 }
 

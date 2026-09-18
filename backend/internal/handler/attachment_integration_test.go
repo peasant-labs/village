@@ -60,6 +60,7 @@ type attachmentGitHubFake struct {
 	userLogins      map[string]string
 	permissions     map[string]string
 	repoReadFailure bool
+	permissionAsks  int
 	deleteNotFound  bool
 	checkCreates    int
 	checkCreateSHAs []string
@@ -169,6 +170,7 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			}
 			fake.mu.Lock()
 			permission, failed := fake.permissions[parts[len(parts)-2]], fake.repoReadFailure
+			fake.permissionAsks++
 			fake.mu.Unlock()
 			if failed {
 				http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
@@ -257,6 +259,14 @@ func (f *attachmentGitHubFake) setRepoReader(accountID, login, permission string
 	}
 	f.userLogins[accountID] = login
 	f.permissions[login] = permission
+}
+
+// permissionAskCount reports how many times the fake was asked for a repository
+// permission, so a test can prove a refusal was remembered rather than re-asked.
+func (f *attachmentGitHubFake) permissionAskCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.permissionAsks
 }
 
 // failRepoReads makes the reader lookups fail, which must deny rather than admit.
