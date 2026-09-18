@@ -48,6 +48,9 @@ jobs:
       - name: Run journeys
         id: journey
         continue-on-error: true
+        env:
+          # Record a clip per journey (in both themes) for the PR evidence.
+          JOURNEY_VIDEO: '1'
         run: pnpm --filter frontend run journey:ci
 
       - name: Upload journey artifacts
