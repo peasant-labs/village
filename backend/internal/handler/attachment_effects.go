@@ -174,6 +174,12 @@ func requiredAttachmentVisibility(repo attachmentRepository) string {
 	return dbVisibilityPublic
 }
 
+// attachmentNoPromptsNote is the line a digest carries when it has nothing left
+// to show. It says so without counting what is missing or naming a cause.
+func attachmentNoPromptsNote() string {
+	return "\n_No prompts are available for this pull request._\n"
+}
+
 // attachmentDroppedNote is the line a digest carries when transcripts it used to
 // advertise are no longer listed, so a reader is told something is missing
 // rather than left to notice the absence.
@@ -301,10 +307,20 @@ func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullReques
 	if err != nil {
 		return 0, 0, fmt.Errorf("could not render the digest for the check: %w", err)
 	}
-	if dropped > 0 {
-		// The reader is told why a row is gone rather than left to notice the
-		// absence. The note is added after rendering because the digest payload
-		// is the wire contract and carries no such field.
+	hasPrompts := len(value.Items) > 0
+	switch {
+	case !hasPrompts:
+		// Nothing is left to review, so say that rather than how many rows went:
+		// a count invites a reader to work out which, and the reason a transcript
+		// is gone describes its owner's action, which is not the pull request's to
+		// tell. The note is added after rendering because the digest payload is
+		// the wire contract and carries no such field.
+		note := attachmentNoPromptsNote()
+		comment += note
+		summary += note
+	case dropped > 0:
+		// The reader is told a row is gone rather than left to notice the absence,
+		// without being told why.
 		note := attachmentDroppedNote(dropped)
 		comment += note
 		summary += note
@@ -314,7 +330,7 @@ func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullReques
 		request := github.CheckRunRequest{
 			HeadSHA:    attachment.HeadSha,
 			ExternalID: attachmentExternalID(attachment),
-			Conclusion: github.PromptCheckConclusion(repo.checkMode, true),
+			Conclusion: github.PromptCheckConclusion(repo.checkMode, true, hasPrompts),
 			Title:      attachmentCheckTitle,
 			Summary:    summary,
 			Actions:    github.PromptCheckActions(),

@@ -35,8 +35,13 @@ func Render(d schema.PromptDigest, tier Tier) (string, error) {
 	}
 
 	var b strings.Builder
-	b.WriteString(headerLine(d))
-	b.WriteByte('\n')
+	if len(d.Items) > 0 {
+		// A digest with nothing in it renders no header. A header with no rows
+		// under it reads as a rendering fault — an empty harness and a double
+		// separator — and the caller's note is what says the prompts are gone.
+		b.WriteString(headerLine(d))
+		b.WriteByte('\n')
+	}
 
 	inlinedPrompts := 0
 	for i := 0; i < len(d.Items); i++ {

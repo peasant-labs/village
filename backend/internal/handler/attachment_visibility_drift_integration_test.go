@@ -99,14 +99,17 @@ func TestNarrowingAnAttachedTranscriptStopsAdvertisingIt_RealPostgres(t *testing
 	if fake.commentEdits <= editsBefore {
 		t.Errorf("the pull request must be edited, not left advertising the old set; edits=%d", fake.commentEdits)
 	}
-	if !strings.Contains(fake.lastCommentBody, "no longer listed here") {
-		t.Errorf("the comment must say a row is gone; body=%s", fake.lastCommentBody)
+	if !strings.Contains(fake.lastCommentBody, "No prompts are available for this pull request.") {
+		t.Errorf("the comment must say no prompts are left, since this attachment binds only the one; body=%s", fake.lastCommentBody)
 	}
 	if strings.Contains(fake.lastCommentBody, "author") {
 		t.Errorf("the comment must not attribute the change to anyone; body=%s", fake.lastCommentBody)
 	}
-	if !strings.Contains(fake.lastCheckText, "no longer listed here") {
-		t.Errorf("the check must say a row is gone; summary=%s", fake.lastCheckText)
+	if !strings.Contains(fake.lastCheckText, "No prompts are available for this pull request.") {
+		t.Errorf("the check must say no prompts are left, since this attachment binds only the one; summary=%s", fake.lastCheckText)
+	}
+	if fake.lastCheckConclusion != "neutral" {
+		t.Errorf("conclusion = %q with nothing left to verify, want neutral; the check is what a reviewer reads before merging", fake.lastCheckConclusion)
 	}
 	if strings.Contains(fake.lastCheckText, "author") {
 		t.Errorf("the check must not attribute the change to anyone; summary=%s", fake.lastCheckText)
@@ -243,8 +246,8 @@ func TestRepublishedNarrowingDropsTheDigestRow_RealPostgres(t *testing.T) {
 	if digest := attachmentDigestOf(t, ctx, h, attachment.ID); strings.Contains(digest, transcriptKey) {
 		t.Errorf("a republish that narrowed the transcript must drop it from the digest; digest=%s", digest)
 	}
-	if !strings.Contains(fake.lastCommentBody, "no longer listed here") {
-		t.Errorf("the comment must say the row is gone; body=%s", fake.lastCommentBody)
+	if !strings.Contains(fake.lastCommentBody, "No prompts are available for this pull request.") {
+		t.Errorf("the comment must say no prompts are left, since this attachment binds only the one; body=%s", fake.lastCommentBody)
 	}
 	var visibility string
 	if err := pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id = $1`, transcriptID).Scan(&visibility); err != nil {
@@ -261,5 +264,73 @@ func TestRepublishedNarrowingDropsTheDigestRow_RealPostgres(t *testing.T) {
 	}
 	if binding.PreviousVisibility != "private" {
 		t.Errorf("previous_visibility = %q, want the value recorded at attach", binding.PreviousVisibility)
+	}
+}
+
+// TestAllDroppedPromptsAreNeutralAndSaidPlainly_RealPostgres is the state where
+// nothing is left: every bound transcript has been narrowed below what the
+// repository requires, so the digest has no rows under it. The check is what a
+// reviewer looks at before merging, so a required check must stop reporting
+// success, and what it says must be that no prompts are available rather than how
+// many went — a count invites the reader to work out which, and the reason one
+// left describes its owner's action.
+func TestAllDroppedPromptsAreNeutralAndSaidPlainly_RealPostgres(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	author := attachmentInsertOwner(t, ctx, pool, 995001)
+	defer cleanupOwners(t, ctx, pool, author)
+	authorAuth := &AuthUser{ID: uuid.UUID(author.Bytes), Username: "attachment-author"}
+
+	repoName := "all-dropped-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, author, "acme", repoName, true, "required")
+	sha := "aaa5555000000000000000000000000000000001"
+	first := attachmentSeedTranscript(t, ctx, pool, blobs, author,
+		"git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-2*time.Hour))
+	second := attachmentSeedTranscript(t, ctx, pool, blobs, author,
+		"git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
+
+	attachmentCreatePreview(t, ctx, h, groupID, author, "acme", repoName, sha, 7)
+	fake.setPullCommits(sha)
+	attachmentConfirm(t, h, author, "acme", repoName, 7)
+
+	// With both bound transcripts advertised, a required check passes.
+	if fake.lastCheckConclusion != "success" {
+		t.Fatalf("conclusion = %q with prompts attached, want success", fake.lastCheckConclusion)
+	}
+
+	// The owner narrows one of them. The check stays green, because what is left
+	// is what the review is about, and the reader is told a row is gone without
+	// being told which or why.
+	if rec := transcriptVisibilityPatch(t, h, authorAuth, first, "private"); rec.Code != http.StatusOK {
+		t.Fatalf("narrow status = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	if fake.lastCheckConclusion != "success" {
+		t.Fatalf("conclusion = %q with one of two prompts left, want success: the remaining prompt is what the review is about", fake.lastCheckConclusion)
+	}
+	if !strings.Contains(fake.lastCheckText, "1 transcript is no longer listed here.") {
+		t.Errorf("the check must say a row is gone, without saying which; summary=%s", fake.lastCheckText)
+	}
+
+	// The owner narrows the second. Now the attachment is still attached and has
+	// nothing left to advertise.
+	if rec := transcriptVisibilityPatch(t, h, authorAuth, second, "private"); rec.Code != http.StatusOK {
+		t.Fatalf("narrow status = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+
+	if fake.lastCheckConclusion != "neutral" {
+		t.Fatalf("conclusion = %q with nothing left to verify, want neutral: a required check reporting success over an empty digest tells a reviewer the opposite of what the pull request advertises", fake.lastCheckConclusion)
+	}
+	const said = "No prompts are available for this pull request."
+	if !strings.Contains(fake.lastCheckText, said) {
+		t.Errorf("the check must say no prompts are available; summary=%s", fake.lastCheckText)
+	}
+	if !strings.Contains(fake.lastCommentBody, said) {
+		t.Errorf("the comment must say it too, or a reader of the pull request is told nothing; body=%s", fake.lastCommentBody)
+	}
+	if strings.Contains(fake.lastCheckText, "no longer listed here") || strings.Contains(fake.lastCommentBody, "no longer listed here") {
+		t.Errorf("nothing is left, so a count of what went is not what to say; summary=%s", fake.lastCheckText)
+	}
+	if strings.Contains(fake.lastCheckText, "0 sessions") || strings.Contains(fake.lastCommentBody, "0 sessions") {
+		t.Errorf("the digest rendered a header with no rows under it, which reads as a rendering fault rather than a state; summary=%s", fake.lastCheckText)
 	}
 }
