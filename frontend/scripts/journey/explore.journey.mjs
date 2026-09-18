@@ -66,4 +66,70 @@ test.describe('explore', () => {
       new RegExp(href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
     )
   })
+
+  test('filters the list by provider', async ({ page }) => {
+    await page.goto('/explore')
+    await expect(page.locator('.cex-explore-body').first()).toBeVisible()
+
+    const providers = page.getByRole('group', { name: 'providers' })
+    await providers.getByRole('button', { name: 'opencode' }).click()
+
+    // The claude-code row leaves the grid once the server-side filter applies...
+    await expect(
+      page.getByRole('heading', { name: 'Building a REST API from scratch' }),
+    ).toHaveCount(0)
+    // ...and both opencode rows remain.
+    await expect(page.getByRole('heading', { name: 'Greenfield React app setup' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Started by a session this response does not carry' }),
+    ).toBeVisible()
+  })
+
+  test('reorders the list by turn count', async ({ page }) => {
+    await page.goto('/explore')
+    await expect(page.locator('.cex-explore-body').first()).toBeVisible()
+
+    // Recent order puts the newest session first.
+    const firstTitle = page.locator('a[href^="/transcripts/"]').first().getByRole('heading')
+    await expect(firstTitle).toHaveText('Building a REST API from scratch')
+
+    // The radio's input is covered by its own decorative dot; a user clicks the
+    // label, so click the label text.
+    await page.getByText('most turns', { exact: true }).click()
+
+    // Highest turn count wins: "Multi-agent debugging session" has 203 turns.
+    await expect(firstTitle).toHaveText('Multi-agent debugging session')
+  })
+
+  test('switches between grid and list', async ({ page }) => {
+    await page.goto('/explore')
+    await expect(page.locator('.cex-explore-body').first()).toBeVisible()
+
+    const grid = page.getByRole('button', { name: 'grid view' })
+    const list = page.getByRole('button', { name: 'list view' })
+
+    await expect(grid).toHaveAttribute('aria-pressed', 'true')
+    await list.click()
+    await expect(list).toHaveAttribute('aria-pressed', 'true')
+    await expect(grid).toHaveAttribute('aria-pressed', 'false')
+
+    // Transcripts stay present in both layouts.
+    await expect(page.locator('a[href^="/transcripts/"]').first()).toBeVisible()
+  })
+
+  test('search surfaces a matching collective and opens it', async ({ page }) => {
+    await page.goto('/explore')
+    await expect(page.locator('.cex-explore-body').first()).toBeVisible()
+
+    await page.locator('.cex-searchbar input').first().fill('ai')
+
+    const collective = page
+      .getByRole('region', { name: 'matching collectives' })
+      .getByRole('link', { name: /AI Research Team/ })
+    await expect(collective).toBeVisible()
+    await expect(collective).toHaveAttribute('href', '/groups/ai-research-team')
+
+    await collective.click()
+    await expect(page).toHaveURL(/\/groups\/ai-research-team/)
+  })
 })
