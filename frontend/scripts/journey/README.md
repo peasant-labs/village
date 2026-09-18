@@ -16,12 +16,23 @@ video; every run records the ARIA tree and axe report.
 # both themes, artifacts under scripts/journey/.artifacts
 pnpm journey
 
-# also record a video for every test (not only failures)
+# a still frame per test is captured by default; disable with:
+JOURNEY_SCREENSHOT=off pnpm journey
+
+# a trace per test (openable inline from the report); failures always keep one
+JOURNEY_TRACE=1 pnpm journey
+# equivalent CLI override: pnpm exec playwright test --config playwright.journey.config.mjs --trace on
+
+# a video per test (the heavy one; opt-in)
 JOURNEY_VIDEO=1 pnpm journey
 
 # open the HTML report
 pnpm journey:report
 ```
+
+Note: `--trace <mode>` is the only artifact flag on the Playwright CLI;
+screenshots and video are `use` config options, controlled here by the
+`JOURNEY_SCREENSHOT` / `JOURNEY_VIDEO` env switches.
 
 The harness starts the app and a single composed mock itself (`webServer` in
 `playwright.journey.config.mjs`) on ports `3010` (app) and `8799` (mock), so no

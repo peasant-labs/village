@@ -25,6 +25,13 @@ const CHROME =
   process.env.CHROME_PATH || '/home/minttea/.nix-profile/bin/google-chrome'
 const ARTIFACTS = 'scripts/journey/.artifacts'
 
+// Artifact policy: screenshots are cheap and on by default (useful for agents and
+// the HTML report); traces and video are retained on failure, with opt-in
+// switches for whole-run capture. The CLI's `--trace <mode>` overrides TRACE.
+const SCREENSHOT = process.env.JOURNEY_SCREENSHOT === 'off' ? 'only-on-failure' : 'on'
+const TRACE = process.env.JOURNEY_TRACE === '1' ? 'on' : 'retain-on-failure'
+const VIDEO = process.env.JOURNEY_VIDEO === '1' ? 'on' : 'retain-on-failure'
+
 export default defineConfig({
   testDir: './scripts/journey',
   testMatch: '**/*.journey.mjs',
@@ -44,9 +51,9 @@ export default defineConfig({
     baseURL: APP_URL,
     viewport: { width: 1396, height: 939 },
     reducedMotion: 'reduce',
-    trace: 'retain-on-failure',
-    video: process.env.JOURNEY_VIDEO === '1' ? 'on' : 'retain-on-failure',
-    screenshot: 'only-on-failure',
+    trace: TRACE,
+    video: VIDEO,
+    screenshot: SCREENSHOT,
     launchOptions: { executablePath: CHROME },
   },
   projects: [
