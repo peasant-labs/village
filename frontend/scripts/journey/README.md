@@ -100,10 +100,12 @@ evidence to the PR through `scripts/journey/ci-post-evidence.mjs`:
 GitHub plays video inline only as a comment attachment, so clips are attached
 with `gh pr comment --attach`; full traces stay in the workflow artifact.
 
-Required repository setup (once): a GitHub App with **Issues: Read and write**
+Required organization setup (once): a GitHub App with **Issues: Read and write**
 and **Pull requests: Read** (Metadata: Read is implicit), installed on the
-repository, with its client id in the `JOURNEY_APP_CLIENT_ID` repository
-variable and its private key in the `JOURNEY_APP_PRIVATE_KEY` secret. Using an
+organization with access to this repository. Store the App's client id in the
+`JOURNEY_APP_CLIENT_ID` org secret and its private key in the
+`JOURNEY_APP_PRIVATE_KEY` org secret (variables work too, if the workflow
+references `vars` instead of `secrets`). Using an
 App (not the default `GITHUB_TOKEN`) gives a stable bot identity instead of
 `github-actions[bot]`. Pull request workflows from forks do not receive
 repository secrets, so fork PRs would need `pull_request_target` or
