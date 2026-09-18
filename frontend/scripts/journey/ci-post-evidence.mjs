@@ -121,8 +121,11 @@ const canAttach = (token) => /^(gh[opu]_|github_pat_)/.test(token)
 const runGh = (args, token, opts = {}) =>
   execFileSync('gh', args, { ...opts, env: { ...process.env, GH_TOKEN: token } })
 
-// Replace prior evidence comments authored by any identity this pipeline uses.
-for (const token of TOKENS) {
+// Replace prior evidence comments authored by either identity. Prefer the App
+// token: it authored its own comments and reliably has Issues/Pull requests
+// write, so cleanup works even when the PAT cannot reach the repo.
+const pruneTokens = [...new Set([process.env.JOURNEY_APP_TOKEN, ...TOKENS].filter(Boolean))]
+for (const token of pruneTokens) {
   try {
     const login = runGh(['api', 'user', '--jq', '.login'], token, { encoding: 'utf8' }).trim()
     const ids = runGh(
@@ -133,14 +136,16 @@ for (const token of TOKENS) {
       .trim()
       .split('\n')
       .filter(Boolean)
+    let failed = 0
     for (const id of ids) {
       try {
         runGh(['api', '--method', 'DELETE', `repos/${GITHUB_REPOSITORY}/issues/comments/${id}`], token, { stdio: 'inherit' })
       } catch (e) {
+        failed++
         console.error(`ci-post-evidence: could not delete prior comment ${id}: ${e.message}`)
       }
     }
-    break
+    if (failed === 0) break
   } catch (e) {
     console.error(`ci-post-evidence: prune with ${token.slice(0, 4)}… failed: ${e.message}`)
   }
