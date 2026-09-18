@@ -56,6 +56,7 @@ jobs:
         with:
           name: journey-artifacts
           path: frontend/scripts/journey/.artifacts/
+          include-hidden-files: true
           retention-days: 14
 
       - name: Mint bot token

@@ -131,24 +131,37 @@ try {
   console.error('ci-post-evidence: could not prune prior evidence comments:', e.message)
 }
 
-const runWithAttachments = () => {
+// gh pr comment uses the GraphQL addComment mutation, which a narrowed App
+// installation token cannot call ("Resource not accessible by integration").
+// The REST issues-comments endpoint works with Issues: write, so post that way.
+const postViaRest = () =>
+  execFileSync(
+    'gh',
+    ['api', '--method', 'POST', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '-F', `body=@${bodyFile}`],
+    { stdio: 'inherit' },
+  )
+
+const postWithAttachments = () => {
   const args = ['pr', 'comment', PR_NUMBER, '--repo', GITHUB_REPOSITORY, '--body-file', bodyFile]
   for (const a of attachments) args.push('--attach', a)
   return execFileSync('gh', args, { stdio: 'inherit' })
 }
 
-const runTextOnly = () => {
-  execFileSync('gh', ['pr', 'comment', PR_NUMBER, '--repo', GITHUB_REPOSITORY, '--body-file', bodyFile], { stdio: 'inherit' })
-}
+// gh --attach only supports user credentials (OAuth / PAT / fine-grained PAT),
+// never an App installation token (ghs_). Detect so we do not burn a doomed call.
+const tokenCanAttach = /^(gh[opu]_|github_pat_)/.test(process.env.GH_TOKEN || '')
 
-try {
-  runWithAttachments()
-  console.log(`ci-post-evidence: posted to PR #${PR_NUMBER} with ${attachments.length} attachment(s)`)
-} catch (e) {
-  // gh refuses to upload attachments with a GitHub App installation token
-  // ("unsupported authentication type"; see cli/cli internal/attachments).
-  // Fall back to a text comment so the run still reports and links its artifacts.
-  console.error(`ci-post-evidence: attachment upload failed (${e.message}); falling back to a text comment`)
-  runTextOnly()
-  console.log(`ci-post-evidence: posted a text-only comment to PR #${PR_NUMBER}`)
+if (attachments.length && tokenCanAttach) {
+  try {
+    postWithAttachments()
+  } catch (e) {
+    console.error(`ci-post-evidence: attachment upload failed (${e.message}); posting text-only`)
+    postViaRest()
+  }
+} else {
+  if (attachments.length) {
+    console.error('ci-post-evidence: token cannot upload attachments; posting text-only (media is in the workflow artifact)')
+  }
+  postViaRest()
 }
+console.log('ci-post-evidence: posted evidence comment')
