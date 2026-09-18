@@ -16,6 +16,9 @@ video; every run records the ARIA tree and axe report.
 # both themes, artifacts under scripts/journey/.artifacts
 pnpm journey
 
+# CI shape: JSON report + screenshots, no HTML report copy
+pnpm journey:ci
+
 # a still frame per test is captured by default; disable with:
 JOURNEY_SCREENSHOT=off pnpm journey
 

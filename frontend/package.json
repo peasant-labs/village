@@ -12,6 +12,7 @@
     "build": "next build",
     "start": "next start",
     "journey": "playwright test --config playwright.journey.config.mjs",
+    "journey:ci": "JOURNEY_HTML=0 playwright test --config playwright.journey.config.mjs",
     "journey:update": "playwright test --config playwright.journey.config.mjs --update-snapshots",
     "journey:report": "playwright show-report scripts/journey/.artifacts/html",
     "lint": "eslint",

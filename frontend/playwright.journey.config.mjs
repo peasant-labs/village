@@ -35,6 +35,7 @@ const [VIEWPORT_W, VIEWPORT_H] = (process.env.JOURNEY_VIEWPORT || '1280x720').sp
 const SCREENSHOT = process.env.JOURNEY_SCREENSHOT === 'off' ? 'only-on-failure' : 'on'
 const TRACE = process.env.JOURNEY_TRACE === '1' ? 'on' : 'retain-on-failure'
 const VIDEO = process.env.JOURNEY_VIDEO === '1' ? 'on' : 'retain-on-failure'
+const HTML = process.env.JOURNEY_HTML !== '0'
 
 export default defineConfig({
   testDir: './scripts/journey',
@@ -48,7 +49,7 @@ export default defineConfig({
   outputDir: `${ARTIFACTS}/results`,
   reporter: [
     ['list'],
-    ['html', { outputFolder: `${ARTIFACTS}/html`, open: 'never' }],
+    ...(HTML ? [['html', { outputFolder: `${ARTIFACTS}/html`, open: 'never' }]] : []),
     ['json', { outputFile: `${ARTIFACTS}/report.json` }],
   ],
   use: {
