@@ -114,60 +114,74 @@ const body = [
 const bodyFile = join(tmp, 'body.md')
 writeFileSync(bodyFile, body)
 
-// Replace any prior evidence comment authored by the acting identity (the App
-// bot, or the machine account whose PAT posts inline media).
-try {
-  const login = execFileSync('gh', ['api', 'user', '--jq', '.login'], { encoding: 'utf8' }).trim()
-  const ids = execFileSync(
-    'gh',
-    ['api', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '--paginate', '--jq', `.[] | select((.body | contains("${MARKER}")) and ((.user.login == "${login}") or (.user.type == "Bot"))) | .id`],
-    { encoding: 'utf8' },
-  )
-    .trim()
-    .split('\n')
-    .filter(Boolean)
-  for (const id of ids) {
-    try {
-      execFileSync('gh', ['api', '--method', 'DELETE', `repos/${GITHUB_REPOSITORY}/issues/comments/${id}`], { stdio: 'inherit' })
-    } catch (e) {
-      console.error(`ci-post-evidence: could not delete prior comment ${id}: ${e.message}`)
+// Tokens to try, most capable first: the machine-account PAT (can upload inline
+// media) and the App installation token (can post text). Distinct values only.
+const TOKENS = [...new Set([process.env.GH_TOKEN, process.env.JOURNEY_APP_TOKEN].filter(Boolean))]
+const canAttach = (token) => /^(gh[opu]_|github_pat_)/.test(token)
+const runGh = (args, token, opts = {}) =>
+  execFileSync('gh', args, { ...opts, env: { ...process.env, GH_TOKEN: token } })
+
+// Replace prior evidence comments authored by any identity this pipeline uses.
+for (const token of TOKENS) {
+  try {
+    const login = runGh(['api', 'user', '--jq', '.login'], token, { encoding: 'utf8' }).trim()
+    const ids = runGh(
+      ['api', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '--paginate', '--jq', `.[] | select((.body | contains("${MARKER}")) and ((.user.login == "${login}") or (.user.type == "Bot"))) | .id`],
+      token,
+      { encoding: 'utf8' },
+    )
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+    for (const id of ids) {
+      try {
+        runGh(['api', '--method', 'DELETE', `repos/${GITHUB_REPOSITORY}/issues/comments/${id}`], token, { stdio: 'inherit' })
+      } catch (e) {
+        console.error(`ci-post-evidence: could not delete prior comment ${id}: ${e.message}`)
+      }
     }
+    break
+  } catch (e) {
+    console.error(`ci-post-evidence: prune with ${token.slice(0, 4)}… failed: ${e.message}`)
   }
-} catch (e) {
-  console.error('ci-post-evidence: could not prune prior evidence comments:', e.message)
 }
 
-// gh pr comment uses the GraphQL addComment mutation, which a narrowed App
-// installation token cannot call ("Resource not accessible by integration").
-// The REST issues-comments endpoint works with Issues: write, so post that way.
-const postViaRest = () =>
-  execFileSync(
-    'gh',
+const postAttach = (token) => {
+  const args = ['pr', 'comment', PR_NUMBER, '--repo', GITHUB_REPOSITORY, '--body-file', bodyFile]
+  for (const a of attachments) args.push('--attach', a)
+  return runGh(args, token, { stdio: 'inherit' })
+}
+
+const postRest = (token) =>
+  runGh(
     ['api', '--method', 'POST', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '-F', `body=@${bodyFile}`],
+    token,
     { stdio: 'inherit' },
   )
 
-const postWithAttachments = () => {
-  const args = ['pr', 'comment', PR_NUMBER, '--repo', GITHUB_REPOSITORY, '--body-file', bodyFile]
-  for (const a of attachments) args.push('--attach', a)
-  return execFileSync('gh', args, { stdio: 'inherit' })
-}
-
-// gh --attach only supports user credentials (OAuth / PAT / fine-grained PAT),
-// never an App installation token (ghs_). Detect so we do not burn a doomed call.
-const tokenCanAttach = /^(gh[opu]_|github_pat_)/.test(process.env.GH_TOKEN || '')
-
-if (attachments.length && tokenCanAttach) {
+// Try each token: inline attachments where the credential allows, then a text
+// comment. Falls through so a misconfigured PAT never suppresses the report.
+let posted = false
+for (const token of TOKENS) {
+  if (attachments.length && canAttach(token)) {
+    try {
+      postAttach(token)
+      posted = true
+      break
+    } catch (e) {
+      console.error(`ci-post-evidence: attach with ${token.slice(0, 4)}… failed: ${e.message}`)
+    }
+  }
   try {
-    postWithAttachments()
+    postRest(token)
+    posted = true
+    break
   } catch (e) {
-    console.error(`ci-post-evidence: attachment upload failed (${e.message}); posting text-only`)
-    postViaRest()
+    console.error(`ci-post-evidence: REST post with ${token.slice(0, 4)}… failed: ${e.message}`)
   }
-} else {
-  if (attachments.length) {
-    console.error('ci-post-evidence: token cannot upload attachments; posting text-only (media is in the workflow artifact)')
-  }
-  postViaRest()
+}
+if (!posted) {
+  console.error('ci-post-evidence: could not post evidence with any configured token')
+  process.exit(1)
 }
 console.log('ci-post-evidence: posted evidence comment')
