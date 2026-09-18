@@ -127,9 +127,12 @@ const runGh = (args, token, opts = {}) =>
 const pruneTokens = [...new Set([process.env.JOURNEY_APP_TOKEN, ...TOKENS].filter(Boolean))]
 for (const token of pruneTokens) {
   try {
-    const login = runGh(['api', 'user', '--jq', '.login'], token, { encoding: 'utf8' }).trim()
+    // Installation tokens cannot call /user; match bot-authored comments instead.
+    const isInstallation = token.startsWith('ghs_')
+    const login = isInstallation ? null : runGh(['api', 'user', '--jq', '.login'], token, { encoding: 'utf8' }).trim()
+    const authorMatch = login ? `((.user.login == "${login}") or (.user.type == "Bot"))` : '(.user.type == "Bot")'
     const ids = runGh(
-      ['api', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '--paginate', '--jq', `.[] | select((.body | contains("${MARKER}")) and ((.user.login == "${login}") or (.user.type == "Bot"))) | .id`],
+      ['api', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '--paginate', '--jq', `.[] | select((.body | contains("${MARKER}")) and ${authorMatch}) | .id`],
       token,
       { encoding: 'utf8' },
     )
