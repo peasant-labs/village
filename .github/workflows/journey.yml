@@ -66,9 +66,10 @@ jobs:
         with:
           client-id: ${{ vars.JOURNEY_APP_CLIENT_ID }}
           private-key: ${{ secrets.JOURNEY_APP_PRIVATE_KEY }}
-          # Diagnostic: inherit the installation's permissions instead of narrowing.
-          # If this works, the narrowed token was the problem; if not, the
-          # installation itself still lacks Issues: write.
+          # Least privilege: Issues: write posts the comment; Pull requests: read
+          # lets the App resolve the PR.
+          permission-issues: write
+          permission-pull-requests: read
 
       - name: Post evidence
         if: always()
