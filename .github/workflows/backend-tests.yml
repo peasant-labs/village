@@ -6,8 +6,11 @@ name: Backend Tests
 # container; the workflow starts an ephemeral pinned MinIO container explicitly.
 #
 # Jobs run on the organization's self-hosted container pool when a runner is
-# online (the routing job picks it dynamically) and on GitHub-hosted
-# ubuntu-24.04 otherwise; both paths are kept green.
+# online and on GitHub-hosted ubuntu-24.04 otherwise; both paths are kept
+# green. The routing job is the shared reusable workflow pinned by tag
+# (peasant-labs/infra runner-router-v1); the fallback is ubuntu-24.04 because
+# the integration suite needs real PostgreSQL and S3-compatible storage via
+# stock service containers, which the pinned image provides.
 on:
   pull_request:
     paths:
@@ -60,34 +63,11 @@ permissions:
 
 jobs:
   determine-runner:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      runner: ${{ steps.pick.outputs.runner }}
-    steps:
-      - name: Pick a runner
-        id: pick
-        env:
-          GH_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
-        run: |
-          set -euo pipefail
-          # Bound the availability query so a hang cannot consume the whole
-          # job budget and skip the fallback decision.
-          if ! online=$(timeout 30s gh api /orgs/peasant-labs/actions/runners --paginate \
-              --jq '.runners[] | select(.status == "online") | select(any(.labels[]; .name == "container")) | .name' 2>/dev/null | wc -l); then
-            echo "::warning::runner availability query failed; using the fallback"
-            online=0
-          fi
-          echo "online runners: ${online}"
-          if [ "${online}" -gt 0 ]; then
-            echo 'runner=["self-hosted","container"]' >> "$GITHUB_OUTPUT"
-          else
-            echo 'runner=["ubuntu-24.04"]' >> "$GITHUB_OUTPUT"
-          fi
-      - name: Report chosen runner
-        env:
-          CHOSEN: ${{ steps.pick.outputs.runner }}
-        run: 'echo "chosen: $CHOSEN"'
+    uses: peasant-labs/infra/.github/workflows/runner-router.yml@runner-router-v1
+    with:
+      fallback: '["ubuntu-24.04"]'
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
 
   test:
     name: Backend, PostgreSQL, and MinIO
