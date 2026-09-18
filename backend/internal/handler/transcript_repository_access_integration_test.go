@@ -4,15 +4,21 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/peasant-labs/schema"
 )
 
 // transcriptViewAs drives the mounted read route a digest links to, as the given
@@ -142,5 +148,78 @@ func TestRepositoryReadIsScopedToTheAttachment_RealPostgres(t *testing.T) {
 	}
 	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d after detach, want 404: a detached attachment admits nobody", rec.Code)
+	}
+}
+
+// pageAs drives the mounted route the app's own comment and check link to, as
+// the given viewer.
+func pageAs(t *testing.T, h *Handler, user *AuthUser, owner, name string, number int) *httptest.ResponseRecorder {
+	t.Helper()
+	r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/pulls/%s/%s/%d", owner, name, number), nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("owner", owner)
+	rctx.URLParams.Add("name", name)
+	rctx.URLParams.Add("number", strconv.Itoa(number))
+	ctx := context.WithValue(r.Context(), chi.RouteCtxKey, rctx)
+	if user != nil {
+		ctx = context.WithValue(ctx, UserContextKey, user)
+	}
+	w := httptest.NewRecorder()
+	h.GetPullRequestAttachment(w, r.WithContext(ctx))
+	return w
+}
+
+// TestRepositoryReadersOpenThePullRequestPage_RealPostgres is the page half of
+// the private path: a repository's own readers can open the pull request that
+// lists the prompts, which is where the app's comment and check send them, so
+// being admitted to the transcripts is reachable rather than needing the link
+// already. A preview stays the author's own review step.
+func TestRepositoryReadersOpenThePullRequestPage_RealPostgres(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	author := attachmentInsertOwner(t, ctx, pool, 994021)
+	defer cleanupOwners(t, ctx, pool, author)
+	authorAuth := &AuthUser{ID: uuid.UUID(author.Bytes), Username: "attachment-author"}
+	_, repoName := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 21, "abc9999000000000000000000000000000000021")
+
+	reader := attachmentInsertOwner(t, ctx, pool, 994022)
+	defer cleanupOwners(t, ctx, pool, reader)
+	readerAuth := &AuthUser{ID: uuid.UUID(reader.Bytes), Username: "repo-reader"}
+
+	// A reader GitHub admits opens the page, digest included: the prompts are what
+	// they were admitted to, so listing them is the same grant.
+	fake.setRepoReader("994022", "reader-login", "read")
+	rec := pageAs(t, h, readerAuth, "acme", repoName, 21)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d for a repository reader, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	var response schema.VillagePullRequestAttachmentResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode the page a repository reader opened: %v", err)
+	}
+	if response.Digest == nil {
+		t.Fatal("the page a repository reader opened carries no digest, so the prompts they were admitted to are not what they can see")
+	}
+
+	// GitHub refusing is the collective-only refusal, unchanged.
+	fake.setRepoReader("994022", "reader-login", "none")
+	if rec := pageAs(t, h, readerAuth, "acme", repoName, 21); rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d for a reader GitHub refuses, want 404", rec.Code)
+	}
+
+	// A preview is the author's own review step. Repository access does not open a
+	// digest the author has not confirmed, and the author still sees their own.
+	fake.setRepoReader("994022", "reader-login", "read")
+	previewRepo := "readers-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	previewGroup := attachmentLinkCollective(t, ctx, pool, author, "acme", previewRepo, true, "informational")
+	previewSHA := "abc9999000000000000000000000000000000022"
+	attachmentSeedTranscript(t, ctx, pool, blobs, author, "git@github.com:acme/"+previewRepo+".git", previewSHA, "private", "", time.Now().Add(-time.Hour))
+	attachmentCreatePreview(t, ctx, h, previewGroup, author, "acme", previewRepo, previewSHA, 22)
+
+	if rec := pageAs(t, h, readerAuth, "acme", previewRepo, 22); rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d for a repository reader on a preview, want 404: a preview is the author's own review step", rec.Code)
+	}
+	if rec := pageAs(t, h, authorAuth, "acme", previewRepo, 22); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d for the author on their own preview, want 200 (body: %s)", rec.Code, rec.Body.String())
 	}
 }

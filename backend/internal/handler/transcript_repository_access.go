@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
@@ -33,17 +35,8 @@ func (h *Handler) canReadThroughAttachedRepository(ctx context.Context, user *Au
 		return false
 	}
 
-	// The reader's GitHub identity, keyed on the immutable account id. A login
-	// can be renamed and a freed one later taken by another account, so a stored
-	// login is never what we ask about. A reader who signed in through another
-	// provider has no GitHub identity here and is refused.
-	reader, err := h.queries.GetUserByID(ctx, user.PgID())
-	if err != nil || reader.Provider != githubProvider || reader.ProviderUserID == "" {
-		return false
-	}
-
 	// One lookup per repository, not per attachment: a pull request with several
-	// bound transcripts answers the same question each time.
+	// bound transcripts asks the same question each time.
 	asked := make(map[string]bool)
 	for _, attachment := range attachments {
 		repo, err := h.resolveAttachmentRepository(ctx, h.queries, attachment)
@@ -55,11 +48,31 @@ func (h *Handler) canReadThroughAttachedRepository(ctx context.Context, user *Au
 			continue
 		}
 		asked[key] = true
-		if h.githubAdmitsReader(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, reader.ProviderUserID) {
+		if h.repositoryAdmitsViewer(ctx, user.PgID(), repo.installationID, attachment.RepoOwner, attachment.RepoName) {
 			return true
 		}
 	}
 	return false
+}
+
+// repositoryAdmitsViewer asks GitHub whether one signed-in viewer may read one
+// repository. It is the whole of the private path's decision, and the pull
+// request page asks it as well as the transcripts, so a repository's readers can
+// find the prompts they were admitted to rather than only open one they already
+// had the link to.
+func (h *Handler) repositoryAdmitsViewer(ctx context.Context, viewerID pgtype.UUID, installationID int64, owner, name string) bool {
+	if h.gh == nil || !viewerID.Valid {
+		return false
+	}
+	// The viewer's GitHub identity, keyed on the immutable account id. A login
+	// can be renamed and a freed one later taken by another account, so a stored
+	// login is never what we ask about. A viewer who signed in through another
+	// provider has no GitHub identity here and is refused.
+	reader, err := h.queries.GetUserByID(ctx, viewerID)
+	if err != nil || reader.Provider != githubProvider || reader.ProviderUserID == "" {
+		return false
+	}
+	return h.githubAdmitsReader(ctx, installationID, owner, name, reader.ProviderUserID)
 }
 
 // githubAdmitsReader resolves the reader's current login from their immutable
