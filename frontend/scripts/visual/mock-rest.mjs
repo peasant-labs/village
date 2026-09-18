@@ -861,7 +861,10 @@ const server = createServer((req, res) => {
   if (pullMatch) {
     const [, owner, name, number, confirm] = pullMatch
     const attached = req.method !== 'DELETE' && confirm !== undefined
-    const state = req.method === 'DELETE' ? 'detached' : attached ? 'attached' : 'preview'
+    // An empty digest only exists once the attachment is attached: a preview
+    // always has at least one accepted transcript, so EMPTY_DIGEST serves the
+    // state that can actually produce it.
+    const state = req.method === 'DELETE' ? 'detached' : attached || process.env.EMPTY_DIGEST === '1' ? 'attached' : 'preview'
     return send(res, 200, {
       attachment: {
         id: '7f3c1a2b-4d5e-4f60-8a9b-0c1d2e3f4a5b',
@@ -896,7 +899,9 @@ const server = createServer((req, res) => {
           { name: 'commit', invocationCount: 2 },
           { name: 'review', invocationCount: 1 },
         ],
-        items: [
+        // EMPTY_DIGEST=1 serves a digest with no rows left in it: every bound
+        // prompt is gone, so the page must say so rather than render a shell.
+        items: process.env.EMPTY_DIGEST === '1' ? [] : [
           { kind: 'session', transcriptId: '11111111-1111-1111-1111-111111111111', timestamp: '2026-06-28T11:00:00Z', text: 'session 1', promptCount: 2, commitCount: 1 },
           { kind: 'prompt', transcriptId: '11111111-1111-1111-1111-111111111111', timestamp: '2026-06-28T11:01:00Z', text: 'attach the prompts behind a pull request', ordinal: 1, turnIndex: 0 },
           { kind: 'commit', transcriptId: '11111111-1111-1111-1111-111111111111', timestamp: '2026-06-28T11:10:00Z', text: 'abc1234', commitSha: 'abc1234000000000000000000000000000000001', additions: 42, deletions: 7, filesChanged: 3 },

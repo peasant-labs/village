@@ -41,7 +41,12 @@ function fixtureFor(
       confirmed_at: null,
       detached_at: null,
     },
-    digest: row.digest === "present" ? makeDigest(row.digest_transcript_ids) : null,
+    digest:
+      row.digest === "present"
+        ? makeDigest(row.digest_transcript_ids)
+        : row.digest === "empty"
+          ? makeDigest([])
+          : null,
     transcripts: row.transcript_ids.map((transcriptId, index) => ({
       transcript_id: transcriptId,
       position: index,
@@ -72,6 +77,11 @@ describe("the pull request page", () => {
       if (row.digest === "present") {
         expect(await screen.findByText("please add the picker")).toBeTruthy();
         await waitFor(() => expect(document.querySelector(".pd")).toBeTruthy());
+      } else if (row.digest === "empty") {
+        expect(document.querySelector(".pd")).toBeNull();
+        expect(screen.getByTestId("digest-empty").textContent).toContain(
+          "No prompts are available for this pull request.",
+        );
       } else {
         expect(document.querySelector(".pd")).toBeNull();
         // The sentence naming who the digest is shown to must match the
