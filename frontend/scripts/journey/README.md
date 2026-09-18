@@ -46,9 +46,10 @@ on NixOS without `playwright install`.
 | File | Role |
 |---|---|
 | `playwright.journey.config.mjs` | Two theme projects, `webServer`, reporters, artifact dir |
-| `lib/determinism.mjs` | Frozen clock + seeded PRNG (ported from `scripts/visual/determinism.mjs`) |
-| `lib/fixtures.mjs` | Authenticated, theme-pinned, deterministic context |
-| `lib/assertions.mjs` | axe, computed-token, and theme assertions |
+| `lib/determinism.mjs`, `lib/determinism-constants.mjs` | Frozen clock + seeded PRNG (vendored from fairtrade) |
+| `lib/assertions.mjs` | axe, computed-token, and theme assertions (vendored from fairtrade) |
+| `lib/fixtures.mjs` | Authenticated, theme-pinned, deterministic context (app-specific) |
+| `lib/vendor-guard.test.mjs` | Fails when a vendored body drifts from the fairtrade canonical copy |
 | `*.journey.mjs` | One file per fundamental feature |
 
 ## Adding a journey
@@ -60,7 +61,9 @@ than class strings, and keep every case in fixtures/data, not inline tables.
 ## Status and next steps
 
 This is the first keystone slice (village Explore). The app-agnostic modules in
-`lib/` are intended to move to the fairtrade canonical harness and be vendored
-back into consumers, the same way `scripts/visual/surface-gate.mjs` is vendored
-today; served-bytes build provenance (as the production shoots assert) is the
-next slice, since a dev server cannot provide it.
+`lib/` (`determinism-constants.mjs`, `determinism.mjs`, `assertions.mjs`) are
+vendored byte-faithfully from `fairtrade-design-system/scripts/journey/lib/`;
+`pnpm check:journey-vendoring` (with `FAIRTRADE_CHECKOUT` set) fails when a
+vendored body drifts. `lib/fixtures.mjs` stays app-specific: it pins village's
+auth cookie and theme control. Served-bytes build provenance, as the production
+shoots assert, is the next slice, since a dev server cannot provide it.

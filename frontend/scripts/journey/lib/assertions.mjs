@@ -1,7 +1,11 @@
+/* VENDORED from fairtrade-design-system/scripts/journey/lib/assertions.mjs.
+   Byte-faithful except this banner. Do not edit here: edit the upstream file and
+   re-vendor. scripts/journey/lib/vendor-guard.test.mjs fails when the bodies drift. */
 /* Journey assertion helpers: the design-system and accessibility contract a
- * mounted surface must satisfy. Kept app-agnostic so it can move to the fairtrade
- * canonical harness.
- */
+ * mounted surface must satisfy.
+ *
+ * App-agnostic: this is the canonical copy consumers vendor into their own
+ * journey harness. See scripts/journey/README.md. */
 import { expect } from '@playwright/test'
 import { AxeBuilder } from '@axe-core/playwright'
 

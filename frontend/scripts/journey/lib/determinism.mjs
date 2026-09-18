@@ -1,15 +1,18 @@
+/* VENDORED from fairtrade-design-system/scripts/journey/lib/determinism.mjs.
+   Byte-faithful except this banner. Do not edit here: edit the upstream file and
+   re-vendor. scripts/journey/lib/vendor-guard.test.mjs fails when the bodies drift. */
 /* Deterministic page state for the journey harness.
  *
- * Ported from scripts/visual/determinism.mjs (the Puppeteer capture harness) so a
- * journey run is reproducible: it freezes the wall clock and replaces Math.random
- * and crypto randomness with a seeded PRNG. (Reduced motion is set at the context
- * level by playwright.journey.config.mjs `use.reducedMotion`.) Installed via
+ * Freezes the wall clock and replaces Math.random and crypto randomness with a
+ * seeded PRNG, so a journey run is reproducible. Installed via
  * context.addInitScript, it runs before any document script on every navigation.
  *
- * App-agnostic on purpose: this is the module intended to move to the fairtrade
- * canonical harness and be vendored back into consumers, the same way
- * scripts/visual/surface-gate.mjs is vendored today.
- */
+ * Reduced motion is deliberately NOT set here: it is a Playwright context option,
+ * so the consumer's config sets `use.reducedMotion = 'reduce'`. An init script
+ * cannot express it.
+ *
+ * App-agnostic: this is the canonical copy consumers vendor into their own
+ * journey harness. See scripts/journey/README.md. */
 import { FROZEN_EPOCH_MS, PRNG_SEED } from './determinism-constants.mjs'
 
 export { FROZEN_EPOCH_MS, PRNG_SEED }
