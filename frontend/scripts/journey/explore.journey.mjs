@@ -8,6 +8,7 @@
  */
 import { writeFileSync } from 'node:fs'
 import { test, expect } from './lib/fixtures.mjs'
+import { setScenario } from './lib/scenario.mjs'
 import {
   scanAxe,
   seriousViolations,
@@ -131,5 +132,17 @@ test.describe('explore', () => {
 
     await collective.click()
     await expect(page).toHaveURL(/\/groups\/ai-research-team/)
+  })
+
+  test('renders no rows when the server returns an empty list', async ({ page, request }) => {
+    await setScenario(request, 'empty')
+    try {
+      await page.goto('/explore')
+      await expect(page.locator('.cex-explore-body').first()).toBeVisible()
+      await expect(page.locator('a[href^="/transcripts/"]')).toHaveCount(0)
+    } finally {
+      // The scenario persists for the rest of the run; restore the default.
+      await setScenario(request, 'default')
+    }
   })
 })

@@ -55,7 +55,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `MOCK_REST_PORT=${MOCK_PORT} node scripts/visual/mock-rest-explore.mjs`,
+      command: `MOCK_REST_PORT=${MOCK_PORT} node scripts/journey/mock.mjs`,
       url: `http://localhost:${MOCK_PORT}/api/v1/tags/popular`,
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,

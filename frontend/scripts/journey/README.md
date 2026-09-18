@@ -5,10 +5,10 @@ machine-readable validation. This is the interaction/motion arm the screenshot
 harness in `scripts/visual/` does not cover; it does not replace that harness or
 its pixel/provenance gates.
 
-A journey boots the app and its mock REST backend, drives a real feature, and
-asserts the semantic surface (ARIA roles), the design-system contract (computed
-tokens), routes, and WCAG. A failing run keeps its trace and video; every run
-records the ARIA tree and axe report.
+A journey boots the app and a **composed** mock REST backend, drives a real
+feature, and asserts the semantic surface (ARIA roles), the design-system
+contract (computed tokens), routes, and WCAG. A failing run keeps its trace and
+video; every run records the ARIA tree and axe report.
 
 ## Run
 
@@ -23,9 +23,17 @@ JOURNEY_VIDEO=1 pnpm journey
 pnpm journey:report
 ```
 
-The harness starts the app and mock itself (`webServer` in
+The harness starts the app and a single composed mock itself (`webServer` in
 `playwright.journey.config.mjs`) on ports `3010` (app) and `8799` (mock), so no
-manual setup is needed. Override with `JOURNEY_APP_PORT` / `JOURNEY_MOCK_PORT`.
+manual setup is needed. The composed mock (`scripts/journey/mock.mjs`) serves the
+browse fixtures in-process and the transcript-detail fixtures from
+`scripts/visual/mock-rest.mjs` behind an internal port: one command, no mock
+selection and no port matrix. Override ports with `JOURNEY_APP_PORT` /
+`JOURNEY_MOCK_PORT` if they collide.
+
+A journey declares the world it needs with `setScenario(request, 'empty')`
+(`lib/scenario.mjs`), which calls the mock's `POST /__mock/scenario`; reset it to
+`'default'` when done.
 
 Chrome is the NixOS-packaged browser: set `CHROME_PATH`, or accept the default
 profile path. No Playwright browser download is required, which is why this works
@@ -50,6 +58,8 @@ on NixOS without `playwright install`.
 | `lib/assertions.mjs` | axe, computed-token, and theme assertions (vendored from fairtrade) |
 | `lib/fixtures.mjs` | Authenticated, theme-pinned, deterministic context (app-specific) |
 | `lib/vendor-guard.test.mjs` | Fails when a vendored body drifts from the fairtrade canonical copy |
+| `mock.mjs` | Composed backend: browse in-process, transcript detail proxied, scenario control |
+| `lib/scenario.mjs` | Sets the composed mock's scenario from a journey |
 | `*.journey.mjs` | One file per fundamental feature |
 
 ## Adding a journey
@@ -60,10 +70,12 @@ than class strings, and keep every case in fixtures/data, not inline tables.
 
 ## Status and next steps
 
-This is the first keystone slice (village Explore). The app-agnostic modules in
-`lib/` (`determinism-constants.mjs`, `determinism.mjs`, `assertions.mjs`) are
-vendored byte-faithfully from `fairtrade-design-system/scripts/journey/lib/`;
+Covers Explore and the transcript viewer. The app-agnostic modules in `lib/`
+(`determinism-constants.mjs`, `determinism.mjs`, `assertions.mjs`) are vendored
+byte-faithfully from `fairtrade-design-system/scripts/journey/lib/`;
 `pnpm check:journey-vendoring` (with `FAIRTRADE_CHECKOUT` set) fails when a
-vendored body drifts. `lib/fixtures.mjs` stays app-specific: it pins village's
-auth cookie and theme control. Served-bytes build provenance, as the production
-shoots assert, is the next slice, since a dev server cannot provide it.
+vendored body drifts. `lib/fixtures.mjs` and `lib/scenario.mjs` stay
+app-specific. The composed mock currently serves explore + transcript + auth;
+the home and collective surfaces can be folded in the same way. Served-bytes
+build provenance, as the production shoots assert, is a later slice, since a dev
+server cannot provide it.
