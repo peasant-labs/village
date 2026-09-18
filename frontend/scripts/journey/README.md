@@ -26,6 +26,9 @@ JOURNEY_TRACE=1 pnpm journey
 # a video per test (the heavy one; opt-in)
 JOURNEY_VIDEO=1 pnpm journey
 
+# capture viewport (default 720p); raise it to match the Puppeteer gates
+JOURNEY_VIEWPORT=1396x939 pnpm journey
+
 # open the HTML report
 pnpm journey:report
 ```
@@ -59,6 +62,27 @@ on NixOS without `playwright install`.
 | `results/<test>/trace.zip` | Deterministic filmstrip + DOM snapshots (open with `npx playwright show-trace <zip>`) |
 | `results/<test>/video.webm` | Live clip (failures, or `JOURNEY_VIDEO=1`) |
 | `results/<test>/attachments/` | The ARIA tree (`explore-aria.yml`) and axe report (`axe.json`) |
+
+## Size
+
+Playwright's HTML reporter copies every attachment into `html/data/` (that is
+builtin; `attachmentsBaseURL` changes only the link, not the copy), so a run's
+media exists twice: under `results/<test>/` and inside the report. Measured for
+the 14-test, two-theme catalog at 1280x720 with screenshots and video:
+
+| Part | Size |
+|---|---|
+| report bundle (`html/`) | ~3.3 MB |
+| raw results (`results/`) | ~2.9 MB |
+| whole `.artifacts/` | ~6.5 MB |
+| screenshots (14 PNG) | ~1.34 MB |
+| video (18 webm at 800x450) | ~1.34 MB |
+| `index.html` (test/step metadata) | ~0.5 MB |
+
+Traces dominate when forced on: one trace is several MB, so keep `JOURNEY_TRACE`
+off for a full-catalog run. Agents do not need the HTML report (`report.json`
+plus the persisted `axe.json`/ARIA files are ~1 KB), so a CI run can drop the
+HTML reporter, or `JOURNEY_SCREENSHOT=off`, to avoid the duplicated media.
 
 ## Layout
 

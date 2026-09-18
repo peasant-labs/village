@@ -25,6 +25,10 @@ const CHROME =
   process.env.CHROME_PATH || '/home/minttea/.nix-profile/bin/google-chrome'
 const ARTIFACTS = 'scripts/journey/.artifacts'
 
+// Capture viewport. 720p keeps the desktop (lg/xl) layout while cutting screenshot
+// pixels ~30% versus 1396x939. Override with JOURNEY_VIEWPORT=WxH.
+const [VIEWPORT_W, VIEWPORT_H] = (process.env.JOURNEY_VIEWPORT || '1280x720').split('x').map(Number)
+
 // Artifact policy: screenshots are cheap and on by default (useful for agents and
 // the HTML report); traces and video are retained on failure, with opt-in
 // switches for whole-run capture. The CLI's `--trace <mode>` overrides TRACE.
@@ -49,7 +53,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: APP_URL,
-    viewport: { width: 1396, height: 939 },
+    viewport: { width: VIEWPORT_W, height: VIEWPORT_H },
     reducedMotion: 'reduce',
     trace: TRACE,
     video: VIDEO,
