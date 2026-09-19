@@ -68,7 +68,7 @@ const pathFor = (test, contentType) => {
   return a ? a.path : null
 }
 const label = (t) => `${basename(t.file || 'journey').replace(/\.[^.]+$/, '')} › ${t.title}`
-const media = tests.map((t) => ({ label: label(t), theme: t.project, image: pathFor(t, 'image/png'), video: pathFor(t, 'video/webm') }))
+const media = tests.map((t) => ({ label: label(t), theme: t.project, status: t.status, image: pathFor(t, 'image/png'), video: pathFor(t, 'video/webm') }))
 const labels = [...new Set(media.map((m) => m.label))]
 const themes = [...new Set(media.map((m) => m.theme))].sort()
 const cell = (l, theme) => media.find((m) => m.label === l && m.theme === theme)
@@ -123,9 +123,9 @@ const uploadAsset = async (path, contentType, token, repositoryId) => {
   return json.url
 }
 
-// Sectioned, no table: title + run/commit lines, then one section per journey
-// (heading, rule, four media blocks). Each media sits alone in its own paragraph
-// so GitHub embeds images and video players.
+// Inline sections: title + run/commit, then one section per journey (heading with
+// its pass/fail, a rule, four media blocks). Each media alone in its own
+// paragraph so GitHub embeds images and renders clips as players.
 const buildSections = (imageUrls, videoUrls) => {
   const lines = [
     `<!-- ${MARKER} -->`,
@@ -136,7 +136,8 @@ const buildSections = (imageUrls, videoUrls) => {
   ]
   if (failed.length) lines.push('', 'Failing:', ...failed.map((f) => `- [${f.project}] ${f.title}`))
   for (const l of labels) {
-    lines.push('', `## ${l}`, '', '---', '')
+    const ok = media.filter((m) => m.label === l).every((m) => m.status === 'passed')
+    lines.push('', `## ${l} — ${ok ? 'passed' : 'failed'}`, '', '---', '')
     for (const theme of ['dark', 'light']) {
       const m = cell(l, theme)
       if (m?.image) lines.push(`![${theme}](${imageUrls.get(m.image)})`, '')
