@@ -104,41 +104,68 @@ if (titleText !== `${owner}/${name} #${number}`) {
     'the served payload is for a different pull request.', 'the capture would document the wrong attachment.',
     'confirm the mock and the URL name the same pull request and retry.')
 }
-const commit = await waitFor('a[href^="https://github.com/"][href*="/commit/"]')
-const promptLink = await waitFor('a[href*="?turn="]')
-if (!commit || !promptLink) {
-  await browser.close()
-  die(2, 'the digest chain did not render its anchors.',
-    'a commit anchor or a turn link is missing, so this is not the digest this change renders.',
-    'the capture would prove nothing about the chain.',
-    'confirm the mock serves a digest with a commit item and a prompt item and retry.')
+if (process.env.EMPTY_DIGEST === '1') {
+  // A digest with no rows left renders the state that says so, not a shell. The
+  // chain anchors are absent by design here, so this asserts the rendered thing
+  // instead of skipping the check.
+  const empty = await waitFor('[data-testid="digest-empty"]')
+  if (!empty) {
+    await browser.close()
+    die(2, 'a digest with no rows left rendered no state.',
+      'every bound prompt is gone, so the page must say so where the digest was.',
+      'the capture would document an empty shell rather than the state.',
+      'confirm the served build is from THIS worktree and the mock serves an empty digest, then retry.')
+  }
+  const emptyText = await page.evaluate((el) => el.textContent.replace(/\s+/g, ' ').trim(), empty)
+  if (emptyText !== 'No prompts are available for this pull request.') {
+    await browser.close()
+    die(1, `the empty-digest state reads ${JSON.stringify(emptyText)}.`,
+      'it does not say that no prompts are available.',
+      'the capture would document copy the page does not ship.',
+      'confirm the page copy and the mock agree, then retry.')
+  }
+} else {
+  const commit = await waitFor('a[href^="https://github.com/"][href*="/commit/"]')
+  const promptLink = await waitFor('a[href*="?turn="]')
+  if (!commit || !promptLink) {
+    await browser.close()
+    die(2, 'the digest chain did not render its anchors.',
+      'a commit anchor or a turn link is missing, so this is not the digest this change renders.',
+      'the capture would prove nothing about the chain.',
+      'confirm the mock serves a digest with a commit item and a prompt item and retry.')
+  }
 }
 
-// The audience statement is this change's surface: a page that offers the
-// confirm button without it is not the page under test, and capturing it would
-// document the very gap this closes.
-const audience = await waitFor('[data-testid="attachment-audience"]')
-if (!audience) {
-  await browser.close()
-  die(2, 'the confirmation did not state the audience.',
-    'the author-only panel mounted without the statement naming who the transcripts become readable by.',
-    'the capture would document the confirm step without the thing this change adds.',
-    'confirm the served build is from THIS worktree and the mock serves an author-visible preview, then retry.')
-}
-const audienceText = await page.evaluate((el) => el.textContent.replace(/\s+/g, ' ').trim(), audience)
-// The expected sentence comes from the repository kind the mock serves, not from
-// either sentence being acceptable: a capture pointed at a private repository
-// that rendered the public copy, or the reverse, must fail rather than pass on a
-// statement merely existing.
-const expectedAudience = process.env.PULL_PRIVATE === '1'
-  ? "attaching makes the transcripts behind these prompts readable by members of this collective and by this repository's collaborators. a transcript that is already shared or public keeps its own audience."
-  : 'attaching makes the transcripts behind these prompts readable by anyone.'
-if (audienceText !== expectedAudience) {
-  await browser.close()
-  die(1, `the audience statement reads ${JSON.stringify(audienceText)}, want ${JSON.stringify(expectedAudience)}.`,
-    'the copy does not match the repository kind the mock serves, so the page names the wrong audience.',
-    'the capture would document the wrong audience for this repository.',
-    'serve the mock with the PULL_PRIVATE the capture means and retry.')
+if (process.env.EMPTY_DIGEST !== '1') {
+  // The audience statement belongs to the confirmation step. The empty-digest
+  // capture is of an ATTACHED attachment, whose panel offers detach and no
+  // confirmation to read, so it is asserted only where a confirmation exists.
+  // The audience statement is this change's surface: a page that offers the
+  // confirm button without it is not the page under test, and capturing it would
+  // document the very gap this closes.
+  const audience = await waitFor('[data-testid="attachment-audience"]')
+  if (!audience) {
+    await browser.close()
+    die(2, 'the confirmation did not state the audience.',
+      'the author-only panel mounted without the statement naming who the transcripts become readable by.',
+      'the capture would document the confirm step without the thing this change adds.',
+      'confirm the served build is from THIS worktree and the mock serves an author-visible preview, then retry.')
+  }
+  const audienceText = await page.evaluate((el) => el.textContent.replace(/\s+/g, ' ').trim(), audience)
+  // The expected sentence comes from the repository kind the mock serves, not from
+  // either sentence being acceptable: a capture pointed at a private repository
+  // that rendered the public copy, or the reverse, must fail rather than pass on a
+  // statement merely existing.
+  const expectedAudience = process.env.PULL_PRIVATE === '1'
+    ? "attaching makes the transcripts behind these prompts readable by members of this collective and by this repository's collaborators. a transcript that is already shared or public keeps its own audience."
+    : 'attaching makes the transcripts behind these prompts readable by anyone.'
+  if (audienceText !== expectedAudience) {
+    await browser.close()
+    die(1, `the audience statement reads ${JSON.stringify(audienceText)}, want ${JSON.stringify(expectedAudience)}.`,
+      'the copy does not match the repository kind the mock serves, so the page names the wrong audience.',
+      'the capture would document the wrong audience for this repository.',
+      'serve the mock with the PULL_PRIVATE the capture means and retry.')
+  }
 }
 
 const probe = await page.evaluate(() => {
@@ -205,7 +232,15 @@ const shoot = async (rawName, sel, { sparse = false } = {}) => {
 // The page container carries no background of its own — the theme paints the
 // body — so the full-page capture is the body, or the PNG would be transparent
 // wherever the container is not covered by a panel.
-await shoot('pr-pull-request-page', 'body')
+if (process.env.EMPTY_DIGEST === '1') {
+  // The page in this state is a header, one sentence and the attached-transcripts
+  // list: a near-uniform full-page capture is what "no prompts are left" means,
+  // and the gate that exists to reject vacuous captures is right to reject it. The
+  // surface captured is therefore the state itself, on its own.
+  await shoot('pr-pull-request-empty', '[data-testid="digest-empty"]', { sparse: true })
+} else {
+  await shoot('pr-pull-request-page', 'body')
+}
 await shoot('pr-pull-request-actions', '[data-testid="pull-request-actions"]', { sparse: true })
 
 if (errs.length) {

@@ -5,29 +5,47 @@ cases:
   - name: informational-nothing-attached-is-neutral
     mode: informational
     attached: false
+    has_prompts: false
     conclusion: neutral
 
   - name: informational-something-attached-is-success
     mode: informational
     attached: true
+    has_prompts: true
     conclusion: success
 
   - name: required-nothing-attached-is-failure
     mode: required
     attached: false
+    has_prompts: false
     conclusion: failure
 
   - name: required-something-attached-is-success
     mode: required
     attached: true
+    has_prompts: true
     conclusion: success
 
   - name: unknown-mode-nothing-attached-fails-closed
     mode: something-else
     attached: false
+    has_prompts: false
     conclusion: failure
 
   - name: unknown-mode-something-attached-is-still-success
     mode: something-else
     attached: true
+    has_prompts: true
     conclusion: success
+
+  - name: informational-attached-with-nothing-left-is-neutral
+    mode: informational
+    attached: true
+    has_prompts: false
+    conclusion: neutral
+
+  - name: required-attached-with-nothing-left-is-neutral
+    mode: required
+    attached: true
+    has_prompts: false
+    conclusion: neutral

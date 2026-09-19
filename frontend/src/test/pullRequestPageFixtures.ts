@@ -18,6 +18,7 @@ const REQUIRED_CASE_NAMES = [
   "non-author viewing an attached digest",
   "non-author viewing a preview without a digest",
   "a bound transcript the digest no longer advertises",
+  "an attached attachment whose prompts are all gone",
   "a public repository with no digest names anyone",
   "an attached attachment with no digest marks nothing",
 ] as const;
@@ -27,7 +28,7 @@ export interface PullRequestPageCase {
   viewer_is_author: boolean;
   is_private_repository: boolean;
   state: "requested" | "waiting" | "preview" | "attached" | "detached";
-  digest: "present" | "absent";
+  digest: "present" | "empty" | "absent";
   transcript_ids: string[];
   digest_transcript_ids: string[];
   expect_unavailable_marks: number;

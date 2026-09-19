@@ -55,21 +55,22 @@ type attachmentGitHubFake struct {
 	prHeadFullName string
 	prBaseFullName string
 
-	mu              sync.Mutex
-	failWrites      bool
-	userLogins      map[string]string
-	permissions     map[string]string
-	repoReadFailure bool
-	permissionAsks  int
-	deleteNotFound  bool
-	checkCreates    int
-	checkCreateSHAs []string
-	checkUpdates    int
-	commentCreates  int
-	commentEdits    int
-	commentDeletes  int
-	lastCheckText   string
-	lastCommentBody string
+	mu                  sync.Mutex
+	failWrites          bool
+	userLogins          map[string]string
+	permissions         map[string]string
+	repoReadFailure     bool
+	permissionAsks      int
+	deleteNotFound      bool
+	checkCreates        int
+	checkCreateSHAs     []string
+	checkUpdates        int
+	commentCreates      int
+	commentEdits        int
+	commentDeletes      int
+	lastCheckText       string
+	lastCheckConclusion string
+	lastCommentBody     string
 }
 
 func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
@@ -128,8 +129,9 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			fake.mu.Lock()
 			id := int64(11)
 			var payload struct {
-				HeadSHA string `json:"head_sha"`
-				Output  struct {
+				HeadSHA    string `json:"head_sha"`
+				Conclusion string `json:"conclusion"`
+				Output     struct {
 					Summary string `json:"summary"`
 				} `json:"output"`
 			}
@@ -143,6 +145,9 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			}
 			if payload.Output.Summary != "" {
 				fake.lastCheckText = payload.Output.Summary
+			}
+			if payload.Conclusion != "" {
+				fake.lastCheckConclusion = payload.Conclusion
 			}
 			fake.mu.Unlock()
 			w.WriteHeader(http.StatusOK)

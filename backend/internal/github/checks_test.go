@@ -31,6 +31,8 @@ var requiredConclusionCaseNames = []string{
 	"required-something-attached-is-success",
 	"unknown-mode-nothing-attached-fails-closed",
 	"unknown-mode-something-attached-is-still-success",
+	"informational-attached-with-nothing-left-is-neutral",
+	"required-attached-with-nothing-left-is-neutral",
 }
 
 var requiredActionCaseNames = []string{"attach-prompts", "detach", "refresh"}
@@ -54,6 +56,7 @@ type conclusionCase struct {
 	Name       string `yaml:"name"`
 	Mode       string `yaml:"mode"`
 	Attached   bool   `yaml:"attached"`
+	HasPrompts bool   `yaml:"has_prompts"`
 	Conclusion string `yaml:"conclusion"`
 }
 
@@ -198,9 +201,9 @@ func toCheckRunRequest(f checkRunRequestFixture) CheckRunRequest {
 func TestPromptCheckConclusion(t *testing.T) {
 	for _, tc := range loadConclusionCases(t) {
 		t.Run(tc.Name, func(t *testing.T) {
-			got := PromptCheckConclusion(promptattach.CheckMode(tc.Mode), tc.Attached)
+			got := PromptCheckConclusion(promptattach.CheckMode(tc.Mode), tc.Attached, tc.HasPrompts)
 			if got != tc.Conclusion {
-				t.Errorf("PromptCheckConclusion(%q, %v) = %q, want %q", tc.Mode, tc.Attached, got, tc.Conclusion)
+				t.Errorf("PromptCheckConclusion(%q, attached=%v, hasPrompts=%v) = %q, want %q", tc.Mode, tc.Attached, tc.HasPrompts, got, tc.Conclusion)
 			}
 		})
 	}

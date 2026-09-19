@@ -9,6 +9,11 @@
 # does not advertise is what the page marks "not available", so those two
 # columns, not the state, decide the marking.
 #
+# digest is present, empty, or absent: absent is a digest the server did not
+# serve, and empty is one it served with no rows left in it, which happen for
+# different reasons and render differently. transcript_ids is what the page lists
+# under the digest whichever of the three it is.
+#
 # is_private_repository is the repository the attachment belongs to, and
 # expect_audience is the audience the page must name where the author is asked
 # to confirm: "anyone" on a public repository, "collective" on a private one,
@@ -123,6 +128,20 @@ cases:
     transcript_ids: []
     digest_transcript_ids: []
     expect_unavailable_marks: 0
+    confirm_status: null
+    expect_confirm: false
+    expect_detach: false
+    expect_audience: none
+
+  - name: an attached attachment whose prompts are all gone
+    is_private_repository: true
+    viewer_is_author: false
+    state: attached
+    digest: empty
+    transcript_ids:
+      - "11111111-1111-1111-1111-111111111111"
+    digest_transcript_ids: []
+    expect_unavailable_marks: 1
     confirm_status: null
     expect_confirm: false
     expect_detach: false

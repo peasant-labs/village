@@ -210,12 +210,22 @@ export default function PullRequestPage({
         </section>
       )}
 
-      {data.digest ? (
+      {data.digest && data.digest.items.length > 0 ? (
         <PromptDigest
           digest={data.digest}
           itemHref={(item) => itemHref(item, data.attachment.owner, data.attachment.name)}
           className="border border-rule"
         />
+      ) : data.digest ? (
+        // The digest is present but has no rows: every bound prompt is gone. Say
+        // so in words rather than rendering an empty shell where a digest was,
+        // and say only that — which prompt left, and why, is its owner's.
+        <section
+          className="border border-rule bg-surface px-5 py-6 text-sm text-ink-2"
+          data-testid="digest-empty"
+        >
+          <p>No prompts are available for this pull request.</p>
+        </section>
       ) : (
         <section className="border border-rule bg-surface px-5 py-6 text-sm text-ink-3">
           <p>
