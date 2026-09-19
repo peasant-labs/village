@@ -1062,6 +1062,12 @@ type transcriptCollective struct {
 // contributor opt-in. A refusal would itself confirm that memberships exist and
 // are being withheld, which is exactly what a person who has not opted in to
 // being listed asked not to happen.
+// transcriptCollectivesInvisible is one answer for "no such transcript" and "not
+// yours to see", so asking cannot be used to discover which transcripts exist.
+const transcriptCollectivesInvisible = "Cannot list this transcript's collectives: no transcript with that id is " +
+	"visible to you. Either it does not exist, or it is not public and has not been shared with a collective you " +
+	"belong to. Sign in as its owner, or ask the owner to share it, then retry."
+
 func (h *Handler) ListTranscriptCollectives(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -1075,11 +1081,12 @@ func (h *Handler) ListTranscriptCollectives(w http.ResponseWriter, r *http.Reque
 	user := GetUser(r.Context())
 	// One answer for "no such transcript" and "not yours to see", so that asking
 	// cannot be used to discover which transcripts exist.
-	if err != nil || !h.canReadTranscript(r.Context(), user, transcript) {
-		writeError(w, http.StatusNotFound,
-			"Cannot list this transcript's collectives: no transcript with that id is visible to you. Either it does "+
-				"not exist, or it is not public and has not been shared with a collective you belong to. Sign in as its "+
-				"owner, or ask the owner to share it, then retry.")
+	if err != nil {
+		writeError(w, http.StatusNotFound, transcriptCollectivesInvisible)
+		return
+	}
+	if allowed, _ := h.canReadTranscript(r.Context(), user, transcript); !allowed {
+		writeError(w, http.StatusNotFound, transcriptCollectivesInvisible)
 		return
 	}
 

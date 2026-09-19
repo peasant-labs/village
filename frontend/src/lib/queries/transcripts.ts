@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, API_URL_BASE, getAuthHeaders } from "../api";
+import { ApiError, api, API_URL_BASE, getAuthHeaders } from "../api";
 import type {
   ResolvedProject,
   TranscriptDetailResponse,
@@ -135,7 +135,16 @@ export function useTranscriptContent(id: string, options: {knownHarness?: string
         signal,
       });
       if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
+        // Carry the status and the server's message, so a caller can tell a
+        // refused read from a rate-limited one instead of reading the number.
+        let message = `API error: ${res.status}`;
+        try {
+          const body = (await res.json()) as { error?: string };
+          if (body?.error) message = body.error;
+        } catch {
+          /* not a JSON body; the status stands on its own */
+        }
+        throw new ApiError(res.status, message);
       }
       const text = await res.text();
       return parseTranscriptResponseText(text, options.knownHarness);
