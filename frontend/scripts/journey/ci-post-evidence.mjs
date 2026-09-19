@@ -169,9 +169,10 @@ const listEvidenceComments = (token) => {
 }
 
 const extractBlocks = (body) => {
-  const blocks = [...body.matchAll(/<!-- run:START ([^>]*) -->\n([\s\S]*?)\n<!-- run:END -->/g)].map((m) => m[0])
+  const normalize = (s) => s.replace(/\r\n/g, '\n').replace(/^-{4,}$/gm, '---')
+  const blocks = [...body.matchAll(/<!-- run:START ([^>]*) -->\n([\s\S]*?)\n<!-- run:END -->/g)].map((m) => normalize(m[0]))
   if (blocks.length) return blocks
-  const legacy = body.replace(/<!-- journey-evidence[^>]*-->\n?/, '').trim()
+  const legacy = normalize(body.replace(/<!-- journey-evidence[^>]*-->\n?/, '').trim())
   return legacy ? [legacy] : []
 }
 
