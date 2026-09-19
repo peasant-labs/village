@@ -87,16 +87,3 @@ func TestDispatchRoutesKnownEventsAndDropsUnknown(t *testing.T) {
 		t.Fatalf("an unsubscribed event dispatched %v, want nothing", dropped.calls)
 	}
 }
-
-func TestKnownEvent(t *testing.T) {
-	for _, event := range []string{EventInstallation, EventPullRequest, EventCheckRun, EventIssueComment} {
-		if !KnownEvent(event) {
-			t.Errorf("KnownEvent(%q) = false, want true", event)
-		}
-	}
-	for _, event := range []string{"", "push", "workflow_run", "Pull_Request"} {
-		if KnownEvent(event) {
-			t.Errorf("KnownEvent(%q) = true, want false", event)
-		}
-	}
-}

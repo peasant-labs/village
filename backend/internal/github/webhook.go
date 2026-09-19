@@ -37,15 +37,6 @@ type Dispatcher interface {
 	IssueComment(ctx context.Context, event Event) error
 }
 
-// KnownEvent reports whether name is one of the four dispatched event types.
-func KnownEvent(name string) bool {
-	switch name {
-	case EventInstallation, EventPullRequest, EventCheckRun, EventIssueComment:
-		return true
-	}
-	return false
-}
-
 // Dispatch routes a verified event to its own handling point. An event type the
 // receiver does not subscribe to is acknowledged and dropped: no handler runs and
 // no error is returned, because an unsubscribed event is not a failure.
