@@ -175,12 +175,19 @@ const extractBlocks = (body) => {
   return legacy ? [legacy] : []
 }
 
+const blockMeta = (b) => {
+  const m = b.match(/<!-- run:START ([^>]*) -->/)
+  if (m) return m[1]
+  const run = (b.match(/actions\/runs\/(\d+)/) || [])[1] || 'unknown'
+  const commit = (b.match(/commit: ([0-9a-f]{7,40})/) || [])[1] || 'unknown'
+  return `run=${run} commit=${commit}`
+}
+
 const renderComment = (blocks) => {
   const [newest, ...older] = blocks
   const lines = [`<!-- ${MARKER} -->`, newest]
   for (const b of older) {
-    const meta = (b.match(/<!-- run:START ([^>]*) -->/) || [])[1] || 'previous run'
-    lines.push('', '<details>', `<summary>previous run — ${meta}</summary>`, '', b, '', '</details>')
+    lines.push('', '<details>', `<summary>previous run — ${blockMeta(b)}</summary>`, '', b, '', '</details>')
   }
   return lines.join('\n')
 }
