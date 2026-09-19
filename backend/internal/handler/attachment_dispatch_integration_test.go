@@ -193,7 +193,9 @@ func TestIssueCommentFromStrangerIsIgnored(t *testing.T) {
 }
 
 // TestCheckRunButtonPreviewsForTheAuthor proves the check run's own buttons reach
-// the same policy as a comment: a click asks first.
+// the same policy as a comment: a click asks first. The menu no longer offers an
+// attach action, so this is the click a run created before its removal still
+// delivers.
 func TestCheckRunButtonPreviewsForTheAuthor(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
@@ -462,4 +464,62 @@ func pullRequestForkEvent(repoName, forkName string, number int, authorID int64,
 		"sender": {"id": %d, "login": "author"},
 		"installation": {"id": 4242}
 	}`, number, number, authorID, headSHA, forkName, forkName, authorID, repoName, repoName, repoName, authorID)
+}
+
+// TestRepeatAttachClickOnAnAttachedAttachmentRefreshes proves a second click is
+// not an error. The prompts are already attached, so there is nothing to ask: the
+// click refreshes the digest for the current head instead of trying to move an
+// attached attachment back to preview, which the state table refuses and the
+// webhook handler swallows. A check run outlives a detach and runs created before
+// the attach action was removed still offer the button, so this click is
+// reachable in production rather than only here.
+func TestRepeatAttachClickOnAnAttachedAttachmentRefreshes(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 993014)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "repeat-click-" + fmt.Sprintf("%d", time.Now().UnixNano())[:8]
+	attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	sha := "fff1234000000000000000000000000000000032"
+	attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
+
+	fake.setPullRequest(sha, 993014)
+	fake.setPullCommits(sha)
+	h.githubDispatcher = promptCommandDispatcher{h: h}
+	if err := dispatchEvent(t, h, "issue_comment", issueCommentEvent(repoName, 61, 993014, "NONE", "/peasant attach")); err != nil {
+		t.Fatal(err)
+	}
+	attachmentConfirm(t, h, owner, "acme", repoName, 61)
+
+	// Move the head so the refresh has work to do: a refresh with nothing changed
+	// is a no-op by design.
+	moved := "bbb7777000000000000000000000000000000033"
+	fake.setPullRequest(moved, 993014)
+	fake.setPullCommits(sha)
+
+	fake.mu.Lock()
+	commentsBefore, editsBefore := fake.commentCreates, fake.commentEdits
+	fake.mu.Unlock()
+
+	if err := dispatchEvent(t, h, "issue_comment", issueCommentEvent(repoName, 61, 993014, "NONE", "/peasant attach")); err != nil {
+		t.Fatalf("a repeat attach click: %v", err)
+	}
+
+	stored, err := h.queries.GetPullRequestAttachmentForPull(ctx, sqlc.GetPullRequestAttachmentForPullParams{Lower: "acme", Lower_2: repoName, Number: 61})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.State != "attached" {
+		t.Fatalf("state = %q after a repeat click, want attached: the prompts were already attached", stored.State)
+	}
+	fake.mu.Lock()
+	commentsAfter, editsAfter := fake.commentCreates, fake.commentEdits
+	fake.mu.Unlock()
+	if commentsAfter != commentsBefore {
+		t.Fatalf("comment creates went from %d to %d: a repeat click edits the digest, it does not post a second comment", commentsBefore, commentsAfter)
+	}
+	if editsAfter <= editsBefore {
+		t.Fatalf("comment edits stayed at %d: the repeat click did not refresh the digest for the new head", editsAfter)
+	}
 }

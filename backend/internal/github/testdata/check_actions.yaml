@@ -7,10 +7,6 @@ max_action_label: 20
 max_action_description: 40
 max_action_identifier: 20
 actions:
-  - name: attach-prompts
-    label: "Attach prompts"
-    description: "Match and attach prompts"
-    identifier: attach
   - name: detach
     label: "Detach"
     description: "Detach attached prompts"
