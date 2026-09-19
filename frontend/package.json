@@ -11,6 +11,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "journey": "playwright test --config playwright.journey.config.mjs",
+    "journey:ci": "JOURNEY_HTML=0 playwright test --config playwright.journey.config.mjs",
+    "journey:update": "playwright test --config playwright.journey.config.mjs --update-snapshots",
+    "journey:report": "playwright show-report scripts/journey/.artifacts/html",
     "lint": "eslint",
     "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run && pnpm run test:mutation",
     "test:mutation": "node scripts/test-contract-compat-mutations.mjs && node scripts/test-transcript-query-guard-mutations.mjs && node scripts/test-grouped-helper-mount-mutations.mjs",
@@ -25,6 +29,7 @@
     "sxs:collective": "node scripts/visual/collective-stitch-sxs.mjs",
     "shoot:demo:helper-groups": "node scripts/visual/demo-helper-groups-shoot.mjs",
     "check:collective-sxs": "NODE_OPTIONS=--no-experimental-webstorage vitest run scripts/visual/collective-sxs-selfcheck.test.mjs",
+    "check:journey-vendoring": "NODE_OPTIONS=--no-experimental-webstorage vitest run scripts/journey/lib/vendor-guard.test.mjs",
     "sxs:explore": "SURFACE_SET=cex node scripts/visual/stitch-sxs.mjs",
     "boot:village": "node scripts/visual/boot-village.mjs",
     "boot:manage": "node scripts/visual/manage-boot-village.mjs",
@@ -61,6 +66,8 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",

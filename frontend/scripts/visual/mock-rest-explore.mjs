@@ -14,6 +14,7 @@
      MOCK_REST_PORT=8789 node scripts/visual/mock-rest-explore.mjs
 */
 import { createServer } from 'node:http'
+import { pathToFileURL } from 'node:url'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8789)
 
@@ -469,19 +470,30 @@ const filterPopularTags = (url) => {
   return popularTags.slice(0, limit)
 }
 
-const server = createServer((req, res) => {
+/* Handle one explore request. Returns true when the route was served. Exported so
+   the journey harness can compose this mock with others behind one port. */
+export function handleExploreRequest(req, res) {
   const url = new URL(req.url, `http://localhost:${PORT}`)
   const path = url.pathname.replace(/^\/api\/v1/, '')
-  if (req.method === 'OPTIONS') return send(res, 204, null)
-  console.log(`${req.method} ${url.pathname}`)
+  if (req.method === 'OPTIONS') {
+    send(res, 204, null)
+    return true
+  }
 
-  if (req.method === 'GET' && path === '/transcripts') return send(res, 200, filterTranscripts(url))
-  if (req.method === 'GET' && path === '/groups/search') return send(res, 200, filterCollectives(url))
-  if (req.method === 'GET' && path === '/tags/popular') return send(res, 200, filterPopularTags(url))
-  if (req.method === 'GET' && path === '/groups') return send(res, 200, [])
-  if (req.method === 'GET' && path === '/auth/me') return send(res, 200, user)
-  if (req.method === 'GET' && path === '/auth/orgs') return send(res, 200, [])
+  if (req.method === 'GET' && path === '/transcripts') { send(res, 200, filterTranscripts(url)); return true }
+  if (req.method === 'GET' && path === '/groups/search') { send(res, 200, filterCollectives(url)); return true }
+  if (req.method === 'GET' && path === '/tags/popular') { send(res, 200, filterPopularTags(url)); return true }
+  if (req.method === 'GET' && path === '/groups') { send(res, 200, []); return true }
+  if (req.method === 'GET' && path === '/auth/me') { send(res, 200, user); return true }
+  if (req.method === 'GET' && path === '/auth/orgs') { send(res, 200, []); return true }
 
+  return false
+}
+
+const server = createServer((req, res) => {
+  console.log(`${req.method} ${req.url}`)
+  if (handleExploreRequest(req, res)) return
+  const url = new URL(req.url, `http://localhost:${PORT}`)
   return send(res, 404, { error: `no mock route for ${req.method} ${url.pathname}` })
 })
 
@@ -490,22 +502,28 @@ const server = createServer((req, res) => {
 // another worktree, serves an older fixture set, and the shoot's provenance
 // checks pass because the page really does carry the browse surface. Report it
 // as an actionable error instead of an unhandled 'error' event's stack trace.
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(
-      `ERROR [mock-rest-explore.mjs] port ${PORT} is already in use.
+const isDirectRun = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false
+
+// Only bind a port when run directly; importing this module (to compose it into
+// the journey harness) must not start a server.
+if (isDirectRun) {
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(
+        `ERROR [mock-rest-explore.mjs] port ${PORT} is already in use.
   Why: a second capture run, another surface's mock, or a stale copy of this one
        from an earlier round claimed it first.
   Where: mock-rest-explore.mjs startup.
   Means: the app would reach THAT server instead, and the capture would show its
          fixture while still passing every provenance check.
   Fix: choose a free port with MOCK_REST_PORT and point NEXT_PUBLIC_API_URL at the same one.`,
-    )
-    process.exit(2)
-  }
-  throw err
-})
+      )
+      process.exit(2)
+    }
+    throw err
+  })
 
-server.listen(PORT, () => {
-  console.log(`mock-rest-explore: serving browse fixtures on http://localhost:${PORT}/api/v1`)
-})
+  server.listen(PORT, () => {
+    console.log(`mock-rest-explore: serving browse fixtures on http://localhost:${PORT}/api/v1`)
+  })
+}
