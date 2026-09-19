@@ -90,15 +90,19 @@ HTML reporter, or `JOURNEY_SCREENSHOT=off`, to avoid the duplicated media.
 ## CI and PR evidence
 
 `.github/workflows/journey.yml` runs `pnpm journey:ci` on every pull request,
-uploads `scripts/journey/.artifacts/` as a workflow artifact, and posts inline
-evidence to the PR through `scripts/journey/ci-post-evidence.mjs`:
+uploads `scripts/journey/.artifacts/` as a workflow artifact, and posts the
+evidence as one comment through `scripts/journey/ci-post-evidence.mjs`:
 
-- screenshots first (failing tests' frames, then a few passing dark-theme frames);
-- on failure, the failing tests' videos, converted to H.264 mp4;
-- one bot comment, replaced on every run (marker `journey-evidence`).
+- a title and the workflow run / commit ids;
+- one section per journey: a heading, a rule, then the dark image, dark clip,
+  light image and light clip, each alone in its own paragraph.
 
-GitHub plays video inline only as a comment attachment, so clips are attached
-with `gh pr comment --attach`; full traces stay in the workflow artifact.
+Media is uploaded to GitHub's user-attachments endpoint to get URLs, so a single
+comment carries all images and clips without hitting `gh`'s 50-file cap. GitHub
+renders a video player only when the video link is alone in its paragraph or
+cell; any text sharing the line turns it into a plain link. Clips are converted
+to H.264 mp4 where the bundled ffmpeg is available, and full traces stay in the
+workflow artifact.
 
 **Inline media:** `gh --attach` rejects GitHub App installation tokens ("unsupported authentication type"; gh allows OAuth/PAT/fine-grained-PAT only, and the endpoint needs repo write access). Set the **`JOURNEY_GITHUB_USER_PAT`** org secret to a machine-account fine-grained PAT (Issues: Read and write, Pull requests: Read) and the posting step uses it, so the comment carries inline screenshots and video and is authored by that account. Without it the step falls back to the App token and posts a text comment linking the artifact.
 

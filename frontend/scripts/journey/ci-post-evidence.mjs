@@ -123,19 +123,27 @@ const uploadAsset = async (path, contentType, token, repositoryId) => {
   return json.url
 }
 
-const buildFourColumnTable = (imageUrls, videoUrls) => {
-  const header = '| journey | dark image | dark video | light image | light video |'
-  const sep = '|---|---|---|---|---|'
-  const rows = labels.map((l) => {
-    const cells = ['dark', 'light'].map((theme) => {
+// Sectioned, no table: title + run/commit lines, then one section per journey
+// (heading, rule, four media blocks). Each media sits alone in its own paragraph
+// so GitHub embeds images and video players.
+const buildSections = (imageUrls, videoUrls) => {
+  const lines = [
+    `<!-- ${MARKER} -->`,
+    `# journey results: ${failed.length ? `${failed.length} failed` : 'all passed'}`,
+    '',
+    runUrl ? `workflow run: [${GITHUB_RUN_ID}](${runUrl})` : 'workflow run: unknown',
+    `commit: ${process.env.GITHUB_SHA ? process.env.GITHUB_SHA.slice(0, 7) : 'unknown'}`,
+  ]
+  if (failed.length) lines.push('', 'Failing:', ...failed.map((f) => `- [${f.project}] ${f.title}`))
+  for (const l of labels) {
+    lines.push('', `## ${l}`, '', '---', '')
+    for (const theme of ['dark', 'light']) {
       const m = cell(l, theme)
-      const img = m?.image ? imageUrls.get(m.image) : null
-      const vid = m?.video ? videoUrls.get(m.video) : null
-      return [img ? `![dark](${img})` : '—', vid ? `[clip](${vid})` : '—'].join(' | ')
-    })
-    return `| ${l} | ${cells.join(' | ')} |`
-  })
-  return [`<!-- ${MARKER} -->`, ...summaryLines(), '', header, sep, ...rows].join('\n')
+      if (m?.image) lines.push(`![${theme}](${imageUrls.get(m.image)})`, '')
+      if (m?.video) lines.push(`[clip](${videoUrls.get(m.video)})`, '')
+    }
+  }
+  return lines.join('\n')
 }
 
 // Replace prior evidence comments (any marker variant) authored by a bot or the
@@ -202,8 +210,8 @@ if (attachToken) {
         videoUrls.set(m.video, await uploadAsset(p, p.endsWith('.mp4') ? 'video/mp4' : 'video/webm', attachToken, repositoryId))
       }
     }
-    postRest(attachToken, buildFourColumnTable(imageUrls, videoUrls))
-    console.log(`ci-post-evidence: posted a four-column table (${imageUrls.size} images, ${videoUrls.size} clips)`)
+    postRest(attachToken, buildSections(imageUrls, videoUrls))
+    console.log(`ci-post-evidence: posted sectioned evidence (${imageUrls.size} images, ${videoUrls.size} clips)`)
     posted = true
   } catch (e) {
     console.error(`ci-post-evidence: direct upload/table failed: ${e.message}`)
