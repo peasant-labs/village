@@ -139,13 +139,13 @@ const buildRunContent = (imageUrls, videoUrls) => {
   if (failed.length) lines.push('', 'Failing:', ...failed.map((f) => `- [${f.project}] ${f.title}`))
   for (const l of labels) {
     const ok = media.filter((m) => m.label === l).every((m) => m.status === 'passed')
-    lines.push('', ok ? '<details>' : '<details open>', `<summary><h3>${l} — ${ok ? 'passed' : 'failed'}</h3></summary>`, '', '---', '')
+    lines.push('', `<h3>${l} — ${ok ? 'passed' : 'failed'}</h3>`, '<details>', '<summary>validation media</summary>', '', '---', '')
     for (const theme of ['dark', 'light']) {
       const m = cell(l, theme)
       if (m?.image) lines.push(`![${theme}](${imageUrls.get(m.image)})`, '')
       if (m?.video) lines.push(`[clip](${videoUrls.get(m.video)})`, '')
     }
-    lines.push('', '</details>')
+    lines.push('', '</details>', '---')
   }
   return lines.join('\n')
 }
@@ -187,7 +187,16 @@ const renderComment = (blocks) => {
   const [newest, ...older] = blocks
   const lines = [`<!-- ${MARKER} -->`, newest]
   for (const b of older) {
-    lines.push('', '<details>', `<summary>previous run — ${blockMeta(b)}</summary>`, '', b, '', '</details>')
+    lines.push(
+      '',
+      `<h2>previous run — ${blockMeta(b)}</h2>`,
+      '<details>',
+      '<summary>journeys --- click to expand</summary>',
+      '',
+      b,
+      '',
+      '</details>',
+    )
   }
   return lines.join('\n')
 }
