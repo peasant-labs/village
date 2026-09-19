@@ -18,8 +18,10 @@ const eslintConfig = defineConfig([
     // follow Playwright's convention of naming the second parameter `use`. The
     // React hooks rule reads `await use(...)` inside `theme` and `context` as a
     // hook call outside a component, which it is not, so the rule does not apply
-    // to this directory rather than being worked around file by file.
-    files: ["scripts/journey/**/*.mjs"],
+    // to this directory's scripts rather than being worked around file by file.
+    // The extensions are the scripts it runs; a `.jsx`/`.tsx` file here would be
+    // React and would keep the rule.
+    files: ["scripts/journey/**/*.{js,mjs,cjs,ts,mts,cts}"],
     rules: { "react-hooks/rules-of-hooks": "off" },
   },
 ]);
