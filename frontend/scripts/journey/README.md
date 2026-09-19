@@ -94,8 +94,8 @@ uploads `scripts/journey/.artifacts/` as a workflow artifact, and posts the
 evidence as a comment per run through `scripts/journey/ci-post-evidence.mjs`:
 
 - a title and the workflow run / commit ids;
-- one comment per run, titled with the workflow run id, so each run's evidence is
-  kept rather than replaced;
+- one sticky comment: the newest run expanded, each previous run appended and
+  collapsed so the history stays in one place;
 - one collapsible block per journey, headed with **passed** or **failed**; failed
   journeys render expanded and passing journeys collapse. Inside are the dark
   image, dark clip, light image and light clip, each alone in its own paragraph.

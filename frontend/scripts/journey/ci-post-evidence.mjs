@@ -123,22 +123,23 @@ const uploadAsset = async (path, contentType, token, repositoryId) => {
   return json.url
 }
 
-// One collapsible block per journey. Failed journeys render expanded (`<details
-// open>`); passing journeys start collapsed. The summary states pass/fail, and
-// the body holds four media blocks, each alone in its own paragraph so GitHub
-// embeds images and renders clips as players.
-const buildSections = (imageUrls, videoUrls) => {
+// The body of one run: a title with the run/commit, then one collapsible block
+// per journey. Failed journeys render expanded (`<details open>`); passing
+// journeys start collapsed. The summary text is an H3, and the body holds four
+// media blocks, each alone in its own paragraph so GitHub embeds images and
+// renders clips as players.
+const sha7 = process.env.GITHUB_SHA ? process.env.GITHUB_SHA.slice(0, 7) : 'unknown'
+const buildRunContent = (imageUrls, videoUrls) => {
   const lines = [
-    `<!-- ${MARKER} -->`,
     `# journey results: ${failed.length ? `${failed.length} failed` : 'all passed'}`,
     '',
     runUrl ? `workflow run: [${GITHUB_RUN_ID}](${runUrl})` : 'workflow run: unknown',
-    `commit: ${process.env.GITHUB_SHA ? process.env.GITHUB_SHA.slice(0, 7) : 'unknown'}`,
+    `commit: ${sha7}`,
   ]
   if (failed.length) lines.push('', 'Failing:', ...failed.map((f) => `- [${f.project}] ${f.title}`))
   for (const l of labels) {
     const ok = media.filter((m) => m.label === l).every((m) => m.status === 'passed')
-    lines.push('', ok ? '<details>' : '<details open>', `<summary>${l} — ${ok ? 'passed' : 'failed'}</summary>`, '', '---', '')
+    lines.push('', ok ? '<details>' : '<details open>', `<summary><h3>${l} — ${ok ? 'passed' : 'failed'}</h3></summary>`, '', '---', '')
     for (const theme of ['dark', 'light']) {
       const m = cell(l, theme)
       if (m?.image) lines.push(`![${theme}](${imageUrls.get(m.image)})`, '')
@@ -149,9 +150,45 @@ const buildSections = (imageUrls, videoUrls) => {
   return lines.join('\n')
 }
 
-// Each run posts its own comment (identified by MARKER and titled with the run
-// id); history is kept rather than replaced, so previous runs stay visible on the
-// pull request.
+// The sticky comment holds every run in one place: the newest run expanded, and
+// each previous run wrapped in a collapsed block. Runs are delimited so the body
+// can be parsed and re-rendered without nesting details deeper on every run.
+const listEvidenceComments = (token) => {
+  const raw = runGh(
+    ['api', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '--paginate', '--jq', '.[] | {id, created: .created_at, body}'],
+    token,
+    { encoding: 'utf8' },
+  )
+  return raw
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map(JSON.parse)
+    .filter((c) => c.body.includes(MARKER))
+    .sort((a, b) => (a.created < b.created ? 1 : -1))
+}
+
+const extractBlocks = (body) => {
+  const blocks = [...body.matchAll(/<!-- run:START ([^>]*) -->\n([\s\S]*?)\n<!-- run:END -->/g)].map((m) => m[0])
+  if (blocks.length) return blocks
+  const legacy = body.replace(/<!-- journey-evidence[^>]*-->\n?/, '').trim()
+  return legacy ? [legacy] : []
+}
+
+const renderComment = (blocks) => {
+  const [newest, ...older] = blocks
+  const lines = [`<!-- ${MARKER} -->`, newest]
+  for (const b of older) {
+    const meta = (b.match(/<!-- run:START ([^>]*) -->/) || [])[1] || 'previous run'
+    lines.push('', '<details>', `<summary>previous run — ${meta}</summary>`, '', b, '', '</details>')
+  }
+  return lines.join('\n')
+}
+
+const buildBlock = (content) => {
+  const meta = `run=${GITHUB_RUN_ID || 'unknown'} commit=${sha7} status="${failed.length ? `${failed.length} failed` : 'all passed'}"`
+  return `<!-- run:START ${meta} -->\n${content}\n<!-- run:END -->`
+}
 
 const postRest = (token, bodyText) => {
   const bodyFile = join(tmp, `body-${Math.random().toString(36).slice(2)}.md`)
@@ -186,8 +223,28 @@ if (attachToken) {
         videoUrls.set(m.video, await uploadAsset(p, p.endsWith('.mp4') ? 'video/mp4' : 'video/webm', attachToken, repositoryId))
       }
     }
-    postRest(attachToken, buildSections(imageUrls, videoUrls))
-    console.log(`ci-post-evidence: posted sectioned evidence (${imageUrls.size} images, ${videoUrls.size} clips)`)
+    const patchRest = (commentId, bodyText) => {
+      const bodyFile = join(tmp, `body-${Math.random().toString(36).slice(2)}.md`)
+      writeFileSync(bodyFile, bodyText)
+      runGh(['api', '--method', 'PATCH', `repos/${GITHUB_REPOSITORY}/issues/comments/${commentId}`, '-F', `body=@${bodyFile}`], attachToken, { stdio: 'inherit' })
+    }
+    const newBlock = buildBlock(buildRunContent(imageUrls, videoUrls))
+    const existing = listEvidenceComments(attachToken)
+    const rendered = renderComment([newBlock, ...existing.flatMap((c) => extractBlocks(c.body))])
+    if (existing.length) {
+      patchRest(existing[0].id, rendered)
+      for (const c of existing.slice(1)) {
+        try {
+          runGh(['api', '--method', 'DELETE', `repos/${GITHUB_REPOSITORY}/issues/comments/${c.id}`], attachToken, { stdio: 'inherit' })
+        } catch (e) {
+          console.error(`ci-post-evidence: could not delete old comment ${c.id}: ${e.message}`)
+        }
+      }
+      console.log(`ci-post-evidence: updated the sticky comment (${imageUrls.size} images, ${videoUrls.size} clips)`)
+    } else {
+      postRest(attachToken, rendered)
+      console.log(`ci-post-evidence: created the sticky comment (${imageUrls.size} images, ${videoUrls.size} clips)`)
+    }
     posted = true
   } catch (e) {
     console.error(`ci-post-evidence: direct upload/table failed: ${e.message}`)
