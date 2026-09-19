@@ -145,7 +145,7 @@ const buildRunContent = (imageUrls, videoUrls) => {
       if (m?.image) lines.push(`![${theme}](${imageUrls.get(m.image)})`, '')
       if (m?.video) lines.push(`[clip](${videoUrls.get(m.video)})`, '')
     }
-    lines.push('', '</details>', '---')
+    lines.push('', '</details>', '', '---')
   }
   return lines.join('\n')
 }
@@ -190,12 +190,15 @@ const renderComment = (blocks) => {
     lines.push(
       '',
       `<h2>previous run — ${blockMeta(b)}</h2>`,
+      '',
       '<details>',
       '<summary>journeys --- click to expand</summary>',
       '',
       b,
       '',
       '</details>',
+      '',
+      '---',
     )
   }
   return lines.join('\n')
