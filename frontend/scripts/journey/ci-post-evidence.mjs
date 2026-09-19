@@ -149,34 +149,9 @@ const buildSections = (imageUrls, videoUrls) => {
   return lines.join('\n')
 }
 
-// Replace prior evidence comments (any marker variant). Every token is tried: the
-// App token matches bot-authored comments and the user token matches its own, so
-// stopping after the first token can leave earlier evidence behind.
-const pruneTokens = [...new Set([process.env.JOURNEY_APP_TOKEN, ...TOKENS].filter(Boolean))]
-for (const token of pruneTokens) {
-  try {
-    const isInstallation = token.startsWith('ghs_')
-    const login = isInstallation ? null : runGh(['api', 'user', '--jq', '.login'], token, { encoding: 'utf8' }).trim()
-    const authorMatch = login ? `((.user.login == "${login}") or (.user.type == "Bot"))` : '(.user.type == "Bot")'
-    const ids = runGh(
-      ['api', `repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments`, '--paginate', '--jq', `.[] | select((.body | contains("${MARKER}")) and ${authorMatch}) | .id`],
-      token,
-      { encoding: 'utf8' },
-    )
-      .trim()
-      .split('\n')
-      .filter(Boolean)
-    for (const id of ids) {
-      try {
-        runGh(['api', '--method', 'DELETE', `repos/${GITHUB_REPOSITORY}/issues/comments/${id}`], token, { stdio: 'inherit' })
-      } catch (e) {
-        console.error(`ci-post-evidence: could not delete prior comment ${id}: ${e.message}`)
-      }
-    }
-  } catch (e) {
-    console.error(`ci-post-evidence: prune with ${token.slice(0, 4)}… failed: ${e.message}`)
-  }
-}
+// Each run posts its own comment (identified by MARKER and titled with the run
+// id); history is kept rather than replaced, so previous runs stay visible on the
+// pull request.
 
 const postRest = (token, bodyText) => {
   const bodyFile = join(tmp, `body-${Math.random().toString(36).slice(2)}.md`)

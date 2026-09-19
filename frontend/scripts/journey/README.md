@@ -91,9 +91,11 @@ HTML reporter, or `JOURNEY_SCREENSHOT=off`, to avoid the duplicated media.
 
 `.github/workflows/journey.yml` runs `pnpm journey:ci` on every pull request,
 uploads `scripts/journey/.artifacts/` as a workflow artifact, and posts the
-evidence as one comment through `scripts/journey/ci-post-evidence.mjs`:
+evidence as a comment per run through `scripts/journey/ci-post-evidence.mjs`:
 
 - a title and the workflow run / commit ids;
+- one comment per run, titled with the workflow run id, so each run's evidence is
+  kept rather than replaced;
 - one collapsible block per journey, headed with **passed** or **failed**; failed
   journeys render expanded and passing journeys collapse. Inside are the dark
   image, dark clip, light image and light clip, each alone in its own paragraph.
