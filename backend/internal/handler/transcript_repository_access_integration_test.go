@@ -393,3 +393,64 @@ func TestRepositoryRefusalsAreRememberedBriefly_RealPostgres(t *testing.T) {
 		t.Fatalf("GitHub was asked again for a refusal it had just given (%d -> %d): repeated probes of one pull request must not each cost a call", asked, again)
 	}
 }
+
+// TestRepositoryAccessChecksAreRateLimited_RealPostgres bounds the GitHub question
+// per viewer. It costs two calls from a quota shared with every other
+// GitHub-backed feature and the URL it hangs on is guessable, so a viewer who
+// varies the repository past their burst is refused — and told that is why,
+// rather than being handed the refusal a repository would have given — while
+// another viewer is untouched.
+func TestRepositoryAccessChecksAreRateLimited_RealPostgres(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	author := attachmentInsertOwner(t, ctx, pool, 995001)
+	defer cleanupOwners(t, ctx, pool, author)
+	// Two questions, so the burst is exhaustible here.
+	h.repoAccessLimiter = repositoryAccessLimiter{burst: 2, perSecond: 0.001}
+
+	// Three repositories, because the refusal cache answers for a repository it
+	// has already asked about: a second read of one repository costs no question.
+	var transcripts []pgtype.UUID
+	for i := 0; i < 3; i++ {
+		transcriptID, _, _ := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 71+i,
+			fmt.Sprintf("abc7777000000000000000000000000000000%02d", i))
+		transcripts = append(transcripts, transcriptID)
+	}
+
+	reader := attachmentInsertOwner(t, ctx, pool, 995002)
+	defer cleanupOwners(t, ctx, pool, reader)
+	readerAuth := &AuthUser{ID: uuid.UUID(reader.Bytes), Username: "repo-reader"}
+	fake.setRepoReader("995002", "reader-login", "read")
+
+	// The first two reads spend the burst, each asking GitHub and being admitted.
+	for i := 0; i < 2; i++ {
+		if rec := transcriptViewAs(t, h, readerAuth, transcripts[i]); rec.Code != http.StatusOK {
+			t.Fatalf("read %d: status = %d, want 200 (body: %s)", i+1, rec.Code, rec.Body.String())
+		}
+	}
+	asked := fake.permissionAskCount()
+	if asked != 2 {
+		t.Fatalf("GitHub was asked %d time(s) for two reads, want 2: a question is what a token is spent on", asked)
+	}
+
+	// The third is over the burst: refused, told why, and it costs nothing.
+	rec := transcriptViewAs(t, h, readerAuth, transcripts[2])
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d over the burst, want 429: a throttled check says so rather than looking like a repository that said no", rec.Code)
+	}
+	if rec := transcriptViewAs(t, h, readerAuth, transcripts[2]); rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d on a repeat over the burst, want 429", rec.Code)
+	}
+	if again := fake.permissionAskCount(); again != asked {
+		t.Fatalf("GitHub was asked %d more time(s) while throttled, want none: a bounded viewer must not cost calls", again-asked)
+	}
+
+	// One viewer's burst is not another's.
+	other := attachmentInsertOwner(t, ctx, pool, 995003)
+	defer cleanupOwners(t, ctx, pool, other)
+	otherAuth := &AuthUser{ID: uuid.UUID(other.Bytes), Username: "other-reader"}
+	fake.setRepoReader("995003", "other-login", "read")
+	if rec := transcriptViewAs(t, h, otherAuth, transcripts[2]); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d for a second viewer, want 200: the burst is per viewer", rec.Code)
+	}
+}

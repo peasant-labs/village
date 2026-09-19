@@ -81,8 +81,11 @@ type Handler struct {
 	gh *github.Client
 
 	// repoAccess remembers for a short time whether one GitHub account may read
-	// one repository. The zero value is usable, so nothing has to construct it.
-	repoAccess repositoryAccessCache
+	// one repository, and repoAccessLimiter bounds how often one viewer can make
+	// Village ask. Both are in-process and zero-value usable, so nothing has to
+	// construct them.
+	repoAccess        repositoryAccessCache
+	repoAccessLimiter repositoryAccessLimiter
 
 	// githubDispatcher is the handling point for each subscribed webhook event
 	// type. Production uses noopGitHubDispatcher until the matching, digest, and

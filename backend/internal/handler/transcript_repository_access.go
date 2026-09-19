@@ -13,6 +13,12 @@ import (
 // githubProvider is the provider name GitHub sign-in stores on the user row.
 const githubProvider = "github"
 
+// repositoryAccessThrottledMessage is what a viewer is told when they have asked
+// too often in too short a time. It names what was limited — the access check —
+// rather than pretending the transcript is not there, and it is a refusal either
+// way: nothing is admitted on this path.
+const repositoryAccessThrottledMessage = "Too many repository access checks; try again shortly"
+
 // canReadThroughAttachedRepository answers the one question only GitHub can
 // answer: may this signed-in reader read a private repository?
 //
@@ -38,13 +44,13 @@ const githubProvider = "github"
 //
 // Reads ask this. Writes do not: it is a grant to read the prompts, not to
 // label somebody else's transcript.
-func (h *Handler) canReadThroughAttachedRepository(ctx context.Context, user *AuthUser, t sqlc.Transcript) bool {
+func (h *Handler) canReadThroughAttachedRepository(ctx context.Context, user *AuthUser, t sqlc.Transcript) (granted bool, throttled bool) {
 	if user == nil || h.gh == nil {
-		return false
+		return false, false
 	}
 	attachments, err := h.queries.ListAttachmentsBindingTranscript(ctx, t.ID)
 	if err != nil || len(attachments) == 0 {
-		return false
+		return false, false
 	}
 
 	// One lookup per repository, not per attachment: a pull request with several
@@ -66,11 +72,17 @@ func (h *Handler) canReadThroughAttachedRepository(ctx context.Context, user *Au
 			continue
 		}
 		asked[key] = true
-		if h.repositoryAdmitsViewer(ctx, user.PgID(), repo.installationID, attachment.RepoOwner, attachment.RepoName) {
-			return true
+		admits, throttled := h.repositoryAdmitsViewer(ctx, user.PgID(), repo.installationID, attachment.RepoOwner, attachment.RepoName)
+		if admits {
+			return true, false
+		}
+		if throttled {
+			// The viewer asked too often for the answer to be fetched. Refused,
+			// and said so, rather than confused with a repository that said no.
+			return false, true
 		}
 	}
-	return false
+	return false, false
 }
 
 // transcriptHasApprovedShareWith reports whether a transcript is currently
@@ -98,9 +110,9 @@ func (h *Handler) transcriptHasApprovedShareWith(ctx context.Context, transcript
 // request page asks it as well as the transcripts, so a repository's readers can
 // find the prompts they were admitted to rather than only open one they already
 // had the link to.
-func (h *Handler) repositoryAdmitsViewer(ctx context.Context, viewerID pgtype.UUID, installationID int64, owner, name string) bool {
+func (h *Handler) repositoryAdmitsViewer(ctx context.Context, viewerID pgtype.UUID, installationID int64, owner, name string) (admits bool, throttled bool) {
 	if h.gh == nil || !viewerID.Valid {
-		return false
+		return false, false
 	}
 	// The viewer's GitHub identity, keyed on the immutable account id. A login
 	// can be renamed and a freed one later taken by another account, so a stored
@@ -108,7 +120,7 @@ func (h *Handler) repositoryAdmitsViewer(ctx context.Context, viewerID pgtype.UU
 	// provider has no GitHub identity here and is refused.
 	reader, err := h.queries.GetUserByID(ctx, viewerID)
 	if err != nil || reader.Provider != githubProvider || reader.ProviderUserID == "" {
-		return false
+		return false, false
 	}
 	return h.githubAdmitsReader(ctx, installationID, owner, name, reader.ProviderUserID)
 }
@@ -119,22 +131,29 @@ func (h *Handler) repositoryAdmitsViewer(ctx context.Context, viewerID pgtype.UU
 // does not. The id-to-login step is not a formality: asking about a stored login
 // that had since been renamed would answer for whichever account holds it now,
 // and admitting on the wrong account's access is worse than a refusal.
-func (h *Handler) githubAdmitsReader(ctx context.Context, installationID int64, owner, name, accountID string) bool {
+func (h *Handler) githubAdmitsReader(ctx context.Context, installationID int64, owner, name, accountID string) (admits bool, throttled bool) {
 	// Keyed on the account id, which is what was asked about, and on the
 	// repository. The answer is short-lived on purpose: the cache is bounded
 	// staleness, never a stored grant.
 	key := accountID + "\x00" + strings.ToLower(owner) + "/" + strings.ToLower(name)
 	now := time.Now()
-	if admits, ok := h.repoAccess.lookup(key, now); ok {
-		return admits
+	if cached, ok := h.repoAccess.lookup(key, now); ok {
+		// A remembered refusal is a repository's answer, not a throttle: the
+		// viewer is told the same thing they were told the first time.
+		return cached, false
 	}
-	admits := h.askGitHubAboutRepository(ctx, installationID, owner, name, accountID)
+	if !h.repoAccessLimiter.allow(accountID, now) {
+		// Nothing is asked and nothing is remembered, so the viewer is not held
+		// to a refusal beyond the limiter's own refill.
+		return false, true
+	}
+	admits = h.askGitHubAboutRepository(ctx, installationID, owner, name, accountID)
 	if !admits {
 		// Only a refusal is remembered: an admission is asked live so that an
 		// owner withdrawing a transcript's share takes effect at once.
 		h.repoAccess.store(key, admits, now)
 	}
-	return admits
+	return admits, false
 }
 
 // askGitHubAboutRepository makes the two calls the answer costs, and denies on

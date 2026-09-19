@@ -875,7 +875,12 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := GetUser(r.Context())
-	if !h.canReadTranscript(r.Context(), user, transcript) {
+	allowed, throttled := h.canReadTranscript(r.Context(), user, transcript)
+	if throttled {
+		writeError(w, http.StatusTooManyRequests, repositoryAccessThrottledMessage)
+		return
+	}
+	if !allowed {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}
@@ -926,13 +931,19 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := GetUser(r.Context())
-	if !h.canReadTranscript(r.Context(), user, transcript) {
+	allowed, throttled := h.canReadTranscript(r.Context(), user, transcript)
+	if throttled {
+		writeError(w, http.StatusTooManyRequests, repositoryAccessThrottledMessage)
+		return
+	}
+	if !allowed {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}
 
 	readResult, err := h.readEncryptedTranscript(r.Context(), transcript, "", func(fresh sqlc.Transcript) bool {
-		return h.canReadTranscript(r.Context(), user, fresh)
+		allowed, _ := h.canReadTranscript(r.Context(), user, fresh)
+		return allowed
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -1859,9 +1870,9 @@ func (h *Handler) canViewTranscript(ctx context.Context, user *AuthUser, t sqlc.
 // on its own: a reader GitHub admits to the private repository the prompts are
 // attached to. Reads use this. Writes do not, so repository access opens the
 // prompts and never lets a non-member label somebody else's transcript.
-func (h *Handler) canReadTranscript(ctx context.Context, user *AuthUser, t sqlc.Transcript) bool {
+func (h *Handler) canReadTranscript(ctx context.Context, user *AuthUser, t sqlc.Transcript) (allowed bool, throttled bool) {
 	if h.canViewTranscript(ctx, user, t) {
-		return true
+		return true, false
 	}
 	return h.canReadThroughAttachedRepository(ctx, user, t)
 }
