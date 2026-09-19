@@ -122,7 +122,7 @@ func (h *Handler) repositoryAdmitsViewer(ctx context.Context, viewerID pgtype.UU
 	if err != nil || reader.Provider != githubProvider || reader.ProviderUserID == "" {
 		return false, false
 	}
-	return h.githubAdmitsReader(ctx, installationID, owner, name, reader.ProviderUserID)
+	return h.githubAdmitsReader(ctx, installationID, owner, name, reader.ProviderUserID, viewerID)
 }
 
 // githubAdmitsReader resolves the reader's current login from their immutable
@@ -131,7 +131,7 @@ func (h *Handler) repositoryAdmitsViewer(ctx context.Context, viewerID pgtype.UU
 // does not. The id-to-login step is not a formality: asking about a stored login
 // that had since been renamed would answer for whichever account holds it now,
 // and admitting on the wrong account's access is worse than a refusal.
-func (h *Handler) githubAdmitsReader(ctx context.Context, installationID int64, owner, name, accountID string) (admits bool, throttled bool) {
+func (h *Handler) githubAdmitsReader(ctx context.Context, installationID int64, owner, name, accountID string, viewerID pgtype.UUID) (admits bool, throttled bool) {
 	// Keyed on the account id, which is what was asked about, and on the
 	// repository. The answer is short-lived on purpose: the cache is bounded
 	// staleness, never a stored grant.
@@ -142,7 +142,7 @@ func (h *Handler) githubAdmitsReader(ctx context.Context, installationID int64, 
 		// viewer is told the same thing they were told the first time.
 		return cached, false
 	}
-	if !h.repoAccessLimiter.allow(accountID, now) {
+	if !h.repoAccessLimiter.allow(viewerID, now) {
 		// Nothing is asked and nothing is remembered, so the viewer is not held
 		// to a refusal beyond the limiter's own refill.
 		return false, true

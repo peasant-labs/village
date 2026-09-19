@@ -3,6 +3,8 @@ package handler
 import (
 	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // repositoryAccessLimiter bounds how often one signed-in viewer can make Village
@@ -25,9 +27,9 @@ type repositoryAccessLimiter struct {
 	mu      sync.Mutex
 	buckets map[string]repositoryAccessBucket
 
-	// burst and perSecond override the defaults below. They exist so a caller
-	// with a reason — a test standing in for a loop — can set a limit it can
-	// exhaust, and the zero value keeps the shipped one.
+	// burst and perSecond size the limiter. The zero value means the shipped
+	// size; setting them is for a caller that needs a different one, which today
+	// is a test standing in for a loop.
 	burst     float64
 	perSecond float64
 }
@@ -38,16 +40,20 @@ type repositoryAccessBucket struct {
 }
 
 const (
-	// repositoryAccessBurst is what one viewer may spend before a refill: a
-	// digest page plus its transcript links, each asking once, fits inside it.
-	repositoryAccessBurst = 40.0
+	// repositoryAccessBurst is what one viewer may spend before a refill. A
+	// transcript view costs up to four questions — its metadata, its content, its
+	// annotations and its collectives — because an admission is deliberately asked
+	// live rather than remembered, so the burst covers roughly twenty-five views:
+	// a reader browsing a digest, not a loop.
+	repositoryAccessBurst = 100.0
 	// repositoryAccessPerSecond is the steady rate. A loop settles at one
 	// question every ten seconds per viewer; a person reading never reaches it.
 	repositoryAccessPerSecond = 0.1
 	// repositoryAccessMaxViewers bounds the table. Reaching it drops expired
-	// buckets and then, if they are all live, drops them all: a forgotten viewer
-	// costs another question, an unbounded map costs memory for the life of the
-	// process.
+	// buckets, and then — if every one is still live — drops them all, which
+	// hands those viewers a fresh burst. That is the one place this stops being a
+	// limit; it costs an attacker 4096 signed-in accounts to reach, and an
+	// unbounded map would cost the process its memory instead.
 	repositoryAccessMaxViewers = 4096
 	// repositoryAccessIdle is how long an untouched bucket is kept. Long enough
 	// that a reader's burst survives a slow page load, short enough that an idle
@@ -57,8 +63,8 @@ const (
 
 // allow reports whether this viewer may spend a question now, and takes one when
 // it may.
-func (l *repositoryAccessLimiter) allow(viewer string, now time.Time) bool {
-	key := viewer
+func (l *repositoryAccessLimiter) allow(viewer pgtype.UUID, now time.Time) bool {
+	key := viewerKey(viewer)
 	burst, perSecond := l.limits()
 
 	l.mu.Lock()
@@ -96,17 +102,56 @@ func (l *repositoryAccessLimiter) allow(viewer string, now time.Time) bool {
 	return true
 }
 
-// limits reports the burst and rate in force: the injected ones when set, and the
-// shipped ones otherwise.
+// limits reports the burst and rate in force: the sized ones when set, and the
+// shipped ones otherwise. The comparisons are written so that a NaN falls back to
+// the shipped size rather than disabling the limit.
 func (l *repositoryAccessLimiter) limits() (burst float64, perSecond float64) {
 	burst, perSecond = l.burst, l.perSecond
-	if burst <= 0 {
+	if !(burst > 0) {
 		burst = repositoryAccessBurst
 	}
-	if perSecond <= 0 {
+	if !(perSecond > 0) {
 		perSecond = repositoryAccessPerSecond
 	}
 	return burst, perSecond
+}
+
+// overBudget reports whether this viewer has no question left, WITHOUT spending
+// one. It is what lets a refused read say it was throttled regardless of which
+// transcript was asked for: the answer depends on the viewer's own budget, never
+// on the transcript, so a throttled caller cannot use it to discover anything
+// about what they asked for.
+func (l *repositoryAccessLimiter) overBudget(viewer pgtype.UUID, now time.Time) bool {
+	burst, perSecond := l.limits()
+	key := viewerKey(viewer)
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	bucket, seen := l.buckets[key]
+	if !seen {
+		return false
+	}
+	elapsed := now.Sub(bucket.refill).Seconds()
+	if elapsed <= 0 {
+		return bucket.tokens < 1
+	}
+	tokens := bucket.tokens + elapsed*perSecond
+	if tokens > burst {
+		tokens = burst
+	}
+	return tokens < 1
+}
+
+func viewerKey(viewer pgtype.UUID) string {
+	if !viewer.Valid {
+		return ""
+	}
+	encoded, err := viewer.Value()
+	if err != nil {
+		return ""
+	}
+	text, _ := encoded.(string)
+	return text
 }
 
 // pruneLocked drops buckets nobody has touched recently, and then all of them if

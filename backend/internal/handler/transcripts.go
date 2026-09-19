@@ -1874,6 +1874,15 @@ func (h *Handler) canReadTranscript(ctx context.Context, user *AuthUser, t sqlc.
 	if h.canViewTranscript(ctx, user, t) {
 		return true, false
 	}
+	// A viewer who has spent their burst is told so for ANY refused read, before
+	// anything looks at the transcript. Were the answer a repository's refusal for
+	// one transcript and a throttle for another, a throttled caller could tell
+	// which transcripts the repository path covers — the existence the 404s are
+	// there to hide. Asked this way it depends only on their own budget, and
+	// nothing is spent answering it.
+	if user != nil && h.repoAccessLimiter.overBudget(user.PgID(), time.Now()) {
+		return false, true
+	}
 	return h.canReadThroughAttachedRepository(ctx, user, t)
 }
 

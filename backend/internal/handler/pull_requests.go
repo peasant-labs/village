@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -74,6 +75,13 @@ func (h *Handler) GetPullRequestAttachment(w http.ResponseWriter, r *http.Reques
 			// link already. Only an attached attachment: a preview is the author's
 			// own review step, is not the repository's to show, and is not asked
 			// about at all.
+			// Over budget is said before anything is looked at, for the same
+			// reason the transcript read says it there: an answer that depended on
+			// this attachment would confirm it exists.
+			if viewerKnown && h.repoAccessLimiter.overBudget(viewerID, time.Now()) {
+				writeError(w, http.StatusTooManyRequests, repositoryAccessThrottledMessage)
+				return
+			}
 			if attachment.State != string(promptattach.Attached) {
 				writeError(w, http.StatusNotFound, "No attachment exists for this pull request")
 				return
