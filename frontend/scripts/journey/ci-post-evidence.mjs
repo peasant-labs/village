@@ -123,9 +123,10 @@ const uploadAsset = async (path, contentType, token, repositoryId) => {
   return json.url
 }
 
-// Inline sections: title + run/commit, then one section per journey (heading with
-// its pass/fail, a rule, four media blocks). Each media alone in its own
-// paragraph so GitHub embeds images and renders clips as players.
+// One collapsible block per journey. Failed journeys render expanded (`<details
+// open>`); passing journeys start collapsed. The summary states pass/fail, and
+// the body holds four media blocks, each alone in its own paragraph so GitHub
+// embeds images and renders clips as players.
 const buildSections = (imageUrls, videoUrls) => {
   const lines = [
     `<!-- ${MARKER} -->`,
@@ -137,12 +138,13 @@ const buildSections = (imageUrls, videoUrls) => {
   if (failed.length) lines.push('', 'Failing:', ...failed.map((f) => `- [${f.project}] ${f.title}`))
   for (const l of labels) {
     const ok = media.filter((m) => m.label === l).every((m) => m.status === 'passed')
-    lines.push('', `## ${l} — ${ok ? 'passed' : 'failed'}`, '', '---', '')
+    lines.push('', ok ? '<details>' : '<details open>', `<summary>${l} — ${ok ? 'passed' : 'failed'}</summary>`, '', '---', '')
     for (const theme of ['dark', 'light']) {
       const m = cell(l, theme)
       if (m?.image) lines.push(`![${theme}](${imageUrls.get(m.image)})`, '')
       if (m?.video) lines.push(`[clip](${videoUrls.get(m.video)})`, '')
     }
+    lines.push('', '</details>')
   }
   return lines.join('\n')
 }

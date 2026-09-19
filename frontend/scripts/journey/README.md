@@ -94,9 +94,9 @@ uploads `scripts/journey/.artifacts/` as a workflow artifact, and posts the
 evidence as one comment through `scripts/journey/ci-post-evidence.mjs`:
 
 - a title and the workflow run / commit ids;
-- one section per journey: a heading stating **passed** or **failed**, a rule,
-  then the dark image, dark clip, light image and light clip, each alone in its
-  own paragraph.
+- one collapsible block per journey, headed with **passed** or **failed**; failed
+  journeys render expanded and passing journeys collapse. Inside are the dark
+  image, dark clip, light image and light clip, each alone in its own paragraph.
 
 Media is uploaded to GitHub's user-attachments endpoint to get URLs, so a single
 comment carries all images and clips without hitting `gh`'s 50-file cap. GitHub
