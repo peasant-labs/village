@@ -166,7 +166,7 @@ func (h *Handler) applyPromptCommand(ctx context.Context, command matcher.Comman
 		_, err := h.detachAttachment(ctx, attachment)
 		return err
 	case matcher.CommandAttach:
-		return h.authorAttachOrPreview(ctx, attachment, repo, false)
+		return h.authorAttachOrPreview(ctx, attachment, repo, pull.headSHA, false)
 	default:
 		return nil
 	}
@@ -181,7 +181,16 @@ func (h *Handler) applyPromptCommand(ctx context.Context, command matcher.Comman
 // Everything a person clicks previews, on every repository — attaching widens
 // the transcripts' visibility, and a private repository's audience is no more
 // obvious than a public one's.
-func (h *Handler) authorAttachOrPreview(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, publishDriven bool) error {
+func (h *Handler) authorAttachOrPreview(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, headSHA string, publishDriven bool) error {
+	if promptattach.State(attachment.State) == promptattach.Attached {
+		// The prompts are already attached, so there is nothing to ask. A repeat
+		// action refreshes the digest for the current head instead of trying to
+		// move an attached attachment back to preview, which the state table
+		// refuses and the webhook handler swallows. This is the click a check run
+		// created before the attach action was removed still offers.
+		return h.refreshAttachedAttachment(ctx, attachment, repo, headSHA, false)
+	}
+
 	match, commitSet, err := h.matchAttachmentCandidates(ctx, attachment, repo)
 	if err != nil {
 		return err
@@ -416,7 +425,7 @@ func (h *Handler) completeAttachmentsForPublishedTranscript(ctx context.Context,
 			if promptattach.State(fresh.State) == promptattach.Attached {
 				return h.refreshAttachedAttachment(ctx, fresh, repo, fresh.HeadSha, false)
 			}
-			return h.authorAttachOrPreview(ctx, fresh, repo, true)
+			return h.authorAttachOrPreview(ctx, fresh, repo, fresh.HeadSha, true)
 		})
 		if err != nil {
 			failures = append(failures, err)

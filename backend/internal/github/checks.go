@@ -26,8 +26,14 @@ const (
 )
 
 // The fixed action menu Village offers on its check run.
+//
+// Attaching is not one of them. A check run is created only when an attachment
+// is posted, so on every pull request where the menu is visible the prompts are
+// already attached and an attach action could only fail — which it did, silently,
+// since the refused transition reaches the webhook handler as an error nobody
+// sees. The identifier below is still handled, because runs created before this
+// removal carry the button and a click on one must land somewhere sane.
 const (
-	CheckActionAttach  = "Attach prompts"
 	CheckActionDetach  = "Detach"
 	CheckActionRefresh = "Refresh"
 )
@@ -64,7 +70,6 @@ type CheckAction struct {
 // 20 characters), which a fixture asserts.
 func PromptCheckActions() []CheckAction {
 	return []CheckAction{
-		{Label: CheckActionAttach, Identifier: CheckActionIdentifierAttach, Description: "Match and attach prompts"},
 		{Label: CheckActionDetach, Identifier: CheckActionIdentifierDetach, Description: "Detach attached prompts"},
 		{Label: CheckActionRefresh, Identifier: CheckActionIdentifierRefresh, Description: "Recompute prompts and digest"},
 	}

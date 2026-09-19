@@ -35,7 +35,7 @@ var requiredConclusionCaseNames = []string{
 	"required-attached-with-nothing-left-is-neutral",
 }
 
-var requiredActionCaseNames = []string{"attach-prompts", "detach", "refresh"}
+var requiredActionCaseNames = []string{"detach", "refresh"}
 
 var requiredValidationCaseNames = []string{
 	"a-complete-create-request-is-accepted",
@@ -293,8 +293,19 @@ func TestCreateCheckRun_PostsTheCompletedRun(t *testing.T) {
 		t.Errorf("run payload = %v, want the head sha, completed status, and success conclusion", payload)
 	}
 	actions, ok := payload["actions"].([]any)
-	if !ok || len(actions) != 3 {
-		t.Fatalf("actions = %v, want the three-action menu", payload["actions"])
+	// The menu an attachment posts carries no attach action: a check run exists
+	// only once something is attached, so an attach action could only fail. The
+	// identifiers are asserted, not just the count, so the removal is documented
+	// here and a silent re-addition fails.
+	wantActions := []string{"detach", "refresh"}
+	if !ok || len(actions) != len(wantActions) {
+		t.Fatalf("actions = %v, want %v", payload["actions"], wantActions)
+	}
+	for i, raw := range actions {
+		entry, _ := raw.(map[string]any)
+		if entry["identifier"] != wantActions[i] {
+			t.Errorf("action %d = %v, want identifier %q", i, entry, wantActions[i])
+		}
 	}
 }
 
