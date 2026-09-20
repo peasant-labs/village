@@ -128,7 +128,8 @@ repository secrets, so fork PRs would need `pull_request_target` or
 | `lib/assertions.mjs` | axe, computed-token, and theme assertions (vendored from fairtrade) |
 | `lib/fixtures.mjs` | Authenticated, theme-pinned, deterministic context (app-specific) |
 | `lib/vendor-guard.test.mjs` | Fails when a vendored body drifts from the fairtrade canonical copy |
-| `mock.mjs` | Composed backend: browse in-process, transcript detail proxied, scenario control |
+| `mock.mjs` | Composed backend: browse + project in-process, transcript detail proxied, scenario control |
+| `lib/project-fixtures.mjs` | The project page's orphan-sessions fixtures (app-specific) |
 | `lib/scenario.mjs` | Sets the composed mock's scenario from a journey |
 | `*.journey.mjs` | One file per fundamental feature |
 
@@ -140,12 +141,13 @@ than class strings, and keep every case in fixtures/data, not inline tables.
 
 ## Status and next steps
 
-Covers Explore and the transcript viewer. The app-agnostic modules in `lib/`
+Covers Explore, the project page's orphan-sessions group, and the transcript
+viewer. The app-agnostic modules in `lib/`
 (`determinism-constants.mjs`, `determinism.mjs`, `assertions.mjs`) are vendored
 byte-faithfully from `fairtrade-design-system/scripts/journey/lib/`;
 `pnpm check:journey-vendoring` (with `FAIRTRADE_CHECKOUT` set) fails when a
 vendored body drifts. `lib/fixtures.mjs` and `lib/scenario.mjs` stay
-app-specific. The composed mock currently serves explore + transcript + auth;
-the home and collective surfaces can be folded in the same way. Served-bytes
+app-specific. The composed mock currently serves explore + project + transcript
++ auth; the home and collective surfaces can be folded in the same way. Served-bytes
 build provenance, as the production shoots assert, is a later slice, since a dev
 server cannot provide it.
