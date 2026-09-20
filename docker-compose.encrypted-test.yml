@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    # Project mirror (linux/amd64 only).
+    image: quay.io/peasant-labs/postgres:16-alpine@sha256:763d98d8fe6c03b54aeddbc6767daf88f572e307a86514aaf7d31219a30f5f0b
+    platform: linux/amd64
     environment:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
