@@ -463,3 +463,39 @@ func TestPublishedTranscriptDoesNotAnswerForAPendingPreview(t *testing.T) {
 		t.Fatalf("comment creates = %d after a publish over a pending preview, want 0: nothing is posted before the author confirms", comments)
 	}
 }
+
+// TestPublishedSessionFromAnotherOwnerOfTheSameNameCompletesNothing records where
+// the repository rule actually lives: the matcher, which compares the normalized
+// remote's owner AND name against the pull request's base repository, and allows
+// a fork's head repository as the one alternative.
+//
+// The publish hook's lookup is narrower than that — it selects by repository name
+// alone — so it can offer a candidate from another owner, and this pins what then
+// happens: the matcher refuses it and nothing completes. That asymmetry is the
+// subject of #207, which cannot be decided until the hook's predicate and the
+// index that serves it are chosen together.
+func TestPublishedSessionFromAnotherOwnerOfTheSameNameCompletesNothing(t *testing.T) {
+	h, pool, _, _ := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 993021)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "same-name-" + fmt.Sprintf("%d", time.Now().UnixNano())[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	sha := "aaa9999000000000000000000000000000000041"
+	attachment := attachmentWaiting(t, ctx, h, groupID, owner, repoName, sha, 41)
+
+	// The same repository name, under a different owner.
+	code, body := attachmentPublish(t, h, owner, "attachment-owner", "git@github.com:someone-else/"+repoName+".git", sha)
+	if code != http.StatusCreated {
+		t.Fatalf("publish status = %d (%s), want 201", code, body)
+	}
+
+	updated, err := h.queries.GetPullRequestAttachment(ctx, attachment.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.State != "waiting" {
+		t.Fatalf("state = %q after a publish from a same-named repository under another owner, want waiting: the matcher requires the owner and the name, and only a fork's head repository is the other alternative", updated.State)
+	}
+}
