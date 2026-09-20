@@ -110,3 +110,47 @@ func (q *Queries) ListTranscriptCommits(ctx context.Context, transcriptID pgtype
 	}
 	return items, nil
 }
+
+const listTranscriptCommitsForTranscripts = `-- name: ListTranscriptCommitsForTranscripts :many
+SELECT id, transcript_id, commit_order, sha, message, author_name, author_email, additions, deletions, authored_at, committed_at, created_at FROM transcript_commits
+WHERE transcript_id = ANY($1::uuid[])
+ORDER BY transcript_id ASC, commit_order ASC, id ASC
+`
+
+// Every recorded commit for a set of transcripts, in payload order: the same
+// facts as ListTranscriptCommits, for a caller that needs them for a whole
+// candidate pool. The pool grows with what an author has published, and reading
+// it one transcript at a time made a click, and every publish by that author,
+// cost one round trip per transcript.
+func (q *Queries) ListTranscriptCommitsForTranscripts(ctx context.Context, transcriptIds []pgtype.UUID) ([]TranscriptCommit, error) {
+	rows, err := q.db.Query(ctx, listTranscriptCommitsForTranscripts, transcriptIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TranscriptCommit{}
+	for rows.Next() {
+		var i TranscriptCommit
+		if err := rows.Scan(
+			&i.ID,
+			&i.TranscriptID,
+			&i.CommitOrder,
+			&i.Sha,
+			&i.Message,
+			&i.AuthorName,
+			&i.AuthorEmail,
+			&i.Additions,
+			&i.Deletions,
+			&i.AuthoredAt,
+			&i.CommittedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
