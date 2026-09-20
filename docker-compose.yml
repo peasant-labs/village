@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    # Project mirror (linux/amd64 only).
+    image: quay.io/peasant-labs/postgres:16-alpine@sha256:763d98d8fe6c03b54aeddbc6767daf88f572e307a86514aaf7d31219a30f5f0b
+    platform: linux/amd64
     environment:
       POSTGRES_USER: peasant
       POSTGRES_PASSWORD: peasant
@@ -46,7 +48,9 @@ services:
       "
 
   caddy:
-    image: caddy:2-alpine
+    # Project mirror (linux/amd64 only).
+    image: quay.io/peasant-labs/caddy:2-alpine@sha256:bf85abd81736f68906698c7e9bcbb8b59c03cb8e672e771d7f8461f4360338a5
+    platform: linux/amd64
     restart: on-failure
     ports:
       - "8080:80"

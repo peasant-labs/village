@@ -83,8 +83,8 @@ jobs:
     # MinIO container name collide the moment two backend jobs run concurrently.
     services:
       postgres:
-        # postgres 16.14-alpine3.24, pinned to the linux/amd64 manifest used by ubuntu-24.04.
-        image: postgres@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382
+        # postgres 16.15-alpine3.24 (project mirror), pinned to the linux/amd64 manifest.
+        image: quay.io/peasant-labs/postgres:16-alpine@sha256:763d98d8fe6c03b54aeddbc6767daf88f572e307a86514aaf7d31219a30f5f0b
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
