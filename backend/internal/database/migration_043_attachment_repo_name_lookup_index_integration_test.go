@@ -23,12 +23,14 @@ func TestMigration043LookupIndexServesTheHook(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT indexdef FROM pg_indexes
 		WHERE tablename = 'pull_request_attachments'
-		  AND indexname = 'idx_pull_request_attachments_author_repo_name_state'
+		  AND indexname = 'idx_pull_request_attachments_author_repo_name'
 	`).Scan(&definition); err != nil {
 		t.Fatalf("the lookup index must exist after the migrations: %v", err)
 	}
-	if !strings.Contains(definition, "author_id") || !strings.Contains(definition, "lower(repo_name)") || !strings.Contains(definition, "state") {
-		t.Fatalf("index definition = %q, want author_id, lower(repo_name) and state", definition)
+	// The column list, not the index name: the name contains every word this could
+	// otherwise be fooled by.
+	if !strings.Contains(definition, "(author_id, lower(repo_name))") {
+		t.Fatalf("index definition = %q, want the columns (author_id, lower(repo_name))", definition)
 	}
 
 	var ownerID pgtype.UUID
@@ -88,7 +90,7 @@ func TestMigration043LookupIndexServesTheHook(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("read the plan: %v", err)
 	}
-	if !strings.Contains(plan.String(), "idx_pull_request_attachments_author_repo_name_state") {
+	if !strings.Contains(plan.String(), "idx_pull_request_attachments_author_repo_name") {
 		t.Fatalf("the hook's lookup does not plan onto the new index; plan=%s", plan.String())
 	}
 }

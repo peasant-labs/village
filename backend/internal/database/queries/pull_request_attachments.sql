@@ -138,9 +138,9 @@ WHERE attachment_id = $1 AND transcript_id = $2;
 -- while its owner changes, so the name is what makes a fork push match its
 -- attachment at all. The matcher applies the same equality.
 --
--- idx_pull_request_attachments_author_repo_name_state serves this predicate. The
--- (repo_owner, repo_name) index cannot: it leads with a column this WHERE never
--- constrains.
+-- idx_pull_request_attachments_author_repo_name serves this predicate; the
+-- (repo_owner, repo_name) index cannot, because it leads with a column this WHERE
+-- never constrains, and the state is filtered rather than indexed.
 SELECT * FROM pull_request_attachments
 WHERE author_id = @author_id
   AND lower(repo_name) = lower(@repo_name)

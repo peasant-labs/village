@@ -35,17 +35,25 @@ func TestMigration043AttachmentRepoNameLookupIndex(t *testing.T) {
 		statement = statement[:end]
 	}
 
-	if !strings.Contains(statement, "CREATE INDEX idx_pull_request_attachments_author_repo_name_state") {
+	if !strings.Contains(statement, "CREATE INDEX idx_pull_request_attachments_author_repo_name") {
 		t.Fatalf("migration 043 must create the lookup index by name; statement=%q", statement)
 	}
-	if !strings.Contains(statement, "ON pull_request_attachments (author_id, lower(repo_name), state)") {
-		t.Fatalf("migration 043 must index author_id, lower(repo_name), state in that order, or the hook's lookup cannot use it; statement=%q", statement)
+	// Compared with whitespace collapsed, so a multi-line column list would still
+	// be read as the columns it names.
+	flat := strings.Join(strings.Fields(statement), " ")
+	if !strings.Contains(flat, "ON pull_request_attachments (author_id, lower(repo_name))") {
+		t.Fatalf("migration 043 must index author_id then lower(repo_name), or the hook's lookup cannot use it; statement=%q", flat)
 	}
-	if strings.Contains(statement, "repo_owner") {
-		t.Fatalf("migration 043 must not index repo_owner: the lookup does not constrain it; statement=%q", statement)
+	if strings.Contains(flat, "repo_owner") {
+		t.Fatalf("migration 043 must not index repo_owner: the lookup does not constrain it; statement=%q", flat)
+	}
+	// state is filtered rather than indexed: `state = ANY(...)` is not an index
+	// condition in Postgres, so the column would cost writes and buy nothing.
+	if strings.Contains(flat, "state") {
+		t.Fatalf("migration 043 must not index state: the predicate's state test is planned as a filter; statement=%q", flat)
 	}
 
-	if !strings.Contains(string(down), "DROP INDEX IF EXISTS idx_pull_request_attachments_author_repo_name_state") {
+	if !strings.Contains(string(down), "DROP INDEX IF EXISTS idx_pull_request_attachments_author_repo_name") {
 		t.Fatal("migration 043 down must drop the index it created")
 	}
 }

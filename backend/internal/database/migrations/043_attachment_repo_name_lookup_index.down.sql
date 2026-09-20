@@ -1,1 +1,1 @@
-DROP INDEX IF EXISTS idx_pull_request_attachments_author_repo_name_state;
+DROP INDEX IF EXISTS idx_pull_request_attachments_author_repo_name;
