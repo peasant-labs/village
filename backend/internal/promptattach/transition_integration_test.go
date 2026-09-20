@@ -5,6 +5,7 @@ package promptattach
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -12,6 +13,87 @@ import (
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
+
+// parkedWriteQuerier delegates the transition path's two calls to the generated
+// queries over a real database, but pauses the conditional write until the test
+// releases it. The pause happens AFTER the real read returns, which is exactly
+// the window Transition leaves open between reading the current state and
+// applying the write conditional on it. The wrapper reimplements nothing: both
+// calls delegate to the real queries; only the pause is added.
+type parkedWriteQuerier struct {
+	inner   *sqlc.Queries
+	read    chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (q *parkedWriteQuerier) GetPullRequestAttachment(ctx context.Context, id pgtype.UUID) (sqlc.PullRequestAttachment, error) {
+	row, err := q.inner.GetPullRequestAttachment(ctx, id)
+	if err == nil {
+		q.once.Do(func() { close(q.read) })
+	}
+	return row, err
+}
+
+func (q *parkedWriteQuerier) UpdatePullRequestAttachmentState(ctx context.Context, arg sqlc.UpdatePullRequestAttachmentStateParams) (sqlc.PullRequestAttachment, error) {
+	<-q.release
+	return q.inner.UpdatePullRequestAttachmentState(ctx, arg)
+}
+
+// TestTransitionConditionalWriteLosesCleanlyUnderInterleaving is the executable
+// proof that the state write is conditional on the state Transition read. The
+// loser reads `waiting` and is parked before its UPDATE; a second connection
+// moves the same row to `attached` inside that window; the parked UPDATE then
+// matches no row and Transition reports ErrStaleState.
+//
+// The sequential matrix cannot substitute for this: it never has two readers of
+// one row, so removing the `state = expected_state` predicate or mis-translating
+// its no-row result would leave it green. The interleaving is deterministic
+// (channels, never sleeps) and both connections run the production SQL.
+func TestTransitionConditionalWriteLosesCleanlyUnderInterleaving(t *testing.T) {
+	ctx := context.Background()
+	pool := newScratchPool(t)
+	q := sqlc.New(pool)
+	owner := insertOwner(t, ctx, pool)
+	attachment := createAttachment(t, ctx, q, pool, owner, 700, Waiting)
+
+	parked := &parkedWriteQuerier{
+		inner:   q,
+		read:    make(chan struct{}),
+		release: make(chan struct{}),
+	}
+
+	loser := make(chan error, 1)
+	go func() {
+		_, err := Transition(ctx, parked, attachment.ID, Attached)
+		loser <- err
+	}()
+
+	// Wait until the loser has read `waiting` and is parked before its write.
+	<-parked.read
+
+	// The winner moves the same row through the real queries while the loser is
+	// parked: the stored state is now `attached`.
+	if _, err := Transition(ctx, q, attachment.ID, Attached); err != nil {
+		t.Fatalf("the winner's transition failed: %v", err)
+	}
+
+	close(parked.release)
+	if err := <-loser; !errors.Is(err, ErrStaleState) {
+		t.Fatalf("the parked transition's error = %v, want ErrStaleState: the conditional write must lose when the state it read is gone", err)
+	}
+
+	final, err := q.GetPullRequestAttachment(ctx, attachment.ID)
+	if err != nil {
+		t.Fatalf("re-read the attachment after the interleaving: %v", err)
+	}
+	if final.State != string(Attached) {
+		t.Fatalf("final state = %q, want the winner's %q", final.State, Attached)
+	}
+	if !final.AttachedAt.Valid {
+		t.Fatal("the winner's move did not stamp attached_at")
+	}
+}
 
 // TestTransitionEnforcesTheClosedTable drives every ordered pair from the
 // fixture through the production transition function against real PostgreSQL.

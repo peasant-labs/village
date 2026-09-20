@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 
@@ -31,6 +32,18 @@ type githubWebhookCase struct {
 
 type githubWebhookCaseFile struct {
 	Cases []githubWebhookCase `yaml:"cases"`
+}
+
+// requiredGitHubWebhookCaseNames is the name manifest for
+// testdata/github_webhook/cases.yaml: one row per subscribed event type plus one
+// unsubscribed type. Exact membership, never a count, so deleting an event row
+// fails by name instead of silently shrinking the dispatch corpus.
+var requiredGitHubWebhookCaseNames = []string{
+	"installation_created",
+	"pull_request_opened",
+	"check_run_requested_action",
+	"issue_comment_created",
+	"unrecognized_event_acknowledged",
 }
 
 // loadGitHubWebhookCases reads the fixture strictly and refuses a row whose
@@ -61,25 +74,54 @@ func loadGitHubWebhookCases(t *testing.T) []githubWebhookCase {
 			t.Fatalf("fixture row %q declares dispatch %q, which is not a dispatcher method or none", c.Name, c.Dispatch)
 		}
 	}
+	declared := make(map[string]bool, len(requiredGitHubWebhookCaseNames))
+	for _, name := range requiredGitHubWebhookCaseNames {
+		declared[name] = true
+	}
+	var missing, undeclared []string
+	for _, name := range requiredGitHubWebhookCaseNames {
+		if !seen[name] {
+			missing = append(missing, name)
+		}
+	}
+	for name := range seen {
+		if !declared[name] {
+			undeclared = append(undeclared, name)
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(undeclared)
+	if len(missing) > 0 {
+		t.Fatalf("testdata/github_webhook/cases.yaml no longer carries %v, which its manifest declares: each row pins one event's dispatch. Restore the row under its exact name.", missing)
+	}
+	if len(undeclared) > 0 {
+		t.Fatalf("testdata/github_webhook/cases.yaml carries %v, which its manifest does not declare: an undeclared case is unprotected, so add each new name to the manifest in the same change.", undeclared)
+	}
 	return file.Cases
 }
 
 type webhookRecorder struct {
-	calls []string
-	err   error
+	calls  []string
+	events []gh.Event
+	err    error
 }
 
-func (r *webhookRecorder) note(name string) error {
+func (r *webhookRecorder) note(name string, event gh.Event) error {
 	r.calls = append(r.calls, name)
+	r.events = append(r.events, event)
 	return r.err
 }
-func (r *webhookRecorder) Installation(context.Context, gh.Event) error {
-	return r.note("installation")
+func (r *webhookRecorder) Installation(_ context.Context, event gh.Event) error {
+	return r.note("installation", event)
 }
-func (r *webhookRecorder) PullRequest(context.Context, gh.Event) error { return r.note("pull_request") }
-func (r *webhookRecorder) CheckRun(context.Context, gh.Event) error    { return r.note("check_run") }
-func (r *webhookRecorder) IssueComment(context.Context, gh.Event) error {
-	return r.note("issue_comment")
+func (r *webhookRecorder) PullRequest(_ context.Context, event gh.Event) error {
+	return r.note("pull_request", event)
+}
+func (r *webhookRecorder) CheckRun(_ context.Context, event gh.Event) error {
+	return r.note("check_run", event)
+}
+func (r *webhookRecorder) IssueComment(_ context.Context, event gh.Event) error {
+	return r.note("issue_comment", event)
 }
 
 func webhookSignature(secret string, body []byte) string {
@@ -185,13 +227,17 @@ func TestReceiveGitHubWebhook_NotConfigured(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ledger := newWebhookLedger()
-			h := webhookHandler(t, tc.secret, tc.configured, &webhookRecorder{}, ledger)
+			recorder := &webhookRecorder{}
+			h := webhookHandler(t, tc.secret, tc.configured, recorder, ledger)
 			rec := postWebhook(h, "pull_request", "d1", webhookSignature("secret", body), body)
 			if rec.Code != http.StatusNotImplemented {
 				t.Fatalf("status = %d, want 501", rec.Code)
 			}
 			if len(ledger.rows) != 0 {
 				t.Fatal("an unconfigured receiver recorded a delivery")
+			}
+			if len(recorder.calls) != 0 {
+				t.Fatalf("an unconfigured receiver dispatched %v, want nothing", recorder.calls)
 			}
 		})
 	}
@@ -218,6 +264,14 @@ func TestReceiveGitHubWebhook_DispatchesEachEvent(t *testing.T) {
 				}
 			} else if len(recorder.calls) != 1 || recorder.calls[0] != c.Dispatch {
 				t.Fatalf("dispatch = %v, want exactly [%s]", recorder.calls, c.Dispatch)
+			} else {
+				// The handling point receives the whole event, so a lost or
+				// mutated delivery id or payload cannot pass on the method name
+				// alone.
+				got := recorder.events[0]
+				if got.Type != c.Event || got.DeliveryID != "delivery-"+c.Name || !bytes.Equal(got.Payload, body) {
+					t.Fatalf("dispatched event = %+v, want type %q, delivery %q, and the exact raw body", got, c.Event, "delivery-"+c.Name)
+				}
 			}
 			row := ledger.row("delivery-" + c.Name)
 			if row == nil || row.status != webhookDeliveryHandled || row.eventType != c.Event || !bytes.Equal(row.payload, body) {
@@ -284,10 +338,18 @@ func TestReceiveGitHubWebhook_RequiresHeaders(t *testing.T) {
 		{"missing delivery", "pull_request", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := webhookHandler(t, secret, true, &webhookRecorder{}, newWebhookLedger())
+			ledger := newWebhookLedger()
+			recorder := &webhookRecorder{}
+			h := webhookHandler(t, secret, true, recorder, ledger)
 			rec := postWebhook(h, tc.event, tc.delivery, sig, body)
 			if rec.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want 400", rec.Code)
+			}
+			if len(ledger.rows) != 0 {
+				t.Fatal("a request missing a routing header recorded a delivery")
+			}
+			if len(recorder.calls) != 0 {
+				t.Fatalf("a request missing a routing header dispatched %v, want nothing", recorder.calls)
 			}
 		})
 	}
@@ -297,7 +359,8 @@ func TestReceiveGitHubWebhook_RequiresHeaders(t *testing.T) {
 func TestReceiveGitHubWebhook_OversizedBody(t *testing.T) {
 	secret := "webhook-secret"
 	ledger := newWebhookLedger()
-	h := webhookHandler(t, secret, true, &webhookRecorder{}, ledger)
+	recorder := &webhookRecorder{}
+	h := webhookHandler(t, secret, true, recorder, ledger)
 	body := bytes.Repeat([]byte("a"), maxGitHubWebhookBodyBytes+1)
 	rec := postWebhook(h, "pull_request", "d1", webhookSignature(secret, body), body)
 	if rec.Code != http.StatusRequestEntityTooLarge {
@@ -305,6 +368,9 @@ func TestReceiveGitHubWebhook_OversizedBody(t *testing.T) {
 	}
 	if len(ledger.rows) != 0 {
 		t.Fatal("an oversized body recorded a delivery")
+	}
+	if len(recorder.calls) != 0 {
+		t.Fatalf("an oversized body dispatched %v, want nothing", recorder.calls)
 	}
 }
 
