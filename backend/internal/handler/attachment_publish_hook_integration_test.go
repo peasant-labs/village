@@ -361,12 +361,15 @@ func TestRepublishedSessionDedupesTheAttachment(t *testing.T) {
 	if transcripts != 1 {
 		t.Fatalf("transcript rows for the republished session = %d, want 1", transcripts)
 	}
+	// Counted the way a duplicate would actually appear — this author's
+	// attachments for this repository — not by primary key, which is unique by
+	// definition and so could only ever be one.
 	var attachments int
-	if err := pool.QueryRow(ctx, "SELECT count(*) FROM pull_request_attachments WHERE id = $1", attachment.ID).Scan(&attachments); err != nil {
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM pull_request_attachments WHERE author_id = $1 AND lower(repo_name) = lower($2)", owner, repoName).Scan(&attachments); err != nil {
 		t.Fatal(err)
 	}
 	if attachments != 1 {
-		t.Fatalf("attachment rows = %d, want 1", attachments)
+		t.Fatalf("attachments for the repository after the republish = %d, want 1", attachments)
 	}
 	var bindings int
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM pull_request_attachment_transcripts WHERE attachment_id = $1", attachment.ID).Scan(&bindings); err != nil {
