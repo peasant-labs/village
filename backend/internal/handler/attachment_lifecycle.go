@@ -149,12 +149,27 @@ func (h *Handler) loadAttachmentCandidates(ctx context.Context, authorID pgtype.
 		return nil, fmt.Errorf("could not read the author's transcripts for matching: %w", err)
 	}
 
+	// One read for the whole pool's commits rather than one per candidate: the
+	// pool grows with what the author has published, and this runs on every
+	// confirm, refresh and publish by them.
+	commitsByTranscript := make(map[[16]byte][]sqlc.TranscriptCommit, len(rows))
+	if len(rows) > 0 {
+		ids := make([]pgtype.UUID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+		commits, err := h.queries.ListTranscriptCommitsForTranscripts(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("could not read the recorded commits for the candidate transcripts: %w", err)
+		}
+		for _, commit := range commits {
+			commitsByTranscript[commit.TranscriptID.Bytes] = append(commitsByTranscript[commit.TranscriptID.Bytes], commit)
+		}
+	}
+
 	candidates := make([]matcher.Transcript, 0, len(rows))
 	for _, row := range rows {
-		commits, err := h.queries.ListTranscriptCommits(ctx, row.ID)
-		if err != nil {
-			return nil, fmt.Errorf("could not read the recorded commits for one candidate transcript: %w", err)
-		}
+		commits := commitsByTranscript[row.ID.Bytes]
 		candidate := matcher.Transcript{
 			ID:           schema.TranscriptID(uuidFromPg(row.ID).String()),
 			GitRemote:    row.GitRemote.String,

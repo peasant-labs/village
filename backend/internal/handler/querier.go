@@ -77,6 +77,7 @@ type Querier interface {
 	InsertTranscriptCommits(ctx context.Context, arg sqlc.InsertTranscriptCommitsParams) error
 	DeleteTranscriptCommits(ctx context.Context, transcriptID pgtype.UUID) error
 	ListTranscriptCommits(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.TranscriptCommit, error)
+	ListTranscriptCommitsForTranscripts(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.TranscriptCommit, error)
 
 	// Tag methods
 	GetOrCreateTag(ctx context.Context, name string) (sqlc.Tag, error)
