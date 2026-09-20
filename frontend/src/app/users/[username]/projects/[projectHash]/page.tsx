@@ -234,24 +234,33 @@ export default function UserProjectPage({
           onLoadMore={() => void grouped.fetchNextPage()}
         />
         {grouping.orphanItems.length > 0 && (
-          <SessionGroupDisclosure
-            label={`orphan sessions ${grouping.orphanItems.length}`}
-            collapsedLabel={`orphan sessions ${grouping.orphanItems.length}`}
-            expanded={orphansExpanded}
-            onToggle={() => setOrphansExpanded((open) => !open)}
-            rowsID="project-orphan-session-rows"
-            testID="project-orphan-session-group"
-            bare
-          >
-            <div id="project-orphan-session-rows" data-testid="project-orphan-session-rows">
-              <TranscriptList
-                items={grouping.orphanItems}
-                showOwnerActions={isOwner}
-                hideOwner
-                bare
-              />
-            </div>
-          </SessionGroupDisclosure>
+          // Indented like the child-session chip and the helper-group block
+          // (both `pl-5`), so a group of rows the project list holds back reads
+          // as belonging to the list above it rather than as another root row.
+          <div className="pl-5">
+            <SessionGroupDisclosure
+              label={`orphan sessions ${grouping.orphanItems.length}`}
+              collapsedLabel={`orphan sessions ${grouping.orphanItems.length}`}
+              expanded={orphansExpanded}
+              onToggle={() => setOrphansExpanded((open) => !open)}
+              rowsID="project-orphan-session-rows"
+              testID="project-orphan-session-group"
+              bare
+            >
+              <div
+                id="project-orphan-session-rows"
+                data-testid="project-orphan-session-rows"
+                className="border-t border-rule"
+              >
+                <TranscriptList
+                  items={grouping.orphanItems}
+                  showOwnerActions={isOwner}
+                  hideOwner
+                  bare
+                />
+              </div>
+            </SessionGroupDisclosure>
+          </div>
         )}
       </DataState>
     </div>
