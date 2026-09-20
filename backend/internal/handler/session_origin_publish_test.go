@@ -160,14 +160,18 @@ func (c publishOriginFixture) uploadBytes() string {
 		return "this upload is not a transcript envelope"
 	}
 	type turnJSON struct {
-		Index   int    `json:"index"`
-		Role    string `json:"role"`
-		Content string `json:"content"`
+		Index     int    `json:"index"`
+		Role      string `json:"role"`
+		Content   string `json:"content"`
+		Timestamp string `json:"timestamp"`
+		Depth     int    `json:"depth"`
 	}
 	details := []turnJSON{}
 	for _, run := range c.Turns {
 		for range run.Count {
-			details = append(details, turnJSON{Index: len(details), Role: run.Role, Content: run.Content})
+			// Turn timestamps stay inside the session start/end window below;
+			// the published wire shape requires every turn to carry one.
+			details = append(details, turnJSON{Index: len(details), Role: run.Role, Content: run.Content, Timestamp: fmt.Sprintf("2023-11-14T22:13:%02dZ", 20+len(details)), Depth: 0})
 		}
 	}
 	encoded, _ := json.Marshal(details)
@@ -176,7 +180,7 @@ func (c publishOriginFixture) uploadBytes() string {
 		encodedDeclaration, _ := json.Marshal(c.DeclaredOrigin)
 		declaration = fmt.Sprintf(`,"sessionOrigin":%s`, encodedDeclaration)
 	}
-	return fmt.Sprintf(`{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"publish-origin-fixture","harness":"claude-code","turns":%s%s}}`, encoded, declaration)
+	return fmt.Sprintf(`{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"publish-origin-fixture","harness":"claude-code","startTime":"2023-11-14T22:13:20Z","endTime":"2023-11-14T22:14:20Z","durationMins":1,"tokensIn":100,"tokensOut":50,"totalTokens":150,"toolCallCount":0,"turnCount":%d,"turns":%s%s}}`, len(details), encoded, declaration)
 }
 
 func publishOriginMetadata(sessionID string) string {

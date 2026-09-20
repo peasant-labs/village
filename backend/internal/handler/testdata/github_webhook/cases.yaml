@@ -1,0 +1,19 @@
+# One row per subscribed event type plus one unsubscribed type. `dispatch` names
+# the dispatcher method a verified delivery must reach, or "none" for an event
+# the receiver acknowledges and drops.
+cases:
+  - name: installation_created
+    event: installation
+    dispatch: installation
+  - name: pull_request_opened
+    event: pull_request
+    dispatch: pull_request
+  - name: check_run_requested_action
+    event: check_run
+    dispatch: check_run
+  - name: issue_comment_created
+    event: issue_comment
+    dispatch: issue_comment
+  - name: unrecognized_event_acknowledged
+    event: workflow_run
+    dispatch: none

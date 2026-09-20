@@ -1,0 +1,167 @@
+# Mutations that must be KILLED by the mounted helper-group suite.
+#
+# Each entry edits one anchor in the named corpus and declares HOW the edit must
+# be caught. `assertion` mutations change a case's declared expectation (the
+# request scope, the selected member, the mounted members, the collective's
+# expected id set) and must fail the named mounted assertion. `loader` mutations
+# damage the corpus itself (a renamed required case, a non-boolean field, a page
+# composition with no continuation) and must fail fixture-loader validation.
+# A mutation that survives means the mounted test is not consuming the fixture
+# field it claims to. An `assertion` mutation the loader catches first is a
+# broken fixture, which the runner reports separately and never counts as a kill.
+mutations:
+  - name: expected-request-scope-drift
+    file: ../../src/testdata/grouped-helper-mounts.yaml
+    original: "  - name: expand-loads-exact-scope\n    group: owner\n    expand: true\n    loadingNotice: helper-group-loading\n    expectedRequests:\n      - {scope: scope-fixture-owner, page: \"1\", limit: \"20\"}\n"
+    replacement: "  - name: expand-loads-exact-scope\n    group: owner\n    expand: true\n    loadingNotice: helper-group-loading\n    expectedRequests:\n      - {scope: scope-fixture-other, page: \"1\", limit: \"20\"}\n"
+    testFile: src/components/transcript/ScopedHelperGroups.test.tsx
+    testName: expand-loads-exact-scope
+    failure: assertion
+
+  - name: expected-selected-drift
+    file: ../../src/testdata/grouped-helper-mounts.yaml
+    original: "    expectedSelected: [helper-b]\n"
+    replacement: "    expectedSelected: [helper-a]\n"
+    testFile: src/components/transcript/ScopedHelperGroups.test.tsx
+    testName: selection-is-one-member
+    failure: assertion
+
+  - name: expected-member-drift
+    file: ../../src/testdata/grouped-helper-mounts.yaml
+    original: "  - name: expand-loads-exact-scope\n    group: owner\n    expand: true\n    loadingNotice: helper-group-loading\n    expectedRequests:\n      - {scope: scope-fixture-owner, page: \"1\", limit: \"20\"}\n    expectedMembers: [helper-a, helper-b]\n"
+    replacement: "  - name: expand-loads-exact-scope\n    group: owner\n    expand: true\n    loadingNotice: helper-group-loading\n    expectedRequests:\n      - {scope: scope-fixture-owner, page: \"1\", limit: \"20\"}\n    expectedMembers: [helper-a, helper-c]\n"
+    testFile: src/components/transcript/ScopedHelperGroups.test.tsx
+    testName: expand-loads-exact-scope
+    failure: assertion
+
+  - name: required-case-renamed
+    file: ../../src/testdata/grouped-helper-mounts.yaml
+    original: "- name: selection-is-one-member\n"
+    replacement: "- name: selection-is-one-member-renamed\n"
+    testFile: src/components/transcript/ScopedHelperGroups.test.tsx
+    testName: selection-is-one-member-renamed
+    failure: loader
+
+  - name: invalid-expand-field
+    file: ../../src/testdata/grouped-helper-mounts.yaml
+    original: "  - name: collapsed-sends-no-request\n    group: owner\n    expand: false\n"
+    replacement: "  - name: collapsed-sends-no-request\n    group: owner\n    expand: \"no\"\n"
+    testFile: src/components/transcript/ScopedHelperGroups.test.tsx
+    testName: collapsed-sends-no-request
+    failure: loader
+
+  - name: continuation-total-drift
+    file: ../../src/testdata/grouped-helper-surfaces.yaml
+    original: "    firstPageOrdinary: 100\n    totalItems: 101\n    laterContext:\n      groupId: hg_fixture_profile_later\n"
+    replacement: "    firstPageOrdinary: 100\n    totalItems: 100\n    laterContext:\n      groupId: hg_fixture_profile_later\n"
+    testFile: src/mountedGroupedHelperSurfaces.test.tsx
+    testName: profile-continuation-reaches-later-context
+    failure: loader
+
+  - name: collective-expected-id-drift
+    file: ../../src/testdata/collective-grouped-actions.yaml
+    original: "  - name: contribute-selects-one-helper-only\n    surface: contribute\n    why: A contributor ticks one helper member and the batch names exactly that transcript id.\n    row: P1\n    group: owner\n    select: G2\n    expected_ids: [G2]\n"
+    # The drifted set stays a superset of the selected member, so the fixture
+    # loader admits it and the mounted assertion is the thing that fails.
+    replacement: "  - name: contribute-selects-one-helper-only\n    surface: contribute\n    why: A contributor ticks one helper member and the batch names exactly that transcript id.\n    row: P1\n    group: owner\n    select: G2\n    expected_ids: [G2, G1]\n"
+    testFile: src/mountedCollectiveGroupedActions.test.tsx
+    testName: contribute-selects-one-helper-only
+    failure: assertion
+
+  - name: collective-required-case-renamed
+    file: ../../src/testdata/collective-grouped-actions.yaml
+    original: "- name: review-other-owner-group-remains-independent\n"
+    replacement: "- name: review-other-owner-group-remains-independent-renamed\n"
+    testFile: src/mountedCollectiveGroupedActions.test.tsx
+    testName: review-other-owner-group-remains-independent-renamed
+    failure: loader
+
+  - name: collective-fallback-flat-mode-invalid
+    file: ../../src/testdata/collective-grouped-actions.yaml
+    original: "  - name: browse-empty-flat-mounts-helper-only-context\n    surface: browse\n    why: The flat browse result is empty, so the helper-only context container must mount without a flat row.\n    flat: empty\n    grouped: context\n"
+    replacement: "  - name: browse-empty-flat-mounts-helper-only-context\n    surface: browse\n    why: The flat browse result is empty, so the helper-only context container must mount without a flat row.\n    flat: bogus\n    grouped: context\n"
+    testFile: src/mountedCollectiveGroupedFallback.test.tsx
+    testName: browse-empty-flat-mounts-helper-only-context
+    failure: loader
+
+  - name: collective-continuation-total-drift
+    file: ../../src/testdata/collective-grouped-actions.yaml
+    original: "    pageSize: 100\n    firstPageItems: 100\n    totalItems: 101\n    laterRow: P2\n    laterGroup: other\n    laterMember: H1\n  - name: contribute-continuation-reaches-later-owner-group\n"
+    replacement: "    pageSize: 100\n    firstPageItems: 100\n    totalItems: 100\n    laterRow: P2\n    laterGroup: other\n    laterMember: H1\n  - name: contribute-continuation-reaches-later-owner-group\n"
+    testFile: src/mountedCollectiveGroupedFallback.test.tsx
+    testName: browse-continuation-reaches-later-owner-group
+    failure: loader
+
+  - name: collective-continuation-case-renamed
+    file: ../../src/testdata/collective-grouped-actions.yaml
+    original: "- name: review-continuation-reaches-later-owner-group\n"
+    replacement: "- name: review-continuation-reaches-later-owner-group-renamed\n"
+    testFile: src/mountedCollectiveGroupedFallback.test.tsx
+    testName: review-continuation-reaches-later-owner-group-renamed
+    failure: loader
+
+  # The two named grouping oracles. A drift in the SERVED measure must fail the
+  # mounted owner-facts assertion, a drift in the PINNED disclosure label must
+  # fail the mounted group-label assertion, and a renamed required case must fail
+  # fixture-loader validation.
+  - name: shape-oracle-served-measure-drift
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "    title: \"shape a owner\"\n    turnCount: 5\n"
+    replacement: "    title: \"shape a owner\"\n    turnCount: 6\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: owner-input1-main5-with-two-helpers
+    failure: assertion
+
+  - name: shape-oracle-expected-label-drift
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "      shape-a-pair: \"2 helper threads\"\n"
+    replacement: "      shape-a-pair: \"3 helper threads\"\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: owner-input1-main5-with-two-helpers
+    failure: assertion
+
+  - name: shape-oracle-required-case-renamed
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "- name: ordinary3-helper3-top3\n"
+    replacement: "- name: ordinary3-helper3-top3-renamed\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: ordinary3-helper3-top3-renamed
+    failure: loader
+
+  # The per-row member assertion: `shape-b-helper-two` is served a different
+  # turn count while owner `shape-b-first` still states the pinned "3 turns", so
+  # a document-wide search would still find the literal and pass. Only asserting
+  # the fact on the member's OWN row kills this.
+  - name: shape-oracle-member-fact-row-scope
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "        - {id: shape-b-helper-two, title: \"shape b helper two\", turnCount: 3, inputSubmissionCount: null}\n"
+    replacement: "        - {id: shape-b-helper-two, title: \"shape b helper two\", turnCount: 4, inputSubmissionCount: null}\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: ordinary3-helper3-top3
+    failure: assertion
+
+  # Root/manifest validation: an unknown root field, a drifted manifest name,
+  # and a removed manifest block must each fail the loader, not pass silently.
+  - name: shape-oracle-unknown-root-field
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "requiredNames:\n  - owner-input1-main5-with-two-helpers\n"
+    replacement: "rogueRoot: true\nrequiredNames:\n  - owner-input1-main5-with-two-helpers\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: owner-input1-main5-with-two-helpers
+    failure: loader
+
+  - name: shape-oracle-manifest-drifted
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "  - ordinary3-helper3-top3\n"
+    replacement: "  - ordinary3-helper3-top3-drifted\n"
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: ordinary3-helper3-top3
+    failure: loader
+
+  - name: shape-oracle-manifest-missing
+    file: ../../src/testdata/grouped-shape-oracles.yaml
+    original: "requiredNames:\n  - owner-input1-main5-with-two-helpers\n  - ordinary3-helper3-top3\n"
+    replacement: ""
+    testFile: src/mountedGroupedShapeOracles.test.tsx
+    testName: owner-input1-main5-with-two-helpers
+    failure: loader

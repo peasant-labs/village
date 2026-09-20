@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/promptattach"
 )
 
 var validAcceptanceModes = map[string]bool{
@@ -39,8 +39,7 @@ func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		DataAccess      string `json:"data_access"`
 		LinkedGitHubOrg string `json:"linked_github_org"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opCreateGroup, &req) {
 		return
 	}
 	if req.Name == "" {
@@ -233,6 +232,10 @@ func canReadData(role string, dataAccess string) bool {
 }
 
 func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "grouped" {
+		h.getCollectiveGrouped(w, r)
+		return
+	}
 	user := GetUser(r.Context()) // may be nil (AuthOptional)
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -341,9 +344,10 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 		LinkedGitHubOrg          *string `json:"linked_github_org"`
 		DisplayMembers           *bool   `json:"display_members"`
 		TranscriptDeletionPolicy string  `json:"transcript_deletion_policy"`
+		PostPromptsCheck         *bool   `json:"post_prompts_check"`
+		PromptsCheckMode         string  `json:"prompts_check_mode"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opUpdateGroup, &req) {
 		return
 	}
 	if req.DataAccess != "" && !validDataAccess[req.DataAccess] {
@@ -357,6 +361,15 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	if req.TranscriptDeletionPolicy != "" && !validDeletionPolicies[req.TranscriptDeletionPolicy] {
 		writeError(w, http.StatusBadRequest, "Invalid transcript deletion policy")
 		return
+	}
+	// The check mode is a closed menu shared with the attachment lifecycle; a
+	// value outside it must be refused before any write rather than reaching the
+	// database CHECK.
+	if req.PromptsCheckMode != "" {
+		if err := promptattach.CheckMode(req.PromptsCheckMode).Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid prompts check mode; it must be one of "+promptattach.CheckModeMenu())
+			return
+		}
 	}
 
 	// Fetch current group to use existing values if not provided.
@@ -380,6 +393,14 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	deletionPolicy := currentGroup.TranscriptDeletionPolicy
 	if req.TranscriptDeletionPolicy != "" {
 		deletionPolicy = req.TranscriptDeletionPolicy
+	}
+	postPromptsCheck := currentGroup.PostPromptsCheck
+	if req.PostPromptsCheck != nil {
+		postPromptsCheck = *req.PostPromptsCheck
+	}
+	promptsCheckMode := currentGroup.PromptsCheckMode
+	if req.PromptsCheckMode != "" {
+		promptsCheckMode = req.PromptsCheckMode
 	}
 
 	// linked_github_org: nil pointer => no change; non-nil empty => clear;
@@ -415,6 +436,8 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 		LinkedGithubOrg:          linkedOrg,
 		DisplayMembers:           displayMembers,
 		TranscriptDeletionPolicy: deletionPolicy,
+		PostPromptsCheck:         postPromptsCheck,
+		PromptsCheckMode:         promptsCheckMode,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to update group")
@@ -471,8 +494,7 @@ func (h *Handler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opAddGroupMember, &req) {
 		return
 	}
 
@@ -498,6 +520,10 @@ func (h *Handler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
 // ListPendingShares returns pending transcript shares for a curated collective.
 // GET /groups/{id}/pending (AuthRequired, owner only)
 func (h *Handler) ListPendingShares(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "grouped" {
+		h.listCollectiveGrouped(w, r, GroupedRoutePending)
+		return
+	}
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -551,8 +577,7 @@ func (h *Handler) ReviewShare(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Status string `json:"status"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opReviewShare, &req) {
 		return
 	}
 	if req.Status != "approved" && req.Status != "rejected" {
@@ -622,8 +647,7 @@ func (h *Handler) BatchReviewShares(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req batchReviewRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opBatchReviewShares, &req) {
 		return
 	}
 	if req.Status != "approved" && req.Status != "rejected" {
@@ -785,8 +809,7 @@ func (h *Handler) PromoteMember(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Role string `json:"role"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid request body")
+	if !h.decodeContractBody(w, r, opUpdateGroupMemberRole, &req) {
 		return
 	}
 	if req.Role != "contributor" && req.Role != "member" {
@@ -926,6 +949,10 @@ func (h *Handler) RemoveGroupMember(w http.ResponseWriter, r *http.Request) {
 // contributions" card and the leave-collective modal.
 // GET /groups/{id}/my-shares (AuthRequired)
 func (h *Handler) ListMyGroupShares(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "grouped" {
+		h.listCollectiveGrouped(w, r, GroupedRouteMyShares)
+		return
+	}
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -1035,6 +1062,12 @@ type transcriptCollective struct {
 // contributor opt-in. A refusal would itself confirm that memberships exist and
 // are being withheld, which is exactly what a person who has not opted in to
 // being listed asked not to happen.
+// transcriptCollectivesInvisible is one answer for "no such transcript" and "not
+// yours to see", so asking cannot be used to discover which transcripts exist.
+const transcriptCollectivesInvisible = "Cannot list this transcript's collectives: no transcript with that id is " +
+	"visible to you. Either it does not exist, or it is not public and has not been shared with a collective you " +
+	"belong to. Sign in as its owner, or ask the owner to share it, then retry."
+
 func (h *Handler) ListTranscriptCollectives(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -1048,11 +1081,12 @@ func (h *Handler) ListTranscriptCollectives(w http.ResponseWriter, r *http.Reque
 	user := GetUser(r.Context())
 	// One answer for "no such transcript" and "not yours to see", so that asking
 	// cannot be used to discover which transcripts exist.
-	if err != nil || !h.canViewTranscript(r.Context(), user, transcript) {
-		writeError(w, http.StatusNotFound,
-			"Cannot list this transcript's collectives: no transcript with that id is visible to you. Either it does "+
-				"not exist, or it is not public and has not been shared with a collective you belong to. Sign in as its "+
-				"owner, or ask the owner to share it, then retry.")
+	if err != nil {
+		writeError(w, http.StatusNotFound, transcriptCollectivesInvisible)
+		return
+	}
+	if allowed, _ := h.canReadTranscript(r.Context(), user, transcript); !allowed {
+		writeError(w, http.StatusNotFound, transcriptCollectivesInvisible)
 		return
 	}
 

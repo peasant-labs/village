@@ -1,0 +1,40 @@
+# Cases behind src/privacyNoticeRoute.test.tsx and src/privacyLinks.test.tsx.
+#
+# `licenseChoices` is a closed set: the test asserts its `choice` values are
+# EXACTLY the schema contract's AllLicenses plus "none", and that the rendered
+# page carries exactly these blocks. Adding a license to the contract goes red
+# here until a case (and the notice text) covers it.
+#
+# `sectionHeadings` and `linkCases` are guarded by required-NAME manifests in
+# the loader, never by a count.
+
+sectionHeadings:
+  - name: operator
+    heading: who operates village
+  - name: contributions
+    heading: public contributions
+
+licenseChoices:
+  - name: cc-by
+    choice: CC-BY-4.0
+    heading: CC BY 4.0
+    controlLabel: Publish under CC BY 4.0
+  - name: cc-by-sa
+    choice: CC-BY-SA-4.0
+    heading: CC BY-SA 4.0
+    controlLabel: Publish under CC BY-SA 4.0
+  - name: cc0
+    choice: CC0-1.0
+    heading: CC0 1.0
+    controlLabel: Publish under CC0 1.0
+  - name: no-license
+    choice: none
+    heading: no license
+    controlLabel: Publish without a license
+
+# The publish page must link the notice in every auth state it renders.
+linkCases:
+  - name: publish-signed-out
+    viewerUsername: null
+  - name: publish-signed-in
+    viewerUsername: alice-dev

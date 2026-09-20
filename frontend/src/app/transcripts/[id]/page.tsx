@@ -10,6 +10,7 @@ import PendingApprovalBar, {
 import { isSessionDetailPayload } from "@/lib/sessionDetailPayload";
 import type { SessionDetailPayload } from "@/types/messages";
 import { FileX2 } from "lucide-react";
+import { isApiErrorStatus } from "@/lib/api";
 
 export default function TranscriptDetailPage({
   params,
@@ -17,9 +18,9 @@ export default function TranscriptDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { data, isLoading } = useTranscript(id);
+  const { data, isLoading, error } = useTranscript(id);
   const { data: content, isLoading: contentLoading, error: contentError } =
-    useTranscriptContent(id);
+    useTranscriptContent(id, { knownHarness: data?.transcript.model_provider, enabled: !!data });
   const { data: myGroups } = useGroups();
 
   const pendingReviews = useMemo<PendingReview[]>(() => {
@@ -40,6 +41,25 @@ export default function TranscriptDetailPage({
         <div className="h-8 w-2/3 animate-shimmer" />
         <div className="h-12 w-1/2 animate-shimmer" />
         <div className="h-96 w-full animate-shimmer" />
+      </div>
+    );
+  }
+
+  // The server refused this read. A rate-limited access check says so: rendering
+  // "not found" for it would pretend the reader has no access, which is the one
+  // thing the throttle's answer exists to avoid.
+  if (isApiErrorStatus(error, 429)) {
+    return (
+      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12">
+        <div className="border border-rule bg-surface py-20 text-center flex flex-col gap-2">
+          <p className="font-[family-name:var(--font-display)] text-lg text-ink-2 tracking-tight">
+            Too many access checks just now
+          </p>
+          <p className="text-[13px] text-ink-3">
+            This transcript&apos;s repository is asked whether you may read it, and that has been
+            asked too often in the last few minutes. Try again shortly.
+          </p>
+        </div>
       </div>
     );
   }
@@ -98,6 +118,7 @@ export default function TranscriptDetailPage({
         <PendingApprovalBar transcriptId={t.id} reviews={pendingReviews} />
       )}
       <SessionDetailV2
+        key={t.id}
         sessionId={t.local_id || id}
         transcriptId={t.id}
         transcriptVisibility={t.visibility}
@@ -109,6 +130,8 @@ export default function TranscriptDetailPage({
         projectHash={t.project_hash}
         ownerUsername={data.owner?.github_username}
         detail={detail}
+        relationshipNavigation={data.relationshipNavigation}
+        transcriptContentHash={t.content_hash}
         error={contentError ? String((contentError as Error).message ?? contentError) : null}
       />
     </>

@@ -97,6 +97,8 @@ func loadServingConfiguration(cfg *Config) {
 	cfg.SourceHutClientSecret = getEnv("SOURCEHUT_CLIENT_SECRET", "")
 	cfg.GitHubAppID = getEnv("GITHUB_APP_ID", "")
 	cfg.GitHubAppPrivateKey = normalizePEM(getEnv("GITHUB_APP_PRIVATE_KEY", ""))
+	cfg.GitHubAppSlug = getEnv("GITHUB_APP_SLUG", "")
+	cfg.GitHubAppWebhookSecret = getEnv("GITHUB_APP_WEBHOOK_SECRET", "")
 }
 
 func validateRequiredURL(setting, value string) error {

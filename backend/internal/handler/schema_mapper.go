@@ -14,6 +14,7 @@ import (
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/reponame"
 	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 )
 
@@ -79,6 +80,7 @@ func schemaToTranscriptParams(req schema.PublishRequest, blobKey string, blobSiz
 		SessionStart:            int64ToTimestamptz(req.Timestamp.Start),
 		SessionEnd:              int64ToTimestamptz(req.Timestamp.End),
 		TurnCount:               intToPgInt4(req.Stats.TurnCount),
+		InputSubmissionCount:    int64PtrToPgInt8(req.Stats.InputSubmissionCount),
 		TokenCount:              pgtype.Int4{Valid: false},
 		BlobKey:                 blobKey,
 		BlobSizeBytes:           int64ToPgInt8(blobSize),
@@ -162,61 +164,6 @@ func schemaToCommitRecords(commits []schema.CommitInfo) []commitJSONRecord {
 	return records
 }
 
-// extractRepoName derives a clean project display name.
-// It prefers parsing the git remote URL (e.g. "github.com/example-org/sample-app.git" → "sample-app"),
-// falling back to stripping known directory prefixes from the dash-delimited project name key
-// (e.g. "-Users-developer-Documents-GitHub-sample-app" → "sample-app").
-func extractRepoName(projectName string, gitRemote string) string {
-	// Try git remote first
-	if gitRemote != "" {
-		remote := strings.TrimSuffix(gitRemote, ".git")
-		if idx := strings.LastIndex(remote, "/"); idx >= 0 {
-			name := remote[idx+1:]
-			if name != "" {
-				return name
-			}
-		}
-	}
-
-	if projectName == "" {
-		return ""
-	}
-
-	// Slash-separated path: take last segment
-	if strings.Contains(projectName, "/") {
-		parts := strings.Split(projectName, "/")
-		for i := len(parts) - 1; i >= 0; i-- {
-			if parts[i] != "" {
-				return parts[i]
-			}
-		}
-	}
-
-	// Dash-delimited path key (e.g. "-Users-developer-Documents-GitHub-project-name")
-	// Strip leading dash, split into segments, find the last known directory
-	// marker and take everything after it as the project name.
-	knownDirs := []string{"github", "documents", "projects", "repos", "src", "code", "dev", "home"}
-	stripped := strings.TrimPrefix(projectName, "-")
-	segments := strings.Split(stripped, "-")
-
-	lastKnownIdx := -1
-	for i, seg := range segments {
-		lower := strings.ToLower(seg)
-		for _, d := range knownDirs {
-			if lower == d {
-				lastKnownIdx = i
-				break
-			}
-		}
-	}
-
-	if lastKnownIdx >= 0 && lastKnownIdx < len(segments)-1 {
-		return strings.Join(segments[lastKnownIdx+1:], "-")
-	}
-
-	return projectName
-}
-
 // formatModelShort strips date suffixes and title-cases model identifiers.
 // e.g. "claude-opus-4-5-20251101" → "Claude Opus 4.5"
 // e.g. "claude-sonnet-4-6" → "Claude Sonnet 4.6"
@@ -297,7 +244,7 @@ func deriveTitle(req schema.PublishRequest) pgtype.Text {
 	if req.Git.Remote != nil {
 		gitRemote = *req.Git.Remote
 	}
-	repoName := extractRepoName(req.Project.Name, gitRemote)
+	repoName := reponame.Normalize(req.Project.Name, gitRemote)
 	modelShort := formatModelShort(string(req.Model.Harness), string(req.Model.Model))
 
 	if repoName != "" && modelShort != "" {
@@ -465,6 +412,20 @@ func int64ToPgInt8(v int64) pgtype.Int8 {
 	return pgtype.Int8{Int64: v, Valid: true}
 }
 
+func int64PtrToPgInt8(v *int64) pgtype.Int8 {
+	if v == nil {
+		return pgtype.Int8{}
+	}
+	return int64ToPgInt8(*v)
+}
+
+func pgInt8ToInt64Ptr(v pgtype.Int8) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	return &v.Int64
+}
+
 func float64PtrToPgFloat4(v *float64) pgtype.Float4 {
 	if v == nil {
 		return pgtype.Float4{Valid: false}
@@ -533,12 +494,13 @@ func transcriptToSchema(t sqlc.Transcript) schema.PublishRequest {
 			Name:     t.ProjectName.String,
 		},
 		Stats: schema.SessionStats{
-			TurnCount:     pgInt4ToInt(t.TurnCount),
-			ToolCallCount: pgInt4ToInt(t.ToolCallCount),
-			SubagentCount: pgInt4ToInt(t.SubagentCount),
-			DurationMs:    pgInt8ToInt64(t.DurationMs),
-			TokensIn:      int(pgInt8ToInt64(t.TokensIn)),
-			TokensOut:     int(pgInt8ToInt64(t.TokensOut)),
+			InputSubmissionCount: pgInt8ToInt64Ptr(t.InputSubmissionCount),
+			TurnCount:            pgInt4ToInt(t.TurnCount),
+			ToolCallCount:        pgInt4ToInt(t.ToolCallCount),
+			SubagentCount:        pgInt4ToInt(t.SubagentCount),
+			DurationMs:           pgInt8ToInt64(t.DurationMs),
+			TokensIn:             int(pgInt8ToInt64(t.TokensIn)),
+			TokensOut:            int(pgInt8ToInt64(t.TokensOut)),
 		},
 		Quality: &schema.QualityMetrics{
 			TitleGenerated:          pgTextToStringPtr(t.TitleGenerated),

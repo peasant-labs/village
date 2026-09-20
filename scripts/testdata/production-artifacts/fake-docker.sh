@@ -30,6 +30,19 @@ if [[ "${1:-}" == "build" ]]; then
   exit 0
 fi
 
+# `docker run --rm --entrypoint cat <image> <path>` reads a license/notice file
+# out of the built image. The success (and every non-notice) case returns the
+# file; the missing_license_notices case simulates an image built without it.
+if [[ "${1:-}" == "run" ]]; then
+  path="${*: -1}"
+  if [[ "$mode" == "missing_license_notices" ]]; then
+    printf >&2 'fake docker: %s is not present in the image\n' "$path"
+    exit 1
+  fi
+  printf 'fake license/notice content for %s\n' "$path"
+  exit 0
+fi
+
 if [[ "$#" -ne 5 || "$1" != "image" || "$2" != "inspect" || "$3" != "--format" ]]; then
   printf >&2 'fake docker received unsupported arguments: %q ' "$@"
   printf >&2 '\n'

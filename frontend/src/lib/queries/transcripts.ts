@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, API_URL_BASE, getAuthHeaders } from "../api";
+import { ApiError, api, API_URL_BASE, getAuthHeaders } from "../api";
 import type {
   ResolvedProject,
   TranscriptDetailResponse,
@@ -11,6 +11,7 @@ import type {
   ListAnnotationsResponse,
 } from "../annotations";
 import { TRANSCRIPT_LIST_ENDPOINT } from "../transcriptPageRequest";
+import { parseTranscriptResponseText } from "./transcriptContent";
 
 /** Stable machine-readable category for discovery response trust failures. */
 export enum TranscriptListQueryErrorCode {
@@ -120,32 +121,35 @@ export function useTranscripts(
 export function useTranscript(id: string) {
   return useQuery({
     queryKey: ["transcript", id],
-    queryFn: () => api<TranscriptDetailResponse>(`/transcripts/${id}`),
+    queryFn: ({ signal }) => api<TranscriptDetailResponse>(`/transcripts/${id}`, { signal }),
     enabled: !!id,
   });
 }
 
-export function useTranscriptContent(id: string) {
+export function useTranscriptContent(id: string, options: {knownHarness?: string; enabled?: boolean} = {}) {
   return useQuery({
-    queryKey: ["transcript-content", id],
-    queryFn: async () => {
+    queryKey: ["transcript-content", id, options.knownHarness],
+    queryFn: async ({ signal }) => {
       const res = await fetch(`${API_URL_BASE}/transcripts/${id}/content`, {
         headers: getAuthHeaders(),
+        signal,
       });
       if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
+        // Carry the status and the server's message, so a caller can tell a
+        // refused read from a rate-limited one instead of reading the number.
+        let message = `API error: ${res.status}`;
+        try {
+          const body = (await res.json()) as { error?: string };
+          if (body?.error) message = body.error;
+        } catch {
+          /* not a JSON body; the status stands on its own */
+        }
+        throw new ApiError(res.status, message);
       }
       const text = await res.text();
-      // Try parsing as JSON first (single object or array)
-      try {
-        return JSON.parse(text);
-      } catch {
-        // Fall back to JSONL (newline-delimited JSON)
-        const lines = text.split("\n").filter((line) => line.trim());
-        return lines.map((line) => JSON.parse(line));
-      }
+      return parseTranscriptResponseText(text, options.knownHarness);
     },
-    enabled: !!id,
+    enabled: !!id && (options.enabled ?? true),
   });
 }
 

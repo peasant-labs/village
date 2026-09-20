@@ -14,7 +14,11 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio
+    # The same server build the integration gates run, by digest: no tag can
+    # move or vanish under a local run, and a local run tests the build CI
+    # tests. The digest also appears as MINIO_IMAGE in
+    # .github/workflows/backend-tests.yml — the three move together.
+    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -28,7 +32,9 @@ services:
       retries: 5
 
   minio-init:
-    image: minio/mc
+    # The client by digest for the same reason. Note this is the standalone
+    # mc release, not the client bundled in the server image that CI execs.
+    image: quay.io/minio/mc@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc
     restart: on-failure
     entrypoint: >
       /bin/sh -c "

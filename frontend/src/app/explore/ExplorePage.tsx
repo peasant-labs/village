@@ -16,6 +16,7 @@ import {
 import type { TranscriptListResponse } from "@/lib/types";
 import { Explore } from "@peasant-labs/fairtrade/commons";
 import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
+import ScopedGroupedHelperSection from "@/components/transcript/ScopedGroupedHelperSection";
 import { groupChildSessions, visibleTranscriptTotal } from "@/lib/childSessions";
 import RequestFailureState from "@/components/RequestFailureState";
 import RetryButton from "@/components/RetryButton";
@@ -286,6 +287,7 @@ export default function ExplorePage() {
             <div aria-hidden="true" />
             <div className="cex-results">
               <AgentSessionGroup agentTotal={agentTotal} baseParams={params} />
+              <ScopedGroupedHelperSection params={params} />
             </div>
           </div>
         </div>

@@ -5,3 +5,4 @@ cases:
   - "runtime_revision_mismatch|fail|reports runtime revision '0000000000000000000000000000000000000000'"
   - "backend_command_mismatch|fail|backend production image command"
   - "frontend_command_mismatch|fail|frontend production image command"
+  - "missing_license_notices|fail|must ship the license and dependency notices"

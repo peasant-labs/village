@@ -1,0 +1,16 @@
+cases:
+  - name: anonymous-refused-before-stub
+    authenticated: false
+    body: '{}'
+    status: 401
+    error: Authentication required
+  - name: authenticated-empty-batch-stays-unimplemented
+    authenticated: true
+    body: '{}'
+    status: 501
+    error: Batch publish coming soon
+  - name: authenticated-malformed-body-stays-unimplemented
+    authenticated: true
+    body: 'not a batch request'
+    status: 501
+    error: Batch publish coming soon

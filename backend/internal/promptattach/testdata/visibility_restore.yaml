@@ -1,0 +1,10 @@
+# One row per visibility an attached transcript can hold before an attach
+# widens it. The detach path must preserve the recorded value exactly, so a
+# transcript that started `private` must not come back as a `private` default
+# by coincidence of the fixture - each row names the value it started with.
+- name: private_is_preserved_exactly
+  visibility: private
+- name: shared_is_preserved_exactly
+  visibility: shared
+- name: public_is_preserved_exactly
+  visibility: public

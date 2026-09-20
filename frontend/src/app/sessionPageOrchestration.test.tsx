@@ -24,6 +24,16 @@ const h = vi.hoisted(() => ({
 vi.mock("@/lib/queries/transcripts", () => ({
   useTranscripts: () => h.query.current,
 }));
+vi.mock("@/lib/queries/helperGroups", () => ({
+  // This scenario owns the flat list's orchestration; the grouped helper read
+  // has its own mounted evidence and contributes nothing here.
+  useGroupedTranscripts: () => ({
+    data: { items: [] },
+    isError: false,
+    refreshOrigin: () => {},
+    refetch: () => {},
+  }),
+}));
 vi.mock("@/lib/queries/groups", () => ({
   useSearchCollectives: () => ({ data: { collectives: [] } }),
 }));

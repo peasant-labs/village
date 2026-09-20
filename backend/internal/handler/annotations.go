@@ -40,7 +40,7 @@ func (h *Handler) ListTranscriptAnnotations(w http.ResponseWriter, r *http.Reque
 	}
 
 	user := GetUser(r.Context())
-	if !h.canViewTranscript(r.Context(), user, transcript) {
+	if allowed, _ := h.canReadTranscript(r.Context(), user, transcript); !allowed {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}

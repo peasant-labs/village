@@ -1,0 +1,3 @@
+# Journey harness artifacts are ephemeral: traces, videos, screenshots, the HTML
+# report and the machine-readable report are per-run evidence, never tracked.
+.artifacts/

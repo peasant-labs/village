@@ -22,6 +22,9 @@ suite under the race detector.
 | Migration + sqlc conventions | mixed | the `_integration_test.go` variants do | both of the above | [Migration & sqlc](#migration--sqlc-test-conventions) below |
 | Authoritative publication ordering | `//go:build integration` for persistence/order | PostgreSQL + S3-compatible storage | integration `-race` | Publish/PATCH/share locking, audited private-before-replacement, complete association receipts, and fingerprint currency |
 | Cross-repo contract (village ↔ schema module ↔ peasant) | none | no | unit | [Cross-repo contract](#cross-repo-contract-tests--gate-faithful-expectations) below |
+| Route drift gate (mounted routes ⊆ served contract ∪ manifest) | none | no | unit | `backend/internal/router/contract_drift_test.go`; manifest `testdata/undocumented_routes.yaml` |
+| Contract request-body enforcement (collectives and user-settings mutations) | none | no | unit | `backend/internal/handler/contract_body_test.go`; fixture `testdata/contract_body_operations.yaml` |
+| Declared-but-unimplemented routes answer 501 (pull request attachment stubs) | none | no | unit | `backend/internal/router/attachment_stubs_test.go`; fixture `testdata/attachment_stub_routes.yaml` |
 | Governance rules (fail-closed fixtures, append-only teardown, drift guards, convergence) | mixed | mostly yes | both | [Governance testing](#governance-testing-migration-026) below |
 | Test performance (measured levers, template cache) | - | - | - | [Test performance](#test-performance-measured) below |
 
@@ -1156,6 +1159,132 @@ Prefer these fixtures over inline literals: a single contract change should upda
 one fixture, not N tests.
 
 ### Enriched transcript preservation gate
+
+`internal/handler/testdata/session_graph_publication.yaml` drives the canonical
+raw-decoder rejection tests and typed migration/rewrite equality tests. It keeps
+input-count absence, measured zero, positive values, and invalid lexical values
+distinct; the full graph case retains separate source/starter targets, public
+anchor refs, folded tool provenance, and earlier-history bodies beyond preview
+limits. Required case names guard deletion independently of the fixture size.
+
+`TestSessionGraphEncryptedPublicationAndPull` uses real PostgreSQL and the real
+encrypted MinIO store through mounted publish, metadata, content, and pull
+handlers. It exercises explicit replacement and exact retry on one owner/local
+identity, the production immutable rewrite, and compares refused requests against
+the complete owner-scoped transcript/audit/share state plus observed writes to
+the real encrypted store. The migration's separate database fixture verifies
+historical NULL preservation, SQL shape constraints, and down migration.
+These tests require the released canonical graph APIs and run under the same
+no-skip encrypted aggregate as other preservation proofs; source-level fixtures
+are not proof of a deployed receiver's capability.
+
+`internal/handler/testdata/provenance_preservation/cases.yaml` is the canonical
+corpus for the production provenance-preservation proof. Provenance preservation
+means durable session-relationship evidence survives unchanged — relationships
+and their public anchors, the root session identity, the submission count
+including a measured zero and the safe-integer maximum, every nonempty purpose
+including an unknown one, retained earlier history, and per-block plus folded
+tool provenance. It is durable evidence, not a rendered graph. The corpus
+declares each case's exact capability inventory; a required-name inventory guards
+it against deletion or silent renaming, and known-field decoding rejects unknown
+members.
+
+The production proof runs `NewContentMigrator` and the same typed canonical
+rewrite boundary used by `GetTranscriptContent`, migrates the re-emitted bytes
+again, and compares the full durable payload plus the re-derived capability of
+every case, uncached, through an injectable encoder. `GET
+/api/v1/schema/version` advertises the sealed `session_graph_provenance_v1`
+token only while that proof passes, and the publish gate refuses a
+provenance-bearing transcript before secret scan or storage when it does not.
+The withholding is fail-closed and per proof: a failing base enriched-content
+proof withholds the whole advertisement, while a failing provenance proof
+withholds only the provenance token and keeps the shared evidence tokens for
+content that carries no relationship evidence. The returned list is always the
+closed inventory in canonical lexicographic order, so it always satisfies
+`schema.ValidateContentCapabilityAdvertisements`.
+
+The negative is executed, not descriptive metadata: a substitute encoder at the
+real typed rewrite boundary deletes relationships, root identity, submission
+count, purpose, retained history, and per-block provenance. It must make the
+proof fail, hide only the provenance token, and make the provenance publish
+precondition refuse with a no-write explanation. Keep this production-point
+negative when the canonical rewrite code moves.
+
+Batch transcript upload is still unimplemented. The registered route is guarded
+by `internal/router/testdata/publish_batch_refusal.yaml`: anonymous requests keep
+their authentication refusal, and authenticated requests keep HTTP 501 regardless
+of body shape. Tests mount the real router and authentication middleware, assert
+no object write, and compare transcript, governance-audit, share-attempt, and
+derived-share rows against real PostgreSQL. This is not a successful batch-upload
+contract and does not change the implemented collective batch share/review flows.
+
+The database-only `grouped_query_projection.yaml` fixture executes generated
+global candidate, cycle, owner-local probe, and collective candidate queries on
+PostgreSQL independently of frontend or wire-package adoption. It protects the
+nullable count projection and the JSONB lateral-edge/cycle query's actual SQL
+execution, not merely whether sqlc can parse the source.
+
+The same family also contains `pi.yaml`, `pi_boundaries.yaml`, and
+`pi_field_loss.yaml`. These synthetic public fixtures cover all five native
+metadata attachment kinds, assistant/tool/summary owners, partial and absent
+token fields, exact zero, distinct equal-valued owners, recorded cost strings,
+image placeholders, and metadata-local numeric/string limits. Required-name
+inventories guard the corpora against accidental deletion.
+
+`TestPiEncryptedPublishRewriteReadPull` runs the real multipart handlers over
+PostgreSQL and the production encrypted MinIO store. It compares publication,
+display, canonical rewrite, and pull values. Refusals compare the complete
+transcript row, audit and relationship ledgers, authenticated stored bytes, and
+object-write/delete counters. Stored-invalid cases install an encrypted historic
+generation through the actual database writer fence, then assert that read and
+pull refuse it without changing storage. Run it under `make backend-encrypted-test`;
+the aggregate must remain non-skipping.
+
+The frontend's `transcriptContent.test.tsx` reuses these public fixtures through
+the mounted `useTranscriptContent` fetch hook. Its fake network response exposes
+`text()` only, so a regression to lossy `response.json()` fails. Additional named
+legacy JSON/JSONL cases live in `frontend/src/testdata/transcript-content-raw.yaml`.
+
+`legacy_dispatch.yaml` exercises the compatibility boundary before typed
+decoding. Sparse historical detail, JSONL, arrays, and opaque raw publication/pull
+retain their original paths. Pi identity, trusted publish/stored harness context,
+or structural presence of detailed usage, refs, or native metadata requires the
+strict Schema public root; null and empty members count as present. Strict
+failures cannot retry through legacy migration. Older observed-model-only
+content retains its distinct publication and historical-read policies.
+
+`TestLegacyDispatchEncryptedPublicationAndReads` mounts every routing case over
+real PostgreSQL and encrypted MinIO, compares rejection snapshots and raw pull
+hashes, and verifies repeated legacy display reads are no-ops. The same named
+corpus participates in capability evaluation. `dispatch_mutations.yaml` proves
+that removing a discriminator, bypassing strict parsing or trusted context, or
+falling back after strict failure withholds capabilities and refuses enriched
+publication. With the namespace-preserving contract pinned, public tool
+`namespace` presence—including an empty string—selects strict parsing and
+requires `tool_namespace_v1`. The preservation proof withholds every advertised
+capability if either empty or nonempty namespace evidence changes on rewrite.
+
+Provider message content, parts, and recognized tool argument/result bodies are
+opaque to public-root discovery, not to the recursive JSON syntax scanner.
+Benign `turns`, `sessionDetail`, and `contractVersion` application-data keys are
+paired with genuine mixed-public-root refusals in the routing corpus. A mutation
+that wrongly refuses opaque tool data also withholds preservation capabilities.
+
+`legacy_rendered.yaml` is shared by the Go mounted read-handler tests and the
+browser fetch-hook/production-route tests. The Go tests assert the exact first
+rendered response and second-read no-op; the browser tests consume those same
+responses, including empty harness and Go-zero timestamps, rather than testing
+only source JSONL. Legacy data reaches the existing shared viewer unchanged.
+Pi identity or new structural evidence still selects strict Schema parsing
+without error fallback. The full route and contribution preview wait for their
+same-ID metadata and pass its known harness to the content hook; the cache key
+includes that context so a legacy-validated result cannot satisfy a Pi read.
+The shared strict corpus also covers absent, empty, mixed-case nonempty, null,
+non-string, and escaped-duplicate namespace forms. Real encrypted tests compare
+the accepted value after publication, canonical rewrite, rendered read, and raw
+pull, while rejected forms preserve the database, blob, audit, relationship,
+and object-counter snapshots. Selected metadata strings accept a synthetic
+51,175-byte value; 65,537-byte values still fail the independent 64-KiB limit.
 
 `internal/handler/testdata/observed_model_preservation/` is the strict corpus for
 the optional `TurnDetail.observedModel` evidence introduced by the released

@@ -11,9 +11,11 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { Button, Input, Tag } from "@/lib/ft-ui";
+import { Button, Select, Tag } from "@/lib/ft-ui";
+import { API_URL_BASE } from "@/lib/api";
 import {
   useRepositories,
+  useAvailableRepositories,
   useLinkRepository,
   useUnlinkRepository,
   useRepositoryCommits,
@@ -166,37 +168,33 @@ function RepositoryCommits({
 }
 
 // ---------------------------------------------------------------------------
-// Owner-only link form. Backend requires owner, name, AND a GitHub App
-// installation_id (the install that grants the App access to the repo).
+// Owner-only link form. The repositories are those the App can offer this
+// collective (the installation for its linked organization), so a repository is
+// chosen from a picker rather than typed. An empty list points at Connect GitHub.
 // ---------------------------------------------------------------------------
 
 function LinkRepoForm({ groupId }: { groupId: string }) {
-  const [repoInput, setRepoInput] = useState("");
-  const [installationId, setInstallationId] = useState("");
+  const [selected, setSelected] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const link = useLinkRepository();
+  const available = useAvailableRepositories(groupId);
+  const repos = available.data?.repositories ?? [];
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setValidationError(null);
 
-    const parsed = parseRepoInput(repoInput);
+    const parsed = parseRepoInput(selected);
     if (!parsed) {
-      setValidationError("Enter a repository as owner/name (e.g. acme/widgets).");
-      return;
-    }
-    const instId = Number(installationId.trim());
-    if (!Number.isInteger(instId) || instId <= 0) {
-      setValidationError("Enter the numeric GitHub App installation ID.");
+      setValidationError("Select a repository to link.");
       return;
     }
 
     link.mutate(
-      { groupId, owner: parsed.owner, name: parsed.name, installationId: instId },
+      { groupId, owner: parsed.owner, name: parsed.name },
       {
         onSuccess: () => {
-          setRepoInput("");
-          setInstallationId("");
+          setSelected("");
         },
       }
     );
@@ -207,42 +205,66 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
       onSubmit={handleSubmit}
       className="flex flex-col gap-2 border-b border-rule px-4 py-3"
     >
-      <span className="v2-eyebrow">Link a repository</span>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-        <div className="flex-1 [&_.is-field]:mb-0">
-          <Input
-            value={repoInput}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRepoInput(e.target.value)}
-            placeholder="owner/name"
-            aria-label="Repository owner/name"
-          />
-        </div>
-        <div className="sm:w-44 [&_.is-field]:mb-0">
-          <Input
-            value={installationId}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setInstallationId(e.target.value.replace(/[^\d]/g, ""))
-            }
-            inputMode="numeric"
-            placeholder="installation id"
-            aria-label="GitHub App installation ID"
-          />
-        </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="v2-eyebrow">Link a repository</span>
         <Button
-          type="submit"
+          type="button"
           size="sm"
-          variant="primary"
+          variant="secondary"
           icon={Github}
-          loading={link.isPending}
-          disabled={link.isPending}
+          onClick={() => window.location.assign(installURL(groupId))}
         >
-          Link
+          connect github
         </Button>
       </div>
-      <p className="text-[11px] text-ink-3">
-        The GitHub App must already be installed on the repo. The installation
-        ID comes from that installation.
-      </p>
+      {available.isLoading ? (
+        <div className="flex items-center gap-2 text-[13px] text-ink-3">
+          <Loader2 className="size-4 animate-spin" />
+          Loading repositories…
+        </div>
+      ) : available.isError ? (
+        <p className="text-[12px] text-danger">
+          {isNotConfigured(available.error)
+            ? "GitHub isn't set up on this server."
+            : available.error.message}
+        </p>
+      ) : repos.length === 0 ? (
+        <p className="text-[12px] text-ink-3">
+          No repositories available. Connect the GitHub App to this collective&apos;s
+          organization above to choose one.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className="[&_.is-field]:mb-0">
+            <Select
+              value={selected}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelected(e.target.value)}
+              aria-label="Repository"
+            >
+              <option value="">Select a repository…</option>
+              {repos.map((repo) => {
+                const value = `${repo.owner}/${repo.name}`;
+                return (
+                  <option key={value} value={value}>
+                    {value}
+                    {repo.is_private ? " (private)" : ""}
+                  </option>
+                );
+              })}
+            </Select>
+          </div>
+          <Button
+            type="submit"
+            size="sm"
+            variant="primary"
+            icon={Github}
+            loading={link.isPending}
+            disabled={link.isPending || selected === ""}
+          >
+            Link
+          </Button>
+        </div>
+      )}
       {validationError && (
         <p className="text-[12px] text-danger">{validationError}</p>
       )}
@@ -263,6 +285,11 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
 // Owner-only controls are gated on `isOwner` (role === "owner"), the same gate
 // the rest of the collective UI and the backend use.
 // ---------------------------------------------------------------------------
+
+/** Full-page URL for the App install handshake; the backend redirects to GitHub. */
+function installURL(groupId: string): string {
+  return `${API_URL_BASE}/integrations/github/install?group_id=${encodeURIComponent(groupId)}`;
+}
 
 export default function LinkedRepositories({
   groupId,

@@ -24,10 +24,17 @@ import (
 // for the entry-harness case.
 
 // PayloadValidator validates a decoded request body against the contract schema.
-// A non-nil error means the body is invalid and the handler must reject it (422).
+// A non-nil error means the body is invalid and the handler must reject it: 422 on
+// the publish and annotation paths, 400 on the operations ValidateBody covers.
 type PayloadValidator interface {
 	ValidatePublish(raw []byte) error
 	ValidateAnnotation(raw []byte) error
+	// ValidateBody validates raw against the JSON request-body schema the served
+	// Village API document declares for the operation at method and path. It
+	// returns ErrContractBodyUndeclared (wrapped) when the document declares no
+	// JSON body for that operation, and ErrSchemaInvalid (wrapped) when the body
+	// is not valid JSON or does not satisfy the schema.
+	ValidateBody(method, path string, raw []byte) error
 }
 
 // ErrSchemaInvalid wraps a schema-validation failure for the enforce path. The publish

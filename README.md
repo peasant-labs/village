@@ -118,6 +118,18 @@ an API key, then push from your local store. See
 [peasant-labs/peasant](https://github.com/peasant-labs/peasant) for the CLI
 itself.
 
+## Automated UI journeys (screenshots and video)
+
+`frontend/scripts/journey/` drives the real frontend through scripted feature
+flows in both themes, capturing a screenshot and a short clip per journey.
+`pnpm journey` (run from `frontend/`) executes the whole catalog and writes
+artifacts to `frontend/scripts/journey/.artifacts/`; `pnpm journey:ci` is the
+CI-shaped run without the HTML report. CI runs it on every pull request and posts
+the media to the PR as one comment with a status per journey.
+
+See [`frontend/scripts/journey/README.md`](frontend/scripts/journey/README.md)
+for the run commands, the artifact layout, and the PR evidence pipeline.
+
 ## Engineering references
 
 [`docs/transcript-storage-security.md`](docs/transcript-storage-security.md) is
@@ -163,6 +175,7 @@ repo - the village backend points at them rather than duplicating them:
 | `frontend/src/app/`                 | Next.js App Router pages                                          |
 | `frontend/src/components/`          | React components                                                  |
 | `frontend/src/lib/`                 | API client, types, React Query hooks                              |
+| `frontend/scripts/journey/`         | Playwright UI journeys and the PR evidence pipeline (see its README)|
 | `scripts/`                          | Seed data and dev helpers (see below)                             |
 | `Caddyfile`                         | Reverse proxy config (`:8443` web, `:8445` direct API)            |
 | `docker-compose.yml`                | Local dev stack (Postgres, MinIO, Caddy, backend, frontend)       |

@@ -1,0 +1,14 @@
+cases:
+  - name: native_metadata_loss_withholds_support
+    member: nativeMetadata
+  - name: detailed_usage_loss_withholds_support
+    member: usage
+  - name: recorded_cost_loss_withholds_support
+    member: cost
+  - name: tool_result_ref_loss_withholds_support
+    member: resultEntryRef
+  - name: tool_namespace_loss_withholds_support
+    member: namespace
+  - name: empty_tool_namespace_loss_withholds_support
+    member: namespace
+    emptyOnly: true

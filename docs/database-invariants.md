@@ -131,10 +131,111 @@ boundary are documented in
   updates them one row at a time as the system actor. `'unknown'` is the
   fail-safe value: only `'agent'` is collapsed out of root-level discovery
   lists, and `'unknown'` is listed exactly like `'user'`. The column scopes
-  DISCOVERY only - it is not an access control, and a direct link to an
-  `'agent'` transcript still resolves normally.
+   DISCOVERY only - it is not an access control, and a direct link to an
+   `'agent'` transcript still resolves normally.
+- **037 makes the pull request prompt-attachment lifecycle representable.**
+  `pull_request_attachments` holds one row per observed pull request
+  (`UNIQUE (github_repo_id, number)`), one nullable timestamp per state, the
+  GitHub object ids the posting path later fills in, and a closed `state` menu
+  (`requested | waiting | preview | attached | detached`) under
+  `pull_request_attachments_state_menu`. `pull_request_attachment_transcripts`
+  binds transcripts to an attachment by `position` and records
+  `previous_visibility`, the `transcripts.visibility` value read before an
+  attach widened it, which detach restores exactly. It is recorded once per
+  (attachment, transcript): re-binding preserves the first snapshot. **`state` is
+  changed by exactly one Go function**, `internal/promptattach.Transition`, over
+  the single statement `UpdatePullRequestAttachmentState`, which is conditional
+  on the state the caller read (`state = expected_state`). That is
+  expected-state matching, not a revision fence: two moves to the same target can
+  both succeed and an A->B->A sequence passes the predicate, so a caller that
+  needs serialized history binds its read and write in one transaction. Recording
+  a NEW attachment initialises `requested`; any other state is reachable only
+  through `Transition`. The transition
+  table is closed and exhaustively fixtured
+  (`internal/promptattach/testdata/transitions.yaml`); every pair it does not
+  name is refused. The same migration adds `users.preview_before_attach`
+  (default false), `groups.post_prompts_check` (default true), and
+  `groups.prompts_check_mode` (`informational | required`, default
+  `informational`, under `groups_prompts_check_mode_menu`), the mode menu
+  mirrored in Go by `promptattach.CheckMode` / `AllCheckModes`. The attachment
+  tables carry NO governance trigger and need no `app.actor_id`: they are not a
+  disclosure axis, and widening a transcript's visibility stays the audited
+  `transcripts` write it always was.
+- **038 records accepted webhook deliveries; 040 makes the ledger resumable.**
+  `github_webhook_deliveries` holds one row per verified GitHub App delivery:
+  `delivery_id` (the opaque `X-GitHub-Delivery` value) is the PRIMARY KEY.
+  Migration 040 adds `event_type` and the raw `payload`, which is what a poller
+  would need to work the row without another delivery, plus `status`
+  (`pending`/`handled`/`failed`), `attempts`, `last_error`, and
+  `handled_at`/`failed_at`. The receiver
+  authenticates the RAW body by HMAC (`X-Hub-Signature-256`) before writing
+  anything, and records the delivery with its payload BEFORE dispatch, so the
+  order is verify, then record-with-payload, then handle, then mark handled.
+  A redelivery of a `handled` row is acknowledged as a replay and is not
+  dispatched again; a redelivery of a `pending` or `failed` row is dispatched
+  again, which is the only recovery there is, because GitHub does not redeliver
+  failed deliveries automatically and a redelivery carries the same id. Rows
+  written under 038's at-most-once model were backfilled to `handled`, since a
+  recorded delivery was never retried under that model. `handled` is absorbing:
+  a late failure from a concurrent attempt cannot downgrade it.
+  This is AT-LEAST-ONCE, not exactly-once. The record, dispatch, and completion
+  writes are not one transaction, so a successful dispatch whose completion
+  write fails, or two concurrent deliveries of one id, can dispatch the same
+  effect more than once. That is safe only because the effects are idempotent,
+  so a handler that posts must key on the pull request rather than append. The
+  table carries no FK and no trigger: it is
+  a dedup and attempt ledger, not a disclosure axis, so it needs no
+  `app.actor_id`.
+
+- **041 binds an attachment to the collective that enabled it.**
+  `pull_request_attachments.group_id` names the collective whose owner opted in
+  by linking the repository. The installation and the repository's privacy are
+  NOT stored: they are read through the collective's current
+  `collective_repositories` row at call time, so a re-link refreshes them
+  instead of freezing a value a reinstall or a visibility change would
+  invalidate. The column is NULLABLE with `ON DELETE SET NULL`, and that is the
+  point: a collective can be deleted and its repository links cascade with it,
+  so a CASCADE here would delete the attachment's transcripts and the
+  `previous_visibility` snapshots they hold, leaving those transcripts shared
+  with a collective that no longer exists and nothing left to restore them.
+  SET NULL keeps the snapshot so a detach still restores exactly what was
+  recorded; an attachment whose collective is gone cannot post and the lifecycle
+  fails closed rather than guessing.
 
 ## 2. Licensing data model
+
+### Durable session graph projections
+
+Migration 039 adds `transcripts.input_submission_count` (nullable BIGINT, range
+0 through 9007199254740991), `root_session_id` (nullable nonempty TEXT),
+`session_purpose` (nullable closed menu: interaction, delegated_work,
+helper_review, unknown), and `session_relationships` (non-null JSONB array of
+objects, default `[]`). These are query projections of the schema-validated
+durable publication, not independently inferred facts. No historical count is
+backfilled from `turn_count`: NULL means unmeasured and numeric zero means
+measured none. Main transcript turns and saved helper identities remain separate
+quantities. Full graph semantics and forbidden read-only fields are enforced by
+the canonical schema boundary before publication side effects, not by this SQL
+shape backstop.
+
+Absence never erases durable evidence. On the owner re-publish path each graph
+column is written only when the uploaded durable detail carries that member; the
+update coalesces a SQL NULL to the stored column, and a present measured zero
+still writes `0`. A re-publish whose payload carries no graph evidence therefore
+preserves the previously stored count, root, purpose, and relationships instead
+of resetting them, while a first-time publish with no evidence inserts the
+historical absent shape (three NULLs and the default empty relationships array).
+The projection is per column, so a payload that carries one member does not clear
+the others.
+
+Graph targets are owner-local IDs without target foreign keys. Missing parents
+do not prevent publication; later publication changes authorized navigation, not
+the child's captured encrypted content. The partial owner/root index supports
+owner-scoped queries. `(owner_id, local_id)` remains the sole source identity and
+idempotency key; equal bodies never merge sessions. Read navigation is never
+stored in the encrypted durable envelope. These columns add no governance axis,
+trigger writer, GUC, or permission: existing actor attribution, encrypted-writer
+fences, append-only audit, and private-before-replacement rules remain in force.
 
 - **`licenses`** is the home of license OBLIGATIONS (BCNF: `id` is the key and
   determines every column). The **id set's source of truth is the
@@ -184,6 +285,12 @@ boundary are documented in
   and PATCH switch. A partial widen is not merely incomplete - the audit
   triggers write `NEW.visibility` into the audit table's CHECK, so an
   unrecognized value **blocks the mutation**. See the AGENTS.md checklist.
+- `pull_request_attachment_transcripts.previous_visibility` (migration 037) is a
+  third stored copy of a visibility value, but it is **not a menu**: it is
+  deliberately unconstrained because it copies a value already constrained on
+  `transcripts.visibility`, and a third copy of the closed set is the drift this
+  split avoids. It exists to restore ONE specific prior value on detach, never to
+  be accepted from a caller.
 
 ## 4. Governance event taxonomy
 
@@ -405,6 +512,19 @@ The audit triggers (migration 026) and the share-derivation triggers
   rather than a SQL `LIMIT`: the listing is deliberately whole, because the
   surface builds a project tree over it and a page would let someone contribute
   part of a project believing they contributed all of it.
+- **Grouped collective candidates and member replay share one scoped read.**
+  `ListCollectiveGroupedCandidates` applies the fixed collective, pending,
+  my-shares, or contributable predicate before grouping and paging. Collective
+  browsing requires its current data-access role; pending review requires the
+  current owner role. My-shares stays owner-scoped even after membership ends.
+  Grouped contribution requires current membership and the same acceptance-mode
+  eligibility check as submission; candidates already live in the attempt ledger
+  are excluded. Its project and search filters survive member expansion exactly.
+  The scoped join to `transcript_shares` supplies collective/review state only;
+  contribution eligibility remains ledger-derived. These are read projections,
+  not writes or authorization grants. The omitted-view, whole-corpus contribute
+  read and explicitly confirmed whole-project mutation retain their existing
+  semantics.
 - **Normalization: `owner_overrides`, `transcript_share_attempts` and
   `transcript_shares` are each in BCNF**, audited against the live catalog.
   `owner_overrides` has one candidate key (its primary key) and every non-key

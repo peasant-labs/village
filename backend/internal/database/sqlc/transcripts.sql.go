@@ -53,13 +53,13 @@ INSERT INTO transcripts (
     m7_spec_word_count, m7_spec_has_examples, m7_spec_has_constraints,
     computed_at, compute_version, license_id,
     content_hash, wrapped_data_key, encryption_algorithm, key_version,
-    session_origin
+    session_origin, input_submission_count, root_session_id, session_purpose, session_relationships
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
     $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31,
     $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46,
     $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61,
-    $62, $63, $64, $65, $66, $67
+    $62, $63, $64, $65, $66, $67, $68, $69, $70, COALESCE($71::jsonb, '[]'::jsonb)
 ) RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
     model_name, harness_version, session_start, session_end, turn_count, token_count,
     blob_key, blob_size_bytes, schema_version, published_at, updated_at, parent_session_id,
@@ -73,7 +73,8 @@ INSERT INTO transcripts (
     m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct,
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
-    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin
+    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
+    input_submission_count, root_session_id, session_purpose, session_relationships
 `
 
 type CreateTranscriptParams struct {
@@ -144,6 +145,10 @@ type CreateTranscriptParams struct {
 	EncryptionAlgorithm     string             `db:"encryption_algorithm" json:"encryption_algorithm"`
 	KeyVersion              int32              `db:"key_version" json:"key_version"`
 	SessionOrigin           string             `db:"session_origin" json:"session_origin"`
+	InputSubmissionCount    pgtype.Int8        `db:"input_submission_count" json:"input_submission_count"`
+	RootSessionID           pgtype.Text        `db:"root_session_id" json:"root_session_id"`
+	SessionPurpose          pgtype.Text        `db:"session_purpose" json:"session_purpose"`
+	SessionRelationships    []byte             `db:"session_relationships" json:"session_relationships"`
 }
 
 func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptParams) (Transcript, error) {
@@ -215,6 +220,10 @@ func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptPara
 		arg.EncryptionAlgorithm,
 		arg.KeyVersion,
 		arg.SessionOrigin,
+		arg.InputSubmissionCount,
+		arg.RootSessionID,
+		arg.SessionPurpose,
+		arg.SessionRelationships,
 	)
 	var i Transcript
 	err := row.Scan(
@@ -288,6 +297,10 @@ func (q *Queries) CreateTranscript(ctx context.Context, arg CreateTranscriptPara
 		&i.KeyVersion,
 		&i.AcceptedRequestOperationFingerprint,
 		&i.SessionOrigin,
+		&i.InputSubmissionCount,
+		&i.RootSessionID,
+		&i.SessionPurpose,
+		&i.SessionRelationships,
 	)
 	return i, err
 }
@@ -315,7 +328,8 @@ SELECT id, owner_id, local_id, title, description, visibility, model_provider,
     m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct,
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
-    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin
+    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
+    input_submission_count, root_session_id, session_purpose, session_relationships
 FROM transcripts WHERE id = $1
 `
 
@@ -393,6 +407,10 @@ func (q *Queries) GetTranscriptByID(ctx context.Context, id pgtype.UUID) (Transc
 		&i.KeyVersion,
 		&i.AcceptedRequestOperationFingerprint,
 		&i.SessionOrigin,
+		&i.InputSubmissionCount,
+		&i.RootSessionID,
+		&i.SessionPurpose,
+		&i.SessionRelationships,
 	)
 	return i, err
 }
@@ -442,6 +460,9 @@ type GetTranscriptIDByOwnerAndLocalIDParams struct {
 // governance pre-image comes from the LOCKED narrow read inside the txn
 // (GetTranscriptGovernanceForUpdate); a wide unlocked read here would be dead
 // weight superseded under the lock.
+// Metadata relationship reads also use this exact owner-local identity probe,
+// then load GetTranscriptByID and apply current canViewTranscript permission.
+// This query alone is not an access grant or a cross-owner local-ID search.
 func (q *Queries) GetTranscriptIDByOwnerAndLocalID(ctx context.Context, arg GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, getTranscriptIDByOwnerAndLocalID, arg.OwnerID, arg.LocalID)
 	var id pgtype.UUID
@@ -682,6 +703,56 @@ func (q *Queries) ListOwnerProjectShareCandidates(ctx context.Context, arg ListO
 	return items, nil
 }
 
+const listOwnerTranscriptsForMatching = `-- name: ListOwnerTranscriptsForMatching :many
+SELECT t.id, t.git_remote, t.git_branch, t.session_start
+FROM transcripts t
+WHERE t.owner_id = $1
+  AND t.git_remote IS NOT NULL
+  AND t.git_remote <> ''
+ORDER BY t.session_start ASC NULLS LAST, t.id ASC
+`
+
+type ListOwnerTranscriptsForMatchingRow struct {
+	ID           pgtype.UUID        `db:"id" json:"id"`
+	GitRemote    pgtype.Text        `db:"git_remote" json:"git_remote"`
+	GitBranch    pgtype.Text        `db:"git_branch" json:"git_branch"`
+	SessionStart pgtype.Timestamptz `db:"session_start" json:"session_start"`
+}
+
+// Every transcript one author owns that carries a stored remote: the candidate
+// pool for pull-request matching. Ordered by session start so the accepted set
+// is already in attachment order.
+//
+// Repository normalization stays in Go (reponame.Normalize) instead of being
+// restated as SQL. The rule that reads a repository name out of a remote is
+// shared with the publish path, and a second copy here would let the two
+// answers drift; this query returns the raw field and the matcher applies the
+// one rule.
+func (q *Queries) ListOwnerTranscriptsForMatching(ctx context.Context, ownerID pgtype.UUID) ([]ListOwnerTranscriptsForMatchingRow, error) {
+	rows, err := q.db.Query(ctx, listOwnerTranscriptsForMatching, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnerTranscriptsForMatchingRow{}
+	for rows.Next() {
+		var i ListOwnerTranscriptsForMatchingRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GitRemote,
+			&i.GitBranch,
+			&i.SessionStart,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectTranscriptsForViewer = `-- name: ListProjectTranscriptsForViewer :many
 SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.model_provider,
     t.model_name, t.harness_version, t.session_start, t.session_end, t.turn_count, t.token_count,
@@ -697,7 +768,8 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.mod
     t.m6_lines_survived, t.m6_lines_total, t.m7_spec_word_count, t.m7_spec_has_examples,
     t.m7_spec_has_constraints, t.computed_at, t.compute_version, t.content_hash, t.license_id,
     t.wrapped_data_key, t.encryption_algorithm, t.key_version,
-    t.accepted_request_operation_fingerprint, t.session_origin
+    t.accepted_request_operation_fingerprint, t.session_origin,
+    t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships
 FROM transcripts t
 WHERE t.owner_id = $1
   AND t.project_hash = $2
@@ -809,6 +881,10 @@ func (q *Queries) ListProjectTranscriptsForViewer(ctx context.Context, arg ListP
 			&i.KeyVersion,
 			&i.AcceptedRequestOperationFingerprint,
 			&i.SessionOrigin,
+			&i.InputSubmissionCount,
+			&i.RootSessionID,
+			&i.SessionPurpose,
+			&i.SessionRelationships,
 		); err != nil {
 			return nil, err
 		}
@@ -902,6 +978,14 @@ UPDATE transcripts SET
     encryption_algorithm = $64,
     key_version = $65,
     session_origin = $66,
+    -- Absent graph evidence (SQL NULL) preserves the stored projection here;
+    -- only a present value, including a measured zero, overwrites it. The create
+    -- query separately coalesces a nil relationships narg to the NOT NULL default
+    -- '[]', so a first publish still inserts the historical absent/empty shape.
+    input_submission_count = COALESCE($67, input_submission_count),
+    root_session_id = COALESCE($68, root_session_id),
+    session_purpose = COALESCE($69, session_purpose),
+    session_relationships = COALESCE($70::jsonb, session_relationships),
     updated_at = now()
 WHERE owner_id = $1 AND local_id = $2
 RETURNING id, owner_id, local_id, title, description, visibility, model_provider,
@@ -917,7 +1001,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct,
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
-    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin
+    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
+    input_submission_count, root_session_id, session_purpose, session_relationships
 `
 
 type UpdateTranscriptByOwnerAndLocalIDParams struct {
@@ -987,6 +1072,10 @@ type UpdateTranscriptByOwnerAndLocalIDParams struct {
 	EncryptionAlgorithm     string             `db:"encryption_algorithm" json:"encryption_algorithm"`
 	KeyVersion              int32              `db:"key_version" json:"key_version"`
 	SessionOrigin           string             `db:"session_origin" json:"session_origin"`
+	InputSubmissionCount    pgtype.Int8        `db:"input_submission_count" json:"input_submission_count"`
+	RootSessionID           pgtype.Text        `db:"root_session_id" json:"root_session_id"`
+	SessionPurpose          pgtype.Text        `db:"session_purpose" json:"session_purpose"`
+	SessionRelationships    []byte             `db:"session_relationships" json:"session_relationships"`
 }
 
 func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg UpdateTranscriptByOwnerAndLocalIDParams) (Transcript, error) {
@@ -1057,6 +1146,10 @@ func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg Upd
 		arg.EncryptionAlgorithm,
 		arg.KeyVersion,
 		arg.SessionOrigin,
+		arg.InputSubmissionCount,
+		arg.RootSessionID,
+		arg.SessionPurpose,
+		arg.SessionRelationships,
 	)
 	var i Transcript
 	err := row.Scan(
@@ -1130,6 +1223,10 @@ func (q *Queries) UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg Upd
 		&i.KeyVersion,
 		&i.AcceptedRequestOperationFingerprint,
 		&i.SessionOrigin,
+		&i.InputSubmissionCount,
+		&i.RootSessionID,
+		&i.SessionPurpose,
+		&i.SessionRelationships,
 	)
 	return i, err
 }
@@ -1155,7 +1252,8 @@ RETURNING id, owner_id, local_id, title, description, visibility, model_provider
     m5_peak_context_tokens, m5_avg_message_tokens, m6_output_survival_pct,
     m6_lines_survived, m6_lines_total, m7_spec_word_count, m7_spec_has_examples,
     m7_spec_has_constraints, computed_at, compute_version, content_hash, license_id,
-    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin
+    wrapped_data_key, encryption_algorithm, key_version, accepted_request_operation_fingerprint, session_origin,
+    input_submission_count, root_session_id, session_purpose, session_relationships
 `
 
 type UpdateTranscriptMetadataParams struct {
@@ -1246,6 +1344,10 @@ func (q *Queries) UpdateTranscriptMetadata(ctx context.Context, arg UpdateTransc
 		&i.KeyVersion,
 		&i.AcceptedRequestOperationFingerprint,
 		&i.SessionOrigin,
+		&i.InputSubmissionCount,
+		&i.RootSessionID,
+		&i.SessionPurpose,
+		&i.SessionRelationships,
 	)
 	return i, err
 }

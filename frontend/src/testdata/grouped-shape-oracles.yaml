@@ -1,0 +1,121 @@
+# The two named grouping oracles for the mounted grouped-helper rows.
+#
+#   owner-input1-main5-with-two-helpers
+#     one owner session that carries 1 input submission, 5 main turns and 2
+#     saved helper threads. The owner row states both measures and its collapsed
+#     disclosure states the saved-helper-thread count.
+#   ordinary3-helper3-top3
+#     3 ordinary owner sessions, 3 saved helper threads (2 + 1) and 3 top-level
+#     rows. Every top-level owner is drawn once and each disclosure states its
+#     own exact saved-identity count.
+#
+# SERVED DATA and EXPECTED TEXT are declared apart, exactly as the design
+# system's own helper corpus does: `owners`/`groups`/`memberPages` are what the
+# route serves, and `expectedOwnerFacts`/`expectedGroupLabels`/
+# `expectedMemberIds`/`expectedMemberFacts` are the literal strings the mounted
+# rows must draw. An edit to the served measures therefore changes the rendered
+# text without changing the pinned expectation, so the case fails instead of
+# agreeing with itself.
+#
+# The loader refuses a corpus that drops a required NAME, repeats one, states an
+# unknown root or row field, drifts or drops the `requiredNames` manifest, or
+# declares expectations and totals its owner rows and groups cannot produce, so
+# a case cannot silently disappear and an inert expectation cannot survive.
+
+requiredNames:
+  - owner-input1-main5-with-two-helpers
+  - ordinary3-helper3-top3
+
+owners:
+  shape-a-owner:
+    title: "shape a owner"
+    turnCount: 5
+    inputSubmissionCount: 1
+    groups: [shape-a-pair]
+  shape-b-first:
+    title: "shape b first owner"
+    turnCount: 3
+    inputSubmissionCount: 0
+    groups: [shape-b-pair]
+  shape-b-second:
+    title: "shape b second owner"
+    turnCount: 4
+    inputSubmissionCount: 2
+    groups: [shape-b-single]
+  shape-b-third:
+    title: "shape b third owner"
+    turnCount: 1
+    inputSubmissionCount: null
+    groups: []
+
+groups:
+  shape-a-pair: {groupId: hg_shape_a_pair, purpose: helper_review, helperThreadCount: 2, memberScope: scope-shape-a-pair}
+  shape-b-pair: {groupId: hg_shape_b_pair, purpose: helper_review, helperThreadCount: 2, memberScope: scope-shape-b-pair}
+  shape-b-single: {groupId: hg_shape_b_single, purpose: helper_review, helperThreadCount: 1, memberScope: scope-shape-b-single}
+
+# The member page each scope serves. `inputSubmissionCount: null` is a value the
+# server did not measure, which stays distinct from a measured zero.
+memberPages:
+  scope-shape-a-pair:
+    "1":
+      limit: 20
+      total: 2
+      members:
+        - {id: shape-a-helper-one, title: "shape a helper one", turnCount: 4, inputSubmissionCount: 0}
+        - {id: shape-a-helper-two, title: "shape a helper two", turnCount: 7, inputSubmissionCount: 1}
+  scope-shape-b-pair:
+    "1":
+      limit: 20
+      total: 2
+      members:
+        - {id: shape-b-helper-one, title: "shape b helper one", turnCount: 2, inputSubmissionCount: 1}
+        - {id: shape-b-helper-two, title: "shape b helper two", turnCount: 3, inputSubmissionCount: null}
+  scope-shape-b-single:
+    "1":
+      limit: 20
+      total: 1
+      members:
+        - {id: shape-b-helper-three, title: "shape b helper three", turnCount: 6, inputSubmissionCount: 0}
+
+cases:
+  - name: owner-input1-main5-with-two-helpers
+    owners: [shape-a-owner]
+    ordinarySessionTotal: 1
+    helperThreadTotal: 2
+    topLevelItems: 1
+    expectedOwnerFacts:
+      shape-a-owner: ["1 input submission", "5 turns"]
+    expectedGroupLabels:
+      shape-a-pair: "2 helper threads"
+    expand: [shape-a-pair]
+    expectedMemberIds:
+      shape-a-pair: [shape-a-helper-one, shape-a-helper-two]
+    expectedMemberFacts:
+      shape-a-helper-one: ["0 input submissions", "4 turns"]
+      shape-a-helper-two: ["1 input submission", "7 turns"]
+
+  - name: ordinary3-helper3-top3
+    owners: [shape-b-first, shape-b-second, shape-b-third]
+    ordinarySessionTotal: 3
+    helperThreadTotal: 3
+    topLevelItems: 3
+    expectedOwnerFacts:
+      shape-b-first: ["0 input submissions", "3 turns"]
+      shape-b-second: ["2 input submissions", "4 turns"]
+      shape-b-third: ["unknown input submissions", "1 turn"]
+    expectedGroupLabels:
+      shape-b-pair: "2 helper threads"
+      shape-b-single: "1 helper thread"
+    expand: [shape-b-pair, shape-b-single]
+    expectedMemberIds:
+      shape-b-pair: [shape-b-helper-one, shape-b-helper-two]
+      shape-b-single: [shape-b-helper-three]
+    expectedMemberFacts:
+      shape-b-helper-one: ["1 input submission", "2 turns"]
+      # Deliberately shares "3 turns" with owner `shape-b-first` above, and
+      # "0 input submissions" with helper `shape-b-helper-three` below. The
+      # mounted test asserts every member fact on that member's OWN row, so a
+      # missing or swapped member measure cannot be satisfied by another row
+      # that states the same literal.
+      shape-b-helper-two: ["unknown input submissions", "3 turns"]
+      shape-b-helper-three: ["0 input submissions", "6 turns"]

@@ -1,0 +1,8 @@
+capacity: 4096 # This entry count is the cache's explicit resource contract.
+lifetime_minutes: 15
+cases:
+  - {name: exact-binding, viewer: viewer, group: hg_group, elapsed_minutes: 0, expired: false}
+  - {name: expired-at-boundary, viewer: viewer, group: hg_group, elapsed_minutes: 15, expired: true}
+  - {name: foreign-viewer-binding, viewer: other, group: hg_group, elapsed_minutes: 0, expired: true}
+  - {name: foreign-group-binding, viewer: viewer, group: hg_other, elapsed_minutes: 0, expired: true}
+  - {name: filter-copy-no-alias, viewer: viewer, group: hg_group, elapsed_minutes: 1, expired: false}

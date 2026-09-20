@@ -50,7 +50,9 @@ Every callback URL is `<BASE_URL>/api/v1/auth/<provider>/callback`. Locally,
 
 | Variables | Feature | When unset |
 | --- | --- | --- |
-| `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` | Collective repository linking and the commit overlay (a GitHub App, not the OAuth app: Contents read-only, Metadata read-only, installable on any account). The key accepts a multi-line PEM or one line with `\n` escapes. | The feature's endpoints return `501`; everything else works. |
+| `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` | Collective repository linking, the commit overlay, and pull request prompts (a GitHub App, not the OAuth app: Contents read-only, Metadata read-only, Pull requests read and write, Checks read and write, installable on any account; events `installation`, `pull_request`, `check_run`, `issue_comment`). The key accepts a multi-line PEM or one line with `\n` escapes. | The feature's endpoints return `501`; everything else works. |
+| `GITHUB_APP_SLUG` | The App's URL slug, used to build the GitHub App install redirect (`github.com/apps/<slug>/installations/new`) behind the collective "Connect GitHub" action. | The install-handshake routes return `501`. |
+| `GITHUB_APP_WEBHOOK_SECRET` | Verifies inbound GitHub App webhook deliveries (`X-Hub-Signature-256`, HMAC over the raw body). Generate with `openssl rand -hex 32` and enter the same value in the App's webhook settings. | The webhook route returns `501`; no delivery is trusted. |
 
 ## Failure behavior summary
 
@@ -61,3 +63,4 @@ Every callback URL is `<BASE_URL>/api/v1/auth/<provider>/callback`. Locally,
 | `S3_*` incomplete | Same as above. |
 | One OAuth pair incomplete | That provider's sign-in returns `503`; other providers and anonymous browsing are unaffected. |
 | GitHub App pair incomplete | Repository-linking endpoints return `501`. |
+| `GITHUB_APP_WEBHOOK_SECRET` empty | The webhook route returns `501`; valid deliveries cannot be verified. |

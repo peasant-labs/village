@@ -165,6 +165,35 @@ type Querier interface {
 	UpsertRepositoryCommit(ctx context.Context, arg sqlc.UpsertRepositoryCommitParams) error
 	ListRepositoryCommits(ctx context.Context, arg sqlc.ListRepositoryCommitsParams) ([]sqlc.RepositoryCommit, error)
 	CountRepositoryCommits(ctx context.Context, arg sqlc.CountRepositoryCommitsParams) (int64, error)
+
+	// GitHub webhook delivery ledger: record an attempt (with the payload a
+	// resume needs) and record its outcome.
+	RecordGitHubWebhookDelivery(ctx context.Context, arg sqlc.RecordGitHubWebhookDeliveryParams) (sqlc.RecordGitHubWebhookDeliveryRow, error)
+	CompleteGitHubWebhookDelivery(ctx context.Context, arg sqlc.CompleteGitHubWebhookDeliveryParams) error
+
+	// Pull request prompt-attachment lifecycle. ListOwnerTranscriptsForMatching
+	// is the matcher's candidate pool; the rest read and write the attachment
+	// rows and the transcripts an attachment holds.
+	ListOwnerTranscriptsForMatching(ctx context.Context, ownerID pgtype.UUID) ([]sqlc.ListOwnerTranscriptsForMatchingRow, error)
+	GetUserByProviderIdentity(ctx context.Context, arg sqlc.GetUserByProviderIdentityParams) (sqlc.User, error)
+	CreatePullRequestAttachment(ctx context.Context, arg sqlc.CreatePullRequestAttachmentParams) (sqlc.PullRequestAttachment, error)
+	GetPullRequestAttachment(ctx context.Context, id pgtype.UUID) (sqlc.PullRequestAttachment, error)
+	GetPullRequestAttachmentForPull(ctx context.Context, arg sqlc.GetPullRequestAttachmentForPullParams) (sqlc.PullRequestAttachment, error)
+	UpdatePullRequestAttachmentState(ctx context.Context, arg sqlc.UpdatePullRequestAttachmentStateParams) (sqlc.PullRequestAttachment, error)
+	AttachPullRequestTranscript(ctx context.Context, arg sqlc.AttachPullRequestTranscriptParams) error
+	ListPullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.PullRequestAttachmentTranscript, error)
+	ListAttachmentsBindingTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
+	GetPullRequestAttachmentTranscript(ctx context.Context, arg sqlc.GetPullRequestAttachmentTranscriptParams) (sqlc.PullRequestAttachmentTranscript, error)
+	DeletePullRequestAttachmentTranscript(ctx context.Context, arg sqlc.DeletePullRequestAttachmentTranscriptParams) error
+	ListPullRequestAttachmentTranscriptSummaries(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.ListPullRequestAttachmentTranscriptSummariesRow, error)
+	DeletePullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) error
+	SetPullRequestAttachmentDigest(ctx context.Context, arg sqlc.SetPullRequestAttachmentDigestParams) error
+	SetPullRequestAttachmentArtifacts(ctx context.Context, arg sqlc.SetPullRequestAttachmentArtifactsParams) error
+	ListAuthorWaitingPromptRequests(ctx context.Context, authorID pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
+	ListAuthorAttachmentsForRepo(ctx context.Context, arg sqlc.ListAuthorAttachmentsForRepoParams) ([]sqlc.PullRequestAttachment, error)
+	SetPullRequestAttachmentRequester(ctx context.Context, arg sqlc.SetPullRequestAttachmentRequesterParams) (sqlc.PullRequestAttachment, error)
+	SetUserPreviewBeforeAttach(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error)
+	GetCollectiveRepositoryByRepo(ctx context.Context, arg sqlc.GetCollectiveRepositoryByRepoParams) (sqlc.CollectiveRepository, error)
 }
 
 // Compile-time assertion: *sqlc.Queries must satisfy Querier.

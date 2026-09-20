@@ -34,12 +34,14 @@ type TitlePipeline interface {
 }
 
 type Handler struct {
+	groupedScopes         groupedScopeService
 	cfg                   *config.Config
 	pool                  *pgxpool.Pool
 	queries               Querier
 	blobs                 storage.TranscriptBlobStore
 	titles                TitlePipeline
 	preservationEvaluator observedModelPreservationEvaluator
+	provenanceEvaluator   provenancePreservationEvaluator
 	scanContent           func([]byte) []string
 
 	// discoveryReadBarrier, when non-nil, is invoked exactly once inside the
@@ -77,6 +79,19 @@ type Handler struct {
 	// It is nil when the App is not configured; handlers detect this via
 	// githubClient() and respond 501. Tests inject a client pointed at httptest.
 	gh *github.Client
+
+	// repoAccess remembers for a short time whether one GitHub account may read
+	// one repository, and repoAccessLimiter bounds how often one viewer can make
+	// Village ask. Both are in-process and zero-value usable, so nothing has to
+	// construct them.
+	repoAccess        repositoryAccessCache
+	repoAccessLimiter repositoryAccessLimiter
+
+	// githubDispatcher is the handling point for each subscribed webhook event
+	// type. Production uses noopGitHubDispatcher until the matching, digest, and
+	// posting work fills it in; a test injects a recording dispatcher to prove
+	// which event reached which method.
+	githubDispatcher github.Dispatcher
 }
 
 func (h *Handler) scanTranscriptContent(content []byte) []string {
@@ -105,12 +120,14 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 		blobs:                 blobs,
 		titles:                titles,
 		preservationEvaluator: productionObservedModelPreservationEvaluator{},
+		provenanceEvaluator:   productionProvenancePreservationEvaluator{},
 		// The remote-label rule belongs to the contract module, which both
 		// Village and Peasant import, so the two render one label for one
 		// repository instead of each formatting remotes their own way.
 		projectNames:          projectname.Resolver{Label: schema.RemoteLabel},
 		scanContent:           scanner.ScanForSecrets,
 		contributableRowLimit: defaultContributableRowLimit,
+		githubDispatcher:      noopGitHubDispatcher{},
 	}
 
 	// The GitHub App is optional. If credentials are absent (or invalid),
@@ -128,6 +145,21 @@ func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.
 	default:
 		h.gh = gh
 		log.Println("GitHub App configured; collective-repository endpoints enabled")
+	}
+
+	// A configured App also handles the events it subscribes to: a clicked
+	// check-run button, a `/peasant attach` comment, and a push to a pull
+	// request that already has an attachment. Without the App the receiver
+	// answers 501 and the no-op dispatcher stays in place.
+	if h.gh != nil {
+		h.githubDispatcher = promptCommandDispatcher{h: h}
+	}
+
+	// The webhook receiver needs both the App (to act on events) and the secret
+	// (to authenticate GitHub's signature). Either missing leaves the route
+	// answering 501, fail-closed.
+	if h.gh != nil && cfg.GitHubAppWebhookSecret != "" {
+		log.Println("GitHub webhook receiver configured; POST /api/v1/integrations/github/webhook is enabled")
 	}
 
 	return h

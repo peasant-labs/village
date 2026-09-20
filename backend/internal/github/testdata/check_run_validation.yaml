@@ -1,0 +1,156 @@
+# The check-run request validation, so a request GitHub would reject fails
+# locally as an error the caller can act on rather than as a 422 it retries
+# forever. GitHub requires every action field (label, description, identifier)
+# and caps each: label 20, description 40, identifier 20 characters.
+cases:
+  - name: create-requires-a-head-sha
+    creating: true
+    request:
+      conclusion: success
+      title: "3 prompts attached"
+    expect_error: true
+
+  - name: conclusion-must-be-in-the-menu
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: maybe
+      title: "3 prompts attached"
+    expect_error: true
+
+  - name: title-is-required
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+    expect_error: true
+
+  - name: at-most-three-actions
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "3 prompts attached"
+      actions:
+        - label: "Attach prompts"
+          description: "Match and attach prompts"
+          identifier: attach
+        - label: "Detach"
+          description: "Detach attached prompts"
+          identifier: detach
+        - label: "Refresh"
+          description: "Recompute prompts and digest"
+          identifier: refresh
+        - label: "Fourth"
+          description: "One action too many"
+          identifier: fourth
+    expect_error: true
+
+  - name: action-label-must-fit-the-limit
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "3 prompts attached"
+      actions:
+        - label: "attach every matching prompt"
+          description: "Match and attach prompts"
+          identifier: attach
+    expect_error: true
+
+  - name: action-description-is-required
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "3 prompts attached"
+      actions:
+        - label: "Attach prompts"
+          identifier: attach
+    expect_error: true
+
+  - name: action-description-must-fit-the-limit
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "3 prompts attached"
+      actions:
+        - label: "Attach prompts"
+          description: "Match and attach every one of this author's prompts"
+          identifier: attach
+    expect_error: true
+
+  - name: an-action-needs-an-identifier
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "3 prompts attached"
+      actions:
+        - label: "Attach prompts"
+          description: "Match and attach prompts"
+    expect_error: true
+
+  - name: action-identifier-must-fit-the-limit
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "3 prompts attached"
+      actions:
+        - label: "Attach prompts"
+          description: "Match and attach prompts"
+          identifier: "attach-every-matching-prompt"
+    expect_error: true
+
+  - name: action-identifiers-must-be-unique
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "3 prompts attached"
+      actions:
+        - label: "Attach prompts"
+          description: "Match and attach prompts"
+          identifier: attach
+        - label: "Detach"
+          description: "Detach attached prompts"
+          identifier: attach
+    expect_error: true
+
+  - name: a-complete-create-request-is-accepted
+    creating: true
+    request:
+      head_sha: "abc1234"
+      external_id: "peasant-village"
+      details_url: "https://village.test/groups/1/pulls/7"
+      conclusion: neutral
+      title: "No prompts attached yet"
+      summary: "The author's prompts will appear here once attached."
+      actions:
+        - label: "Attach prompts"
+          description: "Match and attach prompts"
+          identifier: attach
+        - label: "Detach"
+          description: "Detach attached prompts"
+          identifier: detach
+        - label: "Refresh"
+          description: "Recompute prompts and digest"
+          identifier: refresh
+    expect_error: false
+
+  - name: an-update-does-not-need-a-head-sha
+    creating: false
+    request:
+      conclusion: success
+      title: "3 prompts attached"
+      summary: "3 sessions, 5 commits."
+      actions:
+        - label: "Detach"
+          description: "Detach attached prompts"
+          identifier: detach
+        - label: "Refresh"
+          description: "Recompute prompts and digest"
+          identifier: refresh
+    expect_error: false

@@ -1,9 +1,10 @@
 # Design: Connecting repositories to a collective
 
-**Status:** Design only — not implemented. This doc scopes the work to let a
-collective link real GitHub repositories so we can overlay its transcripts onto
-a repo's commit/PR timeline — replicating what the local peasant app gets for
-free from the working tree.
+**Status:** Implemented. Repository linking, the commit overlay, the GitHub App
+install handshake, and the repository picker are live (migrations `021`/`022`,
+the `/groups/{id}/repositories` routes, and the collective "Repositories" /
+commit-timeline UI); the pull request prompt attachment work builds on the same
+App.
 
 **Context / what already exists.** Pushed transcripts already carry git context
 in their payload (`schema.GitContext`: `branch`, `remote`, `worktree`,
@@ -16,9 +17,9 @@ overlay is (a) the **commit SHAs** are dropped on ingest, and (b) we have no
 **authenticated link** to the live repo to fetch its commits/PRs. This doc
 covers both.
 
-> Prerequisite & main blocker: a registered GitHub App plus its secrets is a
-> human setup step (see [Auth mechanism](#auth-mechanism)). Nothing here ships
-> until that exists.
+> The registered GitHub App and its secrets exist in production, with the install
+> handshake and repository picker live: a collective owner connects the App and
+> chooses a repository, so there is no hand-entered installation id.
 
 ---
 
@@ -39,32 +40,30 @@ churn. It gives per-repo scoping, short-lived tokens, higher aggregate rate
 limits, and a webhook path for incremental sync. The cost is the one-time human
 setup of registering the app and provisioning its secrets.
 
-### Human setup (the blocker)
+### Human setup
 
 1. Register a **GitHub App** ("Village") under the peasant-labs org with:
-   - **Permissions (read-only):** Repository → *Contents: Read*, *Metadata:
-     Read*, *Pull requests: Read*. No write scopes.
-   - **Callback URL:** `<BASE_URL>/api/v1/integrations/github/callback`
-     (mirrors the existing OAuth callback convention in
-     `auth_providers.go` / `docs/oauth-app-registration.md`).
+   - **Permissions:** Repository → *Contents: Read*, *Metadata: Read*;
+     *Pull requests: Read and write*; *Checks: Read and write*.
+   - **Callback URL:** `<BASE_URL>/api/v1/integrations/github/callback` (not
+     implemented yet).
    - **Setup URL** (post-install redirect) → the collective settings page.
    - **Webhook URL:** `<BASE_URL>/api/v1/integrations/github/webhook` with a
-     webhook secret; events: `push`, `pull_request`. (Optional for v1 — polling
-     works without it.)
+     webhook secret; events: `installation`, `pull_request`, `check_run`,
+     `issue_comment`.
 2. Generate the App's **private key** (`.pem`) and note the **App ID** and
    **webhook secret**.
 3. Provision secrets (same pattern as the OAuth apps — env vars passed through
    `docker-compose.yml`, real values in the prod secret store):
    ```env
    GITHUB_APP_ID=...
-   GITHUB_APP_PRIVATE_KEY=...        # PEM, base64 or file-mounted
+   GITHUB_APP_PRIVATE_KEY=...        # PEM, multi-line or \n-escaped
    GITHUB_APP_WEBHOOK_SECRET=...
-   GITHUB_APP_CLIENT_ID=...          # for the install/identify handshake
-   GITHUB_APP_CLIENT_SECRET=...
    ```
    The backend treats the integration as "configured" only when `GITHUB_APP_ID`
-   and the private key are both present (otherwise the "Link repository" button
-   503s, exactly like an unconfigured OAuth provider).
+   and the private key are both present (otherwise the repository routes return
+   `501`, exactly like an unconfigured OAuth provider); the webhook route also
+   needs the secret.
 
 ---
 
@@ -212,6 +211,8 @@ New handlers mounted under the existing `/api/v1` group routes
 (`router/routes.go`), e.g.:
 - `POST /groups/{id}/repositories` — link a repo (owner-only).
 - `GET  /groups/{id}/repositories` — list linked repos + sync status.
+- `GET  /groups/{id}/repositories/available` — the repositories the App can offer
+  the collective (the picker's source).
 - `DELETE /groups/{id}/repositories/{repoID}` — unlink.
 - `GET  /groups/{id}/repositories/{repoID}/timeline` — merged commits + PRs +
   the transcripts that touched each commit.
@@ -285,8 +286,10 @@ do not refer to Village pull requests or repository history.
 4. **Commit-SHA backfill.** The ingest change captures SHAs going forward.
    Backfill historical transcripts (re-read stored blobs for `git.commits`) or
    only enrich new pushes?
-5. **Webhooks vs polling for v1.** Ship polling-only first (no webhook secret
-   needed) and add webhooks later, or set up webhooks from day one?
+5. **Webhooks vs polling for v1.** Settled: the HMAC-verified webhook receiver is
+   implemented and live (a verified delivery is recorded once, so a redelivery is
+   a no-op); the incremental-sync polling path remains for repositories without
+   webhooks.
 6. **Non-GitHub remotes.** Transcripts already carry GitLab/Codeberg/Bitbucket
    remotes (those providers exist for sign-in). Is GitHub-only acceptable for
    v1, with the schema left provider-agnostic for later?

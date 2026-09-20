@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
-import type { SessionDetailPayload } from "@peasant-labs/schema";
+import type { Harness } from "@peasant-labs/schema";
 import type { NameSource } from "@/lib/types";
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 import TranscriptDetailPage from "@/app/transcripts/[id]/page";
@@ -23,10 +23,14 @@ export interface MountedRouteTranscriptMetadata {
   transcript: {
     id: string;
     local_id: string;
+    model_provider?: Harness;
     visibility: string;
     title: string | null;
     description: string | null;
     project_name: string;
+    /** This transcript's current public representation revision. Callers that
+     *  exercise a carried branch-point anchor supply it; others omit it. */
+    content_hash?: string | null;
     /** The resolved project identity fields. Optional: a caller that does
      *  not exercise project-identity behavior gets sensible defaults from
      *  {@link installRESTFixture} (`project_display_name` falls back to
@@ -56,6 +60,9 @@ export interface MountedRouteTranscriptMetadata {
    *  everything — which is also what a transcript in no collective gets, by
    *  design. Callers that do not exercise the memberships omit it. */
   viewer_collectives?: Array<{ id: string; name: string }>;
+  /** The viewer-authorized relationship navigation the metadata read serves.
+   *  Omitted when the fixture exercises no source/starter links. */
+  relationshipNavigation?: unknown[];
 }
 
 const DEFAULT_PROJECT_HASH = "0".repeat(64);
@@ -91,7 +98,7 @@ function withProjectIdentityDefaults(
 export function installRESTFixture(
   transcriptID: string,
   metadata: MountedRouteTranscriptMetadata,
-  detail: SessionDetailPayload,
+  detail: unknown,
   fixtureLabel: string,
 ): ReturnType<typeof vi.fn> {
   const resolvedMetadata = withProjectIdentityDefaults(metadata);
@@ -131,8 +138,14 @@ export function installRESTFixture(
 }
 
 /** Renders the real `TranscriptDetailPage` route for `transcriptID` behind a fresh,
- *  retry-disabled QueryClient — the same mount every mounted-route test asserts against. */
-export async function renderProductionRoute(transcriptID: string): Promise<void> {
+ *  retry-disabled QueryClient — the same mount every mounted-route test asserts against.
+ *  `search` (e.g. `?entry=…`) is installed on the live jsdom location first, so the
+ *  production component's `window.location.search` read sees the same URL a real router
+ *  push would leave behind. */
+export async function renderProductionRoute(transcriptID: string, search = ""): Promise<void> {
+  if (typeof window !== "undefined") {
+    window.history.replaceState({}, "", `/transcripts/${transcriptID}${search}`);
+  }
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -155,6 +168,8 @@ export function installMountedRouteTeardown(): void {
     cleanup();
     vi.unstubAllGlobals();
     globalThis.localStorage?.clear();
+    globalThis.sessionStorage?.clear();
+    if (typeof window !== "undefined") window.history.replaceState({}, "", "/");
     document.documentElement.setAttribute("data-theme", "dark");
   });
 }

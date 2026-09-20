@@ -93,7 +93,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		// Transcripts
 		r.With(h.AuthRequired).Post("/transcripts/publish", h.PublishTranscript)
 		r.With(h.AuthRequired).Post("/transcripts/publish/batch", h.PublishBatch)
-		r.With(h.AuthOptional).Get("/transcripts", h.ListTranscripts)
+		h.RegisterTranscriptBrowseRoutes(r)
 		r.With(h.AuthOptional).Get("/transcripts/{id}", h.GetTranscript)
 		r.With(h.AuthOptional).Get("/transcripts/{id}/content", h.GetTranscriptContent)
 		r.With(h.AuthRequired).Patch("/transcripts/{id}", h.UpdateTranscript)
@@ -141,7 +141,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		// to. Both routes exist because the browse surface and the contribute
 		// picker ask different questions.
 		r.With(h.AuthRequired).Get("/groups/visible", h.ListVisibleGroups)
-		r.With(h.AuthOptional).Get("/groups/{id}", h.GetGroup)
+		h.RegisterCollectiveBrowseRoutes(r)
 		r.With(h.AuthRequired).Patch("/groups/{id}", h.UpdateGroup)
 		r.With(h.AuthRequired).Delete("/groups/{id}", h.DeleteGroup)
 		r.With(h.AuthRequired).Post("/groups/{id}/join", h.JoinGroup)
@@ -151,10 +151,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		// Contributing a whole project: one read that says what the caller may
 		// offer this collective, and one write that offers a project's
 		// transcripts in a single transaction. Both are member-only.
-		r.With(h.AuthRequired).Get("/groups/{id}/contributable", h.ListContributable)
 		r.With(h.AuthRequired).Post("/groups/{id}/shares", h.BatchShareProject)
-		r.With(h.AuthRequired).Get("/groups/{id}/pending", h.ListPendingShares)
-		r.With(h.AuthRequired).Get("/groups/{id}/my-shares", h.ListMyGroupShares)
 		// Reviewing submissions: one route decides ONE submission, the other
 		// decides a whole selection in one action. Both are owner-only and
 		// neither touches transcript visibility.
@@ -168,6 +165,9 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Post("/groups/{id}/repositories", h.LinkRepository)
 		r.With(h.AuthRequired).Delete("/groups/{id}/repositories/{owner}/{name}", h.UnlinkRepository)
 		r.With(h.AuthRequired).Get("/groups/{id}/repositories/{owner}/{name}/commits", h.ListRepositoryCommits)
+		// The repositories the App can offer this collective, for the picker. A
+		// literal segment, so chi resolves it ahead of any {owner} pattern.
+		r.With(h.AuthRequired).Get("/groups/{id}/repositories/available", h.ListAvailableRepositories)
 
 		// Tags
 		r.Get("/tags", h.ListTags)
@@ -198,6 +198,27 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Get("/pull/transcripts/{id}", h.GetPullTranscript)
 		r.With(h.AuthRequired).Get("/pull/transcripts/{id}/content", h.GetPullTranscriptContent)
 		r.With(h.AuthRequired).Get("/pull/transcripts/{id}/annotations", h.GetPullTranscriptAnnotations)
+
+		// Pull request prompt attachment. The served contract declares these
+		// seven routes; each answers 501 until its handler lands, so the route
+		// drift gate sees contract and server agree now. The webhook is
+		// authenticated by GitHub's HMAC over the raw body, not by a session,
+		// so it carries no auth middleware. The attachment read is open to
+		// anonymous readers of a public repository, so auth is optional there.
+		r.Post("/integrations/github/webhook", h.ReceiveGitHubWebhook)
+		r.With(h.AuthOptional).Get("/pulls/{owner}/{name}/{number}", h.GetPullRequestAttachment)
+		r.With(h.AuthRequired).Post("/pulls/{owner}/{name}/{number}/confirm", h.ConfirmPullRequestAttachment)
+		r.With(h.AuthRequired).Delete("/pulls/{owner}/{name}/{number}", h.DetachPullRequestAttachment)
+		r.With(h.AuthRequired).Get("/users/me/prompt-requests", h.ListMyPromptRequests)
+		r.With(h.AuthRequired).Get("/users/me/settings", h.GetUserSettings)
+		r.With(h.AuthRequired).Patch("/users/me/settings", h.UpdateUserSettings)
+
+		// GitHub App install handshake. Both routes are redirects, like the OAuth
+		// entry points, so neither is declared by the JSON contract; the install
+		// route requires a session (it acts only for a collective owner) and the
+		// callback verifies the signed state it carries.
+		r.With(h.AuthRequired).Get("/integrations/github/install", h.GitHubInstall)
+		r.With(h.AuthRequired).Get("/integrations/github/callback", h.GitHubInstallCallback)
 	})
 
 	return r

@@ -110,6 +110,12 @@ type mockQuerier struct {
 
 	// Group membership stub (used for owner/admin gating)
 	getGroupMember func(ctx context.Context, arg sqlc.GetGroupMemberParams) (sqlc.GroupMember, error)
+	// getGroupByID stubs the collective read (used by the repository-link
+	// organization guard). Unset returns a zero collective with no linked org.
+	getGroupByID func(ctx context.Context, id pgtype.UUID) (sqlc.Group, error)
+	// listUserGroups stubs the caller's collectives (used by the install
+	// callback to find the one bound to the installation's account).
+	listUserGroups func(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserGroupsRow, error)
 
 	// Collectives stubs. They are overridable func fields (rather than the
 	// constant-nil shorthand used by the older group stubs) so a test can count
@@ -131,6 +137,8 @@ type mockQuerier struct {
 	upsertRepositoryCommit         func(ctx context.Context, arg sqlc.UpsertRepositoryCommitParams) error
 	listRepositoryCommits          func(ctx context.Context, arg sqlc.ListRepositoryCommitsParams) ([]sqlc.RepositoryCommit, error)
 	countRepositoryCommits         func(ctx context.Context, arg sqlc.CountRepositoryCommitsParams) (int64, error)
+	recordGitHubWebhookDelivery    func(ctx context.Context, arg sqlc.RecordGitHubWebhookDeliveryParams) (sqlc.RecordGitHubWebhookDeliveryRow, error)
+	completeGitHubWebhookDelivery  func(ctx context.Context, arg sqlc.CompleteGitHubWebhookDeliveryParams) error
 }
 
 // ---- CLI session ---------------------------------------------------------
@@ -494,7 +502,10 @@ func (m *mockQuerier) CreateGroup(ctx context.Context, arg sqlc.CreateGroupParam
 	panic("CreateGroup: not stubbed")
 }
 func (m *mockQuerier) GetGroupByID(ctx context.Context, id pgtype.UUID) (sqlc.Group, error) {
-	panic("GetGroupByID: not stubbed")
+	if m.getGroupByID != nil {
+		return m.getGroupByID(ctx, id)
+	}
+	return sqlc.Group{}, nil
 }
 func (m *mockQuerier) UpdateGroup(ctx context.Context, arg sqlc.UpdateGroupParams) (sqlc.Group, error) {
 	panic("UpdateGroup: not stubbed")
@@ -503,7 +514,10 @@ func (m *mockQuerier) DeleteGroup(ctx context.Context, id pgtype.UUID) error {
 	panic("DeleteGroup: not stubbed")
 }
 func (m *mockQuerier) ListUserGroups(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
-	panic("ListUserGroups: not stubbed")
+	if m.listUserGroups != nil {
+		return m.listUserGroups(ctx, userID)
+	}
+	return nil, nil
 }
 func (m *mockQuerier) ListVisibleGroups(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListVisibleGroupsRow, error) {
 	panic("ListVisibleGroups: not stubbed")
@@ -789,6 +803,20 @@ func (m *mockQuerier) CountRepositoryCommits(ctx context.Context, arg sqlc.Count
 		return m.countRepositoryCommits(ctx, arg)
 	}
 	return 0, nil
+}
+
+func (m *mockQuerier) RecordGitHubWebhookDelivery(ctx context.Context, arg sqlc.RecordGitHubWebhookDeliveryParams) (sqlc.RecordGitHubWebhookDeliveryRow, error) {
+	if m.recordGitHubWebhookDelivery != nil {
+		return m.recordGitHubWebhookDelivery(ctx, arg)
+	}
+	return sqlc.RecordGitHubWebhookDeliveryRow{Status: "pending"}, nil
+}
+
+func (m *mockQuerier) CompleteGitHubWebhookDelivery(ctx context.Context, arg sqlc.CompleteGitHubWebhookDeliveryParams) error {
+	if m.completeGitHubWebhookDelivery != nil {
+		return m.completeGitHubWebhookDelivery(ctx, arg)
+	}
+	return nil
 }
 
 // ----------------------------------------------------------------------------
@@ -1316,4 +1344,90 @@ func TestCLIExchange_InvalidRequestBody(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d, want %d", w.Code, http.StatusBadRequest)
 	}
+}
+
+// ----------------------------------------------------------------------------
+// Pull request prompt-attachment lifecycle. These default to the empty result;
+// the lifecycle's own behaviour is proven against a real database, so the mock
+// only has to satisfy the interface.
+// ----------------------------------------------------------------------------
+
+func (m *mockQuerier) ListOwnerTranscriptsForMatching(ctx context.Context, ownerID pgtype.UUID) ([]sqlc.ListOwnerTranscriptsForMatchingRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) CreatePullRequestAttachment(ctx context.Context, arg sqlc.CreatePullRequestAttachmentParams) (sqlc.PullRequestAttachment, error) {
+	return sqlc.PullRequestAttachment{}, nil
+}
+
+func (m *mockQuerier) GetPullRequestAttachment(ctx context.Context, id pgtype.UUID) (sqlc.PullRequestAttachment, error) {
+	return sqlc.PullRequestAttachment{}, nil
+}
+
+func (m *mockQuerier) GetPullRequestAttachmentForPull(ctx context.Context, arg sqlc.GetPullRequestAttachmentForPullParams) (sqlc.PullRequestAttachment, error) {
+	return sqlc.PullRequestAttachment{}, nil
+}
+
+func (m *mockQuerier) UpdatePullRequestAttachmentState(ctx context.Context, arg sqlc.UpdatePullRequestAttachmentStateParams) (sqlc.PullRequestAttachment, error) {
+	return sqlc.PullRequestAttachment{}, nil
+}
+
+func (m *mockQuerier) AttachPullRequestTranscript(ctx context.Context, arg sqlc.AttachPullRequestTranscriptParams) error {
+	return nil
+}
+
+func (m *mockQuerier) ListPullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.PullRequestAttachmentTranscript, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ListAttachmentsBindingTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.PullRequestAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ListPullRequestAttachmentTranscriptSummaries(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.ListPullRequestAttachmentTranscriptSummariesRow, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) DeletePullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) error {
+	return nil
+}
+
+func (m *mockQuerier) SetPullRequestAttachmentDigest(ctx context.Context, arg sqlc.SetPullRequestAttachmentDigestParams) error {
+	return nil
+}
+
+func (m *mockQuerier) SetPullRequestAttachmentArtifacts(ctx context.Context, arg sqlc.SetPullRequestAttachmentArtifactsParams) error {
+	return nil
+}
+
+func (m *mockQuerier) ListAuthorWaitingPromptRequests(ctx context.Context, authorID pgtype.UUID) ([]sqlc.PullRequestAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) SetUserPreviewBeforeAttach(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error) {
+	return sqlc.User{}, nil
+}
+
+func (m *mockQuerier) GetCollectiveRepositoryByRepo(ctx context.Context, arg sqlc.GetCollectiveRepositoryByRepoParams) (sqlc.CollectiveRepository, error) {
+	return sqlc.CollectiveRepository{}, nil
+}
+
+func (m *mockQuerier) GetPullRequestAttachmentTranscript(ctx context.Context, arg sqlc.GetPullRequestAttachmentTranscriptParams) (sqlc.PullRequestAttachmentTranscript, error) {
+	return sqlc.PullRequestAttachmentTranscript{}, nil
+}
+
+func (m *mockQuerier) DeletePullRequestAttachmentTranscript(ctx context.Context, arg sqlc.DeletePullRequestAttachmentTranscriptParams) error {
+	return nil
+}
+
+func (m *mockQuerier) ListAuthorAttachmentsForRepo(ctx context.Context, arg sqlc.ListAuthorAttachmentsForRepoParams) ([]sqlc.PullRequestAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) SetPullRequestAttachmentRequester(ctx context.Context, arg sqlc.SetPullRequestAttachmentRequesterParams) (sqlc.PullRequestAttachment, error) {
+	return sqlc.PullRequestAttachment{}, nil
+}
+
+func (m *mockQuerier) GetUserByProviderIdentity(ctx context.Context, arg sqlc.GetUserByProviderIdentityParams) (sqlc.User, error) {
+	return sqlc.User{}, nil
 }

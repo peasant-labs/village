@@ -258,6 +258,205 @@ func (c *Client) GetRepository(ctx context.Context, installationID int64, owner,
 	return &Repository{Owner: body.Owner.Login, Name: body.Name, Private: body.Private}, nil
 }
 
+// Installation is the minimal GitHub App installation metadata we record.
+type Installation struct {
+	ID           int64
+	AccountLogin string
+	AccountID    int64
+	AccountType  string
+}
+
+// GetInstallation fetches an installation's metadata with the App JWT. It is
+// used by the install callback and to validate a caller-supplied installation.
+func (c *Client) GetInstallation(ctx context.Context, installationID int64) (*Installation, error) {
+	appJWT, err := c.appJWT()
+	if err != nil {
+		return nil, fmt.Errorf("github: mint app jwt: %w", err)
+	}
+	url := fmt.Sprintf("%s/app/installations/%d", c.baseURL, installationID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+appJWT)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("github: request installation: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, apiError(resp, "get installation")
+	}
+	var body struct {
+		ID      int64 `json:"id"`
+		Account struct {
+			Login string `json:"login"`
+			ID    int64  `json:"id"`
+			Type  string `json:"type"`
+		} `json:"account"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("github: decode installation: %w", err)
+	}
+	return &Installation{
+		ID:           body.ID,
+		AccountLogin: body.Account.Login,
+		AccountID:    body.Account.ID,
+		AccountType:  body.Account.Type,
+	}, nil
+}
+
+// GetRepositoryInstallation resolves which installation grants the App access
+// to owner/name, using the App JWT (GET /repos/{owner}/{repo}/installation). A
+// 404 means no installation covers the repository. This is what lets a
+// repository be linked without a caller-supplied installation id.
+func (c *Client) GetRepositoryInstallation(ctx context.Context, owner, name string) (int64, error) {
+	appJWT, err := c.appJWT()
+	if err != nil {
+		return 0, fmt.Errorf("github: mint app jwt: %w", err)
+	}
+	url := fmt.Sprintf("%s/repos/%s/%s/installation", c.baseURL, owner, name)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+appJWT)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("github: request repository installation: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, apiError(resp, "get repository installation")
+	}
+	var body struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return 0, fmt.Errorf("github: decode repository installation: %w", err)
+	}
+	if body.ID <= 0 {
+		return 0, errors.New("github: repository installation response carried no id")
+	}
+	return body.ID, nil
+}
+
+// ListInstallations lists every installation of the App (App JWT). It is how a
+// collective's linked organization is resolved to an installation without a
+// stored installation id.
+func (c *Client) ListInstallations(ctx context.Context) ([]Installation, error) {
+	appJWT, err := c.appJWT()
+	if err != nil {
+		return nil, fmt.Errorf("github: mint app jwt: %w", err)
+	}
+
+	const maxPages = 10
+	url := fmt.Sprintf("%s/app/installations?per_page=100", c.baseURL)
+	var out []Installation
+	for page := 0; page < maxPages && url != ""; page++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+appJWT)
+		req.Header.Set("Accept", "application/vnd.github+json")
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("github: request installations: %w", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			err := apiError(resp, "list installations")
+			resp.Body.Close()
+			return nil, err
+		}
+		var raw []struct {
+			ID      int64 `json:"id"`
+			Account struct {
+				Login string `json:"login"`
+				ID    int64  `json:"id"`
+				Type  string `json:"type"`
+			} `json:"account"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("github: decode installations: %w", err)
+		}
+		url = nextPageURL(resp.Header.Get("Link"))
+		resp.Body.Close()
+		for _, r := range raw {
+			out = append(out, Installation{
+				ID:           r.ID,
+				AccountLogin: r.Account.Login,
+				AccountID:    r.Account.ID,
+				AccountType:  r.Account.Type,
+			})
+		}
+	}
+	return out, nil
+}
+
+// InstallationRepository is one repository an installation grants access to.
+type InstallationRepository struct {
+	Owner   string
+	Name    string
+	Private bool
+}
+
+// ListInstallationRepositories lists the repositories an installation grants,
+// using an installation token. Paginated.
+func (c *Client) ListInstallationRepositories(ctx context.Context, installationID int64) ([]InstallationRepository, error) {
+	token, err := c.installationToken(ctx, installationID)
+	if err != nil {
+		return nil, err
+	}
+
+	const maxPages = 10
+	url := fmt.Sprintf("%s/installation/repositories?per_page=100", c.baseURL)
+	var out []InstallationRepository
+	for page := 0; page < maxPages && url != ""; page++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "token "+token)
+		req.Header.Set("Accept", "application/vnd.github+json")
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("github: request installation repositories: %w", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			err := apiError(resp, "list installation repositories")
+			resp.Body.Close()
+			return nil, err
+		}
+		var body struct {
+			Repositories []struct {
+				Name    string `json:"name"`
+				Private bool   `json:"private"`
+				Owner   struct {
+					Login string `json:"login"`
+				} `json:"owner"`
+			} `json:"repositories"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("github: decode installation repositories: %w", err)
+		}
+		url = nextPageURL(resp.Header.Get("Link"))
+		resp.Body.Close()
+		for _, r := range body.Repositories {
+			out = append(out, InstallationRepository{Owner: r.Owner.Login, Name: r.Name, Private: r.Private})
+		}
+	}
+	return out, nil
+}
+
 // ListCommitsOptions tunes a commit fetch.
 type ListCommitsOptions struct {
 	// PerPage caps the page size (GitHub max 100). Zero means GitHub's default.
@@ -275,12 +474,65 @@ type ListCommitsResult struct {
 	Commits     []Commit
 	ETag        string // latest ETag, to persist for the next conditional request
 	NotModified bool   // true when GitHub returned 304 (nothing changed)
+	// Complete reports whether Commits is the full list. It is false when
+	// pagination stopped with a page still advertised, when the pull request
+	// endpoint's documented cap was reached, and on a 304 — where the caller
+	// must reuse its cached complete set rather than read the empty result as an
+	// empty list. Callers that decide anything from absence must check it.
+	Complete bool
 }
+
+const (
+	// maxGitHubPerPage is GitHub's page size ceiling, used for the pull request
+	// commit walk because completeness depends on not under-fetching.
+	maxGitHubPerPage = 100
+	// maxPullRequestCommitPages bounds the pull request commit walk. Three pages
+	// of 100 already covers the endpoint's documented cap; the extra headroom
+	// only matters if that cap grows.
+	maxPullRequestCommitPages = 5
+	// maxPullRequestCommits is GitHub's documented maximum list length for
+	// GET /repos/{owner}/{repo}/pulls/{number}/commits: a pull request with more
+	// commits must be read through the repository commits endpoint instead. At
+	// the cap, more commits may exist unseen, so the list is not provably
+	// complete.
+	maxPullRequestCommits = 250
+)
 
 // ListCommits fetches a repo's commits via the installation token, honoring
 // conditional requests (If-None-Match) so unchanged repos cost zero quota.
-// Pagination follows RFC5988 Link rel="next" headers up to MaxPages.
+// Pagination follows RFC5988 Link rel="next" headers up to MaxPages, which
+// defaults to a single page: the repository walk is a bounded cache refresh,
+// and ListCommitsResult.Complete says whether that bound was reached.
 func (c *Client) ListCommits(ctx context.Context, installationID int64, owner, name string, opts ListCommitsOptions) (*ListCommitsResult, error) {
+	return c.listCommits(ctx, installationID, fmt.Sprintf("/repos/%s/%s/commits", owner, name), opts, false)
+}
+
+// ListPullRequestCommits fetches the commits a pull request currently contains,
+// from GET /repos/{owner}/{repo}/pulls/{number}/commits, using the installation
+// token.
+//
+// It shares ListCommits' pagination, conditional-request, and error handling
+// exactly, through the same implementation; two endpoints that paginated or
+// failed differently would be a matching bug. Unlike the repository walk it
+// fetches every page, because its result is used to decide what a pull request
+// does and does not contain, and it reports completeness rather than truncating
+// silently: ListCommitsResult.Complete is false when a page was left unfollowed
+// or the endpoint's 250-commit cap was reached. A caller must not conclude that
+// a commit is absent, or resolve an abbreviated SHA, from an incomplete list.
+func (c *Client) ListPullRequestCommits(ctx context.Context, installationID int64, owner, name string, number int, opts ListCommitsOptions) (*ListCommitsResult, error) {
+	if number <= 0 {
+		return nil, errors.New("github: list pull request commits: pull request number must be positive")
+	}
+	if opts.PerPage <= 0 {
+		opts.PerPage = maxGitHubPerPage
+	}
+	return c.listCommits(ctx, installationID, fmt.Sprintf("/repos/%s/%s/pulls/%d/commits", owner, name, number), opts, true)
+}
+
+// listCommits is the one implementation behind ListCommits and
+// ListPullRequestCommits. path is the repository-relative endpoint;
+// pullRequest selects the completeness policy.
+func (c *Client) listCommits(ctx context.Context, installationID int64, path string, opts ListCommitsOptions, pullRequest bool) (*ListCommitsResult, error) {
 	token, err := c.installationToken(ctx, installationID)
 	if err != nil {
 		return nil, err
@@ -289,9 +541,12 @@ func (c *Client) ListCommits(ctx context.Context, installationID int64, owner, n
 	maxPages := opts.MaxPages
 	if maxPages <= 0 {
 		maxPages = 1
+		if pullRequest {
+			maxPages = maxPullRequestCommitPages
+		}
 	}
 
-	url := fmt.Sprintf("%s/repos/%s/%s/commits", c.baseURL, owner, name)
+	url := c.baseURL + path
 	if opts.PerPage > 0 {
 		url += "?per_page=" + strconv.Itoa(opts.PerPage)
 	}
@@ -319,6 +574,9 @@ func (c *Client) ListCommits(ctx context.Context, installationID int64, owner, n
 			resp.Body.Close()
 			result.NotModified = true
 			result.ETag = opts.ETag
+			// A 304 means "unchanged from what you cached"; it is not an empty
+			// list, so this result is never complete.
+			result.Complete = false
 			return result, nil
 		}
 		if resp.StatusCode != http.StatusOK {
@@ -344,6 +602,13 @@ func (c *Client) ListCommits(ctx context.Context, installationID int64, owner, n
 		url = next
 	}
 
+	// The walk ended with no page left to follow, so this is everything the
+	// endpoint offered — unless the pull request endpoint's documented cap was
+	// reached, where more commits may exist unseen.
+	result.Complete = url == ""
+	if pullRequest && len(result.Commits) >= maxPullRequestCommits {
+		result.Complete = false
+	}
 	return result, nil
 }
 
@@ -402,5 +667,24 @@ func apiError(resp *http.Response, op string) error {
 	if msg == "" {
 		msg = http.StatusText(resp.StatusCode)
 	}
-	return fmt.Errorf("github: %s: status %d: %s", op, resp.StatusCode, msg)
+	return &StatusError{Operation: op, Status: resp.StatusCode, Message: msg}
+}
+
+// StatusError is a non-2xx GitHub response. It is a type rather than a formatted
+// string so a caller can act on the status: an already-deleted comment is a 404
+// that a detach treats as satisfied rather than as a permanent failure.
+type StatusError struct {
+	Operation string
+	Status    int
+	Message   string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("github: %s: status %d: %s", e.Operation, e.Status, e.Message)
+}
+
+// IsNotFound reports whether err is a GitHub 404.
+func IsNotFound(err error) bool {
+	var status *StatusError
+	return errors.As(err, &status) && status.Status == http.StatusNotFound
 }

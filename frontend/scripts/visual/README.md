@@ -89,6 +89,10 @@ mounted into the composer's `renderTurnActions` slot exactly as the production p
 | `review-shoot.mjs` | Capture the collective review route `/groups/{id}/review` in one theme: the pending queue read as a project > branch > session tree with the transcript preview column and the decide-a-selection bottom bar. Two images per theme — the queue with nothing selected, and the queue with a project ticked AND the preview column open on a real submission. Asserts build provenance against the live DOM before writing any PNG: the review panel mounted, the queue grouped into more than one project (a flat list is the surface this route replaces), at least one child-session disclosure present, and BOTH bottom-bar decisions available. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the header at the top, and the clip box covering the whole document. The viewport is only grown to the document for the queue-alone image; with the preview open the shared contribute/review composition measures a constant 202px taller than any viewport it is given (the same is true of the shipped `/groups/{id}/contribute` route), so that state is rastered whole from the base viewport instead. |
 | `child-session-shoot.mjs` | Capture how one surface treats a session that another session started, in one theme, from one live page: `explore` (folded away, no control), `home` and `project` (collapsed and expanded chip), and the six lists sharing that same design — `profile`, `collective-data`, `collective-repos`, `collective-contributions`, `contribute-tree` (each closed and open), plus `collective-pending`, which does NOT fold and is captured once, flat (see "The six lists that fold behind the same control"). Asserts build provenance against the live DOM before writing any PNG — on discovery, that the started rows are off the grid, that a row whose parent the response does not carry still browses, that NO control rendered, and that the count above the grid matches the cards under it; on the other two, that the chip carries a bare counted label with nothing in front of it (it is read from the label element, not the whole control, so a leading mark cannot hide inside the show/hide affordance), that it sits in the same list unit as its own parent row, and that its VERTICAL RHYTHM holds as computed style — the row carrying a chip one design-system step tighter underneath, still opening its original distance above, an ordinary row in the same list unchanged, the indentation untouched, and the rendered gap within its band. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the whole document inside the viewport, and the clip box covering the document — so the fixed app header cannot composite over the middle of the image and the bottom of the list cannot be cut. |
 | `surface-gate.mjs` | The non-empty-surface gate (vendored, self-contained copy of the fairtrade `scripts/surface-gate.mjs`). Fails a capture that is blank / near-empty / byte-identical to another surface — closing the silent-blank hole a valid-but-empty bounding box leaves open (e.g. an empty graph). |
+| `demo-helper-groups-shoot.mjs` | Capture the canonical Fairtrade grouped-helper demonstration (the demo REFERENCE side of the collective SxS arms) from a SERVED demo build, both themes. Before writing any PNG it proves the **exact release** (`FAIRTRADE_CHECKOUT`'s `package.json` version equals this app's `@peasant-labs/fairtrade` pin AND `git describe --tags --exact-match` names `fairtrade-v<version>`), digsests the **served asset** (sha256) and cross-checks it byte-for-byte against the same file in that checkout's `dist/`, and checks the content markers (the arm's `[data-helper-demo]` case in the live DOM and the demonstration + connector markers in that served chunk). `DEMO_ASSET_SHA256` substitutes a served-bytes pin (recorded as digest-only). It writes `provenance.json` + `styles.json` (the shared computed readings and wrap measurements) next to the captures. |
+| `collective-stitch-sxs.mjs` | Compose the collective grouped arms as the fairtrade demo on the left and the village app on the right, per theme, at both a whole-surface and a bounded grouped-region level. Fails closed on (a) a missing/blank/byte-identical side, (b) any computed-property mismatch against `COMPARED_PROPERTIES` — the ONE set both shoots read — or an element missing on one side that is not a contract-expected `STYLE_EXCEPTIONS` entry, (c) an arm in `CONNECTOR_ARMS` whose canonical connector is missing on either side, and (d) a side with no `styles.json`/`provenance.json`, so the comparison and the attribution can never silently not run. Each composite header carries the mapping, both provenance lines (with what each does NOT prove), the compared-property count, the named exceptions and the measured wrap readings. The printed pixel-diff stays informational, because these pairs are deliberately different surfaces. |
+| `collective-sxs.mjs` | The arms table, the side check, the one compared property set with its named exceptions, the positive connector assertion (`CONNECTOR_ARMS`/`connectorProblem`), the wrap measurement and the exact-release/served-digest predicates the two shoots, the stitcher and the self-check all read. |
+| `collective-sxs-selfcheck.test.mjs` | The self-check (`testdata/collective-sxs-selfcheck.yaml` drives it; no inline case table). Pins every required arm by NAME and drives the SAME predicates the harness fails closed with: `sideProblem` (missing/blank/byte-identical side), `releaseProofProblem` (exact release), `digestProblem` (served bytes), `compareStyleRecords` (property match, named exceptions, the one font-alias normalization), and `connectorProblem` (the connector present on both sides of every member-selecting arm). |
 | `stitch-sxs.mjs` | Compose labeled, **height-matched** side-by-side composites (`REFERENCE | SUBJECT`) per surface per theme. The shorter pane is padded (never scaled) with its own border-sampled background; a dashed hairline marks where the shorter capture ends. A surface missing a subject capture gets a labeled placeholder panel so the set stays complete. The reference side defaults to the **committed `baseline/tb/`** (the same-component `<SessionDetail>` "before"); `REF_DIR=demo` is the optional non-gating design-language sanity panel (see **Oracle**). |
 | `baseline/tb/{dark,light}/` | The **committed** same-component reference: an earlier `<SessionDetail>` capture of the same `sess_demo_0001` session, recorded before theme convergence. It is a **frozen, non-regenerable** snapshot, so unlike the regenerable `demo/` it is tracked in the repository. The default `stitch` reads it directly, so the oracle works on a clean checkout with no staging. |
 
@@ -128,6 +132,9 @@ The harness is two arms over a shared surface set: the **capture+diff arm** (`vi
 | `APP_DIR` | stitch | `village` | Subject (right) capture subdir under `<base>` (`<base>/<APP_DIR>/<theme>/`). |
 | `APP_LABEL` | stitch | the village caption | The subject-pane caption drawn on each composite. |
 | `PUPPETEER_CORE` | all | `puppeteer-core` | Explicit module path to `puppeteer-core`, **only** if a bare import won't resolve (see below). |
+| `DEMO_ORIGIN` | `demo-helper-groups-shoot.mjs` | `http://localhost:5180` | Served origin of the **built** demo (the reference pane of the collective SxS arms). Point it at a `vite preview` over the fairtrade checkout's `dist/`; a `pnpm dev` server fails the release/served-bytes proof by design. |
+| `FAIRTRADE_CHECKOUT` | `demo-helper-groups-shoot.mjs` | — (required unless `DEMO_ASSET_SHA256` is set) | The fairtrade checkout the served dist was built from. Proven to be the exact release this app pins (version + `git describe --tags --exact-match`), and its `dist/` supplies the bytes the served asset is compared against. |
+| `DEMO_ASSET_SHA256` | `demo-helper-groups-shoot.mjs` | — | Substitute served-bytes pin when no checkout is available; recorded as `digest-only`, and it proves only that the served bytes are the ones the operator pinned. |
 
 **`puppeteer-core` resolution.** These scripts `import('puppeteer-core')`, which is a **devDependency of
 this app** — so `pnpm install` makes the bare import resolve and `pnpm run probe:village` /
@@ -303,6 +310,278 @@ Manual click-through checklist for the non-automated part of the gate:
 3. Switch between grid and list.
 4. Open transcript `d41a8e`, confirm the route changes to `/transcripts/d41a8e`, then open profile `alice-dev` and confirm `/users/alice-dev`.
 5. Search `ai` again, open `AI Research Team`, confirm `/groups/ai-research-team`, then back out and confirm the shell still renders the card grid.
+
+### Grouped helper threads on the collective routes
+
+`grouped-helper-shoot.mjs` also drives the collective surfaces whose grouped
+read hangs a saved helper group under its owner row:
+
+- `collective-browse` — `/groups/{id}`. The collective's own browse list draws
+  the server's saved helper group under the owner row it was grouped with, and
+  the group expands to individually linked members. The browse list is
+  read-only: it offers no per-member selection.
+- `collective-contribute` — `/groups/{id}/contribute`. Expanding the group and
+  ticking ONE member arms the contribution bar with exactly one transcript, and
+  the SAME transcript's flat tree row reads checked: one identity, one selection.
+- `collective-review` — `/groups/{id}/review`. The same explicit per-member
+  selection and the same one-identity rule on the owner's review queue; one tick
+  arms the decision bar.
+- `collective-my-shares` — `/groups/{id}`. The "your contributions" panel keeps
+  every contribution state it always stated (its count, its link, its pending
+  badge and its unshare control) while the saved helper group the server grouped
+  under that contribution hangs beneath its own row and expands to individually
+  linked members.
+
+Each arm asserts build provenance and capture geometry before writing a PNG:
+exactly one group, inside the owner row the server grouped it with, with no
+member request until the disclosure opens; the expanded group mounts
+individually linked members; and (on the two action surfaces) ticking one member
+arms the route's own action — never a group id, never an unticked sibling. The
+computed helper-group count style is probed too, because a scaled PNG cannot
+tell the design system's square radius and mono chrome apart from close values.
+
+`mock-rest-grouped-collective.mjs` serves the collective routes, the opt-in
+grouped pages, the registered member endpoints (with the route's own row arm
+per scope), and `/auth/me` as the collective's owner, so the contribute and
+review surfaces both render their action bars. It refuses a busy port.
+
+The `collective-my-shares` arm's state is `MOCK_COLLECTIVE_MY_SHARES=1` — the
+signed-in owner's own contributions carry a saved helper group, so the panel's
+grouped disclosure mounts under the contribution row the server grouped it
+with. Without that flag the panel serves no contributions and does not mount,
+which is what keeps every other arm's capture unchanged.
+
+Two capture states prove the grouped content no longer depends on the flat list:
+
+- `MOCK_COLLECTIVE_EMPTY_FLAT=1` — every flat list is empty while the grouped
+  pages still carry their saved helper groups. The arms
+  `collective-browse-empty-flat` and `collective-contribute-empty-flat` require
+  the grouped owner row and the helper-only context to mount WITHOUT the flat
+  list, and require the flat empty state NOT to replace them. The contribute arm
+  also ticks one disclosure member and requires the action bar to arm.
+- `MOCK_COLLECTIVE_LATER_PAGE=1` (with `MOCK_COLLECTIVE_EMPTY_FLAT=1`) — the
+  grouped reads page: a full first page of ordinary owners carrying no saved
+  helpers, then the grouped content on page two. The
+  `collective-contribute-later` arm requires the continuation to state the
+  server's remaining count, requires the later group to be absent until the
+  continuation is used, then requires it to mount exactly once when page two is
+  read.
+
+```sh
+CHROME=/path/to/google-chrome
+BASE=/abs/path/to/capture-base
+
+MOCK_REST_PORT=8847 MOCK_COLLECTIVE_EMPTY_FLAT=1 node scripts/visual/mock-rest-grouped-collective.mjs &
+until curl -sf http://localhost:8847/api/v1/auth/me >/dev/null; do sleep 0.2; done
+NEXT_PUBLIC_API_URL=http://localhost:8847/api/v1 pnpm build
+PORT=3100 NEXT_PUBLIC_API_URL=http://localhost:8847/api/v1 pnpm start &
+
+for surface in collective-browse-empty-flat collective-contribute-empty-flat; do
+  for theme in dark light; do
+    GROUPED_SHOOT_SURFACE=$surface VILLAGE_ORIGIN=http://localhost:3100 \
+      CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/$surface/$theme
+  done
+done
+
+# Restart the mock with the later page so page one carries no grouped content.
+kill %1; wait %1 2>/dev/null
+MOCK_REST_PORT=8847 MOCK_COLLECTIVE_EMPTY_FLAT=1 MOCK_COLLECTIVE_LATER_PAGE=1 \
+  node scripts/visual/mock-rest-grouped-collective.mjs &
+until curl -sf http://localhost:8847/api/v1/auth/me >/dev/null; do sleep 0.2; done
+for theme in dark light; do
+  GROUPED_SHOOT_SURFACE=collective-contribute-later VILLAGE_ORIGIN=http://localhost:3100 \
+    CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/collective-contribute-later/$theme
+done
+```
+
+Capture into `review-capture/` (gitignored). Per-round proof PNGs are never
+committed.
+
+### Collective grouped surfaces — fairtrade demo left, village app right
+
+The four collective grouped arms (the group browse list, contribute, review, and
+the grouped "your contributions" panel) are judged against the **canonical
+Fairtrade grouped-helper demonstration** rather than a demo collective surface:
+the in-use demo mounts no collective read of the grouped pages at all (its
+collective browse is a flat table, its contribute view is a flat project tree,
+its review queue is a flat `ModerationQueue`). What it does mount is
+`?app=commons&helpers=<case>#inuse`, the demonstration `HELPER-GROUPS.md` names,
+so that is the reference pane for every arm. `collective-sxs.mjs` carries the
+mapping, and each arm records what its pair can and cannot compare:
+
+| arm | demo reference (case · state) | what the pair compares |
+|---|---|---|
+| `collective-grouped-browse` | `three-independent-counts` · expanded | the owner anchor, the single indent step, the count chip and the individually linked members. Two limits, stated rather than implied: the browse list is read-only, so the demo's per-member checkboxes AND the connector they trace have no counterpart (the app crop carries no connector), and the app's owner row is the transcript list row it always was rather than the reference's generic owner row. |
+| `collective-grouped-contribute` | `three-independent-counts` · one member ticked | the per-member selection: the app arms its own bar (`contribute 1 transcript`) where the demo states the selected identity in its summary line. Both sides trace the canonical connector between their member checkboxes, which the harness asserts (`CONNECTOR_ARMS`); its absence fails the gate. |
+| `collective-grouped-review` | `trunk-replacement` · one member ticked | a tick names ONE identity, never a group: the reference group holds two members with the same title plus a third that differs, and the app states `1 selected` on its decision bar. As on contribute, both sides trace the canonical connector, asserted by `CONNECTOR_ARMS`. |
+| `collective-grouped-my-shares` | `ordinary-child-exit` · expanded | the host row keeps its own exits (the contribution link, pending state and unshare control) with the grouped disclosure hanging beneath it, which is what that reference example demonstrates. The panel's grouped read is display-only: its members are individually linked, with no per-member tick and no traced connector. |
+
+#### What the reference proof does and does not establish
+
+The demo side is captured from a **served build** (`vite preview` over the
+fairtrade checkout's `dist/`), never `pnpm dev`, and the shoot refuses to capture
+without an **exact-release proof** and a **served-bytes match**:
+
+- `FAIRTRADE_CHECKOUT`'s `package.json` version must equal this app's
+  `@peasant-labs/fairtrade` pin, and `git describe --tags --exact-match` in it
+  must name exactly `fairtrade-v<version>` — a checkout between releases has no
+  exact tag and fails;
+- the served asset is fetched, its **sha256 recorded**, and its bytes compared with
+  the same file inside that checkout's `dist/`;
+- `DEMO_ASSET_SHA256=<sha256>` is the substitute when no checkout is available: it
+  proves only that the served bytes are the ones the operator pinned, and is
+  recorded as `digest-only`;
+- the marker check (the arm's `[data-helper-demo]` case in the live DOM, the
+  demonstration + connector markers in that chunk) is a content check, not the
+  release proof.
+
+So the reference pane is proven to be **the exact served bytes of a locally built
+dist of the pinned release**. It is NOT proven that those bytes were the published
+ones, that the tree the dist was built from was clean, or that the build was never
+rebuilt. Each composite header repeats that limit next to the recorded digest.
+
+The app side records its own proof in `grouped-helper-shoot.mjs`: the loaded
+bundle carrying the markers **that arm's own route must carry** — the
+`data-helper-group-owner` mount marker on every collective route, plus
+`my-contributions-panel` on the two arms whose route loads the contributions
+panel (the contribute and review routes do not load that chunk, so requiring it
+there would refuse an attributable build) — together with that bundle's sha256,
+and a refusal when the served build changes between arms of one theme.
+
+#### The computed-style comparison
+
+Both shoots read the **same explicitly listed property set**
+(`COMPARED_PROPERTIES`: trigger, count, facts, title, rail) through the one
+`measureCollectiveStyles` function and write it to `styles.json`; the stitcher
+compares them property by property and **fails the run** on any mismatch. Painted
+colours are deliberately NOT in the set: they move with the focus state an arm
+ends in, and the captures carry them for the human read. The only value
+normalization is the font-family alias the app resolves through Next
+(`atkinsonHyperlegibleMono` vs `"Atkinson Hyperlegible Mono"`), named in
+`normalizeValue`.
+
+An element one side does not mount is one of two things, and the harness fails
+closed on everything else rather than lumping them into one allowance:
+
+- **expected by the design system's own contract** (`STYLE_EXCEPTIONS`, exactly
+  two entries, both the same fact): a display-only grouped read mounts no
+  checkbox, so no connector is drawn — the browse list and the contributions
+  panel;
+- **asserted present** (`CONNECTOR_ARMS`/`connectorProblem`): the arms that DO
+  mount per-member checkboxes — contribute and review — must compose the
+  design system's helper tree, which owns the traced connector. The connector is
+  asserted POSITIVELY on both sides: a missing connector on either side of one of
+  those arms aborts the stitch with an actionable reason, and the self-check pins
+  the arm list by NAME, so it cannot silently stop being asserted;
+- **unexplained**, which fails the stitch closed.
+
+The measured wrap readings below are on the same artifacts: the contribute and
+review panels keep their closed chip label on ONE line at 248px and wrap their
+facts line to two lines at 317px, where the reference reads one line at 248px and
+1302px respectively — measured per arm on both sides (`WRAP_ELEMENTS`), reported
+and never gated, because the two containers are legitimately different widths.
+
+Element widths and wrap state are **measured** per arm on both sides and reported
+on the composite header and in the log (`wrap (measured, not gated)`), never gated:
+the two panes are different surfaces whose containers are legitimately different
+widths.
+
+Two composites come out of the same pair per arm per theme: a whole-surface one
+(`<arm>.png`) and a bounded grouped-region one (`<arm>-grouped.png`). The printed
+pixel-diff is informational — the two panes are deliberately different surfaces —
+while the pass/fail is the side check, the style comparison, and the presence of
+both sides' proof records: a composite is never composed from a missing, blank or
+byte-identical side, an unattested side, or a surface that no longer matches the
+canonical demonstration's computed styles. The browse arm writes its bounded
+grouped region (`village-collective-grouped-browse-panel`) as the owner row plus
+its grouped children, so the owner anchor the mapping claims is actually in the
+crop.
+
+```sh
+CHROME=/path/to/google-chrome
+BASE=$PWD/review-capture/collective-sxs
+CHECKOUT=/path/to/fairtrade-design-system        # the checkout the served dist was built from
+MOCK_REST_PORT=8790
+APP_PORT=3117
+DEMO_PORT=5190
+GROUP=50000000-0000-4000-8000-000000000001
+
+# 0. demo side: serve the BUILT demo from the proven checkout. Never `pnpm dev`
+#    here: unbundled modules cannot be release- or digest-proven and the dev
+#    overlay paints the surface. The shoot refuses to capture without an exact
+#    release: CHECKOUT/package.json version == this app's fairtrade pin AND
+#    `git describe --tags --exact-match` == fairtrade-v<version>; it also records
+#    the served asset's sha256 and compares it with CHECKOUT/dist.
+cd "$CHECKOUT" && node_modules/.bin/vite preview \
+  --port $DEMO_PORT --strictPort --host 127.0.0.1 &
+
+# 1. app side: mock + production build + start
+cd frontend
+MOCK_REST_PORT=$MOCK_REST_PORT node scripts/visual/mock-rest-grouped-collective.mjs &
+until curl -sf http://localhost:$MOCK_REST_PORT/api/v1/auth/me >/dev/null; do sleep 0.2; done
+NEXT_PUBLIC_API_URL=http://localhost:$MOCK_REST_PORT/api/v1 pnpm build
+PORT=$APP_PORT NEXT_PUBLIC_API_URL=http://localhost:$MOCK_REST_PORT/api/v1 pnpm start &
+
+# 2. the app shoot itself refuses unless a loaded bundle carries the markers its
+#    route must have and records that bundle's sha256; this loop is the same check
+#    by hand for the collective page (both markers), failing closed when no chunk
+#    carries them (a stale build, another worktree, or dev). The contribute and
+#    review routes load only the mount marker: check that one there.
+curl -s "http://localhost:$APP_PORT/groups/$GROUP" \
+  | grep -oE 'src="[^"]*\.js"' | sed 's/src="//;s/"//' | sort -u > /tmp/village-chunks.txt
+proven=0
+while read -r chunk; do
+  body=$(curl -s "http://localhost:$APP_PORT$chunk")
+  case "$body" in
+    *data-helper-group-owner*) case "$body" in
+      *my-contributions-panel*) echo "app provenance: $chunk carries both markers"; proven=1 ;;
+    esac ;;
+  esac
+done < /tmp/village-chunks.txt
+test "$proven" = 1 || { echo 'FAIL: no served chunk carries both markers - rebuild from this worktree'; exit 1; }
+
+# 3. demo reference, both themes (exact-release proof + served digest)
+for theme in dark light; do
+  CHROME_PATH=$CHROME FAIRTRADE_CHECKOUT="$CHECKOUT" DEMO_ORIGIN=http://127.0.0.1:$DEMO_PORT \
+    node scripts/visual/demo-helper-groups-shoot.mjs $theme $BASE/demo/collective/$theme
+done
+
+# 4. app subject, both themes
+for theme in dark light; do
+  for surface in collective-browse collective-contribute collective-review; do
+    GROUPED_SHOOT_SURFACE=$surface VILLAGE_ORIGIN=http://localhost:$APP_PORT \
+      CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/village/collective/$theme
+  done
+done
+
+# 5. the grouped my-shares panel needs its own mock state, and the app keeps the
+#    API URL it was built with, so restart the mock on the SAME port
+pkill -f mock-rest-grouped-collective.mjs
+MOCK_REST_PORT=$MOCK_REST_PORT MOCK_COLLECTIVE_MY_SHARES=1 node scripts/visual/mock-rest-grouped-collective.mjs &
+until curl -sf http://localhost:$MOCK_REST_PORT/api/v1/auth/me >/dev/null; do sleep 0.2; done
+for theme in dark light; do
+  GROUPED_SHOOT_SURFACE=collective-my-shares VILLAGE_ORIGIN=http://localhost:$APP_PORT \
+    CHROME_PATH=$CHROME node scripts/visual/grouped-helper-shoot.mjs $theme $BASE/village/collective/$theme
+done
+
+# 6. compose both levels for both themes. Fails closed on a missing/blank side, a
+#    computed-style mismatch against COMPARED_PROPERTIES, an element missing
+#    without a named STYLE_EXCEPTIONS entry, an arm in CONNECTOR_ARMS whose
+#    connector is absent on either side, or a side with no styles.json /
+#    provenance.json (the comparison and the attribution can never not run).
+CHROME_PATH=$CHROME node scripts/visual/collective-stitch-sxs.mjs $BASE
+
+# 7. the self-check that gates those refusals (fixture-driven, no inline cases)
+pnpm run check:collective-sxs
+```
+
+Each side also writes `styles.json` (the shared computed + wrap readings) and
+`provenance.json` (release/asset proof) into its theme directory; the stitcher
+reads both, so a hand-staged side without them is refused rather than silently
+unattested.
+
+Composites land under `$BASE/sxs/collective/<theme>/`. Capture into
+`review-capture/` (gitignored); per-round proof PNGs are never committed.
 
 ### Sessions started by another session
 
@@ -534,6 +813,8 @@ gated by collective visibility and the owner's contributor opt-in.
 | `mock-rest-child-sessions.mjs` | REST stand-in for the six lists that fold behind the shared control. One process serves the profile library, a `curated` collective whose viewer is its owner (browse rows, review queue, the caller's own contributions) and the contribute tree. Every dataset carries a parent with two started sessions AND one row naming a starter the response does not carry, because that contrast is what the captures are evidence for. Refuses a busy `MOCK_REST_PORT` with a nonzero exit rather than letting another server's fixtures reach the capture. |
 | `mock-rest-project.mjs` | REST stand-in for the project page. Serves the page payload and the two hash-keyed correction routes LIVE, so a reset is a real round-trip rather than a second frozen fixture. `MOCK_PROJECT_VIEWER=owner\|other\|anon` chooses who is looking; `MOCK_PROJECT_ROLLUP=empty` serves an empty roll-up; `MOCK_PROJECT_IDENTITY=path` serves a project with NO git remote and no chosen or disclosed name, so its name is the redacted local path its publisher recorded. |
 | `project-page-shoot.mjs` | Captures the page per theme and asserts build provenance BEFORE writing any PNG: the served page must carry the project heading, the repository-label subtitle in `host:owner/repo` shape, and the correction control, and `VILLAGE_URL` must be the 64-hex hash-keyed route. `PROJECT_SHOOT_MODE=path` captures the path-named project instead: it requires the heading to carry the redacted-path shape, requires NO repository subtitle (there is no repository to label), and requires the correction control to explain the path tier - a sentence only a build that knows the tier serves, which is what makes a stale server fail instead of producing a misleading PNG. It also prints a `getComputedStyle` probe (tokens, fonts, radius, tabular numerals, text-transform), because `--surface` vs `--canvas` and `--ink-2` vs `--ink-3` cannot be told apart in a scaled PNG. |
+| `pull-request-shoot.mjs` | Capture `/pulls/{owner}/{name}/{number}` in one theme: the whole page (header, the fairtrade `PromptDigest`, the attached-transcript list) and the author-only confirm/detach panel. Asserts build provenance before writing any PNG — the pull request title matching `VILLAGE_URL`, a commit anchor, and a turn link — and prints the computed prompt clamp, because a screenshot cannot tell a clamped row from one that merely fits. |
+| `profile-prompt-settings-shoot.mjs` | Capture the signed-in user's own `preview before attaching` toggle in one theme. Narrow on purpose: the existing `profile-collectives-shoot.mjs` asserts the contributed-collectives fixture values, which this rail section does not involve. Asserts the section's label text before writing the PNG. |
 
 `PROJECT_SHOOT_MODE` selects which production state is captured:
 

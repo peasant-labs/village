@@ -22,12 +22,19 @@ import {
 } from "@/lib/ft-ui";
 import TranscriptList from "@/components/transcript/TranscriptList";
 import SessionGroupDisclosure from "@/components/transcript/SessionGroupDisclosure";
+import {
+  ScopedContextContainerList,
+  ScopedOwnerHelperGroups,
+  helperGroupsByTranscript,
+} from "@/components/transcript/ScopedHelperGroups";
+import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   useClearProjectDisplayName,
   useSetProjectDisplayName,
   useUserProject,
 } from "@/lib/queries/transcripts";
+import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
 import { describeNameSource } from "@/lib/format";
 import { childSessionsByParentID, groupProjectSessions } from "@/lib/childSessions";
 import { isApiErrorStatus } from "@/lib/api";
@@ -58,6 +65,18 @@ export default function UserProjectPage({
   const { username, projectHash } = use(params);
   const { user } = useAuth();
   const { data, isLoading, error } = useUserProject(username, projectHash);
+  // The server's own helper-group fold, scoped to this project and owner. It
+  // rides beside the flat project list, whose rows, child chip and pagination
+  // are unchanged; a grouped read that fails contributes no groups. The read
+  // pages, so a project whose transcripts exceed one grouped page still reaches
+  // every later owner's and context container's grouped exit.
+  const grouped = useGroupedTranscriptsPaged({
+    owner: username,
+    project_hash: projectHash,
+  });
+  const groupedItems = grouped.items;
+  const helperGroups = helperGroupsByTranscript(groupedItems);
+  const refreshGrouped = grouped.refreshOrigin;
   const setName = useSetProjectDisplayName();
   const clearName = useClearProjectDisplayName();
 
@@ -195,6 +214,24 @@ export default function UserProjectPage({
           showOwnerActions={isOwner}
           hideOwner
           bare
+          helperGroupSlot={(item) => (
+            <ScopedOwnerHelperGroups
+              groups={helperGroups.get(item.transcript.id)}
+              onRefreshOrigin={refreshGrouped}
+            />
+          )}
+        />
+        <ScopedContextContainerList
+          items={groupedItems}
+          onRefreshOrigin={refreshGrouped}
+        />
+        {/* A grouped page holds at most one server page of top-level units; the
+            continuation reads the next one so a later owner or helper-only
+            container in this project still gets its grouped exit. */}
+        <ScopedGroupedContinuation
+          remaining={grouped.remainingItems}
+          busy={grouped.isFetchingNextPage}
+          onLoadMore={() => void grouped.fetchNextPage()}
         />
         {grouping.orphanItems.length > 0 && (
           <SessionGroupDisclosure

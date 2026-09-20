@@ -1,0 +1,56 @@
+# The published grouping oracle: one owner session with two saved helper
+# sessions, published through the registered publish route and read back through
+# the registered grouped list and member routes over real PostgreSQL and real
+# object storage.
+#
+#   published-owner-with-two-helpers
+#     one owner session that carries 1 input submission and 5 turns, plus two
+#     helper sessions that each declare a durable started_by relationship to the
+#     owner's LOCAL SESSION ID. A helper is placed in the owner's group by that
+#     relationship and its helper_review purpose together; there is no seeded
+#     group row, so the read proves the projection the publish path produced.
+#
+# SERVED DATA and EXPECTED FACTS are declared apart, exactly as the design
+# system's own helper corpus does. `sessions` is what the publish route stores
+# (the session id, purpose, measures and durable parent edge), and
+# `ordinary`/`helpers`/`top_level`/`items`/`owner` are the grouped facts the read
+# routes must answer with. An edit to a stored measure therefore changes the
+# served row without changing the pinned expectation, so the case fails instead
+# of agreeing with itself.
+#
+# The durable session detail itself is NOT duplicated here: every case is built
+# from the canonical payload in session_graph_publication.yaml, which is the one
+# source of the published content shape. This corpus overrides only the identity,
+# purpose, measures and relationship edges that define the grouping shape.
+#
+# The loader refuses a corpus that drops a required NAME, repeats one, states an
+# unknown field, or names a session or case that does not resolve, so a case
+# cannot silently disappear and an inert expectation cannot survive.
+
+requiredNames:
+  - published-owner-with-two-helpers
+
+sessions:
+  - name: published-shape-owner
+    session_id: 550e8400-e29b-41d4-a716-4466554400a1
+    purpose: interaction
+    input: 1
+    turns: 5
+  - name: published-shape-helper-one
+    session_id: 550e8400-e29b-41d4-a716-4466554400a2
+    purpose: helper_review
+    started_by: published-shape-owner
+  - name: published-shape-helper-two
+    session_id: 550e8400-e29b-41d4-a716-4466554400a3
+    purpose: helper_review
+    started_by: published-shape-owner
+
+cases:
+  - name: published-owner-with-two-helpers
+    publish: [published-shape-owner, published-shape-helper-one, published-shape-helper-two]
+    ordinary: 1
+    helpers: 2
+    top_level: 1
+    items:
+      - {session: published-shape-owner, members: [published-shape-helper-one, published-shape-helper-two]}
+    owner: {input: 1, turns: 5}

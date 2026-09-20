@@ -210,7 +210,11 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 	}
 	pgGroupID := toPgUUID(groupID)
 
-	req, refusal := decodeBatchShareRequest(r)
+	body, ok := h.readContractBody(w, r, opBatchShareProject)
+	if !ok {
+		return
+	}
+	req, refusal := decodeBatchShareRequest(body)
 	if refusal != "" {
 		writeError(w, http.StatusBadRequest, refusal)
 		return
@@ -395,15 +399,20 @@ func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user 
 	})
 }
 
-// decodeBatchShareRequest reads and validates the body. Unknown fields are
-// rejected rather than ignored: a client that misspells visibility_confirmed
-// would otherwise be told its private transcripts need confirming while it
-// believes it sent one.
-func decodeBatchShareRequest(r *http.Request) (batchShareRequest, string) {
+// decodeBatchShareRequest decodes and validates the already contract-checked
+// body. Fields the contract does not declare are refused rather than ignored,
+// which is stricter than the contract's open object on purpose: a client that
+// misspells visibility_confirmed would otherwise be told its private
+// transcripts need confirming while it believes it sent one.
+func decodeBatchShareRequest(body contractBody) (batchShareRequest, string) {
 	var req batchShareRequest
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&req); err != nil {
+	if len(body.Undeclared) > 0 {
+		return req, fmt.Sprintf(
+			"this contribution request names fields the contract does not declare: %s. Refused before anything was "+
+				"submitted, so nothing was written. Send project_hash, an optional transcript_ids list, and "+
+				"visibility_confirmed, and no other fields.", strings.Join(body.Undeclared, ", "))
+	}
+	if err := json.Unmarshal(body.Declared, &req); err != nil {
 		return req, fmt.Sprintf(
 			"this contribution request could not be read: %s. Refused before anything was submitted, so nothing was "+
 				"written. Send project_hash, an optional transcript_ids list, and visibility_confirmed, and no other "+
@@ -538,6 +547,10 @@ type contributableResponse struct {
 // ListContributable serves everything the caller may offer to ONE collective.
 // GET /api/v1/groups/{id}/contributable (AuthRequired)
 func (h *Handler) ListContributable(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "grouped" {
+		h.listCollectiveGrouped(w, r, GroupedRouteContributable)
+		return
+	}
 	ctx := r.Context()
 	user := GetUser(ctx)
 

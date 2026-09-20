@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -24,6 +25,9 @@ import (
 // The one refusal it can return is an out-of-menu declaration, which is a
 // client error; see ResolvePublishedOrigin.
 func resolvePublishedSessionOrigin(ctx context.Context, content []byte) (sessionorigin.Origin, error) {
+	if err := refuseOutOfMenuSessionOrigin(content); err != nil {
+		return "", err
+	}
 	payload, _, err := defaultContentMigrator.Migrate(ctx, content)
 	if err != nil {
 		// No transcript content, identity, or path is logged - only the failure
@@ -42,6 +46,58 @@ func resolvePublishedSessionOrigin(ctx context.Context, content []byte) (session
 		declared = payload.SessionOrigin
 	}
 	return ResolvePublishedOrigin(declared, payload)
+}
+
+// peekSessionOriginDeclaration reads the producer's sessionOrigin declaration
+// from upload bytes without validating them. It reports false when the bytes
+// carry no string declaration, so absent, null, undecodable, and mistyped
+// values all fall through to the canonical decode path, which governs them:
+// absent defers to the classifier, undecodable content keeps the fail-safe
+// value, and a mistyped value fails closed there.
+func peekSessionOriginDeclaration(content []byte) (schema.SessionOrigin, bool) {
+	var envelope struct {
+		SessionDetail map[string]json.RawMessage `json:"sessionDetail"`
+	}
+	if json.Unmarshal(content, &envelope) == nil && envelope.SessionDetail != nil {
+		if declared, ok := decodeOriginString(envelope.SessionDetail["sessionOrigin"]); ok {
+			return declared, true
+		}
+		return "", false
+	}
+	var bare map[string]json.RawMessage
+	if json.Unmarshal(content, &bare) == nil && bare != nil {
+		if declared, ok := decodeOriginString(bare["sessionOrigin"]); ok {
+			return declared, true
+		}
+	}
+	return "", false
+}
+
+func decodeOriginString(raw json.RawMessage) (schema.SessionOrigin, bool) {
+	if len(raw) == 0 {
+		return "", false
+	}
+	var declared string
+	if json.Unmarshal(raw, &declared) != nil {
+		return "", false
+	}
+	return schema.SessionOrigin(declared), true
+}
+
+// refuseOutOfMenuSessionOrigin applies the designed 400 precedence for an
+// out-of-menu sessionOrigin declaration. The canonical decoder rejects such a
+// declaration fail-closed during the first content decode, which would turn
+// the documented refusal into a 422, so callers run this peek before decoding.
+// The menu still comes from the contract through ResolvePublishedOrigin, not
+// from a handler copy. Absent, null, undecodable, and mistyped values return
+// nil and stay governed by the decode path.
+func refuseOutOfMenuSessionOrigin(content []byte) error {
+	declared, ok := peekSessionOriginDeclaration(content)
+	if !ok {
+		return nil
+	}
+	_, err := ResolvePublishedOrigin(declared, nil)
+	return err
 }
 
 // ResolvePublishedOrigin takes the producer's declaration when it made one and

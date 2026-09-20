@@ -11,6 +11,15 @@ SELECT * FROM users WHERE id = $1;
 -- so this resolves to exactly one user.
 SELECT * FROM users WHERE lower(github_username) = lower($1);
 
+-- name: GetUserByProviderIdentity :one
+-- Resolves a signed-in identity to a user by the provider that authenticated
+-- them, in the exact text form sign-in stored: GitHub OAuth writes
+-- provider_user_id = github_id::text, so a webhook's numeric sender id is
+-- compared as text and never by login (a login can be renamed and re-used).
+-- A caller with no row — never signed in, or signed in through another provider
+-- — is pgx.ErrNoRows, which the matcher reports as unresolved.
+SELECT * FROM users WHERE provider = $1 AND provider_user_id = $2;
+
 -- name: UpsertUser :one
 -- github_username here is a freshly-generated unique candidate handle used only
 -- on INSERT; on a returning user (conflict) we preserve their chosen handle and
@@ -57,5 +66,13 @@ DELETE FROM users WHERE id = $1;
 UPDATE users SET
     is_discoverable = $2,
     updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: SetUserPreviewBeforeAttach :one
+-- Sets whether this user's own pull request attachments stop at a preview the
+-- user confirms, instead of attaching immediately.
+UPDATE users
+SET preview_before_attach = $2, updated_at = now()
 WHERE id = $1
 RETURNING *;

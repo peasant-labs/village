@@ -1,0 +1,222 @@
+# Mounted collective grouped-helper actions.
+#
+# The per-helper contribution and review selection on the real collective
+# routes. Every case names the tree row the group hangs under, the group the
+# server grouped with it, the member a person ticks individually, and the
+# EXACT explicit-id body the route must send. The member labels are human
+# names; the wire carries deterministic UUID transcript ids derived from them.
+groupId: 50000000-0000-4000-8000-000000000001
+projectHash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+projectName: peasant
+groups:
+  owner:
+    groupId: hg_owner_group
+    purpose: helper_review
+    helperThreadCount: 2
+    memberScope: scope-owner-group
+  other:
+    groupId: hg_other_group
+    purpose: helper_review
+    helperThreadCount: 1
+    memberScope: scope-other-group
+  context:
+    groupId: hg_context_group
+    purpose: helper_review
+    helperThreadCount: 1
+    memberScope: scope-context-group
+members:
+  owner:
+    - {name: G1, title: "the first saved helper"}
+    - {name: G2, title: "the second saved helper"}
+  other:
+    - {name: H1, title: "an independently owned helper"}
+  context:
+    - {name: C1, title: "a helper whose owner this page does not carry"}
+rows:
+  - {name: P1, id: 40000000-0000-4000-8000-000000000001, local_id: sess_p1, title: "the first owned session"}
+  - {name: P2, id: 40000000-0000-4000-8000-000000000002, local_id: sess_p2, title: "the second owned session"}
+cases:
+  - name: browse-renders-the-group-under-its-owner-row
+    surface: browse
+    why: The collective's browse list draws the server's saved helper group under the owner row it was grouped with.
+    row: P1
+    group: owner
+    expected_ids: []
+  - name: contribute-selects-one-helper-only
+    surface: contribute
+    why: A contributor ticks one helper member and the batch names exactly that transcript id.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
+  - name: contribute-context-container-is-not-selectable
+    surface: contribute
+    why: A helper-only context container is read context with no selectable row, so it can never enter a batch.
+    row: P1
+    group: owner
+    context: true
+    expected_ids: []
+  - name: review-selects-one-helper-only
+    surface: review
+    why: A reviewer decides one helper member and the decision names exactly that transcript id.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
+  - name: review-other-owner-group-remains-independent
+    surface: review
+    why: Selecting a member of the second owner's group sends only that member, never the first group's work.
+    row: P2
+    group: other
+    select: H1
+    expected_ids: [H1]
+# An identity the flat rendering and a helper disclosure BOTH carry is ONE
+# selected identity: each displayed total counts it once, both of its checkboxes
+# state the same thing, and the batch a route submits names it once. A case ticks
+# it on one surface at a time and requires the other surface to follow.
+overlapCases:
+  - name: contribute-overlapping-identity-counts-once
+    surface: contribute
+    why: The flat tree and the owner's helper disclosure both carry the ticked identity, so one tick is one selected transcript on both surfaces.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
+  - name: review-overlapping-identity-counts-once
+    surface: review
+    why: The flat queue and the owner's helper disclosure both carry the ticked identity, so one tick is one selected submission on both surfaces.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
+# The flat rendering does not carry the grouped content, so the grouped read
+# must mount it on its own. `flat` is `empty` (nothing in the flat result) or
+# `rendered` (the flat result carries the owner row, so its group must mount
+# under that row once and the fallback must not draw a second owner). `grouped`
+# is the grouped item the page serves; `group` is the key it carries and `row`
+# is the owner it hangs under (declared even for a context container, which has
+# no owner row of its own).
+fallbackCases:
+  - name: browse-empty-flat-mounts-helper-only-context
+    surface: browse
+    why: The flat browse result is empty, so the helper-only context container must mount without a flat row.
+    flat: empty
+    grouped: context
+    row: P1
+    group: context
+  - name: browse-grouped-owner-absent-from-flat-mounts-its-group
+    surface: browse
+    why: The grouped page names an owner the flat result omits, and its saved helper group must still mount under that owner row.
+    flat: empty
+    grouped: owner
+    row: P1
+    group: owner
+  - name: browse-grouped-owner-in-flat-mounts-its-group-once
+    surface: browse
+    why: The flat result carries the owner row, so its group mounts under it once and the grouped fallback draws no second owner row.
+    flat: rendered
+    grouped: owner
+    row: P1
+    group: owner
+  - name: contribute-empty-flat-mounts-helper-only-context
+    surface: contribute
+    why: The flat contributable tree is empty, so the helper-only context container must mount without a tree row.
+    flat: empty
+    grouped: context
+    row: P1
+    group: context
+  - name: contribute-grouped-owner-absent-from-flat-mounts-its-group
+    surface: contribute
+    why: The grouped page names an owner the flat tree omits, and its saved helper group must still mount under that owner row.
+    flat: empty
+    grouped: owner
+    row: P1
+    group: owner
+  - name: contribute-grouped-owner-in-tree-mounts-its-group-once
+    surface: contribute
+    why: The flat tree carries the owner row, so its group mounts under it once and the grouped fallback draws no second owner row.
+    flat: rendered
+    grouped: owner
+    row: P1
+    group: owner
+  - name: review-empty-flat-mounts-helper-only-context
+    surface: review
+    why: The flat review queue is empty, so the helper-only context container must mount without a queue row.
+    flat: empty
+    grouped: context
+    row: P1
+    group: context
+  - name: review-grouped-owner-absent-from-flat-mounts-its-group
+    surface: review
+    why: The grouped page names a submission the flat queue omits, and its saved helper group must still mount under that owner row.
+    flat: empty
+    grouped: owner
+    row: P1
+    group: owner
+  - name: review-grouped-owner-in-tree-mounts-its-group-once
+    surface: review
+    why: The flat queue carries the owner row, so its group mounts under it once and the grouped fallback draws no second owner row.
+    flat: rendered
+    grouped: owner
+    row: P1
+    group: owner
+# A grouped read pages. The first page is full of ordinary owners that carry no
+# saved helpers, so the owner group on page two is unreachable until the
+# continuation reads it; the same `pageSize` the route requests is stated here so
+# a case cannot declare a page the grouped endpoint could not serve.
+continuationCases:
+  - name: browse-continuation-reaches-later-owner-group
+    surface: browse
+    why: A grouped owner on page two is unreachable until the continuation reads page two, and must mount once when it does.
+    pageSize: 100
+    firstPageItems: 100
+    totalItems: 101
+    laterRow: P2
+    laterGroup: other
+    laterMember: H1
+  - name: contribute-continuation-reaches-later-owner-group
+    surface: contribute
+    why: A grouped owner on page two is unreachable until the continuation reads page two, and must mount once when it does.
+    pageSize: 100
+    firstPageItems: 100
+    totalItems: 101
+    laterRow: P2
+    laterGroup: other
+    laterMember: H1
+  - name: review-continuation-reaches-later-owner-group
+    surface: review
+    why: A grouped submission on page two is unreachable until the continuation reads page two, and must mount once when it does.
+    pageSize: 100
+    firstPageItems: 100
+    totalItems: 101
+    laterRow: P2
+    laterGroup: other
+    laterMember: H1
+# The per-member disclosure mounts the CANONICAL helper tree. The row the
+# surface already draws is that tree's owner, so the tree measures one connector
+# through the checkboxes of the member rows it holds; a tick inside it still
+# names exactly one member.
+#
+# `expectedAnchorCounts` is the connector oracle, read back from
+# `data-anchor-count` on the mounted connector: the anchors a COLLAPSED tree
+# holds (no member row is mounted, and the surface's own owner-row checkbox is
+# not a helper-tree anchor) and the anchors once its members are mounted. A
+# disclosure that draws per-member checkboxes outside the tree, or that traces a
+# row it does not own, is not the canonical composition and fails here.
+connectorCases:
+  - name: contribute-disclosure-mounts-the-canonical-tree
+    surface: contribute
+    why: The contribute tree's own row is the helper tree's owner, so the connector traces its member checkboxes while the row keeps its own selection state.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
+    expectedAnchorCounts: {collapsed: 0, expanded: 2}
+  - name: review-disclosure-mounts-the-canonical-tree
+    surface: review
+    why: The review tree's own row is the helper tree's owner, so the connector traces its member checkboxes while the row keeps its own decision state.
+    row: P1
+    group: owner
+    select: G2
+    expected_ids: [G2]
+    expectedAnchorCounts: {collapsed: 0, expanded: 2}

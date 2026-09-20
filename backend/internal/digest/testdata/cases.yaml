@@ -1,0 +1,94 @@
+# Named digest cases. Each case is accepted input (the matcher owns acceptance)
+# plus the header the builder must produce. Rendered output is pinned separately
+# under testdata/golden/.
+cases:
+  - name: short_session
+    villageUrl: https://village.example/transcripts
+    commitSet:
+      - a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
+      - "1111111111111111111111111111111111111111"
+      - "2222222222222222222222222222222222222222"
+    sessions:
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T14:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "first ask", timestamp: "2026-09-06T14:02:00Z"}
+          - {index: 1, role: user, content: "run the plan", timestamp: "2026-09-06T14:02:30Z", command: {name: "/superpowers:brainstorming", args: the header story}}
+          - {index: 2, role: assistant, content: "working on it", timestamp: "2026-09-06T14:03:00Z"}
+          - {index: 3, role: user, content: "second ask with <REDACTED>", timestamp: "2026-09-06T14:05:00Z"}
+    commits:
+      - {transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13, commitSha: a1b2c3d, authoredAt: "2026-09-06T14:04:00Z", additions: 10, deletions: 2, filesChanged: 3}
+      - {transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13, commitSha: deadbeefdeadbeefdeadbeefdeadbeefdeadbeef, authoredAt: "2026-09-06T14:06:00Z"}
+    expected:
+      sessionCount: 1
+      promptCount: 2
+      commitsCovered: 1
+      commitsTotal: 3
+      harness: claude-code
+      redactionLevel: standard
+      skills:
+        - {name: "/superpowers:brainstorming", invocationCount: 1}
+
+  - name: long_session
+    villageUrl: https://village.example/transcripts
+    commitSet: []
+    sessions:
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T14:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "prompt 1", timestamp: "2026-09-06T14:01:00Z"}
+          - {index: 1, role: user, content: "prompt 2", timestamp: "2026-09-06T14:02:00Z"}
+          - {index: 2, role: user, content: "prompt 3", timestamp: "2026-09-06T14:03:00Z"}
+          - {index: 3, role: user, content: "prompt 4", timestamp: "2026-09-06T14:04:00Z"}
+          - {index: 4, role: user, content: "prompt 5", timestamp: "2026-09-06T14:05:00Z"}
+          - {index: 5, role: user, content: "prompt 6", timestamp: "2026-09-06T14:06:00Z"}
+          - {index: 6, role: user, content: "prompt 7", timestamp: "2026-09-06T14:07:00Z"}
+          - {index: 7, role: user, content: "prompt 8", timestamp: "2026-09-06T14:08:00Z"}
+          - {index: 8, role: user, content: "prompt 9", timestamp: "2026-09-06T14:09:00Z"}
+          - {index: 9, role: user, content: "prompt 10", timestamp: "2026-09-06T14:10:00Z"}
+          - {index: 10, role: user, content: "prompt 11", timestamp: "2026-09-06T14:11:00Z"}
+          - {index: 11, role: user, content: "prompt 12", timestamp: "2026-09-06T14:12:00Z"}
+          - {index: 12, role: user, content: "prompt 13", timestamp: "2026-09-06T14:13:00Z"}
+          - {index: 13, role: user, content: "prompt 14", timestamp: "2026-09-06T14:14:00Z"}
+          - {index: 14, role: user, content: "prompt 15", timestamp: "2026-09-06T14:15:00Z"}
+    commits: []
+    expected:
+      sessionCount: 1
+      promptCount: 15
+      commitsCovered: 0
+      commitsTotal: 0
+      harness: claude-code
+      redactionLevel: standard
+      skills: []
+
+  - name: fork_pull_request
+    villageUrl: https://village.example/transcripts
+    commitSet:
+      - a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
+    sessions:
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T14:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "base repo ask", timestamp: "2026-09-06T14:02:00Z"}
+      - transcriptId: 8c2f5e3b-0d4a-4f9c-b2e7-3a6d9f0b1c24
+        harness: opencode
+        redactionLevel: minimal
+        sessionStart: "2026-09-06T15:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "fork ask", timestamp: "2026-09-06T15:01:00Z"}
+    commits:
+      - {transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13, commitSha: a1b2c3d, authoredAt: "2026-09-06T14:30:00Z"}
+    expected:
+      sessionCount: 2
+      promptCount: 2
+      commitsCovered: 1
+      commitsTotal: 1
+      harness: claude-code
+      redactionLevel: standard
+      skills: []

@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { TrajectoryGraph } from '@peasant-labs/fairtrade/graph';
 // The demo's drop-in composite + its one wire to view adapter. This viewer
@@ -15,6 +16,16 @@ import {
 } from '@peasant-labs/fairtrade/ui';
 import '@xyflow/react/dist/style.css';
 import type { SessionDetailPayload } from '@/types/messages';
+import type { SessionRelationshipNavigation } from '@peasant-labs/schema';
+import {
+  readTranscriptReadState,
+  writeTranscriptReadState,
+} from '@/lib/transcriptReadState';
+import {
+  readCarriedRelationshipAnchor,
+  relationshipHref,
+  resolveRelationshipAnchorTurn,
+} from '@/lib/relationshipAnchor';
 import { detectPhases } from '@/lib/insights';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/hooks/useTheme';
@@ -68,6 +79,17 @@ interface SessionDetailV2Props {
    *  to build the breadcrumb's project-page href. */
   ownerUsername?: string | null;
   detail: SessionDetailPayload | undefined;
+  /** The viewer's authorized current-target navigation from the metadata read
+   *  (`GET /transcripts/{id}`). It is read metadata, never durable content:
+   *  it is handed to Fairtrade's one adapter, which cooks the source/starter
+   *  links and any exact branch anchor. Absent when the metadata response
+   *  carried no relationship link. */
+  relationshipNavigation?: SessionRelationshipNavigation[];
+  /** This transcript's current public representation revision
+   *  (`Transcript.content_hash`, the digest of the redacted public bytes).
+   *  A carried exact branch anchor is applied only while it still matches this
+   *  value, the same authority the server used to emit the anchor. */
+  transcriptContentHash?: string | null;
   error?: string | null;
   /** `"full"` (default) is the standalone `/transcripts/{id}` route: every
    *  owner/viewer action, the trajectory graph, and the header action row.
@@ -99,6 +121,8 @@ export function SessionDetailV2({
   projectHash,
   ownerUsername,
   detail,
+  relationshipNavigation,
+  transcriptContentHash,
   error,
   variant = "full",
 }: SessionDetailV2Props) {
@@ -109,6 +133,23 @@ export function SessionDetailV2({
   const isOwner = !isPreview && !!user && !!transcriptOwnerId && user.id === transcriptOwnerId;
 
   const updateTranscript = useUpdateTranscript();
+  const router = useRouter();
+  // Read the persisted per-transcript read state once; the state initializers
+  // below seed from it, so Back after following a source link restores the
+  // child's query, selection, disclosure, and scroll.
+  const [restoredReadState] = useState(() => readTranscriptReadState(transcriptId));
+
+  // A source link may have carried the child's verified branch-point anchor
+  // here (see `relationshipAnchor`). Capture the mount query once — it is a
+  // one-time entry point, like `?turn=N` — and accept it only while this
+  // target's current public revision still matches the carried revision.
+  const [mountSearch] = useState(() =>
+    typeof window === 'undefined' ? '' : window.location.search,
+  );
+  const carriedAnchor = useMemo(
+    () => readCarriedRelationshipAnchor(mountSearch, transcriptContentHash),
+    [mountSearch, transcriptContentHash],
+  );
 
   // Manual per-turn labels: fetch existing (GET) + persist new ones (POST).
   // Reachable here means the transcript is viewable, so labelling is gated on
@@ -141,12 +182,16 @@ export function SessionDetailV2({
       detail as Parameters<typeof adaptTranscript>[0],
       undefined,
       analytics,
+      // Read metadata, not durable content: the adapter cooks the source/
+      // starter links and an exact branch anchor only when the navigation it
+      // receives still agrees with the durable relationship.
+      { relationshipNavigation },
     );
     // Overlay the stored title onto the hero — see `overlayStoredTitle` for
     // why the composite's own derivation (falling through to the first
     // `role: user` turn) is not safe to let through unmodified (village#32).
     return overlayStoredTitle(adapted, transcriptTitle);
-  }, [detail, turns, transcriptTitle]);
+  }, [detail, turns, transcriptTitle, relationshipNavigation]);
 
   // Cooked tool calls by turn index, fed into the graph engine's tool nodes.
   const toolVMsByTurn = useMemo(
@@ -154,15 +199,97 @@ export function SessionDetailV2({
     [vm],
   );
 
-  // ?turn=N permalinks land on that turn (read once on mount; afterwards the
-  // composite reports position changes back).
-  const [activeTurn, setActiveTurn] = useState<number | undefined>(() => {
+  // Resolve the carried anchor against the COOKED target turns (the adapter's
+  // rendered mapping, including folded call refs). Absent/unresolvable stays
+  // null: the target opens at its ordinary position.
+  const anchorTurn = useMemo(
+    () => (carriedAnchor && vm ? resolveRelationshipAnchorTurn(vm.turns, carriedAnchor) : null),
+    [carriedAnchor, vm],
+  );
+
+  // ?turn=N permalinks land on that turn; otherwise the persisted read state
+  // from a previous visit (Back after following a source link) is restored.
+  // Afterwards the composite reports position changes back and the host
+  // persists them, so browser Back returns to the same reading position.
+  const [initialTurnParam] = useState<number | undefined>(() => {
     if (typeof window === 'undefined') return undefined;
     const raw = new URLSearchParams(window.location.search).get('turn');
-    if (raw == null || raw === '') return undefined;
-    const n = Number(raw);
-    return Number.isInteger(n) && n >= 0 ? n : undefined;
+    if (raw != null && raw !== '') {
+      const n = Number(raw);
+      if (Number.isInteger(n) && n >= 0) return n;
+    }
+    return undefined;
   });
+  const [activeTurn, setActiveTurn] = useState<number | undefined>(
+    () => initialTurnParam ?? restoredReadState.activeTurn ?? undefined,
+  );
+  const [search, setSearch] = useState<string>(restoredReadState.search);
+  const [earlierHistoryOpen, setEarlierHistoryOpen] = useState<Record<string, boolean>>(
+    restoredReadState.earlierHistoryOpen,
+  );
+
+  // The verified branch point wins over `?turn=N` and any previously saved
+  // position for this target: the reader asked to be shown where the child
+  // branched. The viewer's `initialPosition` below performs the one-time
+  // scroll; this keeps the turn selected (and persisted) afterwards. Adjusting
+  // state during render (not in an effect) is the derived-state pattern: it
+  // applies once per resolved anchor and re-renders immediately.
+  const [appliedAnchorTurn, setAppliedAnchorTurn] = useState<number | null>(null);
+  if (anchorTurn != null && anchorTurn !== appliedAnchorTurn) {
+    setAppliedAnchorTurn(anchorTurn);
+    setActiveTurn(anchorTurn);
+  }
+
+  // The scroller the host restores after Back. Fairtrade owns the stream's own
+  // scroll behavior; village owns where the reader was.
+  const streamContainerRef = useRef<HTMLDivElement | null>(null);
+  const scrollTopRef = useRef<number>(restoredReadState.scrollTop);
+  const readStateRef = useRef({ search, activeTurn, earlierHistoryOpen });
+  useEffect(() => {
+    readStateRef.current = { search, activeTurn, earlierHistoryOpen };
+  }, [search, activeTurn, earlierHistoryOpen]);
+
+  const persistReadState = useCallback(() => {
+    writeTranscriptReadState(transcriptId, {
+      search: readStateRef.current.search,
+      activeTurn: readStateRef.current.activeTurn ?? null,
+      earlierHistoryOpen: readStateRef.current.earlierHistoryOpen,
+      scrollTop: scrollTopRef.current,
+    });
+  }, [transcriptId]);
+
+  // Persist the latest reading position when the child route unmounts (e.g.
+  // navigating to the current parent) so Back lands where it left.
+  useEffect(() => () => persistReadState(), [persistReadState]);
+
+  useEffect(() => {
+    if (!detail) return;
+    const stream = streamContainerRef.current?.querySelector<HTMLElement>('.txn-stream');
+    if (!stream) return;
+    // A one-time position — the `?turn=N` permalink or the carried branch
+    // anchor — owns the initial scroll. Only when neither is present does the
+    // saved read position apply; otherwise this restore would immediately undo
+    // the composite's own `initialPosition` scroll.
+    const hasInitialPosition = initialTurnParam != null || anchorTurn != null;
+    if (!hasInitialPosition) stream.scrollTop = scrollTopRef.current;
+    const onScroll = () => {
+      scrollTopRef.current = stream.scrollTop;
+      persistReadState();
+    };
+    stream.addEventListener('scroll', onScroll, { passive: true });
+    return () => stream.removeEventListener('scroll', onScroll);
+  }, [detail, persistReadState, initialTurnParam, anchorTurn]);
+
+  // A source/starter link opens the CURRENT target, never a historical replay.
+  // The adapter only reports a usable navigation target when the viewer is
+  // authorized; village owns the route and the Back restoration above. When
+  // the navigation carries a verified exact branch point, the route carries it
+  // too, so the target opens there instead of at its default position.
+  function handleNavigateRelationship(navigation: SessionRelationshipNavigation) {
+    persistReadState();
+    const href = relationshipHref(navigation);
+    if (href) router.push(href);
+  }
 
   // Existing saved labels → chips rendered in the host's per-turn actions.
   const savedLabelsByEntry = useMemo(
@@ -251,7 +378,7 @@ export function SessionDetailV2({
           )}
         </div>
       )}
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0" ref={streamContainerRef}>
         <TranscriptViewer
           viewModel={vm!}
           theme={theme}
@@ -312,6 +439,10 @@ export function SessionDetailV2({
                 : window.location.href;
               void navigator.clipboard?.writeText(url);
             },
+            // Village owns the route to the current source/starter target and
+            // the read-state restoration on Back. The adapter only reports a
+            // target the viewer is authorized to open.
+            onNavigateRelationship: isPreview ? undefined : handleNavigateRelationship,
           }}
           // Village's host trail through the app router (lowercase chrome).
           // The project crumb links to `/users/{username}/projects/{hash}`
@@ -329,8 +460,21 @@ export function SessionDetailV2({
             transcriptId,
           })}
           LinkComponent={Link}
+          // A verified branch point opens the target there (one-time position);
+          // without one the existing `?turn=N` / saved-position behavior runs.
+          initialPosition={
+            anchorTurn != null
+              ? { kind: 'turn', turnIndex: anchorTurn, requestKey: carriedAnchor?.sourceEntryRef }
+              : undefined
+          }
           activeTurn={activeTurn}
           onActiveTurnChange={setActiveTurn}
+          // Controlled read state the host persists, so Back after following a
+          // source link restores the child's query and earlier disclosures.
+          search={search}
+          onSearchChange={setSearch}
+          earlierHistoryOpen={earlierHistoryOpen}
+          onEarlierHistoryOpenChange={setEarlierHistoryOpen}
           // Per-turn copied anchors are full permalinks into the transcript
           // record — the pre-composite link shape.
           anchorHref={(turnIndex) =>

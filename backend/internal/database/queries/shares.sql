@@ -60,6 +60,7 @@ SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility,
        t.m7_spec_has_examples, t.m7_spec_has_constraints, t.computed_at,
        t.compute_version, t.content_hash, t.license_id, t.wrapped_data_key,
        t.encryption_algorithm, t.key_version, t.session_origin,
+       t.input_submission_count, t.root_session_id, t.session_purpose, t.session_relationships,
        u.github_username   AS owner_username,
        u.avatar_url        AS owner_avatar_url,
        u.is_discoverable   AS owner_is_discoverable
