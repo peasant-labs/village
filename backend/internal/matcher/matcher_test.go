@@ -38,6 +38,7 @@ var requiredMatchCaseNames = []string{
 	"one-unresolved-commit-does-not-hold-back-an-accepted-anchor",
 	"over-attributed-legacy-sha-is-retained-not-accepted",
 	"project-path-only-transcript-is-not-a-candidate",
+	"repository-name-is-the-comparison-not-the-owner",
 	"reused-branch-name-does-not-prove-relevance",
 	"same-repository-pull-request-cannot-match-a-stray-head-repo",
 	"sha-only-evidence-accepts",

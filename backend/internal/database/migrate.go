@@ -69,6 +69,7 @@ var migrations = []migration{
 	{version: 40, file: "migrations/040_resumable_webhook_ledger.up.sql"},
 	{version: 41, file: "migrations/041_attachment_collective.up.sql"},
 	{version: 42, file: "migrations/042_attachment_transcript_reverse_index.up.sql"},
+	{version: 43, file: "migrations/043_attachment_repo_name_lookup_index.up.sql"},
 }
 
 func RunMigrations(pool *pgxpool.Pool) error {
