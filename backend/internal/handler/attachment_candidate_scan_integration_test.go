@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -109,9 +110,9 @@ func TestCandidateCommitReadsDoNotScaleWithTheCorpus(t *testing.T) {
 		attachmentSeedTranscript(t, ctx, pool, blobs, owner, remote,
 			fmt.Sprintf("abc88880000000000000000000000000000%03d", i), "private", fmt.Sprintf("corpus/%d", i), time.Now().Add(-time.Duration(i+1)*time.Hour))
 	}
-	attachmentSeedTranscript(t, ctx, pool, blobs, owner, remote, matchedSHA, "private", "corpus/head", time.Now().Add(-time.Minute))
+	matched := attachmentSeedTranscript(t, ctx, pool, blobs, owner, remote, matchedSHA, "private", "corpus/head", time.Now().Add(-time.Minute))
 
-	attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, matchedSHA, 7)
+	attachment := attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, matchedSHA, 7)
 	fake.setPullCommits(matchedSHA)
 
 	tracer.reset()
@@ -121,5 +122,19 @@ func TestCandidateCommitReadsDoNotScaleWithTheCorpus(t *testing.T) {
 	}
 	if reads := tracer.count(); reads != 1 {
 		t.Fatalf("recorded-commit reads while matching a %d-transcript corpus = %d, want 1: the pool grows with what the author has published, so the read must not", corpus, reads)
+	}
+
+	// The one read has to be the pool's, not the count of a matcher that never
+	// ran: the attachment attached, and its digest names the transcript that the
+	// pool's commits were read for.
+	attached, err := h.queries.GetPullRequestAttachment(ctx, attachment.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attached.State != "attached" {
+		t.Fatalf("state = %q, want attached: the matcher ran over the pool", attached.State)
+	}
+	if !strings.Contains(string(attached.Digest), uuid.UUID(matched.Bytes).String()) {
+		t.Fatalf("the digest does not name the matched transcript, so the commits the tracer counted were not the pool's; digest=%s", attached.Digest)
 	}
 }
