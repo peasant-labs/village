@@ -997,6 +997,10 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 			// (for example a missing session harness) is still served, wrapped in
 			// the same durable envelope, so historical sessions stay readable. No
 			// canonical generation is installed here.
+			if payload.RetainedUnknown != nil || payload.Diagnostics != nil {
+				writeError(w, http.StatusInternalServerError, "Stored retained transcript failed canonical validation during read repair; no content was served or rewritten; republish valid canonical content and retry")
+				return
+			}
 			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), encodeErr)
 			response, err = marshalTranscriptContentEnvelope(currentContractVersion, payload)
 			if err != nil {

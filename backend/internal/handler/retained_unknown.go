@@ -124,35 +124,75 @@ func (h *Handler) scanRetainedUnknown(detail *schema.SessionDetailPayload) ([]st
 		return nil, nil
 	}
 	var issues []string
-	var visit func(any)
-	visit = func(value any) {
-		switch v := value.(type) {
-		case string:
-			issues = append(issues, h.scanTranscriptContent([]byte(v))...)
-		case []any:
-			for _, child := range v {
-				visit(child)
-			}
-		case map[string]any:
-			for key, child := range v {
-				visit(key)
-				// Key/value patterns such as api_key must not be hidden by JSON quotes.
-				if text, ok := child.(string); ok {
-					issues = append(issues, h.scanTranscriptContent([]byte(key+":"+text))...)
-				}
-				visit(child)
-			}
-		}
+	// Limits bound inspection, not retention. Exhaustion is a refusal before
+	// storage, never permission to accept an incompletely scanned payload.
+	remainingBytes, remainingNodes := 64<<20, 1<<20
+	inspectionError := func() error {
+		return fmt.Errorf("Redaction check failed. Retained payload inspection could not complete safely in handler.scanRetainedUnknown before storage; no content was written; simplify embedded JSON or redact it at the source and retry")
 	}
-	for _, record := range detail.RetainedUnknown {
-		issues = append(issues, h.scanTranscriptContent([]byte(record.Payload))...)
-		decoder := json.NewDecoder(strings.NewReader(record.Payload))
+	var visit func(any, int) error
+	var inspect func(string, int) error
+	inspect = func(text string, layers int) error {
+		remainingBytes -= len(text)
+		if remainingBytes < 0 {
+			return inspectionError()
+		}
+		if !json.Valid([]byte(text)) {
+			if layers == 0 {
+				return inspectionError()
+			}
+			return nil
+		}
+		if layers > 16 {
+			return inspectionError()
+		}
+		if err := schema.ScanRawJSONDocument([]byte(text), schema.RawJSONPathPolicy{MaxDocumentBytes: 8 << 20, MaxDocumentDepth: 64}); err != nil {
+			return inspectionError()
+		}
+		decoder := json.NewDecoder(strings.NewReader(text))
 		decoder.UseNumber()
 		var value any
 		if err := decoder.Decode(&value); err != nil {
-			return nil, publicationDetailError(err)
+			return inspectionError()
 		}
-		visit(value)
+		return visit(value, layers)
+	}
+	visit = func(value any, layers int) error {
+		remainingNodes--
+		if remainingNodes < 0 {
+			return inspectionError()
+		}
+		switch v := value.(type) {
+		case string:
+			issues = append(issues, h.scanTranscriptContent([]byte(v))...)
+			return inspect(v, layers+1)
+		case []any:
+			for _, child := range v {
+				if err := visit(child, layers); err != nil {
+					return err
+				}
+			}
+		case map[string]any:
+			for key, child := range v {
+				if err := visit(key, layers); err != nil {
+					return err
+				}
+				// Key/value patterns such as api_key must not be hidden by JSON quotes.
+				if text, ok := child.(string); ok {
+					issues = append(issues, h.scanTranscriptContent([]byte(key+"="+text))...)
+				}
+				if err := visit(child, layers); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	for _, record := range detail.RetainedUnknown {
+		issues = append(issues, h.scanTranscriptContent([]byte(record.Payload))...)
+		if err := inspect(record.Payload, 0); err != nil {
+			return nil, err
+		}
 	}
 	return issues, nil
 }

@@ -22,6 +22,8 @@ type retainedReceiverCase struct {
 	Text           string `yaml:"text"`
 	Repeat         int    `yaml:"repeat"`
 	ExpectedWrites int    `yaml:"expected_writes"`
+	FinalBytes     int    `yaml:"final_bytes"`
+	Status         int    `yaml:"status"`
 	Content        string `yaml:"-"`
 }
 
@@ -44,12 +46,27 @@ func loadRetainedReceiverCases(t *testing.T) []retainedReceiverCase {
 		t.Fatal("receiver fixture must contain one document")
 	}
 	seen := map[string]bool{}
+	targets := map[int]bool{}
 	for i := range corpus.Cases {
 		c := &corpus.Cases[i]
-		if c.Name == "" || seen[c.Name] || c.Text == "" || c.Repeat < 1 || c.Repeat > 1000000 || c.ExpectedWrites < 1 || c.ExpectedWrites > 2 {
+		if c.Name == "" || seen[c.Name] || c.Repeat > 1000000 || c.ExpectedWrites < 0 || c.ExpectedWrites > 2 || c.Status != 201 && c.Status != 409 {
 			t.Fatalf("invalid receiver fixture %q", c.Name)
 		}
 		seen[c.Name] = true
+		if c.FinalBytes != 0 {
+			if targets[c.FinalBytes] {
+				t.Fatal("duplicate actual-envelope byte target")
+			}
+			targets[c.FinalBytes] = true
+			if c.FinalBytes < (8<<20)-1 || c.FinalBytes > (8<<20)+1 || (c.Status == 409) != (c.FinalBytes > 8<<20) {
+				t.Fatal("inconsistent actual byte-boundary fixture")
+			}
+			c.Content = retainedContentAtBytes(t, cases[0].Content, c.FinalBytes)
+			continue
+		}
+		if c.Text == "" || c.Repeat < 1 {
+			t.Fatal("receiver text recipe is empty")
+		}
 		// Construct the actual publisher wire, not Go's HTML-escaped serialization.
 		// The payload is a JSON string containing only these fixture-owned runes.
 		if strings.ContainsAny(c.Text, "\"\\\n\r") {
@@ -71,18 +88,36 @@ func loadRetainedReceiverCases(t *testing.T) []retainedReceiverCase {
 			t.Fatalf("fixture %q no longer exercises serializer expansion", c.Name)
 		}
 	}
-	for _, name := range strings.Fields("html_payload_below_actual_transport_limit unicode_payload_below_actual_transport_limit") {
+	for _, name := range strings.Fields("html_payload_below_actual_transport_limit unicode_payload_below_actual_transport_limit actual_envelope_limit_minus_one actual_envelope_limit_exact actual_envelope_limit_plus_one") {
 		if !seen[name] {
 			t.Fatalf("required receiver fixture %q missing", name)
+		}
+	}
+	for target := (8 << 20) - 1; target <= (8<<20)+1; target++ {
+		if !targets[target] {
+			t.Fatalf("missing required actual-envelope byte target %d", target)
 		}
 	}
 	return corpus.Cases
 }
 
+func retainedContentAtBytes(t *testing.T, base string, target int) string {
+	t.Helper()
+	const marker = `\"text\":\"x\"`
+	if strings.Count(base, marker) != 1 || target < len(base) {
+		t.Fatal("invalid measured-envelope recipe")
+	}
+	raw := strings.Replace(base, marker, `\"text\":\"`+strings.Repeat("x", target-len(base)+1)+`\"`, 1)
+	if len(raw) != target {
+		t.Fatalf("constructed %d bytes, want exactly %d", len(raw), target)
+	}
+	return raw
+}
+
 // Independent original-wire oracle: keep payload as a string and numbers as
 // lexical json.Number values, without invoking a Schema decoder on the expected
 // side. This detects first-decode data loss as well as rewrite loss.
-func assertRetainedWire(t *testing.T, original, received []byte) {
+func assertRetainedWire(t *testing.T, original, received []byte) *schema.SessionDetailPayload {
 	t.Helper()
 	evidence := func(raw []byte) (any, any) {
 		d := json.NewDecoder(bytes.NewReader(raw))
@@ -109,10 +144,14 @@ func assertRetainedWire(t *testing.T, original, received []byte) {
 	if !containsContentCapability(schema.RequiredContentCapabilities(*decoded.SessionDetail), schema.ContentCapabilityRetainedUnknownV1) {
 		t.Fatal("receiver dropped retained evidence capability")
 	}
+	return decoded.SessionDetail
 }
 
 func TestRetainedUnknownActualWireBudget(t *testing.T) {
 	for _, c := range loadRetainedReceiverCases(t) {
+		if c.FinalBytes != 0 {
+			continue
+		} // Actual size edges run on the real receiver below.
 		t.Run(c.Name, func(t *testing.T) {
 			// A real publication must pass both the receiver boundary and metadata
 			// mirror path before any encrypted store side effect.

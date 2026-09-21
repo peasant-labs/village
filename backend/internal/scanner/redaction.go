@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 )
@@ -28,13 +27,9 @@ func ScanForSecrets(content []byte) []string {
 	var issues []string
 
 	for _, p := range patterns {
-		matches := p.pattern.FindAllString(text, 3)
-		if len(matches) > 0 {
-			preview := matches[0]
-			if len(preview) > 40 {
-				preview = preview[:40] + "..."
-			}
-			issues = append(issues, fmt.Sprintf("%s detected (e.g. %q)", p.name, preview))
+		if p.pattern.MatchString(text) {
+			// Findings are rule identifiers, never matched transcript data.
+			issues = append(issues, p.name)
 		}
 	}
 
@@ -43,6 +38,20 @@ func ScanForSecrets(content []byte) []string {
 
 // FormatScanErrors produces a user-friendly rejection message.
 func FormatScanErrors(issues []string) string {
-	return "Redaction check failed. Potential secrets detected:\n- " + strings.Join(issues, "\n- ") +
+	// This is the outward diagnostic boundary. Even an unexpected collaborator
+	// result cannot inject a credential, native key, path or payload preview.
+	var safe []string
+	for _, rule := range patterns {
+		for _, issue := range issues {
+			if issue == rule.name {
+				safe = append(safe, rule.name)
+				break
+			}
+		}
+	}
+	if len(safe) == 0 {
+		safe = append(safe, "Sensitive content")
+	}
+	return "Redaction check failed. Potential secrets detected:\n- " + strings.Join(safe, "\n- ") +
 		"\n\nPlease ensure the transcript is properly redacted before publishing."
 }

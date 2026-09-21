@@ -1,0 +1,7 @@
+cases:
+  - name: native_message_alias_data_is_opaque
+    content: '[{"role":"user","content":{"RetainedUnknown":null,"Diagnostics":null,"SessionDetail":{}}}]'
+  - name: native_tool_alias_data_is_opaque
+    content: '[{"type":"tool_use","input":{"RetainedUnknown":[],"diagnoſtics":null,"SessionDetail":{}}}]'
+  - name: unrelated_native_additive_field
+    content: '[{"role":"user","content":"hello","future":true}]'

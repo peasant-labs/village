@@ -7,12 +7,16 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/peasant-labs/schema"
+	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"gopkg.in/yaml.v3"
 )
 
@@ -117,15 +121,25 @@ func TestRetainedUnknownBareDetailPreservesEvidence(t *testing.T) {
 var retainedUnknownBoundariesYAML []byte
 
 type retainedUnknownBoundary struct {
-	Name          string  `yaml:"name"`
-	Payload       *string `yaml:"payload"`
-	Find          string  `yaml:"find"`
-	Replace       string  `yaml:"replace"`
-	MetadataFalse bool    `yaml:"metadata_false"`
-	Padding       int     `yaml:"padding"`
-	Depth         int     `yaml:"depth"`
-	Status        int     `yaml:"status"`
-	Error         string  `yaml:"error"`
+	Name           string   `yaml:"name"`
+	Payload        *string  `yaml:"payload"`
+	Find           string   `yaml:"find"`
+	Replace        string   `yaml:"replace"`
+	MetadataFalse  bool     `yaml:"metadata_false"`
+	Padding        int      `yaml:"padding"`
+	Depth          int      `yaml:"depth"`
+	Status         int      `yaml:"status"`
+	Error          string   `yaml:"error"`
+	Forbidden      []string `yaml:"forbidden"`
+	EmbeddedLayers int      `yaml:"embedded_layers"`
+	Mutations      []struct {
+		Find    string `yaml:"find"`
+		Replace string `yaml:"replace"`
+	} `yaml:"mutations"`
+	Wrap         string `yaml:"wrap"`
+	ProofFailure bool   `yaml:"proof_failure"`
+	StoredReject bool   `yaml:"stored_reject"`
+	FinalBytes   int    `yaml:"final_bytes"`
 }
 
 func loadRetainedUnknownBoundaries(t *testing.T) []retainedUnknownBoundary {
@@ -154,6 +168,11 @@ func loadRetainedUnknownBoundaries(t *testing.T) []retainedUnknownBoundary {
 			t.Fatalf("required boundary fixture %q absent", name)
 		}
 	}
+	for _, name := range strings.Fields("alias_only_legacy_provider alias_only_absent_harness alias_only_unicode_null_diagnostics alias_only_empty_evidence alias_only_envelope embedded_alias_public_root embedded_json_string_secret embedded_json_escaped_secret aws_assignment_pair escaped_aws_assignment_pair whole_upload_secret_diagnostic embedded_inspection_depth_exhausted") {
+		if !seen[name] {
+			t.Fatalf("required boundary fixture %q absent", name)
+		}
+	}
 	return corpus.Cases
 }
 
@@ -164,7 +183,10 @@ func (c retainedUnknownBoundary) parts(t *testing.T) (content, metadata []byte) 
 		t.Fatal(err)
 	}
 	content = []byte(cases[0].Content)
-	if c.Payload != nil || c.Padding > 0 || c.Depth > 0 {
+	if c.FinalBytes != 0 {
+		content = []byte(retainedContentAtBytes(t, string(content), c.FinalBytes))
+	}
+	if c.Payload != nil || c.Padding > 0 || c.Depth > 0 || c.EmbeddedLayers > 0 {
 		var envelope schema.TranscriptContent
 		if err := json.Unmarshal(content, &envelope); err != nil {
 			t.Fatal(err)
@@ -178,6 +200,17 @@ func (c retainedUnknownBoundary) parts(t *testing.T) (content, metadata []byte) 
 		if c.Depth > 0 {
 			envelope.SessionDetail.RetainedUnknown[0].Payload = strings.Repeat("[", c.Depth) + "0" + strings.Repeat("]", c.Depth)
 		}
+		if c.EmbeddedLayers > 0 {
+			payload := `{"future":"safe"}`
+			for i := 0; i < c.EmbeddedLayers; i++ {
+				b, err := json.Marshal(payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				payload = string(b)
+			}
+			envelope.SessionDetail.RetainedUnknown[0].Payload = payload
+		}
 		content, err = json.Marshal(envelope)
 		if err != nil {
 			t.Fatal(err)
@@ -189,6 +222,18 @@ func (c retainedUnknownBoundary) parts(t *testing.T) (content, metadata []byte) 
 			t.Fatalf("fixture %q mutation target absent", c.Name)
 		}
 		content = bytes.Replace(content, []byte(c.Find), []byte(c.Replace), 1)
+	}
+	for _, mutation := range c.Mutations {
+		if mutation.Find == "" || !bytes.Contains(content, []byte(mutation.Find)) {
+			t.Fatalf("missing mutation in %q", c.Name)
+		}
+		content = bytes.ReplaceAll(content, []byte(mutation.Find), []byte(mutation.Replace))
+	}
+	if c.Wrap != "" {
+		if c.Wrap != "native_rows" {
+			t.Fatalf("unknown boundary wrapper %q", c.Wrap)
+		}
+		content = append(append([]byte(`[{"future":`), content...), []byte(`}]`)...)
 	}
 	var req schema.AuthoritativePublishRequest
 	if err := json.Unmarshal(metadata, &req); err != nil {
@@ -245,14 +290,41 @@ func TestRetainedUnknownPublicationBoundaries(t *testing.T) {
 	for _, c := range loadRetainedUnknownBoundaries(t) {
 		t.Run(c.Name, func(t *testing.T) {
 			raw, meta := c.parts(t)
-			h := newTestHandler(&mockQuerier{}, newFakeBlobStore())
+			logs := captureRetainedLogs(t)
+			h := newTestHandler(&mockQuerier{getTranscriptIDByOwnerAndLocalID: func(context.Context, sqlc.GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error) {
+				t.Error("refused input reached persistence query")
+				return pgtype.UUID{}, errFakeNotFound
+			}}, nil)
+			if c.ProofFailure {
+				h.preservationEvaluator = fixedPreservationEvaluator{err: errors.New("preservation unavailable")}
+			}
 			w := publishPiParts(t, h, GetUser(withTestUser(context.Background())), meta, raw)
 			if w.Code != c.Status || !strings.Contains(w.Body.String(), c.Error) {
 				t.Fatalf("got %d %s; want %d containing %q", w.Code, w.Body.String(), c.Status, c.Error)
 			}
+			c.assertPrivate(t, w.Body.String(), logs.String())
 			if c.Status == http.StatusUnprocessableEntity && strings.Contains(c.Error, "Redaction check failed") && strings.Contains(w.Body.String(), "schema validation") {
 				t.Fatal("secret scan confused with contract refusal")
 			}
 		})
+	}
+}
+
+func captureRetainedLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var output bytes.Buffer
+	oldWriter, oldLogger := log.Writer(), slog.Default()
+	log.SetOutput(&output)
+	slog.SetDefault(slog.New(slog.NewTextHandler(&output, nil)))
+	t.Cleanup(func() { slog.SetDefault(oldLogger); log.SetOutput(oldWriter) })
+	return &output
+}
+
+func (c retainedUnknownBoundary) assertPrivate(t *testing.T, response, logs string) {
+	t.Helper()
+	for _, forbidden := range c.Forbidden {
+		if strings.Contains(response, forbidden) || strings.Contains(logs, forbidden) {
+			t.Fatalf("%s leaked a private fixture sentinel in response or logs", c.Name)
+		}
 	}
 }

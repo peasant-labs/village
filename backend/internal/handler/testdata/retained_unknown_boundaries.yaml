@@ -1,4 +1,87 @@
 cases:
+  - name: alias_only_legacy_provider
+    mutations:
+      - {find: '"harness":"claude-code"', replace: '"provider":"claude"'}
+      - {find: '"retainedUnknown"', replace: '"RetainedUnknown"'}
+      - {find: '"diagnostics"', replace: '"Diagnostics"'}
+      - {find: '"partial":true', replace: '"partial":false'}
+    proof_failure: true
+    stored_reject: true
+    status: 409
+    error: 'wire alias validation failed'
+  - name: alias_only_absent_harness
+    mutations:
+      - {find: '"harness":"claude-code",', replace: ''}
+      - {find: '"retainedUnknown"', replace: '"RetainedUnknown"'}
+      - {find: '"diagnostics"', replace: '"Diagnostics"'}
+    stored_reject: true
+    status: 409
+    error: 'wire alias validation failed'
+  - name: alias_only_unicode_null_diagnostics
+    mutations:
+      - {find: '"harness":"claude-code",', replace: ''}
+      - {find: '"diagnostics":{"partial":true}', replace: '"diagnoſtics":null'}
+      - {find: '"retainedUnknown":[', replace: '"unused":['}
+    stored_reject: true
+    status: 409
+    error: 'wire alias validation failed'
+  - name: alias_only_empty_evidence
+    mutations:
+      - {find: '"harness":"claude-code",', replace: ''}
+      - {find: '"diagnostics":{"partial":true},', replace: '"RetainedUnknown":[],'}
+      - {find: '"retainedUnknown":[', replace: '"unused":['}
+    stored_reject: true
+    status: 409
+    error: 'wire alias validation failed'
+  - name: alias_only_envelope
+    mutations:
+      - {find: '"harness":"claude-code"', replace: '"provider":"claude"'}
+      - {find: '"sessionDetail"', replace: '"SessionDetail"'}
+    stored_reject: true
+    status: 409
+    error: 'wire alias validation failed'
+  - name: embedded_alias_public_root
+    mutations:
+      - {find: '"harness":"claude-code"', replace: '"provider":"claude"'}
+      - {find: '"sessionDetail"', replace: '"SessionDetail"'}
+      - {find: '"contractVersion"', replace: '"ContractVersion"'}
+      - {find: '"kind"', replace: '"Kind"'}
+      - {find: '"retainedUnknown"', replace: '"RetainedUnknown"'}
+      - {find: '"diagnostics"', replace: '"Diagnostics"'}
+    wrap: native_rows
+    stored_reject: true
+    status: 409
+    error: 'public detail was embedded'
+  - name: embedded_json_string_secret
+    payload: '{"future":"{\"api_key\":\"abcdefghijklmnopqrstuvwx\"}"}'
+    forbidden: ['abcdefghijklmnopqrstuvwx', 'api_key']
+    status: 422
+    error: 'Redaction check failed. Potential secrets detected:'
+  - name: embedded_json_escaped_secret
+    payload: '{"future":"{\"private-fixture-key\":\"\\u0041KIAIOSFODNN7EXAMPLE\"}"}'
+    forbidden: ['AKIAIOSFODNN7EXAMPLE', 'private-fixture-key', '\u0041KIA']
+    status: 422
+    error: 'Redaction check failed. Potential secrets detected:'
+  - name: aws_assignment_pair
+    payload: '{"aws_secret_access_key":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}'
+    forbidden: ['wJalrXUtnFEMI', 'aws_secret_access_key']
+    status: 422
+    error: 'Redaction check failed. Potential secrets detected:'
+  - name: escaped_aws_assignment_pair
+    payload: '{"aws_\u0073ecret_access_key":"\u0077JalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}'
+    forbidden: ['wJalrXUtnFEMI', 'aws_secret_access_key', '\u0077Jalr']
+    status: 422
+    error: 'Redaction check failed. Potential secrets detected:'
+  - name: whole_upload_secret_diagnostic
+    find: '"content":"before"'
+    replace: '"content":"before AKIAIOSFODNN7EXAMPLE"'
+    forbidden: ['AKIAIOSFODNN7EXAMPLE']
+    status: 422
+    error: 'Redaction check failed. Potential secrets detected:'
+  - name: embedded_inspection_depth_exhausted
+    embedded_layers: 17
+    status: 422
+    error: 'Redaction check failed. Retained payload inspection'
   - name: case_alias_after_canonical_evidence
     find: '}]}}'
     replace: '}],"RetainedUnknown":null,"Diagnostics":null}}'
@@ -62,14 +145,17 @@ cases:
     error: 'diagnostics.partial'
   - name: escaped_unicode_secret
     payload: '{"credential":"\u0041KIAIOSFODNN7EXAMPLE"}'
+    forbidden: ['AKIAIOSFODNN7EXAMPLE', '\u0041KIA', 'credential']
     status: 422
     error: 'Redaction check failed. Potential secrets detected:'
   - name: escaped_nested_secret
     payload: '{"nested":[{"future":"\u0067hp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij"}]}'
+    forbidden: ['ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij', '\u0067hp_']
     status: 422
     error: 'Redaction check failed. Potential secrets detected:'
   - name: escaped_json_key_value_secret
     payload: '{"api_key":"abcdefghijklmnopqrstuvwx"}'
+    forbidden: ['abcdefghijklmnopqrstuvwx', 'api_key']
     status: 422
     error: 'Redaction check failed. Potential secrets detected:'
   - name: oversized_outer_document

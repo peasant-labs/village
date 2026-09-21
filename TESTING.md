@@ -1181,12 +1181,36 @@ compares retained fields to an independent original-wire oracle and requires the
 capability after each read, not just equality between two Schema decodes.
 Case-fold aliases beside canonical evidence, in both orders and at the envelope,
 are rejected before side effects; replacement refusals also compare audit state.
+Alias-only evidence with a missing harness or a legacy provider label is also a
+strict rejection marker, including Unicode folding and empty/null members. The
+real-service suite installs such invalid historical bytes through the encrypted
+writer fence and requires both display and pull to refuse them without mutations.
+Native message/tool data remains opaque to public-root discovery, as pinned by
+`retained_unknown_dispatch.yaml`.
+
+The receiver corpus also constructs and measures final envelopes of exactly
+8,388,607, 8,388,608 and 8,388,609 bytes. Accepted envelopes preserve every retained
+byte on publish/read/pull. The above-limit replacement leaves prior storage
+unchanged. Every successful no-write fallback read, including repeats, compares
+the complete row, governance audit, object write/delete counters and authenticated
+original bytes, not just a write count.
 
 `retained_unknown_boundaries.yaml` covers malformed/null evidence, source-order
 and pointer errors, metadata partial disagreement, document limits and escaped
 secrets. The scanner inspects decoded payload strings and key/value pairs without
 rewriting the stored JSON text. Contract refusals and secret-scan refusals assert
 their distinct bodies, and rejected replacements preserve the prior row and blob.
+Complete JSON embedded inside string values is inspected recursively with
+`UseNumber`; key/value inspection uses assignment form so existing AWS rules apply.
+Inspection is bounded to 16 embedded-string layers, 64 MiB of cumulative decoded
+JSON candidate bytes and 1,048,576 visited nodes. Each decoded document retains the
+8 MiB/depth-64 scanner bounds. Exhaustion or ambiguous embedded JSON refuses the
+publish with a payload-free remediation message; it never means scanning succeeded.
+These are fail-closed inspection budgets, not storage truncation or new wire limits.
+Scanner findings and outward messages contain allowlisted rule names only, never
+matches, decoded values, native keys or paths. Required fixtures assert private
+sentinels absent from complete HTTP responses and captured logs for direct,
+escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
