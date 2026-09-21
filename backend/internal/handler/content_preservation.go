@@ -128,7 +128,7 @@ func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluato
 	}
 	if len(shared) > 0 {
 		if err := evaluator.Evaluate(); err != nil {
-			return fmt.Errorf("enriched transcript publish refused because the uploaded transcript_file carries observedModel evidence, detailed usage or native metadata while Village's production preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would misattribute model output; deploy a Village build whose GET /api/v1/schema/version advertises %q after the preservation gate passes, then retry: %w", shared, err)
+			return fmt.Errorf("enriched transcript publish refused because the uploaded transcript_file carries observedModel evidence, detailed usage, native metadata or retained unknown evidence while Village's production preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would lose source data or misattribute model output; deploy a Village build whose GET /api/v1/schema/version advertises %q after the preservation gate passes, then retry: %w", shared, err)
 		}
 	}
 	if containsContentCapability(required, schema.ContentCapabilitySessionGraphProvenanceV1) {

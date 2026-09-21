@@ -152,7 +152,7 @@ test_stack() {
   export TEST_DATABASE_URL_TEMPLATE="postgres://test:test@127.0.0.1:${postgres_port}/{database}?sslmode=disable"
   export TEST_S3_ENDPOINT="http://127.0.0.1:${minio_port}" TEST_S3_BUCKET=village-encrypted-test TEST_S3_ACCESS_KEY=village-test TEST_S3_SECRET_KEY=village-test-only-password
   printf 'Disposable encrypted test project: %s (fixed ports require VILLAGE_TEST_* overrides for concurrent runs)\n' "$test_project"
-  (cd "$repo_root/backend" && nix develop -c env GOWORK=off GOFLAGS=-mod=readonly ../scripts/run-integration-gates.sh)
+  (cd "$repo_root/backend" && nix develop -c env GOWORK="${GOWORK:-off}" GOFLAGS=-mod=readonly ../scripts/run-integration-gates.sh)
   cleanup_test 0
 }
 

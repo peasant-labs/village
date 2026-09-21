@@ -174,6 +174,11 @@ func publicCanonicalHarness(detail map[string]json.RawMessage) bool {
 // values; deriving this from typed capabilities would erase those markers.
 func publicEvidencePresence(detail map[string]json.RawMessage) (strict bool) {
 	_, strict = detail["nativeMetadata"]
+	for _, key := range []string{"retainedUnknown", "diagnostics"} {
+		if _, present := detail[key]; present {
+			strict = true
+		}
+	}
 	var turns []map[string]json.RawMessage
 	_ = json.Unmarshal(detail["turns"], &turns)
 	for _, turn := range turns {
@@ -227,6 +232,9 @@ func embeddedPublicRoot(value any, allowRoot bool) bool {
 // A reserved-looking application key is not sufficient to identify a public
 // transcript. Container shape and envelope discriminators establish that role.
 func publicRootShape(node map[string]any) bool {
+	if _, present := node["retainedUnknown"]; present {
+		return true
+	}
 	if value, present := node["turns"]; present {
 		if value == nil {
 			return true

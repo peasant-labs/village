@@ -78,6 +78,7 @@ func TestAdvertisedContentCapabilitiesIncludeProvenanceWhenProofsPass(t *testing
 		schema.ContentCapabilityDetailedUsageV1,
 		schema.ContentCapabilityNativeMetadataV1,
 		schema.ContentCapabilityObservedModelV1,
+		schema.ContentCapabilityRetainedUnknownV1,
 		schema.ContentCapabilitySessionGraphProvenanceV1,
 		schema.ContentCapabilityToolNamespaceV1,
 	}
@@ -98,6 +99,7 @@ func TestAdvertisedContentCapabilitiesWithholdOnlyProvenanceWhenItsProofFails(t 
 		schema.ContentCapabilityDetailedUsageV1,
 		schema.ContentCapabilityNativeMetadataV1,
 		schema.ContentCapabilityObservedModelV1,
+		schema.ContentCapabilityRetainedUnknownV1,
 		schema.ContentCapabilityToolNamespaceV1,
 	}
 	if !slicesEqualCapabilities(capabilities, want) {

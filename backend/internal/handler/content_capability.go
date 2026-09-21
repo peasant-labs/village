@@ -60,6 +60,7 @@ func advertisedContentCapabilitiesWithEvaluators(evaluator observedModelPreserva
 		schema.ContentCapabilityDetailedUsageV1,
 		schema.ContentCapabilityNativeMetadataV1,
 		schema.ContentCapabilityObservedModelV1,
+		schema.ContentCapabilityRetainedUnknownV1,
 	}
 	if err := provenance.Evaluate(); err == nil {
 		capabilities = append(capabilities, schema.ContentCapabilitySessionGraphProvenanceV1)

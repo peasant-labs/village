@@ -1160,6 +1160,31 @@ one fixture, not N tests.
 
 ### Enriched transcript preservation gate
 
+`internal/handler/testdata/retained_unknown.yaml` holds the six-harness unknown
+record/block corpus. Strict YAML loading and required-name and harness membership
+guards protect it. `TestRetainedUnknownEncryptedPublicationReadPull` publishes
+each case through the authoritative handler into real PostgreSQL and encrypted
+MinIO, then compares initial raw pull, canonical rewrite, repeated content reads,
+and subsequent pull. Complete JSON-text payloads retain whitespace, arbitrary
+number literals, pointers and ordering, including a payload larger than 64 KiB.
+The existing outer 8 MiB and depth limits still apply; no payload is shortened.
+The test also checks the persisted partial mirror, private access and deletion.
+
+`retained_unknown_boundaries.yaml` covers malformed/null evidence, source-order
+and pointer errors, metadata partial disagreement, document limits and escaped
+secrets. The scanner inspects decoded payload strings and key/value pairs without
+rewriting the stored JSON text. Contract refusals and secret-scan refusals assert
+their distinct bodies, and rejected replacements preserve the prior row and blob.
+The boot-time base preservation proof includes the same corpus; a lossy canonical
+encoder withholds capabilities and refuses enriched publication before writes.
+
+The served/enforced contract expectation is Village API 0.22.0, including retained
+unknown evidence and the preceding head-remote prompt-request contract. Consumer
+release still requires a published Schema tag and the corresponding module pin.
+For a pre-release contract prototype only, the encrypted aggregate accepts an
+explicit absolute `GOWORK` pointing outside the repository; its default remains
+`GOWORK=off`. Never commit a local `replace` or ship with an unpublished module.
+
 `internal/handler/testdata/session_graph_publication.yaml` drives the canonical
 raw-decoder rejection tests and typed migration/rewrite equality tests. It keeps
 input-count absence, measured zero, positive values, and invalid lexical values

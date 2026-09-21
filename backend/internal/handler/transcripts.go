@@ -312,7 +312,13 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if issues := h.scanTranscriptContent(content); len(issues) > 0 {
+	issues, err := h.scanRetainedUnknown(durableDetail)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	issues = append(issues, h.scanTranscriptContent(content)...)
+	if len(issues) > 0 {
 		writeError(w, http.StatusUnprocessableEntity, scanner.FormatScanErrors(issues))
 		return
 	}

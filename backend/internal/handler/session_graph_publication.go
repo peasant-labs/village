@@ -122,12 +122,13 @@ func validatePublicationGraphMirrors(detail *schema.SessionDetailPayload, req *s
 		}
 		return nil
 	}
-	if !containsContentCapability(schema.RequiredContentCapabilities(*detail), schema.ContentCapabilitySessionGraphProvenanceV1) && req.Stats.InputSubmissionCount == nil && (authoritative == nil || authoritative.Identity.RootSessionID == nil && authoritative.Identity.Purpose == "" && len(authoritative.Identity.Relationships) == 0) {
+	if detail.Diagnostics == nil && !containsContentCapability(schema.RequiredContentCapabilities(*detail), schema.ContentCapabilitySessionGraphProvenanceV1) && req.Stats.InputSubmissionCount == nil && (authoritative == nil || authoritative.Identity.RootSessionID == nil && authoritative.Identity.Purpose == "" && len(authoritative.Identity.Relationships) == 0) {
 		return nil
 	}
 	metadata := schema.UnifiedMetadata{
 		SessionID: req.Identity.SessionID, ParentUUID: req.Identity.ParentSessionID,
 		ModelHarness: req.Model.Harness, Stats: req.Stats,
+		Diagnostics: req.Diagnostics,
 	}
 	if authoritative != nil {
 		metadata.RootSessionID = authoritative.Identity.RootSessionID

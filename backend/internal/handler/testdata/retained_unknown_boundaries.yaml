@@ -1,0 +1,67 @@
+cases:
+  - name: malformed_payload
+    payload: '{broken'
+    status: 409
+    error: 'raw JSON validation failed'
+  - name: duplicate_payload_member
+    payload: '{"x":1,"x":2}'
+    status: 409
+    error: 'raw JSON validation failed'
+  - name: invalid_payload_unicode
+    payload: '"\ud800"'
+    status: 409
+    error: 'raw JSON validation failed'
+  - name: null_evidence
+    find: '"retainedUnknown":['
+    replace: '"retainedUnknown":null,"unused":['
+    status: 409
+    error: 'raw JSON validation failed'
+  - name: null_diagnostics
+    find: '"diagnostics":{"partial":true}'
+    replace: '"diagnostics":null'
+    status: 409
+    error: 'raw JSON validation failed'
+  - name: false_partial
+    find: '"partial":true'
+    replace: '"partial":false'
+    status: 409
+    error: 'raw JSON validation failed'
+  - name: missing_partial
+    find: '"diagnostics":{"partial":true},'
+    replace: ''
+    status: 409
+    error: 'raw JSON validation failed'
+  - name: reversed_positions
+    find: '"position":5'
+    replace: '"position":3'
+    status: 409
+    error: 'raw JSON validation failed'
+  - name: invalid_pointer
+    find: '/message/content/1'
+    replace: '/message/~2bad'
+    status: 409
+    error: 'raw JSON validation failed'
+  - name: metadata_partial_mismatch
+    metadata_false: true
+    status: 422
+    error: 'diagnostics.partial'
+  - name: escaped_unicode_secret
+    payload: '{"credential":"\u0041KIAIOSFODNN7EXAMPLE"}'
+    status: 422
+    error: 'Redaction check failed. Potential secrets detected:'
+  - name: escaped_nested_secret
+    payload: '{"nested":[{"future":"\u0067hp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij"}]}'
+    status: 422
+    error: 'Redaction check failed. Potential secrets detected:'
+  - name: escaped_json_key_value_secret
+    payload: '{"api_key":"abcdefghijklmnopqrstuvwx"}'
+    status: 422
+    error: 'Redaction check failed. Potential secrets detected:'
+  - name: oversized_outer_document
+    padding: 8388609
+    status: 409
+    error: 'raw JSON validation failed'
+  - name: excessive_payload_depth
+    depth: 65
+    status: 409
+    error: 'raw JSON validation failed'
