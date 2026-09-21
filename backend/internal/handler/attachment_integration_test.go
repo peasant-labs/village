@@ -791,7 +791,7 @@ func TestPromptRequestsListWaitingAttachments(t *testing.T) {
 func TestPromptRequestsCarryTheForkRemote(t *testing.T) {
 	h, pool, _, _ := attachmentTestHandler(t)
 	ctx := context.Background()
-	owner := attachmentInsertOwner(t, ctx, pool, 992008)
+	owner := attachmentInsertOwner(t, ctx, pool, 992013)
 	defer cleanupOwners(t, ctx, pool, owner)
 
 	repoName := "forked-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
