@@ -26,7 +26,10 @@
 #
 # `expected_status: 400` marks the refusal row. Its needles are authored here,
 # independently of any production message, so an error that stops saying these
-# things fails the row instead of silently agreeing with itself.
+# things fails the row instead of silently agreeing with itself. The Go required
+# needle manifest registers mandatory clauses as a subset, so optional extras
+# remain allowed; a separate loader check derives the rejected input from
+# `declared_origin` and requires its exact echo here.
 
 - name: user_prompt_publishes_as_user
   arm: user

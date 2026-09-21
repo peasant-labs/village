@@ -1,13 +1,11 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,6 +22,9 @@ import (
 
 //go:embed testdata/session_origin_publish/cases.yaml
 var sessionOriginPublishCasesYAML []byte
+
+//go:embed testdata/session_origin_publish/loader_cases.yaml
+var sessionOriginPublishLoaderCasesYAML []byte
 
 type publishOriginTurnRun struct {
 	Role    string `yaml:"role"`
@@ -62,58 +63,71 @@ var requiredPublishOriginArms = []string{
 	"declared-out-of-menu",
 }
 
+var requiredPublishOriginRefusalNeedles = []string{
+	"user, agent, unknown",
+	"nothing was stored",
+	"publish again",
+}
+
 func loadPublishOriginFixtures(t *testing.T) []publishOriginFixture {
 	t.Helper()
-	decoder := yaml.NewDecoder(bytes.NewReader(sessionOriginPublishCasesYAML))
-	decoder.KnownFields(true)
-	var cases []publishOriginFixture
-	if err := decoder.Decode(&cases); err != nil {
-		t.Fatalf("decode publish session-origin fixture: %v", err)
+	cases, err := readPublishOriginFixtures(sessionOriginPublishCasesYAML)
+	if err != nil {
+		t.Fatal(err)
 	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		t.Fatalf("publish session-origin fixture must contain exactly one YAML document; got %v", trailing)
+	return cases
+}
+
+func readPublishOriginFixtures(data []byte) ([]publishOriginFixture, error) {
+	cases, err := decodeFixtureRows[publishOriginFixture](data)
+	if err != nil {
+		return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml: decode fixture during loader validation failed: %w; restore one valid YAML document using only known fields", err)
 	}
 	arms, names := map[string]bool{}, map[string]bool{}
 	for _, c := range cases {
 		if names[c.Name] {
-			t.Fatalf("publish session-origin fixture repeats name %q", c.Name)
+			return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found a duplicate name; fixture rows must have unique names; rename or remove the duplicate", c.Name)
 		}
 		names[c.Name], arms[c.Arm] = true, true
 		if c.Undecodable && len(c.Turns) != 0 {
-			t.Fatalf("row %q uploads undecodable bytes and cannot also declare turns", c.Name)
+			return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found turns on an undecodable upload; these inputs cannot coexist; remove the turns or clear undecodable", c.Name)
 		}
 		for _, run := range c.Turns {
 			if run.Count < 1 || !schema.Role(run.Role).IsValid() {
-				t.Fatalf("row %q has an unusable turn run %+v", c.Name, run)
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found an unusable turn run %+v; handler coverage cannot execute it; use a valid role and positive count", c.Name, run)
 			}
 		}
 		if c.refused() {
 			if c.ExpectedStatus != http.StatusBadRequest {
-				t.Fatalf("row %q expects status %d; the only refusal this path has is 400", c.Name, c.ExpectedStatus)
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found refusal status %d; this path only refuses with 400; restore expected_status: 400", c.Name, c.ExpectedStatus)
 			}
 			if c.ExpectedOrigin != "" {
-				t.Fatalf("row %q is refused and therefore stores nothing, so it cannot expect origin %q", c.Name, c.ExpectedOrigin)
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found stored origin %q on a refused publish; refusals write nothing; remove expected_origin", c.Name, c.ExpectedOrigin)
 			}
-			if len(c.ExpectedErrorContains) == 0 {
-				t.Fatalf("row %q refuses the publish but authors no error needle; a refusal with an unchecked message proves nothing", c.Name)
+			for _, needle := range requiredPublishOriginRefusalNeedles {
+				if !containsPublishOriginNeedle(c.ExpectedErrorContains, needle) {
+					return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation is missing required refusal needle %q; the refusal message is not fully checked; restore it in expected_error_contains", c.Name, needle)
+				}
+			}
+			if !containsPublishOriginNeedle(c.ExpectedErrorContains, c.DeclaredOrigin) {
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation is missing the declared input %q from refusal needles; the rejected value is not checked; add that exact input to expected_error_contains", c.Name, c.DeclaredOrigin)
 			}
 			continue
 		}
 		if len(c.ExpectedErrorContains) != 0 {
-			t.Fatalf("row %q is accepted and cannot also expect an error message", c.Name)
+			return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found error needles on an accepted publish; accepted rows have no refusal body; remove expected_error_contains", c.Name)
 		}
 		if _, err := sessionorigin.Parse(c.ExpectedOrigin); err != nil {
-			t.Fatalf("row %q: %v", c.Name, err)
+			return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found an invalid expected origin: %w; use a supported stored origin", c.Name, err)
 		}
 		if c.Undecodable {
 			if c.ClassifiedOrigin != "" {
-				t.Fatalf("row %q uploads bytes no classifier can read, so it cannot state a classified answer", c.Name)
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found a classified answer for unreadable bytes; no classifier result exists; remove classified_origin", c.Name)
 			}
 			continue
 		}
 		if _, err := sessionorigin.Parse(c.ClassifiedOrigin); err != nil {
-			t.Fatalf("row %q must state what this server's own classifier answers: %v", c.Name, err)
+			return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation requires the server classifier answer: %w; set classified_origin to the supported result", c.Name, err)
 		}
 		switch c.DeclaredOrigin {
 		case string(schema.SessionOriginUser), string(schema.SessionOriginAgent):
@@ -121,35 +135,140 @@ func loadPublishOriginFixtures(t *testing.T) []publishOriginFixture {
 			// declaration: it then passes for an implementation that ignores the
 			// declaration entirely.
 			if c.ClassifiedOrigin == c.DeclaredOrigin {
-				t.Fatalf("row %q declares %q on a payload this server would classify %q too, so honouring the declaration is unobservable; give it a payload the classifier answers differently", c.Name, c.DeclaredOrigin, c.ClassifiedOrigin)
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found declaration %q equal to classification %q, so declaration precedence is unobservable; use turns classified differently", c.Name, c.DeclaredOrigin, c.ClassifiedOrigin)
 			}
 			if c.ExpectedOrigin != c.DeclaredOrigin {
-				t.Fatalf("row %q declares %q, so the stored value must be %q, not %q", c.Name, c.DeclaredOrigin, c.DeclaredOrigin, c.ExpectedOrigin)
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found expected origin %q for declaration %q; declaration must win; set expected_origin to %q", c.Name, c.ExpectedOrigin, c.DeclaredOrigin, c.DeclaredOrigin)
 			}
 		case string(schema.SessionOriginUnknown):
 			// The same trap, one step further: a declared `unknown` on a payload
 			// the classifier also calls `unknown` passes even for the forbidden
 			// implementation that stores the declaration verbatim.
 			if c.ClassifiedOrigin == string(schema.SessionOriginUnknown) {
-				t.Fatalf("row %q declares unknown on a payload this server also classifies unknown, so storing the declaration verbatim would pass; give it a payload the classifier answers user or agent", c.Name)
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found unknown declared and classified; classifier fallback is unobservable; use turns classified as user or agent", c.Name)
 			}
 			if c.ExpectedOrigin != c.ClassifiedOrigin {
-				t.Fatalf("row %q declares unknown, which returns the decision to this server, so the stored value must be the classified %q, not %q", c.Name, c.ClassifiedOrigin, c.ExpectedOrigin)
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found expected origin %q after unknown declaration; classification %q must win; restore that classified value", c.Name, c.ExpectedOrigin, c.ClassifiedOrigin)
 			}
 		case "":
 			if c.ExpectedOrigin != c.ClassifiedOrigin {
-				t.Fatalf("row %q carries no declaration, so the stored value must be exactly the classified %q, not %q", c.Name, c.ClassifiedOrigin, c.ExpectedOrigin)
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found expected origin %q without a declaration; classification %q must be stored; restore that classified value", c.Name, c.ExpectedOrigin, c.ClassifiedOrigin)
 			}
 		default:
-			t.Fatalf("row %q declares %q, which is neither a menu value nor an accepted publish; only the refused row may carry an out-of-menu declaration", c.Name, c.DeclaredOrigin)
+			return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found out-of-menu declaration %q on an accepted publish; only a refused row may carry it; add the refusal expectation or use a menu value", c.Name, c.DeclaredOrigin)
 		}
 	}
 	for _, arm := range requiredPublishOriginArms {
 		if !arms[arm] {
-			t.Fatalf("publish session-origin fixture omits required arm %q", arm)
+			return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml: loader validation omits required arm %q; coverage would be lost; restore a row for that arm", arm)
+		}
+	}
+	return cases, nil
+}
+
+func containsPublishOriginNeedle(needles []string, want string) bool {
+	for _, needle := range needles {
+		if needle == want {
+			return true
+		}
+	}
+	return false
+}
+
+type publishOriginLoaderFixture struct {
+	Name                  string `yaml:"name"`
+	RemoveNeedle          string `yaml:"remove_needle"`
+	ClearNeedles          bool   `yaml:"clear_needles"`
+	DeclaredOrigin        string `yaml:"declared_origin"`
+	AppendNeedle          string `yaml:"append_needle"`
+	ExpectedErrorContains string `yaml:"expected_error_contains"`
+}
+
+var requiredPublishOriginLoaderFixtures = []string{
+	"unchanged_corpus_is_valid",
+	"missing_accepted_menu_is_refused",
+	"missing_storage_assurance_is_refused",
+	"missing_retry_instruction_is_refused",
+	"missing_all_needles_is_refused",
+	"changed_declaration_requires_matching_echo",
+	"extra_unregistered_needle_is_allowed",
+}
+
+func loadPublishOriginLoaderFixtures(t *testing.T) []publishOriginLoaderFixture {
+	t.Helper()
+	cases, err := decodeFixtureRows[publishOriginLoaderFixture](sessionOriginPublishLoaderCasesYAML)
+	if err != nil {
+		t.Fatalf("load publish-origin loader fixture: %v", err)
+	}
+	names := make(map[string]bool, len(cases))
+	for _, c := range cases {
+		if c.Name == "" || names[c.Name] {
+			t.Fatalf("publish-origin loader fixture has empty or duplicate name %q", c.Name)
+		}
+		names[c.Name] = true
+	}
+	for _, name := range requiredPublishOriginLoaderFixtures {
+		if !names[name] {
+			t.Fatalf("publish-origin loader fixture omits required case %q", name)
 		}
 	}
 	return cases
+}
+
+func TestPublishOriginFixtureLoader(t *testing.T) {
+	for _, testCase := range loadPublishOriginLoaderFixtures(t) {
+		t.Run(testCase.Name, func(t *testing.T) {
+			cases, err := decodeFixtureRows[publishOriginFixture](sessionOriginPublishCasesYAML)
+			if err != nil {
+				t.Fatalf("decode fresh canonical corpus: %v", err)
+			}
+			var refusal *publishOriginFixture
+			for i := range cases {
+				if cases[i].Name == "declared_out_of_menu_value_is_refused_and_stores_nothing" {
+					refusal = &cases[i]
+					break
+				}
+			}
+			if refusal == nil {
+				t.Fatal("canonical corpus is missing the named refusal row")
+			}
+			if testCase.RemoveNeedle != "" {
+				if !containsPublishOriginNeedle(refusal.ExpectedErrorContains, testCase.RemoveNeedle) {
+					t.Fatalf("mutation target %q is absent from the fresh refusal row", testCase.RemoveNeedle)
+				}
+				filtered := refusal.ExpectedErrorContains[:0]
+				for _, needle := range refusal.ExpectedErrorContains {
+					if needle != testCase.RemoveNeedle {
+						filtered = append(filtered, needle)
+					}
+				}
+				refusal.ExpectedErrorContains = filtered
+			}
+			if testCase.ClearNeedles {
+				refusal.ExpectedErrorContains = nil
+			}
+			if testCase.DeclaredOrigin != "" {
+				refusal.DeclaredOrigin = testCase.DeclaredOrigin
+			}
+			if testCase.AppendNeedle != "" {
+				refusal.ExpectedErrorContains = append(refusal.ExpectedErrorContains, testCase.AppendNeedle)
+			}
+			data, err := yaml.Marshal(cases)
+			if err != nil {
+				t.Fatalf("marshal mutated corpus: %v", err)
+			}
+			_, err = readPublishOriginFixtures(data)
+			if testCase.ExpectedErrorContains == "" {
+				if err != nil {
+					t.Fatalf("loader unexpectedly rejected corpus: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), testCase.ExpectedErrorContains) {
+				t.Fatalf("loader error = %v, want fragment %q", err, testCase.ExpectedErrorContains)
+			}
+		})
+	}
 }
 
 // refused reports whether the row expects the publish to be turned away.
