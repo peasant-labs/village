@@ -5,8 +5,10 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -26,6 +28,88 @@ func TestRetainedUnknownPreservation(t *testing.T) {
 	}
 	if !containsContentCapability(advertisedContentCapabilities(), schema.ContentCapabilityRetainedUnknownV1) {
 		t.Fatal("retained evidence capability not advertised")
+	}
+}
+
+func TestRetainedUnknownLossRefusesPublicationAndAdvertisement(t *testing.T) {
+	proofErr := proveRetainedUnknownPreservation(fieldLossEncoder{member: "retainedUnknown"})
+	if proofErr == nil {
+		t.Fatal("lossy rewrite passed preservation proof")
+	}
+	h := newTestHandler(&mockQuerier{}, newFakeBlobStore())
+	h.preservationEvaluator = fixedPreservationEvaluator{err: proofErr}
+	w := httptest.NewRecorder()
+	h.GetSchemaVersion(w, httptest.NewRequest(http.MethodGet, "/api/v1/schema/version", nil))
+	var version schema.SchemaVersionResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &version); err != nil {
+		t.Fatal(err)
+	}
+	if len(version.ContentCapabilities) != 0 {
+		t.Fatal("lossy rewrite advertised preservation")
+	}
+	cases, err := loadRetainedUnknownFixtures(retainedUnknownYAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := []byte(cases[0].Content)
+	refused := publishPiParts(t, h, GetUser(withTestUser(context.Background())), retainedUnknownMetadata(t, raw), raw)
+	if refused.Code != http.StatusConflict || !strings.Contains(refused.Body.String(), "retained_unknown_v1") || !strings.Contains(refused.Body.String(), "no transcript bytes or metadata were written") {
+		t.Fatalf("lossy rewrite publish=%d %s", refused.Code, refused.Body.String())
+	}
+}
+
+func TestRetainedUnknownInvalidStoredEvidenceRefusesMigration(t *testing.T) {
+	for _, c := range loadRetainedUnknownBoundaries(t) {
+		if c.Status != http.StatusConflict {
+			continue
+		}
+		t.Run(c.Name, func(t *testing.T) {
+			raw, _ := c.parts(t)
+			if _, rewrite, err := NewContentMigrator().Migrate(context.Background(), raw); err == nil || rewrite {
+				t.Fatalf("invalid stored evidence was served or rewritten: rewrite=%t err=%v", rewrite, err)
+			}
+			// Even without a canonical harness, null/empty evidence markers must
+			// not route through the permissive historic decoder.
+			raw = bytes.ReplaceAll(raw, []byte(`"harness":"claude-code",`), nil)
+			if _, _, err := NewContentMigrator().Migrate(context.Background(), raw); err == nil || errors.Is(err, ErrEmptyBlob) {
+				t.Fatalf("invalid retained evidence retried as legacy content: %v", err)
+			}
+		})
+	}
+}
+
+func TestRetainedUnknownBareDetailPreservesEvidence(t *testing.T) {
+	cases, err := loadRetainedUnknownFixtures(retainedUnknownYAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cases {
+		t.Run(c.Name, func(t *testing.T) {
+			var envelope map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(c.Content), &envelope); err != nil {
+				t.Fatal(err)
+			}
+			original, err := schema.DecodeTranscriptContentRaw([]byte(c.Content))
+			if err != nil {
+				t.Fatal(err)
+			}
+			migrated, rewrite, err := NewContentMigrator().Migrate(context.Background(), envelope["sessionDetail"])
+			if err != nil || !rewrite {
+				t.Fatalf("bare detail migration: rewrite=%t err=%v", rewrite, err)
+			}
+			encoded, err := encodeCanonicalTranscript(migrated)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := schema.DecodeTranscriptContentRaw(encoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+			original.SessionDetail.SchemaVersion = got.SessionDetail.SchemaVersion
+			if !equalPublicPayloads(original.SessionDetail, got.SessionDetail) {
+				t.Fatal("bare-detail normalization lost retained source evidence")
+			}
+		})
 	}
 }
 
