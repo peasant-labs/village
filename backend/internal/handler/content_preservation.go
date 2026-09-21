@@ -58,6 +58,8 @@ func (productionObservedModelPreservationEvaluator) Evaluate() error {
 
 type canonicalContentRewriteEncoder struct{}
 
+var errCanonicalRewriteTooLarge = errors.New("canonical transcript rewrite exceeds the transport byte limit")
+
 func (canonicalContentRewriteEncoder) Encode(version schema.PushContractVersion, payload *schema.SessionDetailPayload) ([]byte, error) {
 	if payload == nil {
 		return nil, publicationDetailError(fmt.Errorf("canonical rewrite requires a non-null durable detail"))
@@ -69,6 +71,9 @@ func (canonicalContentRewriteEncoder) Encode(version schema.PushContractVersion,
 	if err != nil {
 		return nil, fmt.Errorf("canonical transcript rewrite encoding failed because the typed SessionDetailPayload could not be marshaled in handler.canonicalContentRewriteEncoder.Encode during migrate-on-read rewrite; the stored generation remains authoritative and no replacement can be advertised as preserving enriched evidence; repair the typed payload or schema pin, then retry: %w", err)
 	}
+	if len(encoded) > 8<<20 {
+		return nil, fmt.Errorf("%w in handler.canonicalContentRewriteEncoder.Encode after serialization; the original stored generation remains authoritative; serve its validated raw envelope instead of installing an unreadable replacement", errCanonicalRewriteTooLarge)
+	}
 	return encoded, nil
 }
 
@@ -78,11 +83,53 @@ func (canonicalContentRewriteEncoder) Encode(version schema.PushContractVersion,
 // response wrapper also uses it to keep sparse legacy content readable without
 // installing a canonical generation it cannot validate.
 func marshalTranscriptContentEnvelope(version schema.PushContractVersion, payload *schema.SessionDetailPayload) ([]byte, error) {
-	return json.Marshal(schema.TranscriptContent{
+	return marshalUnescapedContent(schema.TranscriptContent{
 		ContractVersion: version,
 		Kind:            schema.ContentKindSessionDetail,
 		SessionDetail:   payload,
 	})
+}
+
+// JSON is served as application/json, never embedded as HTML. Optional HTML
+// escapes would inflate accepted retained source text into unreadable objects.
+func marshalUnescapedContent(value any) ([]byte, error) {
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(output.Bytes(), []byte("\n")), nil
+}
+
+// Some valid wire spellings (notably literal Unicode line separators) still
+// expand in Go's string encoder even with HTML escaping disabled. Read repair is
+// optional: keep the authenticated original bytes rather than installing a blob
+// above the transport cap. Bare detail needs only a raw envelope wrapper.
+func originalContentEnvelope(raw []byte) ([]byte, error) {
+	if sniffShape(raw) == ShapeEnvelope {
+		return raw, nil
+	}
+	if sniffShape(raw) != ShapeBarePayload {
+		return nil, fmt.Errorf("cannot serve expanded legacy content as a canonical envelope; no replacement was written; republish a bounded session detail")
+	}
+	base, err := json.Marshal(schema.TranscriptContent{ContractVersion: currentContractVersion, Kind: schema.ContentKindSessionDetail})
+	if err != nil {
+		return nil, err
+	}
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(base, &envelope); err != nil {
+		return nil, err
+	}
+	envelope["sessionDetail"] = json.RawMessage(raw)
+	encoded, err := marshalUnescapedContent(envelope)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := schema.DecodeTranscriptContentRaw(encoded); err != nil {
+		return nil, fmt.Errorf("original detail could not fit a valid read envelope; no replacement was written; republish a bounded transcript: %w", err)
+	}
+	return encoded, nil
 }
 
 var productionContentRewriteEncoder contentRewriteEncoder = canonicalContentRewriteEncoder{}

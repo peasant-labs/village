@@ -149,7 +149,7 @@ func loadRetainedUnknownBoundaries(t *testing.T) []retainedUnknownBoundary {
 		}
 		seen[c.Name] = true
 	}
-	for _, name := range strings.Fields("malformed_payload duplicate_payload_member invalid_payload_unicode null_evidence null_diagnostics false_partial missing_partial reversed_positions invalid_pointer metadata_partial_mismatch escaped_unicode_secret escaped_nested_secret escaped_json_key_value_secret oversized_outer_document excessive_payload_depth") {
+	for _, name := range strings.Fields("case_alias_after_canonical_evidence case_alias_before_canonical_evidence envelope_case_alias malformed_payload duplicate_payload_member invalid_payload_unicode null_evidence null_diagnostics false_partial missing_partial reversed_positions invalid_pointer metadata_partial_mismatch escaped_unicode_secret escaped_nested_secret escaped_json_key_value_secret oversized_outer_document excessive_payload_depth") {
 		if !seen[name] {
 			t.Fatalf("required boundary fixture %q absent", name)
 		}

@@ -28,7 +28,12 @@ func TestRetainedUnknownEncryptedPublicationReadPull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	receiverCases := make([]retainedReceiverCase, 0, len(cases))
 	for _, c := range cases {
+		receiverCases = append(receiverCases, retainedReceiverCase{Name: c.Name, Content: c.Content, ExpectedWrites: 2})
+	}
+	receiverCases = append(receiverCases, loadRetainedReceiverCases(t)...)
+	for _, c := range receiverCases {
 		t.Run(c.Name, func(t *testing.T) {
 			blobs := &countedPiBlobStore{TranscriptBlobStore: authoritativeTestBlobStore(t)}
 			h := newTestHandler(sqlc.New(pool), blobs)
@@ -70,6 +75,7 @@ func TestRetainedUnknownEncryptedPublicationReadPull(t *testing.T) {
 				if w.Code != http.StatusOK {
 					t.Fatalf("read=%d %s", w.Code, w.Body.String())
 				}
+				assertRetainedWire(t, content, w.Body.Bytes())
 				got, err := schema.DecodeTranscriptContentRaw(w.Body.Bytes())
 				if err != nil {
 					t.Fatal(err)
@@ -88,7 +94,7 @@ func TestRetainedUnknownEncryptedPublicationReadPull(t *testing.T) {
 			assertPayload(read(false, user))
 			assertPayload(read(true, user))
 			assertPayload(read(false, user))
-			if blobs.writes != 2 {
+			if blobs.writes != c.ExpectedWrites {
 				t.Fatalf("publish plus single canonical rewrite wrote %d objects", blobs.writes)
 			}
 			row, err := sqlc.New(pool).GetTranscriptByID(ctx, tid)
@@ -102,7 +108,16 @@ func TestRetainedUnknownEncryptedPublicationReadPull(t *testing.T) {
 				t.Fatal("private retained evidence leaked to unauthorized reader")
 			}
 			if c.Name == retainedUnknownCaseNames[0] {
+				auditSnapshot := func() string {
+					t.Helper()
+					var audit string
+					if err := pool.QueryRow(ctx, `SELECT COALESCE(jsonb_agg(to_jsonb(e) ORDER BY seq),'[]'::jsonb)::text FROM transcript_governance_events_audit e WHERE transcript_id=$1`, tid).Scan(&audit); err != nil {
+						t.Fatal(err)
+					}
+					return audit
+				}
 				for _, bad := range loadRetainedUnknownBoundaries(t) {
+					beforeAudit := auditSnapshot()
 					before, err := sqlc.New(pool).GetTranscriptByID(ctx, tid)
 					if err != nil {
 						t.Fatal(err)
@@ -118,7 +133,7 @@ func TestRetainedUnknownEncryptedPublicationReadPull(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if !reflect.DeepEqual(before, after) || writes != blobs.writes || deletes != blobs.deletes || !bytes.Equal(prior, read(true, user).Body.Bytes()) {
+					if !reflect.DeepEqual(before, after) || beforeAudit != auditSnapshot() || writes != blobs.writes || deletes != blobs.deletes || !bytes.Equal(prior, read(true, user).Body.Bytes()) {
 						t.Fatalf("%s changed prior good row or object", bad.Name)
 					}
 				}

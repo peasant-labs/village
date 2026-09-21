@@ -1170,6 +1170,18 @@ number literals, pointers and ordering, including a payload larger than 64 KiB.
 The existing outer 8 MiB and depth limits still apply; no payload is shortened.
 The test also checks the persisted partial mirror, private access and deletion.
 
+`retained_unknown_receiver.yaml` extends that real-service proof with HTML-heavy
+and Unicode-separator payloads that fit the actual 8 MiB wire budget but would
+exceed it if reserialized with additional escaping. Canonical JSON responses do
+not request optional HTML escaping. The encoder checks its actual emitted size;
+when mandatory Go string escaping would still exceed the cap, read repair keeps
+the validated original envelope and performs no database or object mutation.
+Bare details can be wrapped without re-encoding their payload strings. The test
+compares retained fields to an independent original-wire oracle and requires the
+capability after each read, not just equality between two Schema decodes.
+Case-fold aliases beside canonical evidence, in both orders and at the envelope,
+are rejected before side effects; replacement refusals also compare audit state.
+
 `retained_unknown_boundaries.yaml` covers malformed/null evidence, source-order
 and pointer errors, metadata partial disagreement, document limits and escaped
 secrets. The scanner inspects decoded payload strings and key/value pairs without

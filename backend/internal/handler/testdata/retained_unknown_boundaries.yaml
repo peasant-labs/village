@@ -1,4 +1,19 @@
 cases:
+  - name: case_alias_after_canonical_evidence
+    find: '}]}}'
+    replace: '}],"RetainedUnknown":null,"Diagnostics":null}}'
+    status: 409
+    error: 'wire alias validation failed'
+  - name: case_alias_before_canonical_evidence
+    find: '"diagnostics":{"partial":true},'
+    replace: '"RetainedUnknown":[],"Diagnostics":null,"diagnostics":{"partial":true},'
+    status: 409
+    error: 'wire alias validation failed'
+  - name: envelope_case_alias
+    find: '"kind":"session_detail",'
+    replace: '"kind":"session_detail","SessionDetail":null,'
+    status: 409
+    error: 'wire alias validation failed'
   - name: malformed_payload
     payload: '{broken'
     status: 409

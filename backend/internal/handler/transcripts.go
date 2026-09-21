@@ -984,6 +984,14 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 				}
 				log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
 			}
+		} else if errors.Is(encodeErr, errCanonicalRewriteTooLarge) {
+			// Escaping during an optional read repair must not poison a valid
+			// stored generation. Serve its validated wire without a storage write.
+			response, err = originalContentEnvelope(raw)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
 		} else {
 			// Sparse legacy content the strict canonical encoder cannot represent
 			// (for example a missing session harness) is still served, wrapped in
