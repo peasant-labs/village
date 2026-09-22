@@ -42,7 +42,8 @@ examples:
           name: widgets
           number: 7
           state: waiting
-          remote: "github.com/acme/widgets"
+          remote: "acme/widgets"
+          head_remote: "author/widgets"
           requested_at: "2026-09-13T08:00:00Z"
   - name: user settings
     parser: zVillageUserSettings
