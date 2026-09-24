@@ -46,3 +46,13 @@ DELETE FROM transcript_commits WHERE transcript_id = $1;
 SELECT * FROM transcript_commits
 WHERE transcript_id = $1
 ORDER BY commit_order ASC, id ASC;
+
+-- name: ListTranscriptCommitsForTranscripts :many
+-- Every recorded commit for a set of transcripts, in payload order: the same
+-- facts as ListTranscriptCommits, for a caller that needs them for a whole
+-- candidate pool. The pool grows with what an author has published, and reading
+-- it one transcript at a time made a click, and every publish by that author,
+-- cost one round trip per transcript.
+SELECT * FROM transcript_commits
+WHERE transcript_id = ANY(@transcript_ids::uuid[])
+ORDER BY transcript_id ASC, commit_order ASC, id ASC;

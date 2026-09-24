@@ -503,3 +503,40 @@ cases:
           reasons:
             ffffffffffffffffffffffffffffffffffffffff: incomplete_commit_list
       excluded: []
+
+  # The repository gate compares the normalized NAME and not the owner: a remote
+  # under another owner that carries the same repository name names the repository.
+  # It is the same equality the publish hook applies, and the reason a fork (whose
+  # clone keeps the name and changes the owner) can match its own attachment.
+  - name: repository-name-is-the-comparison-not-the-owner
+    pull_request:
+      base_repo: village
+      head_ref: feat/picker
+      commit_set_complete: true
+      commits:
+        - "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    candidates:
+      - transcript: t-same-name-other-owner
+        project_name: /workspace/fork-of-village
+        git_remote: github.com/someone-else/village.git
+        git_branch: feat/something-else
+        session_start: 2026-01-01T00:00:00Z
+        commits:
+          - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+            authored_at: 2026-01-02T03:04:05Z
+            additions: 4
+            deletions: 1
+            files_changed: 1
+    expect:
+      accepted:
+        - transcript: t-same-name-other-owner
+          anchors: ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"]
+          anchor_details:
+            - sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+              authored_at: 2026-01-02T03:04:05Z
+              additions: 4
+              deletions: 1
+              files_changed: 1
+      unresolved: []
+      excluded: []
+

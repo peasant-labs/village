@@ -306,6 +306,111 @@ func TestPublishedUnrelatedSessionDoesNotRepost(t *testing.T) {
 	}
 }
 
+// TestRepublishedSessionDedupesTheAttachment is the mounted dedup proof: the
+// SAME session published twice through the real PublishTranscript handler over
+// real PostgreSQL leaves one transcript row, one attachment row, one
+// attachment-transcript binding, and one sticky comment. The attachment starts
+// waiting, so the first publish is the one that completes it; the second is a
+// republish of the same source identity, which must reuse the row rather than
+// append a second one.
+//
+// A republish of an attached transcript also narrows it and reposts the digest;
+// that narrowing is asserted where it belongs
+// (TestRepublishedNarrowingDropsTheDigestRow_RealPostgres). What this test pins
+// is the row identity: no second transcript, attachment, binding, or sticky
+// comment appears, and the binding keeps the visibility recorded at the first
+// attach.
+func TestRepublishedSessionDedupesTheAttachment(t *testing.T) {
+	h, pool, _, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 993014)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "publish-dedup-" + fmt.Sprintf("%d", time.Now().UnixNano())[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	sha := "ddd1234000000000000000000000000000000041"
+	attachment := attachmentWaiting(t, ctx, h, groupID, owner, repoName, sha, 51)
+
+	fake.setPullRequest(sha, 993014)
+	fake.setPullCommits(sha)
+
+	sessionID := uuid.NewString()
+	remote := "git@github.com:acme/" + repoName + ".git"
+
+	firstCode, firstBody := attachmentPublishSession(t, h, owner, "attachment-owner", remote, sha, sessionID, attachmentPublicationContent())
+	if firstCode != http.StatusCreated {
+		t.Fatalf("first publish status = %d (%s), want 201", firstCode, firstBody)
+	}
+	afterFirst, err := h.queries.GetPullRequestAttachment(ctx, attachment.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterFirst.State != "attached" {
+		t.Fatalf("state after the first publish = %q, want attached", afterFirst.State)
+	}
+
+	secondCode, secondBody := attachmentPublishSession(t, h, owner, "attachment-owner", remote, sha, sessionID, attachmentPublicationContent())
+	if secondCode != http.StatusOK {
+		t.Fatalf("republish status = %d (%s), want 200: the source identity is reused, not created", secondCode, secondBody)
+	}
+
+	var transcripts int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM transcripts WHERE owner_id = $1 AND local_id = $2", owner, sessionID).Scan(&transcripts); err != nil {
+		t.Fatal(err)
+	}
+	if transcripts != 1 {
+		t.Fatalf("transcript rows for the republished session = %d, want 1", transcripts)
+	}
+	// Counted the way a duplicate would actually appear — this author's
+	// attachments for this repository — not by primary key, which is unique by
+	// definition and so could only ever be one.
+	var attachments int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM pull_request_attachments WHERE author_id = $1 AND lower(repo_name) = lower($2)", owner, repoName).Scan(&attachments); err != nil {
+		t.Fatal(err)
+	}
+	if attachments != 1 {
+		t.Fatalf("attachments for the repository after the republish = %d, want 1", attachments)
+	}
+	var bindings int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM pull_request_attachment_transcripts WHERE attachment_id = $1", attachment.ID).Scan(&bindings); err != nil {
+		t.Fatal(err)
+	}
+	if bindings != 1 {
+		t.Fatalf("attachment-transcript bindings = %d, want exactly the one the first publish bound", bindings)
+	}
+	afterSecond, err := h.queries.GetPullRequestAttachment(ctx, attachment.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterSecond.State != "attached" {
+		t.Fatalf("state after the republish = %q, want attached", afterSecond.State)
+	}
+
+	// The binding keeps the tier the transcript held before the first widening,
+	// even though the republish rewrote the transcript row.
+	var transcriptID pgtype.UUID
+	if err := pool.QueryRow(ctx, "SELECT id FROM transcripts WHERE owner_id = $1 AND local_id = $2", owner, sessionID).Scan(&transcriptID); err != nil {
+		t.Fatalf("read the republished transcript id: %v", err)
+	}
+	binding, err := h.queries.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{
+		AttachmentID: attachment.ID,
+		TranscriptID: transcriptID,
+	})
+	if err != nil {
+		t.Fatalf("read the surviving binding: %v", err)
+	}
+	if binding.PreviousVisibility != "private" {
+		t.Fatalf("previous_visibility after the republish = %q, want the value recorded at the first attach", binding.PreviousVisibility)
+	}
+
+	fake.mu.Lock()
+	creates := fake.commentCreates
+	fake.mu.Unlock()
+	if creates != 1 {
+		t.Fatalf("comment creates = %d, want exactly one sticky comment: a republish must not post a second one", creates)
+	}
+}
+
 // TestPublishedTranscriptDoesNotAnswerForAPendingPreview pins the other half of
 // the waiting carve-out: a publish completes a WAITING request, but it must not
 // answer a preview the author has been shown and has not confirmed.

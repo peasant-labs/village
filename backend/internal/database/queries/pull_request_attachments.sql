@@ -133,8 +133,14 @@ WHERE attachment_id = $1 AND transcript_id = $2;
 -- name: ListAuthorAttachmentsForRepo :many
 -- The author's attachments for one repository name in the states a publish can
 -- move: a waiting request it can complete, or an attached one it can refresh.
--- Matched on the repository NAME, which is the equality the matcher itself
--- applies after normalization.
+-- Matched on the repository NAME, and never the owner: reponame.NormalizeRemote
+-- reduces a remote to its last path segment, and a fork's clone keeps that name
+-- while its owner changes, so the name is what makes a fork push match its
+-- attachment at all. The matcher applies the same equality.
+--
+-- idx_pull_request_attachments_author_repo_name serves this predicate; the
+-- (repo_owner, repo_name) index cannot, because it leads with a column this WHERE
+-- never constrains, and the state is filtered rather than indexed.
 SELECT * FROM pull_request_attachments
 WHERE author_id = @author_id
   AND lower(repo_name) = lower(@repo_name)

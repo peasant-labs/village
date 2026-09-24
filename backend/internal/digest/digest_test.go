@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -79,6 +80,17 @@ type fixtureSkill struct {
 	InvocationCount int    `yaml:"invocationCount"`
 }
 
+// requiredDigestCaseNames is the name manifest for testdata/cases.yaml: the
+// short single-session case, the long multi-prompt case, and the fork case with
+// two sessions and a commit anchor. Exact membership, never a count, so a
+// deleted or renamed case fails by name instead of silently shrinking the
+// corpus its golden renders pin.
+var requiredDigestCaseNames = []string{
+	"short_session",
+	"long_session",
+	"fork_pull_request",
+}
+
 func loadCases(t *testing.T) []fixtureCase {
 	t.Helper()
 	decoder := yaml.NewDecoder(bytes.NewReader(casesYAML))
@@ -96,6 +108,29 @@ func loadCases(t *testing.T) []fixtureCase {
 			t.Fatalf("digest fixture has an empty or repeated case name %q", c.Name)
 		}
 		seen[c.Name] = true
+	}
+	declared := make(map[string]bool, len(requiredDigestCaseNames))
+	for _, name := range requiredDigestCaseNames {
+		declared[name] = true
+	}
+	var missing, undeclared []string
+	for _, name := range requiredDigestCaseNames {
+		if !seen[name] {
+			missing = append(missing, name)
+		}
+	}
+	for name := range seen {
+		if !declared[name] {
+			undeclared = append(undeclared, name)
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(undeclared)
+	if len(missing) > 0 {
+		t.Fatalf("testdata/cases.yaml no longer carries %v, which its manifest declares: restore each case under its exact name.", missing)
+	}
+	if len(undeclared) > 0 {
+		t.Fatalf("testdata/cases.yaml carries %v, which its manifest does not declare: an undeclared case is unprotected, so add each new name to the manifest in the same change.", undeclared)
 	}
 	return file.Cases
 }

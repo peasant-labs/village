@@ -96,9 +96,10 @@ type mockQuerier struct {
 	getOwnerOverride                func(ctx context.Context, arg sqlc.GetOwnerOverrideParams) (sqlc.OwnerOverride, error)
 
 	// Transcript commit stubs
-	insertTranscriptCommits func(ctx context.Context, arg sqlc.InsertTranscriptCommitsParams) error
-	deleteTranscriptCommits func(ctx context.Context, transcriptID pgtype.UUID) error
-	listTranscriptCommits   func(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.TranscriptCommit, error)
+	insertTranscriptCommits             func(ctx context.Context, arg sqlc.InsertTranscriptCommitsParams) error
+	deleteTranscriptCommits             func(ctx context.Context, transcriptID pgtype.UUID) error
+	listTranscriptCommits               func(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.TranscriptCommit, error)
+	listTranscriptCommitsForTranscripts func(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.TranscriptCommit, error)
 
 	// Annotation stubs
 	listAnnotationsByTranscriptID             func(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.Annotation, error)
@@ -320,6 +321,12 @@ func (m *mockQuerier) DeleteTranscriptCommits(ctx context.Context, transcriptID 
 func (m *mockQuerier) ListTranscriptCommits(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.TranscriptCommit, error) {
 	if m.listTranscriptCommits != nil {
 		return m.listTranscriptCommits(ctx, transcriptID)
+	}
+	return nil, nil
+}
+func (m *mockQuerier) ListTranscriptCommitsForTranscripts(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.TranscriptCommit, error) {
+	if m.listTranscriptCommitsForTranscripts != nil {
+		return m.listTranscriptCommitsForTranscripts(ctx, transcriptIds)
 	}
 	return nil, nil
 }
