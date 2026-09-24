@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import TranscriptList from "./TranscriptList";
-import SessionGroupDisclosure from "./SessionGroupDisclosure";
+import { SessionGroupDisclosure } from "@/lib/ft-ui";
 import { childSessionGroupSelectionLabel } from "@/lib/childSessions";
 import type { TranscriptRowFact, TranscriptRowSelection } from "./TranscriptList";
 import type { TranscriptRow } from "@/lib/types";
@@ -88,9 +88,10 @@ export default function ChildSessionDisclosure({
   const label = childSessionGroupSelectionLabel(childSessions.length, selectedCount);
 
   return (
-    // Indented, so the chip reads as belonging to the row above it rather than
-    // as another row of the list.
-    <div className="pl-5" data-parent-transcript-id={parentTranscriptID}>
+    // Indented by the control itself, so the chip reads as belonging to the
+    // row above it rather than as another row of the list. The wrapper keeps
+    // only the parent marker the tests observe.
+    <div data-parent-transcript-id={parentTranscriptID}>
       <SessionGroupDisclosure
         label={label}
         // No leading `+`. The chip hangs off its own parent's row, where the
@@ -101,6 +102,7 @@ export default function ChildSessionDisclosure({
         rowsID={rowsID}
         testID="child-session-disclosure"
         bare
+        indent
       >
         <div
           id={rowsID}

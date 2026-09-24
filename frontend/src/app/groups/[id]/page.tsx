@@ -21,7 +21,7 @@ import {
 } from "@/lib/queries/groups";
 import { useUnshareTranscript } from "@/lib/queries/transcripts";
 import type { UserGroupShare } from "@/lib/types";
-import SessionGroupDisclosure from "@/components/transcript/SessionGroupDisclosure";
+import { SessionGroupDisclosure } from "@/lib/ft-ui";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
@@ -169,7 +169,7 @@ function MyContributionChildren({
   const rowsID = `my-contribution-children-${parentShareID}`;
   if (startedShares.length === 0) return null;
   return (
-    <div className="pl-5" data-parent-transcript-id={parentShareID}>
+    <div data-parent-transcript-id={parentShareID}>
       <SessionGroupDisclosure
         label={childSessionGroupLabel(startedShares.length)}
         collapsedLabel={childSessionGroupLabel(startedShares.length)}
@@ -178,6 +178,7 @@ function MyContributionChildren({
         rowsID={rowsID}
         testID="child-session-disclosure"
         bare
+        indent
       >
         <div
           id={rowsID}

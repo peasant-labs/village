@@ -198,12 +198,12 @@ it(fixtures.explore.name, async () => {
   expect(document.querySelectorAll(".helper-group-item")).toHaveLength(1);
   expect(section.querySelectorAll("[data-testid='helper-group-label']")).toHaveLength(1);
   expect((section.textContent ?? "").split("owner is unavailable").length - 1).toBe(1);
-  expect(section.querySelector("button.helper-group-trigger")?.textContent).toContain(
+  expect(section.querySelector("button.sgd-trigger")?.textContent).toContain(
     `${testCase.group.helperThreadCount} helper thread`,
   );
 
   // Expanding the single control mounts exactly one individually linked member.
-  fireEvent.click(roots[0].querySelector<HTMLButtonElement>("button.helper-group-trigger")!);
+  fireEvent.click(roots[0].querySelector<HTMLButtonElement>("button.sgd-trigger")!);
   await waitFor(() =>
     expect(document.querySelectorAll("a.helper-thread-open")).toHaveLength(1),
   );
@@ -266,7 +266,7 @@ for (const testCase of fixtures.continuationCases) {
     expect(document.querySelectorAll(".helper-group-item")).toHaveLength(1);
     expect(screen.queryByTestId("grouped-helper-continuation")).toBeNull();
 
-    fireEvent.click(laterRoot!.querySelector<HTMLButtonElement>("button.helper-group-trigger")!);
+    fireEvent.click(laterRoot!.querySelector<HTMLButtonElement>("button.sgd-trigger")!);
     await waitFor(() => expect(document.querySelectorAll("a.helper-thread-open")).toHaveLength(1));
     expect(document.querySelector("a.helper-thread-open")?.getAttribute("href")).toBe(
       `/transcripts/${memberUUID(testCase.laterMember.id)}`,

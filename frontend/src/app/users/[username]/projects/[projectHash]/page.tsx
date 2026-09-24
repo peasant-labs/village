@@ -21,7 +21,7 @@ import {
   StatGrid,
 } from "@/lib/ft-ui";
 import TranscriptList from "@/components/transcript/TranscriptList";
-import SessionGroupDisclosure from "@/components/transcript/SessionGroupDisclosure";
+import { SessionGroupDisclosure } from "@/lib/ft-ui";
 import {
   ScopedContextContainerList,
   ScopedOwnerHelperGroups,
@@ -234,33 +234,29 @@ export default function UserProjectPage({
           onLoadMore={() => void grouped.fetchNextPage()}
         />
         {grouping.orphanItems.length > 0 && (
-          // Indented like the child-session chip and the helper-group block
-          // (both `pl-5`), so a group of rows the project list holds back reads
-          // as belonging to the list above it rather than as another root row.
-          <div className="pl-5">
-            <SessionGroupDisclosure
-              label={`orphan sessions ${grouping.orphanItems.length}`}
-              collapsedLabel={`orphan sessions ${grouping.orphanItems.length}`}
-              expanded={orphansExpanded}
-              onToggle={() => setOrphansExpanded((open) => !open)}
-              rowsID="project-orphan-session-rows"
-              testID="project-orphan-session-group"
-              bare
+          <SessionGroupDisclosure
+            label={`orphan sessions ${grouping.orphanItems.length}`}
+            collapsedLabel={`orphan sessions ${grouping.orphanItems.length}`}
+            expanded={orphansExpanded}
+            onToggle={() => setOrphansExpanded((open) => !open)}
+            rowsID="project-orphan-session-rows"
+            testID="project-orphan-session-group"
+            bare
+            indent
+          >
+            <div
+              id="project-orphan-session-rows"
+              data-testid="project-orphan-session-rows"
+              className="border-t border-rule"
             >
-              <div
-                id="project-orphan-session-rows"
-                data-testid="project-orphan-session-rows"
-                className="border-t border-rule"
-              >
-                <TranscriptList
-                  items={grouping.orphanItems}
-                  showOwnerActions={isOwner}
-                  hideOwner
-                  bare
-                />
-              </div>
-            </SessionGroupDisclosure>
-          </div>
+              <TranscriptList
+                items={grouping.orphanItems}
+                showOwnerActions={isOwner}
+                hideOwner
+                bare
+              />
+            </div>
+          </SessionGroupDisclosure>
         )}
       </DataState>
     </div>

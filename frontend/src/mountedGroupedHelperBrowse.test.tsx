@@ -139,7 +139,7 @@ async function renderHome(): Promise<void> {
 function groupTrigger(groupId: string): HTMLButtonElement {
   const root = document.querySelector<HTMLElement>(`.helper-group[data-group-id="${groupId}"]`);
   if (root == null) throw new Error(`helper group ${groupId} is not mounted on the home route`);
-  const button = root.querySelector<HTMLButtonElement>("button.helper-group-trigger");
+  const button = root.querySelector<HTMLButtonElement>("button.sgd-trigger");
   if (button == null) throw new Error(`helper group ${groupId} has no disclosure control`);
   return button;
 }

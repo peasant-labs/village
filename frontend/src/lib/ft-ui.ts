@@ -79,6 +79,8 @@ export const Select = FtSelect as ComponentType<
  *  - `Tag` / `Chip` — neutral / semantic pills.
  *  - `Card` / `Tooltip` / `DataTable` — layout & data chrome.
  *  - `VisibilityEye` — transcript visibility glyph + tooltip.
+ *  - `SessionGroupDisclosure` — the collapsed count control for a session
+ *    list (0.0.21+); replaces the former local copy.
  */
 export {
   Card,
@@ -87,6 +89,7 @@ export {
   Pagination,
   ProviderName,
   ProviderTag,
+  SessionGroupDisclosure,
   Tag,
   Tooltip,
   VisibilityEye,

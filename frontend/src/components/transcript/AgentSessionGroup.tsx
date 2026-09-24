@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import TranscriptList from "./TranscriptList";
-import SessionGroupDisclosure from "./SessionGroupDisclosure";
+import { SessionGroupDisclosure } from "@/lib/ft-ui";
 import { useTranscripts } from "@/lib/queries/transcripts";
 import { AGENT_ORIGIN, agentSessionGroupLabel } from "@/lib/sessionOrigin";
 import { TRANSCRIPT_PAGE_SIZE } from "@/lib/transcriptPageRequest";
