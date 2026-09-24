@@ -124,7 +124,7 @@ export function childSessionGroupSelectionLabel(count: number, selectedCount: nu
 // two different pairs can never collide on one key.
 const KEY_SEPARATOR = "\u0000";
 
-function sessionKey(ownerID: string, sessionID: string): string {
+export function sessionKey(ownerID: string, sessionID: string): string {
   return `${ownerID}${KEY_SEPARATOR}${sessionID}`;
 }
 
@@ -145,13 +145,109 @@ export function namesAParent(row: {
   return namedParent(row) !== null;
 }
 
-function namedParent(identity: {
+export function namedParent(identity: {
   parentSessionID: string | null | undefined;
 }): string | null {
   const raw = identity.parentSessionID;
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+export type ProjectSessionGrouping<Row> = SessionGrouping<Row> & {
+  /** Rows whose complete ancestry does not end at a genuine project root. */
+  orphanItems: Row[];
+};
+
+/**
+ * Classify a complete project response by its full ancestry.
+ *
+ * Unlike paginated discovery lists, a project response is the complete readable
+ * project. A chain that leaves it is therefore unresolved rather than promoted
+ * to a root. Only a non-agent row with no named parent is a genuine root.
+ */
+export function groupProjectSessionRows<Row>(
+  rows: Row[],
+  identify: (row: Row) => SessionIdentity,
+  isAgent: (row: Row) => boolean,
+): ProjectSessionGrouping<Row> {
+  const byKey = new Map<string, Row>();
+  for (const row of rows) {
+    const identity = identify(row);
+    const key = sessionKey(identity.ownerID, identity.sessionID);
+    if (!byKey.has(key)) byKey.set(key, row);
+  }
+
+  const rootByRow = new Map<Row, Row | null>();
+  function resolve(row: Row): Row | null {
+    const visited: Row[] = [];
+    const seen = new Set<string>();
+    let current = row;
+    for (;;) {
+      const identity = identify(current);
+      const key = sessionKey(identity.ownerID, identity.sessionID);
+      if (seen.has(key)) {
+        for (const item of visited) rootByRow.set(item, null);
+        return null;
+      }
+      seen.add(key);
+      visited.push(current);
+
+      const cached = rootByRow.get(current);
+      if (cached !== undefined) {
+        for (const item of visited) rootByRow.set(item, cached);
+        return cached;
+      }
+
+      const parentID = namedParent(identity);
+      if (parentID === null) {
+        const root = isAgent(current) ? null : current;
+        for (const item of visited) rootByRow.set(item, root);
+        return root;
+      }
+      const parent = byKey.get(sessionKey(identity.ownerID, parentID));
+      if (parent === undefined) {
+        for (const item of visited) rootByRow.set(item, null);
+        return null;
+      }
+      current = parent;
+    }
+  }
+
+  const rootItems: Row[] = [];
+  const orphanItems: Row[] = [];
+  const childrenByRootID = new Map<string, Row[]>();
+  for (const row of rows) {
+    const root = resolve(row);
+    if (root === null) {
+      orphanItems.push(row);
+    } else if (root === row) {
+      rootItems.push(row);
+    } else {
+      const rootID = identify(root).rowID;
+      const children = childrenByRootID.get(rootID);
+      if (children === undefined) childrenByRootID.set(rootID, [row]);
+      else children.push(row);
+    }
+  }
+
+  const groups: SessionGroup<Row>[] = [];
+  for (const parent of rootItems) {
+    const children = childrenByRootID.get(identify(parent).rowID);
+    if (children?.length) groups.push({ parent, children });
+  }
+  return { rootItems, groups, orphanItems };
+}
+
+/** Project ancestry classification for rows carrying full transcripts. */
+export function groupProjectSessions<Row extends TranscriptCarryingRow>(
+  items: Row[],
+): ProjectSessionGrouping<Row> {
+  return groupProjectSessionRows(
+    items,
+    transcriptListItemIdentity,
+    (item) => item.transcript.session_origin === "agent",
+  );
 }
 
 /**
@@ -236,7 +332,7 @@ export function groupSessionRows<Row>(
  * they differ in what ELSE they send, so the fold names only the part it reads.
  */
 export type TranscriptCarryingRow = {
-  transcript: Pick<Transcript, "id" | "owner_id" | "local_id" | "parent_session_id">;
+  transcript: Pick<Transcript, "id" | "owner_id" | "local_id" | "parent_session_id" | "session_origin">;
 };
 
 /**

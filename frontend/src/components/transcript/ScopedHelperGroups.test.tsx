@@ -126,7 +126,7 @@ function groupRoot(groupId: string): HTMLElement {
 }
 
 function trigger(groupId: string): HTMLButtonElement {
-  const button = groupRoot(groupId).querySelector<HTMLButtonElement>("button.helper-group-trigger");
+  const button = groupRoot(groupId).querySelector<HTMLButtonElement>("button.sgd-trigger");
   if (button == null) throw new Error(`helper group ${groupId} has no disclosure control`);
   return button;
 }

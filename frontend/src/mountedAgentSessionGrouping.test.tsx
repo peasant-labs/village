@@ -29,13 +29,6 @@ import {
 
 const PROFILE_USERNAME = "octocat";
 
-/** The collapsed control's frozen class list. Written out rather than read from
- *  the component, so a change to the shared disclosure shell shows up here as a
- *  failure instead of passing silently. */
-const AGENT_GROUP_TOGGLE_CLASS =
-  "w-full flex items-center gap-2 px-5 py-3 min-h-[44px] text-left font-mono text-xs text-ink-3 " +
-  "hover:text-ink hover:bg-surface-hover focus-mono transition-colors cursor-pointer";
-
 const fixtures = loadAgentSessionGroupingFixtures();
 
 function wireItem(id: string, sessionOrigin: SessionOrigin): TranscriptListItem {
@@ -215,15 +208,18 @@ describe("mounted agent-session grouping", () => {
 
       // The collapsed control's shape is shared with the child-session group,
       // so it is asserted here rather than trusted: this group shipped first,
-      // and lifting the shell out of it must not move a class, a test id, or
-      // the id the control names.
+      // and lifting the shell into the design system must not move a test id
+      // or the id the control names.
       // The profile library passes `bare`, because the group sits inside a
       // bordered panel there; explore does not. The shared shell must still
-      // make that choice the same way.
-      expect(screen.getByTestId("agent-session-group").className, "the group's own chrome").toBe(
-        testCase.surface === "profile" ? "" : "border border-rule bg-surface",
-      );
-      expect(toggle.className, "the control's own chrome").toBe(AGENT_GROUP_TOGGLE_CLASS);
+      // make that choice the same way, read off its own marker class.
+      const group = screen.getByTestId("agent-session-group");
+      expect(group.classList.contains("sgd"), "the group's own chrome").toBe(true);
+      expect(
+        group.classList.contains("sgd-bare"),
+        "the profile library renders the group bare",
+      ).toBe(testCase.surface === "profile");
+      expect(toggle.classList.contains("sgd-trigger"), "the control's own chrome").toBe(true);
       expect(toggle.getAttribute("aria-controls"), "the control names its rows").toBe("agent-session-group-rows");
       expect(screen.queryByTestId("agent-session-group-rows")).toBeNull();
 

@@ -539,7 +539,7 @@ cases:
   # list that is ordinary: the parent may be an unpublished session, or one in
   # another project. It keeps its own row, and gets no chip of its own.
   - name: a-row-whose-parent-is-not-in-the-list-keeps-its-place
-    surfaces: [home, project, profile]
+    surfaces: [home, profile]
     absentParentCause: another-page
     rows:
       - name: fix-the-flaky-test

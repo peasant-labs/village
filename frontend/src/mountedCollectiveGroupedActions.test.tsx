@@ -205,7 +205,7 @@ function groupOwnerSlot(transcriptID: string): HTMLElement {
 
 async function expandGroupUnder(transcriptID: string, memberTitle: string): Promise<void> {
   const trigger = groupOwnerSlot(transcriptID).querySelector<HTMLButtonElement>(
-    "button.helper-group-trigger",
+    "button.sgd-trigger",
   );
   if (trigger == null) throw new Error(`row ${transcriptID} carries no helper-group disclosure`);
   act(() => {
@@ -259,7 +259,7 @@ for (const testCase of fixtures.cases) {
       expect(slot, "the group hangs off the owner row the grouped read named").not.toBeNull();
       expect(slot!.contains(roots[0])).toBe(true);
 
-      const trigger = roots[0].querySelector<HTMLButtonElement>("button.helper-group-trigger");
+      const trigger = roots[0].querySelector<HTMLButtonElement>("button.sgd-trigger");
       expect(trigger).not.toBeNull();
       act(() => {
         fireEvent.click(trigger!);

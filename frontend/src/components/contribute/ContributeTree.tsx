@@ -6,7 +6,7 @@ import type { ContributeNode, ProjectNode, SessionNode, TreeRowFacts } from "@/l
 import { leafIds, nodeState, type NodeState, type Selection } from "@/lib/contribute/selection";
 import type { ContributeFilters } from "@/lib/contribute/filter";
 import { Button, Input, Select, Tag } from "@/lib/ft-ui";
-import SessionGroupDisclosure from "@/components/transcript/SessionGroupDisclosure";
+import { SessionGroupDisclosure } from "@/lib/ft-ui";
 import { childSessionGroupLabel, childSessionGroupSelectionLabel } from "@/lib/childSessions";
 
 interface ContributeTreeProps {
@@ -210,7 +210,7 @@ function SessionRow({
   // in the same way rather than inferred from the order elements happen to
   // appear in.
   const startedSessions = session.children.length > 0 && (
-    <div className="pl-4" data-parent-transcript-id={session.id}>
+    <div data-parent-transcript-id={session.id}>
       <SessionGroupDisclosure
         // Open, the rows are on screen and their own ticks say what is
         // selected. CLOSED, they are not, so the control carries the count
@@ -228,6 +228,7 @@ function SessionRow({
         rowsID={`contribute-child-sessions-${session.id}`}
         testID="child-session-disclosure"
         bare
+        indent
       >
         <div
           id={`contribute-child-sessions-${session.id}`}

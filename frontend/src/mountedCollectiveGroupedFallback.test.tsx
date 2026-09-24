@@ -289,7 +289,7 @@ for (const testCase of fixtures.fallbackCases) {
     // Expanding the group mounts exactly one individually linked member, the
     // same per-member semantics the flat-carried group keeps.
     const member = fixtures.members[testCase.group][0];
-    const trigger = roots[0].querySelector<HTMLButtonElement>("button.helper-group-trigger");
+    const trigger = roots[0].querySelector<HTMLButtonElement>("button.sgd-trigger");
     expect(trigger).not.toBeNull();
     act(() => {
       fireEvent.click(trigger!);
@@ -370,7 +370,7 @@ for (const testCase of fixtures.continuationCases) {
 
     // Expanding the later group reaches its one individually linked member.
     act(() => {
-      fireEvent.click(roots[0].querySelector<HTMLButtonElement>("button.helper-group-trigger")!);
+      fireEvent.click(roots[0].querySelector<HTMLButtonElement>("button.sgd-trigger")!);
     });
     await waitFor(() =>
       expect(
