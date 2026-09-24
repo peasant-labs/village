@@ -12,7 +12,7 @@ in their payload (`schema.GitContext`: `branch`, `remote`, `worktree`,
 email, and commit time). Village persists `git_branch`, `git_remote`, and
 `git_worktree` per transcript (`002_transcript_metadata_v2.up.sql`) and the
 collective page now groups transcripts by `git_remote` client-side (the
-"Repositories" view, Tier 1). What's missing to build a true commit-timeline
+"Repositories" view). What's missing to build a true commit-timeline
 overlay is (a) the **commit SHAs** are dropped on ingest, and (b) we have no
 **authenticated link** to the live repo to fetch its commits/PRs. This doc
 covers both.
@@ -120,7 +120,7 @@ CREATE INDEX idx_collective_repositories_group ON collective_repositories(group_
 CREATE INDEX idx_collective_repositories_remote ON collective_repositories(lower(repo_remote));
 ```
 
-`repo_remote` is the bridge: it is normalized the same way Tier 1's
+`repo_remote` is the bridge: it is normalized the same way the
 `remoteHref`/`extractRepoName` and the backend `extractRepoName` normalize a
 remote, so it joins directly against `transcripts.git_remote` for the repos a
 collective already has transcripts in.
@@ -246,14 +246,14 @@ Add a section to `frontend/src/app/groups/[id]/settings/page.tsx` (owner-only):
 - A table of linked repos: repo name/remote, default branch, last-synced time,
   a "Sync now" affordance, and unlink. Reuse the page's existing bordered
   `border-rule`/`bg-surface` primitives and the `Badge`/`Button` components for
-  visual consistency with Tier 1's Repositories view.
+  visual consistency with the Repositories view.
 - Empty/unconfigured state mirrors the OAuth-not-configured pattern: if the
   GitHub App isn't provisioned server-side, the button is disabled with a
   "GitHub integration not configured" note.
 
 ### Commit-timeline overlay (sketch)
 
-On the collective detail page, when a repo group (Tier 1) is backed by a linked
+On the collective detail page, when a repo group is backed by a linked
 repository, the repo card gains a **Timeline** tab:
 
 ```
