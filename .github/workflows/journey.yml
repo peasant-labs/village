@@ -80,6 +80,30 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+  # Evidence posting runs OUTSIDE the Playwright container: ci-post-evidence
+  # shells out to the gh CLI, which the pool runner image and the GitHub-hosted
+  # runners carry but the Playwright image does not. setup-node provides the
+  # script's only other dependency (plain node, no packages).
+  evidence:
+    needs: [determine-runner, journey]
+    if: always()
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 26
+
+      - name: Download journey artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: journey-artifacts
+          path: frontend/scripts/journey/.artifacts/
+
       - name: Mint bot token
         id: bot
         if: always()
@@ -106,5 +130,5 @@ jobs:
         run: node frontend/scripts/journey/ci-post-evidence.mjs
 
       - name: Fail if journeys failed
-        if: steps.journey.outcome == 'failure'
+        if: needs.journey.result == 'failure'
         run: exit 1
