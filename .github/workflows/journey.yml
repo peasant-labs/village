@@ -25,9 +25,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  determine-runner:
+    uses: peasant-labs/infra/.github/workflows/runner-router.yml@runner-router-v1
+    with:
+      fallback: '["ubuntu-latest"]'
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+
   journey:
-    runs-on: ubuntu-latest
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 30
+    # The official Playwright image carries the browsers (pinned to the same
+    # 1.63.0 the repo tests against) and their system dependencies, so jobs
+    # never apt-install at runtime and never download browsers. --ipc=host and
+    # --init are Playwright's recommended Chromium flags; both proven under the
+    # pool's rootless Podman (plabs-qv80wm spike). The image ships Node 24, so
+    # setup-node below still provides the repo's Node 26.
+    container:
+      # mcr.microsoft.com/playwright:v1.63.0-noble, linux/amd64 manifest.
+      image: mcr.microsoft.com/playwright@sha256:bc6ab0d6d44ff4826e4cb8c1e6d801e185bfc42bb0753f8e2a30efc70db054c7
+      options: --ipc=host --init
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
@@ -41,9 +59,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Playwright's own Chromium (and its bundled ffmpeg). CHROME_PATH is left
+      # The job container already carries Playwright's own Chromium (and its
+      # bundled ffmpeg) for the pinned @playwright/test. CHROME_PATH is left
       # unset so the journey config falls back to this browser.
-      - run: pnpm --filter frontend exec playwright install --with-deps chromium
 
       - name: Run journeys
         id: journey
