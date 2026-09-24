@@ -40,4 +40,21 @@ describe("the collective prompt check settings", () => {
       prompts_check_mode: "required",
     });
   });
+
+  // The linked org is a fact of the App installation, so the settings page no
+  // longer offers a control for it: the only options came from orgs the caller
+  // had marked visible, which nothing could mark, so the control could never be
+  // set and would misreport a collective that is bound.
+  it("offers no control for the linked org", async () => {
+    installGroupSettingsREST({
+      id: GROUP_ID,
+      ownerUsername: "owner",
+      postPromptsCheck: true,
+      promptsCheckMode: "informational",
+    });
+    await renderGroupSettingsRoute(GROUP_ID);
+
+    await screen.findByRole("switch", { name: /Post a prompts check/ });
+    expect(screen.queryByLabelText(/Link to GitHub org/i)).toBeNull();
+  });
 });

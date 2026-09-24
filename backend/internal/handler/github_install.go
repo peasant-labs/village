@@ -101,21 +101,60 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 	if claims, err := auth.ValidateInstallState(h.cfg.JWTSecret, strings.TrimSpace(r.URL.Query().Get("state"))); err == nil && claims.UserID == user.ID.String() {
 		preferred = claims.GroupID
 	}
+
+	// The linked org is a fact of the installation, so the callback records it
+	// rather than requiring the owner to have set a matching field by hand
+	// first. Prefer a collective already bound to this account, then the
+	// collective the handshake was started from, then the only owned collective
+	// when it carries no org yet. With several unlinked collectives and no
+	// state, the account does not say which one the owner meant, so nothing is
+	// bound and they are sent to their collectives to start from the one they
+	// want.
+	account := strings.TrimSpace(inst.AccountLogin)
+	var bound *sqlc.ListUserGroupsRow
+	if account != "" {
+		for i := range groups {
+			g := &groups[i]
+			if g.Role == "owner" && g.LinkedGithubOrg.Valid && strings.EqualFold(strings.TrimSpace(g.LinkedGithubOrg.String), account) {
+				bound = g
+				break
+			}
+		}
+		if bound == nil && preferred != "" {
+			for i := range groups {
+				g := &groups[i]
+				if g.Role == "owner" && uuid.UUID(g.ID.Bytes).String() == preferred {
+					bound = g
+					break
+				}
+			}
+		}
+		if bound == nil {
+			unlinked := make([]*sqlc.ListUserGroupsRow, 0, 1)
+			for i := range groups {
+				g := &groups[i]
+				if g.Role == "owner" && !g.LinkedGithubOrg.Valid {
+					unlinked = append(unlinked, g)
+				}
+			}
+			if len(unlinked) == 1 {
+				bound = unlinked[0]
+			}
+		}
+	}
+
 	target := ""
-	for _, g := range groups {
-		if g.Role != "owner" || !g.LinkedGithubOrg.Valid {
-			continue
-		}
-		if !strings.EqualFold(strings.TrimSpace(g.LinkedGithubOrg.String), strings.TrimSpace(inst.AccountLogin)) {
-			continue
-		}
-		id := uuid.UUID(g.ID.Bytes).String()
-		if target == "" {
-			target = id
-		}
-		if preferred != "" && id == preferred {
-			target = id
-			break
+	if bound != nil {
+		target = uuid.UUID(bound.ID.Bytes).String()
+		alreadyBound := bound.LinkedGithubOrg.Valid && strings.EqualFold(strings.TrimSpace(bound.LinkedGithubOrg.String), account)
+		if !alreadyBound {
+			if err := h.queries.SetGroupLinkedGitHubOrg(r.Context(), sqlc.SetGroupLinkedGitHubOrgParams{
+				ID:              bound.ID,
+				LinkedGithubOrg: pgtype.Text{String: account, Valid: true},
+			}); err != nil {
+				writeError(w, http.StatusInternalServerError, "Could not bind the collective to the installation")
+				return
+			}
 		}
 	}
 

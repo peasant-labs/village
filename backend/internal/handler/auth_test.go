@@ -128,6 +128,7 @@ type mockQuerier struct {
 	listTranscriptCollectivesForViewer func(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error)
 
 	// Collective repository / GitHub App stubs
+	setGroupLinkedGitHubOrg        func(ctx context.Context, arg sqlc.SetGroupLinkedGitHubOrgParams) error
 	upsertGitHubAppInstallation    func(ctx context.Context, arg sqlc.UpsertGitHubAppInstallationParams) error
 	getGitHubAppInstallation       func(ctx context.Context, installationID int64) (sqlc.GithubAppInstallation, error)
 	linkCollectiveRepository       func(ctx context.Context, arg sqlc.LinkCollectiveRepositoryParams) (sqlc.CollectiveRepository, error)
@@ -751,6 +752,12 @@ func (m *mockQuerier) ListGroupOwnersForTranscript(ctx context.Context, transcri
 
 // ---- Collective repository / GitHub App methods --------------------------
 
+func (m *mockQuerier) SetGroupLinkedGitHubOrg(ctx context.Context, arg sqlc.SetGroupLinkedGitHubOrgParams) error {
+	if m.setGroupLinkedGitHubOrg != nil {
+		return m.setGroupLinkedGitHubOrg(ctx, arg)
+	}
+	return nil
+}
 func (m *mockQuerier) UpsertGitHubAppInstallation(ctx context.Context, arg sqlc.UpsertGitHubAppInstallationParams) error {
 	if m.upsertGitHubAppInstallation != nil {
 		return m.upsertGitHubAppInstallation(ctx, arg)

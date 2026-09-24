@@ -837,6 +837,26 @@ func (q *Queries) SearchCollectives(ctx context.Context, arg SearchCollectivesPa
 	return items, nil
 }
 
+const setGroupLinkedGitHubOrg = `-- name: SetGroupLinkedGitHubOrg :exec
+UPDATE groups
+SET linked_github_org = $2, updated_at = now()
+WHERE id = $1
+`
+
+type SetGroupLinkedGitHubOrgParams struct {
+	ID              pgtype.UUID `db:"id" json:"id"`
+	LinkedGithubOrg pgtype.Text `db:"linked_github_org" json:"linked_github_org"`
+}
+
+// Binds a collective to the GitHub account whose App installation it uses. The
+// install callback is the only writer: the linked org is a fact of the
+// installation the owner connected, not a field they set by hand. Written on
+// its own so it cannot disturb the collective's other settings.
+func (q *Queries) SetGroupLinkedGitHubOrg(ctx context.Context, arg SetGroupLinkedGitHubOrgParams) error {
+	_, err := q.db.Exec(ctx, setGroupLinkedGitHubOrg, arg.ID, arg.LinkedGithubOrg)
+	return err
+}
+
 const updateGroup = `-- name: UpdateGroup :one
 UPDATE groups SET
     name = $2,
