@@ -182,6 +182,8 @@ export interface GroupSettingsFixture {
   ownerUsername: string;
   postPromptsCheck: boolean;
   promptsCheckMode: "informational" | "required";
+  // The org the collective already records, as the install handshake leaves it.
+  linkedGithubOrg?: string | null;
 }
 
 export function installGroupSettingsREST(fixture: GroupSettingsFixture): RecordedRequest[] {
@@ -200,7 +202,7 @@ export function installGroupSettingsREST(fixture: GroupSettingsFixture): Recorde
     description: "",
     acceptance_mode: "open",
     data_access: "members_only",
-    linked_github_org: null,
+    linked_github_org: fixture.linkedGithubOrg ?? null,
     display_members: true,
     transcript_deletion_policy: "user_choice",
     post_prompts_check: fixture.postPromptsCheck,

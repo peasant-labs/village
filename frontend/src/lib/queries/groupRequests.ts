@@ -40,7 +40,10 @@ export interface UpdateGroupForm {
   description: string;
   acceptance_mode: string;
   data_access: string;
-  linked_github_org: string | null;
+  // Omitted means preserve. Sending a value is read as a claim to link the
+  // org, which the update path refuses unless the caller has marked it
+  // visible; the install handshake is what writes it.
+  linked_github_org?: string | null;
   display_members?: boolean;
   transcript_deletion_policy?: string;
   // The prompts check a linked repository's pull requests receive. Named here
@@ -52,8 +55,9 @@ export interface UpdateGroupForm {
 
 /**
  * Builds the update body and proves it with the contract's own parser before
- * anything is sent. A null organisation clears the link; the update request
- * accepts null where the create request does not.
+ * anything is sent. A null organisation clears the link and an omitted one
+ * leaves it as it is; the update request accepts null where the create request
+ * does not.
  */
 export function updateGroupRequest(form: UpdateGroupForm): VillageUpdateGroupRequest {
   return zVillageUpdateGroupRequest.parse(form);

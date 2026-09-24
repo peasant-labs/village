@@ -39,6 +39,7 @@ type mockQuerier struct {
 	upsertUserByProvider func(ctx context.Context, arg sqlc.UpsertUserByProviderParams) (sqlc.User, error)
 	getUserByID          func(ctx context.Context, id pgtype.UUID) (sqlc.User, error)
 	getUserByUsername    func(ctx context.Context, githubUsername string) (sqlc.User, error)
+	listUserAllOrgs      func(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error)
 	setUsername          func(ctx context.Context, arg sqlc.SetUsernameParams) (sqlc.User, error)
 	deleteUser           func(ctx context.Context, id pgtype.UUID) error
 
@@ -618,6 +619,9 @@ func (m *mockQuerier) ListUserVisibleOrgs(ctx context.Context, userID pgtype.UUI
 	return nil, nil
 }
 func (m *mockQuerier) ListUserAllOrgs(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error) {
+	if m.listUserAllOrgs != nil {
+		return m.listUserAllOrgs(ctx, userID)
+	}
 	return nil, nil
 }
 func (m *mockQuerier) SetOrgVisibility(ctx context.Context, arg sqlc.SetOrgVisibilityParams) error {

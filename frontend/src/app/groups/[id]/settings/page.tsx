@@ -139,10 +139,10 @@ export default function GroupSettingsPage({
         description,
         acceptance_mode: acceptanceMode,
         data_access: dataAccess,
-        // The update contract requires the field, so it travels with the value
-        // the collective already records. Nothing on this page sets it: the
-        // install handshake writes it from the installation the owner connects.
-        linked_github_org: group?.linked_github_org ?? null,
+        // linked_github_org is deliberately left out: the contract reads an
+        // omitted field as preserve, while a value is a claim to link the org
+        // that the update path refuses unless the caller marked it visible.
+        // The install handshake is what writes it.
         display_members: displayMembers,
         transcript_deletion_policy: deletionPolicy,
         post_prompts_check: postPromptsCheck,

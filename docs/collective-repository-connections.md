@@ -45,9 +45,18 @@ setup of registering the app and provisioning its secrets.
 1. Register a **GitHub App** ("Village") under the peasant-labs org with:
    - **Permissions:** Repository → *Contents: Read*, *Metadata: Read*;
      *Pull requests: Read and write*; *Checks: Read and write*.
-   - **Callback URL:** `<BASE_URL>/api/v1/integrations/github/callback` (not
-     implemented yet).
-   - **Setup URL** (post-install redirect) → the collective settings page.
+   - **Callback URL:** `<BASE_URL>/api/v1/integrations/github/callback`. The
+     callback reads the installation with the App's own credentials, records it,
+     and binds the collective to the installation's account: the signed state
+     names the collective the handshake was started from, and failing that an
+     owned collective already bound to that account or the only owned collective
+     with no org. With several unlinked collectives and no state it binds
+     nothing and sends the owner to their collectives to start from the one they
+     want. An account is only recorded on a collective when the caller's own
+     account belongs to it, so a handshake reached by a link someone else sent
+     cannot bind one to an installation its owner has no part in.
+   - **Setup URL** (post-install redirect) → the collective settings page, or
+     the collective list when the account could not choose one.
    - **Webhook URL:** `<BASE_URL>/api/v1/integrations/github/webhook` with a
      webhook secret; events: `installation`, `pull_request`, `check_run`,
      `issue_comment`.

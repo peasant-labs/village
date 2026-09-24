@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -49,6 +50,26 @@ func ownerGroupRow(groupID, linkedOrg string) sqlc.ListUserGroupsRow {
 		Role:            "owner",
 		LinkedGithubOrg: pgtype.Text{String: linkedOrg, Valid: linkedOrg != ""},
 	}
+}
+
+// callerOrgs is the stub reporting the GitHub orgs the caller belongs to, which
+// is what lets the callback record an account on a collective.
+func callerOrgs(logins ...string) func(context.Context, pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error) {
+	return func(context.Context, pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error) {
+		rows := make([]sqlc.ListUserAllOrgsRow, 0, len(logins))
+		for _, login := range logins {
+			rows = append(rows, sqlc.ListUserAllOrgsRow{OrgLogin: login})
+		}
+		return rows, nil
+	}
+}
+
+// memberGroupRow is one ListUserGroups row for a collective the caller only
+// belongs to. The callback must never bind one.
+func memberGroupRow(groupID, linkedOrg string) sqlc.ListUserGroupsRow {
+	row := ownerGroupRow(groupID, linkedOrg)
+	row.Role = "member"
+	return row
 }
 
 // TestGitHubInstall_RedirectsToInstallPage proves an owner gets a redirect to
@@ -195,6 +216,7 @@ func TestGitHubInstallCallback_BindsAnUnlinkedCollective(t *testing.T) {
 		listUserGroups: func(context.Context, pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
 			return []sqlc.ListUserGroupsRow{ownerGroupRow(testGroupID, "")}, nil
 		},
+		listUserAllOrgs: callerOrgs("acme"),
 		setGroupLinkedGitHubOrg: func(_ context.Context, arg sqlc.SetGroupLinkedGitHubOrgParams) error {
 			bound = &arg
 			return nil
@@ -263,6 +285,7 @@ func TestGitHubInstallCallback_StateRebindsADifferentOrg(t *testing.T) {
 		listUserGroups: func(context.Context, pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
 			return []sqlc.ListUserGroupsRow{ownerGroupRow(testGroupID, "other-org")}, nil
 		},
+		listUserAllOrgs: callerOrgs("acme"),
 		setGroupLinkedGitHubOrg: func(_ context.Context, arg sqlc.SetGroupLinkedGitHubOrgParams) error {
 			bound = &arg
 			return nil
@@ -281,6 +304,9 @@ func TestGitHubInstallCallback_StateRebindsADifferentOrg(t *testing.T) {
 	}
 	if bound == nil || bound.LinkedGithubOrg.String != "acme" {
 		t.Fatalf("bound = %+v, want the collective moved to acme", bound)
+	}
+	if got := uuid.UUID(bound.ID.Bytes).String(); got != testGroupID {
+		t.Fatalf("bound collective = %s, want the one the state named (%s)", got, testGroupID)
 	}
 }
 
@@ -314,5 +340,150 @@ func TestGitHubInstallCallback_LeavesSeveralUnlinkedCollectivesAlone(t *testing.
 	}
 	if loc := w.Header().Get("Location"); !strings.Contains(loc, "/groups?github_installed=1") {
 		t.Fatalf("redirect = %q, want the collectives list", loc)
+	}
+}
+
+// TestGitHubInstallCallback_RefusesAnAccountTheCallerDoesNotBelongTo is the
+// guard against a handshake reached by a link someone else sent: the account is
+// read from GitHub, so without it an attacker's installation could bind a
+// collective its owner has nothing to do with. The installation is recorded and
+// nothing is bound.
+func TestGitHubInstallCallback_RefusesAnAccountTheCallerDoesNotBelongTo(t *testing.T) {
+	f := &fakeGitHub{installationID: 555, installationAccount: "attacker-org"}
+	wrote := false
+	recorded := false
+	mq := &mockQuerier{
+		listUserGroups: func(context.Context, pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
+			return []sqlc.ListUserGroupsRow{ownerGroupRow(testGroupID, "")}, nil
+		},
+		listUserAllOrgs: callerOrgs("acme"),
+		setGroupLinkedGitHubOrg: func(context.Context, sqlc.SetGroupLinkedGitHubOrgParams) error {
+			wrote = true
+			return nil
+		},
+		upsertGitHubAppInstallation: func(context.Context, sqlc.UpsertGitHubAppInstallationParams) error {
+			recorded = true
+			return nil
+		},
+	}
+	h := installHandler(t, f, mq)
+
+	w := installRequest(h, "/integrations/github/callback?installation_id=555", uuid.New())
+	if w.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", w.Code)
+	}
+	if wrote {
+		t.Fatal("a collective was bound to an account the caller does not belong to")
+	}
+	if !recorded {
+		t.Fatal("the installation must still be recorded")
+	}
+	if loc := w.Header().Get("Location"); !strings.Contains(loc, "/groups?github_installed=1") {
+		t.Fatalf("redirect = %q, want the collectives list", loc)
+	}
+}
+
+// TestGitHubInstallCallback_BindsAPersonalAccountTheCallerOwns covers the App
+// installed on a person rather than an organisation: the account is the
+// caller's own GitHub login.
+func TestGitHubInstallCallback_BindsAPersonalAccountTheCallerOwns(t *testing.T) {
+	f := &fakeGitHub{installationID: 555, installationAccount: "owner"}
+	var bound *sqlc.SetGroupLinkedGitHubOrgParams
+	mq := &mockQuerier{
+		listUserGroups: func(context.Context, pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
+			return []sqlc.ListUserGroupsRow{ownerGroupRow(testGroupID, "")}, nil
+		},
+		setGroupLinkedGitHubOrg: func(_ context.Context, arg sqlc.SetGroupLinkedGitHubOrgParams) error {
+			bound = &arg
+			return nil
+		},
+	}
+	h := installHandler(t, f, mq)
+
+	w := installRequest(h, "/integrations/github/callback?installation_id=555", uuid.New())
+	if w.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", w.Code)
+	}
+	if bound == nil || bound.LinkedGithubOrg.String != "owner" {
+		t.Fatalf("bound = %+v, want the collective bound to the caller's own account", bound)
+	}
+}
+
+// TestGitHubInstallCallback_BindsTheOnlyUnlinkedCollectiveWithoutState covers
+// the path a setup redirect takes when GitHub does not forward the install URL's
+// state: with exactly one owned collective carrying no org, the account leaves
+// no ambiguity, and a collective already bound to another org is ignored.
+func TestGitHubInstallCallback_BindsTheOnlyUnlinkedCollectiveWithoutState(t *testing.T) {
+	f := &fakeGitHub{installationID: 555, installationAccount: "acme"}
+	var bound *sqlc.SetGroupLinkedGitHubOrgParams
+	mq := &mockQuerier{
+		listUserGroups: func(context.Context, pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
+			return []sqlc.ListUserGroupsRow{
+				ownerGroupRow(uuid.NewString(), "other-org"),
+				ownerGroupRow(testGroupID, ""),
+			}, nil
+		},
+		listUserAllOrgs: callerOrgs("acme"),
+		setGroupLinkedGitHubOrg: func(_ context.Context, arg sqlc.SetGroupLinkedGitHubOrgParams) error {
+			bound = &arg
+			return nil
+		},
+	}
+	h := installHandler(t, f, mq)
+
+	w := installRequest(h, "/integrations/github/callback?installation_id=555", uuid.New())
+	if w.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", w.Code)
+	}
+	if bound == nil || uuid.UUID(bound.ID.Bytes).String() != testGroupID {
+		t.Fatalf("bound = %+v, want the only unlinked collective", bound)
+	}
+}
+
+// TestGitHubInstallCallback_DoesNotBindACollectiveTheCallerMerelyBelongsTo
+// keeps the ownership boundary: ListUserGroups returns every collective the
+// caller belongs to, so a membership must not be enough to bind one.
+func TestGitHubInstallCallback_DoesNotBindACollectiveTheCallerMerelyBelongsTo(t *testing.T) {
+	f := &fakeGitHub{installationID: 555, installationAccount: "acme"}
+	wrote := false
+	mq := &mockQuerier{
+		listUserGroups: func(context.Context, pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
+			return []sqlc.ListUserGroupsRow{memberGroupRow(testGroupID, "")}, nil
+		},
+		listUserAllOrgs: callerOrgs("acme"),
+		setGroupLinkedGitHubOrg: func(context.Context, sqlc.SetGroupLinkedGitHubOrgParams) error {
+			wrote = true
+			return nil
+		},
+	}
+	h := installHandler(t, f, mq)
+
+	w := installRequest(h, "/integrations/github/callback?installation_id=555", uuid.New())
+	if w.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", w.Code)
+	}
+	if wrote {
+		t.Fatal("a collective the caller only belongs to was bound")
+	}
+}
+
+// TestGitHubInstallCallback_ReportsABindingFailure keeps a failed write visible
+// rather than redirecting as though the collective were bound.
+func TestGitHubInstallCallback_ReportsABindingFailure(t *testing.T) {
+	f := &fakeGitHub{installationID: 555, installationAccount: "acme"}
+	mq := &mockQuerier{
+		listUserGroups: func(context.Context, pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
+			return []sqlc.ListUserGroupsRow{ownerGroupRow(testGroupID, "")}, nil
+		},
+		listUserAllOrgs: callerOrgs("acme"),
+		setGroupLinkedGitHubOrg: func(context.Context, sqlc.SetGroupLinkedGitHubOrgParams) error {
+			return errors.New("write failed")
+		},
+	}
+	h := installHandler(t, f, mq)
+
+	w := installRequest(h, "/integrations/github/callback?installation_id=555", uuid.New())
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 when the binding cannot be written", w.Code)
 	}
 }

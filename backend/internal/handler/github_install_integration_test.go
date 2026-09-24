@@ -44,9 +44,22 @@ func TestGitHubInstallCallbackBindsTheCollective(t *testing.T) {
 	`, groupID, owner); err != nil {
 		t.Fatalf("insert owner membership: %v", err)
 	}
+	// The callback records an account only when the caller belongs to it, so the
+	// org has to be one their account is a member of.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO user_github_orgs (user_id, org_login, org_id) VALUES ($1, 'acme', 1)
+	`, owner); err != nil {
+		t.Fatalf("insert org membership: %v", err)
+	}
 	defer func() {
 		if _, err := pool.Exec(ctx, "DELETE FROM groups WHERE id = $1", groupID); err != nil {
 			t.Errorf("cleanup group: %v", err)
+		}
+		if _, err := pool.Exec(ctx, "DELETE FROM user_github_orgs WHERE user_id = $1", owner); err != nil {
+			t.Errorf("cleanup org membership: %v", err)
+		}
+		if _, err := pool.Exec(ctx, "DELETE FROM github_app_installations WHERE installation_id = 777"); err != nil {
+			t.Errorf("cleanup installation: %v", err)
 		}
 	}()
 

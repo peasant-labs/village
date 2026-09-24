@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -52,10 +53,13 @@ func (h *Handler) GitHubInstall(w http.ResponseWriter, r *http.Request) {
 // It does not trust the redirect's parameters alone. GitHub warns the
 // installation_id can be spoofed and does not reliably forward the install URL's
 // state to the setup URL, so the callback requires a session and reads the
-// installation with the App JWT. The collective is the signed-in owner's
-// collective bound to the installation's account; the signed state, when present,
-// only selects among those. Nothing is exposed by a spoofed id: the account is
-// read from GitHub, never taken from the request.
+// installation with the App JWT. The account is read from GitHub, never taken
+// from the request, and it is recorded on a collective only when the caller's
+// own account belongs to it, so a handshake reached by a link someone else sent
+// cannot bind a collective to an installation its owner has no part in. The
+// signed state, when present, selects which collective to bind; otherwise a
+// collective already bound to the account, or the only owned collective with no
+// org, is used.
 //
 // GET /api/v1/integrations/github/callback (AuthRequired)
 func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) {
@@ -104,26 +108,29 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 
 	// The linked org is a fact of the installation, so the callback records it
 	// rather than requiring the owner to have set a matching field by hand
-	// first. Prefer a collective already bound to this account, then the
-	// collective the handshake was started from, then the only owned collective
-	// when it carries no org yet. With several unlinked collectives and no
-	// state, the account does not say which one the owner meant, so nothing is
-	// bound and they are sent to their collectives to start from the one they
-	// want.
+	// first. The signed state names the collective the handshake was started
+	// from and is consulted first, because it is the owner's explicit choice.
+	// Failing that, a collective already bound to this account is refreshed,
+	// and failing that the only owned collective that carries no org yet. With
+	// several unlinked collectives and no state, the account does not say which
+	// one the owner meant, so nothing is bound and they are sent to their
+	// collectives to start from the one they want.
 	account := strings.TrimSpace(inst.AccountLogin)
 	var bound *sqlc.ListUserGroupsRow
 	if account != "" {
-		for i := range groups {
-			g := &groups[i]
-			if g.Role == "owner" && g.LinkedGithubOrg.Valid && strings.EqualFold(strings.TrimSpace(g.LinkedGithubOrg.String), account) {
-				bound = g
-				break
-			}
-		}
-		if bound == nil && preferred != "" {
+		if preferred != "" {
 			for i := range groups {
 				g := &groups[i]
 				if g.Role == "owner" && uuid.UUID(g.ID.Bytes).String() == preferred {
+					bound = g
+					break
+				}
+			}
+		}
+		if bound == nil {
+			for i := range groups {
+				g := &groups[i]
+				if g.Role == "owner" && g.LinkedGithubOrg.Valid && strings.EqualFold(strings.TrimSpace(g.LinkedGithubOrg.String), account) {
 					bound = g
 					break
 				}
@@ -145,15 +152,31 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 
 	target := ""
 	if bound != nil {
-		target = uuid.UUID(bound.ID.Bytes).String()
 		alreadyBound := bound.LinkedGithubOrg.Valid && strings.EqualFold(strings.TrimSpace(bound.LinkedGithubOrg.String), account)
 		if !alreadyBound {
-			if err := h.queries.SetGroupLinkedGitHubOrg(r.Context(), sqlc.SetGroupLinkedGitHubOrgParams{
-				ID:              bound.ID,
-				LinkedGithubOrg: pgtype.Text{String: account, Valid: true},
-			}); err != nil {
-				writeError(w, http.StatusInternalServerError, "Could not bind the collective to the installation")
+			// The account is read from GitHub, never from the request, but the
+			// handshake can be reached by a link someone else sent. Recording
+			// only an account the caller belongs to keeps such a link from
+			// binding a collective to an installation its owner has no part in.
+			allowed, err := h.callerControlsAccount(r.Context(), user, account)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Could not resolve the GitHub account")
 				return
+			}
+			if !allowed {
+				bound = nil
+			}
+		}
+		if bound != nil {
+			target = uuid.UUID(bound.ID.Bytes).String()
+			if !alreadyBound {
+				if err := h.queries.SetGroupLinkedGitHubOrg(r.Context(), sqlc.SetGroupLinkedGitHubOrgParams{
+					ID:              bound.ID,
+					LinkedGithubOrg: pgtype.Text{String: account, Valid: true},
+				}); err != nil {
+					writeError(w, http.StatusInternalServerError, "Could not bind the collective to the installation")
+					return
+				}
 			}
 		}
 	}
@@ -166,4 +189,28 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	http.Redirect(w, r, frontend+"/groups/"+target+"/settings?github_installed=1", http.StatusFound)
+}
+
+// callerControlsAccount reports whether the account an installation belongs to is
+// one the caller can be installing for: their own GitHub login, or an
+// organisation their account is a member of. Membership is what matters here,
+// not the org's visibility setting, which decides whether a collective may be
+// linked to it by hand.
+func (h *Handler) callerControlsAccount(ctx context.Context, user *AuthUser, account string) (bool, error) {
+	if account == "" {
+		return false, nil
+	}
+	if strings.EqualFold(strings.TrimSpace(user.Username), account) {
+		return true, nil
+	}
+	orgs, err := h.queries.ListUserAllOrgs(ctx, user.PgID())
+	if err != nil {
+		return false, err
+	}
+	for _, org := range orgs {
+		if strings.EqualFold(strings.TrimSpace(org.OrgLogin), account) {
+			return true, nil
+		}
+	}
+	return false, nil
 }

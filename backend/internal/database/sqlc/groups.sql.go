@@ -849,9 +849,10 @@ type SetGroupLinkedGitHubOrgParams struct {
 }
 
 // Binds a collective to the GitHub account whose App installation it uses. The
-// install callback is the only writer: the linked org is a fact of the
-// installation the owner connected, not a field they set by hand. Written on
-// its own so it cannot disturb the collective's other settings.
+// install callback is the writer that does not ask the caller to have marked the
+// org visible, because the linked org is a fact of the installation they
+// connected. Written on its own so it cannot disturb the collective's other
+// settings.
 func (q *Queries) SetGroupLinkedGitHubOrg(ctx context.Context, arg SetGroupLinkedGitHubOrgParams) error {
 	_, err := q.db.Exec(ctx, setGroupLinkedGitHubOrg, arg.ID, arg.LinkedGithubOrg)
 	return err
