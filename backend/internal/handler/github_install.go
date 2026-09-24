@@ -94,8 +94,8 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Target collective: one the caller owns and that is bound to the
-	// installation's account. The signed state selects among them when forwarded.
+	// Target collective: an owned collective the caller may bind, chosen by the
+	// rules below rather than by a field the owner had to set first.
 	groups, err := h.queries.ListUserGroups(r.Context(), user.PgID())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not resolve the collective")
@@ -183,8 +183,10 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 
 	frontend := strings.TrimRight(h.cfg.FrontendURL, "/")
 	if target == "" {
-		// Installed, but no owned collective is bound to that account yet. The
-		// installation is recorded; send the caller to their collectives.
+		// Installed, but nothing was bound: the account may not be one the
+		// caller controls, no owned collective may be an unambiguous choice, or
+		// the binding may have been refused. The installation is recorded; send
+		// the caller to their collectives.
 		http.Redirect(w, r, frontend+"/groups?github_installed=1", http.StatusFound)
 		return
 	}
@@ -192,15 +194,26 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 }
 
 // callerControlsAccount reports whether the account an installation belongs to is
-// one the caller can be installing for: their own GitHub login, or an
-// organisation their account is a member of. Membership is what matters here,
-// not the org's visibility setting, which decides whether a collective may be
-// linked to it by hand.
+// one the caller can be installing for: the GitHub login their sign-in recorded,
+// or an organisation their GitHub account belongs to.
+//
+// The caller's Village handle is deliberately not consulted. It is theirs to
+// choose, it is generated on first sign-in, and it need not match any GitHub
+// login, so a handle that happens to spell an account's login proves nothing
+// about the caller's relationship to that account.
+//
+// Membership is what matters here, not the org's visibility setting, which
+// decides whether a collective may be linked to it by hand.
 func (h *Handler) callerControlsAccount(ctx context.Context, user *AuthUser, account string) (bool, error) {
 	if account == "" {
 		return false, nil
 	}
-	if strings.EqualFold(strings.TrimSpace(user.Username), account) {
+	row, err := h.queries.GetUserByID(ctx, user.PgID())
+	if err != nil {
+		return false, err
+	}
+	if strings.EqualFold(row.Provider, "github") && row.ProviderUsername.Valid &&
+		strings.EqualFold(strings.TrimSpace(row.ProviderUsername.String), account) {
 		return true, nil
 	}
 	orgs, err := h.queries.ListUserAllOrgs(ctx, user.PgID())

@@ -55,8 +55,10 @@ setup of registering the app and provisioning its secrets.
      want. An account is only recorded on a collective when the caller's own
      account belongs to it, so a handshake reached by a link someone else sent
      cannot bind one to an installation its owner has no part in.
-   - **Setup URL** (post-install redirect) → the collective settings page, or
-     the collective list when the account could not choose one.
+   - **Setup URL** (post-install redirect) → `<BASE_URL>/api/v1/integrations/github/callback`,
+     which is what runs the binding above. It then sends the browser on to the
+     collective's settings page, or to the collective list when no collective
+     could be chosen.
    - **Webhook URL:** `<BASE_URL>/api/v1/integrations/github/webhook` with a
      webhook secret; events: `installation`, `pull_request`, `check_run`,
      `issue_comment`.
