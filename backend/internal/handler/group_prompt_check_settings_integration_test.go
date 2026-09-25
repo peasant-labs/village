@@ -107,3 +107,58 @@ func TestUpdateGroupAppliesPromptCheckSettings(t *testing.T) {
 		t.Fatalf("a refused update changed the row: post=%v mode=%q", post, mode)
 	}
 }
+
+// TestUpdateGroupKeepsTheLinkedOrgWhenItIsOmitted pins the contract's preserve
+// reading on a collective that is actually bound. The settings page relies on
+// it: it no longer sends the field, and a value would be read as a claim to
+// link the org, which the update path refuses unless the caller has marked it
+// visible.
+func TestUpdateGroupKeepsTheLinkedOrgWhenItIsOmitted(t *testing.T) {
+	ctx := context.Background()
+	pool := publishLockPool(t, 4)
+	owner := pullInsertUser(t, ctx, pool, 208002, "group-linked-owner")
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	var groupID pgtype.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO groups (name, created_by, linked_github_org)
+		VALUES ('linked-org', $1, 'acme') RETURNING id
+	`, owner).Scan(&groupID); err != nil {
+		t.Fatalf("insert group: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')
+	`, groupID, owner); err != nil {
+		t.Fatalf("insert owner membership: %v", err)
+	}
+	defer func() {
+		if _, err := pool.Exec(ctx, "DELETE FROM groups WHERE id = $1", groupID); err != nil {
+			t.Errorf("cleanup group: %v", err)
+		}
+	}()
+
+	h := &Handler{pool: pool, queries: sqlc.New(pool)}
+	target := "/api/v1/groups/" + uuid.UUID(groupID.Bytes).String()
+	r := chi.NewRouter()
+	r.Patch("/api/v1/groups/{id}", h.UpdateGroup)
+	req := httptest.NewRequest(http.MethodPatch, target, strings.NewReader(`{"name":"renamed"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(context.WithValue(req.Context(), UserContextKey, &AuthUser{ID: uuid.UUID(owner.Bytes), Username: "group-linked-owner"}))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+
+	var linked pgtype.Text
+	var name string
+	if err := pool.QueryRow(ctx, `SELECT linked_github_org, name FROM groups WHERE id = $1`, groupID).Scan(&linked, &name); err != nil {
+		t.Fatalf("read group: %v", err)
+	}
+	if name != "renamed" {
+		t.Fatalf("name = %q, want the update applied", name)
+	}
+	if !linked.Valid || linked.String != "acme" {
+		t.Fatalf("linked org = %+v, want the bound org preserved by an omitted field", linked)
+	}
+}

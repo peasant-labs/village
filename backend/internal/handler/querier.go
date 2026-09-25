@@ -156,6 +156,7 @@ type Querier interface {
 	DeleteAnnotationByContentHash(ctx context.Context, arg sqlc.DeleteAnnotationByContentHashParams) error
 
 	// Collective repository / GitHub App methods
+	SetGroupLinkedGitHubOrg(ctx context.Context, arg sqlc.SetGroupLinkedGitHubOrgParams) error
 	UpsertGitHubAppInstallation(ctx context.Context, arg sqlc.UpsertGitHubAppInstallationParams) error
 	GetGitHubAppInstallation(ctx context.Context, installationID int64) (sqlc.GithubAppInstallation, error)
 	LinkCollectiveRepository(ctx context.Context, arg sqlc.LinkCollectiveRepositoryParams) (sqlc.CollectiveRepository, error)

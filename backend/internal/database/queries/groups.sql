@@ -24,6 +24,16 @@ UPDATE groups SET
 WHERE id = $1
 RETURNING *;
 
+-- name: SetGroupLinkedGitHubOrg :exec
+-- Binds a collective to the GitHub account whose App installation it uses. The
+-- install callback is the writer that does not ask the caller to have marked the
+-- org visible, because the linked org is a fact of the installation they
+-- connected. Written on its own so it cannot disturb the collective's other
+-- settings.
+UPDATE groups
+SET linked_github_org = $2, updated_at = now()
+WHERE id = $1;
+
 -- name: DeleteGroup :exec
 DELETE FROM groups WHERE id = $1;
 

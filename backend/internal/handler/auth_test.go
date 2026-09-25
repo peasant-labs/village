@@ -39,6 +39,7 @@ type mockQuerier struct {
 	upsertUserByProvider func(ctx context.Context, arg sqlc.UpsertUserByProviderParams) (sqlc.User, error)
 	getUserByID          func(ctx context.Context, id pgtype.UUID) (sqlc.User, error)
 	getUserByUsername    func(ctx context.Context, githubUsername string) (sqlc.User, error)
+	listUserAllOrgs      func(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error)
 	setUsername          func(ctx context.Context, arg sqlc.SetUsernameParams) (sqlc.User, error)
 	deleteUser           func(ctx context.Context, id pgtype.UUID) error
 
@@ -128,6 +129,7 @@ type mockQuerier struct {
 	listTranscriptCollectivesForViewer func(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error)
 
 	// Collective repository / GitHub App stubs
+	setGroupLinkedGitHubOrg        func(ctx context.Context, arg sqlc.SetGroupLinkedGitHubOrgParams) error
 	upsertGitHubAppInstallation    func(ctx context.Context, arg sqlc.UpsertGitHubAppInstallationParams) error
 	getGitHubAppInstallation       func(ctx context.Context, installationID int64) (sqlc.GithubAppInstallation, error)
 	linkCollectiveRepository       func(ctx context.Context, arg sqlc.LinkCollectiveRepositoryParams) (sqlc.CollectiveRepository, error)
@@ -617,6 +619,9 @@ func (m *mockQuerier) ListUserVisibleOrgs(ctx context.Context, userID pgtype.UUI
 	return nil, nil
 }
 func (m *mockQuerier) ListUserAllOrgs(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error) {
+	if m.listUserAllOrgs != nil {
+		return m.listUserAllOrgs(ctx, userID)
+	}
 	return nil, nil
 }
 func (m *mockQuerier) SetOrgVisibility(ctx context.Context, arg sqlc.SetOrgVisibilityParams) error {
@@ -751,6 +756,12 @@ func (m *mockQuerier) ListGroupOwnersForTranscript(ctx context.Context, transcri
 
 // ---- Collective repository / GitHub App methods --------------------------
 
+func (m *mockQuerier) SetGroupLinkedGitHubOrg(ctx context.Context, arg sqlc.SetGroupLinkedGitHubOrgParams) error {
+	if m.setGroupLinkedGitHubOrg != nil {
+		return m.setGroupLinkedGitHubOrg(ctx, arg)
+	}
+	return nil
+}
 func (m *mockQuerier) UpsertGitHubAppInstallation(ctx context.Context, arg sqlc.UpsertGitHubAppInstallationParams) error {
 	if m.upsertGitHubAppInstallation != nil {
 		return m.upsertGitHubAppInstallation(ctx, arg)

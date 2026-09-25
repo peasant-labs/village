@@ -47,7 +47,6 @@ export default function GroupSettingsPage({
   const [description, setDescription] = useState("");
   const [acceptanceMode, setAcceptanceMode] = useState("open");
   const [dataAccess, setDataAccess] = useState("members_only");
-  const [linkedGithubOrg, setLinkedGithubOrg] = useState("");
   const [displayMembers, setDisplayMembers] = useState(true);
   const [postPromptsCheck, setPostPromptsCheck] = useState(true);
   const [promptsCheckMode, setPromptsCheckMode] = useState<"informational" | "required">(
@@ -103,7 +102,6 @@ export default function GroupSettingsPage({
     setDescription(group.description ?? "");
     setAcceptanceMode(group.acceptance_mode);
     setDataAccess(group.data_access);
-    setLinkedGithubOrg(group.linked_github_org ?? "");
     setDisplayMembers(group.display_members ?? true);
     setPostPromptsCheck(group.post_prompts_check ?? true);
     setPromptsCheckMode(group.prompts_check_mode ?? "informational");
@@ -141,7 +139,10 @@ export default function GroupSettingsPage({
         description,
         acceptance_mode: acceptanceMode,
         data_access: dataAccess,
-        linked_github_org: linkedGithubOrg || null,
+        // linked_github_org is deliberately left out: the contract reads an
+        // omitted field as preserve, while a value is a claim to link the org
+        // that the update path refuses unless the caller marked it visible.
+        // The install handshake is what writes it.
         display_members: displayMembers,
         transcript_deletion_policy: deletionPolicy,
         post_prompts_check: postPromptsCheck,
@@ -291,20 +292,6 @@ export default function GroupSettingsPage({
                   },
                 ]}
               />
-              <Select
-                label="Link to GitHub org"
-                id="group-linked-org"
-                hint="optional. only orgs you've set as visible appear here."
-                value={linkedGithubOrg}
-                onChange={(e: ChangeEvent) => setLinkedGithubOrg(e.target.value)}
-              >
-                <option value="">Not linked</option>
-                {visibleOrgs.map((o) => (
-                  <option key={o.org_login} value={o.org_login}>
-                    @{o.org_login}
-                  </option>
-                ))}
-              </Select>
 
               {/* Display members is a stateful toggle rather than a one-time checkbox.
                   .sw-stack (fairtrade src/index.css): label on its own top line, the hint
