@@ -98,7 +98,7 @@ function ownerRoot(id: string): HTMLElement {
 function groupTrigger(groupId: string): HTMLButtonElement {
   const root = document.querySelector<HTMLElement>(`.helper-group[data-group-id="${groupId}"]`);
   if (root == null) throw new Error(`helper group ${groupId} is not mounted`);
-  const trigger = root.querySelector<HTMLButtonElement>("button.helper-group-trigger");
+  const trigger = root.querySelector<HTMLButtonElement>("button.sgd-trigger");
   if (trigger == null) throw new Error(`helper group ${groupId} has no disclosure control`);
   return trigger;
 }

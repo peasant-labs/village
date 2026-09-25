@@ -147,6 +147,7 @@ func mapVillagePromptRequests(attachments []sqlc.PullRequestAttachment) schema.V
 			Number:      int(attachment.Number),
 			State:       schema.VillagePullRequestAttachmentState(attachment.State),
 			Remote:      attachment.BaseRemote,
+			HeadRemote:  attachment.HeadRemote,
 			RequestedAt: requestedAt,
 		})
 	}

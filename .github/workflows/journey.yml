@@ -25,9 +25,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  determine-runner:
+    uses: peasant-labs/infra/.github/workflows/runner-router.yml@runner-router-v1
+    with:
+      fallback: '["ubuntu-latest"]'
+    secrets:
+      RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
+
   journey:
-    runs-on: ubuntu-latest
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 30
+    # The official Playwright image carries the browsers (pinned to the same
+    # 1.63.0 the repo tests against) and their system dependencies, so jobs
+    # never apt-install at runtime and never download browsers. --ipc=host and
+    # --init are Playwright's recommended Chromium flags; both proven under the
+    # pool's rootless Podman (plabs-qv80wm spike). The image ships Node 24, so
+    # setup-node below still provides the repo's Node 26.
+    container:
+      # mcr.microsoft.com/playwright:v1.63.0-noble, linux/amd64 manifest.
+      image: mcr.microsoft.com/playwright@sha256:bc6ab0d6d44ff4826e4cb8c1e6d801e185bfc42bb0753f8e2a30efc70db054c7
+      options: --ipc=host --init
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
@@ -41,9 +59,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Playwright's own Chromium (and its bundled ffmpeg). CHROME_PATH is left
+      # The job container already carries Playwright's own Chromium (and its
+      # bundled ffmpeg) for the pinned @playwright/test. CHROME_PATH is left
       # unset so the journey config falls back to this browser.
-      - run: pnpm --filter frontend exec playwright install --with-deps chromium
 
       - name: Run journeys
         id: journey
@@ -61,6 +79,30 @@ jobs:
           path: frontend/scripts/journey/.artifacts/
           include-hidden-files: true
           retention-days: 14
+
+  # Evidence posting runs OUTSIDE the Playwright container: ci-post-evidence
+  # shells out to the gh CLI, which the pool runner image and the GitHub-hosted
+  # runners carry but the Playwright image does not. setup-node provides the
+  # script's only other dependency (plain node, no packages).
+  evidence:
+    needs: [determine-runner, journey]
+    if: always()
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 26
+
+      - name: Download journey artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: journey-artifacts
+          path: frontend/scripts/journey/.artifacts/
 
       - name: Mint bot token
         id: bot
@@ -88,5 +130,5 @@ jobs:
         run: node frontend/scripts/journey/ci-post-evidence.mjs
 
       - name: Fail if journeys failed
-        if: steps.journey.outcome == 'failure'
+        if: needs.journey.result == 'failure'
         run: exit 1

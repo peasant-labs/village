@@ -1,10 +1,11 @@
 /* Composed journey mock: one command, one port, no env.
  *
  * Composes the explore browse fixtures (in-process, imported from
- * scripts/visual/mock-rest-explore.mjs) with the transcript-detail fixtures
- * (spawned from scripts/visual/mock-rest.mjs behind an internal port). Journeys
- * therefore need no per-area mock selection and no port matrix; `pnpm journey`
- * is the whole interface.
+ * scripts/visual/mock-rest-explore.mjs) with the project-page fixtures
+ * (in-process, from scripts/journey/lib/project-fixtures.mjs) and the
+ * transcript-detail fixtures (spawned from scripts/visual/mock-rest.mjs behind
+ * an internal port). Journeys therefore need no per-area mock selection and no
+ * port matrix; `pnpm journey` is the whole interface.
  *
  * Scenario control: POST /__mock/scenario {"name":"..."} lets a journey declare
  * the world it needs without an env var or a restart. Today:
@@ -20,6 +21,7 @@ import { spawn } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
+import { handleProjectRequest } from './lib/project-fixtures.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)
@@ -119,6 +121,10 @@ const server = createServer(async (req, res) => {
   // Transcript detail and its subroutes go to the transcript mock; the list
   // (`/transcripts`, exact) stays with the explore half.
   if (path.startsWith('/transcripts/')) return proxyToTranscript(req, res)
+
+  // The project fixture owns the project route and its own project-scoped
+  // grouped helper read; it declines the plain browse list.
+  if (handleProjectRequest(req, res)) return
 
   if (handleExploreRequest(req, res)) return
   return send(res, 404, { error: `no mock route for ${req.method} ${url.pathname}` })

@@ -779,6 +779,52 @@ func TestPromptRequestsListWaitingAttachments(t *testing.T) {
 	if got.Remote != "acme/"+repoName {
 		t.Errorf("remote = %q, want the attachment's remote", got.Remote)
 	}
+	if got.HeadRemote != "acme/"+repoName {
+		t.Errorf("head remote = %q, want the base for a same-repository pull request", got.HeadRemote)
+	}
+}
+
+// TestPromptRequestsCarryTheForkRemote proves a request names the repository the
+// pull request's head came from beside the base. An author who cloned their fork
+// pushes a remote naming the fork, so a request carrying only the base matches
+// nothing on the machine that has to answer it.
+func TestPromptRequestsCarryTheForkRemote(t *testing.T) {
+	h, pool, _, _ := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 992013)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "forked-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	attachment, err := h.queries.CreatePullRequestAttachment(ctx, sqlc.CreatePullRequestAttachmentParams{
+		GroupID: groupID, RepoOwner: "acme", RepoName: repoName, GithubRepoID: 4243, Number: 13,
+		HeadSha: "def5678", BaseRemote: "acme/" + repoName, HeadRemote: "forker/" + repoName, AuthorID: owner,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := promptattach.Transition(ctx, h.queries, attachment.ID, promptattach.Waiting); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := attachmentServe(t, attachmentRouter(h), http.MethodGet, "/api/v1/users/me/prompt-requests", owner)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("prompt requests = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	var response schema.VillagePromptRequestsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Requests) != 1 {
+		t.Fatalf("requests = %+v, want exactly the waiting attachment", response.Requests)
+	}
+	got := response.Requests[0]
+	if got.Remote != "acme/"+repoName {
+		t.Errorf("remote = %q, want the repository the pull request was opened against", got.Remote)
+	}
+	if got.HeadRemote != "forker/"+repoName {
+		t.Errorf("head remote = %q, want the fork the head came from", got.HeadRemote)
+	}
 }
 
 // TestUserSettingsRoundTrip proves the preview preference reads back after it is

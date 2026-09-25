@@ -146,7 +146,7 @@ for (const testCase of fixtures.cases) {
       );
       expect(group, "the saved helper group mounts on the grouped exit").not.toBeNull();
       act(() => {
-        fireEvent.click(group!.querySelector<HTMLButtonElement>("button.helper-group-trigger")!);
+        fireEvent.click(group!.querySelector<HTMLButtonElement>("button.sgd-trigger")!);
       });
       for (const member of fixtures.members[groupKey]) {
         await linkedMember(memberUUIDFor(member.name));
@@ -176,7 +176,7 @@ for (const testCase of fixtures.cases) {
       expect(flatRowLink, "the flat contribution keeps its own row").not.toBeNull();
 
       act(() => {
-        fireEvent.click(group!.querySelector<HTMLButtonElement>("button.helper-group-trigger")!);
+        fireEvent.click(group!.querySelector<HTMLButtonElement>("button.sgd-trigger")!);
       });
       await linkedMember(memberUUIDFor(fixtures.members.context[0].name));
       return;
@@ -210,7 +210,7 @@ for (const testCase of fixtures.cases) {
 
     // Expanding it reaches each member as its own link.
     act(() => {
-      fireEvent.click(group!.querySelector<HTMLButtonElement>("button.helper-group-trigger")!);
+      fireEvent.click(group!.querySelector<HTMLButtonElement>("button.sgd-trigger")!);
     });
     for (const member of fixtures.members.owner) {
       expect((await linkedMember(memberUUIDFor(member.name))).textContent).toContain(member.title);
@@ -278,7 +278,7 @@ for (const testCase of fixtures.continuationCases) {
 
     act(() => {
       fireEvent.click(
-        contribution.querySelector<HTMLButtonElement>("button.helper-group-trigger")!,
+        contribution.querySelector<HTMLButtonElement>("button.sgd-trigger")!,
       );
     });
     for (const member of fixtures.members.owner) {
