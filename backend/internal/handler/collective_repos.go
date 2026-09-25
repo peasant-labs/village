@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -224,9 +225,10 @@ func (h *Handler) ListRepositories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Any member may list; non-members get 403. Owners and members alike see
-	// the link list (the commit data itself is gated separately per the group's
-	// data-access policy at fetch time).
+	// Any member may list; non-members get 403. What a member sees is then
+	// filtered to the accounts their own GitHub account controls, because the
+	// repositories come from an installation that belongs to an organisation or
+	// a person rather than to the collective.
 	user := GetUser(r.Context())
 	if user == nil {
 		writeError(w, http.StatusUnauthorized, "Authentication required")
@@ -245,8 +247,19 @@ func (h *Handler) ListRepositories(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to list repositories")
 		return
 	}
+	// Membership of the collective alone must not carry an organisation's
+	// repository names to someone the organisation never included, so a row is
+	// shown only when the viewer controls the account it comes from.
+	allowed, err := h.allowedRepositoryInstallations(r.Context(), user, rows)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to check the repositories' accounts")
+		return
+	}
 	out := make([]repoResponse, 0, len(rows))
 	for _, row := range rows {
+		if !allowed[row.InstallationID] {
+			continue
+		}
 		out = append(out, toRepoResponse(row))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"repositories": out})
@@ -292,7 +305,6 @@ func (h *Handler) ListRepositoryCommits(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Any member may read commits.
 	user := GetUser(r.Context())
 	if user == nil {
 		writeError(w, http.StatusUnauthorized, "Authentication required")
@@ -303,6 +315,25 @@ func (h *Handler) ListRepositoryCommits(w http.ResponseWriter, r *http.Request) 
 		UserID:  user.PgID(),
 	}); err != nil {
 		writeError(w, http.StatusForbidden, "Collective membership required")
+		return
+	}
+
+	// The repository is reached through an installation that belongs to an
+	// organisation or a person, not to the collective, so a viewer must control
+	// that account. Membership of the collective alone must not carry the
+	// organisation's commit metadata to someone it never included.
+	installation, err := h.queries.GetGitHubAppInstallation(r.Context(), repo.InstallationID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to read the repository's installation")
+		return
+	}
+	controls, err := h.callerControlsAccount(r.Context(), user, installation.AccountLogin)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to check the repository's account")
+		return
+	}
+	if !controls {
+		writeError(w, http.StatusForbidden, "This repository belongs to an account your GitHub account is not part of")
 		return
 	}
 
@@ -431,4 +462,33 @@ func (h *Handler) parseGroupID(w http.ResponseWriter, r *http.Request) (pgtype.U
 		return pgtype.UUID{}, false
 	}
 	return toPgUUID(id), true
+}
+
+// allowedRepositoryInstallations reports, per installation, whether the viewer
+// controls the account it belongs to.
+//
+// A collective's repositories are reached through a GitHub App installation, and
+// that installation belongs to an organisation or a person rather than to the
+// collective. Membership of the collective alone must not carry an
+// organisation's repository names or commit metadata to someone the organisation
+// never included, so a viewer must control the account their collective's
+// repositories come from. An installation that cannot be read is an error rather
+// than a silent allowance.
+func (h *Handler) allowedRepositoryInstallations(ctx context.Context, user *AuthUser, rows []sqlc.CollectiveRepository) (map[int64]bool, error) {
+	allowed := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		if _, seen := allowed[row.InstallationID]; seen {
+			continue
+		}
+		installation, err := h.queries.GetGitHubAppInstallation(ctx, row.InstallationID)
+		if err != nil {
+			return nil, err
+		}
+		controls, err := h.callerControlsAccount(ctx, user, installation.AccountLogin)
+		if err != nil {
+			return nil, err
+		}
+		allowed[row.InstallationID] = controls
+	}
+	return allowed, nil
 }

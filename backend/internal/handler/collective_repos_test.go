@@ -188,6 +188,9 @@ func TestRefreshCommits_NotConfigured(t *testing.T) {
 		getCollectiveRepository: func(ctx context.Context, arg sqlc.GetCollectiveRepositoryParams) (sqlc.CollectiveRepository, error) {
 			return sqlc.CollectiveRepository{GroupID: arg.GroupID, Owner: "acme", Name: "repo", InstallationID: 42}, nil
 		},
+		getGitHubAppInstallation: acmeInstallation(),
+		getUserByID:              githubLogin("acme-member"),
+		listUserAllOrgs:          callerOrgs("acme"),
 	}
 	h := newRepoHandler(t, mq, nil)
 
@@ -449,6 +452,9 @@ func TestListRepositories_MemberSees(t *testing.T) {
 				{Owner: "acme", Name: "tools", InstallationID: 42},
 			}, nil
 		},
+		getGitHubAppInstallation: acmeInstallation(),
+		getUserByID:              githubLogin("acme-member"),
+		listUserAllOrgs:          callerOrgs("acme"),
 	}
 	h := newRepoHandler(t, mq, nil)
 
@@ -495,8 +501,11 @@ func TestListCommits_CacheFirstNoRefresh(t *testing.T) {
 	newFakeGitHub(t, f)
 
 	mq := &mockQuerier{
-		getGroupMember:          memberStub("member"),
-		getCollectiveRepository: linkedRepoStub(""),
+		getGroupMember:           memberStub("member"),
+		getGitHubAppInstallation: acmeInstallation(),
+		getUserByID:              githubLogin("acme-member"),
+		listUserAllOrgs:          callerOrgs("acme"),
+		getCollectiveRepository:  linkedRepoStub(""),
 		listRepositoryCommits: func(ctx context.Context, arg sqlc.ListRepositoryCommitsParams) ([]sqlc.RepositoryCommit, error) {
 			return []sqlc.RepositoryCommit{
 				{Sha: "cached1"}, {Sha: "cached2"},
@@ -541,8 +550,11 @@ func TestListCommits_RefreshFetchesAndCaches(t *testing.T) {
 	var upserted []string
 	var savedETag string
 	mq := &mockQuerier{
-		getGroupMember:          memberStub("owner"),
-		getCollectiveRepository: linkedRepoStub(""),
+		getGroupMember:           memberStub("owner"),
+		getGitHubAppInstallation: acmeInstallation(),
+		getUserByID:              githubLogin("acme-member"),
+		listUserAllOrgs:          callerOrgs("acme"),
+		getCollectiveRepository:  linkedRepoStub(""),
 		upsertRepositoryCommit: func(ctx context.Context, arg sqlc.UpsertRepositoryCommitParams) error {
 			upserted = append(upserted, arg.Sha)
 			return nil
@@ -583,8 +595,11 @@ func TestListCommits_RefreshNotModifiedSkipsCacheWrite(t *testing.T) {
 
 	upsertCalled := false
 	mq := &mockQuerier{
-		getGroupMember:          memberStub("owner"),
-		getCollectiveRepository: linkedRepoStub(`"etag-1"`), // stored ETag matches -> 304
+		getGroupMember:           memberStub("owner"),
+		getGitHubAppInstallation: acmeInstallation(),
+		getUserByID:              githubLogin("acme-member"),
+		listUserAllOrgs:          callerOrgs("acme"),
+		getCollectiveRepository:  linkedRepoStub(`"etag-1"`), // stored ETag matches -> 304
 		upsertRepositoryCommit: func(ctx context.Context, arg sqlc.UpsertRepositoryCommitParams) error {
 			upsertCalled = true
 			return nil
@@ -611,8 +626,11 @@ func TestListCommits_RefreshNonOwnerRejected(t *testing.T) {
 	f := &fakeGitHub{commitsBody: `[]`}
 	newFakeGitHub(t, f)
 	mq := &mockQuerier{
-		getGroupMember:          memberStub("member"),
-		getCollectiveRepository: linkedRepoStub(""),
+		getGroupMember:           memberStub("member"),
+		getGitHubAppInstallation: acmeInstallation(),
+		getUserByID:              githubLogin("acme-member"),
+		listUserAllOrgs:          callerOrgs("acme"),
+		getCollectiveRepository:  linkedRepoStub(""),
 		listRepositoryCommits: func(ctx context.Context, arg sqlc.ListRepositoryCommitsParams) ([]sqlc.RepositoryCommit, error) {
 			return nil, nil
 		},
@@ -640,5 +658,69 @@ func TestListCommits_RepoNotLinked404(t *testing.T) {
 	w := routeRequest(h, http.MethodGet, "/groups/"+testGroupID+"/repositories/acme/ghost/commits", "")
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+// acmeInstallation is the stub reporting the account a linked repository's
+// installation belongs to.
+func acmeInstallation() func(context.Context, int64) (sqlc.GithubAppInstallation, error) {
+	return func(_ context.Context, id int64) (sqlc.GithubAppInstallation, error) {
+		return sqlc.GithubAppInstallation{InstallationID: id, AccountLogin: "acme"}, nil
+	}
+}
+
+// TestListRepositories_HidesAnotherAccountsRepositories is the boundary the
+// review found: the repositories come from an installation that belongs to an
+// organisation, not to the collective, so a member of the collective who has
+// nothing to do with that organisation must not read them. Their own
+// collectives still list whatever their account does control.
+func TestListRepositories_HidesAnotherAccountsRepositories(t *testing.T) {
+	mq := &mockQuerier{
+		getGroupMember: memberStub("member"),
+		listCollectiveRepositories: func(context.Context, pgtype.UUID) ([]sqlc.CollectiveRepository, error) {
+			return []sqlc.CollectiveRepository{
+				{Owner: "acme", Name: "repo", InstallationID: 42},
+				{Owner: "acme", Name: "tools", InstallationID: 42},
+			}, nil
+		},
+		getGitHubAppInstallation: acmeInstallation(),
+		getUserByID:              githubLogin("outsider"),
+		listUserAllOrgs:          callerOrgs("other-org"),
+	}
+	h := newRepoHandler(t, mq, nil)
+
+	w := routeRequest(h, http.MethodGet, "/groups/"+testGroupID+"/repositories", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Repositories []repoResponse `json:"repositories"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Repositories) != 0 {
+		t.Fatalf("got %d repositories, want none for an account the viewer does not control", len(resp.Repositories))
+	}
+}
+
+// TestListRepositoryCommits_RefusesAnotherAccountsRepository is the same
+// boundary on the commit read, which is the surface that carries messages,
+// authors and timestamps.
+func TestListRepositoryCommits_RefusesAnotherAccountsRepository(t *testing.T) {
+	mq := &mockQuerier{
+		getGroupMember: memberStub("member"),
+		getCollectiveRepository: func(context.Context, sqlc.GetCollectiveRepositoryParams) (sqlc.CollectiveRepository, error) {
+			return sqlc.CollectiveRepository{Owner: "acme", Name: "repo", InstallationID: 42}, nil
+		},
+		getGitHubAppInstallation: acmeInstallation(),
+		getUserByID:              githubLogin("outsider"),
+		listUserAllOrgs:          callerOrgs("other-org"),
+	}
+	h := newRepoHandler(t, mq, nil)
+
+	w := routeRequest(h, http.MethodGet, "/groups/"+testGroupID+"/repositories/acme/repo/commits", "")
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 for a repository from an account the viewer does not control (body: %s)", w.Code, w.Body.String())
 	}
 }
