@@ -26,9 +26,13 @@ func (h *Handler) loadViewerIdentity(ctx context.Context, user *AuthUser) (*view
 	if err != nil {
 		return nil, err
 	}
-	if row.Provider == githubProvider {
-		identity.githubID = row.GithubID
+	if row.Provider != githubProvider {
+		// A caller who signed in through another provider has no GitHub identity
+		// here, and the org rows belong to a GitHub account, so there is nothing
+		// to consult.
+		return identity, nil
 	}
+	identity.githubID = row.GithubID
 	orgs, err := h.queries.ListUserAllOrgs(ctx, user.PgID())
 	if err != nil {
 		return nil, err
@@ -43,8 +47,13 @@ func (h *Handler) loadViewerIdentity(ctx context.Context, user *AuthUser) (*view
 // installation belongs to, or an organisation that account belongs to. An
 // installation whose account id is unknown is never controlled.
 //
-// The bar is control, not membership of a collective and not a matching handle:
-// a GitHub App installation belongs to the organisation or person that installed
+// The bar is membership of the account that installed the App, not membership of
+// a collective and not a matching handle. Memberships are the ones the caller's
+// last GitHub sign-in synced, so an account removed from an organisation keeps
+// its access until that sign-in happens again; a live re-check would need either
+// the caller's GitHub token or an App permission this App does not hold.
+//
+// A GitHub App installation belongs to the organisation or person that installed
 // it, and the data behind it is theirs to hand out.
 func (v *viewerIdentity) controlsAccount(accountID int64) bool {
 	if accountID == 0 {

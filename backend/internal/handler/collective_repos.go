@@ -294,8 +294,22 @@ func (h *Handler) ListRepositoryCommits(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// The repo must be linked to this collective; this also scopes the request
-	// to a group the caller can be checked against.
+	user := GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	// Membership is checked before the link is read, so a caller who is not in
+	// the collective cannot tell a linked repository from an unlinked one.
+	if _, err := h.queries.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{
+		GroupID: groupID,
+		UserID:  user.PgID(),
+	}); err != nil {
+		writeError(w, http.StatusForbidden, "Collective membership required")
+		return
+	}
+
+	// The repo must be linked to this collective.
 	repo, err := h.queries.GetCollectiveRepository(r.Context(), sqlc.GetCollectiveRepositoryParams{
 		GroupID: groupID,
 		Lower:   owner,
@@ -303,19 +317,6 @@ func (h *Handler) ListRepositoryCommits(w http.ResponseWriter, r *http.Request) 
 	})
 	if err != nil {
 		writeError(w, http.StatusNotFound, "Repository is not linked to this collective")
-		return
-	}
-
-	user := GetUser(r.Context())
-	if user == nil {
-		writeError(w, http.StatusUnauthorized, "Authentication required")
-		return
-	}
-	if _, err := h.queries.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{
-		GroupID: groupID,
-		UserID:  user.PgID(),
-	}); err != nil {
-		writeError(w, http.StatusForbidden, "Collective membership required")
 		return
 	}
 

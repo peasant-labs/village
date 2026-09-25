@@ -839,3 +839,88 @@ func TestListRepositories_DeniesALinkItCannotResolve(t *testing.T) {
 		t.Fatalf("repositories = %+v, want only the readable one", resp.Repositories)
 	}
 }
+
+// TestListRepositories_AdmitsAMemberOfTheInstallationsOrganisation pins the other
+// half of the control rule: the caller's own GitHub account need not be the
+// account the installation belongs to, as long as their account is in the
+// organisation that account is.
+func TestListRepositories_AdmitsAMemberOfTheInstallationsOrganisation(t *testing.T) {
+	mq := &mockQuerier{
+		getGroupMember: memberStub("member"),
+		listCollectiveRepositories: func(context.Context, pgtype.UUID) ([]sqlc.CollectiveRepository, error) {
+			return []sqlc.CollectiveRepository{{Owner: "acme", Name: "repo", InstallationID: 42}}, nil
+		},
+		getGitHubAppInstallation: acmeInstallation(),
+		// A different account id from the installation's, with the organisation
+		// the installation belongs to.
+		getUserByID:     githubLogin("outsider"),
+		listUserAllOrgs: callerOrgs("acme"),
+	}
+	h := newRepoHandler(t, mq, nil)
+
+	w := routeRequest(h, http.MethodGet, "/groups/"+testGroupID+"/repositories", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Repositories []repoResponse `json:"repositories"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Repositories) != 1 {
+		t.Fatalf("got %d repositories, want the one the caller's organisation owns", len(resp.Repositories))
+	}
+}
+
+// TestListRepositories_ReportsAnUnreadableIdentity keeps the read failing closed
+// when the viewer's GitHub identity cannot be read.
+func TestListRepositories_ReportsAnUnreadableIdentity(t *testing.T) {
+	mq := &mockQuerier{
+		getGroupMember: memberStub("member"),
+		listCollectiveRepositories: func(context.Context, pgtype.UUID) ([]sqlc.CollectiveRepository, error) {
+			return []sqlc.CollectiveRepository{{Owner: "acme", Name: "repo", InstallationID: 42}}, nil
+		},
+		getGitHubAppInstallation: acmeInstallation(),
+		getUserByID: func(context.Context, pgtype.UUID) (sqlc.User, error) {
+			return sqlc.User{}, errors.New("read failed")
+		},
+	}
+	h := newRepoHandler(t, mq, nil)
+
+	w := routeRequest(h, http.MethodGet, "/groups/"+testGroupID+"/repositories", "")
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 when the viewer's identity cannot be read", w.Code)
+	}
+}
+
+// TestListRepositories_RefusesANonGitHubCaller covers the caller who signed in
+// through another provider: they carry no GitHub identity, so no installation
+// account is theirs to control.
+func TestListRepositories_RefusesANonGitHubCaller(t *testing.T) {
+	mq := &mockQuerier{
+		getGroupMember: memberStub("member"),
+		listCollectiveRepositories: func(context.Context, pgtype.UUID) ([]sqlc.CollectiveRepository, error) {
+			return []sqlc.CollectiveRepository{{Owner: "acme", Name: "repo", InstallationID: 42}}, nil
+		},
+		getGitHubAppInstallation: acmeInstallation(),
+		getUserByID: func(context.Context, pgtype.UUID) (sqlc.User, error) {
+			return sqlc.User{Provider: "gitlab", GithubID: 1}, nil
+		},
+	}
+	h := newRepoHandler(t, mq, nil)
+
+	w := routeRequest(h, http.MethodGet, "/groups/"+testGroupID+"/repositories", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Repositories []repoResponse `json:"repositories"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Repositories) != 0 {
+		t.Fatalf("got %d repositories, want none: a caller without a GitHub identity controls no installation", len(resp.Repositories))
+	}
+}
