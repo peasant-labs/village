@@ -51,7 +51,11 @@ run_package() {
   set +e
   (
     cd "$repo_root/backend"
-    TEST_DATABASE_URL="$database_url" go test -json -tags=integration -race -count=1 "$package"
+    # The race-enabled integration package can legitimately exceed Go's ten-minute
+    # default on the shared CI pool (real Postgres, MinIO, encryption, and the
+    # recursive retained-payload cases). Keep the gate fail-closed with an explicit
+    # budget instead of a harness timeout that is shorter than the mounted suite.
+    TEST_DATABASE_URL="$database_url" go test -timeout=30m -json -tags=integration -race -count=1 "$package"
   ) 2>&1 | (
     cd "$repo_root/backend"
     go run ../scripts/check-go-test-events.go "$package"
