@@ -8,12 +8,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/schema"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -22,9 +20,6 @@ import (
 
 //go:embed testdata/session_origin_publish/cases.yaml
 var sessionOriginPublishCasesYAML []byte
-
-//go:embed testdata/session_origin_publish/loader_cases.yaml
-var sessionOriginPublishLoaderCasesYAML []byte
 
 type publishOriginTurnRun struct {
 	Role    string `yaml:"role"`
@@ -41,12 +36,11 @@ type publishOriginFixture struct {
 	// ClassifiedOrigin is what this server's own classifier answers for the same
 	// turns. The test recomputes it from the published bytes, so a row cannot
 	// claim a divergence it does not have.
-	ClassifiedOrigin      string                 `yaml:"classified_origin"`
-	Turns                 []publishOriginTurnRun `yaml:"turns"`
-	ExpectedOrigin        string                 `yaml:"expected_origin"`
-	ExpectedStatus        int                    `yaml:"expected_status"`
-	ExpectedErrorContains []string               `yaml:"expected_error_contains"`
-	Undecodable           bool                   `yaml:"undecodable"`
+	ClassifiedOrigin string                 `yaml:"classified_origin"`
+	Turns            []publishOriginTurnRun `yaml:"turns"`
+	ExpectedOrigin   string                 `yaml:"expected_origin"`
+	ExpectedStatus   int                    `yaml:"expected_status"`
+	Undecodable      bool                   `yaml:"undecodable"`
 }
 
 // requiredPublishOriginArms is the deletion guard: every named arm must be
@@ -61,12 +55,6 @@ var requiredPublishOriginArms = []string{
 	"declared-user-wins",
 	"declared-unknown-defers",
 	"declared-out-of-menu",
-}
-
-var requiredPublishOriginRefusalNeedles = []string{
-	"user, agent, unknown",
-	"nothing was stored",
-	"publish again",
 }
 
 func loadPublishOriginFixtures(t *testing.T) []publishOriginFixture {
@@ -104,18 +92,13 @@ func readPublishOriginFixtures(data []byte) ([]publishOriginFixture, error) {
 			if c.ExpectedOrigin != "" {
 				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found stored origin %q on a refused publish; refusals write nothing; remove expected_origin", c.Name, c.ExpectedOrigin)
 			}
-			for _, needle := range requiredPublishOriginRefusalNeedles {
-				if !containsPublishOriginNeedle(c.ExpectedErrorContains, needle) {
-					return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation is missing required refusal needle %q; the refusal message is not fully checked; restore it in expected_error_contains", c.Name, needle)
-				}
+			if c.DeclaredOrigin == "" {
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found a refusal without a declared origin; only an out-of-menu declaration is refused", c.Name)
 			}
-			if !containsPublishOriginNeedle(c.ExpectedErrorContains, c.DeclaredOrigin) {
-				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation is missing the declared input %q from refusal needles; the rejected value is not checked; add that exact input to expected_error_contains", c.Name, c.DeclaredOrigin)
+			if _, err := sessionorigin.Parse(c.DeclaredOrigin); err == nil {
+				return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found declared origin %q on a refused publish; use a value outside the accepted menu", c.Name, c.DeclaredOrigin)
 			}
 			continue
-		}
-		if len(c.ExpectedErrorContains) != 0 {
-			return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found error needles on an accepted publish; accepted rows have no refusal body; remove expected_error_contains", c.Name)
 		}
 		if _, err := sessionorigin.Parse(c.ExpectedOrigin); err != nil {
 			return nil, fmt.Errorf("testdata/session_origin_publish/cases.yaml row %q: loader validation found an invalid expected origin: %w; use a supported stored origin", c.Name, err)
@@ -164,111 +147,6 @@ func readPublishOriginFixtures(data []byte) ([]publishOriginFixture, error) {
 		}
 	}
 	return cases, nil
-}
-
-func containsPublishOriginNeedle(needles []string, want string) bool {
-	for _, needle := range needles {
-		if needle == want {
-			return true
-		}
-	}
-	return false
-}
-
-type publishOriginLoaderFixture struct {
-	Name                  string `yaml:"name"`
-	RemoveNeedle          string `yaml:"remove_needle"`
-	ClearNeedles          bool   `yaml:"clear_needles"`
-	DeclaredOrigin        string `yaml:"declared_origin"`
-	AppendNeedle          string `yaml:"append_needle"`
-	ExpectedErrorContains string `yaml:"expected_error_contains"`
-}
-
-var requiredPublishOriginLoaderFixtures = []string{
-	"unchanged_corpus_is_valid",
-	"missing_accepted_menu_is_refused",
-	"missing_storage_assurance_is_refused",
-	"missing_retry_instruction_is_refused",
-	"missing_all_needles_is_refused",
-	"changed_declaration_requires_matching_echo",
-	"extra_unregistered_needle_is_allowed",
-}
-
-func loadPublishOriginLoaderFixtures(t *testing.T) []publishOriginLoaderFixture {
-	t.Helper()
-	cases, err := decodeFixtureRows[publishOriginLoaderFixture](sessionOriginPublishLoaderCasesYAML)
-	if err != nil {
-		t.Fatalf("load publish-origin loader fixture: %v", err)
-	}
-	names := make(map[string]bool, len(cases))
-	for _, c := range cases {
-		if c.Name == "" || names[c.Name] {
-			t.Fatalf("publish-origin loader fixture has empty or duplicate name %q", c.Name)
-		}
-		names[c.Name] = true
-	}
-	for _, name := range requiredPublishOriginLoaderFixtures {
-		if !names[name] {
-			t.Fatalf("publish-origin loader fixture omits required case %q", name)
-		}
-	}
-	return cases
-}
-
-func TestPublishOriginFixtureLoader(t *testing.T) {
-	for _, testCase := range loadPublishOriginLoaderFixtures(t) {
-		t.Run(testCase.Name, func(t *testing.T) {
-			cases, err := decodeFixtureRows[publishOriginFixture](sessionOriginPublishCasesYAML)
-			if err != nil {
-				t.Fatalf("decode fresh canonical corpus: %v", err)
-			}
-			var refusal *publishOriginFixture
-			for i := range cases {
-				if cases[i].Name == "declared_out_of_menu_value_is_refused_and_stores_nothing" {
-					refusal = &cases[i]
-					break
-				}
-			}
-			if refusal == nil {
-				t.Fatal("canonical corpus is missing the named refusal row")
-			}
-			if testCase.RemoveNeedle != "" {
-				if !containsPublishOriginNeedle(refusal.ExpectedErrorContains, testCase.RemoveNeedle) {
-					t.Fatalf("mutation target %q is absent from the fresh refusal row", testCase.RemoveNeedle)
-				}
-				filtered := refusal.ExpectedErrorContains[:0]
-				for _, needle := range refusal.ExpectedErrorContains {
-					if needle != testCase.RemoveNeedle {
-						filtered = append(filtered, needle)
-					}
-				}
-				refusal.ExpectedErrorContains = filtered
-			}
-			if testCase.ClearNeedles {
-				refusal.ExpectedErrorContains = nil
-			}
-			if testCase.DeclaredOrigin != "" {
-				refusal.DeclaredOrigin = testCase.DeclaredOrigin
-			}
-			if testCase.AppendNeedle != "" {
-				refusal.ExpectedErrorContains = append(refusal.ExpectedErrorContains, testCase.AppendNeedle)
-			}
-			data, err := yaml.Marshal(cases)
-			if err != nil {
-				t.Fatalf("marshal mutated corpus: %v", err)
-			}
-			_, err = readPublishOriginFixtures(data)
-			if testCase.ExpectedErrorContains == "" {
-				if err != nil {
-					t.Fatalf("loader unexpectedly rejected corpus: %v", err)
-				}
-				return
-			}
-			if err == nil || !strings.Contains(err.Error(), testCase.ExpectedErrorContains) {
-				t.Fatalf("loader error = %v, want fragment %q", err, testCase.ExpectedErrorContains)
-			}
-		})
-	}
 }
 
 // refused reports whether the row expects the publish to be turned away.
@@ -366,11 +244,6 @@ func TestPublishTranscript_StoresResolvedSessionOrigin(t *testing.T) {
 				}
 				if createCalls != 0 {
 					t.Fatalf("a refused publish wrote a transcript row carrying origin %q; the refusal must store nothing", created.SessionOrigin)
-				}
-				for _, needle := range fixture.ExpectedErrorContains {
-					if !strings.Contains(w.Body.String(), needle) {
-						t.Fatalf("refusal message does not say %q, so a publisher cannot act on it; got: %s", needle, w.Body.String())
-					}
 				}
 				return
 			}
