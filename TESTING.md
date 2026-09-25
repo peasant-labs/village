@@ -1160,6 +1160,67 @@ one fixture, not N tests.
 
 ### Enriched transcript preservation gate
 
+`internal/handler/testdata/retained_unknown.yaml` holds the six-harness unknown
+record/block corpus. Strict YAML loading and required-name and harness membership
+guards protect it. `TestRetainedUnknownEncryptedPublicationReadPull` publishes
+each case through the authoritative handler into real PostgreSQL and encrypted
+MinIO, then compares initial raw pull, canonical rewrite, repeated content reads,
+and subsequent pull. Complete JSON-text payloads retain whitespace, arbitrary
+number literals, pointers and ordering, including a payload larger than 64 KiB.
+The existing outer 8 MiB and depth limits still apply; no payload is shortened.
+The test also checks the persisted partial mirror, private access and deletion.
+
+`retained_unknown_receiver.yaml` extends that real-service proof with HTML-heavy
+and Unicode-separator payloads that fit the actual 8 MiB wire budget but would
+exceed it if reserialized with additional escaping. Canonical JSON responses do
+not request optional HTML escaping. The encoder checks its actual emitted size;
+when mandatory Go string escaping would still exceed the cap, read repair keeps
+the validated original envelope and performs no database or object mutation.
+Bare details can be wrapped without re-encoding their payload strings. The test
+compares retained fields to an independent original-wire oracle and requires the
+capability after each read, not just equality between two Schema decodes.
+Case-fold aliases beside canonical evidence, in both orders and at the envelope,
+are rejected before side effects; replacement refusals also compare audit state.
+Alias-only evidence with a missing harness or a legacy provider label is also a
+strict rejection marker, including Unicode folding and empty/null members. The
+real-service suite installs such invalid historical bytes through the encrypted
+writer fence and requires both display and pull to refuse them without mutations.
+Native message/tool data remains opaque to public-root discovery, as pinned by
+`retained_unknown_dispatch.yaml`.
+
+The receiver corpus also constructs and measures final envelopes of exactly
+8,388,607, 8,388,608 and 8,388,609 bytes. Accepted envelopes preserve every retained
+byte on publish/read/pull. The above-limit replacement leaves prior storage
+unchanged. Every successful no-write fallback read, including repeats, compares
+the complete row, governance audit, object write/delete counters and authenticated
+original bytes, not just a write count.
+
+`retained_unknown_boundaries.yaml` covers malformed/null evidence, source-order
+and pointer errors, metadata partial disagreement, document limits and escaped
+secrets. The scanner inspects decoded payload strings and key/value pairs without
+rewriting the stored JSON text. Contract refusals and secret-scan refusals assert
+their distinct bodies, and rejected replacements preserve the prior row and blob.
+Complete JSON embedded inside string values is inspected recursively with
+`UseNumber`; key/value inspection uses assignment form so existing AWS rules apply.
+Inspection is bounded to 16 embedded-string layers, 64 MiB of cumulative decoded
+JSON candidate bytes and 1,048,576 visited nodes. Each decoded document retains the
+8 MiB/depth-64 scanner bounds. Exhaustion or ambiguous embedded JSON refuses the
+publish with a payload-free remediation message; it never means scanning succeeded.
+These are fail-closed inspection budgets, not storage truncation or new wire limits.
+Scanner findings and outward messages contain allowlisted rule names only, never
+matches, decoded values, native keys or paths. Required fixtures assert private
+sentinels absent from complete HTTP responses and captured logs for direct,
+escaped and embedded secrets on both retained and whole-upload scan paths.
+The boot-time base preservation proof includes the same corpus; a lossy canonical
+encoder withholds capabilities and refuses enriched publication before writes.
+
+The served/enforced contract expectation is Village API 0.22.0, including retained
+unknown evidence and the preceding head-remote prompt-request contract. Consumer
+release still requires a published Schema tag and the corresponding module pin.
+For a pre-release contract prototype only, the encrypted aggregate accepts an
+explicit absolute `GOWORK` pointing outside the repository; its default remains
+`GOWORK=off`. Never commit a local `replace` or ship with an unpublished module.
+
 `internal/handler/testdata/session_graph_publication.yaml` drives the canonical
 raw-decoder rejection tests and typed migration/rewrite equality tests. It keeps
 input-count absence, measured zero, positive values, and invalid lexical values

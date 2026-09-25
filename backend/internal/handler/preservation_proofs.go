@@ -36,7 +36,7 @@ var (
 func EvaluatePreservationProofs() (baseErr error, provenanceErr error) {
 	preservationProofsOnce.Do(func() {
 		cachedPreservationProofs = preservationProofVerdicts{
-			base:       errors.Join(executeObservedModelPreservationProof(productionContentRewriteEncoder), provePiPreservation(productionContentRewriteEncoder), proveContentBoundary(validateContentBoundary)),
+			base:       errors.Join(executeObservedModelPreservationProof(productionContentRewriteEncoder), provePiPreservation(productionContentRewriteEncoder), proveContentBoundary(validateContentBoundary), proveRetainedUnknownPreservation(productionContentRewriteEncoder)),
 			provenance: executeProvenancePreservationProof(productionContentRewriteEncoder),
 		}
 	})

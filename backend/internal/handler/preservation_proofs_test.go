@@ -35,6 +35,7 @@ func TestBootCachedVerdictsAdvertiseFullInventory(t *testing.T) {
 		schema.ContentCapabilityDetailedUsageV1,
 		schema.ContentCapabilityNativeMetadataV1,
 		schema.ContentCapabilityObservedModelV1,
+		schema.ContentCapabilityRetainedUnknownV1,
 		schema.ContentCapabilitySessionGraphProvenanceV1,
 		schema.ContentCapabilityToolNamespaceV1,
 	}

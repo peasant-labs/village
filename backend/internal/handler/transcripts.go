@@ -312,7 +312,13 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if issues := h.scanTranscriptContent(content); len(issues) > 0 {
+	issues, err := h.scanRetainedUnknown(durableDetail)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	issues = append(issues, h.scanTranscriptContent(content)...)
+	if len(issues) > 0 {
 		writeError(w, http.StatusUnprocessableEntity, scanner.FormatScanErrors(issues))
 		return
 	}
@@ -978,11 +984,23 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 				}
 				log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=persist error=%v", uuidFromPg(readResult.Row.ID), err)
 			}
+		} else if errors.Is(encodeErr, errCanonicalRewriteTooLarge) {
+			// Escaping during an optional read repair must not poison a valid
+			// stored generation. Serve its validated wire without a storage write.
+			response, err = originalContentEnvelope(raw)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
 		} else {
 			// Sparse legacy content the strict canonical encoder cannot represent
 			// (for example a missing session harness) is still served, wrapped in
 			// the same durable envelope, so historical sessions stay readable. No
 			// canonical generation is installed here.
+			if payload.RetainedUnknown != nil || payload.Diagnostics != nil {
+				writeError(w, http.StatusInternalServerError, "Stored retained transcript failed canonical validation during read repair; no content was served or rewritten; republish valid canonical content and retry")
+				return
+			}
 			log.Printf("canonical_transcript_rewrite_retryable transcript_id=%s stage=encode error=%v", uuidFromPg(readResult.Row.ID), encodeErr)
 			response, err = marshalTranscriptContentEnvelope(currentContractVersion, payload)
 			if err != nil {

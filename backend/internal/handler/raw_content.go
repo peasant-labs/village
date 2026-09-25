@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/peasant-labs/schema"
 )
@@ -61,12 +62,20 @@ func validateContentBoundary(raw []byte, knownHarness string, mode contentBounda
 		result.shape = ShapeRawJSONL
 	}
 	var root map[string]json.RawMessage
+	envelopeAlias := false
 	if result.shape != ShapeRawJSONL {
 		if err := json.Unmarshal(raw, &root); err != nil {
 			return result, err
 		}
-		if _, present := root["sessionDetail"]; present {
-			result.shape = ShapeEnvelope
+		for key := range root {
+			if strings.EqualFold(key, "sessionDetail") {
+				result.shape = ShapeEnvelope
+				envelopeAlias = envelopeAlias || key != "sessionDetail"
+			}
+			if key != "contractVersion" && strings.EqualFold(key, "contractVersion") {
+				result.shape = ShapeEnvelope
+				envelopeAlias = true
+			}
 		}
 	}
 	detailRaw := json.RawMessage(raw)
@@ -75,7 +84,7 @@ func validateContentBoundary(raw []byte, knownHarness string, mode contentBounda
 	}
 	var detail map[string]json.RawMessage
 	_ = json.Unmarshal(detailRaw, &detail)
-	strict := publicEvidencePresence(detail)
+	strict := envelopeAlias || publicEvidencePresence(detail)
 	piIdentity := publicPiIdentity(detail)
 	strict = strict || knownPi || piIdentity || publicCanonicalHarness(detail)
 	if strict {
@@ -174,6 +183,11 @@ func publicCanonicalHarness(detail map[string]json.RawMessage) bool {
 // values; deriving this from typed capabilities would erase those markers.
 func publicEvidencePresence(detail map[string]json.RawMessage) (strict bool) {
 	_, strict = detail["nativeMetadata"]
+	for key := range detail {
+		if strings.EqualFold(key, "retainedUnknown") || strings.EqualFold(key, "diagnostics") || strings.EqualFold(key, "nativeMetadata") {
+			strict = true
+		}
+	}
 	var turns []map[string]json.RawMessage
 	_ = json.Unmarshal(detail["turns"], &turns)
 	for _, turn := range turns {
@@ -227,6 +241,22 @@ func embeddedPublicRoot(value any, allowRoot bool) bool {
 // A reserved-looking application key is not sufficient to identify a public
 // transcript. Container shape and envelope discriminators establish that role.
 func publicRootShape(node map[string]any) bool {
+	for key, value := range node {
+		if strings.EqualFold(key, "retainedUnknown") || strings.EqualFold(key, "diagnostics") {
+			return true
+		}
+		if strings.EqualFold(key, "sessionDetail") {
+			if key != "sessionDetail" {
+				return true
+			}
+			if detail, ok := value.(map[string]any); ok && publicRootShape(detail) {
+				return true
+			}
+		}
+		if strings.EqualFold(key, "kind") && value == string(schema.ContentKindSessionDetail) {
+			return true
+		}
+	}
 	if value, present := node["turns"]; present {
 		if value == nil {
 			return true

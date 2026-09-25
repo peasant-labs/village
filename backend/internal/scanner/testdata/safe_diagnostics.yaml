@@ -1,0 +1,15 @@
+cases:
+  - name: raw_credential_returns_rule_only
+    content: 'token AKIAIOSFODNN7EXAMPLE'
+    rules: ['AWS Access Key']
+    forbidden: ['AKIAIOSFODNN7EXAMPLE']
+    message: 'AWS Access Key'
+  - name: assignment_returns_rule_only
+    content: 'aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+    rules: ['AWS Secret Key']
+    forbidden: ['wJalrXUtnFEMI', 'aws_secret_access_key']
+    message: 'AWS Secret Key'
+  - name: unexpected_finding_cannot_inject_diagnostics
+    findings: ['private-native-key=private-fixture-secret']
+    forbidden: ['private-native-key', 'private-fixture-secret']
+    message: 'Sensitive content'
