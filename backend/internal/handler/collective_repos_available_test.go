@@ -41,7 +41,7 @@ func TestListAvailableRepositories_ReturnsInstallationRepos(t *testing.T) {
 		installationsBody:     `[{"id":99,"account":{"login":"acme","id":1,"type":"Organization"}}]`,
 		installationReposBody: `{"total_count":2,"repositories":[{"name":"one","private":false,"owner":{"login":"acme"}},{"name":"two","private":true,"owner":{"login":"acme"}}]}`,
 	}
-	mq := &mockQuerier{getGroupMember: memberStub("owner"), getGroupByID: boundGroupQuery("acme")}
+	mq := &mockQuerier{getGroupMember: memberStub("owner"), getGroupByID: boundGroupQuery("acme"), getUserByID: githubLogin("owner"), listUserAllOrgs: callerOrgs("acme")}
 	newFakeGitHub(t, f)
 	h := newRepoHandler(t, mq, f)
 
@@ -79,7 +79,7 @@ func TestListAvailableRepositories_UnboundCollectiveReturnsEmpty(t *testing.T) {
 
 func TestListAvailableRepositories_NoInstallationForOrg(t *testing.T) {
 	f := &fakeGitHub{installationsBody: `[]`}
-	mq := &mockQuerier{getGroupMember: memberStub("owner"), getGroupByID: boundGroupQuery("acme")}
+	mq := &mockQuerier{getGroupMember: memberStub("owner"), getGroupByID: boundGroupQuery("acme"), getUserByID: githubLogin("owner"), listUserAllOrgs: callerOrgs("acme")}
 	newFakeGitHub(t, f)
 	h := newRepoHandler(t, mq, f)
 
@@ -98,7 +98,7 @@ func TestListAvailableRepositories_NoInstallationForOrg(t *testing.T) {
 
 func TestListAvailableRepositories_NonOwnerRejected(t *testing.T) {
 	f := &fakeGitHub{}
-	mq := &mockQuerier{getGroupMember: memberStub("member"), getGroupByID: boundGroupQuery("acme")}
+	mq := &mockQuerier{getGroupMember: memberStub("member"), getGroupByID: boundGroupQuery("acme"), getUserByID: githubLogin("owner"), listUserAllOrgs: callerOrgs("acme")}
 	newFakeGitHub(t, f)
 	h := newRepoHandler(t, mq, f)
 

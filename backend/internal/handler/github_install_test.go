@@ -58,7 +58,7 @@ func callerOrgs(logins ...string) func(context.Context, pgtype.UUID) ([]sqlc.Lis
 	return func(context.Context, pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error) {
 		rows := make([]sqlc.ListUserAllOrgsRow, 0, len(logins))
 		for _, login := range logins {
-			rows = append(rows, sqlc.ListUserAllOrgsRow{OrgLogin: login})
+			rows = append(rows, sqlc.ListUserAllOrgsRow{OrgLogin: login, OrgID: orgIDFor(login)})
 		}
 		return rows, nil
 	}
@@ -71,9 +71,27 @@ func githubLogin(login string) func(context.Context, pgtype.UUID) (sqlc.User, er
 	return func(context.Context, pgtype.UUID) (sqlc.User, error) {
 		return sqlc.User{
 			Provider:         "github",
+			GithubID:         githubIDFor(login),
 			ProviderUsername: pgtype.Text{String: login, Valid: login != ""},
 		}, nil
 	}
+}
+
+// githubIDFor and orgIDFor give the fixtures stable account ids. Control is
+// decided on ids, not logins, so the accounts that must match an installation's
+// account id (1) are the controlled ones and everything else is another id.
+func githubIDFor(login string) int64 {
+	if login == "owner" || login == "acme-member" {
+		return 1
+	}
+	return 2
+}
+
+func orgIDFor(login string) int64 {
+	if login == "acme" {
+		return 1
+	}
+	return 2
 }
 
 // memberGroupRow is one ListUserGroups row for a collective the caller only
@@ -370,8 +388,8 @@ func TestGitHubInstallCallback_RefusesAnAccountTheCallerDoesNotBelongTo(t *testi
 		listUserGroups: func(context.Context, pgtype.UUID) ([]sqlc.ListUserGroupsRow, error) {
 			return []sqlc.ListUserGroupsRow{ownerGroupRow(testGroupID, "")}, nil
 		},
-		listUserAllOrgs: callerOrgs("acme"),
-		getUserByID:     githubLogin("owner"),
+		listUserAllOrgs: callerOrgs("other-org"),
+		getUserByID:     githubLogin("attacker"),
 		setGroupLinkedGitHubOrg: func(context.Context, sqlc.SetGroupLinkedGitHubOrgParams) error {
 			wrote = true
 			return nil

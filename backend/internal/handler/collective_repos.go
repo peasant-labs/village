@@ -250,11 +250,12 @@ func (h *Handler) ListRepositories(w http.ResponseWriter, r *http.Request) {
 	// Membership of the collective alone must not carry an organisation's
 	// repository names to someone the organisation never included, so a row is
 	// shown only when the viewer controls the account it comes from.
-	allowed, err := h.allowedRepositoryInstallations(r.Context(), user, rows)
+	identity, err := h.loadViewerIdentity(r.Context(), user)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to check the repositories' accounts")
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the viewer's GitHub account")
 		return
 	}
+	allowed := h.allowedRepositoryInstallations(r.Context(), identity, rows)
 	out := make([]repoResponse, 0, len(rows))
 	for _, row := range rows {
 		if !allowed[row.InstallationID] {
@@ -321,19 +322,21 @@ func (h *Handler) ListRepositoryCommits(w http.ResponseWriter, r *http.Request) 
 	// The repository is reached through an installation that belongs to an
 	// organisation or a person, not to the collective, so a viewer must control
 	// that account. Membership of the collective alone must not carry the
-	// organisation's commit metadata to someone it never included.
+	// organisation's commit metadata to someone it never included, and the
+	// answer is the one an unlinked repository gets: whether it is linked is not
+	// theirs to learn.
 	installation, err := h.queries.GetGitHubAppInstallation(r.Context(), repo.InstallationID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to read the repository's installation")
+		writeError(w, http.StatusNotFound, "Repository is not linked to this collective")
 		return
 	}
-	controls, err := h.callerControlsAccount(r.Context(), user, installation.AccountLogin)
+	identity, err := h.loadViewerIdentity(r.Context(), user)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to check the repository's account")
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the viewer's GitHub account")
 		return
 	}
-	if !controls {
-		writeError(w, http.StatusForbidden, "This repository belongs to an account your GitHub account is not part of")
+	if !identity.controlsAccount(installation.AccountID) {
+		writeError(w, http.StatusNotFound, "Repository is not linked to this collective")
 		return
 	}
 
@@ -464,17 +467,18 @@ func (h *Handler) parseGroupID(w http.ResponseWriter, r *http.Request) (pgtype.U
 	return toPgUUID(id), true
 }
 
-// allowedRepositoryInstallations reports, per installation, whether the viewer
-// controls the account it belongs to.
+// allowedRepositoryInstallations reports, per installation, whether the viewer's
+// account controls the account it belongs to.
 //
 // A collective's repositories are reached through a GitHub App installation, and
 // that installation belongs to an organisation or a person rather than to the
 // collective. Membership of the collective alone must not carry an
 // organisation's repository names or commit metadata to someone the organisation
 // never included, so a viewer must control the account their collective's
-// repositories come from. An installation that cannot be read is an error rather
-// than a silent allowance.
-func (h *Handler) allowedRepositoryInstallations(ctx context.Context, user *AuthUser, rows []sqlc.CollectiveRepository) (map[int64]bool, error) {
+// repositories come from. A link whose installation cannot be read is denied
+// rather than failing the whole list: that row is not the viewer's to see, and
+// the others still are.
+func (h *Handler) allowedRepositoryInstallations(ctx context.Context, identity *viewerIdentity, rows []sqlc.CollectiveRepository) map[int64]bool {
 	allowed := make(map[int64]bool, len(rows))
 	for _, row := range rows {
 		if _, seen := allowed[row.InstallationID]; seen {
@@ -482,13 +486,10 @@ func (h *Handler) allowedRepositoryInstallations(ctx context.Context, user *Auth
 		}
 		installation, err := h.queries.GetGitHubAppInstallation(ctx, row.InstallationID)
 		if err != nil {
-			return nil, err
+			allowed[row.InstallationID] = false
+			continue
 		}
-		controls, err := h.callerControlsAccount(ctx, user, installation.AccountLogin)
-		if err != nil {
-			return nil, err
-		}
-		allowed[row.InstallationID] = controls
+		allowed[row.InstallationID] = identity.controlsAccount(installation.AccountID)
 	}
-	return allowed, nil
+	return allowed
 }

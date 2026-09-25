@@ -48,14 +48,35 @@ func (h *Handler) ListAvailableRepositories(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	installationID := int64(0)
+	installationAccountID := int64(0)
 	for _, inst := range installations {
 		if strings.EqualFold(strings.TrimSpace(inst.AccountLogin), org) {
 			installationID = inst.ID
+			installationAccountID = inst.AccountID
 			break
 		}
 	}
 	if installationID == 0 {
 		writeJSON(w, http.StatusOK, response)
+		return
+	}
+
+	// The repositories belong to the organisation that installed the App, not to
+	// the collective, so the inventory is shown only to a caller whose own
+	// GitHub account controls that organisation. An owner who has since left it
+	// must not keep reading the organisation's repository list.
+	user := GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	identity, err := h.loadViewerIdentity(r.Context(), user)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not resolve the caller's GitHub account")
+		return
+	}
+	if !identity.controlsAccount(installationAccountID) {
+		writeError(w, http.StatusForbidden, "This collective's organisation is not one your GitHub account is part of")
 		return
 	}
 

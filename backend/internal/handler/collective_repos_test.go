@@ -665,7 +665,10 @@ func TestListCommits_RepoNotLinked404(t *testing.T) {
 // installation belongs to.
 func acmeInstallation() func(context.Context, int64) (sqlc.GithubAppInstallation, error) {
 	return func(_ context.Context, id int64) (sqlc.GithubAppInstallation, error) {
-		return sqlc.GithubAppInstallation{InstallationID: id, AccountLogin: "acme"}, nil
+		if id != 42 {
+			panic(fmt.Sprintf("acmeInstallation asked for installation %d, want 42", id))
+		}
+		return sqlc.GithubAppInstallation{InstallationID: id, AccountLogin: "acme", AccountID: 1}, nil
 	}
 }
 
@@ -720,7 +723,119 @@ func TestListRepositoryCommits_RefusesAnotherAccountsRepository(t *testing.T) {
 	h := newRepoHandler(t, mq, nil)
 
 	w := routeRequest(h, http.MethodGet, "/groups/"+testGroupID+"/repositories/acme/repo/commits", "")
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403 for a repository from an account the viewer does not control (body: %s)", w.Code, w.Body.String())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404: the answer an unlinked repository gets, so the refusal does not confirm the link (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+// TestListRepositories_KeepsOnlyTheAccountsTheViewerControls proves the filter is
+// per account: a member who controls one of the collective's accounts keeps that
+// account's repositories and loses the other's.
+func TestListRepositories_KeepsOnlyTheAccountsTheViewerControls(t *testing.T) {
+	mq := &mockQuerier{
+		getGroupMember: memberStub("member"),
+		listCollectiveRepositories: func(context.Context, pgtype.UUID) ([]sqlc.CollectiveRepository, error) {
+			return []sqlc.CollectiveRepository{
+				{Owner: "acme", Name: "repo", InstallationID: 42},
+				{Owner: "other-org", Name: "secret", InstallationID: 43},
+			}, nil
+		},
+		getGitHubAppInstallation: func(_ context.Context, id int64) (sqlc.GithubAppInstallation, error) {
+			switch id {
+			case 42:
+				return sqlc.GithubAppInstallation{InstallationID: 42, AccountLogin: "acme", AccountID: 1}, nil
+			case 43:
+				return sqlc.GithubAppInstallation{InstallationID: 43, AccountLogin: "other-org", AccountID: 2}, nil
+			}
+			t.Fatalf("unexpected installation %d", id)
+			return sqlc.GithubAppInstallation{}, nil
+		},
+		getUserByID:     githubLogin("acme-member"),
+		listUserAllOrgs: callerOrgs("acme"),
+	}
+	h := newRepoHandler(t, mq, nil)
+
+	w := routeRequest(h, http.MethodGet, "/groups/"+testGroupID+"/repositories", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Repositories []repoResponse `json:"repositories"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Repositories) != 1 || resp.Repositories[0].Owner != "acme" || resp.Repositories[0].Name != "repo" {
+		t.Fatalf("repositories = %+v, want only acme/repo", resp.Repositories)
+	}
+}
+
+// TestListRepositories_DoesNotTrustAReusedLogin pins that control is decided on
+// the immutable account id. The viewer's organisation login is the one the
+// installation's account carries, but their account is a different account, so
+// they do not control it.
+func TestListRepositories_DoesNotTrustAReusedLogin(t *testing.T) {
+	mq := &mockQuerier{
+		getGroupMember: memberStub("member"),
+		listCollectiveRepositories: func(context.Context, pgtype.UUID) ([]sqlc.CollectiveRepository, error) {
+			return []sqlc.CollectiveRepository{{Owner: "acme", Name: "repo", InstallationID: 42}}, nil
+		},
+		getGitHubAppInstallation: acmeInstallation(),
+		getUserByID:              githubLogin("outsider"),
+		listUserAllOrgs: func(context.Context, pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error) {
+			return []sqlc.ListUserAllOrgsRow{{OrgLogin: "acme", OrgID: 2}}, nil
+		},
+	}
+	h := newRepoHandler(t, mq, nil)
+
+	w := routeRequest(h, http.MethodGet, "/groups/"+testGroupID+"/repositories", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Repositories []repoResponse `json:"repositories"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Repositories) != 0 {
+		t.Fatalf("got %d repositories, want none: a login the installation's account carries is not control of it", len(resp.Repositories))
+	}
+}
+
+// TestListRepositories_DeniesALinkItCannotResolve keeps one unreadable link from
+// hiding the viewer's own repositories: that row is denied and the rest survive.
+func TestListRepositories_DeniesALinkItCannotResolve(t *testing.T) {
+	mq := &mockQuerier{
+		getGroupMember: memberStub("member"),
+		listCollectiveRepositories: func(context.Context, pgtype.UUID) ([]sqlc.CollectiveRepository, error) {
+			return []sqlc.CollectiveRepository{
+				{Owner: "acme", Name: "repo", InstallationID: 42},
+				{Owner: "gone", Name: "dangling", InstallationID: 43},
+			}, nil
+		},
+		getGitHubAppInstallation: func(_ context.Context, id int64) (sqlc.GithubAppInstallation, error) {
+			if id == 43 {
+				return sqlc.GithubAppInstallation{}, errors.New("no such installation")
+			}
+			return sqlc.GithubAppInstallation{InstallationID: 42, AccountLogin: "acme", AccountID: 1}, nil
+		},
+		getUserByID:     githubLogin("acme-member"),
+		listUserAllOrgs: callerOrgs("acme"),
+	}
+	h := newRepoHandler(t, mq, nil)
+
+	w := routeRequest(h, http.MethodGet, "/groups/"+testGroupID+"/repositories", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Repositories []repoResponse `json:"repositories"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Repositories) != 1 || resp.Repositories[0].Owner != "acme" {
+		t.Fatalf("repositories = %+v, want only the readable one", resp.Repositories)
 	}
 }
