@@ -121,18 +121,22 @@ func TestRetainedUnknownBareDetailPreservesEvidence(t *testing.T) {
 var retainedUnknownBoundariesYAML []byte
 
 type retainedUnknownBoundary struct {
-	Name           string   `yaml:"name"`
-	Payload        *string  `yaml:"payload"`
-	Find           string   `yaml:"find"`
-	Replace        string   `yaml:"replace"`
-	MetadataFalse  bool     `yaml:"metadata_false"`
-	Padding        int      `yaml:"padding"`
-	Depth          int      `yaml:"depth"`
-	Status         int      `yaml:"status"`
-	Error          string   `yaml:"error"`
-	Forbidden      []string `yaml:"forbidden"`
-	EmbeddedLayers int      `yaml:"embedded_layers"`
-	Mutations      []struct {
+	Name                   string   `yaml:"name"`
+	Payload                *string  `yaml:"payload"`
+	Find                   string   `yaml:"find"`
+	Replace                string   `yaml:"replace"`
+	MetadataFalse          bool     `yaml:"metadata_false"`
+	Padding                int      `yaml:"padding"`
+	Depth                  int      `yaml:"depth"`
+	Status                 int      `yaml:"status"`
+	Error                  string   `yaml:"error"`
+	Forbidden              []string `yaml:"forbidden"`
+	EmbeddedLayers         int      `yaml:"embedded_layers"`
+	EmbeddedDuplicate      bool     `yaml:"embedded_duplicate"`
+	EmbeddedInvalidUnicode bool     `yaml:"embedded_invalid_unicode"`
+	InspectionNodes        int      `yaml:"inspection_nodes"`
+	InspectionBytes        int      `yaml:"inspection_bytes"`
+	Mutations              []struct {
 		Find    string `yaml:"find"`
 		Replace string `yaml:"replace"`
 	} `yaml:"mutations"`
@@ -144,36 +148,47 @@ type retainedUnknownBoundary struct {
 
 func loadRetainedUnknownBoundaries(t *testing.T) []retainedUnknownBoundary {
 	t.Helper()
+	cases, err := decodeRetainedUnknownBoundaries(retainedUnknownBoundariesYAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cases
+}
+
+func decodeRetainedUnknownBoundaries(raw []byte) ([]retainedUnknownBoundary, error) {
 	var corpus struct {
 		Cases []retainedUnknownBoundary `yaml:"cases"`
 	}
-	d := yaml.NewDecoder(bytes.NewReader(retainedUnknownBoundariesYAML))
+	d := yaml.NewDecoder(bytes.NewReader(raw))
 	d.KnownFields(true)
 	if err := d.Decode(&corpus); err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 	var trailing any
 	if err := d.Decode(&trailing); err != io.EOF {
-		t.Fatal("expected exactly one boundary fixture document")
+		if err == nil {
+			return nil, errors.New("expected exactly one boundary fixture document")
+		}
+		return nil, err
 	}
 	seen := map[string]bool{}
 	for _, c := range corpus.Cases {
 		if c.Name == "" || seen[c.Name] || c.Error == "" || c.Status < 400 {
-			t.Fatalf("invalid boundary fixture %q", c.Name)
+			return nil, errors.New("invalid boundary fixture " + c.Name)
 		}
 		seen[c.Name] = true
 	}
 	for _, name := range strings.Fields("case_alias_after_canonical_evidence case_alias_before_canonical_evidence envelope_case_alias malformed_payload duplicate_payload_member invalid_payload_unicode null_evidence null_diagnostics false_partial missing_partial reversed_positions invalid_pointer metadata_partial_mismatch escaped_unicode_secret escaped_nested_secret escaped_json_key_value_secret oversized_outer_document excessive_payload_depth") {
 		if !seen[name] {
-			t.Fatalf("required boundary fixture %q absent", name)
+			return nil, errors.New("required boundary fixture " + name + " absent")
 		}
 	}
-	for _, name := range strings.Fields("alias_only_legacy_provider alias_only_absent_harness alias_only_unicode_null_diagnostics alias_only_empty_evidence alias_only_envelope embedded_alias_public_root embedded_json_string_secret embedded_json_escaped_secret aws_assignment_pair escaped_aws_assignment_pair whole_upload_secret_diagnostic embedded_inspection_depth_exhausted") {
+	for _, name := range strings.Fields("alias_only_legacy_provider alias_only_absent_harness alias_only_unicode_null_diagnostics alias_only_empty_evidence alias_only_envelope embedded_alias_public_root embedded_json_string_secret embedded_json_escaped_secret aws_assignment_pair escaped_aws_assignment_pair whole_upload_secret_diagnostic embedded_inspection_depth_exhausted embedded_duplicate_private_key embedded_invalid_unicode node_budget_exhaustion byte_budget_exhaustion") {
 		if !seen[name] {
-			t.Fatalf("required boundary fixture %q absent", name)
+			return nil, errors.New("required boundary fixture " + name + " absent")
 		}
 	}
-	return corpus.Cases
+	return corpus.Cases, nil
 }
 
 func (c retainedUnknownBoundary) parts(t *testing.T) (content, metadata []byte) {
@@ -186,7 +201,7 @@ func (c retainedUnknownBoundary) parts(t *testing.T) (content, metadata []byte) 
 	if c.FinalBytes != 0 {
 		content = []byte(retainedContentAtBytes(t, string(content), c.FinalBytes))
 	}
-	if c.Payload != nil || c.Padding > 0 || c.Depth > 0 || c.EmbeddedLayers > 0 {
+	if c.Payload != nil || c.Padding > 0 || c.Depth > 0 || c.EmbeddedLayers > 0 || c.EmbeddedDuplicate || c.EmbeddedInvalidUnicode || c.InspectionNodes > 0 || c.InspectionBytes > 0 {
 		var envelope schema.TranscriptContent
 		if err := json.Unmarshal(content, &envelope); err != nil {
 			t.Fatal(err)
@@ -203,6 +218,26 @@ func (c retainedUnknownBoundary) parts(t *testing.T) (content, metadata []byte) 
 		if c.EmbeddedLayers > 0 {
 			payload := `{"future":"safe"}`
 			for i := 0; i < c.EmbeddedLayers; i++ {
+				b, err := json.Marshal(payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				payload = string(b)
+			}
+			envelope.SessionDetail.RetainedUnknown[0].Payload = payload
+		}
+		if c.EmbeddedDuplicate {
+			envelope.SessionDetail.RetainedUnknown[0].Payload = `{"future": "{\"private-review-key\":1,\"private-review-key\":2}"}`
+		}
+		if c.EmbeddedInvalidUnicode {
+			envelope.SessionDetail.RetainedUnknown[0].Payload = `{"future": "\"\\ud800\""}`
+		}
+		if c.InspectionNodes > 0 {
+			envelope.SessionDetail.RetainedUnknown[0].Payload = "[" + strings.Repeat("0,", c.InspectionNodes) + "0]"
+		}
+		if c.InspectionBytes > 0 {
+			payload := strings.Repeat("x", c.InspectionBytes)
+			for i := 0; i < 10; i++ {
 				b, err := json.Marshal(payload)
 				if err != nil {
 					t.Fatal(err)
@@ -281,6 +316,20 @@ func TestRetainedUnknownFixtureInventory(t *testing.T) {
 	}
 	for _, name := range retainedUnknownCaseNames {
 		if _, err := loadRetainedUnknownFixtures(bytes.ReplaceAll(retainedUnknownYAML, []byte(name), []byte("removed_case"))); err == nil {
+			t.Fatalf("missing %s accepted", name)
+		}
+	}
+}
+
+func TestRetainedUnknownBoundariesInventory(t *testing.T) {
+	if _, err := decodeRetainedUnknownBoundaries(bytes.ReplaceAll(retainedUnknownBoundariesYAML, []byte("status:"), []byte("typo:"))); err == nil {
+		t.Fatal("unknown boundary field accepted")
+	}
+	if _, err := decodeRetainedUnknownBoundaries(append(append([]byte{}, retainedUnknownBoundariesYAML...), []byte("\n---\n{}\n")...)); err == nil {
+		t.Fatal("trailing boundary document accepted")
+	}
+	for _, name := range strings.Fields("case_alias_after_canonical_evidence case_alias_before_canonical_evidence envelope_case_alias malformed_payload duplicate_payload_member invalid_payload_unicode null_evidence null_diagnostics false_partial missing_partial reversed_positions invalid_pointer metadata_partial_mismatch escaped_unicode_secret escaped_nested_secret escaped_json_key_value_secret oversized_outer_document excessive_payload_depth alias_only_legacy_provider alias_only_absent_harness alias_only_unicode_null_diagnostics alias_only_empty_evidence alias_only_envelope embedded_alias_public_root embedded_json_string_secret embedded_json_escaped_secret aws_assignment_pair escaped_aws_assignment_pair whole_upload_secret_diagnostic embedded_inspection_depth_exhausted embedded_duplicate_private_key embedded_invalid_unicode node_budget_exhaustion byte_budget_exhaustion") {
+		if _, err := decodeRetainedUnknownBoundaries(bytes.ReplaceAll(retainedUnknownBoundariesYAML, []byte(name), []byte("removed_case"))); err == nil {
 			t.Fatalf("missing %s accepted", name)
 		}
 	}

@@ -82,6 +82,24 @@ cases:
     embedded_layers: 17
     status: 422
     error: 'Redaction check failed. Retained payload inspection'
+  - name: embedded_duplicate_private_key
+    embedded_duplicate: true
+    forbidden: ['private-review-key']
+    status: 422
+    error: 'Redaction check failed. Retained payload inspection'
+  - name: embedded_invalid_unicode
+    embedded_invalid_unicode: true
+    forbidden: ['ud800']
+    status: 422
+    error: 'Redaction check failed. Retained payload inspection'
+  - name: node_budget_exhaustion
+    inspection_nodes: 1048576
+    status: 422
+    error: 'Redaction check failed. Retained payload inspection'
+  - name: byte_budget_exhaustion
+    inspection_bytes: 7340032
+    status: 422
+    error: 'Redaction check failed. Retained payload inspection'
   - name: case_alias_after_canonical_evidence
     find: '}]}}'
     replace: '}],"RetainedUnknown":null,"Diagnostics":null}}'

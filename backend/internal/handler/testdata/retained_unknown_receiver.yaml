@@ -21,3 +21,15 @@ cases:
     final_bytes: 8388609
     expected_writes: 0
     status: 409
+  - name: harmless_complete_embedded_json
+    payload: '{"future": "{\"n\": 9007199254740993, \"message\": \"safe\"}"}'
+    expected_writes: 2
+    status: 201
+  - name: ordinary_non_json_brace_text
+    payload: '{"note":"{ ordinary prose, not JSON"}'
+    expected_writes: 2
+    status: 201
+  - name: ordinary_trailing_json_like_text
+    payload: '{"note":"[1] followed by ordinary prose"}'
+    expected_writes: 2
+    status: 201
