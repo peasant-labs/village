@@ -127,7 +127,8 @@ repository secrets, so fork PRs would need `pull_request_target` or
 | `lib/determinism.mjs`, `lib/determinism-constants.mjs` | Frozen clock + seeded PRNG (vendored from fairtrade) |
 | `lib/assertions.mjs` | axe, computed-token, and theme assertions (vendored from fairtrade) |
 | `lib/fixtures.mjs` | Authenticated, theme-pinned, deterministic context (app-specific) |
-| `lib/vendor-guard.test.mjs` | Fails when a vendored body drifts from the fairtrade canonical copy |
+| `lib/vendor-guard.mjs` | The vendoring guard: compares every vendored body against its pinned digest, and against the live fairtrade file when `FAIRTRADE_CHECKOUT` is set. Run it as a tool to re-pin |
+| `lib/vendor-guard.test.mjs` | Fails when a vendored body drifts from its pin, when a pin is missing or malformed, or when a file in `lib/` is unclassified |
 | `mock.mjs` | Composed backend: browse + project in-process, transcript detail proxied, scenario control |
 | `lib/project-fixtures.mjs` | The project page's orphan-sessions fixtures (app-specific) |
 | `lib/scenario.mjs` | Sets the composed mock's scenario from a journey |
@@ -144,10 +145,44 @@ than class strings, and keep every case in fixtures/data, not inline tables.
 Covers Explore, the project page's orphan-sessions group, and the transcript
 viewer. The app-agnostic modules in `lib/`
 (`determinism-constants.mjs`, `determinism.mjs`, `assertions.mjs`) are vendored
-byte-faithfully from `fairtrade-design-system/scripts/journey/lib/`;
-`pnpm check:journey-vendoring` (with `FAIRTRADE_CHECKOUT` set) fails when a
-vendored body drifts. `lib/fixtures.mjs` and `lib/scenario.mjs` stay
-app-specific. The composed mock currently serves explore + project + transcript
-+ auth; the home and collective surfaces can be folded in the same way. Served-bytes
-build provenance, as the production shoots assert, is a later slice, since a dev
-server cannot provide it.
+byte-faithfully from `fairtrade-design-system/scripts/journey/lib/`.
+`lib/fixtures.mjs` and `lib/scenario.mjs` stay app-specific. The composed mock
+currently serves explore + project + transcript + auth; the home and collective
+surfaces can be folded in the same way. Served-bytes build provenance, as the
+production shoots assert, is a later slice, since a dev server cannot provide it.
+
+### The vendoring pin
+
+`pnpm check:journey-vendoring` **always** runs and **always** compares every
+vendored body against the sha256 pinned for it in
+`lib/vendor-digests.testdata.yaml`. The pin is taken over the canonical body,
+every byte after the VENDORED banner, so rewording that banner needs no re-pin.
+There is no skip path and no environment in which the suite passes without
+comparing: the pin is committed, so CI and any machine without a fairtrade clone
+enforce the invariant, which is the point.
+
+`FAIRTRADE_CHECKOUT` is an **opt-in extra** check, not the gate. Set it to a
+fairtrade checkout and each vendored body is also compared against the live
+canonical file. Upstream drift and a corrupt copy are separate findings with
+separate drift classes (`upstream-canonical` says the copy here is intact;
+`vendored-copy` says the copy is the side that is wrong), because collapsing them
+sends the reader to re-pin a corrupt copy and make the gate green over a false
+invariant. A checkout that is a consumer tree, or that lacks the file, is refused
+by name too (`upstream-not-canonical`, `upstream-missing`).
+
+The inventory is closed: every file in `lib/` is classified `vendored`,
+`app-local` or `guard` in that corpus, so a new module cannot land unchecked.
+Re-vendor first, then re-pin:
+
+```sh
+# 1. copy the upstream file over the vendored one and prepend the VENDORED banner
+# 2. print the digest the re-vendored body now carries
+node frontend/scripts/journey/lib/vendor-guard.mjs
+# 3. write it into the sha256 field of that row, then
+pnpm --dir frontend check:journey-vendoring
+```
+
+The cases are fixtures, never inline: the closed inventory, the four drift shapes
+and the eleven executable mutations (each applied to a real copy of the tree, in
+both the pin-only and the checkout modes) live in
+`lib/vendor-digests.testdata.yaml` and `lib/vendor-digests.testdata.manifest.yaml`.

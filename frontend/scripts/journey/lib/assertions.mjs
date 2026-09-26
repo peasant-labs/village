@@ -1,6 +1,7 @@
 /* VENDORED from fairtrade-design-system/scripts/journey/lib/assertions.mjs.
-   Byte-faithful except this banner. Do not edit here: edit the upstream file and
-   re-vendor. scripts/journey/lib/vendor-guard.test.mjs fails when the bodies drift. */
+   Byte-faithful except this banner, which the pinned body digest does not cover.
+   Do not edit here: edit the upstream file and re-vendor, then re-pin the digest in
+   scripts/journey/lib/vendor-digests.testdata.yaml. */
 /* Journey assertion helpers: the design-system and accessibility contract a
  * mounted surface must satisfy.
  *
