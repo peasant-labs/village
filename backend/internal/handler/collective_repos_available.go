@@ -63,8 +63,9 @@ func (h *Handler) ListAvailableRepositories(w http.ResponseWriter, r *http.Reque
 
 	// The repositories belong to the organisation that installed the App, not to
 	// the collective, so the inventory is shown only to a caller whose own
-	// GitHub account controls that organisation. An owner who has since left it
-	// must not keep reading the organisation's repository list.
+	// GitHub account controls that organisation. Memberships are the ones the
+	// caller's last GitHub sign-in synced, so an owner removed from the
+	// organisation keeps this until that sign-in happens again.
 	user := GetUser(r.Context())
 	if user == nil {
 		writeError(w, http.StatusUnauthorized, "Authentication required")

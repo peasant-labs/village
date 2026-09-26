@@ -907,6 +907,8 @@ func TestListRepositories_RefusesANonGitHubCaller(t *testing.T) {
 		getUserByID: func(context.Context, pgtype.UUID) (sqlc.User, error) {
 			return sqlc.User{Provider: "gitlab", GithubID: 1}, nil
 		},
+		// A stale org row: only the early return keeps this from granting access.
+		listUserAllOrgs: callerOrgs("acme"),
 	}
 	h := newRepoHandler(t, mq, nil)
 
@@ -922,5 +924,25 @@ func TestListRepositories_RefusesANonGitHubCaller(t *testing.T) {
 	}
 	if len(resp.Repositories) != 0 {
 		t.Fatalf("got %d repositories, want none: a caller without a GitHub identity controls no installation", len(resp.Repositories))
+	}
+}
+
+// TestListRepositoryCommits_NonMemberGetsTheSameRefusalForALinkedRepository
+// pins the order of the checks: membership is answered before the link is read,
+// so a caller who is not in the collective cannot tell a linked repository from
+// an unlinked one. Reading the link first would answer 404 for the unlinked case
+// and 403 for the linked one.
+func TestListRepositoryCommits_NonMemberGetsTheSameRefusalForALinkedRepository(t *testing.T) {
+	mq := &mockQuerier{
+		getGroupMember: notAMember(),
+		getCollectiveRepository: func(context.Context, sqlc.GetCollectiveRepositoryParams) (sqlc.CollectiveRepository, error) {
+			return sqlc.CollectiveRepository{}, errors.New("not linked")
+		},
+	}
+	h := newRepoHandler(t, mq, nil)
+
+	w := routeRequest(h, http.MethodGet, "/groups/"+testGroupID+"/repositories/acme/repo/commits", "")
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403: membership is answered before the link is read (body: %s)", w.Code, w.Body.String())
 	}
 }
