@@ -41,7 +41,7 @@ func TestListAvailableRepositories_ReturnsInstallationRepos(t *testing.T) {
 		installationsBody:     `[{"id":99,"account":{"login":"acme","id":1,"type":"Organization"}}]`,
 		installationReposBody: `{"total_count":2,"repositories":[{"name":"one","private":false,"owner":{"login":"acme"}},{"name":"two","private":true,"owner":{"login":"acme"}}]}`,
 	}
-	mq := &mockQuerier{getGroupMember: memberStub("owner"), getGroupByID: boundGroupQuery("acme")}
+	mq := &mockQuerier{getGroupMember: memberStub("owner"), getGroupByID: boundGroupQuery("acme"), getUserByID: githubLogin("owner"), listUserAllOrgs: callerOrgs("acme")}
 	newFakeGitHub(t, f)
 	h := newRepoHandler(t, mq, f)
 
@@ -79,7 +79,7 @@ func TestListAvailableRepositories_UnboundCollectiveReturnsEmpty(t *testing.T) {
 
 func TestListAvailableRepositories_NoInstallationForOrg(t *testing.T) {
 	f := &fakeGitHub{installationsBody: `[]`}
-	mq := &mockQuerier{getGroupMember: memberStub("owner"), getGroupByID: boundGroupQuery("acme")}
+	mq := &mockQuerier{getGroupMember: memberStub("owner"), getGroupByID: boundGroupQuery("acme"), getUserByID: githubLogin("owner"), listUserAllOrgs: callerOrgs("acme")}
 	newFakeGitHub(t, f)
 	h := newRepoHandler(t, mq, f)
 
@@ -98,7 +98,7 @@ func TestListAvailableRepositories_NoInstallationForOrg(t *testing.T) {
 
 func TestListAvailableRepositories_NonOwnerRejected(t *testing.T) {
 	f := &fakeGitHub{}
-	mq := &mockQuerier{getGroupMember: memberStub("member"), getGroupByID: boundGroupQuery("acme")}
+	mq := &mockQuerier{getGroupMember: memberStub("member"), getGroupByID: boundGroupQuery("acme"), getUserByID: githubLogin("owner"), listUserAllOrgs: callerOrgs("acme")}
 	newFakeGitHub(t, f)
 	h := newRepoHandler(t, mq, f)
 
@@ -113,5 +113,29 @@ func TestListAvailableRepositories_NotConfigured(t *testing.T) {
 	w := availableRequest(t, h, "/groups/"+testGroupID+"/repositories/available")
 	if w.Code != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want 501 when the App is not configured", w.Code)
+	}
+}
+
+// TestListAvailableRepositories_RefusesAnOwnerOutsideTheOrganisation is the
+// inventory's own gate: the repositories belong to the organisation that
+// installed the App, so an owner whose GitHub account is not in it must not read
+// the organisation's repository list.
+func TestListAvailableRepositories_RefusesAnOwnerOutsideTheOrganisation(t *testing.T) {
+	f := &fakeGitHub{
+		installationsBody:     `[{"id":99,"account":{"login":"acme","id":1,"type":"Organization"}}]`,
+		installationReposBody: `{"total_count":1,"repositories":[{"name":"secret","private":true,"owner":{"login":"acme"}}]}`,
+	}
+	mq := &mockQuerier{
+		getGroupMember:  memberStub("owner"),
+		getGroupByID:    boundGroupQuery("acme"),
+		getUserByID:     githubLogin("outsider"),
+		listUserAllOrgs: callerOrgs("other-org"),
+	}
+	newFakeGitHub(t, f)
+	h := newRepoHandler(t, mq, f)
+
+	w := availableRequest(t, h, "/groups/"+testGroupID+"/repositories/available")
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 for an owner outside the organisation (body: %s)", w.Code, w.Body.String())
 	}
 }

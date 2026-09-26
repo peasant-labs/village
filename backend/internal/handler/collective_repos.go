@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -224,9 +225,10 @@ func (h *Handler) ListRepositories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Any member may list; non-members get 403. Owners and members alike see
-	// the link list (the commit data itself is gated separately per the group's
-	// data-access policy at fetch time).
+	// Any member may list; non-members get 403. What a member sees is then
+	// filtered to the accounts their own GitHub account controls, because the
+	// repositories come from an installation that belongs to an organisation or
+	// a person rather than to the collective.
 	user := GetUser(r.Context())
 	if user == nil {
 		writeError(w, http.StatusUnauthorized, "Authentication required")
@@ -245,8 +247,20 @@ func (h *Handler) ListRepositories(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to list repositories")
 		return
 	}
+	// Membership of the collective alone must not carry an organisation's
+	// repository names to someone the organisation never included, so a row is
+	// shown only when the viewer controls the account it comes from.
+	identity, err := h.loadViewerIdentity(r.Context(), user)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the viewer's GitHub account")
+		return
+	}
+	allowed := h.allowedRepositoryInstallations(r.Context(), identity, rows)
 	out := make([]repoResponse, 0, len(rows))
 	for _, row := range rows {
+		if !allowed[row.InstallationID] {
+			continue
+		}
 		out = append(out, toRepoResponse(row))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"repositories": out})
@@ -280,8 +294,22 @@ func (h *Handler) ListRepositoryCommits(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// The repo must be linked to this collective; this also scopes the request
-	// to a group the caller can be checked against.
+	user := GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+	// Membership is checked before the link is read, so a caller who is not in
+	// the collective cannot tell a linked repository from an unlinked one.
+	if _, err := h.queries.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{
+		GroupID: groupID,
+		UserID:  user.PgID(),
+	}); err != nil {
+		writeError(w, http.StatusForbidden, "Collective membership required")
+		return
+	}
+
+	// The repo must be linked to this collective.
 	repo, err := h.queries.GetCollectiveRepository(r.Context(), sqlc.GetCollectiveRepositoryParams{
 		GroupID: groupID,
 		Lower:   owner,
@@ -292,17 +320,24 @@ func (h *Handler) ListRepositoryCommits(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Any member may read commits.
-	user := GetUser(r.Context())
-	if user == nil {
-		writeError(w, http.StatusUnauthorized, "Authentication required")
+	// The repository is reached through an installation that belongs to an
+	// organisation or a person, not to the collective, so a viewer must control
+	// that account. Membership of the collective alone must not carry the
+	// organisation's commit metadata to someone it never included, and the
+	// answer is the one an unlinked repository gets: whether it is linked is not
+	// theirs to learn.
+	installation, err := h.queries.GetGitHubAppInstallation(r.Context(), repo.InstallationID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "Repository is not linked to this collective")
 		return
 	}
-	if _, err := h.queries.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{
-		GroupID: groupID,
-		UserID:  user.PgID(),
-	}); err != nil {
-		writeError(w, http.StatusForbidden, "Collective membership required")
+	identity, err := h.loadViewerIdentity(r.Context(), user)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the viewer's GitHub account")
+		return
+	}
+	if !identity.controlsAccount(installation.AccountID) {
+		writeError(w, http.StatusNotFound, "Repository is not linked to this collective")
 		return
 	}
 
@@ -431,4 +466,31 @@ func (h *Handler) parseGroupID(w http.ResponseWriter, r *http.Request) (pgtype.U
 		return pgtype.UUID{}, false
 	}
 	return toPgUUID(id), true
+}
+
+// allowedRepositoryInstallations reports, per installation, whether the viewer's
+// account controls the account it belongs to.
+//
+// A collective's repositories are reached through a GitHub App installation, and
+// that installation belongs to an organisation or a person rather than to the
+// collective. Membership of the collective alone must not carry an
+// organisation's repository names or commit metadata to someone the organisation
+// never included, so a viewer must control the account their collective's
+// repositories come from. A link whose installation cannot be read is denied
+// rather than failing the whole list: that row is not the viewer's to see, and
+// the others still are.
+func (h *Handler) allowedRepositoryInstallations(ctx context.Context, identity *viewerIdentity, rows []sqlc.CollectiveRepository) map[int64]bool {
+	allowed := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		if _, seen := allowed[row.InstallationID]; seen {
+			continue
+		}
+		installation, err := h.queries.GetGitHubAppInstallation(ctx, row.InstallationID)
+		if err != nil {
+			allowed[row.InstallationID] = false
+			continue
+		}
+		allowed[row.InstallationID] = identity.controlsAccount(installation.AccountID)
+	}
+	return allowed
 }

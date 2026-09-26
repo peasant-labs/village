@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -156,14 +155,14 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 		if !alreadyBound {
 			// The account is read from GitHub, never from the request, but the
 			// handshake can be reached by a link someone else sent. Recording
-			// only an account the caller belongs to keeps such a link from
-			// binding a collective to an installation its owner has no part in.
-			allowed, err := h.callerControlsAccount(r.Context(), user, account)
+			// only an account the caller controls keeps such a link from binding
+			// a collective to an installation its owner has no part in.
+			identity, err := h.loadViewerIdentity(r.Context(), user)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "Could not resolve the GitHub account")
 				return
 			}
-			if !allowed {
+			if !identity.controlsAccount(inst.AccountID) {
 				bound = nil
 			}
 		}
@@ -191,39 +190,4 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	http.Redirect(w, r, frontend+"/groups/"+target+"/settings?github_installed=1", http.StatusFound)
-}
-
-// callerControlsAccount reports whether the account an installation belongs to is
-// one the caller can be installing for: the GitHub login their sign-in recorded,
-// or an organisation their GitHub account belongs to.
-//
-// The caller's Village handle is deliberately not consulted. It is theirs to
-// choose, it is generated on first sign-in, and it need not match any GitHub
-// login, so a handle that happens to spell an account's login proves nothing
-// about the caller's relationship to that account.
-//
-// Membership is what matters here, not the org's visibility setting, which
-// decides whether a collective may be linked to it by hand.
-func (h *Handler) callerControlsAccount(ctx context.Context, user *AuthUser, account string) (bool, error) {
-	if account == "" {
-		return false, nil
-	}
-	row, err := h.queries.GetUserByID(ctx, user.PgID())
-	if err != nil {
-		return false, err
-	}
-	if strings.EqualFold(row.Provider, "github") && row.ProviderUsername.Valid &&
-		strings.EqualFold(strings.TrimSpace(row.ProviderUsername.String), account) {
-		return true, nil
-	}
-	orgs, err := h.queries.ListUserAllOrgs(ctx, user.PgID())
-	if err != nil {
-		return false, err
-	}
-	for _, org := range orgs {
-		if strings.EqualFold(strings.TrimSpace(org.OrgLogin), account) {
-			return true, nil
-		}
-	}
-	return false, nil
 }
