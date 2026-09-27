@@ -35,7 +35,6 @@ services:
   rustfs-init:
     # The official AWS CLI creates the bucket; the MinIO mc client is no longer published.
     image: public.ecr.aws/aws-cli/aws-cli@sha256:fdd8d1fcbea9c371678dee5a40df8b178c7a781b4586605756ee28114c97ead6
-    restart: on-failure
     environment:
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
@@ -43,14 +42,14 @@ services:
     depends_on:
       rustfs:
         condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      until aws --endpoint-url http://rustfs:9000 s3api list-buckets >/dev/null 2>&1; do
-        echo 'Waiting for RustFS...'; sleep 2;
-      done;
-      aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket peasant-transcripts || true;
-      exit 0;
-      "
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        until aws --endpoint-url http://rustfs:9000 s3api list-buckets >/dev/null 2>&1; do
+          echo 'Waiting for RustFS...'; sleep 2;
+        done
+        aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket peasant-transcripts || true
+        aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket peasant-transcripts
 
   caddy:
     # Project mirror (linux/amd64 only).
@@ -101,8 +100,10 @@ services:
       SOURCEHUT_CLIENT_SECRET: ${SOURCEHUT_CLIENT_SECRET:-}
       PORT: "8080"
     depends_on:
-      - postgres
-      - rustfs-init
+      postgres:
+        condition: service_started
+      rustfs-init:
+        condition: service_completed_successfully
 
   frontend:
     build:

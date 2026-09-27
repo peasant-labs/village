@@ -58,6 +58,20 @@ initialization, and the hot-reloading backend, and waits for the API. Use
 `make backend-dev-seed`, `make backend-dev-down`, and the explicitly destructive
 `make backend-dev-reset CONFIRM=1` for its lifecycle.
 
+> **Upgrading an existing local stack.** RustFS replaced MinIO. The service and
+> volume names changed (`minio`/`minio-init` become `rustfs`/`rustfs-init`;
+> `minio-data`/`miniodata` become `rustfs-data`/`rustfsdata`), and the port
+> overrides changed (`VILLAGE_*_MINIO_*` become `VILLAGE_*_RUSTFS_*`). An existing
+> PostgreSQL volume and encryption key are reused, but the new RustFS volume
+> starts empty, and RustFS does not read MinIO's on-disk data, so transcript rows
+> from an earlier run have no objects to read. To keep local history, stop the old
+> stack with its old Compose definition without deleting volumes, then copy the
+> objects at the S3 level with PostgreSQL and the encryption key retained before
+> switching. To discard local history instead, use the explicit destructive reset
+> (`make backend-dev-reset CONFIRM=1`, or
+> `make backend-encrypted-down VILLAGE_ENCRYPTED_PROJECT=<printed-name>`). Stop any
+> earlier MinIO container so it releases its published ports.
+
 For the full application, copy the environment template:
 
 1. Copy the env template and fill in the secrets (GitHub OAuth App credentials,

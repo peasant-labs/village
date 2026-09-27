@@ -33,7 +33,9 @@ This starts PostgreSQL, RustFS, bucket initialization, and the Air-reloading API
 generating and reusing local-only keys so encrypted rows survive restarts. It
 needs Docker Compose and common Git/curl/OpenSSL shell tooling, not Nix. Use
 `make backend-dev-down` to preserve data or `make backend-dev-reset CONFIRM=1`
-to remove only this worktree's namespace, volumes, and generated keys.
+to remove only this worktree's namespace, volumes, and generated keys. An
+existing local stack upgraded from MinIO needs a data transition first; see the
+root README section on upgrading an existing local stack.
 
 Run the separate disposable integration proof with:
 

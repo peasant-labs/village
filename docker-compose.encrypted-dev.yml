@@ -46,7 +46,7 @@ services:
       AWS_SECRET_ACCESS_KEY: minioadmin
       AWS_DEFAULT_REGION: us-east-1
     entrypoint: ["/bin/sh", "-ec"]
-    command: ["until aws --endpoint-url http://rustfs:9000 s3api list-buckets >/dev/null 2>&1; do echo 'Waiting for RustFS...'; sleep 2; done; aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket peasant-transcripts || true"]
+    command: ["until aws --endpoint-url http://rustfs:9000 s3api list-buckets >/dev/null 2>&1; do echo 'Waiting for RustFS...'; sleep 2; done; aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket peasant-transcripts || true; aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket peasant-transcripts"]
   backend:
     build:
       context: ./backend
