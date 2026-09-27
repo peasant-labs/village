@@ -201,7 +201,7 @@ covers exactly that gap: it boots the **real** viewer route against a REST backe
 REST wiring / adapter / host shell fails LOUD even when the fixture-route captures are green.
 
 `mock-rest.mjs` is a tiny REST stand-in (village's analog of peasant's `--mock-data-store`) so the check
-is self-contained — no Postgres/MinIO/auth stack:
+is self-contained — no Postgres/RustFS/auth stack:
 
 ```sh
 CHROME=/path/to/google-chrome

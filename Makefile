@@ -49,7 +49,7 @@ third-party-notices-check:
 	git diff --exit-code -- backend/THIRD_PARTY_NOTICES
 	cd backend && ./scripts/check-dep-licenses.sh
 
-# Disposable, isolated PostgreSQL + MinIO proof of the encrypted backend.
+# Disposable, isolated PostgreSQL + RustFS proof of the encrypted backend.
 # The script always removes its project and volumes unless KEEP_ENCRYPTED_TEST_STACK=1.
 backend-encrypted-test:
 	./scripts/encrypted-backend-dev.sh test

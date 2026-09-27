@@ -12,8 +12,8 @@ cp .env.example .env
 
 | Workflow | What you must set |
 | --- | --- |
-| Backend-only development: `make backend-dev` | Nothing. The target generates a worktree-local KEK and JWT secret and starts PostgreSQL, MinIO, and the hot-reloading backend. |
-| Backend tests: `make backend-encrypted-test` | Nothing. The target provisions disposable PostgreSQL and MinIO. |
+| Backend-only development: `make backend-dev` | Nothing. The target generates a worktree-local KEK and JWT secret and starts PostgreSQL, RustFS, and the hot-reloading backend. |
+| Backend tests: `make backend-encrypted-test` | Nothing. The target provisions disposable PostgreSQL and RustFS. |
 | Full stack in Docker: `make up` / `make dev` | `JWT_SECRET`, a real `TRANSCRIPT_KEK_KEYRING` value, and one sign-in provider pair (GitHub is the default) if you need to log in. Everything else has a working local default. |
 | Production | Everything in the Required table, with real values. See `docs/railway-cloudflare-r2-activation.md`. |
 
@@ -29,7 +29,7 @@ its login route and nothing else breaks.
 | `TRANSCRIPT_KEK_ACTIVE_VERSION` | `1` | Selects the active key in the keyring. | Keep `1` until you rotate. |
 | `TRANSCRIPT_KEK_KEYRING` | placeholder — blob startup fails | JSON keyring of base64 key-encryption keys for encrypted transcript storage. | `openssl rand -base64 32`, then `{"1":"<value>"}`. |
 | `DATABASE_URL` | compose PostgreSQL (`peasant:peasant@localhost:5432/peasant`) | PostgreSQL connection string. | Default works with `make up`. |
-| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_USE_PATH_STYLE` | compose MinIO (`http://localhost:9000`, `peasant-transcripts`, `minioadmin`/`minioadmin`, `true`) | Object storage for encrypted transcript blobs. | Defaults work with `make up`. Production values come from R2 (see the activation runbook). |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_USE_PATH_STYLE` | compose RustFS (`http://localhost:9000`, `peasant-transcripts`, `minioadmin`/`minioadmin`, `true`) | Object storage for encrypted transcript blobs. | Defaults work with `make up`. Production values come from R2 (see the activation runbook). |
 | `PORT`, `BASE_URL`, `FRONTEND_URL` | `8080`, `https://localhost`, `https://localhost` | Listener port and the public URLs used for OAuth callbacks and links. | Defaults work locally. |
 | `NEXT_PUBLIC_API_URL` | `https://localhost/api/v1` | The API base the Next.js frontend calls. | Default works with the compose Caddy setup. |
 

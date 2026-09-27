@@ -1,7 +1,7 @@
 # Testing Patterns - Village Backend
 
 Code examples and strategies for testing the village backend (Go HTTP API over
-PostgreSQL + S3/MinIO). See [`AGENTS.md`](AGENTS.md) for the test package map,
+PostgreSQL + S3/RustFS). See [`AGENTS.md`](AGENTS.md) for the test package map,
 the run-commands cheat sheet, the backend layout, and the cross-repo contract
 table - this file holds the **patterns, strategy, and worked examples** that
 those tables point at, and does not repeat them.
@@ -37,7 +37,7 @@ local test infrastructure and lives in
 [`docs/railway-cloudflare-r2-activation.md`](docs/railway-cloudflare-r2-activation.md).
 
 For the real local aggregate, run `make backend-encrypted-test` from the root.
-It creates a uniquely named disposable Compose project, initializes MinIO, and
+It creates a uniquely named disposable Compose project, initializes RustFS, and
 runs the source-discovered integration packages through the same structured
 event checker that rejects top-level and nested test skips. The deterministic
 test KEK is scoped to that command and is not production custody.
@@ -47,7 +47,7 @@ unit suite is the only thing that runs with no infrastructure - the integration
 suite `t.Skipf`s gracefully when Postgres is unreachable (see below), so a plain
 `go test -race ./...` always works on a laptop with no DB.
 
-CI also provisions MinIO and exports the `TEST_S3_*` variables. Authoritative
+CI also provisions RustFS and exports the `TEST_S3_*` variables. Authoritative
 publication integration tests mount the real handlers over migrated PostgreSQL
 and that real S3-compatible service. They fail closed when `CI` is set but the
 storage endpoint is absent; an explicit local skip remains available only when
@@ -792,7 +792,7 @@ not JWT, S3, or KEK authority.
 
 Some individual integration tests skip when Postgres is absent, which keeps
 focused laptop runs possible. The aggregate `make backend-encrypted-test` rejects
-every skip event, so unavailable PostgreSQL or MinIO cannot appear green.
+every skip event, so unavailable PostgreSQL or RustFS cannot appear green.
 The pool-based tests skip on both pool creation and ping failure:
 
 ```go
@@ -1164,7 +1164,7 @@ one fixture, not N tests.
 record/block corpus. Strict YAML loading and required-name and harness membership
 guards protect it. `TestRetainedUnknownEncryptedPublicationReadPull` publishes
 each case through the authoritative handler into real PostgreSQL and encrypted
-MinIO, then compares initial raw pull, canonical rewrite, repeated content reads,
+RustFS, then compares initial raw pull, canonical rewrite, repeated content reads,
 and subsequent pull. Complete JSON-text payloads retain whitespace, arbitrary
 number literals, pointers and ordering, including a payload larger than 64 KiB.
 The existing outer 8 MiB and depth limits still apply; no payload is shortened.
@@ -1229,7 +1229,7 @@ anchor refs, folded tool provenance, and earlier-history bodies beyond preview
 limits. Required case names guard deletion independently of the fixture size.
 
 `TestSessionGraphEncryptedPublicationAndPull` uses real PostgreSQL and the real
-encrypted MinIO store through mounted publish, metadata, content, and pull
+encrypted RustFS store through mounted publish, metadata, content, and pull
 handlers. It exercises explicit replacement and exact retry on one owner/local
 identity, the production immutable rewrite, and compares refused requests against
 the complete owner-scoped transcript/audit/share state plus observed writes to
@@ -1293,7 +1293,7 @@ image placeholders, and metadata-local numeric/string limits. Required-name
 inventories guard the corpora against accidental deletion.
 
 `TestPiEncryptedPublishRewriteReadPull` runs the real multipart handlers over
-PostgreSQL and the production encrypted MinIO store. It compares publication,
+PostgreSQL and the production encrypted RustFS store. It compares publication,
 display, canonical rewrite, and pull values. Refusals compare the complete
 transcript row, audit and relationship ledgers, authenticated stored bytes, and
 object-write/delete counters. Stored-invalid cases install an encrypted historic
@@ -1315,7 +1315,7 @@ failures cannot retry through legacy migration. Older observed-model-only
 content retains its distinct publication and historical-read policies.
 
 `TestLegacyDispatchEncryptedPublicationAndReads` mounts every routing case over
-real PostgreSQL and encrypted MinIO, compares rejection snapshots and raw pull
+real PostgreSQL and encrypted RustFS, compares rejection snapshots and raw pull
 hashes, and verifies repeated legacy display reads are no-ops. The same named
 corpus participates in capability evaluation. `dispatch_mutations.yaml` proves
 that removing a discriminator, bypassing strict parsing or trusted context, or

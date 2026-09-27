@@ -15,7 +15,7 @@ Railway PostgreSQL and private Cloudflare R2 provisioning is in
 ## Outcomes, threat model, and non-goals
 
 Village encrypts every public, shared, and private transcript body before it
-reaches R2 or MinIO. A leaked object-store credential exposes authenticated
+reaches R2 or RustFS. A leaked object-store credential exposes authenticated
 ciphertext, opaque generation names, and object metadata, but not plaintext or a
 usable DEK. PostgreSQL holds the wrapped DEK, algorithm, key version, object key,
 and plaintext identity. The process environment currently holds the KEK set.
@@ -54,7 +54,7 @@ same compromised process.
            | exact object key
            v
    +-------------------+
-   | R2 / MinIO        |
+   | R2 / RustFS        |
    | opaque AES-GCM    |
    | ciphertext only   |
    +-------------------+
@@ -88,7 +88,7 @@ domain-separated AAD:
       +--> AES-256-GCM(body AAD) -> ciphertext
       |                                  |
       |                                  v
-      |                     R2/MinIO opaque generation.bin
+      |                     R2/RustFS opaque generation.bin
       |
       +--> AES-256-GCM KEK(DEK AAD) -> wrapped DEK
                                            |
@@ -336,7 +336,7 @@ prior readability, and the exact safe repair. HTTP responses do not expose raw
 provider errors. Logs never print key material or credentials.
 
 Required evidence includes fixture row guards, Go race/build/format/vet, real
-PostgreSQL and MinIO tests with machine-checked rejection of every skip event,
+PostgreSQL and RustFS tests with machine-checked rejection of every skip event,
 fresh migration 031 and writer-fence proof, mounted encrypted lifecycle proof,
 two zero-diff sqlc generations, frozen frontend lint/build, artifact provenance,
 and clean resource teardown. For a developer, `make backend-encrypted-test`

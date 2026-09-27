@@ -11,7 +11,7 @@ dev_project="village-dev-$path_hash"
 test_prefix="village-encrypted-${UID:-user}-"
 test_project="${VILLAGE_ENCRYPTED_PROJECT:-${test_prefix}$(date -u +%Y%m%d%H%M%S)-$$}"
 postgres_port="${VILLAGE_TEST_POSTGRES_PORT:-55460}"
-minio_port="${VILLAGE_TEST_MINIO_PORT:-59060}"
+rustfs_port="${VILLAGE_TEST_RUSTFS_PORT:-59060}"
 
 fail() {
   printf >&2 'encrypted backend command failed: %s\nstage: %s\nimpact: %s\nrepair: %s\n' \
@@ -51,7 +51,7 @@ dev() {
   require_curl
   generate_secrets
   local -a compose=(docker compose -f "$dev_compose" -p "$dev_project")
-  "${compose[@]}" up -d --build postgres minio minio-init backend || fail "Compose could not start the persistent services" startup "the API may be unavailable; existing volumes and secrets were preserved" "inspect: docker compose -f '$dev_compose' -p '$dev_project' logs"
+  "${compose[@]}" up -d --build postgres rustfs rustfs-init backend || fail "Compose could not start the persistent services" startup "the API may be unavailable; existing volumes and secrets were preserved" "inspect: docker compose -f '$dev_compose' -p '$dev_project' logs"
   local ready=0
   for _ in {1..120}; do
     if curl --fail --silent --show-error "http://127.0.0.1:${VILLAGE_DEV_BACKEND_PORT:-58080}/api/v1/openapi.json" >/dev/null 2>&1; then
@@ -61,7 +61,7 @@ dev() {
     sleep 1
   done
   [[ "$ready" -eq 1 ]] || fail "the backend did not become reachable within 120 seconds" readiness "the API is unavailable; existing volumes and secrets were preserved" "inspect: docker compose -f '$dev_compose' -p '$dev_project' logs backend"
-  printf 'Project: %s\nAPI: http://127.0.0.1:%s\nPostgreSQL: postgres://peasant:peasant@127.0.0.1:%s/peasant?sslmode=disable\nMinIO console: http://127.0.0.1:%s\n' "$dev_project" "${VILLAGE_DEV_BACKEND_PORT:-58080}" "${VILLAGE_DEV_POSTGRES_PORT:-55432}" "${VILLAGE_DEV_MINIO_CONSOLE_PORT:-59001}"
+  printf 'Project: %s\nAPI: http://127.0.0.1:%s\nPostgreSQL: postgres://peasant:peasant@127.0.0.1:%s/peasant?sslmode=disable\nRustFS console: http://127.0.0.1:%s\n' "$dev_project" "${VILLAGE_DEV_BACKEND_PORT:-58080}" "${VILLAGE_DEV_POSTGRES_PORT:-55432}" "${VILLAGE_DEV_RUSTFS_CONSOLE_PORT:-59001}"
 }
 
 seed() {
@@ -146,11 +146,11 @@ test_stack() {
   trap 'cleanup_test 130' INT
   trap 'cleanup_test 143' TERM
   test_started=1
-  "${test_compose_cmd[@]}" up -d postgres minio
-  "${test_compose_cmd[@]}" run --rm minio-init >/dev/null
+  "${test_compose_cmd[@]}" up -d postgres rustfs
+  "${test_compose_cmd[@]}" run --rm rustfs-init >/dev/null
   export TEST_DATABASE_ADMIN_URL="postgres://test:test@127.0.0.1:${postgres_port}/postgres?sslmode=disable"
   export TEST_DATABASE_URL_TEMPLATE="postgres://test:test@127.0.0.1:${postgres_port}/{database}?sslmode=disable"
-  export TEST_S3_ENDPOINT="http://127.0.0.1:${minio_port}" TEST_S3_BUCKET=village-encrypted-test TEST_S3_ACCESS_KEY=village-test TEST_S3_SECRET_KEY=village-test-only-password
+  export TEST_S3_ENDPOINT="http://127.0.0.1:${rustfs_port}" TEST_S3_BUCKET=village-encrypted-test TEST_S3_ACCESS_KEY=village-test TEST_S3_SECRET_KEY=village-test-only-password
   printf 'Disposable encrypted test project: %s (fixed ports require VILLAGE_TEST_* overrides for concurrent runs)\n' "$test_project"
   (cd "$repo_root/backend" && nix develop -c env GOWORK="${GOWORK:-off}" GOFLAGS=-mod=readonly ../scripts/run-integration-gates.sh)
   cleanup_test 0

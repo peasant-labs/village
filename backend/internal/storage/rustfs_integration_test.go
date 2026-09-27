@@ -14,15 +14,15 @@ import (
 	"github.com/peasant-labs/village/backend/internal/config"
 )
 
-func minioEnv(name, fallback string) string {
+func rustfsEnv(name, fallback string) string {
 	if value := os.Getenv(name); value != "" {
 		return value
 	}
 	return fallback
 }
 
-func TestMinIOEncryptedTranscriptProductionPath(t *testing.T) {
-	cfg := &config.Config{S3Endpoint: minioEnv("TEST_S3_ENDPOINT", "http://127.0.0.1:9000"), S3Bucket: minioEnv("TEST_S3_BUCKET", "peasant-transcripts"), S3AccessKey: minioEnv("TEST_S3_ACCESS_KEY", "minioadmin"), S3SecretKey: minioEnv("TEST_S3_SECRET_KEY", "minioadmin"), S3UsePathStyle: true}
+func TestRustFSEncryptedTranscriptProductionPath(t *testing.T) {
+	cfg := &config.Config{S3Endpoint: rustfsEnv("TEST_S3_ENDPOINT", "http://127.0.0.1:9000"), S3Bucket: rustfsEnv("TEST_S3_BUCKET", "peasant-transcripts"), S3AccessKey: rustfsEnv("TEST_S3_ACCESS_KEY", "minioadmin"), S3SecretKey: rustfsEnv("TEST_S3_SECRET_KEY", "minioadmin"), S3UsePathStyle: true}
 	objects, err := NewS3ObjectStore(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -39,11 +39,11 @@ func TestMinIOEncryptedTranscriptProductionPath(t *testing.T) {
 	defer cancel()
 	id := uuid.New()
 	otherID := uuid.New()
-	body := []byte(`{"contractVersion":"0.1.0","private":"minio-proof"}`)
+	body := []byte(`{"contractVersion":"0.1.0","private":"rustfs-proof"}`)
 	otherBody := []byte(`{"contractVersion":"0.1.0","private":"independent-generation"}`)
 	d, identity, err := store.Write(ctx, id, body)
 	if err != nil {
-		t.Fatalf("real MinIO encryption gate failed during write; verify TEST_S3_* points to a reachable initialized bucket: %v", err)
+		t.Fatalf("real RustFS encryption gate failed during write; verify TEST_S3_* points to a reachable initialized bucket: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Delete(context.Background(), d) })
 	otherDescriptor, otherIdentity, err := store.Write(ctx, otherID, otherBody)
@@ -58,7 +58,7 @@ func TestMinIOEncryptedTranscriptProductionPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if contentType != ciphertextContentType || bytes.Equal(raw, body) || bytes.Contains(raw, []byte("minio-proof")) {
+	if contentType != ciphertextContentType || bytes.Equal(raw, body) || bytes.Contains(raw, []byte("rustfs-proof")) {
 		t.Fatalf("raw object is not opaque ciphertext: content-type=%q", contentType)
 	}
 	plain, _, err := store.Read(ctx, id, d, NewKnownContentIdentity(identity))

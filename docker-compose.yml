@@ -15,37 +15,41 @@ services:
       timeout: 5s
       retries: 5
 
-  minio:
-    # The same server build the integration gates run, by digest: no tag can
-    # move or vanish under a local run, and a local run tests the build CI
-    # tests. The digest also appears as MINIO_IMAGE in
-    # .github/workflows/backend-tests.yml — the three move together.
-    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
-    command: server /data --console-address ":9001"
+  rustfs:
+    # RustFS replaces MinIO, whose official images were withdrawn from Docker
+    # Hub and Quay in September 2026. The image is pinned by digest so no tag
+    # can move or vanish under a local run. The same digest appears in
+    # .github/workflows/backend-tests.yml; the three move together.
+    image: ghcr.io/rustfs/rustfs@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      RUSTFS_ACCESS_KEY: minioadmin
+      RUSTFS_SECRET_KEY: minioadmin
     volumes:
-      - miniodata:/data
+      - rustfsdata:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health/ready"]
       interval: 2s
       timeout: 5s
       retries: 5
 
-  minio-init:
-    # The client by digest for the same reason. Note this is the standalone
-    # mc release, not the client bundled in the server image that CI execs.
-    image: quay.io/minio/mc@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc
-    restart: on-failure
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 minioadmin minioadmin; do
-        echo 'Waiting for minio...'; sleep 2;
-      done;
-      mc mb --ignore-existing local/peasant-transcripts;
-      exit 0;
-      "
+  rustfs-init:
+    # The official AWS CLI creates the bucket; the MinIO mc client is no longer published.
+    image: public.ecr.aws/aws-cli/aws-cli@sha256:fdd8d1fcbea9c371678dee5a40df8b178c7a781b4586605756ee28114c97ead6
+    environment:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: us-east-1
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        until aws --endpoint-url http://rustfs:9000 s3api list-buckets >/dev/null 2>&1; do
+          echo 'Waiting for RustFS...'; sleep 2;
+        done
+        aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket peasant-transcripts || true
+        aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket peasant-transcripts
 
   caddy:
     # Project mirror (linux/amd64 only).
@@ -76,7 +80,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgres://peasant:peasant@postgres:5432/peasant?sslmode=disable
-      S3_ENDPOINT: http://minio:9000
+      S3_ENDPOINT: http://rustfs:9000
       S3_BUCKET: peasant-transcripts
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
@@ -96,8 +100,10 @@ services:
       SOURCEHUT_CLIENT_SECRET: ${SOURCEHUT_CLIENT_SECRET:-}
       PORT: "8080"
     depends_on:
-      - postgres
-      - minio-init
+      postgres:
+        condition: service_started
+      rustfs-init:
+        condition: service_completed_successfully
 
   frontend:
     build:
@@ -118,6 +124,6 @@ services:
 
 volumes:
   pgdata:
-  miniodata:
+  rustfsdata:
   caddy_data:
   caddy_config:

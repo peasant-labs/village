@@ -1,7 +1,7 @@
 # docker-compose.override.example.yml
 #
 # Local development port exposure.
-# Copy to docker-compose.override.yml to expose postgres and minio on localhost.
+# Copy to docker-compose.override.yml to expose postgres and rustfs on localhost.
 # Ports are bound to 127.0.0.1 only — not exposed on 0.0.0.0.
 #
 # Usage:
@@ -13,7 +13,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
 
-  minio:
+  rustfs:
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"

@@ -31,7 +31,7 @@ func TestS3ContentAddressedObjectsRemainIndependent(t *testing.T) {
 	endpoint := os.Getenv("TEST_S3_ENDPOINT")
 	if endpoint == "" {
 		if os.Getenv("CI") != "" {
-			t.Fatal("CI must provide TEST_S3_ENDPOINT and the MinIO service; skipping would disable content-addressed object evidence")
+			t.Fatal("CI must provide TEST_S3_ENDPOINT and the RustFS service; skipping would disable content-addressed object evidence")
 		}
 		t.Skip("set TEST_S3_ENDPOINT to run the real S3-compatible replacement test")
 	}

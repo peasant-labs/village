@@ -18,7 +18,7 @@ import (
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
 
-func TestObservedModelRealPostgresMinIOLifecycle(t *testing.T) {
+func TestObservedModelRealPostgresRustFSLifecycle(t *testing.T) {
 	ctx := context.Background()
 	pool := govTestPool(t)
 	defer pool.Close()
