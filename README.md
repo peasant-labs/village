@@ -13,7 +13,7 @@ and sharing.
 
 - **Backend:** Go (HTTP API, sqlc-generated queries, JWT sessions)
 - **Frontend:** Next.js (App Router)
-- **Data:** PostgreSQL for metadata, MinIO (S3-compatible) for transcript blobs
+- **Data:** PostgreSQL for metadata, RustFS (S3-compatible) for transcript blobs
 - **Edge:** Caddy as a local reverse proxy with TLS
 
 ## Run locally
@@ -29,7 +29,7 @@ To exercise the encrypted backend from a clean disposable environment:
 make backend-encrypted-test
 ```
 
-This single command starts only an isolated PostgreSQL 16 and MinIO project on
+This single command starts only an isolated PostgreSQL 16 and RustFS project on
 `127.0.0.1:55460`, `:59060`, and console `:59061`; initializes the
 `village-encrypted-test` bucket; applies every registered migration; and runs every
 integration-tagged package under `-race` with skip events rejected. That includes
@@ -46,14 +46,14 @@ only its printed namespace with
 `make backend-encrypted-down VILLAGE_ENCRYPTED_PROJECT=<printed-name>`. This
 explicit target is intentionally destructive only within the selected project.
 Override occupied ports
-with `VILLAGE_TEST_POSTGRES_PORT`, `VILLAGE_TEST_MINIO_PORT`, and
-`VILLAGE_TEST_MINIO_CONSOLE_PORT`. Override `VILLAGE_ENCRYPTED_PROJECT` to run
+with `VILLAGE_TEST_POSTGRES_PORT`, `VILLAGE_TEST_RUSTFS_PORT`, and
+`VILLAGE_TEST_RUSTFS_CONSOLE_PORT`. Override `VILLAGE_ENCRYPTED_PROJECT` to run
 beside another checkout. An override never authorizes reuse: any stale container,
 volume, or network causes refusal and prints an exact recovery command instead
 of deleting it.
 
 For encrypted backend development, prefer `make backend-dev`: it generates and
-reuses a worktree-local KEK and JWT secret, starts PostgreSQL, MinIO, bucket
+reuses a worktree-local KEK and JWT secret, starts PostgreSQL, RustFS, bucket
 initialization, and the hot-reloading backend, and waits for the API. Use
 `make backend-dev-seed`, `make backend-dev-down`, and the explicitly destructive
 `make backend-dev-reset CONFIRM=1` for its lifecycle.
@@ -80,14 +80,14 @@ For the full application, copy the environment template:
    make dev       # same, foreground with build logs
    ```
 
-   On first start, the backend auto-applies migrations and MinIO provisions
+   On first start, the backend auto-applies migrations and RustFS provisions
    the `peasant-transcripts` bucket.
 
 3. Hit the app:
 
    - Frontend (via Caddy): https://localhost:8443
    - API direct (via Caddy): https://localhost:8445
-   - MinIO console: http://localhost:9001 (`minioadmin` / `minioadmin`)
+   - RustFS console: http://localhost:9001 (`minioadmin` / `minioadmin`)
 
 Stop everything with `make down`.
 
@@ -103,7 +103,7 @@ Stop everything with `make down`.
 | `make sqlc`   | Regenerate Go types from `backend/internal/database/queries/`   |
 | `make test`   | Run backend tests (`go test ./...` in `backend/`)               |
 | `make build`  | Build the backend binary and the frontend production bundle    |
-| `make backend-encrypted-test` | Run the isolated real PostgreSQL/MinIO encrypted backend proof |
+| `make backend-encrypted-test` | Run the isolated real PostgreSQL/RustFS encrypted backend proof |
 | `make backend-encrypted-down` | Remove only the selected disposable proof namespace and volumes |
 | `make backend-dev` | Start this worktree's persistent encrypted backend and print loopback URLs |
 | `make backend-dev-seed` | Run all four encrypted seed and relationship stages |
@@ -178,7 +178,7 @@ repo - the village backend points at them rather than duplicating them:
 | `frontend/scripts/journey/`         | Playwright UI journeys and the PR evidence pipeline (see its README)|
 | `scripts/`                          | Seed data and dev helpers (see below)                             |
 | `Caddyfile`                         | Reverse proxy config (`:8443` web, `:8445` direct API)            |
-| `docker-compose.yml`                | Local dev stack (Postgres, MinIO, Caddy, backend, frontend)       |
+| `docker-compose.yml`                | Local dev stack (Postgres, RustFS, Caddy, backend, frontend)       |
 | `flake.nix`                         | Optional Nix dev shell                                            |
 
 ## Demo data

@@ -3,7 +3,7 @@ name: Backend Tests
 # Runs the village Go backend's unit AND integration suites on PRs (and pushes
 # to the long-lived branches). The integration suite (`-tags=integration`) needs
 # real PostgreSQL and S3-compatible storage. PostgreSQL runs as a service
-# container; the workflow starts an ephemeral pinned MinIO container explicitly.
+# container; the workflow starts an ephemeral pinned RustFS container explicitly.
 #
 # Jobs run on the organization's self-hosted container pool when a runner is
 # online and on GitHub-hosted ubuntu-24.04 otherwise; both paths are kept
@@ -70,7 +70,7 @@ jobs:
       RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
 
   test:
-    name: Backend, PostgreSQL, and MinIO
+    name: Backend, PostgreSQL, and RustFS
     needs: determine-runner
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
 
@@ -80,7 +80,7 @@ jobs:
     #
     # Ports and container identity are dynamic: the self-hosted pool shares one
     # podman socket and host network, so fixed host ports (5432/9000) or a fixed
-    # MinIO container name collide the moment two backend jobs run concurrently.
+    # RustFS container name collide the moment two backend jobs run concurrently.
     services:
       postgres:
         # postgres 16.15-alpine3.24 (project mirror), pinned to the linux/amd64 manifest.
@@ -98,8 +98,9 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      MINIO_IMAGE: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
-      MINIO_CONTAINER: minio-${{ github.run_id }}-${{ github.run_attempt }}
+      RUSTFS_IMAGE: ghcr.io/rustfs/rustfs@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
+      RUSTFS_CONTAINER: rustfs-${{ github.run_id }}-${{ github.run_attempt }}
+      AWS_CLI_IMAGE: public.ecr.aws/aws-cli/aws-cli@sha256:fdd8d1fcbea9c371678dee5a40df8b178c7a781b4586605756ee28114c97ead6
       TEST_S3_BUCKET: peasant-transcripts
       TEST_S3_ACCESS_KEY: minioadmin
       TEST_S3_SECRET_KEY: minioadmin
@@ -112,43 +113,47 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Start MinIO and create test bucket
+      - name: Start RustFS and create test bucket
         shell: bash
         run: |
           set -euo pipefail
           # Ephemeral host port; the runner picks an unused one.
-          docker run --detach --name "$MINIO_CONTAINER" \
+          docker run --detach --name "$RUSTFS_CONTAINER" \
             --publish 0:9000 \
-            --env MINIO_ROOT_USER="$TEST_S3_ACCESS_KEY" \
-            --env MINIO_ROOT_PASSWORD="$TEST_S3_SECRET_KEY" \
-            "$MINIO_IMAGE" server /data
+            --env RUSTFS_ACCESS_KEY="$TEST_S3_ACCESS_KEY" \
+            --env RUSTFS_SECRET_KEY="$TEST_S3_SECRET_KEY" \
+            "$RUSTFS_IMAGE"
 
-          MINIO_PORT="$(docker port "$MINIO_CONTAINER" 9000/tcp | head -n 1 | sed 's/.*://')"
-          if [[ -z "$MINIO_PORT" ]]; then
-            echo "MinIO port allocation failed; container logs follow." >&2
-            docker logs "$MINIO_CONTAINER" >&2 || true
+          RUSTFS_PORT="$(docker port "$RUSTFS_CONTAINER" 9000/tcp | head -n 1 | sed 's/.*://')"
+          if [[ -z "$RUSTFS_PORT" ]]; then
+            echo "RustFS port allocation failed; container logs follow." >&2
+            docker logs "$RUSTFS_CONTAINER" >&2 || true
             exit 1
           fi
-          echo "TEST_S3_ENDPOINT=http://localhost:${MINIO_PORT}" >> "$GITHUB_ENV"
+          echo "TEST_S3_ENDPOINT=http://localhost:${RUSTFS_PORT}" >> "$GITHUB_ENV"
 
           ready=false
           for attempt in {1..30}; do
-            if docker exec "$MINIO_CONTAINER" \
-              curl --fail --silent --show-error http://127.0.0.1:9000/minio/health/live >/dev/null; then
+            if docker exec "$RUSTFS_CONTAINER" \
+              curl --fail --silent --show-error http://127.0.0.1:9000/health/ready >/dev/null; then
               ready=true
               break
             fi
             sleep 2
           done
           if [[ "$ready" != true ]]; then
-            echo "MinIO did not become ready at http://localhost:${MINIO_PORT} after $attempt/30 attempts; container logs follow." >&2
-            docker logs "$MINIO_CONTAINER" >&2 || true
+            echo "RustFS did not become ready at http://localhost:${RUSTFS_PORT} after $attempt/30 attempts; container logs follow." >&2
+            docker logs "$RUSTFS_CONTAINER" >&2 || true
             exit 1
           fi
 
-          docker exec "$MINIO_CONTAINER" mc alias set local \
-            http://127.0.0.1:9000 "$TEST_S3_ACCESS_KEY" "$TEST_S3_SECRET_KEY"
-          docker exec "$MINIO_CONTAINER" mc mb --ignore-existing "local/$TEST_S3_BUCKET"
+          # The official AWS CLI creates the bucket; the MinIO mc client is no longer published.
+          docker run --rm --network host \
+            --env AWS_ACCESS_KEY_ID="$TEST_S3_ACCESS_KEY" \
+            --env AWS_SECRET_ACCESS_KEY="$TEST_S3_SECRET_KEY" \
+            --env AWS_DEFAULT_REGION=us-east-1 \
+            "$AWS_CLI_IMAGE" --endpoint-url "http://127.0.0.1:${RUSTFS_PORT}" \
+            s3api create-bucket --bucket "$TEST_S3_BUCKET"
 
       # The backend imports the public contract module github.com/peasant-labs/schema,
       # fetched over the standard module proxy; no token, GOPRIVATE, or git rewrite.
@@ -160,14 +165,14 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
-      - name: Preflight PostgreSQL and MinIO
+      - name: Preflight PostgreSQL and RustFS
         shell: bash
         run: |
           set -euo pipefail
 
           # Bounded readiness probe through the service container's own client.
           # The postgres image ships `pg_isready` and the same docker socket
-          # already runs the MinIO container, so this runs unchanged on the
+          # already runs the RustFS container, so this runs unchanged on the
           # self-hosted pool (no apt / no host package manager) and on the
           # GitHub-hosted fallback. `pg_isready` performs a real protocol-level
           # connection attempt, so it confirms the postmaster is accepting
@@ -186,7 +191,12 @@ jobs:
             exit 1
           fi
 
-          docker exec "$MINIO_CONTAINER" mc stat "local/$TEST_S3_BUCKET" >/dev/null
+          docker run --rm --network host \
+            --env AWS_ACCESS_KEY_ID="$TEST_S3_ACCESS_KEY" \
+            --env AWS_SECRET_ACCESS_KEY="$TEST_S3_SECRET_KEY" \
+            --env AWS_DEFAULT_REGION=us-east-1 \
+            "$AWS_CLI_IMAGE" --endpoint-url "$TEST_S3_ENDPOINT" \
+            s3api head-bucket --bucket "$TEST_S3_BUCKET"
 
       - name: Build
         working-directory: backend
@@ -215,15 +225,15 @@ jobs:
           scripts/test-go-test-events.sh
           scripts/run-integration-gates.sh
 
-      - name: Clean up MinIO
+      - name: Clean up RustFS
         if: always()
         shell: bash
         run: |
           if [[ "${{ job.status }}" != "success" ]]; then
-            echo "Backend job failed; MinIO container logs follow." >&2
-            docker logs "$MINIO_CONTAINER" >&2 || true
+            echo "Backend job failed; RustFS container logs follow." >&2
+            docker logs "$RUSTFS_CONTAINER" >&2 || true
           fi
-          docker rm --force "$MINIO_CONTAINER" >/dev/null 2>&1 || true
+          docker rm --force "$RUSTFS_CONTAINER" >/dev/null 2>&1 || true
 
   # Dependency-license gate for the backend binary. Two invariants on the
   # third-party Go modules compiled into ./cmd/server:

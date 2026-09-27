@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Push 2 example transcripts to the local village — to exercise the real
-# publish pipeline (multipart upload → secret scan → MinIO blob → DB row).
+# publish pipeline (multipart upload → secret scan → object-store blob → DB row).
 #
 # Auth: needs a bearer token. The village backend accepts EITHER an API key
 # OR a session JWT on /transcripts/publish — so an API key is NOT required.

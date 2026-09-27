@@ -20,7 +20,7 @@ import (
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
 
-func TestMountedEncryptedTranscriptLifecycleRealPostgresMinIO(t *testing.T) {
+func TestMountedEncryptedTranscriptLifecycleRealPostgresRustFS(t *testing.T) {
 	ctx := context.Background()
 	pool := govTestPool(t)
 	defer pool.Close()

@@ -29,7 +29,7 @@ make backend-dev
 make backend-dev-seed  # optional sample data
 ```
 
-This starts PostgreSQL, MinIO, bucket initialization, and the Air-reloading API,
+This starts PostgreSQL, RustFS, bucket initialization, and the Air-reloading API,
 generating and reusing local-only keys so encrypted rows survive restarts. It
 needs Docker Compose and common Git/curl/OpenSSL shell tooling, not Nix. Use
 `make backend-dev-down` to preserve data or `make backend-dev-reset CONFIRM=1`
@@ -41,7 +41,7 @@ Run the separate disposable integration proof with:
 make backend-encrypted-test
 ```
 
-The proof uses Nix, a unique-per-invocation disposable Compose namespace, and real PostgreSQL/MinIO,
+The proof uses Nix, a unique-per-invocation disposable Compose namespace, and real PostgreSQL/RustFS,
 initializes the bucket, applies every registered migration, rejects integration skips, and
 cleans up only resources it created after proving the namespace had no running
 or stopped containers, volumes, or networks. Caller overrides are also checked
@@ -55,7 +55,7 @@ To run the full backend and frontend together:
 make dev
 ```
 
-To run only the backend (requires Postgres and MinIO running):
+To run only the backend (requires Postgres and RustFS running):
 
 ```sh
 go run ./cmd/server
@@ -73,7 +73,7 @@ Key environment variables:
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string |
 | `POOL_MAX_CONNS` | Max DB connection-pool size (optional). Default `max(10, 2×NumCPU)`. PostgreSQL advisory locks belong to a physical session, so a locked publish keeps one connection across its source probe, preflight, S3 upload, and short persistence transactions; no database transaction spans S3. A pool of one safely serializes publishes, while larger pools absorb concurrent transcript/annotation publishes from a client running `--concurrency N`. Precedence: `POOL_MAX_CONNS` > a `pool_max_conns` set directly in `DATABASE_URL` > the built-in default. |
-| `S3_ENDPOINT` | MinIO/S3 endpoint |
+| `S3_ENDPOINT` | RustFS/S3 endpoint |
 | `S3_BUCKET` | Bucket for transcript files |
 | `S3_ACCESS_KEY` | S3 access key |
 | `S3_SECRET_KEY` | S3 secret key |

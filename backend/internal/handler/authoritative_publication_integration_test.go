@@ -356,7 +356,7 @@ func authoritativeTestBlobStore(t *testing.T) storage.TranscriptBlobStore {
 		if os.Getenv("CI") != "" {
 			t.Fatal("CI must configure TEST_S3_ENDPOINT")
 		}
-		t.Skip("set TEST_S3_ENDPOINT for mounted MinIO evidence")
+		t.Skip("set TEST_S3_ENDPOINT for mounted RustFS evidence")
 	}
 	cfg := &config.Config{S3Endpoint: endpoint, S3AccessKey: os.Getenv("TEST_S3_ACCESS_KEY"), S3SecretKey: os.Getenv("TEST_S3_SECRET_KEY"), S3Bucket: os.Getenv("TEST_S3_BUCKET"), S3UsePathStyle: true}
 	objects, err := storage.NewS3ObjectStore(cfg)

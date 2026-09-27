@@ -43,7 +43,7 @@ digest and rollout evidence.
 
 Do not begin the window unless all of these are true:
 
-1. The consolidated backend build, unit race, real PostgreSQL/MinIO integration
+1. The consolidated backend build, unit race, real PostgreSQL/RustFS integration
    race, formatting, vet, sqlc regeneration/zero-diff, frozen frontend lint/build,
    and production artifact checks passed on the exact intended revision.
 2. Restore owners have validated the required backups and documented that

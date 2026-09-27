@@ -15,7 +15,7 @@ import (
 	"github.com/peasant-labs/village/backend/internal/storage"
 )
 
-func TestDevelopmentSeedProfilesRealPostgresMinIO(t *testing.T) {
+func TestDevelopmentSeedProfilesRealPostgresRustFS(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	endpoint := os.Getenv("TEST_S3_ENDPOINT")
 	if databaseURL == "" || endpoint == "" {

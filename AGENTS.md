@@ -36,7 +36,7 @@ go test -tags=integration -race ./...
 ```
 
 Run `make backend-encrypted-test` from the repository root for the disposable,
-real PostgreSQL and MinIO aggregate. It rejects skipped integration tests.
+real PostgreSQL and RustFS aggregate. It rejects skipped integration tests.
 
 ## Test rules
 
