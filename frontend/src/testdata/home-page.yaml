@@ -1,17 +1,19 @@
-# Case corpus for `src/homePage.test.tsx` — the signed-in home route (`/`) and
-# the explore route (`/explore`).
+# Case corpus for `src/homePage.test.tsx` — the root route (`/`), the explore
+# route (`/explore`), and the top nav the header mounts over them.
 #
 # Deletion protection is the required-NAME manifest in
 # `src/test/homePageFixtures.ts`. A removed or renamed case fails the loader
 # because its name goes missing from the declared set.
 
 # Which surface each (path, viewer) pair must land on. `/` is the only route
-# whose answer depends on who is asking.
+# whose answer depends on who is asking: the signed-in person's home, or the
+# GitHub sign-in page. Discovery left the root and the nav, and keeps its own
+# address, so `/explore` still lands on it for both viewers.
 routeCases:
-  - name: signed-out-visitor-at-the-root-still-gets-explore
+  - name: signed-out-visitor-at-the-root-lands-on-sign-in
     path: "/"
     viewerUsername: null
-    expectSurface: explore
+    expectSurface: sign-in
   - name: signed-in-visitor-at-the-root-gets-their-own-home
     path: "/"
     viewerUsername: alice-dev
@@ -25,35 +27,46 @@ routeCases:
     viewerUsername: null
     expectSurface: explore
 
-# Which top-nav entry is marked active for a given (signed-in, pathname) pair.
-# Discovery's entry moved off "/", so the entry a visitor sees highlighted is
-# the part of the move most likely to regress quietly.
+# Which top-nav entries the MOUNTED header offers for a (signed-in, pathname)
+# pair, and which one is marked active. The nav is `home` and `collectives`,
+# for somebody signed in only; explore and publish are hidden from it, so a
+# page under neither entry marks none (`expectActiveLabel: null`).
 navCases:
   - name: signed-in-visitor-at-the-root-highlights-home
     isLoggedIn: true
     pathname: "/"
-    expectLabels: [home, explore, collectives, publish, profile]
+    expectLabels: [home, collectives]
     expectActiveLabel: home
-  - name: signed-in-visitor-at-explore-highlights-explore
+  - name: signed-in-visitor-at-a-collective-highlights-collectives
     isLoggedIn: true
-    pathname: "/explore"
-    expectLabels: [home, explore, collectives, publish, profile]
-    expectActiveLabel: explore
-  - name: signed-out-visitor-at-the-root-highlights-explore
-    isLoggedIn: false
-    pathname: "/"
-    expectLabels: [explore]
-    expectActiveLabel: explore
-  - name: signed-out-visitor-has-no-home-entry-at-explore
-    isLoggedIn: false
-    pathname: "/explore"
-    expectLabels: [explore]
-    expectActiveLabel: explore
-  - name: a-transcript-page-still-highlights-explore
+    pathname: "/groups/acme-platform"
+    expectLabels: [home, collectives]
+    expectActiveLabel: collectives
+  - name: a-transcript-page-highlights-home
     isLoggedIn: true
     pathname: "/transcripts/abc123"
-    expectLabels: [home, explore, collectives, publish, profile]
-    expectActiveLabel: explore
+    expectLabels: [home, collectives]
+    expectActiveLabel: home
+  - name: signed-in-visitor-at-explore-highlights-nothing
+    isLoggedIn: true
+    pathname: "/explore"
+    expectLabels: [home, collectives]
+    expectActiveLabel: null
+  - name: signed-in-visitor-at-publish-highlights-nothing
+    isLoggedIn: true
+    pathname: "/publish"
+    expectLabels: [home, collectives]
+    expectActiveLabel: null
+  - name: signed-out-visitor-at-the-root-is-offered-no-entries
+    isLoggedIn: false
+    pathname: "/"
+    expectLabels: []
+    expectActiveLabel: null
+  - name: signed-out-visitor-at-explore-is-offered-no-entries
+    isLoggedIn: false
+    pathname: "/explore"
+    expectLabels: []
+    expectActiveLabel: null
 
 # What the home surface renders for a given owner-scoped transcript list.
 #

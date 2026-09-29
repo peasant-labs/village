@@ -1,0 +1,44 @@
+# Case corpus for `src/signInPage.test.tsx` — which sign-in providers village
+# offers, and where.
+#
+# Every case mounts the REAL header (`Navbar`) over the REAL route at `path`,
+# inside the real `AuthProvider`, with the session answered by `GET /auth/me`.
+# A provider is "offered" when a fairtrade sign-in button on the screen leads to
+# it: the split button's primary action plus every row behind its chevron.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/signInPageFixtures.ts`.
+
+# The closed set of providers the whole app offers, asserted as exact
+# membership against what the header and the sign-in page render. GitHub only;
+# the other providers are hidden, and their server routes stay.
+offeredProviders: [github]
+
+cases:
+  - name: a-signed-out-root-is-one-github-button
+    why: >
+      The front door. A signed-out `/` is the sign-in page, its one button is
+      GitHub, and the header adds no second button beside it.
+    path: "/"
+    signedIn: false
+    expectPageProviders: [github]
+    expectHeaderProviders: []
+
+  - name: a-signed-out-deep-link-signs-in-with-github-from-the-header
+    why: >
+      A signed-out visitor who arrives by a link to another page still has a
+      way in, from the header, and it is GitHub only: no chevron, no menu of
+      other providers.
+    path: "/explore"
+    signedIn: false
+    expectPageProviders: []
+    expectHeaderProviders: [github]
+
+  - name: a-signed-in-root-offers-no-sign-in
+    why: >
+      Somebody already signed in is never asked to sign in again, at `/` or in
+      the header.
+    path: "/"
+    signedIn: true
+    expectPageProviders: []
+    expectHeaderProviders: []

@@ -1,15 +1,19 @@
 /**
  * App navigation sections — the single source of truth for the top nav.
- * Mirrors the published Fairtrade CommonsApp demo shell:
- * home | explore | collectives | publish | profile, lowercase, rendered through the
- * lifted GraphSectionNav primitive (@peasant-labs/fairtrade/ui) with real
- * next/link navigation instead of the demo's internal view-switcher.
  *
- * Unlike the demo (which has no auth), village gates collectives/publish/
- * profile on being signed in — same real constraint the previous hand-rolled
- * Navbar enforced (you can't publish or manage a collective, or view "your"
- * profile, while signed out). `navSections()` takes the live auth state and
- * returns only the sections that currently apply.
+ * The nav is `home | collectives`, lowercase, rendered through the lifted
+ * GraphSectionNav primitive (@peasant-labs/fairtrade/ui) with real next/link
+ * navigation instead of the demo's internal view-switcher. The account menu
+ * (profile, sign out) sits beside it in the Navbar, not in this registry.
+ *
+ * Both sections belong to somebody who is signed in, so a signed-out visitor is
+ * offered none: their `/` is the sign-in page. `navSections()` takes the live
+ * auth state and returns only the sections that currently apply.
+ *
+ * Explore and the publish dashboard are hidden from the nav, not deleted:
+ * `/explore` and `/publish` still resolve by URL, and the discovery section's
+ * label and href stay exported below for the in-page links that still point
+ * at it.
  */
 
 export interface NavSection {
@@ -25,69 +29,41 @@ export interface NavSection {
   title?: string;
 }
 
-/** The always-present discovery section. Exported as the single source of
- *  truth for its label/href so callers that need only this one entry (the
- *  detail-page breadcrumb's root crumb, and the dev-only visual harness
- *  that mirrors it) can import the constant directly instead of scanning
- *  `navSections()`'s result for it.
- *
- *  Discovery has its own address, `/explore`. `/` shows it to a signed-out
- *  visitor and the signed-in person's own home page to everyone else, so `/`
- *  cannot be this section's href: for a signed-in person it does not lead
- *  here. */
+/** The public discovery list's label and address. It is not offered in the
+ *  nav; it is exported as the single source of truth for the in-page links
+ *  that still lead to it (the detail-page breadcrumb's root crumb, the profile
+ *  and project breadcrumbs, and the dev-only visual harness that mirrors
+ *  them), so they import the constant instead of re-typing `/explore`. */
 export const EXPLORE_SECTION: NavSection = {
   id: "explore",
   href: "/explore",
   label: "explore",
-  activePrefixes: ["/transcripts"],
-  title: "Search redacted AI agent transcripts shared by the community.",
+  activePrefixes: [],
+  title: "search redacted ai agent transcripts shared by the community.",
 };
 
-/** The signed-in person's own landing page: their recent sessions and the
- *  projects those sessions belong to. Absent for a signed-out visitor, whose
- *  `/` is discovery rather than a home of their own. */
+/** The signed-in person's own landing page. It also stays active on the pages
+ *  a person reaches from it — a transcript and a pull request's prompts — so
+ *  the nav still says where they are. */
 export const HOME_SECTION: NavSection = {
   id: "home",
   href: "/",
   label: "home",
-  activePrefixes: [],
-  title: "Your recent sessions and the projects they belong to.",
+  activePrefixes: ["/transcripts", "/pulls"],
+  title: "your recent sessions and the projects they belong to.",
 };
 
-export function navSections(opts: { isLoggedIn: boolean; githubUsername?: string }): NavSection[] {
-  // A signed-out visitor has no home of their own: `/` serves discovery to
-  // them, so the explore entry is the active one while they are there.
-  const sections: NavSection[] = opts.isLoggedIn
-    ? [HOME_SECTION, EXPLORE_SECTION]
-    : [{ ...EXPLORE_SECTION, exactPaths: ["/"] }];
+/** The collectives the signed-in person belongs to, and each one's page. */
+export const COLLECTIVES_SECTION: NavSection = {
+  id: "collectives",
+  href: "/groups",
+  label: "collectives",
+  activePrefixes: ["/groups"],
+  title: "the collectives you belong to and their settings.",
+};
 
-  if (opts.isLoggedIn) {
-    sections.push({
-      id: "collectives",
-      href: "/groups",
-      label: "collectives",
-      activePrefixes: ["/groups"],
-      title: "The collectives you belong to and their governance settings.",
-    });
-    sections.push({
-      id: "publish",
-      href: "/publish",
-      label: "publish",
-      activePrefixes: ["/publish"],
-      title: "Share a redacted transcript with the commons.",
-    });
-    if (opts.githubUsername) {
-      sections.push({
-        id: "profile",
-        href: `/users/${opts.githubUsername}`,
-        label: "profile",
-        activePrefixes: [`/users/${opts.githubUsername}`],
-        title: "Your public profile and shared transcripts.",
-      });
-    }
-  }
-
-  return sections;
+export function navSections(opts: { isLoggedIn: boolean }): NavSection[] {
+  return opts.isLoggedIn ? [HOME_SECTION, COLLECTIVES_SECTION] : [];
 }
 
 /**
@@ -106,22 +82,23 @@ export function isSectionActive(section: NavSection, pathname: string): boolean 
 /**
  * The "< back" affordance the demo's CommonsApp shell shows on its detail
  * sub-views (BACK_TO in CommonsApp.jsx: collective-detail -> collectives,
- * collective-settings -> collective-detail, transcript-detail -> explore).
- * GraphSectionNav (the primitive Navbar.tsx renders sections through) has no
- * built-in back-button support — that only exists on the demo's OTHER shell
- * export, GraphAppShell, which owns its own internal view-switcher state and
- * doesn't apply to village's real routing — so this maps village's actual
- * routes onto the same back-target relationships by hand. Returns `null` on
- * a top-level route (nothing to go back to).
+ * collective-settings -> collective-detail). GraphSectionNav (the primitive
+ * Navbar.tsx renders sections through) has no built-in back-button support —
+ * that only exists on the demo's OTHER shell export, GraphAppShell, which owns
+ * its own internal view-switcher state and doesn't apply to village's real
+ * routing — so this maps village's actual routes onto the same back-target
+ * relationships by hand. A transcript goes back to home, the section it is
+ * shown under, rather than to the discovery list the nav no longer offers.
+ * Returns `null` on a top-level route (nothing to go back to).
  */
 export function backTarget(pathname: string): { href: string } | null {
   const settingsMatch = pathname.match(/^\/groups\/([^/]+)\/settings\/?$/);
   if (settingsMatch) return { href: `/groups/${settingsMatch[1]}` };
 
   const detailMatch = pathname.match(/^\/groups\/([^/]+)\/?$/);
-  if (detailMatch) return { href: "/groups" };
+  if (detailMatch) return { href: COLLECTIVES_SECTION.href };
 
-  if (pathname.match(/^\/transcripts\/([^/]+)\/?$/)) return { href: EXPLORE_SECTION.href };
+  if (pathname.match(/^\/transcripts\/([^/]+)\/?$/)) return { href: HOME_SECTION.href };
 
   return null;
 }

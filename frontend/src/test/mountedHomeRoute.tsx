@@ -4,13 +4,15 @@ import { afterEach, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import RootPage from "@/app/page";
 import ExploreRoute from "@/app/explore/page";
+import Navbar from "@/components/layout/Navbar";
 import type { HomeRequestFailure, HomeTranscriptCase } from "@/test/homePageFixtures";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { TranscriptListItem, User } from "@/lib/types";
 
 /**
  * Support for tests that mount the REAL root route (`/`) and the REAL explore
- * route (`/explore`), each inside the real `AuthProvider`.
+ * route (`/explore`), each inside the real `AuthProvider`, optionally under the
+ * REAL header (`Navbar`) the app shell mounts above every page.
  *
  * The signed-in identity comes from the same `GET /auth/me` the app calls, so
  * WHICH surface `/` serves is decided by the production code under test rather
@@ -217,11 +219,41 @@ async function renderRoute(element: React.ReactElement): Promise<void> {
   });
 }
 
-/** Renders the real route registered at `path`. */
-export async function renderAppRoute(path: string): Promise<void> {
-  if (path === "/") return renderRoute(<RootPage />);
-  if (path === "/explore") return renderRoute(<ExploreRoute />);
+/** The real page registered at `path`. */
+function routeElement(path: string): React.ReactElement {
+  if (path === "/") return <RootPage />;
+  if (path === "/explore") return <ExploreRoute />;
   throw new Error(`mounted home route fixture has no route registered at ${path}`);
+}
+
+/**
+ * Renders the real route registered at `path`. With `header`, the real
+ * `Navbar` is mounted above it exactly as the app shell mounts it, and the
+ * jsdom location is moved to `path` first so the header reads the same
+ * pathname a real navigation would leave behind.
+ */
+export async function renderAppRoute(
+  path: string,
+  options: { header?: boolean } = {},
+): Promise<void> {
+  const page = routeElement(path);
+  if (!options.header) return renderRoute(page);
+  window.history.replaceState({}, "", path);
+  return renderRoute(
+    <>
+      <Navbar />
+      <main>{page}</main>
+    </>,
+  );
+}
+
+/**
+ * Renders the real header alone at `pathname`, for a test about the chrome
+ * rather than the page beneath it.
+ */
+export async function renderHeaderAt(pathname: string): Promise<void> {
+  window.history.replaceState({}, "", pathname);
+  return renderRoute(<Navbar />);
 }
 
 /** Shared teardown; call once at module scope in each mounted-home test file. */
@@ -230,6 +262,7 @@ export function installHomeRouteTeardown(): void {
     cleanup();
     vi.unstubAllGlobals();
     globalThis.localStorage?.clear();
+    window.history.replaceState({}, "", "/");
     document.documentElement.setAttribute("data-theme", "dark");
   });
 }
