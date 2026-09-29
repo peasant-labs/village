@@ -28,45 +28,83 @@ routeCases:
     expectSurface: explore
 
 # Which top-nav entries the MOUNTED header offers for a (signed-in, pathname)
-# pair, and which one is marked active. The nav is `home` and `collectives`,
-# for somebody signed in only; explore and publish are hidden from it, so a
-# page under neither entry marks none (`expectActiveLabel: null`).
+# pair, which one is marked active, and where its "< back" link leads. The nav
+# is `home` and `collectives`, for somebody signed in only; explore and publish
+# are hidden from it, so a page under neither entry marks none
+# (`expectActiveLabel: null`). `expectBackHref` is null where the header shows
+# no back link; it is written on every case so none is read as "no link" by
+# omission.
 navCases:
   - name: signed-in-visitor-at-the-root-highlights-home
     isLoggedIn: true
     pathname: "/"
     expectLabels: [home, collectives]
     expectActiveLabel: home
+    expectBackHref: null
   - name: signed-in-visitor-at-a-collective-highlights-collectives
     isLoggedIn: true
     pathname: "/groups/acme-platform"
     expectLabels: [home, collectives]
     expectActiveLabel: collectives
+    expectBackHref: "/groups"
   - name: a-transcript-page-highlights-home
     isLoggedIn: true
     pathname: "/transcripts/abc123"
     expectLabels: [home, collectives]
     expectActiveLabel: home
+    expectBackHref: "/"
+  - name: a-pull-request-page-highlights-home
+    isLoggedIn: true
+    pathname: "/pulls/acme/app/42"
+    expectLabels: [home, collectives]
+    expectActiveLabel: home
+    expectBackHref: null
   - name: signed-in-visitor-at-explore-highlights-nothing
     isLoggedIn: true
     pathname: "/explore"
     expectLabels: [home, collectives]
     expectActiveLabel: null
+    expectBackHref: null
   - name: signed-in-visitor-at-publish-highlights-nothing
     isLoggedIn: true
     pathname: "/publish"
     expectLabels: [home, collectives]
     expectActiveLabel: null
+    expectBackHref: null
   - name: signed-out-visitor-at-the-root-is-offered-no-entries
     isLoggedIn: false
     pathname: "/"
     expectLabels: []
     expectActiveLabel: null
+    expectBackHref: null
   - name: signed-out-visitor-at-explore-is-offered-no-entries
     isLoggedIn: false
     pathname: "/explore"
     expectLabels: []
     expectActiveLabel: null
+    expectBackHref: null
+  - name: a-signed-out-transcript-reader-gets-no-back-link
+    # Their `/` is the sign-in page, which is not where a shared link's reader
+    # came from, so the header offers no way "back" to it.
+    isLoggedIn: false
+    pathname: "/transcripts/abc123"
+    expectLabels: []
+    expectActiveLabel: null
+    expectBackHref: null
+
+# The account menu, the only way to the signed-in person's profile and the only
+# way to sign out. Each row names the item as it is read and what choosing it
+# must do: `navigate` pushes `target`; `sign-out` posts to the logout route.
+# The rows are the menu's whole item set, in order.
+accountMenuCases:
+  - name: profile-opens-the-signed-in-persons-profile
+    item: profile
+    effect: navigate
+    target: "/users/alice-dev"
+  - name: sign-out-ends-the-session
+    item: sign out
+    effect: sign-out
+    target: null
 
 # What the home surface renders for a given owner-scoped transcript list.
 #

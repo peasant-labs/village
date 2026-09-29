@@ -8,11 +8,15 @@
 # screen exactly as written, so a surface that "passes" by lowercasing a
 # collective's name fails instead.
 #
-# Three more things are not village chrome and are set aside too: a person's
-# initials on an avatar tile (drawn from their name), a provider's display name
-# in the brand case fairtrade owns ("Claude Code", from `providerDisplayName`),
-# and a formatted date such as "Jan 2, 2026", data in the form the design
-# system formats it.
+# Three more things are not village chrome and are set aside too, each by an
+# exact match and never by a pattern: a person's initial on an avatar tile
+# (the first letter of a user-content name below, capitalized the way
+# fairtrade's Avatar draws it), a provider's display name in the brand case
+# fairtrade owns ("Claude Code", from `providerDisplayName`), and a formatted
+# date such as "Jan 2, 2026", data in the form the design system formats it.
+#
+# Text inside an element with the `uppercase` class is read as it renders,
+# capitalized, so chrome styled into capitals fails like chrome typed in them.
 #
 # Deletion protection is the required-NAME manifest in
 # `src/test/lowercaseChromeFixtures.ts`, which also requires one case per
@@ -25,6 +29,7 @@ content:
   transcript: Fix Flaky Ingest Test
   repository: Acme-Labs/Platform-API
   viewer: alice-dev
+  githubUser: Octo-Cat
 
 cases:
   - name: the-header-with-the-account-menu-open
@@ -57,14 +62,44 @@ cases:
     state: visitor
     expectContent: [collective]
 
+  - name: a-collective-that-does-not-exist
+    surface: group-page
+    state: not-found
+    expectContent: []
+
+  - name: a-collective-page-confirming-a-removal
+    surface: group-page
+    state: confirm-remove
+    expectContent: [collective, transcript]
+
+  - name: a-collective-page-searching-for-someone-to-invite
+    surface: group-page
+    state: invite-search
+    expectContent: [collective, githubUser]
+
   - name: the-publish-dashboard-with-a-transcript
     surface: publish-page
     state: with-transcripts
     expectContent: [transcript]
 
+  - name: the-publish-dashboard-with-the-import-dialog-open
+    surface: publish-page
+    state: import-dialog-open
+    expectContent: [transcript]
+
   - name: the-contribute-picker-open
     surface: contribute-picker
     state: open
+    expectContent: [collective]
+
+  - name: the-contribute-picker-with-no-collectives
+    surface: contribute-picker
+    state: no-collectives
+    expectContent: []
+
+  - name: the-contribute-picker-after-contributing
+    surface: contribute-picker
+    state: contributed
     expectContent: [collective]
 
   - name: the-pending-approval-bar

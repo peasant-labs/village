@@ -17,15 +17,20 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 export const SURFACE_STATES = {
   navbar: ["account-menu-open", "signed-out"],
   "linked-repositories": ["owner-with-repositories", "not-configured"],
-  "group-page": ["owner", "visitor"],
-  "publish-page": ["with-transcripts"],
-  "contribute-picker": ["open"],
+  "group-page": ["owner", "visitor", "not-found", "confirm-remove", "invite-search"],
+  "publish-page": ["with-transcripts", "import-dialog-open"],
+  "contribute-picker": ["open", "no-collectives", "contributed"],
   "pending-approval-bar": ["pending"],
 } as const;
 
 export type LowercaseSurface = keyof typeof SURFACE_STATES;
 
-export type LowercaseContentKey = "collective" | "transcript" | "repository" | "viewer";
+export type LowercaseContentKey =
+  | "collective"
+  | "transcript"
+  | "repository"
+  | "viewer"
+  | "githubUser";
 
 export type LowercaseChromeCase = {
   name: string;
@@ -46,12 +51,24 @@ const requiredCaseNames = [
   "linked-repositories-when-github-is-not-set-up",
   "a-collective-page-for-its-owner",
   "a-collective-page-for-a-signed-in-visitor",
+  "a-collective-that-does-not-exist",
+  "a-collective-page-confirming-a-removal",
+  "a-collective-page-searching-for-someone-to-invite",
   "the-publish-dashboard-with-a-transcript",
+  "the-publish-dashboard-with-the-import-dialog-open",
   "the-contribute-picker-open",
+  "the-contribute-picker-with-no-collectives",
+  "the-contribute-picker-after-contributing",
   "the-pending-approval-bar",
 ] as const;
 
-const contentKeys: LowercaseContentKey[] = ["collective", "transcript", "repository", "viewer"];
+const contentKeys: LowercaseContentKey[] = [
+  "collective",
+  "transcript",
+  "repository",
+  "viewer",
+  "githubUser",
+];
 
 export function loadLowercaseChromeFixtures(): LowercaseChromeFixtures {
   const fixturePath = resolve(process.cwd(), "src/testdata/lowercase-chrome.yaml");
@@ -66,7 +83,7 @@ export function loadLowercaseChromeFixtures(): LowercaseChromeFixtures {
   // User content that is already lowercase proves nothing about keeping its
   // case. The collective name, the one the acceptance names, must carry a
   // capital, and so must the transcript title and the repository.
-  for (const key of ["collective", "transcript", "repository"] as const) {
+  for (const key of ["collective", "transcript", "repository", "githubUser"] as const) {
     if (!/[A-Z]/.test(fixtures.content[key])) {
       throw new Error(`lowercase-chrome content.${key} must carry a capital letter to be a test of anything`);
     }

@@ -17,7 +17,7 @@ export default function SignInPage() {
     <div className="px-4 sm:px-8" data-testid="sign-in-page">
       <section
         aria-labelledby="sign-in-heading"
-        className="mx-auto w-full max-w-[35rem] pt-[clamp(var(--sp-8),18vh,11rem)] pb-[var(--sp-8)]"
+        className="mx-auto w-full max-w-[var(--measure-read)] pt-[clamp(var(--sp-8),18vh,calc(var(--sp-8)*3))] pb-[var(--sp-8)]"
       >
         <h1
           id="sign-in-heading"
@@ -36,15 +36,15 @@ export default function SignInPage() {
 
         <div className="mt-8 flex flex-col gap-2 border-t border-rule pt-5 text-ink-3">
           <p>
-            first time here? your handle is your github login. if someone already has it, you
-            choose another.
+            first time here? your handle is your github login. if someone already has it, or it
+            does not fit a village handle, you choose another.
           </p>
           <p>
             using the cli?{" "}
             <code className="whitespace-nowrap border border-rule bg-canvas px-1 font-mono text-ink-2">
               peasant village login
             </code>{" "}
-            uses the same github sign-in.
+            uses the same <span className="whitespace-nowrap">github sign-in</span>.
           </p>
         </div>
       </section>

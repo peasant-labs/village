@@ -71,7 +71,7 @@ export default function PublishImportDialog({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-canvas/70 backdrop-blur-sm"
       role="dialog"
       aria-modal
-      aria-label="How to import transcripts"
+      aria-label="how to import transcripts"
       onClick={onClose}
     >
       <div

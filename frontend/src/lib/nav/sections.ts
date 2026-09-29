@@ -22,10 +22,6 @@ export interface NavSection {
   label: string;
   /** Extra pathname prefixes that keep this section active. */
   activePrefixes: string[];
-  /** Extra pathnames that keep this section active on an EXACT match. A
-   *  prefix cannot express "/" — every path starts with it — so a section
-   *  that also owns the bare root states it here. */
-  exactPaths?: string[];
   title?: string;
 }
 
@@ -34,12 +30,10 @@ export interface NavSection {
  *  that still lead to it (the detail-page breadcrumb's root crumb, the profile
  *  and project breadcrumbs, and the dev-only visual harness that mirrors
  *  them), so they import the constant instead of re-typing `/explore`. */
-export const EXPLORE_SECTION: NavSection = {
+export const EXPLORE_SECTION: Pick<NavSection, "id" | "href" | "label"> = {
   id: "explore",
   href: "/explore",
   label: "explore",
-  activePrefixes: [],
-  title: "search redacted ai agent transcripts shared by the community.",
 };
 
 /** The signed-in person's own landing page. It also stays active on the pages
@@ -72,11 +66,7 @@ export function navSections(opts: { isLoggedIn: boolean }): NavSection[] {
  */
 export function isSectionActive(section: NavSection, pathname: string): boolean {
   const base = section.href === "/" ? pathname === "/" : pathname.startsWith(section.href);
-  return (
-    base ||
-    section.activePrefixes.some((p) => pathname.startsWith(p)) ||
-    (section.exactPaths ?? []).some((p) => pathname === p)
-  );
+  return base || section.activePrefixes.some((p) => pathname.startsWith(p));
 }
 
 /**
@@ -88,17 +78,21 @@ export function isSectionActive(section: NavSection, pathname: string): boolean 
  * its own internal view-switcher state and doesn't apply to village's real
  * routing — so this maps village's actual routes onto the same back-target
  * relationships by hand. A transcript goes back to home, the section it is
- * shown under, rather than to the discovery list the nav no longer offers.
- * Returns `null` on a top-level route (nothing to go back to).
+ * shown under, rather than to the discovery list the nav no longer offers. A
+ * signed-out reader of a shared transcript link is offered no back link: their
+ * `/` is the sign-in page, which is not where they came from. Returns `null`
+ * on a top-level route (nothing to go back to).
  */
-export function backTarget(pathname: string): { href: string } | null {
+export function backTarget(pathname: string, isLoggedIn: boolean): { href: string } | null {
   const settingsMatch = pathname.match(/^\/groups\/([^/]+)\/settings\/?$/);
   if (settingsMatch) return { href: `/groups/${settingsMatch[1]}` };
 
   const detailMatch = pathname.match(/^\/groups\/([^/]+)\/?$/);
   if (detailMatch) return { href: COLLECTIVES_SECTION.href };
 
-  if (pathname.match(/^\/transcripts\/([^/]+)\/?$/)) return { href: HOME_SECTION.href };
+  if (pathname.match(/^\/transcripts\/([^/]+)\/?$/)) {
+    return isLoggedIn ? { href: HOME_SECTION.href } : null;
+  }
 
   return null;
 }

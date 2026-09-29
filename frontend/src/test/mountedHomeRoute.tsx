@@ -84,6 +84,8 @@ function json(body: unknown, status = 200): Response {
 export interface MountedHomeBackend {
   /** Every path either route requested, in order. */
   requested: string[];
+  /** Every `POST /auth/logout` the header's sign out sent. */
+  logouts: number;
   /**
    * Stop failing the owner-scoped request, so the NEXT attempt answers. Lets a
    * test prove a surface recovers rather than only that it can be reached.
@@ -124,11 +126,19 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
   let viewer = fixture.viewerUsername;
   let held: Promise<void> | null = null;
   let releaseHeld: (() => void) | null = null;
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const backend = { logouts: 0 };
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const path = url.slice(url.indexOf("/api/v1") + "/api/v1".length);
     requested.push(path);
 
+    if (path === "/auth/logout") {
+      if ((init?.method ?? "GET").toUpperCase() !== "POST") {
+        throw new Error(`mounted home route fixture: /auth/logout must be a POST, got ${init?.method}`);
+      }
+      backend.logouts += 1;
+      return json({ status: "logged out" });
+    }
     if (path === "/auth/me") {
       return viewer == null
         ? json({ error: "not signed in" }, 401)
@@ -178,6 +188,9 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
   vi.stubGlobal("fetch", fetchMock);
   return {
     requested,
+    get logouts() {
+      return backend.logouts;
+    },
     heal() {
       failure = "never";
     },

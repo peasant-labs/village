@@ -107,7 +107,7 @@ function MyContributionRow({
         {share.title || "untitled"}
       </Link>
       {share.status === "pending" && (
-        <span className="text-[10px] font-mono text-ink-3 uppercase tracking-wider shrink-0">
+        <span className="text-[10px] font-mono text-ink-3 tracking-wider shrink-0">
           pending
         </span>
       )}

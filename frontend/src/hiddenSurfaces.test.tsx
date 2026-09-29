@@ -117,7 +117,9 @@ describe("transcript page: the attestation control", () => {
         expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith("/auth/me"))).toBe(true);
       });
 
-      expect(screen.queryByRole("button", { name: "new attestation" })).toBeNull();
+      // `attest` is the trigger's own name (`new attestation` names the popover
+      // it opens, which is never reached without the trigger).
+      expect(screen.queryByRole("button", { name: "attest" })).toBeNull();
       // Not drawn, and not asked for: the org read existed only to decide it.
       expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith("/auth/orgs"))).toBe(false);
     });

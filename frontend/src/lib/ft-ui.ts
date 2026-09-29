@@ -362,10 +362,3 @@ export { RoleRoster, ConfirmInline, DangerZone } from "@peasant-labs/fairtrade/u
  *   overlap + an optional "+N" overflow tile.
  */
 export { GraphSectionNav, Avatar, AvatarGroup } from "@peasant-labs/fairtrade/ui";
-
-/**
- * providerDisplayName — the design system's display name for a harness, in the
- *   brand's own case ("Claude Code", "opencode"). It is canonical fairtrade data,
- *   not village chrome: the lowercase-chrome check sets it aside for that reason.
- */
-export { providerDisplayName } from "@peasant-labs/fairtrade/ui";

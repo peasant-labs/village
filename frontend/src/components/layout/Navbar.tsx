@@ -33,8 +33,9 @@ function AccountMenu({ user }: { user: { github_username: string; avatar_url: st
           {/* The space is its own text node: a flex container drops it from the
               layout, and the accessible name keeps it between the two words. */}
           <span className="sr-only">account menu for</span>{" "}
-          {/* On a phone the handle is heard, not shown, so the trigger is no
-              wider than the avatar and the header still fits. */}
+          {/* On a phone the handle is heard, not shown, so the trigger is only
+              as wide as the avatar. (The signed-in header as a whole still
+              overflows a phone; that needs a responsive header of its own.) */}
           <span className="sr-only font-mono sm:not-sr-only">@{handle}</span>
         </span>
       }
@@ -67,7 +68,7 @@ export default function Navbar() {
   // The demo's subnav shows a "< back" affordance on detail sub-views (CommonsApp.jsx's
   // BACK_TO) — mapped onto village's real routes in backTarget(). Rendered before the
   // section pills, matching the demo's ordering.
-  const back = backTarget(pathname);
+  const back = backTarget(pathname, isLoggedIn);
   // A signed-out `/` IS the sign-in page, and its one button is the page's own.
   // A second one up here would make two front doors on one screen.
   const offerHeaderSignIn = pathname !== "/";

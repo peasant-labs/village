@@ -216,7 +216,7 @@ export default function GitHubUserSearch({
               setOpen(false);
               inputRef.current?.focus();
             }}
-            aria-label="Clear search"
+            aria-label="clear search"
             className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex size-5 items-center justify-center text-ink-4 transition-colors hover:text-ink cursor-pointer focus-mono"
           >
             <X className="size-3.5" />
@@ -226,12 +226,12 @@ export default function GitHubUserSearch({
       {showMenu && (
         <div className="menu-pop menu-float right-0">
           <p className="menu-cap">
-            GitHub users — must have a platform account to invite
+            github users — must have a platform account to invite
           </p>
           <ul
             id={menuId}
             role="menu"
-            aria-label="GitHub user results"
+            aria-label="github user results"
             className="menu-list"
           >
             {results.map((user, i) => (

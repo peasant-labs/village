@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
-import { providerDisplayName } from "@/lib/ft-ui";
+import { providerDisplayName } from "@peasant-labs/fairtrade/ui";
 import PublishPage from "@/app/publish/page";
 import LinkedRepositories from "@/components/group/LinkedRepositories";
 import ContributePicker from "@/components/transcript/ContributePicker";
@@ -19,7 +19,7 @@ import {
   loadLowercaseChromeFixtures,
   type LowercaseChromeCase,
 } from "@/test/lowercaseChromeFixtures";
-import type { GroupTranscript } from "@/lib/types";
+import type { GroupTranscript, UserGroupShare } from "@/lib/types";
 
 // Mounts each surface the lowercase pass covers, through its real component or
 // route, and reads what a person sees or hears there as chrome. See
@@ -43,34 +43,51 @@ const HARNESS = "claude-code";
  *  "Jan 2, 2026"), not chrome. */
 const FORMATTED_DATE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{1,2}(?:, \d{4})?/g;
 
-/** A tile of one or two capitals is a person's initials, drawn from their
- *  name the way fairtrade's Avatar draws them. */
-const INITIALS = /^[A-Z]{1,2}$/;
+/** A person's initial on a hand-drawn avatar tile: the first letter of a
+ *  user-content name, capitalized the way fairtrade's Avatar draws it. Matched
+ *  exactly, so a chrome word such as "OK" is still chrome. */
+const INITIALS = new Set(Object.values(content).map((value) => value[0].toUpperCase()));
+
+/** fairtrade's Avatar tile (`.avatar`) draws initials from a person's name and
+ *  nothing else; its own text is set aside only while it is initials. */
+const AVATAR_INITIALS = /^[A-Z]{1,2}$/;
 
 /** Attributes whose text reaches a person: a tooltip, a field hint, a name
  *  announced by a screen reader. */
 const CHROME_ATTRIBUTES = ["title", "placeholder", "aria-label"] as const;
 
-type ChromeString = { where: string; text: string };
+type ChromeString = {
+  where: string;
+  text: string;
+  shownUppercase: boolean;
+  avatarTile: boolean;
+};
 
 /** Every piece of chrome text under `root`: each element's own text (its
  *  adjacent text children joined, as React splits `{a}/{b}` into three), and
- *  the chrome attributes. An avatar's initials are drawn from a person's name,
- *  so they are user content, not chrome. */
+ *  the chrome attributes. Own text inside an `uppercase` element is marked, so
+ *  it is read as it renders. */
 function chromeStrings(root: Element): ChromeString[] {
   const out: ChromeString[] = [];
   for (const el of [root, ...Array.from(root.querySelectorAll("*"))]) {
-    if (el.closest("script, style, .avatar")) continue;
+    if (el.closest("script, style")) continue;
     const tag = el.tagName.toLowerCase();
     const own = Array.from(el.childNodes)
       .filter((n) => n.nodeType === Node.TEXT_NODE)
       .map((n) => n.textContent ?? "")
       .join("")
       .trim();
-    if (own) out.push({ where: `<${tag}>`, text: own });
+    if (own) {
+      out.push({
+        where: `<${tag}>`,
+        text: own,
+        shownUppercase: el.closest(".uppercase") != null,
+        avatarTile: el.classList.contains("avatar"),
+      });
+    }
     for (const attr of CHROME_ATTRIBUTES) {
       const value = el.getAttribute(attr)?.trim();
-      if (value) out.push({ where: `<${tag} ${attr}>`, text: value });
+      if (value) out.push({ where: `<${tag} ${attr}>`, text: value, shownUppercase: false, avatarTile: false });
     }
   }
   return out;
@@ -82,11 +99,12 @@ function chromeStrings(root: Element): ChromeString[] {
 function capitalizedChrome(root: Element): string[] {
   const setAside = [...Object.values(content), providerDisplayName(HARNESS)];
   return chromeStrings(root)
-    .map(({ where, text }) => {
-      if (INITIALS.test(text)) return null;
+    .map(({ where, text, shownUppercase, avatarTile }) => {
+      if (INITIALS.has(text) || (avatarTile && AVATAR_INITIALS.test(text))) return null;
       let rest = text.replace(FORMATTED_DATE, "");
       for (const value of setAside) rest = rest.split(value).join("");
-      return /[A-Z]/.test(rest) ? `${where} ${JSON.stringify(text)}` : null;
+      if (shownUppercase) rest = rest.toUpperCase();
+      return /[A-Z]/.test(rest) ? `${where} ${JSON.stringify(text)}${shownUppercase ? " (uppercase)" : ""}` : null;
     })
     .filter((s): s is string => s !== null);
 }
@@ -129,6 +147,25 @@ function groupTranscript(): GroupTranscript {
     owner_username: content.viewer,
     owner_avatar_url: null,
     owner_is_discoverable: true,
+  };
+}
+
+function myShare(id: string, status: "approved" | "pending"): UserGroupShare {
+  return {
+    id,
+    owner_id: `user-${content.viewer}`,
+    local_id: `local-${id}`,
+    parent_session_id: null,
+    title: content.transcript,
+    model_provider: HARNESS,
+    model_name: "claude-fable-5",
+    visibility: "shared",
+    published_at: WHEN,
+    turn_count: 12,
+    tokens_in: null,
+    tokens_out: null,
+    status,
+    shared_at: WHEN,
   };
 }
 
@@ -193,7 +230,23 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
     }
 
     case "group-page": {
-      const owner = c.state === "owner";
+      if (c.state === "not-found") {
+        // A signed-out visitor to an address no collective answers.
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url.endsWith("/auth/me")) return json({ error: "not signed in" }, 401);
+            if (url.endsWith(`/groups/${GROUP_ID}`)) return json({ error: "not found" }, 404);
+            throw new Error(`group not-found fixture received an unexpected request to ${url}`);
+          }),
+        );
+        await renderGroupDetailRoute(GROUP_ID);
+        await screen.findByText(/collective not found/i);
+        return document.body;
+      }
+
+      const owner = c.state !== "visitor";
       installGroupRouteREST({
         viewer: content.viewer,
         groupId: GROUP_ID,
@@ -221,32 +274,47 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
           : [],
         myShares: owner
           ? [
-              {
-                id: TRANSCRIPT_ID,
-                owner_id: `user-${content.viewer}`,
-                local_id: "local-0",
-                parent_session_id: null,
-                title: content.transcript,
-                model_provider: HARNESS,
-                model_name: "claude-fable-5",
-                visibility: "shared",
-                published_at: WHEN,
-                turn_count: 12,
-                tokens_in: null,
-                tokens_out: null,
-                status: "approved",
-                shared_at: WHEN,
-              },
+              myShare(TRANSCRIPT_ID, "approved"),
+              // A contribution still awaiting review draws its `pending` label.
+              myShare("transcript-awaiting-review", "pending"),
             ]
           : [],
       });
+      if (c.state === "invite-search") {
+        // The invite field searches GitHub itself; answer that one request.
+        const groupRoute = globalThis.fetch;
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            if (String(input).startsWith("https://api.github.com/search/users")) {
+              return json({ items: [{ login: content.githubUser, avatar_url: "" }] });
+            }
+            return groupRoute(input, init);
+          }),
+        );
+      }
       await renderGroupDetailRoute(GROUP_ID);
       await waitFor(() => expect(document.body.textContent).toContain(content.collective));
-      if (owner) {
-        await screen.findByTestId("my-contributions-panel");
-        await screen.findAllByText(/connection isn.t set up/i);
-      } else {
+      if (!owner) {
         await screen.findAllByText(/data access restricted/i);
+        return document.body;
+      }
+      await screen.findByTestId("my-contributions-panel");
+      await screen.findAllByText(/connection isn.t set up/i);
+      await screen.findByText("pending");
+      if (c.state === "confirm-remove") {
+        fireEvent.click(screen.getByRole("checkbox", { name: "select every transcript on this page" }));
+        fireEvent.click(await screen.findByRole("button", { name: /remove from collective/ }));
+        await screen.findByText("remove from collective?");
+      }
+      if (c.state === "invite-search") {
+        // The rail is drawn twice (beside the page, and in the phone sheet);
+        // the first field is the one beside the page.
+        fireEvent.change(screen.getAllByPlaceholderText("github username")[0], {
+          target: { value: "octo" },
+        });
+        await screen.findAllByRole("menu", { name: "github user results" }, { timeout: 3000 });
+        await screen.findAllByText(content.githubUser);
       }
       return document.body;
     }
@@ -300,32 +368,45 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
       );
       await mount(<PublishPage />, true);
       await waitFor(() => expect(document.body.textContent).toContain(content.transcript));
+      if (c.state === "import-dialog-open") {
+        fireEvent.click(screen.getByRole("button", { name: "import" }));
+        await screen.findByText("how to import transcripts");
+      }
       return document.body;
     }
 
     case "contribute-picker": {
+      const shared: string[] = [];
       vi.stubGlobal(
         "fetch",
-        vi.fn(async (input: RequestInfo | URL) => {
+        vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
           const url = String(input);
           if (url.endsWith("/groups")) {
-            return json([
-              {
-                id: GROUP_ID,
-                name: content.collective,
-                description: null,
-                linked_github_org: null,
-                display_members: true,
-                transcript_deletion_policy: "user_choice",
-                created_by: "user-owner",
-                created_at: WHEN,
-                updated_at: WHEN,
-                acceptance_mode: "open",
-                data_access: "members_only",
-                role: "member",
-                member_since: WHEN,
-              },
-            ]);
+            return json(
+              c.state === "no-collectives"
+                ? []
+                : [
+                    {
+                      id: GROUP_ID,
+                      name: content.collective,
+                      description: null,
+                      linked_github_org: null,
+                      display_members: true,
+                      transcript_deletion_policy: "user_choice",
+                      created_by: "user-owner",
+                      created_at: WHEN,
+                      updated_at: WHEN,
+                      acceptance_mode: "open",
+                      data_access: "members_only",
+                      role: "member",
+                      member_since: WHEN,
+                    },
+                  ],
+            );
+          }
+          if (url.endsWith(`/transcripts/${TRANSCRIPT_ID}/share`) && init?.method === "POST") {
+            shared.push(String(init.body));
+            return json({ ok: true });
           }
           throw new Error(`contribute-picker fixture received an unexpected request to ${url}`);
         }),
@@ -339,7 +420,17 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
           transcriptVisibility="shared"
         />,
       );
+      if (c.state === "no-collectives") {
+        await screen.findByText(/joined any collectives yet/);
+        return document.body;
+      }
       await screen.findByText(content.collective);
+      if (c.state === "contributed") {
+        fireEvent.click(screen.getByRole("button", { name: new RegExp(content.collective) }));
+        fireEvent.click(screen.getByRole("button", { name: "contribute" }));
+        await screen.findByText(`contributed to ${content.collective}.`);
+        expect(shared).toEqual([JSON.stringify({ group_ids: [GROUP_ID] })]);
+      }
       return document.body;
     }
 
