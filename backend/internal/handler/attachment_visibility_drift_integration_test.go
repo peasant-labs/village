@@ -332,6 +332,58 @@ func TestUnconfirmedRepublishDropsTheDigestRow_RealPostgres(t *testing.T) {
 	a.assertBindingSurvives(t)
 }
 
+// TestResharingAPrivateAttachedTranscriptRestoresTheDigestRow_RealPostgres is
+// the owner's way back from any narrowing that left the collective's share
+// live, such as a republish whose commit could not be confirmed: sharing the
+// transcript to that collective again flips it back to shared, and the pull
+// request must advertise it again without waiting for some later refresh.
+func TestResharingAPrivateAttachedTranscriptRestoresTheDigestRow_RealPostgres(t *testing.T) {
+	t.Parallel()
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	author := attachmentInsertOwner(t, ctx, pool, 992063)
+	defer cleanupOwners(t, ctx, pool, author)
+	authorAuth := &AuthUser{ID: uuid.UUID(author.Bytes), Username: "attachment-author"}
+	transcriptID, _, groupID := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 81, "abc9999000000000000000000000000000000081")
+	key := uuidFromPg(transcriptID).String()
+	attachments, err := h.queries.ListAttachmentsBindingTranscript(ctx, transcriptID)
+	if err != nil || len(attachments) != 1 {
+		t.Fatalf("the attached transcript must be bound once: attachments=%d err=%v", len(attachments), err)
+	}
+	attachmentID := attachments[0].ID
+
+	if rec := transcriptVisibilityPatch(t, h, authorAuth, transcriptID, "private"); rec.Code != http.StatusOK {
+		t.Fatalf("narrow status = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	if digest := attachmentDigestOf(t, ctx, h, attachmentID); strings.Contains(digest, key) {
+		t.Fatalf("the digest must drop a transcript that fell below what the repository requires; digest=%s", digest)
+	}
+
+	body := []byte(`{"group_ids":["` + uuid.UUID(groupID.Bytes).String() + `"]}`)
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/"+key+"/share", bytes.NewReader(body))
+	r = withChiURLParam(r, "id", key)
+	r = r.WithContext(context.WithValue(r.Context(), UserContextKey, authorAuth))
+	rec := httptest.NewRecorder()
+	h.ShareTranscript(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reshare status = %d (%s), want 200: the collective's share is still live, so sharing again is how the owner restores its access", rec.Code, rec.Body.String())
+	}
+
+	var visibility string
+	if err := pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id = $1`, transcriptID).Scan(&visibility); err != nil {
+		t.Fatalf("read visibility after the reshare: %v", err)
+	}
+	if visibility != "shared" {
+		t.Fatalf("visibility = %q after the reshare, want shared", visibility)
+	}
+	if digest := attachmentDigestOf(t, ctx, h, attachmentID); !strings.Contains(digest, key) {
+		t.Errorf("the digest must advertise the transcript again once the reshare restored its audience; digest=%s", digest)
+	}
+	if strings.Contains(fake.lastCommentBody, "No prompts are available for this pull request.") {
+		t.Errorf("the comment must not keep saying the prompts are gone after they came back; body=%s", fake.lastCommentBody)
+	}
+}
+
 // TestAllDroppedPromptsAreNeutralAndSaidPlainly_RealPostgres is the state where
 // nothing is left: every bound transcript has been narrowed below what the
 // repository requires, so the digest has no rows under it. The check is what a
