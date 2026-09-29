@@ -25,7 +25,7 @@
 import { createServer } from 'node:http'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8791)
-// When set, `/auth/me` refuses, so the root route serves discovery instead of
+// When set, `/auth/me` refuses, so the root route serves the sign-in page instead of
 // home. That is the signed-out arm of the same capture, and it cannot be taken
 // against a mock that answers `/auth/me` for everyone.
 const SIGNED_OUT = process.env.MOCK_SIGNED_OUT === '1'

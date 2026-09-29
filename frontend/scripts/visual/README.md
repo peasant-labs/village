@@ -235,7 +235,8 @@ The Explore gate is a separate browse-focused harness for the shared `Explore` s
   the matching source checkout's `scripts/shootdemo.mjs`.
 - **Subject (right):** the village explore route capture `cex-explore.png` from
   `frontend/scripts/visual/explore-shoot.mjs` (point `VILLAGE_URL` at `/explore`;
-  the root route serves discovery only to a signed-out visitor).
+  the root route serves home to a signed-in visitor and the sign-in page to
+  everybody else, so discovery is only at its own address).
 - **Boot arm:** `frontend/scripts/visual/boot-explore.mjs` against
   `frontend/scripts/visual/mock-rest-explore.mjs`.
 

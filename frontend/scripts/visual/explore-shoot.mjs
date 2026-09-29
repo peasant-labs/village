@@ -16,7 +16,7 @@ import { applyDeterminism } from './determinism.mjs'
 const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core')).default
 
 const CHROME = process.env.CHROME_PATH
-const URL = process.env.VILLAGE_URL || 'http://localhost:3000/'
+const URL = process.env.VILLAGE_URL || 'http://localhost:3000/explore'
 const theme = process.argv[2] || 'dark'
 const out = process.argv[3] || `/tmp/explore-${theme}`
 mkdirSync(out, { recursive: true })
