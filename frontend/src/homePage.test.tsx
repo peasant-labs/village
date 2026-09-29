@@ -254,7 +254,7 @@ describe("mounted home route: recent sessions, then projects", () => {
         expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
         const stillListed = [
           ...document.querySelectorAll('[data-testid="home-recent-sessions"] a[aria-label]'),
-        ].map((a) => (a.getAttribute("aria-label") ?? "").replace(/^Open transcript /, ""));
+        ].map((a) => (a.getAttribute("aria-label") ?? "").replace(/^open transcript /, ""));
         expect(stillListed).toEqual(c.expectRecentTitles);
 
         // The notice's OWN retry is a second control, and the only way back
@@ -368,7 +368,7 @@ describe("mounted home route: recent sessions, then projects", () => {
       }
 
       const recentTitles = [...recentSection!.querySelectorAll("a[aria-label]")].map((a) =>
-        (a.getAttribute("aria-label") ?? "").replace(/^Open transcript /, ""),
+        (a.getAttribute("aria-label") ?? "").replace(/^open transcript /, ""),
       );
       expect(recentTitles).toEqual(c.expectRecentTitles);
 

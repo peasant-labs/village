@@ -200,7 +200,7 @@ const assertFraming = async () => {
       const pos = getComputedStyle(el).position
       if (pos === 'fixed' || pos === 'sticky') { stillFixed = el.getAttribute('class') || el.tagName; break }
     }
-    const shell = document.querySelector('a[aria-label="Village home"]')?.closest('header') || document.querySelector('header')
+    const shell = document.querySelector('a[aria-label="village home"]')?.closest('header') || document.querySelector('header')
     const shellTop = shell ? Math.round(shell.getBoundingClientRect().top) : null
     return { stillFixed, shellPresent: !!shell, shellTop }
   })

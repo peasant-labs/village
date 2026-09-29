@@ -37,7 +37,7 @@ export default function GitHubUserSearch({
   value,
   onChange,
   onSelect,
-  placeholder = "GitHub username",
+  placeholder = "github username",
   className = "",
 }: GitHubUserSearchProps) {
   const [results, setResults] = useState<GitHubUser[]>([]);

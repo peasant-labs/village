@@ -18,28 +18,28 @@ interface ImportStep {
 
 const STEPS: ImportStep[] = [
   {
-    title: "Install the Peasant CLI",
+    title: "install the peasant cli",
     command: "go install github.com/peasant-labs/peasant/cmd/peasant@latest",
     description:
-      "The CLI scans your local agent transcript stores (Claude Code, OpenCode, Codex, etc.) and pushes them to the village.",
+      "the cli scans your local agent transcript stores (claude code, opencode, codex, etc.) and pushes them to the village.",
   },
   {
-    title: "Sign in to the village",
+    title: "sign in to the village",
     command: "peasant login",
     description:
-      "Opens your browser, completes the GitHub OAuth flow, and stores credentials at ~/.config/peasant/credentials.json.",
+      "opens your browser, completes the github oauth flow, and stores credentials at ~/.config/peasant/credentials.json.",
   },
   {
-    title: "Run the setup wizard",
+    title: "run the setup wizard",
     command: "peasant kickstart",
     description:
-      "Discovers agent transcripts on your machine, configures providers, and sets your default redaction level.",
+      "discovers agent transcripts on your machine, configures providers, and sets your default redaction level.",
   },
   {
-    title: "Push transcripts",
+    title: "push transcripts",
     command: "peasant village push",
     description:
-      "Pushes unpublished transcripts with automatic redaction. Add --dry-run to preview, or --visibility public to override the default.",
+      "pushes unpublished transcripts with automatic redaction. add --dry-run to preview, or --visibility public to override the default.",
   },
 ];
 
@@ -80,13 +80,13 @@ export default function PublishImportDialog({
       >
         <header className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-rule">
           <h2 className="font-display text-[14px] font-semibold text-ink">
-            How to import transcripts
+            how to import transcripts
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="p-1 text-ink-3 hover:text-ink focus-mono cursor-pointer"
-            aria-label="Close"
+            aria-label="close"
           >
             <X size={14} strokeWidth={1.75} />
           </button>
@@ -94,8 +94,8 @@ export default function PublishImportDialog({
 
         <div className="flex flex-col gap-5 p-5">
           <p className="text-[13px] text-ink-3 leading-relaxed">
-            Transcripts are imported into the village via the Peasant CLI — not
-            through the web UI. The CLI reads your local agent transcript
+            transcripts are imported into the village via the peasant cli — not
+            through the web ui. the cli reads your local agent transcript
             stores, redacts sensitive content, and pushes the result here.
           </p>
 
@@ -116,7 +116,7 @@ export default function PublishImportDialog({
               "hover:bg-surface-hover focus-mono transition-colors cursor-pointer",
             )}
           >
-            Close
+            close
           </button>
         </footer>
       </div>
@@ -163,7 +163,7 @@ function CommandBlock({ command }: { command: string }) {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
           }}
-          aria-label={copied ? "Copied" : "Copy to clipboard"}
+          aria-label={copied ? "copied" : "copy to clipboard"}
           className={cn(
             "inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium",
             "border border-transparent transition-colors focus-mono cursor-pointer",
@@ -177,7 +177,7 @@ function CommandBlock({ command }: { command: string }) {
           ) : (
             <Copy className="size-3.5" />
           )}
-          {copied ? "Copied" : "Copy"}
+          {copied ? "copied" : "copy"}
         </button>
       </div>
     </div>

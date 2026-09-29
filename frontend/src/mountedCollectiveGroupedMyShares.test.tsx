@@ -114,7 +114,7 @@ for (const testCase of fixtures.cases) {
     // The panel keeps its own header and the count of the flat contributions it
     // always counted, whether or not the grouped read supplements them.
     const header = panel.firstElementChild as HTMLElement;
-    expect(header.textContent).toContain("Your contributions");
+    expect(header.textContent).toContain("your contributions");
     expect(header.textContent).toContain(String(flatRows(testCase).length));
 
     if (testCase.flat === "empty") {
@@ -129,7 +129,7 @@ for (const testCase of fixtures.cases) {
         return found!;
       });
       expect(
-        panel.querySelectorAll('button[title="Unshare from this collective"]'),
+        panel.querySelectorAll('button[title="unshare from this collective"]'),
         "no flat contribution row is drawn",
       ).toHaveLength(0);
       const groupKey = testCase.grouped === "context" ? "context" : "owner";
@@ -198,7 +198,7 @@ for (const testCase of fixtures.cases) {
       expect(within(contribution).getByText("pending")).toBeInTheDocument();
     }
     expect(
-      within(contribution).getByTitle("Unshare from this collective"),
+      within(contribution).getByTitle("unshare from this collective"),
       "the contribution still carries its unshare control",
     ).toBeInTheDocument();
 

@@ -43,7 +43,7 @@ export default function ContributePicker({
           const name =
             groups?.find((g) => g.id === selected)?.name ?? "collective";
           setConfirmOpen(false);
-          setConfirmation(`Contributed to ${name}.`);
+          setConfirmation(`contributed to ${name}.`);
           setTimeout(() => {
             setConfirmation(null);
             setSelected(null);
@@ -73,7 +73,7 @@ export default function ContributePicker({
         className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-canvas/70 backdrop-blur-sm"
         role="dialog"
         aria-modal
-        aria-label="Contribute to a collective"
+        aria-label="contribute to a collective"
         onClick={onClose}
       >
         <div
@@ -82,16 +82,16 @@ export default function ContributePicker({
         >
           <header className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-rule">
             <h2 className="font-display text-[14px] font-semibold text-ink">
-              Contribute to a collective
+              contribute to a collective
             </h2>
           </header>
 
           <div className="flex flex-col gap-2 p-4">
             {isLoading ? (
-              <p className="text-[13px] text-ink-3">Loading collectives…</p>
+              <p className="text-[13px] text-ink-3">loading collectives…</p>
             ) : !groups || groups.length === 0 ? (
               <p className="text-[13px] text-ink-3">
-                You haven&apos;t joined any collectives yet.
+                you haven&apos;t joined any collectives yet.
               </p>
             ) : (
               <div className="border border-rule divide-y divide-rule max-h-72 overflow-y-auto">
@@ -127,7 +127,7 @@ export default function ContributePicker({
 
             {share.isError && (
               <p className="text-[12px] text-danger">
-                Could not contribute. Try again.
+                could not contribute. try again.
               </p>
             )}
             {confirmation && (
@@ -145,7 +145,7 @@ export default function ContributePicker({
                 "hover:bg-surface-hover focus-mono transition-colors cursor-pointer",
               )}
             >
-              Cancel
+              cancel
             </button>
             <button
               type="button"
@@ -158,7 +158,7 @@ export default function ContributePicker({
                 "disabled:opacity-60 disabled:cursor-not-allowed",
               )}
             >
-              {share.isPending ? "Contributing…" : "Contribute"}
+              {share.isPending ? "contributing…" : "contribute"}
             </button>
           </footer>
         </div>
@@ -167,7 +167,7 @@ export default function ContributePicker({
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         onConfirm={runShare}
-        transcripts={[{ id: transcriptId, title: transcriptTitle ?? "Untitled" }]}
+        transcripts={[{ id: transcriptId, title: transcriptTitle ?? "untitled" }]}
         collectives={
           selectedGroup
             ? [{ id: selectedGroup.id, name: selectedGroup.name }]
