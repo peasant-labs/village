@@ -2,8 +2,10 @@
 # share and owner-edit handlers against a real PostgreSQL.
 #
 # Before a republish stages replacement content it moves a public or shared
-# transcript to private, so nobody can read the new bytes before they are
-# paired with the row. What happens to that narrowing depends on the outcome:
+# transcript to private (the private-before-write rule). That narrowing does
+# not guard the new bytes, which nothing can read before the receipt pairs them
+# with the row; what this corpus holds is that the audience comes back. What
+# happens to the narrowing depends on the outcome:
 #
 #   success             the visibility read under the lock is restored in the
 #                       same transaction as the receipt.
@@ -15,11 +17,22 @@
 #                       tell whether the restore committed with it; the
 #                       transcript stays private, which is the fail-safe
 #                       answer, and the answer says so.
+#   hangup_during_object_write  the client hangs up while the object is
+#                       written and the write fails: the restore runs detached
+#                       from the request, so it still happens.
+#   hangup_during_replacement  the client hangs up while the replacement
+#                       transaction is running: that transaction is detached
+#                       from the request too, so it commits with its restore.
+#   restore_refused     the object write fails and the compensating restore is
+#                       itself refused, so the transcript stays private and the
+#                       answer says so.
 #
 # pre_image is the visibility before the republish: private (as the first
 # publish leaves it), shared (the owner shared it to one open collective, which
 # accepted it), or public (the owner widened it). license, when present, is a
 # license the republish carries, so the license axis moves in the same update.
+# then_reshare shares the transcript to its collective again afterwards and
+# requires the collective's access back without a new attempt.
 #
 # want_events are the governance events the REPUBLISH appended, in seq order
 # (the setup's own events are excluded), each attributed to the owner.
@@ -29,8 +42,10 @@
 # content_replaced is whether the stored content hash changed.
 #
 # want_body_contains and want_body_omits are needles authored here rather than
-# taken from the production message: the ambiguous answer must tell the owner
-# the transcript may now be private, and an answer after a restore must not.
+# taken from the production message: an answer that may have left the
+# transcript private must say so, name the visibility it may not have been
+# returned to and the one action that restores it, and an answer after a
+# restore must not.
 
 - name: private_success_changes_no_audience
   why: a private transcript is not narrowed, so a republish writes no governance event and nobody gains access
@@ -156,7 +171,8 @@
   want_live_shares: 1
   want_member_reads: false
   content_replaced: false
-  want_body_contains: ["Failed to save transcript", "may now be private", "share it again"]
+  want_body_contains: ["Failed to save transcript", "may not have been returned to shared", "share it again to the same collectives"]
+  then_reshare: true
 
 - name: public_success_restores_public
   why: a public transcript is narrowed during the write like a shared one, and must come back public, not shared or private
@@ -212,4 +228,52 @@
   want_live_shares: 0
   want_member_reads: false
   content_replaced: false
-  want_body_contains: ["Failed to save transcript", "may now be private", "public visibility"]
+  want_body_contains: ["Failed to save transcript", "may not have been returned to public", "set its visibility to public"]
+
+- name: shared_hangup_during_object_write_restores_the_collective
+  why: >
+    a client that hangs up is the likeliest cause of a failed object write; the restore that compensates it must not
+    be cancelled with the request, or the collective loses access on the most common failure path
+  pre_image: shared
+  outcome: hangup_during_object_write
+  want_status: 500
+  want_visibility: shared
+  want_events:
+    - {type: visibility_changed, visibility: private}
+    - {type: visibility_changed, visibility: shared}
+  want_live_shares: 1
+  want_member_reads: true
+  content_replaced: false
+  want_body_contains: ["Encrypted transcript write failed"]
+  want_body_omits: ["may now be private"]
+
+- name: shared_hangup_during_replacement_still_restores_the_collective
+  why: >
+    a hang-up in the middle of the replacement statement would make the driver close the connection that holds the
+    publish lock, roll the replacement back and leave no connection to restore on; the replacement runs detached from
+    the request, so it commits and restores the audience with it
+  pre_image: shared
+  outcome: hangup_during_replacement
+  want_status: 200
+  want_visibility: shared
+  want_events:
+    - {type: visibility_changed, visibility: private}
+    - {type: visibility_changed, visibility: shared}
+  want_live_shares: 1
+  want_member_reads: true
+  content_replaced: true
+
+- name: shared_restore_refused_stays_private_and_says_so
+  why: >
+    when the compensating restore itself fails, the transcript stays private, which is the fail-safe direction, and
+    the answer must tell the owner so and how to give the collective its access back
+  pre_image: shared
+  outcome: restore_refused
+  want_status: 500
+  want_visibility: private
+  want_events:
+    - {type: visibility_changed, visibility: private}
+  want_live_shares: 1
+  want_member_reads: false
+  content_replaced: false
+  want_body_contains: ["Encrypted transcript write failed", "may now be private", "share it again to the same collectives"]

@@ -336,11 +336,7 @@ func TestRepositoryReadEndsWhenTheOwnerUnshares_RealPostgres(t *testing.T) {
 		t.Fatalf("status = %d after the owner retracted the share, want 404: a repository reader is admitted by the attachment's share and no further", rec.Code)
 	}
 
-	var visibility string
-	if err := pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id = $1`, transcriptID).Scan(&visibility); err != nil {
-		t.Fatalf("read visibility after the unshare: %v", err)
-	}
-	if visibility != "private" {
+	if visibility := readTranscriptVisibility(t, ctx, pool, transcriptID); visibility != "private" {
 		t.Errorf("visibility = %q after the owner withdrew its only share, want private: shared with no live share describes an audience that is gone", visibility)
 	}
 	attachments, err := h.queries.ListAttachmentsBindingTranscript(ctx, transcriptID)

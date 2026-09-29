@@ -25,6 +25,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -60,6 +61,9 @@ type republishAudienceCase struct {
 	ContentReplaced  bool                     `yaml:"content_replaced"`
 	WantBodyContains []string                 `yaml:"want_body_contains"`
 	WantBodyOmits    []string                 `yaml:"want_body_omits"`
+	// ThenReshare shares the transcript to its collective again afterwards,
+	// which is how an owner recovers an audience a republish left private.
+	ThenReshare bool `yaml:"then_reshare"`
 }
 
 // requiredRepublishAudienceCases names every case: each pre-image under each
@@ -79,9 +83,24 @@ var requiredRepublishAudienceCases = []string{
 	"public_object_write_failure_restores_public",
 	"public_database_rollback_restores_public",
 	"public_ambiguous_commit_stays_private",
+	"shared_hangup_during_object_write_restores_the_collective",
+	"shared_hangup_during_replacement_still_restores_the_collective",
+	"shared_restore_refused_stays_private_and_says_so",
 }
 
-var republishAudienceOutcomes = []string{"success", "object_write_failure", "database_rollback", "ambiguous_commit"}
+// republishAudienceOutcomes maps each outcome to the status a republish answers
+// with it. A client that hangs up during the replacement still gets its
+// replacement committed, because that transaction runs detached from the
+// request.
+var republishAudienceOutcomes = map[string]int{
+	"success":                    http.StatusOK,
+	"object_write_failure":       http.StatusInternalServerError,
+	"database_rollback":          http.StatusInternalServerError,
+	"ambiguous_commit":           http.StatusInternalServerError,
+	"hangup_during_object_write": http.StatusInternalServerError,
+	"hangup_during_replacement":  http.StatusOK,
+	"restore_refused":            http.StatusInternalServerError,
+}
 
 var republishAudienceEventTypes = []string{
 	string(database.EventLicenseChanged),
@@ -107,14 +126,15 @@ func loadRepublishAudienceCases(t *testing.T) []republishAudienceCase {
 		if !slices.Contains(shareAttemptVisibilities, c.PreImage) || !slices.Contains(shareAttemptVisibilities, c.WantVisibility) {
 			t.Fatalf("case %q uses pre_image %q and want_visibility %q; both come from %v", c.Name, c.PreImage, c.WantVisibility, shareAttemptVisibilities)
 		}
-		if !slices.Contains(republishAudienceOutcomes, c.Outcome) {
+		wantStatus, known := republishAudienceOutcomes[c.Outcome]
+		if !known {
 			t.Fatalf("case %q uses outcome %q; the outcomes are %v", c.Name, c.Outcome, republishAudienceOutcomes)
 		}
-		if c.WantStatus != http.StatusOK && c.WantStatus != http.StatusInternalServerError {
-			t.Fatalf("case %q expects status %d; a republish of an existing session answers 200 or, on failure, 500", c.Name, c.WantStatus)
+		if c.WantStatus != wantStatus {
+			t.Fatalf("case %q pairs outcome %q with status %d; that outcome answers %d", c.Name, c.Outcome, c.WantStatus, wantStatus)
 		}
-		if (c.Outcome == "success") != (c.WantStatus == http.StatusOK) {
-			t.Fatalf("case %q pairs outcome %q with status %d; only a successful republish answers 200", c.Name, c.Outcome, c.WantStatus)
+		if c.ThenReshare && c.PreImage != dbVisibilityShared {
+			t.Fatalf("case %q reshares a %s transcript; only a shared pre-image has a collective to give access back to", c.Name, c.PreImage)
 		}
 		if c.WantEvents == nil {
 			t.Fatalf("case %q does not declare want_events; write [] when the republish must append none, so an "+
@@ -165,6 +185,8 @@ func TestRepublishKeepsTheAudience(t *testing.T) {
 				t.Fatalf("read the content hash before the republish: %v", err)
 			}
 
+			requestCtx, hangUp := context.WithCancel(context.Background())
+			defer hangUp()
 			switch testCase.Outcome {
 			case "object_write_failure":
 				blobs.failNextWrite.Store(true)
@@ -172,9 +194,20 @@ func TestRepublishKeepsTheAudience(t *testing.T) {
 				installRepublishRollback(t, ctx, pool, world.transcript)
 			case "ambiguous_commit":
 				installRepublishCommitRefusal(t, ctx, pool, world.transcript)
+			case "hangup_during_object_write":
+				// The client hangs up while the object is written, and the write
+				// fails because of it: the restore must not share its fate.
+				blobs.beforeFailedWrite = hangUp
+				blobs.failNextWrite.Store(true)
+			case "hangup_during_replacement":
+				installRepublishReplacementDelay(t, ctx, pool, world.transcript)
+				go hangUpDuringReplacementDelay(t, ctx, pool, hangUp)
+			case "restore_refused":
+				blobs.failNextWrite.Store(true)
+				installRepublishRestoreRefusal(t, ctx, pool, world.transcript)
 			}
 
-			code, body := world.publish(t, republishAudienceRevisedContent(), testCase.License)
+			code, body := world.publishWith(t, requestCtx, republishAudienceRevisedContent(), testCase.License)
 
 			if code != testCase.WantStatus {
 				t.Fatalf("republish status = %d, want %d (%s); body: %s", code, testCase.WantStatus, testCase.Why, body)
@@ -218,6 +251,9 @@ func TestRepublishKeepsTheAudience(t *testing.T) {
 				t.Errorf("content replaced = %v, want %v (%s): the outcome this case names did not happen", replaced, testCase.ContentReplaced, testCase.Why)
 			}
 			assertProjectionMatchesLedger(t, ctx, pool, testCase.Name)
+			if testCase.ThenReshare {
+				world.assertReshareRecovers(t, ctx, testCase)
+			}
 		})
 	}
 }
@@ -262,16 +298,7 @@ func newRepublishWorld(t *testing.T, ctx context.Context, pool *pgxpool.Pool, h 
 	// The pre-image is reached the way a person reaches it.
 	switch preImage {
 	case dbVisibilityShared:
-		body, err := json.Marshal(map[string][]string{"group_ids": {uuid.UUID(w.group.Bytes).String()}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/"+uuid.UUID(w.transcript.Bytes).String()+"/share", bytes.NewReader(body))
-		r = withChiURLParam(r, "id", uuid.UUID(w.transcript.Bytes).String())
-		r = r.WithContext(context.WithValue(r.Context(), UserContextKey, w.owner))
-		rec := httptest.NewRecorder()
-		h.ShareTranscript(rec, r)
-		if rec.Code != http.StatusOK {
+		if rec := w.share(t); rec.Code != http.StatusOK {
 			t.Fatalf("share status = %d (%s), want 200", rec.Code, rec.Body.String())
 		}
 	case dbVisibilityPublic:
@@ -279,11 +306,7 @@ func newRepublishWorld(t *testing.T, ctx context.Context, pool *pgxpool.Pool, h 
 			t.Fatalf("widen status = %d (%s), want 200", rec.Code, rec.Body.String())
 		}
 	}
-	var visibility string
-	if err := pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id = $1`, w.transcript).Scan(&visibility); err != nil {
-		t.Fatalf("read the pre-image: %v", err)
-	}
-	if visibility != preImage {
+	if visibility := readTranscriptVisibility(t, ctx, pool, w.transcript); visibility != preImage {
 		t.Fatalf("the setup reached visibility %q, want the pre-image %q; the case would prove nothing", visibility, preImage)
 	}
 	return w
@@ -299,6 +322,13 @@ func (w *republishWorld) cleanup(t *testing.T, ctx context.Context) {
 
 // publish sends the owner's session through the mounted publish handler.
 func (w *republishWorld) publish(t *testing.T, content []byte, license string) (int, string) {
+	t.Helper()
+	return w.publishWith(t, context.Background(), content, license)
+}
+
+// publishWith is publish on a request context the caller may cancel, which is
+// how a test stands in for a client that hangs up.
+func (w *republishWorld) publishWith(t *testing.T, requestCtx context.Context, content []byte, license string) (int, string) {
 	t.Helper()
 	metadata := schema.PublishRequest{
 		Identity:    schema.SessionIdentity{SessionID: schema.SessionID(w.sessionID), SchemaVersion: 2},
@@ -317,19 +347,59 @@ func (w *republishWorld) publish(t *testing.T, content []byte, license string) (
 	body, boundary := multipartBody(t, map[string]string{"metadata": string(metadataJSON)}, string(content))
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/publish", body)
 	r.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
-	r = r.WithContext(context.WithValue(r.Context(), UserContextKey, w.owner))
+	r = r.WithContext(context.WithValue(requestCtx, UserContextKey, w.owner))
 	rec := httptest.NewRecorder()
 	w.h.PublishTranscript(rec, r)
 	return rec.Code, rec.Body.String()
 }
 
+// assertReshareRecovers shares the transcript to its collective again after a
+// republish left it private, and requires the collective's access back: a 200,
+// shared, readable by the member, and no new attempt, because the accepted one
+// is still live.
+func (w *republishWorld) assertReshareRecovers(t *testing.T, ctx context.Context, testCase republishAudienceCase) {
+	t.Helper()
+	var attemptsBefore int
+	if err := w.pool.QueryRow(ctx, `SELECT count(*)::int FROM transcript_share_attempts WHERE transcript_id = $1`, w.transcript).Scan(&attemptsBefore); err != nil {
+		t.Fatalf("count attempts before the reshare: %v", err)
+	}
+	if rec := w.share(t); rec.Code != http.StatusOK {
+		t.Fatalf("reshare status = %d (%s), want 200: sharing again is how the owner restores the collective's access (%s)", rec.Code, rec.Body.String(), testCase.Why)
+	}
+	if visibility := readTranscriptVisibility(t, ctx, w.pool, w.transcript); visibility != dbVisibilityShared {
+		t.Errorf("visibility = %q after the reshare, want shared (%s)", visibility, testCase.Why)
+	}
+	if rec := transcriptViewAs(t, w.h, w.member, w.transcript); rec.Code != http.StatusOK {
+		t.Errorf("a collective member's read answered %d after the reshare, want 200 (%s)", rec.Code, testCase.Why)
+	}
+	var attemptsAfter int
+	if err := w.pool.QueryRow(ctx, `SELECT count(*)::int FROM transcript_share_attempts WHERE transcript_id = $1`, w.transcript).Scan(&attemptsAfter); err != nil {
+		t.Fatalf("count attempts after the reshare: %v", err)
+	}
+	if attemptsAfter != attemptsBefore {
+		t.Errorf("the reshare opened %d new attempt(s), want none: the accepted submission is still live (%s)", attemptsAfter-attemptsBefore, testCase.Why)
+	}
+}
+
+// share offers the transcript to the world's collective through the mounted
+// share handler.
+func (w *republishWorld) share(t *testing.T) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(map[string][]string{"group_ids": {uuid.UUID(w.group.Bytes).String()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/"+uuid.UUID(w.transcript.Bytes).String()+"/share", bytes.NewReader(body))
+	r = withChiURLParam(r, "id", uuid.UUID(w.transcript.Bytes).String())
+	r = r.WithContext(context.WithValue(r.Context(), UserContextKey, w.owner))
+	rec := httptest.NewRecorder()
+	w.h.ShareTranscript(rec, r)
+	return rec
+}
+
 func (w *republishWorld) assertVisibility(t *testing.T, ctx context.Context, testCase republishAudienceCase) {
 	t.Helper()
-	var visibility string
-	if err := w.pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id = $1`, w.transcript).Scan(&visibility); err != nil {
-		t.Fatalf("read the visibility after the republish: %v", err)
-	}
-	if visibility != testCase.WantVisibility {
+	if visibility := readTranscriptVisibility(t, ctx, w.pool, w.transcript); visibility != testCase.WantVisibility {
 		t.Errorf("visibility = %q after the republish, want %q (%s)", visibility, testCase.WantVisibility, testCase.Why)
 	}
 }
@@ -408,14 +478,19 @@ func republishAudienceRevisedContent() []byte {
 }
 
 // failableTranscriptBlobStore fails the next object write on request, before
-// anything is staged.
+// anything is staged. beforeFailedWrite, when set, runs first, which is how a
+// test hangs the client up while the object is being written.
 type failableTranscriptBlobStore struct {
 	*recordingTranscriptBlobStore
-	failNextWrite atomic.Bool
+	failNextWrite     atomic.Bool
+	beforeFailedWrite func()
 }
 
 func (s *failableTranscriptBlobStore) Write(ctx context.Context, id uuid.UUID, contents []byte) (storage.BlobDescriptor, storage.ContentIdentity, error) {
 	if s.failNextWrite.CompareAndSwap(true, false) {
+		if s.beforeFailedWrite != nil {
+			s.beforeFailedWrite()
+		}
 		return storage.BlobDescriptor{}, storage.ContentIdentity{}, errors.New("injected object write failure")
 	}
 	return s.recordingTranscriptBlobStore.Write(ctx, id, contents)
@@ -433,10 +508,12 @@ func installRepublishRollback(t *testing.T, ctx context.Context, pool *pgxpool.P
 }
 
 // installRepublishCommitRefusal defers the same refusal to COMMIT. PostgreSQL
-// then rolls the transaction back while answering the COMMIT with an error
-// rather than with a rollback, which is exactly the answer the handler cannot
-// tell from a lost acknowledgement of a commit that happened: the outcome it
-// must treat as ambiguous.
+// rolls the transaction back and answers the COMMIT with an error. The handler
+// classifies every COMMIT error other than pgx's rollback answer as ambiguous
+// (tx.go), because a lost acknowledgement of a commit that happened looks the
+// same from the client, so this is how a test reaches the ambiguous outcome
+// through the real transaction path. If that classification ever learns to
+// tell this error apart, the ambiguous rows fail loudly rather than pass.
 func installRepublishCommitRefusal(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id pgtype.UUID) {
 	t.Helper()
 	name := "republish_commit_" + strings.ReplaceAll(uuid.UUID(id.Bytes).String(), "-", "")
@@ -449,16 +526,64 @@ func installRepublishCommitRefusal(t *testing.T, ctx context.Context, pool *pgxp
 
 func installRepublishFailureTrigger(t *testing.T, ctx context.Context, pool *pgxpool.Pool, name, createTrigger string) {
 	t.Helper()
+	installRepublishTrigger(t, ctx, pool, name, `BEGIN RAISE EXCEPTION 'injected republish failure'; END`, createTrigger)
+}
+
+// installRepublishTrigger installs one injected trigger function and its
+// trigger on transcripts, both named after the transcript they are scoped to,
+// and removes them when the test ends.
+func installRepublishTrigger(t *testing.T, ctx context.Context, pool *pgxpool.Pool, name, body, createTrigger string) {
+	t.Helper()
 	t.Cleanup(func() {
 		if _, err := pool.Exec(context.Background(), `DROP TRIGGER IF EXISTS `+name+` ON transcripts; DROP FUNCTION IF EXISTS `+name+`()`); err != nil {
-			t.Errorf("remove the injected failure %s: %v", name, err)
+			t.Errorf("remove the injected trigger %s: %v", name, err)
 		}
 	})
-	if _, err := pool.Exec(ctx, `CREATE FUNCTION `+name+`() RETURNS trigger LANGUAGE plpgsql AS $$
-		BEGIN RAISE EXCEPTION 'injected republish failure'; END $$`); err != nil {
-		t.Fatalf("install the injected failure function: %v", err)
+	if _, err := pool.Exec(ctx, `CREATE FUNCTION `+name+`() RETURNS trigger LANGUAGE plpgsql AS $$ `+body+` $$`); err != nil {
+		t.Fatalf("install the injected trigger function: %v", err)
 	}
 	if _, err := pool.Exec(ctx, createTrigger); err != nil {
-		t.Fatalf("install the injected failure trigger: %v", err)
+		t.Fatalf("install the injected trigger: %v", err)
 	}
+}
+
+// installRepublishReplacementDelay makes the replacement UPDATE of one
+// transcript sleep inside PostgreSQL, so a test can hang the client up while
+// the replacement transaction is running.
+func installRepublishReplacementDelay(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id pgtype.UUID) {
+	t.Helper()
+	name := "republish_delay_" + strings.ReplaceAll(uuid.UUID(id.Bytes).String(), "-", "")
+	installRepublishTrigger(t, ctx, pool, name, `BEGIN PERFORM pg_sleep(1); RETURN NEW; END`, `
+		CREATE TRIGGER `+name+` BEFORE UPDATE OF blob_key ON transcripts FOR EACH ROW
+		WHEN (NEW.id = '`+uuid.UUID(id.Bytes).String()+`'::uuid AND NEW.blob_key IS DISTINCT FROM OLD.blob_key)
+		EXECUTE FUNCTION `+name+`()`)
+}
+
+// hangUpDuringReplacementDelay cancels the request once PostgreSQL shows the
+// replacement asleep inside the delay trigger, so the hang-up is observed to
+// land inside the replacement transaction rather than assumed after a sleep.
+func hangUpDuringReplacementDelay(t *testing.T, ctx context.Context, pool *pgxpool.Pool, hangUp context.CancelFunc) {
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		var sleeping int
+		if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM pg_stat_activity WHERE wait_event = 'PgSleep' AND query ILIKE '%UPDATE transcripts%'`).Scan(&sleeping); err == nil && sleeping > 0 {
+			hangUp()
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Errorf("the replacement never reached the delay trigger, so the hang-up this case describes never happened")
+	hangUp()
+}
+
+// installRepublishRestoreRefusal refuses any write that widens one transcript
+// back from private, so the compensating restore itself fails while the
+// narrowing is still allowed.
+func installRepublishRestoreRefusal(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id pgtype.UUID) {
+	t.Helper()
+	name := "republish_restore_refusal_" + strings.ReplaceAll(uuid.UUID(id.Bytes).String(), "-", "")
+	installRepublishFailureTrigger(t, ctx, pool, name, `
+		CREATE TRIGGER `+name+` BEFORE UPDATE OF visibility ON transcripts FOR EACH ROW
+		WHEN (NEW.id = '`+uuid.UUID(id.Bytes).String()+`'::uuid AND NEW.visibility <> 'private')
+		EXECUTE FUNCTION `+name+`()`)
 }

@@ -78,30 +78,38 @@ func applyMetadataPatch(ctx context.Context, q Querier, id pgtype.UUID, patch me
 // params still move the license, the migration-026 trigger records
 // license_changed with the transaction's actor.
 //
-// restore is the visibility the same re-publish narrowed away before staging
-// its content (narrowForRepublish), or "" when it narrowed nothing. It is put
-// back in this transaction, so the receipt and the audience commit together.
-// It applies only while the row is still the private value the narrowing left:
-// a different value was written by someone else after the narrowing, and that
-// decision stands.
+// narrowedFrom is the visibility the same re-publish narrowed away before
+// staging its content (narrowForRepublish), or "" when it narrowed nothing. It
+// is put back in this transaction (republishRestoreTarget), so the receipt and
+// the audience commit together.
 //
 // Pinning here under the same FOR UPDATE lock is observably equivalent to
 // resolving with COALESCE in SQL (no concurrent writer can intervene, so a
 // value pinned unchanged is WHEN-false at the trigger) and avoids renumbering
 // the 60-positional-param update query.
-func pinRepublishGovernance(ctx context.Context, q Querier, id pgtype.UUID, params *sqlc.UpdateTranscriptByOwnerAndLocalIDParams, restore string) error {
+func pinRepublishGovernance(ctx context.Context, q Querier, id pgtype.UUID, params *sqlc.UpdateTranscriptByOwnerAndLocalIDParams, narrowedFrom string) error {
 	pre, err := q.GetTranscriptGovernanceForUpdate(ctx, id)
 	if err != nil {
 		return err
 	}
-	params.Visibility = pre.Visibility
-	if restore != "" && pre.Visibility == dbVisibilityPrivate {
-		params.Visibility = restore
-	}
+	params.Visibility = republishRestoreTarget(pre.Visibility, narrowedFrom)
 	if !params.LicenseID.Valid {
 		params.LicenseID = pre.LicenseID
 	}
 	return nil
+}
+
+// republishRestoreTarget is the visibility a re-publish writes back, given the
+// value its narrowing removed and the value the row lock returns now. The
+// restore applies only while the row is still the private value the narrowing
+// left. Every writer of visibility holds the same publish lock as the
+// re-publish, so under the lock nothing else can have moved it; the condition
+// is defensive, and if a later decision were ever found there it would stand.
+func republishRestoreTarget(locked, narrowedFrom string) string {
+	if narrowedFrom != "" && locked == dbVisibilityPrivate {
+		return narrowedFrom
+	}
+	return locked
 }
 
 // narrowForRepublish moves a public or shared transcript to private before a
@@ -125,17 +133,18 @@ func narrowForRepublish(ctx context.Context, q Querier, id pgtype.UUID) (string,
 }
 
 // restoreNarrowedVisibility is the compensating half of narrowForRepublish for
-// a re-publish that failed definitely: it puts back the visibility the
-// narrowing removed, under the same condition pinRepublishGovernance applies.
-// Runs inside inTxAs.
-func restoreNarrowedVisibility(ctx context.Context, q Querier, id pgtype.UUID, restore string) error {
+// a re-publish that failed definitely: it writes back what
+// republishRestoreTarget says, and nothing when that is what the row already
+// holds. Runs inside inTxAs.
+func restoreNarrowedVisibility(ctx context.Context, q Querier, id pgtype.UUID, narrowedFrom string) error {
 	pre, err := q.GetTranscriptGovernanceForUpdate(ctx, id)
 	if err != nil {
 		return err
 	}
-	if restore == "" || pre.Visibility != dbVisibilityPrivate {
+	target := republishRestoreTarget(pre.Visibility, narrowedFrom)
+	if target == pre.Visibility {
 		return nil
 	}
-	_, err = applyMetadataPatch(ctx, q, id, metadataPatch{Visibility: &restore})
+	_, err = applyMetadataPatch(ctx, q, id, metadataPatch{Visibility: &target})
 	return err
 }

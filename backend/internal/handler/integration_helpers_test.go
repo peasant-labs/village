@@ -174,3 +174,13 @@ func govStore(t *testing.T, ctx context.Context, h *Handler, owner pgtype.UUID, 
 	}
 	return tr
 }
+
+// readTranscriptVisibility reads one transcript's stored visibility.
+func readTranscriptVisibility(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id pgtype.UUID) string {
+	t.Helper()
+	var visibility string
+	if err := pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id = $1`, id).Scan(&visibility); err != nil {
+		t.Fatalf("read the visibility of transcript %s: %v", uuid.UUID(id.Bytes), err)
+	}
+	return visibility
+}

@@ -254,11 +254,7 @@ func (a *republishedAttachment) republish(t *testing.T) (int, string) {
 
 func (a *republishedAttachment) visibility(t *testing.T) string {
 	t.Helper()
-	var visibility string
-	if err := a.pool.QueryRow(context.Background(), `SELECT visibility FROM transcripts WHERE id = $1`, a.transcriptID).Scan(&visibility); err != nil {
-		t.Fatalf("read visibility: %v", err)
-	}
-	return visibility
+	return readTranscriptVisibility(t, context.Background(), a.pool, a.transcriptID)
 }
 
 func (a *republishedAttachment) assertBindingSurvives(t *testing.T) {
@@ -369,11 +365,7 @@ func TestResharingAPrivateAttachedTranscriptRestoresTheDigestRow_RealPostgres(t 
 		t.Fatalf("reshare status = %d (%s), want 200: the collective's share is still live, so sharing again is how the owner restores its access", rec.Code, rec.Body.String())
 	}
 
-	var visibility string
-	if err := pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id = $1`, transcriptID).Scan(&visibility); err != nil {
-		t.Fatalf("read visibility after the reshare: %v", err)
-	}
-	if visibility != "shared" {
+	if visibility := readTranscriptVisibility(t, ctx, pool, transcriptID); visibility != "shared" {
 		t.Fatalf("visibility = %q after the reshare, want shared", visibility)
 	}
 	if digest := attachmentDigestOf(t, ctx, h, attachmentID); !strings.Contains(digest, key) {

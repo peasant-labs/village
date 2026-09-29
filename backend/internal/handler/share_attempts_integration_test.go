@@ -47,6 +47,9 @@ type shareAttemptStep struct {
 	// Collective names which of the case's collectives the step acts on:
 	// first (the default) or second.
 	Collective string `yaml:"collective"`
+	// Inject names a failure installed for this step only: ledger_refusal
+	// makes the attempt ledger refuse any write for this transcript.
+	Inject string `yaml:"inject"`
 }
 
 type shareAttemptCase struct {
@@ -59,6 +62,7 @@ type shareAttemptCase struct {
 	SecondAttempts      []string           `yaml:"second_attempts"`
 	Derived             string             `yaml:"derived"`
 	Visibility          string             `yaml:"visibility"`
+	VisibilityEvents    []string           `yaml:"visibility_events"`
 	ApprovedTranscripts int                `yaml:"approved_transcripts"`
 	PendingTranscripts  int                `yaml:"pending_transcripts"`
 	ApprovedAttempts    int                `yaml:"approved_attempts"`
@@ -91,6 +95,11 @@ var requiredShareAttemptCases = []string{
 	"unshare_one_of_two_keeps_it_shared",
 	"unshare_one_of_two_while_the_other_awaits_review_keeps_it_shared",
 	"reshare_recovers_the_audience_a_republish_left_private",
+	"unshare_twice_is_idempotent",
+	"unshare_the_last_share_of_a_public_transcript_keeps_it_public",
+	"a_refused_unshare_answers_500_and_changes_nothing",
+	"unshare_waits_for_the_publish_lock",
+	"duplicate_share_of_a_public_transcript_refused",
 }
 
 func loadShareAttemptCases(t *testing.T) []shareAttemptCase {
@@ -118,6 +127,15 @@ func loadShareAttemptCases(t *testing.T) []shareAttemptCase {
 			t.Fatalf("case %q expects visibility %q; every case states the visibility it ends with, from %v, because "+
 				"an unshare and a share both move it", c.Name, c.Visibility, shareAttemptVisibilities)
 		}
+		if c.VisibilityEvents == nil {
+			t.Fatalf("case %q does not declare visibility_events; write [] when no visibility moves, so an omitted "+
+				"expectation is never read as one", c.Name)
+		}
+		for _, visibility := range c.VisibilityEvents {
+			if !slices.Contains(shareAttemptVisibilities, visibility) {
+				t.Fatalf("case %q expects a visibility event to %q, which is not one of %v", c.Name, visibility, shareAttemptVisibilities)
+			}
+		}
 		if c.StartVisibility != "" && !slices.Contains(shareAttemptVisibilities, c.StartVisibility) {
 			t.Fatalf("case %q starts at visibility %q, which is not one of %v", c.Name, c.StartVisibility, shareAttemptVisibilities)
 		}
@@ -129,6 +147,9 @@ func loadShareAttemptCases(t *testing.T) []shareAttemptCase {
 				usesSecond = true
 			default:
 				t.Fatalf("case %q step %d acts on collective %q; the fixture drives first and second", c.Name, i, step.Collective)
+			}
+			if step.Inject != "" && step.Inject != "ledger_refusal" {
+				t.Fatalf("case %q step %d injects %q; the only injected failure is ledger_refusal", c.Name, i, step.Inject)
 			}
 		}
 		if usesSecond != (c.SecondAttempts != nil) {
@@ -170,6 +191,7 @@ func TestShareAttemptLifecycle(t *testing.T) {
 			world.assertAttempts(t, ctx, testCase)
 			world.assertDerivedRow(t, ctx, testCase)
 			world.assertVisibility(t, ctx, testCase)
+			world.assertVisibilityEvents(t, ctx, testCase)
 			world.assertCounts(t, ctx, testCase)
 			// The per-case assertions above check this pair. This one checks the
 			// WHOLE projection against a latest-event fold over the whole ledger,
@@ -194,6 +216,9 @@ type shareWorld struct {
 	transcript pgtype.UUID
 	localID    string
 	pool       *pgxpool.Pool
+	// auditSeq is the audit position once the fixture exists, so a case sees
+	// only the governance events its own steps wrote.
+	auditSeq int64
 }
 
 // newShareWorld starts the transcript shared, which is what every case before
@@ -219,6 +244,10 @@ func newShareWorldAt(t *testing.T, ctx context.Context, pool *pgxpool.Pool, name
 	shareAddMember(t, ctx, pool, w.group, w.owner, "member")
 	w.localID = "share-" + suffix
 	w.transcript = shareInsertTranscript(t, ctx, pool, w.owner, w.localID, visibility)
+	if err := pool.QueryRow(ctx, `SELECT COALESCE(MAX(seq), 0) FROM transcript_governance_events_audit WHERE transcript_id = $1`,
+		w.transcript).Scan(&w.auditSeq); err != nil {
+		t.Fatalf("read the audit position after the fixture: %v", err)
+	}
 	return w
 }
 
@@ -268,7 +297,15 @@ func (w *shareWorld) run(t *testing.T, ctx context.Context, h *Handler, index in
 	case "decide":
 		w.expectStatus(t, index, step, w.decideIn(t, h, w.groupFor(t, step), step.Status))
 	case "unshare":
+		if step.Inject == "ledger_refusal" {
+			remove := w.refuseLedgerWrites(t, ctx)
+			w.expectStatus(t, index, step, w.unshareFrom(t, h, w.groupFor(t, step)))
+			remove()
+			return
+		}
 		w.expectStatus(t, index, step, w.unshareFrom(t, h, w.groupFor(t, step)))
+	case "unshare_behind_the_publish_lock":
+		w.expectStatus(t, index, step, w.unshareBehindThePublishLock(t, ctx, h))
 	case "republish_left_private":
 		w.republishLeftPrivate(t, ctx, h)
 	case "remove":
@@ -296,8 +333,13 @@ func (w *shareWorld) expectStatus(t *testing.T, index int, step shareAttemptStep
 			t.Fatalf("step %d (%s) returned %d, want 409: a duplicate submission must be refused with an answer the "+
 				"person can act on, not silently discarded", index, step.Do, status)
 		}
+	case "failed":
+		if status != http.StatusInternalServerError {
+			t.Fatalf("step %d (%s) returned %d, want 500: a withdrawal the ledger refused must be reported, not "+
+				"answered as if it had happened", index, step.Do, status)
+		}
 	default:
-		t.Fatalf("step %d declares expect %q; the outcomes are ok and refused", index, step.Expect)
+		t.Fatalf("step %d declares expect %q; the outcomes are ok, refused and failed", index, step.Expect)
 	}
 }
 
@@ -514,6 +556,107 @@ func (w *shareWorld) rewriteTerminalAttempt(t *testing.T, ctx context.Context, i
 	}
 }
 
+// refuseLedgerWrites makes the attempt ledger refuse every write for this
+// transcript until the returned function removes the refusal. The trigger is
+// named after the transcript, so parallel cases cannot remove each other's.
+func (w *shareWorld) refuseLedgerWrites(t *testing.T, ctx context.Context) func() {
+	t.Helper()
+	name := "share_ledger_refusal_" + strings.ReplaceAll(uuid.UUID(w.transcript.Bytes).String(), "-", "")
+	remove := func() {
+		if _, err := w.pool.Exec(context.Background(), `DROP TRIGGER IF EXISTS `+name+` ON transcript_share_attempts; DROP FUNCTION IF EXISTS `+name+`()`); err != nil {
+			t.Errorf("remove the injected ledger refusal: %v", err)
+		}
+	}
+	t.Cleanup(remove)
+	if _, err := w.pool.Exec(ctx, `CREATE FUNCTION `+name+`() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN RAISE EXCEPTION 'injected ledger refusal'; END $$`); err != nil {
+		t.Fatalf("install the injected ledger refusal function: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `CREATE TRIGGER `+name+` BEFORE INSERT OR UPDATE ON transcript_share_attempts FOR EACH ROW
+		WHEN (NEW.transcript_id = '`+uuid.UUID(w.transcript.Bytes).String()+`'::uuid) EXECUTE FUNCTION `+name+`()`); err != nil {
+		t.Fatalf("install the injected ledger refusal trigger: %v", err)
+	}
+	return remove
+}
+
+// unshareBehindThePublishLock holds the transcript's publish lock, starts the
+// owner's unshare, and proves it waits: PostgreSQL must show it blocked on the
+// lock with the submission still live, and only releasing the lock lets it
+// withdraw. The lock key comes from the production helper, so a change to its
+// shape cannot leave this test holding a lock nothing contends for.
+func (w *shareWorld) unshareBehindThePublishLock(t *testing.T, ctx context.Context, h *Handler) int {
+	t.Helper()
+	lockKey := sessionPublishLockKey(w.owner, w.localID)
+	lockConn, err := w.pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire the connection that holds the publish lock: %v", err)
+	}
+	lockReleased := false
+	defer func() {
+		if !lockReleased {
+			_, _ = lockConn.Exec(context.Background(), "SELECT pg_advisory_unlock(hashtextextended($1, 0))", lockKey)
+		}
+		lockConn.Release()
+	}()
+	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_lock(hashtextextended($1, 0))", lockKey); err != nil {
+		t.Fatalf("hold the publish lock for the transcript: %v", err)
+	}
+
+	status := make(chan int, 1)
+	go func() { status <- w.unshareFrom(t, h, w.group) }()
+	w.waitForLockWaiter(t, ctx, "advisory")
+	if latest := w.attemptSequence(t, ctx, w.group); len(latest) == 0 || !shareAttemptIsLive(latest[len(latest)-1]) {
+		t.Fatalf("the unshare withdrew %v while another writer held the publish lock; it must wait for the lock", latest)
+	}
+
+	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", lockKey); err != nil {
+		t.Fatalf("release the publish lock: %v", err)
+	}
+	lockReleased = true
+	select {
+	case code := <-status:
+		return code
+	case <-time.After(15 * time.Second):
+		t.Fatal("the unshare did not finish after the publish lock was released")
+		return 0
+	}
+}
+
+// assertVisibilityEvents checks every governance event the case's own steps
+// wrote. Each must be a visibility change attributed to the owner: the share
+// flip, the unshare narrowing and a republish's narrowing are all the owner's
+// actions, never the system's and never a moderator's.
+func (w *shareWorld) assertVisibilityEvents(t *testing.T, ctx context.Context, testCase shareAttemptCase) {
+	t.Helper()
+	rows, err := w.pool.Query(ctx, `
+		SELECT event_type, visibility, changed_by FROM transcript_governance_events_audit
+		WHERE transcript_id = $1 AND seq > $2 ORDER BY seq
+	`, w.transcript, w.auditSeq)
+	if err != nil {
+		t.Fatalf("read the audit trail: %v", err)
+	}
+	defer rows.Close()
+	got := []string{}
+	for rows.Next() {
+		var eventType, visibility string
+		var actor pgtype.UUID
+		if err := rows.Scan(&eventType, &visibility, &actor); err != nil {
+			t.Fatal(err)
+		}
+		if eventType != string(database.EventVisibilityChanged) || actor != w.owner {
+			t.Errorf("event %s to %q attributed to %s, want a visibility change by the owner (%s)",
+				eventType, visibility, uuid.UUID(actor.Bytes), testCase.Why)
+		}
+		got = append(got, visibility)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("read the audit trail: %v", err)
+	}
+	if !slices.Equal(got, testCase.VisibilityEvents) {
+		t.Errorf("visibility events = %v, want %v (%s)", got, testCase.VisibilityEvents, testCase.Why)
+	}
+}
+
 func (w *shareWorld) assertAttempts(t *testing.T, ctx context.Context, testCase shareAttemptCase) {
 	t.Helper()
 	if got := w.attemptSequence(t, ctx, w.group); strings.Join(got, ",") != strings.Join(testCase.Attempts, ",") {
@@ -558,11 +701,7 @@ func (w *shareWorld) attemptSequence(t *testing.T, ctx context.Context, group pg
 // audience.
 func (w *shareWorld) assertVisibility(t *testing.T, ctx context.Context, testCase shareAttemptCase) {
 	t.Helper()
-	var visibility string
-	if err := w.pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id = $1`, w.transcript).Scan(&visibility); err != nil {
-		t.Fatalf("read the transcript's visibility: %v", err)
-	}
-	if visibility != testCase.Visibility {
+	if visibility := readTranscriptVisibility(t, ctx, w.pool, w.transcript); visibility != testCase.Visibility {
 		t.Fatalf("visibility = %q, want %q (%s)", visibility, testCase.Visibility, testCase.Why)
 	}
 }

@@ -388,7 +388,17 @@ func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user 
 			// collective, so its visibility moves with the submission and in the
 			// same transaction: the two can never be observed apart, and the
 			// governance trigger records the change against this actor.
-			if candidate.Visibility != dbVisibilityPrivate {
+			//
+			// The flip is decided from the value under the row lock, not from
+			// the candidate read before the publish lock was taken. A republish
+			// makes a transcript private only while it replaces the content and
+			// then restores it, so a candidate read inside that window says
+			// private about a transcript that is public again by now.
+			locked, err := q.GetTranscriptGovernanceForUpdate(ctx, candidate.ID)
+			if err != nil {
+				return fmt.Errorf("lock transcript %s before recording its visibility: %w", uuid.UUID(candidate.ID.Bytes).String(), err)
+			}
+			if locked.Visibility != dbVisibilityPrivate {
 				continue
 			}
 			if _, err := applyMetadataPatch(ctx, q, candidate.ID, metadataPatch{Visibility: &shared}); err != nil {

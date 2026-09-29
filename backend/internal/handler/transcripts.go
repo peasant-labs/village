@@ -363,15 +363,18 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	var hasSuperseded bool
 	var deleteSuperseded bool
 	// A republish narrows a non-private transcript to private before replacing
-	// its content, and puts the visibility it found back afterwards: in the
-	// receipt's own transaction when the replacement succeeds, and in a
-	// compensating transaction when it definitely failed. Only an ambiguous
-	// commit leaves the narrowing in place, because nothing can tell whether the
-	// restore committed with it; private is the fail-safe answer.
+	// its content (the private-before-write rule), and puts the visibility it
+	// found back afterwards: in the receipt's own transaction when the
+	// replacement succeeds, and in a compensating transaction when it definitely
+	// failed. Only an ambiguous commit leaves the narrowing in place, because
+	// nothing can tell whether the restore committed with it; private is the
+	// fail-safe answer. The narrowing does not guard the new bytes (nothing can
+	// read them before the receipt pairs them with the row); what this handler
+	// owes is that the audience comes back.
 	//
 	// narrowedFrom is the visibility the narrowing read under the row lock, or ""
-	// when nothing was narrowed. audienceLeftPrivate records that the restore did
-	// not happen, so the failure response can say what the owner has to do.
+	// when nothing was narrowed. audienceLeftPrivate records that the restore may
+	// not have happened, so the failure response can say what the owner can do.
 	//
 	// The narrowing is a visibility change the publish hook cannot notice:
 	// nothing new is accepted for the attachment and the head has not moved, so
@@ -380,7 +383,6 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	// change gets, whatever the outcome, because a refresh that ran while the
 	// transcript was briefly private has already withdrawn it from the digest.
 	var narrowedFrom string
-	var narrowedForRepublish bool
 	var narrowedID pgtype.UUID
 	var audienceLeftPrivate bool
 	responseWritten := false
@@ -441,7 +443,16 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 			responseWritten = true
 			return nil
 		}
+		// A republish's narrowing and replacement transactions run detached from
+		// the request. A client that hangs up in the middle of a statement would
+		// otherwise make pgx close the connection that holds the publish lock, the
+		// replacement would roll back, and the audience could not be restored on
+		// that connection. The object write between them stays on the request.
+		persistCtx := r.Context()
 		if isUpdate {
+			var cancelPersist context.CancelFunc
+			persistCtx, cancelPersist = context.WithTimeout(context.WithoutCancel(r.Context()), republishDetachedTimeout)
+			defer cancelPersist()
 			current, currentErr := lockedQueries.GetTranscriptByID(r.Context(), transcriptID)
 			if currentErr != nil {
 				return fmt.Errorf("republish descriptor load failed before candidate write: %w", currentErr)
@@ -460,16 +471,16 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 				return nil
 			}
 			if current.Visibility != dbVisibilityPrivate {
-				narrowErr := h.inTxAsOnConn(r.Context(), conn, ownerPgID, func(q Querier) error {
+				narrowErr := h.inTxAsOnConn(persistCtx, conn, ownerPgID, func(q Querier) error {
 					var err error
-					narrowedFrom, err = narrowForRepublish(r.Context(), q, existingID)
+					narrowedFrom, err = narrowForRepublish(persistCtx, q, existingID)
 					return err
 				})
 				// A narrowing whose commit could not be confirmed may still have
 				// committed, so it is refreshed on the way out like any other.
-				narrowedForRepublish, narrowedID = narrowedFrom != "", existingID
+				narrowedID = existingID
 				if narrowErr != nil {
-					audienceLeftPrivate = narrowedForRepublish
+					audienceLeftPrivate = narrowedFrom != ""
 					return fmt.Errorf("narrow transcript before encrypted content replacement: %w", narrowErr)
 				}
 			}
@@ -585,29 +596,29 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 			// preserves the current one), then update. The migration-026 trigger
 			// records the restore as visibility_changed, or as governance_changed
 			// when the license moved in the same update.
-			persistence = h.inEncryptedTxAsOnConn(r.Context(), conn, ownerPgID, func(q Querier) error {
-				if pinErr := pinRepublishGovernance(r.Context(), q, existingID, &republishParams, narrowedFrom); pinErr != nil {
+			persistence = h.inEncryptedTxAsOnConn(persistCtx, conn, ownerPgID, func(q Querier) error {
+				if pinErr := pinRepublishGovernance(persistCtx, q, existingID, &republishParams, narrowedFrom); pinErr != nil {
 					return pinErr
 				}
-				newAssociations, associationErr := validatePublishedAssociationBindings(r.Context(), q, ownerPgID, existingID, req.Git.Associations)
+				newAssociations, associationErr := validatePublishedAssociationBindings(persistCtx, q, ownerPgID, existingID, req.Git.Associations)
 				if associationErr != nil {
 					return associationErr
 				}
 				var txErr error
-				transcript, txErr = q.UpdateTranscriptByOwnerAndLocalID(r.Context(), republishParams)
+				transcript, txErr = q.UpdateTranscriptByOwnerAndLocalID(persistCtx, republishParams)
 				if txErr != nil {
 					return txErr
 				}
-				if err := insertPublishedAssociationBindings(r.Context(), q, ownerPgID, transcript.ID, newAssociations); err != nil {
+				if err := insertPublishedAssociationBindings(persistCtx, q, ownerPgID, transcript.ID, newAssociations); err != nil {
 					return err
 				}
 				if authoritative {
-					return finalizeAuthoritativePublish(r.Context(), q, transcript.ID, servedHash, fingerprint, req.Git.Commits, &appliedAssociations)
+					return finalizeAuthoritativePublish(persistCtx, q, transcript.ID, servedHash, fingerprint, req.Git.Commits, &appliedAssociations)
 				}
-				if err := q.SetAcceptedRequestOperationFingerprint(r.Context(), sqlc.SetAcceptedRequestOperationFingerprintParams{ID: transcript.ID, AcceptedRequestOperationFingerprint: pgtype.Text{Valid: false}}); err != nil {
+				if err := q.SetAcceptedRequestOperationFingerprint(persistCtx, sqlc.SetAcceptedRequestOperationFingerprintParams{ID: transcript.ID, AcceptedRequestOperationFingerprint: pgtype.Text{Valid: false}}); err != nil {
 					return fmt.Errorf("clear authoritative fingerprint during legacy republish: %w", err)
 				}
-				return persistCommits(r.Context(), q, transcript.ID, req.Git.Commits)
+				return persistCommits(persistCtx, q, transcript.ID, req.Git.Commits)
 			})
 		} else {
 			createParams := sqlc.CreateTranscriptParams{
@@ -752,7 +763,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	// This runs at return, so a waiting attachment is completed first and the
 	// refresh sees the state completion left behind. (Completion may widen the
 	// transcript back: a pending request is completed by the publish.)
-	if narrowedForRepublish {
+	if narrowedFrom != "" {
 		defer func() {
 			if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), narrowedID); refreshErr != nil {
 				log.Printf("pull request attachment refresh after a republish narrowing failed: %v", refreshErr)
@@ -820,10 +831,11 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, status, response)
 }
 
-// republishRestoreTimeout bounds the compensating restore of a republish that
-// failed. It runs detached from the request, because a client that hung up is
-// the most likely cause of the failure it compensates.
-const republishRestoreTimeout = 10 * time.Second
+// republishDetachedTimeout bounds each republish transaction that runs
+// detached from the request: the narrowing, the replacement, and the
+// compensating restore. They are detached because a client that hangs up must
+// not be able to take the audience with it.
+const republishDetachedTimeout = 30 * time.Second
 
 // restoreRepublishAudience puts back the visibility a republish narrowed away,
 // after the replacement failed definitely: nothing was staged, or the
@@ -838,7 +850,7 @@ func (h *Handler) restoreRepublishAudience(ctx context.Context, conn *pgxpool.Co
 	if narrowedFrom == "" {
 		return true
 	}
-	restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), republishRestoreTimeout)
+	restoreCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), republishDetachedTimeout)
 	defer cancel()
 	if err := h.inTxAsOnConn(restoreCtx, conn, owner, func(q Querier) error {
 		return restoreNarrowedVisibility(restoreCtx, q, id, narrowedFrom)
@@ -855,14 +867,19 @@ func (h *Handler) restoreRepublishAudience(ctx context.Context, conn *pgxpool.Co
 }
 
 // republishAudienceNote is appended to a failed republish's answer when the
-// transcript may have been left private, so the owner is told what changed and
-// what to do about it rather than finding out from a collective member.
+// transcript may have been left private, so the owner is told what may have
+// changed and the one action that puts that audience back, rather than finding
+// out from a collective member.
 func republishAudienceNote(narrowedFrom string, leftPrivate bool) string {
 	if narrowedFrom == "" || !leftPrivate {
 		return ""
 	}
-	return "; the transcript was made private before its content was replaced and was not returned to " + narrowedFrom +
-		" visibility, so it may now be private: once a publish succeeds, share it again or set its visibility to restore who can read it"
+	remedy := "set its visibility to " + narrowedFrom + " to restore who can read it"
+	if narrowedFrom == dbVisibilityShared {
+		remedy = "share it again to the same collectives to give them their access back"
+	}
+	return "; the transcript was made private before its content was replaced and may not have been returned to " +
+		narrowedFrom + " visibility, so it may now be private: " + remedy
 }
 
 func finalizeAuthoritativePublish(ctx context.Context, q Querier, transcriptID pgtype.UUID, contentHash schema.TranscriptContentHash, fingerprint schema.PublishRequestFingerprint, commits []schema.CommitInfo, associations *[]schema.PublishedAssociation) error {
@@ -1571,11 +1588,11 @@ func (h *Handler) UnshareTranscript(w http.ResponseWriter, r *http.Request) {
 	// The withdrawal and the visibility it implies are one transaction, under
 	// the same publish lock every other writer of this transcript's audience
 	// holds, so a concurrent share or republish cannot interleave between them.
-	var changed bool
+	var narrowed bool
 	err = h.withPublishLocks(r.Context(), user.PgID(), transcript.LocalID, nil, func(conn *pgxpool.Conn) error {
 		return h.inTxAsOnConn(r.Context(), conn, user.PgID(), func(q Querier) error {
 			var txErr error
-			changed, txErr = unshareAndNarrow(r.Context(), q, pgID, toPgUUID(groupID))
+			narrowed, txErr = unshareAndNarrow(r.Context(), q, pgID, toPgUUID(groupID))
 			return txErr
 		})
 	})
@@ -1585,11 +1602,11 @@ func (h *Handler) UnshareTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A withdrawal changes what a pull request that binds this transcript may
-	// advertise, and so does the narrowing that can follow it. The repost runs
-	// after the publish locks are released, because it may take them itself,
-	// and it never fails the unshare the owner asked for.
-	if changed {
+	// A pull request's digest lists a bound transcript by its visibility, so the
+	// narrowing is what changes what the pull request may advertise. The repost
+	// runs after the publish locks are released, because it may take them
+	// itself, and it never fails the unshare the owner asked for.
+	if narrowed {
 		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), pgID); refreshErr != nil {
 			log.Printf("pull request attachment refresh after an unshare failed: %v", refreshErr)
 		}
@@ -1602,34 +1619,38 @@ func (h *Handler) UnshareTranscript(w http.ResponseWriter, r *http.Request) {
 // collective and, when that leaves no collective holding a live submission,
 // narrows a shared transcript to private: 'shared' with nobody to share with
 // describes an audience that no longer exists, while private says what is true
-// and is exactly what the next share flips from. It runs inside inTxAs, so the
-// narrowing is attributed to the owner by the migration-026 trigger. It reports
-// whether anything changed.
+// and is exactly what the next share flips from. A public transcript stays
+// public. It runs inside inTxAs, so the narrowing is attributed to the owner by
+// the migration-026 trigger. It reports whether it narrowed.
+//
+// Withdrawing a pair with nothing live is a no-op rather than a second
+// withdrawal: the withdrawal statement finds the latest LIVE event of the pair,
+// so after a withdrawal it would find the accepted one again and append a
+// duplicate ordinal, which the ledger refuses. A repeated unshare (a double
+// click, or a retry after a lost answer) therefore stays a 200.
 func unshareAndNarrow(ctx context.Context, q Querier, transcriptID, groupID pgtype.UUID) (bool, error) {
-	withdrew := false
 	latest, err := q.GetLatestShareAttempt(ctx, sqlc.GetLatestShareAttemptParams{TranscriptID: transcriptID, GroupID: groupID})
 	switch {
-	case err == nil:
-		withdrew = shareAttemptIsLive(latest.Status)
-	case !errors.Is(err, pgx.ErrNoRows):
+	case err == nil && shareAttemptIsLive(latest.Status):
+		if err := q.UnshareTranscript(ctx, sqlc.UnshareTranscriptParams{TranscriptID: transcriptID, GroupID: groupID}); err != nil {
+			return false, fmt.Errorf("withdraw the submission: %w", err)
+		}
+	case err != nil && !errors.Is(err, pgx.ErrNoRows):
 		return false, fmt.Errorf("read the submission being withdrawn: %w", err)
-	}
-	if err := q.UnshareTranscript(ctx, sqlc.UnshareTranscriptParams{TranscriptID: transcriptID, GroupID: groupID}); err != nil {
-		return false, fmt.Errorf("withdraw the submission: %w", err)
 	}
 	live, err := q.TranscriptHasLiveShareAttempt(ctx, transcriptID)
 	if err != nil {
 		return false, fmt.Errorf("read the transcript's remaining submissions: %w", err)
 	}
 	if live {
-		return withdrew, nil
+		return false, nil
 	}
 	pre, err := q.GetTranscriptGovernanceForUpdate(ctx, transcriptID)
 	if err != nil {
 		return false, fmt.Errorf("lock the transcript before narrowing it: %w", err)
 	}
 	if pre.Visibility != dbVisibilityShared {
-		return withdrew, nil
+		return false, nil
 	}
 	private := dbVisibilityPrivate
 	if _, err := applyMetadataPatch(ctx, q, transcriptID, metadataPatch{Visibility: &private}); err != nil {

@@ -631,44 +631,60 @@ authenticating. Both are custom Postgres parameters read via
   under the row lock (next bullet), never a value the request chose. A
   re-publish that carries a license moves that axis in the same update, so a
   restore plus a license change is ONE `governance_changed` row. The restore
-  applies only while the row is still the `private` the narrowing left. Every
-  writer of visibility holds the same advisory lock, so a different value there
-  means a later decision was recorded, and it stands.
+  applies only while the row is still the `private` the narrowing left
+  (`republishRestoreTarget`). Every writer of visibility holds the same
+  advisory lock as the re-publish, so that condition is defensive: under the
+  lock nothing else can have moved the row, and if a later decision were ever
+  found there it would stand.
 - **Content replacement is private-before-write, and the private window closes
-  by outcome.** Publish, owner PATCH, sharing, and the owner's unshare serialize
-  on the owner/local-session advisory-lock key. Before a re-publish stages new
-  S3 bytes, any public or shared row is moved to private in an actor-attributed
-  transaction (`narrowForRepublish`), which keeps the value it read. Then:
+  by outcome.** Publish, owner PATCH, sharing (single and whole-project), and
+  the owner's unshare serialize on the owner/local-session advisory-lock key.
+  Before a re-publish stages new S3 bytes, any public or shared row is moved to
+  private in an actor-attributed transaction (`narrowForRepublish`), which
+  keeps the value it read. The narrowing does not guard the new bytes: nothing
+  can read them before the receipt swaps `blob_key`, whatever the visibility.
+  What the re-publish owes is that the audience comes back:
   - **success** restores that value in the same transaction as the receipt;
   - a **definite failure** (the object write failed, so nothing was staged, or
     the replacement transaction is known to have rolled back) restores it in a
     separate actor-attributed compensating transaction
-    (`restoreRepublishAudience`), on the connection that still holds the lock
-    and detached from the request's cancellation;
+    (`restoreRepublishAudience`) on the connection that still holds the lock;
   - an **ambiguous commit** restores nothing. The restore committed if the
     replacement did, and nobody can tell which, so the row stays as private as
-    it may be: the fail-safe direction. The 500 says the transcript may now be
-    private, and the owner recovers the audience by sharing to the same
-    collectives again or by an owner PATCH. A compensating restore that itself
-    fails leaves the same state and logs `republish_audience_restore_failed`.
+    it may be: the fail-safe direction. The 500 says the transcript may not
+    have been returned to its visibility and names the one action that restores
+    it: share it again to the same collectives for `shared`, an owner PATCH for
+    `public`. A compensating restore that itself fails leaves the same state,
+    says the same, and logs `republish_audience_restore_failed`.
 
-  Every narrowing refreshes the pull request attachments that bind the
-  transcript on the way out, whatever the outcome, because a refresh that ran
-  inside the private window has already withdrawn it from a digest. Public
-  widening remains a separate owner PATCH.
-- **`shared` means a collective still holds a live submission.** Live is the
-  attempt ledger's meaning: the latest attempt of the pair is `pending` or
+  The narrowing, the replacement, and the compensating restore run detached
+  from the request's cancellation (bounded by `republishDetachedTimeout`). A
+  client that hangs up mid-statement would otherwise make the driver close the
+  connection that holds the lock, roll the replacement back, and leave no
+  connection to restore on. Every narrowing refreshes the pull request
+  attachments that bind the transcript on the way out, whatever the outcome,
+  because a refresh that ran inside the private window has already withdrawn it
+  from a digest. A whole-project contribution that read a transcript inside
+  that window decides its flip to `shared` from the value under the row lock,
+  not from its earlier read, so it cannot turn a restored public transcript
+  into a shared-only one.
+- **An owner's unshare never leaves `shared` with no live submission.** Live is
+  the attempt ledger's meaning: the latest attempt of the pair is `pending` or
   `approved` (a pending one counts, because it grants access the moment it is
-  accepted). The owner's unshare withdraws its submission and, when no live one
-  remains, narrows `shared` to `private` in the same actor-attributed
+  accepted). The unshare withdraws its submission, only when that pair is live
+  (a repeat is a 200 no-op, not a duplicate ordinal), and, when no live one
+  remains anywhere, narrows `shared` to `private` in the same actor-attributed
   transaction, reading liveness from the ledger
-  (`TranscriptHasLiveShareAttempt`), never from the derived row; it then
-  refreshes the attachments that bind the transcript. Sharing to collectives
-  that all hold a live submission already is a duplicate and answers 409,
-  except on a `private` transcript: there those submissions grant nothing, so
-  the share flips it to `shared` and answers 200 without opening an attempt.
-  A collective's decision or removal, and a member leaving, are not the owner's
-  unshare and move no visibility.
+  (`TranscriptHasLiveShareAttempt`), never from the derived row. A `public`
+  transcript stays public. A narrowing refreshes the attachments that bind the
+  transcript, because a digest lists a bound transcript by its visibility.
+  Sharing to collectives that all hold a live submission already is a
+  duplicate and answers 409, except on a `private` transcript: there those
+  submissions grant nothing, so the share flips it to `shared` and answers 200
+  without opening an attempt. This is a rule of the owner's unshare, not of the
+  column: `shared` can still outlive its last live submission through a
+  collective's rejection or removal, a member leaving, a share whose every
+  requested collective was skipped, and rows older than this rule.
 - **Content replacement uses immutable, content-addressed objects.** Publish
   uploads to an owner/transcript/content-hash key, then swaps `blob_key` in the
   same database transaction as the authoritative receipt. A database failure

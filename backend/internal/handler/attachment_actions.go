@@ -347,6 +347,12 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 // owner's update must not fail because GitHub was unreachable; the next refresh
 // retries, exactly as the publish path assumes.
 func (h *Handler) refreshAttachmentsForTranscriptVisibility(ctx context.Context, transcriptID pgtype.UUID) error {
+	// Detached before the first read, not after it: a caller whose client hung
+	// up still owes the pull request its repost.
+	hookCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), attachmentHookTimeout)
+	defer cancel()
+	ctx = hookCtx
+
 	attachments, err := h.queries.ListAttachmentsBindingTranscript(ctx, transcriptID)
 	if err != nil {
 		return fmt.Errorf("could not read the attachments binding a transcript whose visibility changed: %w", err)
@@ -354,10 +360,6 @@ func (h *Handler) refreshAttachmentsForTranscriptVisibility(ctx context.Context,
 	if len(attachments) == 0 {
 		return nil
 	}
-
-	hookCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), attachmentHookTimeout)
-	defer cancel()
-	ctx = hookCtx
 
 	var failures []error
 	for _, attachment := range attachments {

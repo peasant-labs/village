@@ -265,3 +265,23 @@
   expect_attempts: {a: 0, b: 1}
   expect_retry_shared: [a]
   expect_retry_already_shared: [b]
+
+- name: a_visibility_restored_while_waiting_is_not_overwritten
+  why: >
+    A republish makes a public transcript private only while it replaces the
+    content, and restores it before it releases the publish lock. A
+    contribution that read its candidates inside that window sees private, and
+    waits for the lock. It must decide the flip from the value under the row
+    lock, or it would turn the restored public transcript into shared-only and
+    record that as the owner's own change.
+  acceptance: open
+  mechanism: restored_while_waiting
+  transcripts:
+    - {key: b, project: p, visibility: private}
+  request: {project: p, confirm: true}
+  expect_status: 200
+  expect_shared: [b]
+  expect_shared_status: approved
+  expect_attempts: {b: 1}
+  expect_derived: {b: approved}
+  expect_visibility: {b: public}
