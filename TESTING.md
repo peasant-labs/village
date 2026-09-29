@@ -343,9 +343,15 @@ person's failure being shown over a request that has not failed - and when the
 new handle's own request fails with the same words, that failure is its own and
 must still be announced. `navCases` pin which
 top-nav entries are offered (`home` and `collectives`, to somebody signed in
-only) and which one is marked active (or none, on a page under neither), and
-are consumed by `frontend/src/navbar.test.tsx`, which mounts the REAL header at
-each pathname and reads the rendered links and their `aria-current`.
+only), which one is marked active (or none, on a page under neither), and where
+the header's back link leads (or that it shows none, as for a signed-out reader
+of a transcript link), and are consumed by `frontend/src/navbar.test.tsx`, which
+mounts the REAL header at each pathname and reads the rendered links, their
+`aria-current` and the back link's `href`. `accountMenuCases` are the account
+menu's whole item set, each with the effect choosing it must have (`navigate`
+to a pushed route, or `sign-out`, a `POST /auth/logout`); the same test clicks
+each item and asserts the effect, because the menu is the only way to one's own
+profile and the only way to sign out.
 
 ### The front door: sign-in, hidden surfaces, and lowercase chrome
 
@@ -363,14 +369,17 @@ required-NAME loader in `frontend/src/test/` and a mounted test in
   publishing is for collectives only, on the real routes that drew them. The
   `public` data-access option is listed only for a collective that is already
   public, and saving keeps the saved value; the transcript page draws no
-  attestation control for a signed-in viewer with a visible org, and does not
-  read the orgs at all.
-- `lowercase-chrome.yaml` (`lowercaseChrome.test.tsx`): one case per covered
-  surface (the loader requires every surface in its closed set). The test reads
-  each element's own text plus its `title`, `placeholder` and `aria-label`, sets
-  aside the case's user content, initials, fairtrade's brand-case provider names
-  and formatted dates, and requires no capital to remain, while the user content
-  (a mixed-case collective name among it) must still be on screen verbatim.
+  `attest` control for a signed-in viewer with a visible org, and does not read
+  the orgs at all.
+- `lowercase-chrome.yaml` (`lowercaseChrome.test.tsx`): cases per surface and
+  state (the loader requires every surface in its closed set, and each state
+  is a named case). The test reads each element's own text plus its `title`,
+  `placeholder` and `aria-label`; text under an `uppercase` class is read as it
+  renders. It sets aside, each by exact match, the case's user content, the
+  initials drawn from that content and fairtrade `Avatar` tiles' initials,
+  fairtrade's brand-case provider names, and formatted dates, and requires no
+  capital to remain, while the user content (a mixed-case collective name
+  among it) must still be on screen verbatim.
 
 The backend decision behind the handle step is
 `backend/internal/handler/testdata/sign-in-handle.yaml`

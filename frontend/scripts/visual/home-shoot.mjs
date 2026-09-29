@@ -52,7 +52,7 @@ if (!CHROME) {
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', defaultViewport: { ...BASE_VP } })
 const page = await browser.newPage()
 // The root route serves home only to a signed-in visitor; without the cookie
-// the capture would be the discovery list, which is a different surface.
+// the capture would be the sign-in page, which is a different surface.
 await page.setCookie({ name: 'peasant_token', value: 'demo-token', domain: 'localhost', path: '/' })
 await applyDeterminism(page)
 const errs = []
@@ -432,7 +432,7 @@ if (!ready) {
   What failed: no [data-testid="home-page"] element appeared after the app loaded.
   Why: the served build predates this change, the visitor is not signed in, or NEXT_PUBLIC_API_URL points at a backend that does not answer /auth/me.
   Where: home-shoot.mjs surface readiness wait.
-  Means: the capture would be the discovery list or a loading skeleton.
+  Means: the capture would be the sign-in page or a loading skeleton.
   Fix: start the home mock REST server, point NEXT_PUBLIC_API_URL at it, set the auth cookie, and retry.`,
     2,
   )

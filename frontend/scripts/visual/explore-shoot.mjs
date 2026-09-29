@@ -31,10 +31,9 @@ if (!CHROME) {
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', defaultViewport: { ...BASE_VP } })
 const page = await browser.newPage()
 // Authenticate, matching manage-shoot.mjs's cookie -- otherwise the capture is a
-// SIGNED-OUT view, which correctly (per real app auth-gating) shows only the "explore"
-// nav item instead of the full explore/collectives/publish/profile set the demo shows
-// unconditionally (it has no auth to model against). Captured logged-in for parity with
-// manage and to match the demo's full nav.
+// SIGNED-OUT view, which (per real app auth-gating) shows no nav entries at all.
+// Captured logged-in for parity with manage, whose nav is home | collectives; the
+// demo's own nav still shows its older explore/collectives/publish/profile set.
 await page.setCookie({ name: 'peasant_token', value: 'demo-token', domain: 'localhost', path: '/' })
 await applyDeterminism(page)
 const errs = []

@@ -906,7 +906,7 @@ needs a backend that answers `GET /auth/me`:
   ships unstyled must not produce a plausible-looking capture.
 - **Backend:** `frontend/scripts/visual/mock-rest-home.mjs`. Set
   `MOCK_SIGNED_OUT=1` for the signed-out arm, where the same root route must
-  serve discovery instead, and `MOCK_OWNER_LIST_FAILS=1` for the failure arm,
+  serve the sign-in page instead, and `MOCK_OWNER_LIST_FAILS=1` for the failure arm,
   where only the owner-scoped list request fails.
 - **Blank-handle arm:** `HOME_SHOOT_MODE=no-handle` with `MOCK_BLANK_HANDLE=1`
   captures the terminal surface an account gets when it records a chosen handle
