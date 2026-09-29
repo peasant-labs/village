@@ -101,7 +101,16 @@ func TestMountedBlobCleanupFailuresEmitReconciliationEvidence(t *testing.T) {
 			blobs.deleteErr = errors.New("fixture object store unavailable")
 
 			switch operation {
-			case cleanupCreateCandidate, cleanupRepublishCandidate:
+			case cleanupRepublishCandidate:
+				// A republish's replacement runs detached from the request, so a
+				// hang-up no longer rolls it back; a trigger that refuses the
+				// replacement is what makes this rollback known.
+				installRepublishRollback(t, ctx, pool, row.ID)
+				outcome := mountedCleanupPublish(t, ctx, h, owner, localID, "refused mounted republish fixture")
+				if outcome.status != http.StatusInternalServerError {
+					t.Fatalf("mounted rollback publish status=%d body=%q, want 500", outcome.status, outcome.body)
+				}
+			case cleanupCreateCandidate:
 				requestCtx, cancel := context.WithCancel(ctx)
 				blobs.afterWrite = cancel
 				outcome := mountedCleanupPublish(t, requestCtx, h, owner, localID, "canceled mounted cleanup fixture")
