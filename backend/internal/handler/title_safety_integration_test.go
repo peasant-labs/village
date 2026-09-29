@@ -71,7 +71,9 @@ func TestTitleSafetyMountedPersistenceAndGovernance(t *testing.T) {
 	if republished.Code != http.StatusOK {
 		t.Fatalf("republish status=%d body=%s", republished.Code, republished.Body.String())
 	}
-	assertTitleAndGovernance(t, ctx, h, tid, republishCase.Expected, schema.LicenseCCBY, dbVisibilityPrivate, 3)
+	// The republish narrows the public transcript before replacing its content
+	// and restores it with the receipt: two more events, and public again.
+	assertTitleAndGovernance(t, ctx, h, tid, republishCase.Expected, schema.LicenseCCBY, dbVisibilityPublic, 4)
 
 	before, err := h.queries.GetTranscriptByID(ctx, tid)
 	if err != nil {
@@ -91,7 +93,7 @@ func TestTitleSafetyMountedPersistenceAndGovernance(t *testing.T) {
 	if after.Title != before.Title || after.TitleGenerated != before.TitleGenerated || after.LicenseID != before.LicenseID || after.Visibility != before.Visibility || !after.UpdatedAt.Time.Equal(before.UpdatedAt.Time) {
 		t.Fatalf("sensitive PATCH changed row: before=%+v after=%+v", before, after)
 	}
-	assertGovernance(t, ctx, h, tid, schema.LicenseCCBY, dbVisibilityPrivate, 3)
+	assertGovernance(t, ctx, h, tid, schema.LicenseCCBY, dbVisibilityPublic, 4)
 }
 
 func titleFixtureNamed(t *testing.T, fixtures []titleWriteFixture, name string) titleWriteFixture {
