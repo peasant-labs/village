@@ -126,6 +126,10 @@ test.describe('sign-in', () => {
     const menu = page.getByRole('menu')
     await expect(menu.getByRole('menuitem')).toHaveText(['profile', 'sign out'])
     await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    // Opening moves focus to the first row one frame later (fairtrade's Menu
+    // defers it to the next animation frame). Keys go to the row, not the
+    // trigger, only once it has arrived.
+    await expect(menu.getByRole('menuitem').first()).toBeFocused()
 
     // Escape closes it and gives focus back to the trigger.
     await page.keyboard.press('Escape')
