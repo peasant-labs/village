@@ -33,7 +33,9 @@ function AccountMenu({ user }: { user: { github_username: string; avatar_url: st
           {/* The space is its own text node: a flex container drops it from the
               layout, and the accessible name keeps it between the two words. */}
           <span className="sr-only">account menu for</span>{" "}
-          <span className="font-mono">@{handle}</span>
+          {/* On a phone the handle is heard, not shown, so the trigger is no
+              wider than the avatar and the header still fits. */}
+          <span className="sr-only font-mono sm:not-sr-only">@{handle}</span>
         </span>
       }
       items={[

@@ -41,7 +41,7 @@ export default function SignInPage() {
           </p>
           <p>
             using the cli?{" "}
-            <code className="border border-rule bg-canvas px-1 font-mono text-ink-2">
+            <code className="whitespace-nowrap border border-rule bg-canvas px-1 font-mono text-ink-2">
               peasant village login
             </code>{" "}
             uses the same github sign-in.

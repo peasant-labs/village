@@ -9,8 +9,10 @@
  *
  * Scenario control: POST /__mock/scenario {"name":"..."} lets a journey declare
  * the world it needs without an env var or a restart. Today:
- *   default  - the composed fixtures as-is
- *   empty    - the browse list answers with no rows (empty-state journeys)
+ *   default     - the composed fixtures as-is, signed in as alice-dev
+ *   empty       - the browse list answers with no rows (empty-state journeys)
+ *   signed-out  - `/auth/me` refuses, so the app treats the visitor as signed
+ *                 out (the sign-in journey) whatever cookie the browser holds
  *
  * The transcript half is proxied rather than imported because its contract
  * fixtures are large and stateful; proxying keeps it byte-for-byte the mock the
@@ -112,6 +114,10 @@ const server = createServer(async (req, res) => {
       }
       return send(res, 200, { scenario })
     }
+  }
+
+  if (scenario === 'signed-out' && req.method === 'GET' && path === '/auth/me') {
+    return send(res, 401, { error: 'not signed in' })
   }
 
   if (scenario === 'empty' && req.method === 'GET' && path === '/transcripts') {
