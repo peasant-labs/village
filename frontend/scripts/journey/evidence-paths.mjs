@@ -1,4 +1,5 @@
-/* Where the evidence job finds each screenshot and clip that report.json records.
+/* Where the evidence job finds each screenshot and clip that report.json records,
+ * and which screenshot and clip each journey posts.
  *
  * The journey job runs inside the Playwright container, so report.json records
  * container paths (/__w/<repo>/<repo>/frontend/scripts/journey/.artifacts/...).
@@ -6,6 +7,12 @@
  * checkout, where those paths do not exist. A recorded path that exists (a local
  * run) is used as it is. One that does not is re-rooted: the part after the last
  * segment named like the local artifacts directory is joined to that directory.
+ *
+ * This trusts report.json: any existing path it names is posted. That holds while
+ * the evidence job runs under pull_request, where report.json and this script come
+ * from the same pull request. Before it runs under pull_request_target or
+ * workflow_run, confine resolved paths to the artifacts directory (realpath both
+ * sides) and reject recorded paths outside it.
  *
  * The cases live in testdata/evidence-paths.yaml.
  */

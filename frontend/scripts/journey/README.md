@@ -112,10 +112,11 @@ container paths (`/__w/...`). The evidence job runs on the host and downloads th
 artifact into its own checkout, so `evidence-paths.mjs` re-roots each recorded
 path that does not exist there: the part after the last `/.artifacts/` is joined
 to the local `.artifacts/`. Each journey posts its first screenshot and the clip of
-its own page (`video.webm`), not the blank page axe opens (`video-1.webm`). When
-the report lists screenshots or clips and none of them is on disk, the step emits
-an `::error::` annotation and the comment says so. The cases live in
-`testdata/evidence-paths.yaml` and run under `pnpm test`.
+its own page (`video.webm`) rather than the blank page axe opens (`video-1.webm`);
+only when `video.webm` is not on disk does it post the first other clip that
+resolves. When the report lists screenshots or clips and none of them is on disk,
+the step emits an `::error::` annotation and the comment says so. The cases live
+in `testdata/evidence-paths.yaml` and run under `pnpm test`.
 
 **Inline media:** `gh --attach` rejects GitHub App installation tokens ("unsupported authentication type"; gh allows OAuth/PAT/fine-grained-PAT only, and the endpoint needs repo write access). Set the **`JOURNEY_GITHUB_USER_PAT`** org secret to a machine-account fine-grained PAT (Issues: Read and write, Pull requests: Read) and the posting step uses it, so the comment carries inline screenshots and video and is authored by that account. Without it the step falls back to the App token and posts a text comment linking the artifact.
 
@@ -127,7 +128,10 @@ organization with access to this repository. Store the App's client id in the
 App (not the default `GITHUB_TOKEN`) gives a stable bot identity instead of
 `github-actions[bot]`. Pull request workflows from forks do not receive
 repository secrets, so fork PRs would need `pull_request_target` or
-`workflow_run` instead.
+`workflow_run` instead. `evidence-paths.mjs` trusts `report.json` and posts any
+existing path it names, which holds only while `report.json` and the posting
+script come from the same pull request; before switching triggers, confine
+resolved paths to the artifacts directory.
 
 ## Layout
 
@@ -143,7 +147,7 @@ repository secrets, so fork PRs would need `pull_request_target` or
 | `lib/scenario.mjs` | Sets the composed mock's scenario from a journey |
 | `*.journey.mjs` | One file per fundamental feature |
 | `ci-post-evidence.mjs` | Posts the sticky evidence comment on a pull request |
-| `evidence-paths.mjs` | Finds each recorded screenshot and clip in the downloaded artifact |
+| `evidence-paths.mjs` | Finds each recorded screenshot and clip in the downloaded artifact, and picks the ones each journey posts |
 
 ## Adding a journey
 

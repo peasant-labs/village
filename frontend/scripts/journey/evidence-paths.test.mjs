@@ -38,6 +38,7 @@ describe('evidence path fixtures', () => {
       expect(new Set(names).size).toBe(names.length)
       for (const c of cases) expect(c.why?.trim(), `${c.name} has no why`).toBeTruthy()
     }
+    for (const c of fixture.pathCases) expect(Array.isArray(c.probed), `${c.name} has no probed list`).toBe(true)
   })
 })
 
@@ -47,7 +48,7 @@ describe('resolveAttachmentPath', () => {
       const probed = []
       const got = resolveAttachmentPath(c.recorded, c.artifactsDir ?? fixture.artifactsDir, existsIn(c.present, probed))
       expect(got).toBe(c.want)
-      if (c.probed) expect(probed).toEqual(c.probed)
+      expect(probed).toEqual(c.probed)
     })
   }
 })

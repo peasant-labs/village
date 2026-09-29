@@ -8,8 +8,8 @@
 #
 # Consumed by evidence-paths.test.mjs. `artifactsDir` is the evidence job's local
 # artifacts directory for every case unless a case names its own. `present` lists
-# the files that exist on that machine; no other file exists. A path case that
-# carries `probed` also pins every path the resolver checks, in order. Every case
+# the files that exist on that machine; no other file exists. Every path case
+# also pins, in `probed`, every path the resolver checks, in order. Every case
 # carries a non-empty `why`, and the required-name lists guard against deleting a
 # case.
 
@@ -41,6 +41,9 @@ pathCases:
     present:
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/test-finished-1.png
     want: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/test-finished-1.png
+    probed:
+      - /__w/village/village/frontend/scripts/journey/.artifacts/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/test-finished-1.png
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/test-finished-1.png
 
   - name: local-path-stays-unchanged
     why: >-
@@ -76,6 +79,9 @@ pathCases:
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/project-orphan-group.png
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/village/frontend/scripts/journey/.artifacts/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/project-orphan-group.png
     want: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/project-orphan-group.png
+    probed:
+      - /__w/.artifacts/village/frontend/scripts/journey/.artifacts/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/project-orphan-group.png
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/project-orphan-group.png
 
   - name: path-without-an-artifacts-segment-resolves-to-null
     why: >-
@@ -99,6 +105,9 @@ pathCases:
     present:
       - /home/runner/work/village/village/frontend/scripts/journey/.evidence/results/explore-dark/test-finished-1.png
     want: /home/runner/work/village/village/frontend/scripts/journey/.evidence/results/explore-dark/test-finished-1.png
+    probed:
+      - /__w/village/village/frontend/scripts/journey/.evidence/results/explore-dark/test-finished-1.png
+      - /home/runner/work/village/village/frontend/scripts/journey/.evidence/results/explore-dark/test-finished-1.png
 
 reportCases:
   - name: container-report-resolves-every-file
@@ -198,9 +207,10 @@ reportCases:
   - name: the-page-clip-is-the-one-posted
     why: >-
       A journey that runs axe records a second clip, video-1.webm, of the blank
-      page axe opens, and the report lists it before the test page's video.webm.
-      The comment posts the test page's clip when it is on disk, and the first
-      clip that resolves when it is not.
+      page axe opens. The report lists clips in the order their saves finish, so
+      either may come first. The comment posts the test page's video.webm in
+      either order, and, only when that clip is not on disk, the first other clip
+      that resolves.
     tests:
       - attachments:
           - contentType: image/png
@@ -211,21 +221,33 @@ reportCases:
             path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video.webm
       - attachments:
           - contentType: video/webm
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/video.webm
+          - contentType: video/webm
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/video-1.webm
+      - attachments:
+          - contentType: video/webm
             path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video-1.webm
           - contentType: video/webm
             path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video.webm
+          - contentType: video/webm
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video-2.webm
     present:
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/test-finished-1.png
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video-1.webm
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video.webm
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/video.webm
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/video-1.webm
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video-1.webm
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video-2.webm
     want:
-      listed: 5
-      resolved: 4
+      listed: 8
+      resolved: 7
       problem: null
       media:
         - image: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/test-finished-1.png
           video: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video.webm
+        - image: null
+          video: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/video.webm
         - image: null
           video: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video-1.webm
 

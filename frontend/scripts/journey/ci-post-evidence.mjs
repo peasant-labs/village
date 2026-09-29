@@ -80,8 +80,6 @@ const themes = [...new Set(media.map((m) => m.theme))].sort()
 const cell = (l, theme) => media.find((m) => m.label === l && m.theme === theme)
 
 // Convert clips to H.264 mp4 for the widest playback support (webm as fallback).
-// Almost every clip is named video.webm, so each conversion gets its own
-// directory, and a clip is converted once however often it is asked for.
 const ffmpeg = (() => {
   const roots = [process.env.PLAYWRIGHT_BROWSERS_PATH, join(homedir(), '.cache', 'ms-playwright')].filter(Boolean)
   for (const root of roots) {
@@ -91,6 +89,10 @@ const ffmpeg = (() => {
   return null
 })()
 const tmp = mkdtempSync(join(tmpdir(), 'journey-evidence-'))
+// Almost every clip is named video.webm, so each conversion gets its own
+// directory. The result is memoised because the attachment fallback asks twice
+// per clip, once for its table row and once for its attachment, and both must name
+// the same file.
 const clips = new Map()
 const clipPath = (webm) => {
   if (!ffmpeg) return webm
