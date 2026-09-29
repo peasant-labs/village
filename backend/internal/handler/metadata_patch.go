@@ -72,24 +72,70 @@ func applyMetadataPatch(ctx context.Context, q Querier, id pgtype.UUID, patch me
 }
 
 // pinRepublishGovernance pins the governance axes of a re-publish onto params
-// from the LOCKED pre-image: visibility is NEVER changed by a re-publish
+// from the LOCKED pre-image: a re-publish never chooses a visibility of its own
 // (governance edits go through the PATCH path), and an absent CLI license
 // (Valid=false) preserves the existing one. Runs inside inTxAs; if the pinned
 // params still move the license, the migration-026 trigger records
 // license_changed with the transaction's actor.
 //
+// restore is the visibility the same re-publish narrowed away before staging
+// its content (narrowForRepublish), or "" when it narrowed nothing. It is put
+// back in this transaction, so the receipt and the audience commit together.
+// It applies only while the row is still the private value the narrowing left:
+// a different value was written by someone else after the narrowing, and that
+// decision stands.
+//
 // Pinning here under the same FOR UPDATE lock is observably equivalent to
-// resolving with COALESCE in SQL: no concurrent writer
-// can intervene, so a pinned value is WHEN-false at the trigger) and avoids
-// renumbering the 60-positional-param update query.
-func pinRepublishGovernance(ctx context.Context, q Querier, id pgtype.UUID, params *sqlc.UpdateTranscriptByOwnerAndLocalIDParams) error {
+// resolving with COALESCE in SQL (no concurrent writer can intervene, so a
+// value pinned unchanged is WHEN-false at the trigger) and avoids renumbering
+// the 60-positional-param update query.
+func pinRepublishGovernance(ctx context.Context, q Querier, id pgtype.UUID, params *sqlc.UpdateTranscriptByOwnerAndLocalIDParams, restore string) error {
 	pre, err := q.GetTranscriptGovernanceForUpdate(ctx, id)
 	if err != nil {
 		return err
 	}
 	params.Visibility = pre.Visibility
+	if restore != "" && pre.Visibility == dbVisibilityPrivate {
+		params.Visibility = restore
+	}
 	if !params.LicenseID.Valid {
 		params.LicenseID = pre.LicenseID
 	}
 	return nil
+}
+
+// narrowForRepublish moves a public or shared transcript to private before a
+// re-publish stages replacement content, and returns the visibility it held
+// under the row lock so the re-publish can put it back. It returns "" when the
+// row was already private and nothing was written. Runs inside inTxAs, so the
+// migration-026 trigger records the narrowing as the publisher.
+func narrowForRepublish(ctx context.Context, q Querier, id pgtype.UUID) (string, error) {
+	pre, err := q.GetTranscriptGovernanceForUpdate(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if pre.Visibility == dbVisibilityPrivate {
+		return "", nil
+	}
+	private := dbVisibilityPrivate
+	if _, err := applyMetadataPatch(ctx, q, id, metadataPatch{Visibility: &private}); err != nil {
+		return "", err
+	}
+	return pre.Visibility, nil
+}
+
+// restoreNarrowedVisibility is the compensating half of narrowForRepublish for
+// a re-publish that failed definitely: it puts back the visibility the
+// narrowing removed, under the same condition pinRepublishGovernance applies.
+// Runs inside inTxAs.
+func restoreNarrowedVisibility(ctx context.Context, q Querier, id pgtype.UUID, restore string) error {
+	pre, err := q.GetTranscriptGovernanceForUpdate(ctx, id)
+	if err != nil {
+		return err
+	}
+	if restore == "" || pre.Visibility != dbVisibilityPrivate {
+		return nil
+	}
+	_, err = applyMetadataPatch(ctx, q, id, metadataPatch{Visibility: &restore})
+	return err
 }

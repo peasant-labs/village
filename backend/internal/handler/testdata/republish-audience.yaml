@@ -1,0 +1,215 @@
+# A republish keeps the audience it found, driven through the real publish,
+# share and owner-edit handlers against a real PostgreSQL.
+#
+# Before a republish stages replacement content it moves a public or shared
+# transcript to private, so nobody can read the new bytes before they are
+# paired with the row. What happens to that narrowing depends on the outcome:
+#
+#   success             the visibility read under the lock is restored in the
+#                       same transaction as the receipt.
+#   object_write_failure  nothing was staged; a compensating transaction of its
+#                       own restores the visibility.
+#   database_rollback   the replacement transaction is known to have rolled
+#                       back; the same compensating transaction restores it.
+#   ambiguous_commit    PostgreSQL did not confirm the commit, so nothing can
+#                       tell whether the restore committed with it; the
+#                       transcript stays private, which is the fail-safe
+#                       answer, and the answer says so.
+#
+# pre_image is the visibility before the republish: private (as the first
+# publish leaves it), shared (the owner shared it to one open collective, which
+# accepted it), or public (the owner widened it). license, when present, is a
+# license the republish carries, so the license axis moves in the same update.
+#
+# want_events are the governance events the REPUBLISH appended, in seq order
+# (the setup's own events are excluded), each attributed to the owner.
+# want_live_shares counts the collectives whose latest attempt is pending or
+# approved. want_member_reads is whether a member of that collective, who is
+# not the owner, can open the transcript afterwards: the audience itself.
+# content_replaced is whether the stored content hash changed.
+#
+# want_body_contains and want_body_omits are needles authored here rather than
+# taken from the production message: the ambiguous answer must tell the owner
+# the transcript may now be private, and an answer after a restore must not.
+
+- name: private_success_changes_no_audience
+  why: a private transcript is not narrowed, so a republish writes no governance event and nobody gains access
+  pre_image: private
+  outcome: success
+  want_status: 200
+  want_visibility: private
+  want_events: []
+  want_live_shares: 0
+  want_member_reads: false
+  content_replaced: true
+
+- name: private_object_write_failure_changes_no_audience
+  why: nothing was narrowed, so a failed object write has nothing to restore and must not invent a visibility change
+  pre_image: private
+  outcome: object_write_failure
+  want_status: 500
+  want_visibility: private
+  want_events: []
+  want_live_shares: 0
+  want_member_reads: false
+  content_replaced: false
+  want_body_contains: ["Encrypted transcript write failed"]
+  want_body_omits: ["may now be private"]
+
+- name: private_database_rollback_changes_no_audience
+  why: a known rollback of a republish that narrowed nothing restores nothing
+  pre_image: private
+  outcome: database_rollback
+  want_status: 500
+  want_visibility: private
+  want_events: []
+  want_live_shares: 0
+  want_member_reads: false
+  content_replaced: false
+  want_body_contains: ["Failed to save transcript"]
+  want_body_omits: ["may now be private"]
+
+- name: private_ambiguous_commit_says_nothing_about_an_audience
+  why: an unconfirmed commit of a republish that narrowed nothing leaves nothing private that was not already, so the answer must not tell the owner otherwise
+  pre_image: private
+  outcome: ambiguous_commit
+  want_status: 500
+  want_visibility: private
+  want_events: []
+  want_live_shares: 0
+  want_member_reads: false
+  content_replaced: false
+  want_body_contains: ["Failed to save transcript"]
+  want_body_omits: ["may now be private"]
+
+- name: shared_success_restores_the_collective
+  why: >
+    the bug this corpus exists for: a transcript shared only with a collective became private on every update, and
+    the collective's members lost access; the receipt's own transaction must put the collective's audience back
+  pre_image: shared
+  outcome: success
+  want_status: 200
+  want_visibility: shared
+  want_events:
+    - {type: visibility_changed, visibility: private}
+    - {type: visibility_changed, visibility: shared}
+  want_live_shares: 1
+  want_member_reads: true
+  content_replaced: true
+
+- name: shared_success_with_a_new_license_restores_in_one_event
+  why: >
+    the restore and a license the republish carries move both governance axes in one update, which the audit records
+    as ONE governance_changed row carrying the restored visibility, never a half-snapshot
+  pre_image: shared
+  outcome: success
+  license: CC-BY-4.0
+  want_status: 200
+  want_visibility: shared
+  want_events:
+    - {type: visibility_changed, visibility: private}
+    - {type: governance_changed, visibility: shared}
+  want_live_shares: 1
+  want_member_reads: true
+  content_replaced: true
+
+- name: shared_object_write_failure_restores_the_collective
+  why: nothing was staged, so the narrowing is the only thing that committed and a compensating transaction undoes it
+  pre_image: shared
+  outcome: object_write_failure
+  want_status: 500
+  want_visibility: shared
+  want_events:
+    - {type: visibility_changed, visibility: private}
+    - {type: visibility_changed, visibility: shared}
+  want_live_shares: 1
+  want_member_reads: true
+  content_replaced: false
+  want_body_contains: ["Encrypted transcript write failed"]
+  want_body_omits: ["may now be private"]
+
+- name: shared_database_rollback_restores_the_collective
+  why: the replacement is known not to have committed, so neither did the restore it carried; the compensation must run
+  pre_image: shared
+  outcome: database_rollback
+  want_status: 500
+  want_visibility: shared
+  want_events:
+    - {type: visibility_changed, visibility: private}
+    - {type: visibility_changed, visibility: shared}
+  want_live_shares: 1
+  want_member_reads: true
+  content_replaced: false
+  want_body_contains: ["Failed to save transcript"]
+  want_body_omits: ["may now be private"]
+
+- name: shared_ambiguous_commit_stays_private
+  why: >
+    nothing can tell whether the restore committed with the replacement, so the transcript is left as private as it
+    may be, its submission stays live for the owner to share again, and the answer tells the owner so
+  pre_image: shared
+  outcome: ambiguous_commit
+  want_status: 500
+  want_visibility: private
+  want_events:
+    - {type: visibility_changed, visibility: private}
+  want_live_shares: 1
+  want_member_reads: false
+  content_replaced: false
+  want_body_contains: ["Failed to save transcript", "may now be private", "share it again"]
+
+- name: public_success_restores_public
+  why: a public transcript is narrowed during the write like a shared one, and must come back public, not shared or private
+  pre_image: public
+  outcome: success
+  want_status: 200
+  want_visibility: public
+  want_events:
+    - {type: visibility_changed, visibility: private}
+    - {type: visibility_changed, visibility: public}
+  want_live_shares: 0
+  want_member_reads: true
+  content_replaced: true
+
+- name: public_object_write_failure_restores_public
+  why: the compensation restores the exact value it read under the lock, whichever tier that was
+  pre_image: public
+  outcome: object_write_failure
+  want_status: 500
+  want_visibility: public
+  want_events:
+    - {type: visibility_changed, visibility: private}
+    - {type: visibility_changed, visibility: public}
+  want_live_shares: 0
+  want_member_reads: true
+  content_replaced: false
+  want_body_contains: ["Encrypted transcript write failed"]
+  want_body_omits: ["may now be private"]
+
+- name: public_database_rollback_restores_public
+  why: a known rollback restores public exactly as it restores shared
+  pre_image: public
+  outcome: database_rollback
+  want_status: 500
+  want_visibility: public
+  want_events:
+    - {type: visibility_changed, visibility: private}
+    - {type: visibility_changed, visibility: public}
+  want_live_shares: 0
+  want_member_reads: true
+  content_replaced: false
+  want_body_contains: ["Failed to save transcript"]
+  want_body_omits: ["may now be private"]
+
+- name: public_ambiguous_commit_stays_private
+  why: the fail-safe is private for a public transcript too, and the answer names the visibility it was not returned to
+  pre_image: public
+  outcome: ambiguous_commit
+  want_status: 500
+  want_visibility: private
+  want_events:
+    - {type: visibility_changed, visibility: private}
+  want_live_shares: 0
+  want_member_reads: false
+  content_replaced: false
+  want_body_contains: ["Failed to save transcript", "may now be private", "public visibility"]

@@ -321,3 +321,24 @@ FROM (
     ORDER BY a.transcript_id, a.event_num DESC
 ) latest
 WHERE latest.status IN ('pending', 'approved');
+
+-- name: TranscriptHasLiveShareAttempt :one
+-- Whether ANY collective still holds a live submission of one transcript: the
+-- latest event of at least one (transcript, collective) pair is pending or
+-- approved. An owner's unshare reads it, inside its own transaction, to decide
+-- whether the transcript still has an audience that 'shared' describes.
+--
+-- Live has the same meaning as in ListLiveShareAttemptsForGroup, and for the
+-- same reason this reads the attempt LEDGER and never the derived row: a
+-- pending submission is live even though it grants nothing yet, because it
+-- grants access the moment it is accepted.
+SELECT EXISTS (
+    SELECT 1
+    FROM (
+        SELECT DISTINCT ON (a.group_id) a.status
+        FROM transcript_share_attempts a
+        WHERE a.transcript_id = $1
+        ORDER BY a.group_id, a.event_num DESC
+    ) latest
+    WHERE latest.status IN ('pending', 'approved')
+) AS live;

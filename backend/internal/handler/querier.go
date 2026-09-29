@@ -114,6 +114,7 @@ type Querier interface {
 	ListShareAttempts(ctx context.Context, arg sqlc.ListShareAttemptsParams) ([]sqlc.TranscriptShareAttempt, error)
 	ShareTranscriptWithStatus(ctx context.Context, arg sqlc.ShareTranscriptWithStatusParams) error
 	UnshareTranscript(ctx context.Context, arg sqlc.UnshareTranscriptParams) error
+	TranscriptHasLiveShareAttempt(ctx context.Context, transcriptID pgtype.UUID) (bool, error)
 	ListTranscriptShares(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.ListTranscriptSharesRow, error)
 	ListGroupTranscripts(ctx context.Context, arg sqlc.ListGroupTranscriptsParams) ([]sqlc.ListGroupTranscriptsRow, error)
 	RemoveGroupTranscript(ctx context.Context, arg sqlc.RemoveGroupTranscriptParams) error

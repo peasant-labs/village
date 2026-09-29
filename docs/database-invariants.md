@@ -460,7 +460,9 @@ The audit triggers (migration 026) and the share-derivation triggers
   the moderator directly on the attempt row. A submission that ALSO moves a
   private transcript to `shared` does cross it, and that write carries the actor
   because it runs inside `inTxAs`/`inTxAsOnConn` like every other visibility
-  change.
+  change. So does an owner's unshare that narrows `shared` to `private` once no
+  live submission remains: the withdrawal and the narrowing are one
+  `inTxAsOnConn` transaction (§8).
 - **The ledger now has a SECOND application writer, and it writes the same
   statement.** `POST /groups/{id}/shares` (`handler/group_shares.go`,
   `BatchShareProject`) offers a whole project to one collective. It appends one
@@ -622,14 +624,51 @@ authenticating. Both are custom Postgres parameters read via
 - **`UNIQUE(owner_id, local_id)`** on transcripts (001) - `local_id` is the
   peasant session id; publish upserts by this key (ID-only existence probe +
   locked narrow pre-image inside the publish transaction).
-- **Re-publish never changes visibility**, and an absent CLI license preserves
-  the stored one - pinned from the FOR-UPDATE pre-image
-  (`pinRepublishGovernance`) inside the same transaction.
-- **Content replacement is private-before-write.** Publish, owner PATCH, and
-  sharing serialize on the owner/local-session advisory-lock key. Before a
-  re-publish stages new S3 bytes, any public or shared row is moved to private
-  in an actor-attributed transaction. Public widening remains a separate owner
-  PATCH.
+- **Re-publish keeps the audience it found**, and an absent CLI license
+  preserves the stored one. Both are pinned from the FOR-UPDATE pre-image
+  (`pinRepublishGovernance`) inside the receipt's own transaction: the
+  visibility a successful re-publish commits is the one its narrowing read
+  under the row lock (next bullet), never a value the request chose. A
+  re-publish that carries a license moves that axis in the same update, so a
+  restore plus a license change is ONE `governance_changed` row. The restore
+  applies only while the row is still the `private` the narrowing left. Every
+  writer of visibility holds the same advisory lock, so a different value there
+  means a later decision was recorded, and it stands.
+- **Content replacement is private-before-write, and the private window closes
+  by outcome.** Publish, owner PATCH, sharing, and the owner's unshare serialize
+  on the owner/local-session advisory-lock key. Before a re-publish stages new
+  S3 bytes, any public or shared row is moved to private in an actor-attributed
+  transaction (`narrowForRepublish`), which keeps the value it read. Then:
+  - **success** restores that value in the same transaction as the receipt;
+  - a **definite failure** (the object write failed, so nothing was staged, or
+    the replacement transaction is known to have rolled back) restores it in a
+    separate actor-attributed compensating transaction
+    (`restoreRepublishAudience`), on the connection that still holds the lock
+    and detached from the request's cancellation;
+  - an **ambiguous commit** restores nothing. The restore committed if the
+    replacement did, and nobody can tell which, so the row stays as private as
+    it may be: the fail-safe direction. The 500 says the transcript may now be
+    private, and the owner recovers the audience by sharing to the same
+    collectives again or by an owner PATCH. A compensating restore that itself
+    fails leaves the same state and logs `republish_audience_restore_failed`.
+
+  Every narrowing refreshes the pull request attachments that bind the
+  transcript on the way out, whatever the outcome, because a refresh that ran
+  inside the private window has already withdrawn it from a digest. Public
+  widening remains a separate owner PATCH.
+- **`shared` means a collective still holds a live submission.** Live is the
+  attempt ledger's meaning: the latest attempt of the pair is `pending` or
+  `approved` (a pending one counts, because it grants access the moment it is
+  accepted). The owner's unshare withdraws its submission and, when no live one
+  remains, narrows `shared` to `private` in the same actor-attributed
+  transaction, reading liveness from the ledger
+  (`TranscriptHasLiveShareAttempt`), never from the derived row; it then
+  refreshes the attachments that bind the transcript. Sharing to collectives
+  that all hold a live submission already is a duplicate and answers 409,
+  except on a `private` transcript: there those submissions grant nothing, so
+  the share flips it to `shared` and answers 200 without opening an attempt.
+  A collective's decision or removal, and a member leaving, are not the owner's
+  unshare and move no visibility.
 - **Content replacement uses immutable, content-addressed objects.** Publish
   uploads to an owner/transcript/content-hash key, then swaps `blob_key` in the
   same database transaction as the authoritative receipt. A database failure

@@ -251,6 +251,32 @@ ledger) and never mentions `transcript_shares` (the derived projection), so the
 guard's word-boundary match on the table name does not fire for it and it needs
 no entry there.
 
+The same lattice also asserts the transcript's `visibility` after every case,
+because an owner's unshare narrows a shared transcript once no collective holds
+a live submission, and a share to collectives that are all live already flips a
+private transcript back to shared instead of refusing it. Those cases name
+their start visibility and, when they need two collectives, carry the second
+collective's own attempt sequence; `republish_left_private` commits the
+narrowing a republish performs and nothing after it, which is the state an
+unconfirmed republish leaves.
+
+### Republish keeps the audience: pre-image by outcome
+
+`internal/handler/republish_audience_integration_test.go` +
+`testdata/republish-audience.yaml` drive the real publish, share and owner-edit
+handlers over real PostgreSQL, one case per pre-image (`private`, `shared`,
+`public`) under each outcome: success, a failed object write, a known rollback
+(a `BEFORE UPDATE` trigger that raises), and an ambiguous commit. The ambiguous
+case installs a `DEFERRABLE INITIALLY DEFERRED` constraint trigger, so
+PostgreSQL rolls the transaction back while answering the COMMIT with an error
+rather than a rollback, which is exactly the answer the handler cannot tell
+from a lost acknowledgement. Every case asserts the final visibility, the
+governance events the republish appended (each attributed to the owner), the
+live shares, whether a collective member who is not the owner can still open
+it, whether the content was replaced, and needles in the answer that are
+authored in the corpus. The pull request side of the same rule, a digest that
+keeps or drops the row, is `attachment_visibility_drift_integration_test.go`.
+
 ### Contributing a whole project: refusals are asserted on the LEDGER
 
 `internal/handler/testdata/groups-batch-share.yaml` +
