@@ -14,6 +14,11 @@
  * otherwise force several comments. If a direct upload is unavailable, it falls
  * back to `gh --attach` tables, then to a text-only comment.
  *
+ * The journey job records container paths in report.json; each one that does not
+ * exist here is re-rooted under this job's downloaded .artifacts/
+ * (evidence-paths.mjs). When the report lists media and none of it is on disk, the
+ * run gets an ::error:: annotation and the comment says so.
+ *
  * env: GH_TOKEN (primary, must be a user token to upload), JOURNEY_APP_TOKEN
  *      (fallback), PR_NUMBER, GITHUB_REPOSITORY, GITHUB_SERVER_URL, GITHUB_RUN_ID
  */
@@ -22,9 +27,11 @@ import { existsSync, globSync, mkdtempSync, readFileSync, writeFileSync } from '
 import { homedir, tmpdir } from 'node:os'
 import { basename, dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { collectMedia } from './evidence-paths.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const REPORT = join(HERE, '.artifacts', 'report.json')
+const ARTIFACTS = join(HERE, '.artifacts')
+const REPORT = join(ARTIFACTS, 'report.json')
 const MARKER = 'journey-evidence'
 const UPLOAD_ORIGIN = 'https://uploads.github.com'
 
@@ -63,12 +70,11 @@ const failed = tests.filter((t) => t.status && t.status !== 'passed' && t.status
 const passed = tests.filter((t) => t.status === 'passed')
 const skipped = tests.filter((t) => t.status === 'skipped')
 
-const pathFor = (test, contentType) => {
-  const a = (test.attachments || []).find((x) => x.contentType === contentType && x.path && existsSync(x.path))
-  return a ? a.path : null
-}
+const evidence = collectMedia(tests, ARTIFACTS)
+if (evidence.problem) console.log(`::error title=journey evidence::${evidence.problem}`)
+const mediaNote = evidence.problem ? ['', `**${evidence.problem}**`] : []
 const label = (t) => `${basename(t.file || 'journey').replace(/\.[^.]+$/, '')} › ${t.title}`
-const media = tests.map((t) => ({ label: label(t), theme: t.project, status: t.status, image: pathFor(t, 'image/png'), video: pathFor(t, 'video/webm') }))
+const media = evidence.media.map(({ test: t, image, video }) => ({ label: label(t), theme: t.project, status: t.status, image, video }))
 const labels = [...new Set(media.map((m) => m.label))]
 const themes = [...new Set(media.map((m) => m.theme))].sort()
 const cell = (l, theme) => media.find((m) => m.label === l && m.theme === theme)
@@ -83,15 +89,23 @@ const ffmpeg = (() => {
   return null
 })()
 const tmp = mkdtempSync(join(tmpdir(), 'journey-evidence-'))
+// Almost every clip is named video.webm, so each conversion gets its own
+// directory. The result is memoised because the attachment fallback asks twice
+// per clip, once for its table row and once for its attachment, and both must name
+// the same file.
+const clips = new Map()
 const clipPath = (webm) => {
   if (!ffmpeg) return webm
-  const out = join(tmp, `${basename(webm, extname(webm))}.mp4`)
-  try {
-    execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-i', webm, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out])
-    return out
-  } catch {
-    return webm
+  if (!clips.has(webm)) {
+    const out = join(mkdtempSync(join(tmp, 'clip-')), `${basename(webm, extname(webm))}.mp4`)
+    try {
+      execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-i', webm, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out])
+      clips.set(webm, out)
+    } catch {
+      clips.set(webm, webm)
+    }
   }
+  return clips.get(webm)
 }
 
 const runUrl = GITHUB_RUN_ID ? `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}` : null
@@ -102,6 +116,7 @@ const summaryLines = () => [
   '',
   `**${passed.length} passed**, **${failed.length} failed**, ${skipped.length} skipped (both themes).`,
   ...(failed.length ? ['', 'Failing:', ...failed.map((f) => `- [${f.project}] ${f.title}`)] : []),
+  ...mediaNote,
   '',
   runUrl ? `Full traces and artifacts: [workflow run](${runUrl})` : 'Full traces and artifacts are attached to the workflow run.',
 ]
@@ -135,6 +150,7 @@ const buildRunContent = (imageUrls, videoUrls) => {
     '',
     runUrl ? `workflow run: [${GITHUB_RUN_ID}](${runUrl})` : 'workflow run: unknown',
     `commit: ${sha7}`,
+    ...mediaNote,
   ]
   if (failed.length) lines.push('', 'Failing:', ...failed.map((f) => `- [${f.project}] ${f.title}`))
   for (const l of labels) {
