@@ -14,10 +14,10 @@
  * otherwise force several comments. If a direct upload is unavailable, it falls
  * back to `gh --attach` tables, then to a text-only comment.
  *
- * The journey job records container paths in report.json; each one is re-rooted
- * under this job's downloaded .artifacts/ (evidence-paths.mjs). When the report
- * lists media and none of it is on disk, the run gets an ::error:: annotation and
- * the comment says so.
+ * The journey job records container paths in report.json; each one that does not
+ * exist here is re-rooted under this job's downloaded .artifacts/
+ * (evidence-paths.mjs). When the report lists media and none of it is on disk, the
+ * run gets an ::error:: annotation and the comment says so.
  *
  * env: GH_TOKEN (primary, must be a user token to upload), JOURNEY_APP_TOKEN
  *      (fallback), PR_NUMBER, GITHUB_REPOSITORY, GITHUB_SERVER_URL, GITHUB_RUN_ID
@@ -70,16 +70,18 @@ const failed = tests.filter((t) => t.status && t.status !== 'passed' && t.status
 const passed = tests.filter((t) => t.status === 'passed')
 const skipped = tests.filter((t) => t.status === 'skipped')
 
-const found = collectMedia(tests, ARTIFACTS)
-if (found.problem) console.log(`::error title=journey evidence::${found.problem}`)
-const mediaNote = found.problem ? ['', `**${found.problem}**`] : []
+const evidence = collectMedia(tests, ARTIFACTS)
+if (evidence.problem) console.log(`::error title=journey evidence::${evidence.problem}`)
+const mediaNote = evidence.problem ? ['', `**${evidence.problem}**`] : []
 const label = (t) => `${basename(t.file || 'journey').replace(/\.[^.]+$/, '')} › ${t.title}`
-const media = tests.map((t, i) => ({ label: label(t), theme: t.project, status: t.status, ...found.media[i] }))
+const media = evidence.media.map(({ test: t, image, video }) => ({ label: label(t), theme: t.project, status: t.status, image, video }))
 const labels = [...new Set(media.map((m) => m.label))]
 const themes = [...new Set(media.map((m) => m.theme))].sort()
 const cell = (l, theme) => media.find((m) => m.label === l && m.theme === theme)
 
 // Convert clips to H.264 mp4 for the widest playback support (webm as fallback).
+// Almost every clip is named video.webm, so each conversion gets its own
+// directory, and a clip is converted once however often it is asked for.
 const ffmpeg = (() => {
   const roots = [process.env.PLAYWRIGHT_BROWSERS_PATH, join(homedir(), '.cache', 'ms-playwright')].filter(Boolean)
   for (const root of roots) {
@@ -89,15 +91,19 @@ const ffmpeg = (() => {
   return null
 })()
 const tmp = mkdtempSync(join(tmpdir(), 'journey-evidence-'))
+const clips = new Map()
 const clipPath = (webm) => {
   if (!ffmpeg) return webm
-  const out = join(tmp, `${basename(webm, extname(webm))}.mp4`)
-  try {
-    execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-i', webm, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out])
-    return out
-  } catch {
-    return webm
+  if (!clips.has(webm)) {
+    const out = join(mkdtempSync(join(tmp, 'clip-')), `${basename(webm, extname(webm))}.mp4`)
+    try {
+      execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-i', webm, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out])
+      clips.set(webm, out)
+    } catch {
+      clips.set(webm, webm)
+    }
   }
+  return clips.get(webm)
 }
 
 const runUrl = GITHUB_RUN_ID ? `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}` : null

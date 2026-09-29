@@ -2,8 +2,9 @@
  *
  * Drives the same functions ci-post-evidence.mjs uses. The cases live in
  * testdata/evidence-paths.yaml (never inline here); each case names the files that
- * exist, so the fixture runs the same on any machine. One case also runs against
- * the real filesystem, the check the posting script uses by default.
+ * exist, so the fixture runs the same on any machine. One case also runs through
+ * collectMedia against the real filesystem, the check the posting script gets by
+ * default.
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -15,9 +16,14 @@ import { collectMedia, resolveAttachmentPath } from './evidence-paths.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixture = YAML.parse(readFileSync(join(here, 'testdata/evidence-paths.yaml'), 'utf8'))
-const existsIn = (present) => {
+
+// An existence check over the case's files that records every path it is asked about.
+const existsIn = (present, probed = []) => {
   const files = new Set(present)
-  return (path) => files.has(path)
+  return (path) => {
+    probed.push(path)
+    return files.has(path)
+  }
 }
 
 describe('evidence path fixtures', () => {
@@ -38,32 +44,39 @@ describe('evidence path fixtures', () => {
 describe('resolveAttachmentPath', () => {
   for (const c of fixture.pathCases) {
     it(c.name, () => {
-      const got = resolveAttachmentPath(c.recorded, c.artifactsDir ?? fixture.artifactsDir, existsIn(c.present))
+      const probed = []
+      const got = resolveAttachmentPath(c.recorded, c.artifactsDir ?? fixture.artifactsDir, existsIn(c.present, probed))
       expect(got).toBe(c.want)
+      if (c.probed) expect(probed).toEqual(c.probed)
     })
   }
-
-  it('checks the real filesystem when no check is passed', () => {
-    const c = fixture.pathCases.find((x) => x.name === 'container-path-re-roots-to-local')
-    const root = mkdtempSync(join(tmpdir(), 'evidence-paths-'))
-    try {
-      const local = join(root, c.want.slice(fixture.artifactsDir.length))
-      mkdirSync(dirname(local), { recursive: true })
-      writeFileSync(local, '')
-      expect(resolveAttachmentPath(c.recorded, root)).toBe(local)
-      rmSync(local)
-      expect(resolveAttachmentPath(c.recorded, root)).toBeNull()
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
-  })
 })
 
 describe('collectMedia', () => {
   for (const c of fixture.reportCases) {
     it(c.name, () => {
       const got = collectMedia(c.tests, fixture.artifactsDir, existsIn(c.present))
-      expect(got).toEqual(c.want)
+      got.media.forEach((m, i) => expect(m.test).toBe(c.tests[i]))
+      const media = got.media.map(({ image, video }) => ({ image, video }))
+      expect({ ...got, media }).toEqual(c.want)
     })
   }
+
+  it('checks the real filesystem when no check is passed', () => {
+    const c = fixture.pathCases.find((x) => x.name === 'container-path-re-roots-to-local')
+    expect(c.artifactsDir, 'the case must use the shared artifacts directory').toBeUndefined()
+    const root = mkdtempSync(join(tmpdir(), 'evidence-paths-'))
+    try {
+      const artifactsDir = join(root, '.artifacts')
+      const local = join(artifactsDir, c.want.slice(fixture.artifactsDir.length))
+      const tests = [{ attachments: [{ contentType: 'image/png', path: c.recorded }] }]
+      mkdirSync(dirname(local), { recursive: true })
+      writeFileSync(local, '')
+      expect(collectMedia(tests, artifactsDir)).toMatchObject({ resolved: 1, media: [{ image: local }] })
+      rmSync(local)
+      expect(collectMedia(tests, artifactsDir)).toMatchObject({ resolved: 0, media: [{ image: null }] })
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
 })

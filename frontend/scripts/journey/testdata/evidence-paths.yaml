@@ -3,13 +3,15 @@
 # The journey job runs inside the Playwright container, so report.json records
 # container paths (/__w/village/village/...). The evidence job runs on the host
 # and downloads the same artifact into its own checkout, so a recorded path that
-# does not exist there is re-rooted: the part after the last /.artifacts/ is
-# joined to the local artifacts directory.
+# does not exist there is re-rooted: the part after the last segment named like
+# the local artifacts directory is joined to that directory.
 #
 # Consumed by evidence-paths.test.mjs. `artifactsDir` is the evidence job's local
 # artifacts directory for every case unless a case names its own. `present` lists
-# the files that exist on that machine; no other file exists. Every case carries a
-# non-empty `why`, and the required-name lists guard against deleting a case.
+# the files that exist on that machine; no other file exists. A path case that
+# carries `probed` also pins every path the resolver checks, in order. Every case
+# carries a non-empty `why`, and the required-name lists guard against deleting a
+# case.
 
 artifactsDir: /home/runner/work/village/village/frontend/scripts/journey/.artifacts
 
@@ -18,16 +20,16 @@ requiredPathCases:
   - local-path-stays-unchanged
   - missing-file-resolves-to-null
   - last-artifacts-segment-is-the-root
-  - path-outside-the-artifacts-resolves-to-null
-  - re-rooted-path-cannot-climb-out
-  - attachment-without-a-path-resolves-to-null
+  - path-without-an-artifacts-segment-resolves-to-null
+  - artifacts-segment-is-named-by-the-local-directory
 
 requiredReportCases:
   - container-report-resolves-every-file
   - media-listed-but-none-resolves-is-the-error
   - some-media-resolves-is-not-the-error
   - no-media-listed-is-not-the-error
-  - first-resolvable-clip-is-the-one-posted
+  - the-page-clip-is-the-one-posted
+  - the-first-screenshot-is-the-one-posted
 
 pathCases:
   - name: container-path-re-roots-to-local
@@ -43,13 +45,15 @@ pathCases:
   - name: local-path-stays-unchanged
     why: >-
       A local run records paths on the same machine that posts them, so an
-      existing recorded path is used as it is, even outside the artifacts
-      directory the evidence job would re-root into.
-    artifactsDir: /home/dev/elsewhere/frontend/scripts/journey/.artifacts
+      existing recorded path is used as it is and never re-rooted, even when a
+      re-rooted twin exists as well.
     recorded: /home/dev/village/frontend/scripts/journey/.artifacts/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-light/video.webm
     present:
       - /home/dev/village/frontend/scripts/journey/.artifacts/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-light/video.webm
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-light/video.webm
     want: /home/dev/village/frontend/scripts/journey/.artifacts/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-light/video.webm
+    probed:
+      - /home/dev/village/frontend/scripts/journey/.artifacts/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-light/video.webm
 
   - name: missing-file-resolves-to-null
     why: >-
@@ -58,6 +62,9 @@ pathCases:
     recorded: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/video.webm
     present: []
     want: null
+    probed:
+      - /__w/village/village/frontend/scripts/journey/.artifacts/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/video.webm
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/video.webm
 
   - name: last-artifacts-segment-is-the-root
     why: >-
@@ -70,32 +77,28 @@ pathCases:
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/village/frontend/scripts/journey/.artifacts/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/project-orphan-group.png
     want: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/project-orphan-group.png
 
-  - name: path-outside-the-artifacts-resolves-to-null
+  - name: path-without-an-artifacts-segment-resolves-to-null
     why: >-
-      Only files from the downloaded artifact are posted. A recorded path with no
-      .artifacts segment is not re-rooted by its tail, even when a file of the
-      same relative name exists under the artifacts directory.
+      A recorded path with no .artifacts segment has no part to re-root, so the
+      only path checked is the recorded one, even when a file of the same
+      relative name exists under the artifacts directory.
     recorded: /__w/village/village/frontend/results/explore-dark/test-finished-1.png
     present:
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/test-finished-1.png
     want: null
+    probed:
+      - /__w/village/village/frontend/results/explore-dark/test-finished-1.png
 
-  - name: re-rooted-path-cannot-climb-out
+  - name: artifacts-segment-is-named-by-the-local-directory
     why: >-
-      A tail that walks up with .. would re-root to a file outside the artifacts
-      directory; that file is never posted.
-    recorded: /__w/village/village/frontend/scripts/journey/.artifacts/../../../../backend/secret.png
+      The segment to re-root after is the local artifacts directory's own name,
+      so renaming the output directory in the Playwright config, the workflow and
+      the posting script together keeps re-rooting working.
+    artifactsDir: /home/runner/work/village/village/frontend/scripts/journey/.evidence
+    recorded: /__w/village/village/frontend/scripts/journey/.evidence/results/explore-dark/test-finished-1.png
     present:
-      - /home/runner/work/village/village/backend/secret.png
-    want: null
-
-  - name: attachment-without-a-path-resolves-to-null
-    why: >-
-      Playwright can record an attachment as an inline body with no path; there is
-      no file to upload.
-    recorded: null
-    present: []
-    want: null
+      - /home/runner/work/village/village/frontend/scripts/journey/.evidence/results/explore-dark/test-finished-1.png
+    want: /home/runner/work/village/village/frontend/scripts/journey/.evidence/results/explore-dark/test-finished-1.png
 
 reportCases:
   - name: container-report-resolves-every-file
@@ -170,12 +173,15 @@ reportCases:
 
   - name: no-media-listed-is-not-the-error
     why: >-
-      A run with screenshots and video switched off lists no media, so there is
-      nothing that failed to resolve.
+      A run with screenshots and video switched off lists no media files, and a
+      screenshot attached as an inline body names no file; neither counts as
+      listed, so nothing failed to resolve.
     tests:
       - attachments:
           - contentType: application/json
             path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/attachments/axe-json-5611.json
+          - contentType: image/png
+            body: iVBORw0KGgo=
       - attachments: []
     present:
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/attachments/axe-json-5611.json
@@ -189,35 +195,58 @@ reportCases:
         - image: null
           video: null
 
-  - name: first-resolvable-clip-is-the-one-posted
+  - name: the-page-clip-is-the-one-posted
     why: >-
-      A journey that opens a second page records two clips. The comment posts the
-      first one that resolves, in the order the report lists them: the first clip
-      when both are on disk, and the next one when the first is missing.
+      A journey that runs axe records a second clip, video-1.webm, of the blank
+      page axe opens, and the report lists it before the test page's video.webm.
+      The comment posts the test page's clip when it is on disk, and the first
+      clip that resolves when it is not.
     tests:
       - attachments:
+          - contentType: image/png
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/test-finished-1.png
           - contentType: video/webm
             path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video-1.webm
           - contentType: video/webm
             path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video.webm
-          - contentType: image/png
-            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/test-finished-1.png
       - attachments:
           - contentType: video/webm
             path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video-1.webm
           - contentType: video/webm
             path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video.webm
     present:
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/test-finished-1.png
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video-1.webm
       - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video.webm
-      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/test-finished-1.png
-      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video.webm
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video-1.webm
     want:
       listed: 5
       resolved: 4
       problem: null
       media:
         - image: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/test-finished-1.png
-          video: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video-1.webm
+          video: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video.webm
         - image: null
-          video: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video.webm
+          video: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video-1.webm
+
+  - name: the-first-screenshot-is-the-one-posted
+    why: >-
+      The project journey attaches its own named screenshot before Playwright's
+      end-of-test screenshot. The comment posts the first screenshot that resolves,
+      in report order, so the journey's chosen frame is the one shown.
+    tests:
+      - attachments:
+          - contentType: image/png
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/project-dark/attachments/project-orphan-group-png-3944.png
+          - contentType: image/png
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/project-dark/test-finished-1.png
+    present:
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/project-dark/attachments/project-orphan-group-png-3944.png
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/project-dark/test-finished-1.png
+    want:
+      listed: 2
+      resolved: 2
+      problem: null
+      media:
+        - image: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/project-dark/attachments/project-orphan-group-png-3944.png
+          video: null

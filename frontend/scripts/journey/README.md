@@ -111,9 +111,10 @@ The journey job runs inside the Playwright container, so `report.json` records
 container paths (`/__w/...`). The evidence job runs on the host and downloads the
 artifact into its own checkout, so `evidence-paths.mjs` re-roots each recorded
 path that does not exist there: the part after the last `/.artifacts/` is joined
-to the local `.artifacts/`, and only files inside it are posted. When the report
-lists screenshots or clips and none of them is on disk, the step emits an
-`::error::` annotation and the comment says so. The cases live in
+to the local `.artifacts/`. Each journey posts its first screenshot and the clip of
+its own page (`video.webm`), not the blank page axe opens (`video-1.webm`). When
+the report lists screenshots or clips and none of them is on disk, the step emits
+an `::error::` annotation and the comment says so. The cases live in
 `testdata/evidence-paths.yaml` and run under `pnpm test`.
 
 **Inline media:** `gh --attach` rejects GitHub App installation tokens ("unsupported authentication type"; gh allows OAuth/PAT/fine-grained-PAT only, and the endpoint needs repo write access). Set the **`JOURNEY_GITHUB_USER_PAT`** org secret to a machine-account fine-grained PAT (Issues: Read and write, Pull requests: Read) and the posting step uses it, so the comment carries inline screenshots and video and is authored by that account. Without it the step falls back to the App token and posts a text comment linking the artifact.

@@ -3,49 +3,55 @@
  * The journey job runs inside the Playwright container, so report.json records
  * container paths (/__w/<repo>/<repo>/frontend/scripts/journey/.artifacts/...).
  * The evidence job runs on the host and downloads the same artifact into its own
- * checkout, where those paths do not exist. A recorded path that does not exist
- * is re-rooted: the part after the last /.artifacts/ segment is joined to the
- * local artifacts directory. Only files inside that directory are ever returned.
+ * checkout, where those paths do not exist. A recorded path that exists (a local
+ * run) is used as it is. One that does not is re-rooted: the part after the last
+ * segment named like the local artifacts directory is joined to that directory.
  *
  * The cases live in testdata/evidence-paths.yaml.
  */
 import { existsSync } from 'node:fs'
-import { isAbsolute, join, relative, sep } from 'node:path'
+import { basename, join } from 'node:path'
 
-const SEGMENT = '/.artifacts/'
 const IMAGE = 'image/png'
 const VIDEO = 'video/webm'
+// Playwright records the test's own page as video.webm and each later page, such
+// as the blank page axe opens, as video-1.webm, video-2.webm and so on.
+const PAGE_CLIP = 'video.webm'
 
 // The local file a recorded attachment path names, or null when there is none.
-export const resolveAttachmentPath = (recorded, artifactsDir, exists = existsSync) => {
-  if (!recorded) return null
+export const resolveAttachmentPath = (recorded, artifactsDir, exists) => {
   if (exists(recorded)) return recorded
-  const at = recorded.lastIndexOf(SEGMENT)
+  const segment = `/${basename(artifactsDir)}/`
+  const at = recorded.lastIndexOf(segment)
   if (at < 0) return null
-  const local = join(artifactsDir, recorded.slice(at + SEGMENT.length))
-  const inside = relative(artifactsDir, local)
-  if (!inside || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) return null
+  const local = join(artifactsDir, recorded.slice(at + segment.length))
   return exists(local) ? local : null
 }
 
-// Per test, in report order: the first screenshot and the first clip that
-// resolve. `listed` counts the media attachments the report records and
-// `resolved` how many of them are on disk. `problem` is the note for the job
-// annotations and the comment when the report lists media and none resolves.
+// One record per test, in report order: the test, its first screenshot that
+// resolves, and the clip of its own page (else the first clip that resolves).
+// `listed` counts the media attachments that name a file and `resolved` how many
+// of those are on disk. `problem` is the note for the job annotations and the
+// comment when the report lists media and none of it resolves.
 export const collectMedia = (tests, artifactsDir, exists = existsSync) => {
   let listed = 0
   let resolved = 0
   const media = tests.map((test) => {
-    const found = { [IMAGE]: null, [VIDEO]: null }
+    const found = { [IMAGE]: [], [VIDEO]: [] }
     for (const a of test.attachments || []) {
-      if (!(a.contentType in found) || !a.path) continue
+      if (!Object.hasOwn(found, a.contentType) || !a.path) continue
       listed++
       const local = resolveAttachmentPath(a.path, artifactsDir, exists)
       if (!local) continue
       resolved++
-      found[a.contentType] ??= local
+      found[a.contentType].push(local)
     }
-    return { image: found[IMAGE], video: found[VIDEO] }
+    const clips = found[VIDEO]
+    return {
+      test,
+      image: found[IMAGE][0] ?? null,
+      video: clips.find((p) => basename(p) === PAGE_CLIP) ?? clips[0] ?? null,
+    }
   })
   const problem =
     listed && !resolved ? `no screenshots or clips: the report lists ${listed}, but none of them is in the downloaded artifact.` : null
