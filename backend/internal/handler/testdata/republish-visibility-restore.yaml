@@ -1,0 +1,50 @@
+# What a republish writes back, given the visibility it narrowed away and the
+# visibility the row holds when the write happens under the row lock.
+#
+# narrowed_from is what the republish's own narrowing read ("" when it narrowed
+# nothing); locked is the value the receipt transaction or the compensating
+# transaction finds. The restore applies only while the row is still the
+# private value the narrowing left: anything else was written by a later
+# decision, and that decision stands. Every production writer of visibility
+# holds the same advisory lock, so the mounted corpus
+# (republish-audience.yaml) cannot reach those rows; they are held here.
+#
+# want_pinned is the visibility the receipt's update carries. want_restored is
+# the visibility the compensating transaction writes, or "" when it writes
+# nothing at all.
+
+- name: nothing_narrowed_keeps_private
+  narrowed_from: ""
+  locked: private
+  want_pinned: private
+  want_restored: ""
+
+- name: nothing_narrowed_keeps_a_value_it_did_not_touch
+  narrowed_from: ""
+  locked: shared
+  want_pinned: shared
+  want_restored: ""
+
+- name: narrowed_shared_is_restored
+  narrowed_from: shared
+  locked: private
+  want_pinned: shared
+  want_restored: shared
+
+- name: narrowed_public_is_restored
+  narrowed_from: public
+  locked: private
+  want_pinned: public
+  want_restored: public
+
+- name: a_later_public_decision_stands
+  narrowed_from: shared
+  locked: public
+  want_pinned: public
+  want_restored: ""
+
+- name: a_later_shared_decision_stands
+  narrowed_from: public
+  locked: shared
+  want_pinned: shared
+  want_restored: ""
