@@ -1601,10 +1601,10 @@ func (h *Handler) UnshareTranscript(w http.ResponseWriter, r *http.Request) {
 // unshareAndNarrow withdraws the owner's live submission of a transcript to one
 // collective and, when that leaves no collective holding a live submission,
 // narrows a shared transcript to private: 'shared' with nobody to share with
-// describes an audience that no longer exists, and would hand the transcript to
-// whichever collective it is next offered to before that collective decides.
-// It runs inside inTxAs, so the narrowing is attributed to the owner by the
-// migration-026 trigger. It reports whether anything changed.
+// describes an audience that no longer exists, while private says what is true
+// and is exactly what the next share flips from. It runs inside inTxAs, so the
+// narrowing is attributed to the owner by the migration-026 trigger. It reports
+// whether anything changed.
 func unshareAndNarrow(ctx context.Context, q Querier, transcriptID, groupID pgtype.UUID) (bool, error) {
 	withdrew := false
 	latest, err := q.GetLatestShareAttempt(ctx, sqlc.GetLatestShareAttemptParams{TranscriptID: transcriptID, GroupID: groupID})
