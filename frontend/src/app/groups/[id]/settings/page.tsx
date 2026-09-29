@@ -272,6 +272,12 @@ export default function GroupSettingsPage({
                   },
                 ]}
               />
+              {/* `public` is hidden: publishing is for collectives, so a
+                  collective is not offered the public commons. It is still
+                  listed for a collective that is ALREADY public, so the control
+                  keeps showing the value and label that collective has, rather
+                  than a select with no option for its own value. The server
+                  still accepts all three. */}
               <Select
                 label="Data access"
                 id="group-access"
@@ -286,10 +292,9 @@ export default function GroupSettingsPage({
                     value: "contributors",
                     label: "contributors - anyone who contributes can browse",
                   },
-                  {
-                    value: "public",
-                    label: "public - anyone can browse the dataset",
-                  },
+                  ...(group.data_access === "public"
+                    ? [{ value: "public", label: "public - anyone can browse the dataset" }]
+                    : []),
                 ]}
               />
 

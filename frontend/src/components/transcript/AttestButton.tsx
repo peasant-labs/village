@@ -1,8 +1,12 @@
 "use client";
 
-// Re-wired after the user chose to restore this feature rather than retire it.
-// Mounted in SessionDetailV2 (see that file), alongside the
-// package's other host-owned actions. DS-polished on restoration: lowercase chrome
+// HIDDEN: not mounted anywhere. The transcript page stopped rendering it when the
+// village front door was narrowed to collectives; the component, its queries and
+// the attestation routes are kept, not deleted, as a deprecation candidate.
+// Re-mounting it is one line in SessionDetailV2's headerActions.
+//
+// History: re-wired after the user chose to restore this feature rather than retire
+// it. DS-polished on restoration: lowercase chrome
 // throughout (attestation-type option labels are system copy, not user content -- same
 // convention RoleRoster's role labels and Manage.jsx's Select options already follow),
 // composed from the DS Button + Select (via @/lib/ft-ui, never the package directly).

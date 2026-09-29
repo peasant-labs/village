@@ -39,7 +39,6 @@ import { isAgentSession, type SessionOrigin } from '@/lib/sessionOrigin';
 import TranscriptEditDialog from '@/components/transcript/TranscriptEditDialog';
 import ContributePicker from '@/components/transcript/ContributePicker';
 import TurnLabelPopover from '@/components/transcript/TurnLabelPopover';
-import AttestButton from '@/components/transcript/AttestButton';
 import TranscriptCollectives from '@/components/transcript/TranscriptCollectives';
 import { buildProjectHref, buildTranscriptBreadcrumb, overlayStoredTitle } from './transcriptChrome';
 
@@ -382,18 +381,17 @@ export function SessionDetailV2({
         <TranscriptViewer
           viewModel={vm!}
           theme={theme}
-          // Attestation leads the hero action row through the composite's
-          // headerActions seam — its old strip above the viewer was an
-          // awkward band with no demo equivalent. AttestButton self-gates on
-          // having visible orgs; its popover floats from its own trigger.
-          // The collectives holding this transcript sit here too. They are
+          // The hero action row, through the composite's headerActions seam.
+          // The attestation control that used to lead it is hidden: it is not
+          // mounted, and its component and routes stay for a later decision.
+          // The collectives holding this transcript sit here. They are
           // shown to ANY viewer the server chose to show them to (the
           // endpoint is auth-optional and answers an empty list when the
           // visibility rule or the owner's contributor opt-in withholds
           // them), so the action row renders whenever there is a transcript
           // id, not only for a signed-in viewer. The preview variant hides
-          // this whole row — collectives/attest are owner-facing actions
-          // that do not belong in a read-only preview column.
+          // this whole row — the collectives are owner-facing and do not
+          // belong in a read-only preview column.
           headerActions={
             !isPreview && (transcriptId || isAgentSession(sessionOrigin)) ? (
               <span className="inline-flex items-center gap-2">
@@ -403,7 +401,6 @@ export function SessionDetailV2({
                   </span>
                 )}
                 {transcriptId && <TranscriptCollectives transcriptId={transcriptId} />}
-                {user && transcriptId && <AttestButton transcriptId={transcriptId} />}
               </span>
             ) : undefined
           }
