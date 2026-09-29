@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/oauth2"
@@ -174,12 +175,21 @@ func (h *Handler) signInGitHubUser(ctx context.Context, profile githubProfile) (
 		return user, nil
 	}
 
-	// Same handle, now marked chosen. SetUsername relies on the unique index,
-	// which cannot reject a handle this account already holds.
-	chosen, err := h.queries.SetUsername(ctx, sqlc.SetUsernameParams{
+	// Mark the same handle chosen. The update is guarded on the handle it was
+	// read with and on still being unchosen, so a handle the person picked on
+	// the handle step in another tab since the upsert is never written back.
+	chosen, err := h.queries.ConfirmOwnHandle(ctx, sqlc.ConfirmOwnHandleParams{
 		ID:             user.ID,
 		GithubUsername: user.GithubUsername,
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Decided elsewhere in the meantime: answer with the account as it
+		// now stands, so the session names the handle it really has.
+		if current, readErr := h.queries.GetUserByID(ctx, user.ID); readErr == nil {
+			return current, nil
+		}
+		return user, nil
+	}
 	if err != nil {
 		// Not fatal: the handle stays unconfirmed, and the handle step asks
 		// for it exactly as it did before this rule existed.

@@ -1,12 +1,15 @@
 # Which handle a GitHub sign-in gives an account, and whether the web app's
 # handle step (`/welcome`) still opens for it.
 #
-# Every case drives the REAL handler.signInGitHubUser over a mocked user table
-# (dependency mock only), then reads the account back through the REAL `Me`
-# handler, because `username_chosen` on `/auth/me` is the one fact the
-# frontend's handle gate acts on. A `cli` case also runs the REAL CLI callback
-# and the REAL `POST /auth/cli/exchange`, and asserts the handle the CLI is
-# handed.
+# Every case drives the REAL, mounted `GET /auth/github/callback`
+# (handler.GitHubCallback) with GitHub itself replaced by a fake transport, over
+# a mocked user table (dependency mocks only). `flow` decides which branch of
+# the callback runs: `web` must redirect to the frontend with a session token,
+# `cli` must redirect to the CLI's loopback server, after which the REAL
+# `POST /auth/cli/exchange` runs. Either way the account is read back through
+# the REAL `Me` handler, because `username_chosen` on `/auth/me` is the one fact
+# the frontend's handle gate acts on. `sign_in_handle_integration_test.go` runs
+# the same cases, except the unit-only ones, against migrated PostgreSQL.
 #
 #   flow             `web` or `cli`.
 #   login            the GitHub login the sign-in carries, verbatim.
@@ -18,6 +21,12 @@
 #   expect_chosen    whether `/auth/me` then reports the handle as chosen. False
 #                    is the only answer that opens `/welcome`.
 #
+# Two optional knobs make a case unit-only, because they inject what a real
+# database cannot be made to do on cue:
+#   confirm_fails           the statement that marks the handle chosen errors.
+#   renamed_before_confirm  the person picks this handle on the handle step in
+#                           another tab between the upsert and the confirm.
+#
 # Deletion protection is the required-name manifest below: every case is named
 # there, and a case missing from either side fails the load.
 required_names:
@@ -27,6 +36,9 @@ required_names:
   - a-returning-account-unconfirmed-on-its-own-login-skips-welcome
   - a-returning-account-on-a-suffixed-handle-still-opens-welcome
   - a-returning-account-that-chose-another-handle-keeps-it
+  - a-returning-account-confirmed-on-its-own-login-is-not-rewritten
+  - a-failed-confirm-still-signs-in-and-leaves-the-handle-step-open
+  - a-handle-chosen-in-another-tab-is-not-written-back
   - a-login-too-short-for-a-handle-opens-welcome
   - a-login-too-long-for-a-handle-opens-welcome
   - the-cli-exchange-returns-the-handle-when-the-login-was-taken
@@ -103,6 +115,46 @@ cases:
       handle: ally
       chosen: true
     expect_handle: ally
+    expect_chosen: true
+
+  - name: a-returning-account-confirmed-on-its-own-login-is-not-rewritten
+    why: >
+      The most common returning sign-in. The handle is the login and already
+      chosen, so there is nothing to write.
+    flow: web
+    login: bob
+    taken_by_others: []
+    returning:
+      handle: bob
+      chosen: true
+    expect_handle: bob
+    expect_chosen: true
+
+  - name: a-failed-confirm-still-signs-in-and-leaves-the-handle-step-open
+    why: >
+      Marking the handle chosen is a second statement. If it fails, sign-in
+      must still succeed; the handle step then asks, as it did before the rule.
+    flow: web
+    login: alice-dev
+    taken_by_others: []
+    returning: null
+    confirm_fails: true
+    expect_handle: alice-dev
+    expect_chosen: false
+
+  - name: a-handle-chosen-in-another-tab-is-not-written-back
+    why: >
+      An unconfirmed account on its own login signs in while it picks another
+      handle on the handle step in a second tab. The confirm must not write the
+      login back over the handle the person just chose.
+    flow: web
+    login: carol
+    taken_by_others: []
+    returning:
+      handle: carol
+      chosen: false
+    renamed_before_confirm: carol-codes
+    expect_handle: carol-codes
     expect_chosen: true
 
   - name: a-login-too-short-for-a-handle-opens-welcome

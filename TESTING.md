@@ -374,15 +374,21 @@ required-NAME loader in `frontend/src/test/` and a mounted test in
 
 The backend decision behind the handle step is
 `backend/internal/handler/testdata/sign-in-handle.yaml`
-(`sign_in_handle_test.go`): the REAL `signInGitHubUser` over a mocked user
-table, read back through the REAL `Me` handler (whose `username_chosen` is all
-the frontend's handle gate acts on), and for `cli` cases the REAL CLI callback
-and exchange, asserting the handle the CLI is handed.
-`sign_in_handle_integration_test.go` runs the same corpus through the real
-queries on migrated PostgreSQL, for the two SQL facts the decision rests on:
-confirming a handle rewrites an account to the handle it already holds, which
-the case-insensitive unique index accepts, and a returning account's upsert
-keeps its handle and chosen flag.
+(`sign_in_handle_test.go`). Every case drives the REAL, mounted
+`GitHubCallback` with GitHub replaced by a fake transport passed through the
+request context (`oauth2.HTTPClient`, where both the token exchange and the
+authenticated client take their transport from), over a mocked user table.
+`flow` picks the callback's branch: `web` follows the session token in the
+frontend redirect, `cli` follows the loopback redirect into the REAL CLI
+exchange. Both read the account back through the REAL `Me` handler, whose
+`username_chosen` is all the frontend's handle gate acts on.
+`sign_in_handle_integration_test.go` runs the same cases through the same
+callback against migrated PostgreSQL, for the SQL the decision rests on: a
+returning account's upsert keeps its handle and chosen flag, and
+`ConfirmOwnHandle` marks a handle chosen only while it is still the login and
+still unchosen. The two unit-only cases (a failed confirm, and a handle chosen
+in another tab between the upsert and the confirm) are left out of that run
+rather than skipped, because the integration gate rejects skips.
 
 The loader guards deletion with required-NAME lists, never a row count, and it
 derives every consistency rule from the fixture's OWN data rather than from the

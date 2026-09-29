@@ -7,8 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -19,18 +17,25 @@ import (
 )
 
 // TestGitHubSignInHandleAgainstPostgres runs the sign-in-handle corpus through
-// the REAL queries on migrated PostgreSQL. The unit corpus proves the decision
-// over a mocked table; this one proves the two pieces of SQL behavior it rests
-// on: confirming a handle rewrites an account to the handle it already holds,
-// which the case-insensitive unique index must accept, and a returning
-// account's upsert preserves its handle and chosen flag. The CLI cases also
-// store and exchange a real session row.
+// the REAL mounted callback and the REAL queries on migrated PostgreSQL, with
+// only GitHub faked at the transport. The unit corpus decides over a mocked
+// table; this one proves the SQL the decision rests on: a returning account's
+// upsert keeps its handle and chosen flag, and the guarded confirm marks a
+// handle chosen only while it is still the login and still unchosen. The CLI
+// cases store a real session row and exchange it through the real endpoint.
+// Unit-only cases (an injected failure or a concurrent rename) are left to
+// the unit corpus.
 func TestGitHubSignInHandleAgainstPostgres(t *testing.T) {
 	corpus := loadSignInHandleFixtures(t)
 	pool := govTestPool(t)
 	defer pool.Close()
 
 	for _, c := range corpus.Cases {
+		if c.unitOnly() {
+			// Not a skip: the integration gate rejects skipped tests, and these
+			// cases inject what a real database cannot be made to do on cue.
+			continue
+		}
 		t.Run(c.Name, func(t *testing.T) {
 			ctx := context.Background()
 			h := &Handler{pool: pool, queries: sqlc.New(pool), cfg: minimalConfig()}
@@ -47,13 +52,16 @@ func TestGitHubSignInHandleAgainstPostgres(t *testing.T) {
 				}
 			}
 
+			githubID := randomGitHubID(t)
+			state := fmt.Sprintf("sign-in-handle-%d", githubID)
 			var created []pgtype.UUID
-			var oauthStates []string
 			t.Cleanup(func() {
-				if len(oauthStates) > 0 {
-					if _, err := pool.Exec(ctx, `DELETE FROM cli_auth_sessions WHERE oauth_state = ANY($1)`, oauthStates); err != nil {
-						t.Errorf("delete cli sessions: %v", err)
-					}
+				if _, err := pool.Exec(ctx, `DELETE FROM cli_auth_sessions WHERE oauth_state = $1`, state); err != nil {
+					t.Errorf("delete cli session: %v", err)
+				}
+				var self pgtype.UUID
+				if err := pool.QueryRow(ctx, `SELECT id FROM users WHERE github_id = $1`, githubID).Scan(&self); err == nil {
+					created = append(created, self)
 				}
 				cleanupOwners(t, ctx, pool, created...)
 			})
@@ -61,19 +69,25 @@ func TestGitHubSignInHandleAgainstPostgres(t *testing.T) {
 			for _, handle := range c.TakenByOthers {
 				created = append(created, insertSignInAccount(t, ctx, pool, randomGitHubID(t), handle, true))
 			}
-			githubID := randomGitHubID(t)
 			if c.Returning != nil {
-				created = append(created, insertSignInAccount(t, ctx, pool, githubID, c.Returning.Handle, c.Returning.Chosen))
+				insertSignInAccount(t, ctx, pool, githubID, c.Returning.Handle, c.Returning.Chosen)
+			}
+			if c.Flow == "cli" {
+				if _, err := h.queries.InsertCLISession(ctx, sqlc.InsertCLISessionParams{OauthState: state, CliPort: 51234, CliState: "cli-state"}); err != nil {
+					t.Fatal(err)
+				}
 			}
 
-			user, err := h.signInGitHubUser(ctx, githubProfile{ID: githubID, Login: c.Login})
-			if err != nil {
-				t.Fatalf("signInGitHubUser: %v", err)
-			}
-			if c.Returning == nil {
-				created = append(created, user.ID)
-			}
+			got := signInThroughCallback(t, h, fakeGitHubOAuth{id: githubID, login: c.Login}, state, c.Flow)
 
+			if got.me.GithubUsername != c.ExpectHandle || got.me.UsernameChosen != c.ExpectChosen {
+				t.Fatalf("/auth/me = {handle %q, chosen %v}, want {handle %q, chosen %v}",
+					got.me.GithubUsername, got.me.UsernameChosen, c.ExpectHandle, c.ExpectChosen)
+			}
+			if got.sessionHandle != c.ExpectHandle {
+				t.Fatalf("%s session names %q, want the village handle %q (login %q)", c.Flow, got.sessionHandle, c.ExpectHandle, c.Login)
+			}
+			// The row itself, not only the handler's answer.
 			var handle string
 			var chosen bool
 			if err := pool.QueryRow(ctx, `SELECT github_username, username_chosen FROM users WHERE github_id = $1`, githubID).Scan(&handle, &chosen); err != nil {
@@ -81,31 +95,6 @@ func TestGitHubSignInHandleAgainstPostgres(t *testing.T) {
 			}
 			if handle != c.ExpectHandle || chosen != c.ExpectChosen {
 				t.Fatalf("stored account = {handle %q, chosen %v}, want {handle %q, chosen %v}", handle, chosen, c.ExpectHandle, c.ExpectChosen)
-			}
-
-			if c.Flow != "cli" {
-				return
-			}
-			state := fmt.Sprintf("sign-in-handle-%d", githubID)
-			oauthStates = append(oauthStates, state)
-			if _, err := h.queries.InsertCLISession(ctx, sqlc.InsertCLISessionParams{OauthState: state, CliPort: 51234, CliState: "cli-state"}); err != nil {
-				t.Fatal(err)
-			}
-			session, err := h.queries.GetCLISessionByState(ctx, state)
-			if err != nil {
-				t.Fatal(err)
-			}
-			callback := httptest.NewRecorder()
-			h.handleCLICallback(callback, httptest.NewRequest(http.MethodGet, "/api/v1/auth/github/callback", nil), &user, session)
-			if callback.Code != http.StatusTemporaryRedirect {
-				t.Fatalf("CLI callback status = %d (%s)", callback.Code, callback.Body.String())
-			}
-			var stored string
-			if err := pool.QueryRow(ctx, `SELECT username FROM cli_auth_sessions WHERE oauth_state = $1`, state).Scan(&stored); err != nil {
-				t.Fatal(err)
-			}
-			if stored != c.ExpectHandle {
-				t.Fatalf("CLI session username = %q, want the village handle %q (login %q)", stored, c.ExpectHandle, c.Login)
 			}
 		})
 	}

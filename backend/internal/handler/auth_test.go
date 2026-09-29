@@ -41,6 +41,7 @@ type mockQuerier struct {
 	getUserByUsername    func(ctx context.Context, githubUsername string) (sqlc.User, error)
 	listUserAllOrgs      func(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error)
 	setUsername          func(ctx context.Context, arg sqlc.SetUsernameParams) (sqlc.User, error)
+	confirmOwnHandle     func(ctx context.Context, arg sqlc.ConfirmOwnHandleParams) (sqlc.User, error)
 	deleteUser           func(ctx context.Context, id pgtype.UUID) error
 
 	// API key stubs
@@ -209,6 +210,13 @@ func (m *mockQuerier) SetUsername(ctx context.Context, arg sqlc.SetUsernameParam
 		return m.setUsername(ctx, arg)
 	}
 	panic("SetUsername: not stubbed")
+}
+
+func (m *mockQuerier) ConfirmOwnHandle(ctx context.Context, arg sqlc.ConfirmOwnHandleParams) (sqlc.User, error) {
+	if m.confirmOwnHandle != nil {
+		return m.confirmOwnHandle(ctx, arg)
+	}
+	panic("ConfirmOwnHandle: not stubbed")
 }
 
 func (m *mockQuerier) DeleteUser(ctx context.Context, id pgtype.UUID) error {
