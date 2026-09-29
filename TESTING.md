@@ -378,6 +378,11 @@ The backend decision behind the handle step is
 table, read back through the REAL `Me` handler (whose `username_chosen` is all
 the frontend's handle gate acts on), and for `cli` cases the REAL CLI callback
 and exchange, asserting the handle the CLI is handed.
+`sign_in_handle_integration_test.go` runs the same corpus through the real
+queries on migrated PostgreSQL, for the two SQL facts the decision rests on:
+confirming a handle rewrites an account to the handle it already holds, which
+the case-insensitive unique index accepts, and a returning account's upsert
+keeps its handle and chosen flag.
 
 The loader guards deletion with required-NAME lists, never a row count, and it
 derives every consistency rule from the fixture's OWN data rather than from the
