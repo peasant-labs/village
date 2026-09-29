@@ -1,0 +1,223 @@
+# Where the evidence job finds each screenshot and clip that report.json records.
+#
+# The journey job runs inside the Playwright container, so report.json records
+# container paths (/__w/village/village/...). The evidence job runs on the host
+# and downloads the same artifact into its own checkout, so a recorded path that
+# does not exist there is re-rooted: the part after the last /.artifacts/ is
+# joined to the local artifacts directory.
+#
+# Consumed by evidence-paths.test.mjs. `artifactsDir` is the evidence job's local
+# artifacts directory for every case unless a case names its own. `present` lists
+# the files that exist on that machine; no other file exists. Every case carries a
+# non-empty `why`, and the required-name lists guard against deleting a case.
+
+artifactsDir: /home/runner/work/village/village/frontend/scripts/journey/.artifacts
+
+requiredPathCases:
+  - container-path-re-roots-to-local
+  - local-path-stays-unchanged
+  - missing-file-resolves-to-null
+  - last-artifacts-segment-is-the-root
+  - path-outside-the-artifacts-resolves-to-null
+  - re-rooted-path-cannot-climb-out
+  - attachment-without-a-path-resolves-to-null
+
+requiredReportCases:
+  - container-report-resolves-every-file
+  - media-listed-but-none-resolves-is-the-error
+  - some-media-resolves-is-not-the-error
+  - no-media-listed-is-not-the-error
+  - first-resolvable-clip-is-the-one-posted
+
+pathCases:
+  - name: container-path-re-roots-to-local
+    why: >-
+      The shape every pull request run produced since the journey job moved into
+      the container: the container path is absent on the host, and the same file
+      sits under the downloaded artifacts directory.
+    recorded: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/test-finished-1.png
+    present:
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/test-finished-1.png
+    want: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/test-finished-1.png
+
+  - name: local-path-stays-unchanged
+    why: >-
+      A local run records paths on the same machine that posts them, so an
+      existing recorded path is used as it is, even outside the artifacts
+      directory the evidence job would re-root into.
+    artifactsDir: /home/dev/elsewhere/frontend/scripts/journey/.artifacts
+    recorded: /home/dev/village/frontend/scripts/journey/.artifacts/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-light/video.webm
+    present:
+      - /home/dev/village/frontend/scripts/journey/.artifacts/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-light/video.webm
+    want: /home/dev/village/frontend/scripts/journey/.artifacts/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-light/video.webm
+
+  - name: missing-file-resolves-to-null
+    why: >-
+      Neither the recorded path nor its re-rooted twin exists, so there is
+      nothing to upload and the cell stays empty.
+    recorded: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/video.webm
+    present: []
+    want: null
+
+  - name: last-artifacts-segment-is-the-root
+    why: >-
+      The checkout path above the artifacts directory may itself contain an
+      .artifacts directory; the artifact root is the last such segment, because
+      Playwright sanitises the test directory names below it.
+    recorded: /__w/.artifacts/village/frontend/scripts/journey/.artifacts/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/project-orphan-group.png
+    present:
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/project-orphan-group.png
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/village/frontend/scripts/journey/.artifacts/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/project-orphan-group.png
+    want: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/project-orphan-group.png
+
+  - name: path-outside-the-artifacts-resolves-to-null
+    why: >-
+      Only files from the downloaded artifact are posted. A recorded path with no
+      .artifacts segment is not re-rooted by its tail, even when a file of the
+      same relative name exists under the artifacts directory.
+    recorded: /__w/village/village/frontend/results/explore-dark/test-finished-1.png
+    present:
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/test-finished-1.png
+    want: null
+
+  - name: re-rooted-path-cannot-climb-out
+    why: >-
+      A tail that walks up with .. would re-root to a file outside the artifacts
+      directory; that file is never posted.
+    recorded: /__w/village/village/frontend/scripts/journey/.artifacts/../../../../backend/secret.png
+    present:
+      - /home/runner/work/village/village/backend/secret.png
+    want: null
+
+  - name: attachment-without-a-path-resolves-to-null
+    why: >-
+      Playwright can record an attachment as an inline body with no path; there is
+      no file to upload.
+    recorded: null
+    present: []
+    want: null
+
+reportCases:
+  - name: container-report-resolves-every-file
+    why: >-
+      One journey in one theme as the container records it: a screenshot, a clip
+      and a non-media axe report. Both media files resolve under the local
+      artifacts directory, and the axe report is not counted.
+    tests:
+      - attachments:
+          - contentType: application/json
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/attachments/axe-json-5611.json
+          - contentType: image/png
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/test-finished-1.png
+          - contentType: video/webm
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/video.webm
+    present:
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/attachments/axe-json-5611.json
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/test-finished-1.png
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/video.webm
+    want:
+      listed: 2
+      resolved: 2
+      problem: null
+      media:
+        - image: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/test-finished-1.png
+          video: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/video.webm
+
+  - name: media-listed-but-none-resolves-is-the-error
+    why: >-
+      The failure the evidence comments hid: the report lists media for both
+      themes, not one file is on disk, and the posting step still passes. It must
+      say so, in the job annotations and in the comment.
+    tests:
+      - attachments:
+          - contentType: image/png
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/test-finished-1.png
+          - contentType: video/webm
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/video.webm
+      - attachments:
+          - contentType: image/png
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-light/test-finished-1.png
+    present: []
+    want:
+      listed: 3
+      resolved: 0
+      problem: "no screenshots or clips: the report lists 3, but none of them is in the downloaded artifact."
+      media:
+        - image: null
+          video: null
+        - image: null
+          video: null
+
+  - name: some-media-resolves-is-not-the-error
+    why: >-
+      A single missing clip leaves an empty cell in the comment, but the evidence
+      as a whole still posts, so it is not the all-missing error.
+    tests:
+      - attachments:
+          - contentType: image/png
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/test-finished-1.png
+          - contentType: video/webm
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/video.webm
+    present:
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/test-finished-1.png
+    want:
+      listed: 2
+      resolved: 1
+      problem: null
+      media:
+        - image: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/test-finished-1.png
+          video: null
+
+  - name: no-media-listed-is-not-the-error
+    why: >-
+      A run with screenshots and video switched off lists no media, so there is
+      nothing that failed to resolve.
+    tests:
+      - attachments:
+          - contentType: application/json
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/attachments/axe-json-5611.json
+      - attachments: []
+    present:
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/explore-dark/attachments/axe-json-5611.json
+    want:
+      listed: 0
+      resolved: 0
+      problem: null
+      media:
+        - image: null
+          video: null
+        - image: null
+          video: null
+
+  - name: first-resolvable-clip-is-the-one-posted
+    why: >-
+      A journey that opens a second page records two clips. The comment posts the
+      first one that resolves, in the order the report lists them: the first clip
+      when both are on disk, and the next one when the first is missing.
+    tests:
+      - attachments:
+          - contentType: video/webm
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video-1.webm
+          - contentType: video/webm
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video.webm
+          - contentType: image/png
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/test-finished-1.png
+      - attachments:
+          - contentType: video/webm
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video-1.webm
+          - contentType: video/webm
+            path: /__w/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video.webm
+    present:
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video-1.webm
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video.webm
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/test-finished-1.png
+      - /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video.webm
+    want:
+      listed: 5
+      resolved: 4
+      problem: null
+      media:
+        - image: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/test-finished-1.png
+          video: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-dark/video-1.webm
+        - image: null
+          video: /home/runner/work/village/village/frontend/scripts/journey/.artifacts/results/transcript-light/video.webm

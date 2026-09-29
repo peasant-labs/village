@@ -107,6 +107,15 @@ cell; any text sharing the line turns it into a plain link. Clips are converted
 to H.264 mp4 where the bundled ffmpeg is available, and full traces stay in the
 workflow artifact.
 
+The journey job runs inside the Playwright container, so `report.json` records
+container paths (`/__w/...`). The evidence job runs on the host and downloads the
+artifact into its own checkout, so `evidence-paths.mjs` re-roots each recorded
+path that does not exist there: the part after the last `/.artifacts/` is joined
+to the local `.artifacts/`, and only files inside it are posted. When the report
+lists screenshots or clips and none of them is on disk, the step emits an
+`::error::` annotation and the comment says so. The cases live in
+`testdata/evidence-paths.yaml` and run under `pnpm test`.
+
 **Inline media:** `gh --attach` rejects GitHub App installation tokens ("unsupported authentication type"; gh allows OAuth/PAT/fine-grained-PAT only, and the endpoint needs repo write access). Set the **`JOURNEY_GITHUB_USER_PAT`** org secret to a machine-account fine-grained PAT (Issues: Read and write, Pull requests: Read) and the posting step uses it, so the comment carries inline screenshots and video and is authored by that account. Without it the step falls back to the App token and posts a text comment linking the artifact.
 
 Required organization setup (once): a GitHub App with **Issues: Read and write**
@@ -132,6 +141,8 @@ repository secrets, so fork PRs would need `pull_request_target` or
 | `lib/project-fixtures.mjs` | The project page's orphan-sessions fixtures (app-specific) |
 | `lib/scenario.mjs` | Sets the composed mock's scenario from a journey |
 | `*.journey.mjs` | One file per fundamental feature |
+| `ci-post-evidence.mjs` | Posts the sticky evidence comment on a pull request |
+| `evidence-paths.mjs` | Finds each recorded screenshot and clip in the downloaded artifact |
 
 ## Adding a journey
 
