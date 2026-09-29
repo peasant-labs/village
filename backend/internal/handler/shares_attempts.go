@@ -1,9 +1,15 @@
 package handler
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
 // openShareAttemptIndex is the partial unique index that admits at most one
@@ -27,6 +33,29 @@ const uniqueViolation = "23505"
 // submission a duplicate; any closed state makes it the next attempt.
 func shareAttemptIsLive(status string) bool {
 	return status == "pending" || status == "approved"
+}
+
+// withdrawLiveShare withdraws a transcript's submission to one collective when
+// the pair's latest attempt is live, and reports whether it withdrew anything.
+// A pair with nothing live is left alone rather than withdrawn again: the
+// withdrawal statement finds the pair's latest LIVE event, so after a withdrawal
+// it would find the accepted one again and append a duplicate ordinal, which the
+// ledger refuses. Every caller that withdraws goes through here.
+func withdrawLiveShare(ctx context.Context, q Querier, transcriptID, groupID pgtype.UUID) (bool, error) {
+	latest, err := q.GetLatestShareAttempt(ctx, sqlc.GetLatestShareAttemptParams{TranscriptID: transcriptID, GroupID: groupID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read the submission being withdrawn: %w", err)
+	}
+	if !shareAttemptIsLive(latest.Status) {
+		return false, nil
+	}
+	if err := q.UnshareTranscript(ctx, sqlc.UnshareTranscriptParams{TranscriptID: transcriptID, GroupID: groupID}); err != nil {
+		return false, fmt.Errorf("withdraw the submission: %w", err)
+	}
+	return true, nil
 }
 
 // shareAttemptConflict names the ways PostgreSQL refuses a NEW share attempt.

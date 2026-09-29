@@ -23,6 +23,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -66,9 +67,11 @@ type republishAudienceCase struct {
 	ThenReshare bool `yaml:"then_reshare"`
 }
 
-// requiredRepublishAudienceCases names every case: each pre-image under each
-// outcome, plus the one where the restore and a license move in one update.
-// Losing any of them hides a specific way an audience is lost or leaked.
+// requiredRepublishAudienceCases names every case: each pre-image under the
+// four core outcomes, the one where the restore and a license move in one
+// update, and the hang-up, refused-restore and unconfirmed-narrowing outcomes
+// on a shared transcript, the pre-image with a collective to lose. Losing any
+// of them hides a specific way an audience is lost or leaked.
 var requiredRepublishAudienceCases = []string{
 	"private_success_changes_no_audience",
 	"private_object_write_failure_changes_no_audience",
@@ -86,6 +89,8 @@ var requiredRepublishAudienceCases = []string{
 	"shared_hangup_during_object_write_restores_the_collective",
 	"shared_hangup_during_replacement_still_restores_the_collective",
 	"shared_restore_refused_stays_private_and_says_so",
+	"shared_hangup_during_narrowing_still_restores_the_collective",
+	"shared_unconfirmed_narrowing_says_so",
 }
 
 // republishAudienceOutcomes maps each outcome to the status a republish answers
@@ -100,6 +105,8 @@ var republishAudienceOutcomes = map[string]int{
 	"hangup_during_object_write": http.StatusInternalServerError,
 	"hangup_during_replacement":  http.StatusOK,
 	"restore_refused":            http.StatusInternalServerError,
+	"hangup_during_narrowing":    http.StatusOK,
+	"narrowing_unconfirmed":      http.StatusInternalServerError,
 }
 
 var republishAudienceEventTypes = []string{
@@ -187,6 +194,7 @@ func TestRepublishKeepsTheAudience(t *testing.T) {
 
 			requestCtx, hangUp := context.WithCancel(context.Background())
 			defer hangUp()
+			var stopWatching func() bool
 			switch testCase.Outcome {
 			case "object_write_failure":
 				blobs.failNextWrite.Store(true)
@@ -200,14 +208,22 @@ func TestRepublishKeepsTheAudience(t *testing.T) {
 				blobs.beforeFailedWrite = hangUp
 				blobs.failNextWrite.Store(true)
 			case "hangup_during_replacement":
-				installRepublishReplacementDelay(t, ctx, pool, world.transcript)
-				go hangUpDuringReplacementDelay(t, ctx, pool, hangUp)
+				installRepublishDelay(t, ctx, pool, world.transcript, "blob_key", "NEW.blob_key IS DISTINCT FROM OLD.blob_key")
+				stopWatching = watchForDelayedStatement(ctx, pool, hangUp)
+			case "hangup_during_narrowing":
+				installRepublishDelay(t, ctx, pool, world.transcript, "visibility", "NEW.visibility = 'private' AND OLD.visibility <> 'private'")
+				stopWatching = watchForDelayedStatement(ctx, pool, hangUp)
+			case "narrowing_unconfirmed":
+				installRepublishNarrowingCommitRefusal(t, ctx, pool, world.transcript)
 			case "restore_refused":
 				blobs.failNextWrite.Store(true)
 				installRepublishRestoreRefusal(t, ctx, pool, world.transcript)
 			}
 
 			code, body := world.publishWith(t, requestCtx, republishAudienceRevisedContent(), testCase.License)
+			if stopWatching != nil && !stopWatching() {
+				t.Fatalf("the client never hung up inside the delayed statement, so the outcome this case names never happened (%s)", testCase.Why)
+			}
 
 			if code != testCase.WantStatus {
 				t.Fatalf("republish status = %d, want %d (%s); body: %s", code, testCase.WantStatus, testCase.Why, body)
@@ -547,33 +563,64 @@ func installRepublishTrigger(t *testing.T, ctx context.Context, pool *pgxpool.Po
 	}
 }
 
-// installRepublishReplacementDelay makes the replacement UPDATE of one
-// transcript sleep inside PostgreSQL, so a test can hang the client up while
-// the replacement transaction is running.
-func installRepublishReplacementDelay(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id pgtype.UUID) {
+// installRepublishDelay makes one transcript's UPDATE of the given column sleep
+// inside PostgreSQL when the condition holds, so a test can hang the client up
+// while that statement is running.
+func installRepublishDelay(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id pgtype.UUID, column, condition string) {
 	t.Helper()
-	name := "republish_delay_" + strings.ReplaceAll(uuid.UUID(id.Bytes).String(), "-", "")
+	name := "republish_delay_" + column + "_" + strings.ReplaceAll(uuid.UUID(id.Bytes).String(), "-", "")
 	installRepublishTrigger(t, ctx, pool, name, `BEGIN PERFORM pg_sleep(1); RETURN NEW; END`, `
-		CREATE TRIGGER `+name+` BEFORE UPDATE OF blob_key ON transcripts FOR EACH ROW
-		WHEN (NEW.id = '`+uuid.UUID(id.Bytes).String()+`'::uuid AND NEW.blob_key IS DISTINCT FROM OLD.blob_key)
+		CREATE TRIGGER `+name+` BEFORE UPDATE OF `+column+` ON transcripts FOR EACH ROW
+		WHEN (NEW.id = '`+uuid.UUID(id.Bytes).String()+`'::uuid AND `+condition+`)
 		EXECUTE FUNCTION `+name+`()`)
 }
 
-// hangUpDuringReplacementDelay cancels the request once PostgreSQL shows the
-// replacement asleep inside the delay trigger, so the hang-up is observed to
-// land inside the replacement transaction rather than assumed after a sleep.
-func hangUpDuringReplacementDelay(t *testing.T, ctx context.Context, pool *pgxpool.Pool, hangUp context.CancelFunc) {
-	deadline := time.Now().Add(15 * time.Second)
-	for time.Now().Before(deadline) {
-		var sleeping int
-		if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM pg_stat_activity WHERE wait_event = 'PgSleep' AND query ILIKE '%UPDATE transcripts%'`).Scan(&sleeping); err == nil && sleeping > 0 {
-			hangUp()
-			return
+// watchForDelayedStatement hangs the client up once PostgreSQL shows an UPDATE
+// of transcripts in this database asleep inside an injected delay, so the
+// hang-up is observed to land inside the statement rather than assumed after a
+// sleep. The returned function stops the watcher, waits for it, and reports
+// whether it hung up; the watcher itself never touches the test.
+func watchForDelayedStatement(ctx context.Context, pool *pgxpool.Pool, hangUp context.CancelFunc) func() bool {
+	stop := make(chan struct{})
+	var hung atomic.Bool
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			var sleeping int
+			if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM pg_stat_activity
+				WHERE datname = current_database() AND wait_event = 'PgSleep' AND query ILIKE '%UPDATE transcripts%'`).Scan(&sleeping); err == nil && sleeping > 0 {
+				hung.Store(true)
+				hangUp()
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
 		}
-		time.Sleep(10 * time.Millisecond)
+	}()
+	return func() bool {
+		close(stop)
+		wg.Wait()
+		return hung.Load()
 	}
-	t.Errorf("the replacement never reached the delay trigger, so the hang-up this case describes never happened")
-	hangUp()
+}
+
+// installRepublishNarrowingCommitRefusal defers a refusal of one transcript's
+// narrowing to its COMMIT, so the narrowing's outcome is unconfirmed: the
+// handler cannot tell whether the transcript was made private.
+func installRepublishNarrowingCommitRefusal(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id pgtype.UUID) {
+	t.Helper()
+	name := "republish_narrowing_commit_" + strings.ReplaceAll(uuid.UUID(id.Bytes).String(), "-", "")
+	installRepublishFailureTrigger(t, ctx, pool, name, `
+		CREATE CONSTRAINT TRIGGER `+name+` AFTER UPDATE OF visibility ON transcripts
+		DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+		WHEN (NEW.id = '`+uuid.UUID(id.Bytes).String()+`'::uuid AND NEW.visibility = 'private' AND OLD.visibility <> 'private')
+		EXECUTE FUNCTION `+name+`()`)
 }
 
 // installRepublishRestoreRefusal refuses any write that widens one transcript

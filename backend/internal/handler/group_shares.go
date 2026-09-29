@@ -164,6 +164,15 @@ const maxListedPrivateTranscripts = 5
 // the live one, while an ordering conflict is cleared by simply asking again.
 // It travels out of the transaction so the handler can name the transcript
 // instead of reporting an anonymous internal failure.
+// batchConsentRefusal is a private transcript found under the row lock that
+// the request did not confirm contributing. It rolls the whole batch back and
+// answers with the same consent message the check before the lock gives.
+type batchConsentRefusal struct {
+	message string
+}
+
+func (e *batchConsentRefusal) Error() string { return e.message }
+
 type batchShareConflict struct {
 	TranscriptID string
 	Kind         shareAttemptConflict
@@ -320,7 +329,7 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 
 	var writeErr error
 	if err := h.withPublishLocksMany(ctx, user.PgID(), localIDs, func(conn *pgxpool.Conn) error {
-		writeErr = h.writeBatchShare(ctx, conn, user, pgGroupID, status, remaining)
+		writeErr = h.writeBatchShare(ctx, conn, user, pgGroupID, status, remaining, req.VisibilityConfirmed)
 		return nil
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf(
@@ -332,6 +341,11 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 		var conflict *batchShareConflict
 		if errors.As(writeErr, &conflict) {
 			writeError(w, http.StatusConflict, conflict.message())
+			return
+		}
+		var consent *batchConsentRefusal
+		if errors.As(writeErr, &consent) {
+			writeError(w, http.StatusUnprocessableEntity, consent.message)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf(
@@ -365,7 +379,7 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 // conflict is therefore returned, which rolls the whole batch back, and the
 // person is told to contribute again - the next attempt reads the conflicting
 // transcript as already contributed and submits the rest.
-func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user *AuthUser, groupID pgtype.UUID, status ShareStatus, candidates []sqlc.ListOwnerProjectShareCandidatesRow) error {
+func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user *AuthUser, groupID pgtype.UUID, status ShareStatus, candidates []sqlc.ListOwnerProjectShareCandidatesRow, visibilityConfirmed bool) error {
 	shared := dbVisibilityShared
 	return h.inTxAsOnConn(ctx, conn, user.PgID(), func(q Querier) error {
 		for _, candidate := range candidates {
@@ -389,17 +403,25 @@ func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user 
 			// same transaction: the two can never be observed apart, and the
 			// governance trigger records the change against this actor.
 			//
-			// The flip is decided from the value under the row lock, not from
-			// the candidate read before the publish lock was taken. A republish
-			// makes a transcript private only while it replaces the content and
-			// then restores it, so a candidate read inside that window says
-			// private about a transcript that is public again by now.
+			// The flip, and the consent it needs, are decided from the value
+			// under the row lock, not from the candidate read before the publish
+			// lock was taken. That read can be stale in both directions: a
+			// republish makes a transcript private only while it replaces the
+			// content and then restores it, and an owner's edit or unshare can
+			// make one private while this request waits for the lock.
 			locked, err := q.GetTranscriptGovernanceForUpdate(ctx, candidate.ID)
 			if err != nil {
 				return fmt.Errorf("lock transcript %s before recording its visibility: %w", uuid.UUID(candidate.ID.Bytes).String(), err)
 			}
 			if locked.Visibility != dbVisibilityPrivate {
 				continue
+			}
+			if !visibilityConfirmed {
+				// Returning rolls the whole batch back, so the refusal's
+				// "nothing was written" stays true.
+				privateNow := candidate
+				privateNow.Visibility = dbVisibilityPrivate
+				return &batchConsentRefusal{message: consentRefusalForPrivate([]sqlc.ListOwnerProjectShareCandidatesRow{privateNow}, false)}
 			}
 			if _, err := applyMetadataPatch(ctx, q, candidate.ID, metadataPatch{Visibility: &shared}); err != nil {
 				return fmt.Errorf("record the new visibility of transcript %s: %w", uuid.UUID(candidate.ID.Bytes).String(), err)

@@ -657,24 +657,29 @@ authenticating. Both are custom Postgres parameters read via
     `public`. A compensating restore that itself fails leaves the same state,
     says the same, and logs `republish_audience_restore_failed`.
 
-  The narrowing, the replacement, and the compensating restore run detached
-  from the request's cancellation (bounded by `republishDetachedTimeout`). A
-  client that hangs up mid-statement would otherwise make the driver close the
-  connection that holds the lock, roll the replacement back, and leave no
-  connection to restore on. Every narrowing refreshes the pull request
-  attachments that bind the transcript on the way out, whatever the outcome,
-  because a refresh that ran inside the private window has already withdrawn it
-  from a digest. A whole-project contribution that read a transcript inside
-  that window decides its flip to `shared` from the value under the row lock,
-  not from its earlier read, so it cannot turn a restored public transcript
-  into a shared-only one.
+  The narrowing, a replacement that carries a restore, and the compensating
+  restore each run detached from the request's cancellation, on a deadline of
+  their own (`republishDetachedTimeout`) that starts when that transaction
+  starts. A client that hangs up mid-statement would otherwise make the driver
+  close the connection that holds the lock, roll the replacement back, and
+  leave no connection to restore on. So a republish that narrowed commits past
+  a hang-up; one that narrowed nothing, like a first publish, stays on the
+  request. Every narrowing refreshes the pull request attachments that bind the
+  transcript on the way out, whatever the outcome, because a refresh that ran
+  inside the private window has already withdrawn it from a digest. A
+  whole-project contribution decides its flip to `shared`, and the consent that
+  flip needs, from the value under the row lock rather than from its earlier
+  read: it cannot turn a restored public transcript into a shared-only one, and
+  it cannot share a transcript made private while it waited without
+  `visibility_confirmed`.
 - **An owner's unshare never leaves `shared` with no live submission.** Live is
   the attempt ledger's meaning: the latest attempt of the pair is `pending` or
   `approved` (a pending one counts, because it grants access the moment it is
-  accepted). The unshare withdraws its submission, only when that pair is live
-  (a repeat is a 200 no-op, not a duplicate ordinal), and, when no live one
-  remains anywhere, narrows `shared` to `private` in the same actor-attributed
-  transaction, reading liveness from the ledger
+  accepted). The unshare withdraws its submission only when that pair is live
+  (`withdrawLiveShare`, which a pull request detach uses too), so a repeat
+  withdraws nothing and is a 200; the narrowing rule still applies to it. When
+  no live submission remains anywhere, it narrows `shared` to `private` in the
+  same actor-attributed transaction, reading liveness from the ledger
   (`TranscriptHasLiveShareAttempt`), never from the derived row. A `public`
   transcript stays public. A narrowing refreshes the attachments that bind the
   transcript, because a digest lists a bound transcript by its visibility.
@@ -683,8 +688,9 @@ authenticating. Both are custom Postgres parameters read via
   submissions grant nothing, so the share flips it to `shared` and answers 200
   without opening an attempt. This is a rule of the owner's unshare, not of the
   column: `shared` can still outlive its last live submission through a
-  collective's rejection or removal, a member leaving, a share whose every
-  requested collective was skipped, and rows older than this rule.
+  collective's rejection or removal, a member leaving, a pull request detach
+  that restores `shared`, a share whose every requested collective was skipped,
+  and rows older than this rule.
 - **Content replacement uses immutable, content-addressed objects.** Publish
   uploads to an owner/transcript/content-hash key, then swaps `blob_key` in the
   same database transaction as the authoritative receipt. A database failure

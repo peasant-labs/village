@@ -602,9 +602,10 @@ func (w *shareWorld) unshareBehindThePublishLock(t *testing.T, ctx context.Conte
 		t.Fatalf("hold the publish lock for the transcript: %v", err)
 	}
 
+	blocker := backendPID(t, ctx, lockConn)
 	status := make(chan int, 1)
 	go func() { status <- w.unshareFrom(t, h, w.group) }()
-	w.waitForLockWaiter(t, ctx, "advisory")
+	waitForSessionBlockedBy(t, ctx, w.pool, blocker)
 	if latest := w.attemptSequence(t, ctx, w.group); len(latest) == 0 || !shareAttemptIsLive(latest[len(latest)-1]) {
 		t.Fatalf("the unshare withdrew %v while another writer held the publish lock; it must wait for the lock", latest)
 	}

@@ -82,6 +82,10 @@ type batchShareCase struct {
 	ExpectVisibility        map[string]string      `yaml:"expect_visibility"`
 	ExpectRetryShared       []string               `yaml:"expect_retry_shared"`
 	ExpectRetryAlreadyShare []string               `yaml:"expect_retry_already_shared"`
+	// WhileWaitingVisibility is the visibility transcript b is moved to, as its
+	// owner, while the contribution waits for b's publish lock
+	// (mechanism visibility_changed_while_waiting).
+	WhileWaitingVisibility string `yaml:"while_waiting_visibility"`
 }
 
 // requiredGroupsBatchShareCases names the cases that must exist. Each is here
@@ -111,6 +115,7 @@ var requiredGroupsBatchShareCases = []string{
 	"mid_tx_conflict_rolls_back_then_retry_succeeds",
 	"event_num_conflict_rolls_back_then_retry_succeeds",
 	"a_visibility_restored_while_waiting_is_not_overwritten",
+	"a_transcript_made_private_while_waiting_needs_consent",
 }
 
 func loadBatchShareCases(t *testing.T) []batchShareCase {
@@ -440,8 +445,8 @@ func TestBatchShareProject(t *testing.T) {
 			case "event_num_conflict":
 				runEventOrderingConflictCase(t, ctx, h, world, testCase)
 				return
-			case "restored_while_waiting":
-				runRestoredWhileWaitingCase(t, ctx, h, world, testCase)
+			case "visibility_changed_while_waiting":
+				runVisibilityChangedWhileWaitingCase(t, ctx, h, world, testCase)
 				return
 			}
 
@@ -797,16 +802,19 @@ func TestShareAttemptConstraintNamesMatchTheCatalog(t *testing.T) {
 	}
 }
 
-// runRestoredWhileWaitingCase reproduces a contribution that reads a transcript
-// while a republish has it private. The case declares transcript b private,
-// which is what the candidate read sees. The test holds b's publish lock, as a
-// republish does while it replaces the content, and starts the contribution,
-// which reads its candidates and then waits for that lock. The republish then
-// restores b to public, as the owner, and releases the lock. The contribution
-// must decide its flip from the value under the row lock, so b stays public;
-// deciding it from the candidate read would make a public transcript
-// shared-only and record that as the owner's own change.
-func runRestoredWhileWaitingCase(t *testing.T, ctx context.Context, h *Handler, world *contributeWorld, testCase batchShareCase) {
+// runVisibilityChangedWhileWaitingCase reproduces a contribution whose
+// candidate read goes stale while it waits for a publish lock. The test holds
+// transcript b's publish lock, as a republish or an owner's edit does, and
+// starts the contribution, which reads its candidates and then waits for that
+// lock. The owner then moves b to the case's while_waiting_visibility and the
+// lock is released. The contribution must decide both its flip and the consent
+// the flip needs from the value under the row lock:
+//
+//   - restored to public (a republish putting back what it narrowed): b must
+//     stay public, not become shared-only as the owner's own change;
+//   - made private (an owner's edit): b must not be shared without
+//     visibility_confirmed, which the stale read never asked for.
+func runVisibilityChangedWhileWaitingCase(t *testing.T, ctx context.Context, h *Handler, world *contributeWorld, testCase batchShareCase) {
 	lockCtx, cancelLock := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelLock()
 	lockConn, err := world.pool.Acquire(lockCtx)
@@ -825,6 +833,7 @@ func runRestoredWhileWaitingCase(t *testing.T, ctx context.Context, h *Handler, 
 	}
 
 	body := world.batchBody(t, testCase)
+	blocker := backendPID(t, ctx, lockConn)
 	var wg sync.WaitGroup
 	var rec *httptest.ResponseRecorder
 	wg.Add(1)
@@ -832,14 +841,14 @@ func runRestoredWhileWaitingCase(t *testing.T, ctx context.Context, h *Handler, 
 		defer wg.Done()
 		rec = world.postBatch(h, body)
 	}()
-	waitForPublishLockWaiter(t, ctx, world)
+	waitForSessionBlockedBy(t, ctx, world.pool, blocker)
 
-	public := dbVisibilityPublic
+	target := testCase.WhileWaitingVisibility
 	if err := h.inTxAs(ctx, world.member, func(q Querier) error {
-		_, err := applyMetadataPatch(ctx, q, world.transcripts["b"], metadataPatch{Visibility: &public})
+		_, err := applyMetadataPatch(ctx, q, world.transcripts["b"], metadataPatch{Visibility: &target})
 		return err
 	}); err != nil {
-		t.Fatalf("restore the transcript as the republish does: %v", err)
+		t.Fatalf("move the waiting transcript to %s as its owner: %v", target, err)
 	}
 	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", world.blockedLockKey()); err != nil {
 		t.Fatalf("release the publish lock: %v", err)

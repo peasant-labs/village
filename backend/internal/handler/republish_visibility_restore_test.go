@@ -21,8 +21,9 @@ type republishVisibilityRestoreCase struct {
 	WantRestored string `yaml:"want_restored"`
 }
 
-// requiredRepublishVisibilityRestoreCases guards the two rows only this corpus
-// reaches: a later decision found under the lock must stand, in either tier.
+// requiredRepublishVisibilityRestoreCases names every row. The last two are the
+// ones only this corpus reaches: a later decision found under the lock must
+// stand, in either tier.
 var requiredRepublishVisibilityRestoreCases = []string{
 	"nothing_narrowed_keeps_private",
 	"nothing_narrowed_keeps_a_value_it_did_not_touch",

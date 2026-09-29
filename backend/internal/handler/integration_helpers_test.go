@@ -23,6 +23,7 @@ package handler
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -183,4 +184,33 @@ func readTranscriptVisibility(t *testing.T, ctx context.Context, pool *pgxpool.P
 		t.Fatalf("read the visibility of transcript %s: %v", uuid.UUID(id.Bytes), err)
 	}
 	return visibility
+}
+
+// waitForSessionBlockedBy blocks until PostgreSQL shows a session waiting on the
+// given backend, so a race stage is observed on the exact lock the test holds
+// rather than on any lock some other session in the cluster is waiting for.
+func waitForSessionBlockedBy(t *testing.T, ctx context.Context, pool *pgxpool.Pool, blocker int32) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		var waiting int
+		if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))`, blocker).Scan(&waiting); err != nil {
+			t.Fatalf("look for a session blocked by backend %d: %v", blocker, err)
+		}
+		if waiting > 0 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("no session ever waited on backend %d, so the race this test describes never happened and it would prove nothing", blocker)
+}
+
+// backendPID is the PostgreSQL backend a pinned connection talks to.
+func backendPID(t *testing.T, ctx context.Context, conn *pgxpool.Conn) int32 {
+	t.Helper()
+	var pid int32
+	if err := conn.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
+		t.Fatalf("read the backend of the lock-holding connection: %v", err)
+	}
+	return pid
 }

@@ -26,6 +26,12 @@
 #   restore_refused     the object write fails and the compensating restore is
 #                       itself refused, so the transcript stays private and the
 #                       answer says so.
+#   hangup_during_narrowing  the client hangs up while the narrowing statement
+#                       is running: it is detached too, so the republish goes
+#                       on and restores.
+#   narrowing_unconfirmed  PostgreSQL does not confirm the narrowing's commit,
+#                       so the republish stops before writing anything and the
+#                       answer hedges that the transcript may now be private.
 #
 # pre_image is the visibility before the republish: private (as the first
 # publish leaves it), shared (the owner shared it to one open collective, which
@@ -277,3 +283,33 @@
   want_member_reads: false
   content_replaced: false
   want_body_contains: ["Encrypted transcript write failed", "may now be private", "share it again to the same collectives"]
+
+- name: shared_hangup_during_narrowing_still_restores_the_collective
+  why: >
+    a hang-up in the middle of the narrowing statement would otherwise close the connection that holds the publish
+    lock before anything was written; the narrowing runs detached, so the republish completes and restores
+  pre_image: shared
+  outcome: hangup_during_narrowing
+  want_status: 200
+  want_visibility: shared
+  want_events:
+    - {type: visibility_changed, visibility: private}
+    - {type: visibility_changed, visibility: shared}
+  want_live_shares: 1
+  want_member_reads: true
+  content_replaced: true
+
+- name: shared_unconfirmed_narrowing_says_so
+  why: >
+    when the narrowing's own commit cannot be confirmed, nothing tells the handler whether the transcript is now
+    private, so the answer must say it may be and how to give the collective its access back; here PostgreSQL in fact
+    rolled it back, so the audience is intact
+  pre_image: shared
+  outcome: narrowing_unconfirmed
+  want_status: 500
+  want_visibility: shared
+  want_events: []
+  want_live_shares: 1
+  want_member_reads: true
+  content_replaced: false
+  want_body_contains: ["Failed to save transcript", "may not have been returned to shared", "share it again to the same collectives"]

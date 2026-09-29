@@ -275,7 +275,8 @@
     lock, or it would turn the restored public transcript into shared-only and
     record that as the owner's own change.
   acceptance: open
-  mechanism: restored_while_waiting
+  mechanism: visibility_changed_while_waiting
+  while_waiting_visibility: public
   transcripts:
     - {key: b, project: p, visibility: private}
   request: {project: p, confirm: true}
@@ -285,3 +286,23 @@
   expect_attempts: {b: 1}
   expect_derived: {b: approved}
   expect_visibility: {b: public}
+
+- name: a_transcript_made_private_while_waiting_needs_consent
+  why: >
+    The candidate read sees a public transcript, so the check before the lock
+    asks for no consent. While the contribution waits for the publish lock, the
+    owner makes the transcript private. Sharing it now would make a private
+    transcript visible to the collective with nobody having confirmed that, so
+    the consent is decided under the row lock too, and the whole contribution
+    is refused with nothing written.
+  acceptance: open
+  mechanism: visibility_changed_while_waiting
+  while_waiting_visibility: private
+  transcripts:
+    - {key: b, project: p, visibility: public}
+  request: {project: p, confirm: false}
+  expect_status: 422
+  expect_message_names: [b]
+  expect_message_contains: ["visibility_confirmed"]
+  expect_attempts: {b: 0}
+  expect_visibility: {b: private}

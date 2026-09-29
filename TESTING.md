@@ -269,12 +269,14 @@ and change nothing.
 `internal/handler/republish_audience_integration_test.go` +
 `testdata/republish-audience.yaml` drive the real publish, share and owner-edit
 handlers over real PostgreSQL, one case per pre-image (`private`, `shared`,
-`public`) under each outcome: success, a failed object write, a known rollback
-(a `BEFORE UPDATE` trigger that raises), and an ambiguous commit. Three more
-outcomes cover a client that hangs up during the object write and during the
-replacement statement (a trigger that sleeps, with the request cancelled once
-`pg_stat_activity` shows it asleep), and a compensating restore that is itself
-refused. The ambiguous case installs a `DEFERRABLE INITIALLY DEFERRED`
+`public`) under each core outcome: success, a failed object write, a known
+rollback (a `BEFORE UPDATE` trigger that raises), and an ambiguous commit. On a
+shared transcript, more outcomes cover a client that hangs up during the
+narrowing, the object write and the replacement statement (a trigger that
+sleeps, with the request cancelled once `pg_stat_activity` shows this
+database's statement asleep, and the watcher joined before the case asserts),
+a compensating restore that is itself refused, and a narrowing whose own commit
+is unconfirmed. The ambiguous case installs a `DEFERRABLE INITIALLY DEFERRED`
 constraint trigger: PostgreSQL rolls the transaction back and answers the
 COMMIT with an error, and the handler classifies every COMMIT error other than
 the driver's rollback answer as ambiguous, because a lost acknowledgement of a
@@ -291,7 +293,8 @@ same rule, a digest that keeps, drops or regains the row, is
 `attachment_visibility_drift_integration_test.go`, and a whole-project
 contribution that waited through a republish is
 `a_visibility_restored_while_waiting_is_not_overwritten` in
-`groups-batch-share.yaml`.
+`groups-batch-share.yaml`, with its mirror
+`a_transcript_made_private_while_waiting_needs_consent`.
 
 ### Contributing a whole project: refusals are asserted on the LEDGER
 
