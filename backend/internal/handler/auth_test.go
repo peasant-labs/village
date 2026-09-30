@@ -153,6 +153,7 @@ type mockQuerier struct {
 	getOwnerTranscriptTotals                 func(ctx context.Context, ownerID pgtype.UUID) (sqlc.GetOwnerTranscriptTotalsRow, error)
 	listUsersByIDs                           func(ctx context.Context, ids []pgtype.UUID) ([]sqlc.User, error)
 	listTagsByTranscriptIDs                  func(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListTagsByTranscriptIDsRow, error)
+	setUserPreviewBeforeAttach               func(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error)
 }
 
 // ---- CLI session ---------------------------------------------------------
@@ -1444,6 +1445,9 @@ func (m *mockQuerier) ListAuthorWaitingPromptRequests(ctx context.Context, autho
 }
 
 func (m *mockQuerier) SetUserPreviewBeforeAttach(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error) {
+	if m.setUserPreviewBeforeAttach != nil {
+		return m.setUserPreviewBeforeAttach(ctx, arg)
+	}
 	return sqlc.User{}, nil
 }
 

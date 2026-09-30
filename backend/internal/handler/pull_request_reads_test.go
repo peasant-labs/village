@@ -188,3 +188,75 @@ func TestTranscriptPullRequestsApplyTheVisibilityRule(t *testing.T) {
 		})
 	}
 }
+
+// TestPullRequestDetailsAreRememberedBrieflyAndFailuresAreNot pins the cost of
+// reading titles from GitHub: a pull request viewed again within the cache's
+// lifetime is not read again, and a read GitHub failed is not remembered, so the
+// next view asks again rather than serving an unknown title until it expires.
+func TestPullRequestDetailsAreRememberedBrieflyAndFailuresAreNot(t *testing.T) {
+	fake := newPullReadsGitHub(t)
+	fake.setPull("acme/app", 42, "Tighten the ingest retry", "fix/ingest-retry")
+	h := newTestHandler(&mockQuerier{}, nil)
+	h.gh = fake.client(t)
+	ctx := context.Background()
+
+	fake.failPullReads(true)
+	if detail := h.pullRequestDetail(ctx, 4242, "acme", "app", 42); detail.title != nil || detail.headRef != nil {
+		t.Fatalf("a failed read served %v/%v, want both unknown", detail.title, detail.headRef)
+	}
+	fake.failPullReads(false)
+	for i := 0; i < 3; i++ {
+		detail := h.pullRequestDetail(ctx, 4242, "ACME", "App", 42)
+		if detail.title == nil || *detail.title != "Tighten the ingest retry" || detail.headRef == nil || *detail.headRef != "fix/ingest-retry" {
+			t.Fatalf("read %d served %v/%v, want GitHub's title and head branch", i, detail.title, detail.headRef)
+		}
+	}
+	if reads, _ := fake.counts(); reads != 2 {
+		t.Fatalf("GitHub was read %d time(s), want 2: the failed read, then one read the next two views reuse", reads)
+	}
+}
+
+// TestUpdateUserSettingsRefusesAutomaticLinking pins the refusal that stands in
+// for automatic pull request linking until the server implements it: turning it
+// on is a 400 that writes nothing, and turning it off is the truth already.
+func TestUpdateUserSettingsRefusesAutomaticLinking(t *testing.T) {
+	writes := 0
+	q := &mockQuerier{
+		getUserByID: func(_ context.Context, id pgtype.UUID) (sqlc.User, error) {
+			return sqlc.User{ID: id, PreviewBeforeAttach: true}, nil
+		},
+		setUserPreviewBeforeAttach: func(_ context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error) {
+			writes++
+			return sqlc.User{ID: arg.ID, PreviewBeforeAttach: arg.PreviewBeforeAttach}, nil
+		},
+	}
+	h := newTestHandler(q, nil)
+	patch := func(body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPatch, "/api/v1/users/me/settings", strings.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		r = r.WithContext(withTestUser(r.Context()))
+		w := httptest.NewRecorder()
+		h.UpdateUserSettings(w, r)
+		return w
+	}
+
+	refused := patch(`{"preview_before_attach":false,"auto_attach_pull_requests":true}`)
+	if refused.Code != http.StatusBadRequest || !strings.Contains(decodeError(t, refused.Body.Bytes()), "nothing was changed") {
+		t.Fatalf("turning automatic linking on = %d (%s), want 400 saying nothing was changed", refused.Code, refused.Body.String())
+	}
+	if writes != 0 {
+		t.Fatalf("a refused PATCH wrote the settings %d time(s); it must write nothing", writes)
+	}
+
+	off := patch(`{"auto_attach_pull_requests":false}`)
+	if off.Code != http.StatusOK {
+		t.Fatalf("turning automatic linking off = %d (%s), want 200", off.Code, off.Body.String())
+	}
+	var settings schema.VillageUserSettings
+	if err := json.Unmarshal(off.Body.Bytes(), &settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings.AutoAttachPullRequests || !settings.PreviewBeforeAttach {
+		t.Fatalf("settings = %+v, want automatic linking off and the stored preview choice", settings)
+	}
+}

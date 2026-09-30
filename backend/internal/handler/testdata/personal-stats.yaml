@@ -6,11 +6,10 @@
 # totals count them.
 #
 # pull_request_count counts DISTINCT attached pull requests: one bound to two
-# of the caller's transcripts counts once. A requested, waiting, or preview
-# attachment counts nothing, and neither does one whose repository the
-# collective no longer links. (A detached attachment keeps no bindings - detach
-# clears them - so it cannot count either.) A person with nothing published gets
-# zeros, not an error.
+# of the caller's transcripts counts once. A requested, waiting, preview, or
+# detached attachment counts nothing, and neither does one whose repository the
+# collective no longer links. A person with nothing published gets zeros, not an
+# error.
 world:
   people: [author, other, newcomer]
   collectives:
@@ -31,6 +30,7 @@ world:
     - {collective: team, repo: acme/app, number: 3, author: author, state: requested, transcripts: [first]}
     - {collective: team, repo: acme/app, number: 4, author: author, state: waiting, transcripts: [second]}
     - {collective: team, repo: acme/site, number: 5, author: author, state: preview, transcripts: [third]}
+    - {collective: team, repo: acme/site, number: 6, author: author, state: detached, transcripts: [third]}
     - {collective: team, repo: acme/gone, number: 7, author: author, state: attached, transcripts: [first], unlinked: true}
     - {collective: team, repo: acme/site, number: 8, author: other, state: attached, transcripts: [theirs]}
 

@@ -1,0 +1,112 @@
+# The pull_requests summary on list rows and the collective's
+# stats.pull_request_count, against real PostgreSQL, on every surface that
+# serves them:
+#
+#   list                GET /api/v1/transcripts?owner=<author>   (flat rows)
+#   collective          GET /api/v1/groups/{id}                  (flat rows and stats)
+#   collective_grouped  GET /api/v1/groups/{id}?view=grouped     (collective arm and stats)
+#
+# A summary counts ATTACHED pull requests (never a requested, waiting, preview,
+# or detached one) the viewer may read - a public
+# repository's to anyone, a private repository's to its author and the linking
+# collective's members - and names the three most recently attached, newest
+# first. The collective's count is DISTINCT pull requests: acme/site#2 is bound to
+# two of its transcripts and counts once. `reader` can read acme/app on GitHub but
+# is not in the collective, and sees what a stranger sees.
+#
+# A case lists every row its surface returns, by transcript name, so a row that
+# appears or vanishes fails the case. `stats` is required on the collective
+# surfaces and absent on the list.
+world:
+  people: [author, member, reader, stranger]
+  collectives:
+    - name: team
+      created_by: author
+      data_access: public
+      members: {member: member}
+      repositories:
+        - {repo: acme/app, private: true}
+        - {repo: acme/site, private: false}
+  transcripts:
+    - {name: busy, owner: author, visibility: public, shares: {team: approved}}
+    - {name: quiet, owner: author, visibility: public, shares: {team: approved}}
+    - {name: team-only, owner: author, visibility: shared, shares: {team: approved}}
+  attachments:
+    - {collective: team, repo: acme/app, number: 1, author: author, state: attached, transcripts: [busy]}
+    - {collective: team, repo: acme/site, number: 2, author: author, state: attached, transcripts: [busy, team-only]}
+    - {collective: team, repo: acme/site, number: 3, author: author, state: attached, transcripts: [busy]}
+    - {collective: team, repo: acme/site, number: 4, author: author, state: attached, transcripts: [busy]}
+    - {collective: team, repo: acme/site, number: 5, author: author, state: requested, transcripts: [busy]}
+    - {collective: team, repo: acme/site, number: 6, author: author, state: waiting, transcripts: [quiet]}
+    - {collective: team, repo: acme/site, number: 7, author: author, state: preview, transcripts: [quiet]}
+    - {collective: team, repo: acme/app, number: 8, author: author, state: attached, transcripts: [team-only]}
+    - {collective: team, repo: acme/site, number: 9, author: author, state: detached, transcripts: [busy]}
+  github:
+    readers:
+      reader: {acme/app: read}
+
+cases:
+  - name: the-author-sees-every-attached-pull-request-on-their-list
+    viewer: author
+    surface: list
+    rows:
+      busy: {count: 4, recent: [acme/site#4, acme/site#3, acme/site#2]}
+      quiet: {count: 0, recent: []}
+      team-only: {count: 2, recent: [acme/app#8, acme/site#2]}
+
+  - name: a-stranger-sees-public-repository-pull-requests-on-the-list
+    viewer: stranger
+    surface: list
+    rows:
+      busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
+      quiet: {count: 0, recent: []}
+
+  - name: an-anonymous-reader-sees-public-repository-pull-requests-on-the-list
+    viewer: ""
+    surface: list
+    rows:
+      busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
+      quiet: {count: 0, recent: []}
+
+  - name: a-repository-reader-outside-the-collective-sees-what-a-stranger-sees
+    viewer: reader
+    surface: list
+    rows:
+      busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
+      quiet: {count: 0, recent: []}
+
+  - name: a-member-sees-private-repository-pull-requests-in-the-collective
+    viewer: member
+    surface: collective
+    stats: 5
+    rows:
+      busy: {count: 4, recent: [acme/site#4, acme/site#3, acme/site#2]}
+      quiet: {count: 0, recent: []}
+      team-only: {count: 2, recent: [acme/app#8, acme/site#2]}
+
+  - name: a-stranger-counts-only-public-repository-pull-requests-in-the-collective
+    viewer: stranger
+    surface: collective
+    stats: 3
+    rows:
+      busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
+      quiet: {count: 0, recent: []}
+      team-only: {count: 1, recent: [acme/site#2]}
+
+  - name: a-member-sees-the-same-in-the-grouped-collective-read
+    viewer: member
+    surface: collective_grouped
+    stats: 5
+    rows:
+      busy: {count: 4, recent: [acme/site#4, acme/site#3, acme/site#2]}
+      quiet: {count: 0, recent: []}
+      team-only: {count: 2, recent: [acme/app#8, acme/site#2]}
+
+  - name: an-anonymous-reader-sees-the-same-as-a-stranger-in-the-grouped-collective-read
+    viewer: ""
+    surface: collective_grouped
+    stats: 3
+    rows:
+      busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
+      quiet: {count: 0, recent: []}
+      team-only: {count: 1, recent: [acme/site#2]}
