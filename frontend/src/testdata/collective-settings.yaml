@@ -1,0 +1,143 @@
+# Case corpus for `src/collectiveSettings.test.tsx`: a collective's settings,
+# mounted through the real route and rendered by fairtrade's
+# `CollectiveSettingsView`.
+#
+# Every change is its own write. A text field saves when the owner presses
+# edit, then save; a switch or a select saves the moment it changes. A settings
+# change sends exactly the one field it writes with `PATCH /groups/{id}` (the
+# server keeps every field the body leaves out), and a failed write puts the
+# old value back and says why. A member's role and removal use the member
+# routes. `{id}` and `{member}` in a path stand for the collective's and the
+# named member's ids.
+#
+# Deletion protection is the required-name manifest in
+# `src/test/collectiveSettingsFixtures.ts`.
+
+collective:
+  id: 5b0c9a1e-0000-4000-8000-00000000c011
+  name: Acme Platform
+  description: Transcripts behind the ingest and web services.
+  acceptance_mode: open
+  data_access: members_only
+  linked_github_org: acme
+  transcript_deletion_policy: user_choice
+  post_prompts_check: true
+  prompts_check_mode: required
+
+viewer:
+  id: 5b0c9a1e-0000-4000-8000-0000000000a1
+  username: alice-dev
+
+members:
+  - { id: 5b0c9a1e-0000-4000-8000-0000000000a1, username: alice-dev, name: Alice Developer, role: owner }
+  - { id: 5b0c9a1e-0000-4000-8000-0000000000b2, username: bob-ai, name: Bob Ainsley, role: member }
+  - { id: 5b0c9a1e-0000-4000-8000-0000000000d4, username: dan-ops, name: Dan Okafor, role: contributor }
+
+cases:
+  - name: a-text-field-saves-only-after-edit
+    why: >-
+      the name stays read-only until edit; save sends the name and nothing
+      else, and the row shows the new name.
+    search: ""
+    fail: null
+    action: { kind: edit-text, label: name, value: Acme Platform Team }
+    expect:
+      writes:
+        - { method: PATCH, path: "/groups/{id}", body: { name: Acme Platform Team } }
+      shows: [Acme Platform Team]
+      alert: null
+      switchOn: null
+      notice: null
+      replaced: null
+
+  - name: a-failed-switch-write-puts-the-value-back
+    why: >-
+      the server refuses the switch; the switch returns to on and the row
+      says why.
+    search: ""
+    fail: { method: PATCH, path: "/groups/{id}", status: 500, error: the collective could not be saved }
+    action: { kind: toggle, label: show transcripts on pull requests }
+    expect:
+      writes:
+        - { method: PATCH, path: "/groups/{id}", body: { post_prompts_check: false } }
+      shows: []
+      alert: the collective could not be saved
+      switchOn: true
+      notice: null
+      replaced: null
+
+  - name: the-toggle-off-sends-exactly-that-field
+    why: >-
+      turning off "show transcripts on pull requests" sends
+      post_prompts_check false and nothing else: no check mode, no org claim.
+    search: ""
+    fail: null
+    action: { kind: toggle, label: show transcripts on pull requests }
+    expect:
+      writes:
+        - { method: PATCH, path: "/groups/{id}", body: { post_prompts_check: false } }
+      shows: []
+      alert: null
+      switchOn: false
+      notice: null
+      replaced: null
+
+  - name: a-role-change-uses-the-member-role-route
+    why: the role select changes one member's role through its own route.
+    search: ""
+    fail: null
+    action: { kind: role, member: bob-ai, role: contributor }
+    expect:
+      writes:
+        - { method: PATCH, path: "/groups/{id}/members/{member}/role", body: { role: contributor } }
+      shows: [role changed]
+      alert: null
+      switchOn: null
+      notice: null
+      replaced: null
+
+  - name: a-member-removal-asks-first-then-uses-the-member-route
+    why: remove opens a confirmation; confirming deletes that one member.
+    search: ""
+    fail: null
+    action: { kind: remove, member: bob-ai }
+    expect:
+      writes:
+        - { method: DELETE, path: "/groups/{id}/members/{member}", body: null }
+      shows: [member removed]
+      alert: null
+      switchOn: null
+      notice: null
+      replaced: null
+
+  - name: the-check-mode-radios-are-absent
+    why: >-
+      the check-mode radios promised a merge gate that does not exist, so they
+      are not drawn; the stored mode is left as it is, and nothing is written
+      by opening the page.
+    search: ""
+    fail: null
+    action: { kind: none }
+    expect:
+      writes: []
+      shows: [show transcripts on pull requests]
+      alert: null
+      switchOn: true
+      notice: null
+      replaced: null
+
+  - name: github-installed-says-so-and-clears-the-parameter
+    why: >-
+      the install handshake returns with ?github_installed=1; the page says
+      github is connected and drops the parameter, so a reload does not say it
+      again.
+    search: "?github_installed=1"
+    fail: null
+    action: { kind: none }
+    expect:
+      writes: []
+      shows: []
+      alert: null
+      switchOn: null
+      notice: github connected
+      replaced: "/groups/{id}/settings"

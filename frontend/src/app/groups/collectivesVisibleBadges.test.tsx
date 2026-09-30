@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import {
-  collectiveCard,
   collectiveNameFor,
-  emptyStandingSelectors,
   installCollectivesRouteREST,
   installCollectivesRouteTeardown,
+  listedCollectiveCount,
   loadCollectiveBadgeFixtures,
   renderCollectivesRoute,
   standingTextFor,
@@ -13,7 +12,7 @@ import {
 
 /**
  * Mounts the REAL `/groups` collectives route, with the design system's real
- * `CollectivesView` rendering the cards, to prove three things a person on that
+ * `CollectivesView` rendering the table, to prove three things a person on that
  * page depends on:
  *
  *  1. Every collective they may SEE is listed, not only the ones they belong
@@ -25,7 +24,7 @@ import {
  *     theirs says "contributed", whether or not they are a member.
  *
  * Nothing here is stubbed above the network: the page, its hooks, the payload
- * shaping, and the card rendering are all the production path.
+ * shaping, and the table rendering are all the production path.
  */
 
 vi.mock("next/navigation", () => ({
@@ -49,9 +48,9 @@ describe("the mounted collectives route", () => {
     }
 
     // The page shows ONE list. A split into "yours" and "others" would still
-    // pass the per-row checks above, so the card count is asserted against the
+    // pass the per-row checks above, so the row count is asserted against the
     // fixture the page was served, not against a fixed number.
-    expect(document.querySelectorAll(".cmg-col-card")).toHaveLength(rows.length);
+    expect(listedCollectiveCount()).toBe(rows.length);
 
     // Non-membership is the whole point of the change: at least one listed row
     // must be a collective the caller does not belong to, or this test could
@@ -87,27 +86,6 @@ describe("the mounted collectives route", () => {
       }
     },
   );
-
-  it("keeps the stylesheet's collapse rule pointed at the real card", async () => {
-    installCollectivesRouteREST(rows);
-    await renderCollectivesRoute();
-
-    const bare = rows.find((r) => r.expect.member_badge === null && !r.expect.contributed_badge);
-    if (!bare) throw new Error("the corpus no longer carries a row with neither badge");
-    const card = collectiveCard(bare);
-
-    // The shipped rule hides the empty standing slot AND the separator after
-    // it. Both selectors must still find their element on this card, or the
-    // rule has gone inert against a changed design system and the row has its
-    // stray leading separator back.
-    for (const selector of emptyStandingSelectors()) {
-      expect(
-        card.querySelector(selector),
-        `the stylesheet collapses "${selector}", but nothing on a card with no standing matches it any ` +
-          "more, so the stray leading separator is back",
-      ).not.toBeNull();
-    }
-  });
 
   it("says nothing at all about a collective the caller only sees", async () => {
     installCollectivesRouteREST(rows);

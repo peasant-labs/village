@@ -15,7 +15,7 @@ import { AllVillageGroupRoles, type VillageGroupRole } from "@peasant-labs/schem
  * `fetch`, mirroring `src/test/mountedGroupRoute.tsx`.
  *
  * The route mounts inside the `AuthProvider` the page's signed-in gate reads,
- * and the design system's real `CollectivesView` renders the cards, so a test
+ * and the design system's real `CollectivesView` renders the table, so a test
  * asserts what a signed-in person actually sees on the page rather than the
  * props the page computed.
  */
@@ -328,78 +328,48 @@ function Providers({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * The selectors the shipped stylesheet uses to collapse the card's empty
- * standing slot and the separator that follows it.
- *
- * They are READ FROM `globals.css` rather than restated here, so the test
- * cannot drift from the rule that actually ships.
- *
- * Be precise about what this can prove. The test environment loads no
- * stylesheet, so nothing here evaluates a declaration. It proves the rule still
- * has a TARGET: the selectors still match an element on a card with no
- * standing, so a design system that renames or reorders the footer fails here
- * instead of leaving the override silently inert.
- *
- * It does NOT prove the rule still HIDES that element. Changing `display: none`
- * to something else, or losing to a more specific rule elsewhere, brings the
- * stray separator back with this still green. That needs a browser, and it is
- * what `scripts/visual/probe-collectives-standing.mjs` reads on a served build.
- * No workflow runs the visual scripts, so that probe is manual: run it when
- * this rule, the card, or the pinned design system changes.
- */
-export function emptyStandingSelectors(): string[] {
-  const cssPath = resolve(process.cwd(), "src/app/globals.css");
-  const css = readFileSync(cssPath, "utf8");
-  const selectors = [...css.matchAll(/^(\.cmg-col-foot [^{\n]*:empty[^{\n]*)\{/gm)].map((m) =>
-    m[1].trim(),
-  );
-  if (selectors.length === 0) {
-    throw new Error(
-      "globals.css no longer collapses the collectives card's empty standing slot. If the design system " +
-        "now draws its footer separators between items, delete this check with the rule; otherwise a row " +
-        "with no standing has regained its stray leading separator.",
-    );
-  }
-  return selectors;
-}
-
-/** Every rendered card carrying this row's name. */
-function cardsNamed(name: string): Element[] {
-  return [...document.querySelectorAll(".cmg-col-card")].filter(
-    (card) => card.querySelector(".cmg-col-name")?.textContent === name,
+/** Every table row carrying this collective's name. */
+function rowsNamed(name: string): Element[] {
+  return [...document.querySelectorAll("tbody tr")].filter(
+    (tr) => tr.querySelector(".cmg-table-link")?.textContent === name,
   );
 }
 
 /**
- * The card the design system rendered for one fixture row.
+ * The table row the design system rendered for one fixture row.
  *
- * ONE way to reach a card, shared by the render helper's wait condition and by
- * the assertions, so a change to the card markup breaks in one place instead of
- * being fixed in one file and silently missed in the other. Two matches is a
+ * ONE way to reach a row, shared by the render helper's wait condition and by
+ * the assertions, so a change to the table markup breaks in one place instead
+ * of being fixed in one file and silently missed in the other. Two matches is a
  * failure, not a coin toss: the page shows one list, and a duplicated row would
  * otherwise be read as the row the test meant.
  */
-export function collectiveCard(row: CollectiveBadgeRow): HTMLElement {
+export function collectiveRow(row: CollectiveBadgeRow): HTMLElement {
   const name = collectiveNameFor(row);
-  const found = cardsNamed(name);
+  const found = rowsNamed(name);
   if (found.length === 0) {
-    throw new Error(`the collectives page shows no card named "${name}"`);
+    throw new Error(`the collectives page shows no row named "${name}"`);
   }
   if (found.length > 1) {
-    throw new Error(`the collectives page shows ${found.length} cards named "${name}"; it must show one`);
+    throw new Error(`the collectives page shows ${found.length} rows named "${name}"; it must show one`);
   }
   return found[0] as HTMLElement;
 }
 
+/** How many collectives the table lists. */
+export function listedCollectiveCount(): number {
+  return document.querySelectorAll("tbody tr .cmg-table-link").length;
+}
+
 /**
- * What one card claims about the caller.
- *
- * Read from the standing slot rather than the whole card, because the card's
- * member COUNT ("4 members") would otherwise be mistaken for a member badge.
+ * What one row claims about the caller: the first line of its `your role`
+ * cell. Read from that line rather than the whole row, because the row's member
+ * COUNT and its "member for 2mo" line would otherwise be mistaken for a member
+ * badge.
  */
 export function standingTextFor(row: CollectiveBadgeRow): string {
-  return (collectiveCard(row).querySelector(".cmg-col-role")?.textContent ?? "").trim();
+  const cells = collectiveRow(row).querySelectorAll("td");
+  return (cells[1]?.querySelector(".cmg-cell-stack > span:first-child")?.textContent ?? "").trim();
 }
 
 /**
@@ -407,7 +377,7 @@ export function standingTextFor(row: CollectiveBadgeRow): string {
  * landed and been rendered.
  *
  * The viewer's identity and the contribution counters arrive over the same
- * stubbed `fetch` as everything else, and the cards render as soon as the
+ * stubbed `fetch` as everything else, and the rows render as soon as the
  * collectives answer, before the counters do. A test that asserted then would
  * find every "shows no contributed badge" expectation true merely because the
  * counters had not arrived, and would pass against a page that never reads them
@@ -434,9 +404,9 @@ export async function renderCollectivesRoute(): Promise<void> {
     );
   });
   await waitFor(() => {
-    // standingTextFor throws while the card is absent, which waitFor treats as
+    // standingTextFor throws while the row is absent, which waitFor treats as
     // "not ready yet" and retries. Going through it rather than a second inline
-    // lookup is what makes collectiveCard the ONE way to reach a card.
+    // lookup is what makes collectiveRow the ONE way to reach a row.
     const standing = standingTextFor(contributing);
     if (!standing.includes("contributed")) {
       throw new Error(

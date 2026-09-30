@@ -1,0 +1,100 @@
+# Case corpus for `src/repoPicker.test.tsx`: the repo picker opened from the
+# collective page's `github orgs` rail, mounted through the real route.
+#
+# Save sends one call per repository, one after another, links first:
+# `POST /groups/{id}/repositories` and
+# `DELETE /groups/{id}/repositories/{owner}/{name}`. The first failure stops
+# the rest, and the message says what was saved, where it stopped and what it
+# did not try. Each case lists the calls in the order they must be made.
+#
+# Deletion protection is the required-name manifest in
+# `src/test/collectivePageFixtures.ts`.
+
+# The owner's collective: linked to acme, with two of four repositories linked.
+linked: [acme/ingest-api, acme/web]
+available: [acme/ingest-api, acme/web, acme/worker, acme/cli]
+
+cases:
+  - name: add-two
+    why: two ticked repositories are linked with two POSTs, in the picker's order.
+    steps:
+      - { tick: acme/worker }
+      - { tick: acme/cli }
+    failOn: null
+    expect:
+      calls:
+        - { method: POST, repo: acme/worker }
+        - { method: POST, repo: acme/cli }
+      title: repositories saved
+      message: linked acme/worker, acme/cli.
+      orgLine: acme · 4 of 4 repos linked
+
+  - name: remove-one
+    why: an unticked linked repository is unlinked with one DELETE.
+    steps:
+      - { untick: acme/web }
+    failOn: null
+    expect:
+      calls:
+        - { method: DELETE, repo: acme/web }
+      title: repositories saved
+      message: unlinked acme/web.
+      orgLine: acme · 1 of 4 repos linked
+
+  - name: select-all
+    why: select all ticks every repository shown, so only the unlinked ones are posted.
+    steps:
+      - { selectAll: true }
+    failOn: null
+    expect:
+      calls:
+        - { method: POST, repo: acme/worker }
+        - { method: POST, repo: acme/cli }
+      title: repositories saved
+      message: linked acme/worker, acme/cli.
+      orgLine: acme · 4 of 4 repos linked
+
+  - name: clear
+    why: clear unticks every repository shown, so each linked one is deleted.
+    steps:
+      - { clear: true }
+    failOn: null
+    expect:
+      calls:
+        - { method: DELETE, repo: acme/ingest-api }
+        - { method: DELETE, repo: acme/web }
+      title: repositories saved
+      message: unlinked acme/ingest-api, acme/web.
+      orgLine: acme · 0 of 4 repos linked
+
+  - name: search
+    why: select all acts on the repositories the search shows, and on no other.
+    steps:
+      - { search: work }
+      - { selectAll: true }
+    failOn: null
+    expect:
+      calls:
+        - { method: POST, repo: acme/worker }
+      title: repositories saved
+      message: linked acme/worker.
+      orgLine: acme · 3 of 4 repos linked
+
+  - name: an-error-on-the-second-call
+    why: >-
+      the second call fails, so the save stops there: the first link is saved,
+      the unlink after the failure is not tried, and the message says all three.
+    steps:
+      - { tick: acme/worker }
+      - { tick: acme/cli }
+      - { untick: acme/web }
+    failOn: { call: 2, status: 403, error: the github app cannot reach acme/cli }
+    expect:
+      calls:
+        - { method: POST, repo: acme/worker }
+        - { method: POST, repo: acme/cli }
+      title: not every change was saved
+      message: >-
+        saved: linked acme/worker. could not link acme/cli: the github app
+        cannot reach acme/cli. not tried: unlink acme/web.
+      orgLine: acme · 3 of 4 repos linked

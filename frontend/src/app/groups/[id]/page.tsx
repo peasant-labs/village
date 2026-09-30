@@ -1,233 +1,56 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Users,
-  Lock,
-  ExternalLink,
-  Trash2,
-  ShieldAlert,
-} from "lucide-react";
+import { use, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Github, LogOut, Users, UserPlus } from "lucide-react";
+import { CollectiveDetailView } from "@peasant-labs/fairtrade/commons";
+import { Toast } from "@/lib/ft-ui";
 import {
   useGroup,
   useGroupTranscripts,
-  useAddGroupMember,
-  useRemoveGroupMember,
   useJoinGroup,
-  usePromoteMember,
-  useRemoveGroupTranscript,
   useMyGroupShares,
+  useRemoveGroupMember,
 } from "@/lib/queries/groups";
-import { useUnshareTranscript } from "@/lib/queries/transcripts";
-import type { UserGroupShare } from "@/lib/types";
-import { SessionGroupDisclosure } from "@/lib/ft-ui";
-import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import {
+  isNotConfigured,
+  useAvailableRepositories,
+  useLinkRepository,
+  useRepositories,
+  useUnlinkRepository,
+} from "@/lib/queries/repositories";
+import { githubInstallURL } from "@/lib/githubInstall";
 import { useAuth } from "@/providers/AuthProvider";
-import { collectiveTranscriptRow, formatCompact, resolveAttribution } from "@/lib/format";
 import {
-  type SessionIdentity,
-  childSessionGroupLabel,
-  childSessionsByParentID,
-  childSessionsByRowID,
-  groupChildSessions,
-  groupSessionRows,
-} from "@/lib/childSessions";
-import TranscriptList, {
-  type TranscriptRowFact,
-  type TranscriptRowSelection,
-} from "@/components/transcript/TranscriptList";
-import {
-  ScopedOwnerHelperGroups,
-  ScopedUnownedHelperGroups,
-  helperGroupsByTranscript,
-  unownedGroupedItems,
-} from "@/components/transcript/ScopedHelperGroups";
-import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
-import { useGroupedCollective, useGroupedMyShares } from "@/lib/queries/groupedCollectives";
-import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
-import type { HelperGroupSummary } from "@peasant-labs/schema";
-import {
-  Button,
-  ProviderBars,
-  RailShell,
-  RailSection,
-  ModerationQueue,
-  RoleRoster,
-} from "@/lib/ft-ui";
-import ProviderBadge from "@/components/transcript/ProviderBadge";
-import GitHubUserSearch from "@/components/GitHubUserSearch";
+  collectiveMembers,
+  collectiveStats,
+  collectiveTranscriptRow,
+  isMemberRole,
+  linkedRepoIds,
+  memberBreakdown,
+  orgSummary,
+  pullRequestCells,
+  repoPickerOwners,
+  whoCanPublishText,
+  whoCanReadText,
+  yourRoleText,
+  type PolicyInput,
+} from "@/lib/adapters/collective";
+import { applyRepoLinks, repoLinkMessage, repoLinkSteps, splitRepo } from "@/lib/repoLinks";
 import LeaveCollectiveDialog from "@/components/group/LeaveCollectiveDialog";
 import JoinConsentDialog from "@/components/group/JoinConsentDialog";
-import CollectiveAnalytics from "@/components/group/CollectiveAnalytics";
-import CollectiveRepos from "@/components/group/CollectiveRepos";
-import LinkedRepositories from "@/components/group/LinkedRepositories";
-import Link from "next/link";
-import { Manage } from "@peasant-labs/fairtrade/commons";
-import { humanizeEnum } from "@/lib/adapters/manage";
-import { usePendingShares } from "@/lib/queries/groupReview";
-import type { PendingShare } from "@/lib/review/types";
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+/** How many transcripts the table shows first, and how many more each `show more` adds. */
+const PAGE_SIZE = 20;
 
-function formatDuration(ms: number): string {
-  const mins = Math.floor(ms / 60000);
-  if (mins < 60) return `${mins}min`;
-  const hrs = Math.floor(mins / 60);
-  const remainMins = mins % 60;
-  return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
+/** One line the page tells the viewer after an action: saved, or what went wrong. */
+interface Notice {
+  ok: boolean;
+  title: string;
+  detail: string;
 }
-
-/** One of the caller's own contributions to a collective. */
-function MyContributionRow({
-  share,
-  groupID,
-  onUnshare,
-  unsharing,
-  helperGroups,
-  onRefreshOrigin,
-}: {
-  share: UserGroupShare;
-  groupID: string;
-  onUnshare: (input: { transcriptId: string; groupId: string }) => void;
-  unsharing: boolean;
-  /** The saved helper groups the server grouped under this contribution. */
-  helperGroups?: readonly HelperGroupSummary[];
-  /** Refresh of the originating grouped list, offered by an expired scope. */
-  onRefreshOrigin: () => void;
-}) {
-  const row = (
-    <div className="flex items-center gap-3 px-5 py-2.5 hover:bg-surface-hover transition-colors">
-      <ProviderBadge provider={share.model_provider} />
-      <Link
-        href={`/transcripts/${share.id}`}
-        className="text-sm text-ink truncate min-w-0 flex-1 hover:underline focus-mono cursor-pointer"
-      >
-        {share.title || "Untitled"}
-      </Link>
-      {share.status === "pending" && (
-        <span className="text-[10px] font-mono text-ink-3 uppercase tracking-wider shrink-0">
-          pending
-        </span>
-      )}
-      <span className="text-[11px] font-mono text-ink-3 tabular-nums shrink-0">
-        {new Date(share.shared_at).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        })}
-      </span>
-      <button
-        type="button"
-        onClick={() => onUnshare({ transcriptId: share.id, groupId: groupID })}
-        disabled={unsharing}
-        title="Unshare from this collective"
-        className="inline-flex size-7 items-center justify-center border border-rule bg-surface text-ink-3 hover:bg-danger-soft hover:text-danger focus-mono transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-      >
-        <Trash2 className="size-3.5" />
-      </button>
-    </div>
-  );
-  // A contribution the server grouped helpers under reads them beneath its own
-  // row, exactly like every other collective surface. A contribution with no
-  // saved helpers is drawn as the row alone, so nothing else on this list
-  // changes shape.
-  if (helperGroups == null || helperGroups.length === 0) return row;
-  return (
-    <div data-helper-group-owner={share.id}>
-      {row}
-      <ScopedOwnerHelperGroups groups={helperGroups} onRefreshOrigin={onRefreshOrigin} />
-    </div>
-  );
-}
-
-/**
- * The contributions one contribution started, behind the shared collapsed
- * control. Nothing renders when the row above started nothing in this response.
- *
- * Collapse state lives here, one instance per parent row, because a group is an
- * aside: a person who opened one has not asked for every one to be open.
- */
-function MyContributionChildren({
-  parentShareID,
-  startedShares,
-  groupID,
-  onUnshare,
-  unsharing,
-  helperGroupsByRowID,
-  onRefreshOrigin,
-}: {
-  parentShareID: string;
-  startedShares: UserGroupShare[];
-  groupID: string;
-  onUnshare: (input: { transcriptId: string; groupId: string }) => void;
-  unsharing: boolean;
-  helperGroupsByRowID: ReadonlyMap<string, HelperGroupSummary[]>;
-  onRefreshOrigin: () => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const rowsID = `my-contribution-children-${parentShareID}`;
-  if (startedShares.length === 0) return null;
-  return (
-    <div data-parent-transcript-id={parentShareID}>
-      <SessionGroupDisclosure
-        label={childSessionGroupLabel(startedShares.length)}
-        collapsedLabel={childSessionGroupLabel(startedShares.length)}
-        expanded={expanded}
-        onToggle={() => setExpanded((open) => !open)}
-        rowsID={rowsID}
-        testID="child-session-disclosure"
-        bare
-        indent
-      >
-        <div
-          id={rowsID}
-          data-testid="child-session-disclosure-rows"
-          className="border-t border-rule divide-y divide-rule"
-        >
-          {startedShares.map((child) => (
-            <MyContributionRow
-              key={child.id}
-              share={child}
-              groupID={groupID}
-              onUnshare={onUnshare}
-              unsharing={unsharing}
-              helperGroups={helperGroupsByRowID.get(child.id)}
-              onRefreshOrigin={onRefreshOrigin}
-            />
-          ))}
-        </div>
-      </SessionGroupDisclosure>
-    </div>
-  );
-}
-
-/** The shared fold's four facts, read out of one of the caller's own
- *  contributions. Its row identity is the transcript id under a different
- *  name -- this response calls it `id` where the pending queue calls it
- *  `transcript_id` -- which is exactly why each list states its own reading
- *  instead of the fold guessing at a field name. */
-function myShareIdentity(share: UserGroupShare): SessionIdentity {
-  return {
-    rowID: share.id,
-    ownerID: share.owner_id,
-    sessionID: share.local_id,
-    parentSessionID: share.parent_session_id,
-  };
-}
-
-/**
- * What a row states on a collective's browse list: everything its table stated
- * as a column, in the order every other transcript list in this app reads.
- */
-const COLLECTIVE_BROWSE_FACTS: readonly TranscriptRowFact[] = [
-  "provider",
-  "date",
-  "turns",
-  "tokens",
-];
-
-// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function GroupDetailPage({
   params,
@@ -236,102 +59,41 @@ export default function GroupDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const qc = useQueryClient();
   const { user } = useAuth();
   const { data, isLoading } = useGroup(id);
-  const addMember = useAddGroupMember();
-  const removeMember = useRemoveGroupMember();
-  const joinGroup = useJoinGroup();
-  const promoteMember = usePromoteMember();
-  const removeGroupTranscript = useRemoveGroupTranscript();
-  const unshareTranscript = useUnshareTranscript();
 
-  const [inviteUsername, setInviteUsername] = useState("");
-  const [dataPage, setDataPage] = useState(0);
-  const [showDataBrowser, setShowDataBrowser] = useState(false);
-  const [contributorFilter, setContributorFilter] = useState<string>("");
-  const [browseView, setBrowseView] = useState<"list" | "repos">("list");
-  const [rowSelected, setRowSelected] = useState<Set<string>>(new Set());
-  const [confirmingBulkRemove, setConfirmingBulkRemove] = useState(false);
+  const role = data?.your_role ?? "";
+  const isOwner = role === "owner";
+  const isMember = isMemberRole(role);
+  const canRead = !!data?.can_read;
+  const linkedOrg = data?.group.linked_github_org ?? null;
+
+  // The first page arrives with the collective; `show more` asks for a longer
+  // first page, so the rows already shown stay in place.
+  const [shown, setShown] = useState(PAGE_SIZE);
+  const longer = useGroupTranscripts(id, 0, shown, canRead && shown > PAGE_SIZE);
+
+  // Linked repositories are readable by members; what the App offers is the owner's alone.
+  const repositories = useRepositories(id, isMember);
+  const available = useAvailableRepositories(id, isOwner && !!linkedOrg);
+  const linkRepository = useLinkRepository();
+  const unlinkRepository = useUnlinkRepository();
+
+  const joinGroup = useJoinGroup();
+  const removeMember = useRemoveGroupMember();
+  const canLeave = !!role && role !== "owner";
+  const { data: myShares } = useMyGroupShares(id, !!user && canLeave);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [showJoinConsent, setShowJoinConsent] = useState(false);
-  const qc = useQueryClient();
-
-  const handleJoinClick = () => {
-    if (user && !user.is_discoverable) {
-      setShowJoinConsent(true);
-    } else {
-      joinGroup.mutate(id);
-    }
-  };
-
-  const DATA_PAGE_SIZE = 50;
-
-  const { data: pagedData, isFetching: isFetchingPage } = useGroupTranscripts(
-    id, dataPage, DATA_PAGE_SIZE, showDataBrowser
-  );
-
-  // The pending queue is read here and on the dedicated review route through
-  // ONE query under ONE key, so a decision made on either surface refreshes
-  // the other.
-  const { data: pendingShares } = usePendingShares(
-    id,
-    !!data && data.group?.acceptance_mode === "curated" && data.your_role === "owner",
-  );
-
-  const reviewShare = useMutation({
-    mutationFn: ({ transcriptId, status }: { transcriptId: string; status: string }) =>
-      api(`/groups/${id}/shares/${transcriptId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["group-pending", id] });
-      qc.invalidateQueries({ queryKey: ["group", id] });
-    },
-  });
-
-  const { data: myShares } = useMyGroupShares(id, !!user);
-
-  // The grouped read of the SAME collective route: it supplements the flat
-  // transcript list with the saved helper threads the server grouped under
-  // each owner row. A failed, refused or still-loading grouped read removes
-  // nothing -- the flat list stays the authority for its own rows. The read
-  // pages, so a later grouped owner or helper-only context container still has
-  // its grouped exit; the server's own total decides the next page.
-  const grouped = useGroupedCollective(
-    id,
-    { limit: GROUPED_TOP_LEVEL_PAGE_SIZE },
-    !!data?.can_read,
-  );
-  const groupedItems = useMemo(() => grouped.items, [grouped.items]);
-  const helperGroups = useMemo(() => helperGroupsByTranscript(groupedItems), [groupedItems]);
-
-  // The grouped read of "your contributions": the saved helper threads the
-  // server grouped under each of the caller's own contributions. The flat
-  // contributions stay the authority for their own rows -- the unshare control,
-  // the pending state and the count -- because the grouped page nests helper
-  // members behind a disclosure that carries no unshare control, and its total
-  // counts grouped top-level units rather than contributions. A failed, refused
-  // or still-loading grouped read removes nothing and changes no row; it only
-  // adds the disclosures.
-  const groupedMyShares = useGroupedMyShares(
-    id,
-    { limit: GROUPED_TOP_LEVEL_PAGE_SIZE },
-    !!user,
-  );
-  const myShareGroupedItems = useMemo(() => groupedMyShares.items, [groupedMyShares.items]);
-  const myShareHelperGroups = useMemo(
-    () => helperGroupsByTranscript(myShareGroupedItems),
-    [myShareGroupedItems],
-  );
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   if (isLoading) {
     return (
       <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
         <div className="h-4 w-40 bg-surface-hover animate-shimmer" />
         <div className="h-16 w-72 bg-surface-hover animate-shimmer" />
-        <div className="h-12 w-full bg-surface-hover animate-shimmer" />
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-24 bg-surface-hover animate-shimmer" />
           ))}
@@ -345,916 +107,197 @@ export default function GroupDetailPage({
     return (
       <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
         <div className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center">
-          <Users size={28} className="text-ink-4" />
-          <p className="text-sm font-medium text-ink">Collective not found</p>
+          <Users size={28} className="text-ink-4" aria-hidden="true" />
+          <p className="text-sm font-medium text-ink">collective not found</p>
           <Link
             href="/groups"
             className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
           >
-            Back to collectives
+            back to collectives
           </Link>
         </div>
       </div>
     );
   }
 
-  const {
-    group,
-    members,
-    transcripts,
-    stats,
-    models,
-    contributors,
-    can_read: canRead,
-    your_role: yourRole,
-    pending_members: pendingMembersRaw,
-  } = data;
-  const isMember = yourRole === "contributor" || yourRole === "member" || yourRole === "owner";
-  const isOwner = yourRole === "owner";
-  const canLeave = !!yourRole && yourRole !== "owner";
-  const pendingMembers = pendingMembersRaw ?? [];
+  const { group, stats } = data;
+  const now = new Date();
+  const members = collectiveMembers(data.members ?? []);
+  const membersVisible = group.display_members || isOwner;
 
-  // The preview is cut to five BEFORE the fold, unlike the home page, which
-  // groups first so its list is five sessions a person ran rather than five
-  // rows. The difference is deliberate: this cut IS the summary the manage
-  // surface renders above -- both read this one value, so the two cannot say
-  // different things about the same five contributions -- and a preview that
-  // folded first could show one row where the collective's five most recent
-  // contributions were one busy session and what it started. Nothing is lost
-  // either way -- a folded row is inside the control under its parent -- and
-  // "browse data" pages the whole set.
-  const rawBrowserTranscripts = showDataBrowser
-    ? (pagedData ?? [])
-    : (transcripts || []).slice(0, 5);
-  const manageData = {
-    collective: {
-      name: group.name,
-      description: group.description,
-      linkedGithubOrg: group.linked_github_org,
-      // Humanized for display ("members_only" -> "members only") -- the GovTile
-      // renders these as plain text, not a typed enum, so the wire value's
-      // underscore is a wire detail and never belongs on screen.
-      acceptanceMode: humanizeEnum(group.acceptance_mode),
-      dataAccess: humanizeEnum(group.data_access),
-      role: yourRole || "",
-      memberSince: group.member_since,
-    },
-    providerShare: models.map((model) => ({
-      id: model.model_provider,
-      pct: stats?.total_transcripts ? Math.round((model.transcript_count / stats.total_transcripts) * 100) : 0,
-    })),
-    pendingReview: (pendingShares ?? []).map((item: { transcript_id: string; title: string | null; owner_username: string }) => ({
-      id: item.transcript_id,
-      title: item.title,
-      by: `@${item.owner_username}`,
-    })),
-    // Deliberately empty: <Manage>'s own internal RoleRoster (fairtrade src/ui/commons/
-    // Manage.jsx, rendered when `members.length > 0`) never received onRole/onRemove
-    // callbacks, so it rendered a SECOND, non-functional-looking members roster further down
-    // the page (in the collective-analytics region) alongside the real, fully-wired one this
-    // page renders in membersSectionBody -- a genuine duplicate discovered while wiring up
-    // this wave's role-dropdown work (its role <select> looked interactive but silently
-    // no-op'd on change, snapping back since nothing persisted the edit). Members data is
-    // used ONLY for that internal roster in Manage.jsx (verified -- no other field derives
-    // from it), so passing [] here cleanly suppresses the dead duplicate without touching the
-    // shared component or affecting the demo's own illustrative rendering.
-    members: [],
-    redactions: [],
-    browseRows: rawBrowserTranscripts.map((transcript) => ({
-      title: transcript.title ?? "untitled transcript",
-      contributor: `@${transcript.owner_username}`,
-      providerId: transcript.model_provider,
-      provider: transcript.model_provider,
-      turns: `${transcript.turn_count ?? 0}`,
-      tokens: `${transcript.token_count ?? 0}`,
-      date: transcript.session_start ? new Date(transcript.session_start).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "unknown",
-    })),
-    roleOptions: [],
-    initialRole: yourRole || "",
-    initialShowRedaction: false,
-    initialBrowseGated: !canRead,
-    stats: {
-      transcripts: formatCompact(stats?.total_transcripts ?? 0),
-      projects: `${formatCompact(models.length)} providers`,
-      tokens: formatCompact(stats?.total_tokens ?? 0),
-      turns: `${formatCompact(stats?.total_turns ?? 0)} turns`,
-      contributors: `${formatCompact(stats?.contributor_count ?? 0)} members`,
-      hours: `${formatDuration(stats?.total_duration_ms ?? 0)} total`,
-    },
+  const readable = shown > PAGE_SIZE && longer.data ? longer.data : (data.transcripts ?? []);
+  const cells = pullRequestCells(readable);
+  const rows = readable.map((t) => collectiveTranscriptRow(t, cells, { id: user?.id, isOwner }, now));
+  const total = stats?.total_transcripts ?? rows.length;
+
+  const policy: PolicyInput = {
+    name: group.name,
+    acceptanceMode: group.acceptance_mode,
+    dataAccess: group.data_access,
+    linkedOrg,
+    role,
+    canRead,
   };
 
-  const totalTranscripts = stats?.total_transcripts ?? 0;
-  const totalPages = Math.ceil(totalTranscripts / DATA_PAGE_SIZE);
-  const ANON_FILTER_KEY = "__anon__";
-  const browserTranscripts = contributorFilter
-    ? rawBrowserTranscripts.filter((t) => {
-        const attribution = resolveAttribution(
-          {
-            id: t.owner_id,
-            github_username: t.owner_username,
-            is_discoverable: t.owner_is_discoverable,
-          },
-          user?.id,
-          isOwner,
-        );
-        const key = attribution.anonymous ? ANON_FILTER_KEY : t.owner_username;
-        return key === contributorFilter;
-      })
-    : rawBrowserTranscripts;
+  // A 501 on the linked list is the server saying GitHub is not set up here:
+  // nothing can be linked, so nothing offers to.
+  const githubConfigured = !(repositories.isError && isNotConfigured(repositories.error));
+  const linked = repositories.data?.repositories ?? [];
+  const offered = available.data?.repositories ?? [];
+  const owners = repoPickerOwners(offered, linked, linkedOrg);
+  const canManageRepos = isOwner && !!linkedOrg && githubConfigured && repositories.isSuccess;
+  // No org yet, or an org the App is not installed on (it offers nothing and
+  // nothing is linked): the owner's way forward is the install handshake.
+  const needsInstall =
+    isOwner &&
+    githubConfigured &&
+    repositories.isSuccess &&
+    (!linkedOrg || (available.isSuccess && offered.length === 0 && linked.length === 0));
 
-  // Distinct contributors in the visible page, for the filter dropdown.
-  // Hidden users collapse into a single "anon" entry.
-  const visibleContributors = Array.from(
-    new Map(
-      rawBrowserTranscripts.map((t) => {
-        const attribution = resolveAttribution(
-          {
-            id: t.owner_id,
-            github_username: t.owner_username,
-            is_discoverable: t.owner_is_discoverable,
-          },
-          user?.id,
-          isOwner,
-        );
-        const key = attribution.anonymous ? ANON_FILTER_KEY : t.owner_username;
-        return [
-          key,
-          {
-            key,
-            label: attribution.label,
-            avatar_url: attribution.anonymous ? null : t.owner_avatar_url,
-          },
-        ];
-      })
-    ).values()
-  ).sort((a, b) => a.label.localeCompare(b.label));
+  const canJoin = !!user && role === "" && group.acceptance_mode !== "curated";
 
-  // A session another session started is listed under the session that started
-  // it. The rows are the same rows either way: a started session whose starter
-  // is not on this page keeps its own place in the list.
-  //
-  // Grouped AFTER the contributor filter, so a chip hangs only off a row the
-  // filter left on screen. Filtering to one contributor can leave a started
-  // session whose starter belongs to someone else, and that row then keeps its
-  // ordinary place rather than disappearing with its parent.
-  const browserRows = browserTranscripts.map(collectiveTranscriptRow);
-  const browserGrouping = groupChildSessions(browserRows);
-  const browserChildSessions = childSessionsByParentID(browserGrouping);
-  // The owner picks rows out in order to remove them from the collective. The
-  // set is keyed on the transcript id, which every row carries whether it kept
-  // its place or was folded under another row, so a folded row is selected and
-  // removed exactly like any other.
-  const browserSelection: TranscriptRowSelection = {
-    selectedIDs: rowSelected,
-    onToggle: toggleRow,
-  };
-  const allBrowserRowsSelected =
-    browserTranscripts.length > 0 && browserTranscripts.every((t) => rowSelected.has(t.id));
-  const someBrowserRowsSelected = browserTranscripts.some((t) => rowSelected.has(t.id));
-
-  // Every transcript the flat browse rendering draws, folded child rows
-  // included. A grouped owner named here is ALREADY represented, so the grouped
-  // exit below skips it instead of mounting a second owner row.
-  const flatBrowseOwnerIds = new Set(browserTranscripts.map((t) => t.id));
-  const groupedFallback = unownedGroupedItems(groupedItems, flatBrowseOwnerIds);
-  // Grouped content the flat rendering did not carry, plus the way to any
-  // grouped page not read yet. Either one is enough that the panel is not empty.
-  const hasGroupedExit = groupedFallback.length > 0 || grouped.remainingItems > 0;
-
-  const handleInvite = (e: React.FormEvent) => {
-    e.preventDefault();
-    addMember.mutate(
-      { groupId: id, username: inviteUsername },
-      { onSuccess: () => setInviteUsername("") }
-    );
-  };
-
-  function toggleRow(tid: string) {
-    setRowSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(tid)) next.delete(tid);
-      else next.add(tid);
-      return next;
+  const handleJoin = () => {
+    if (user && !user.is_discoverable) {
+      setShowJoinConsent(true);
+      return;
+    }
+    joinGroup.mutate(id, {
+      onError: (error) => setNotice({ ok: false, title: "could not join", detail: error.message }),
     });
-  }
+  };
 
-  function toggleAllRows(items: typeof browserTranscripts) {
-    const ids = items.map((t) => t.id);
-    setRowSelected((prev) => {
-      const next = new Set(prev);
-      const allSelected = ids.every((id) => next.has(id));
-      if (allSelected) {
-        ids.forEach((id) => next.delete(id));
-      } else {
-        ids.forEach((id) => next.add(id));
-      }
-      return next;
+  const handleLinkRepos = async (diff: { add: string[]; remove: string[] }) => {
+    const outcome = await applyRepoLinks(repoLinkSteps(diff), (step) => {
+      const { owner, name } = splitRepo(step.repo);
+      return step.action === "link"
+        ? linkRepository.mutateAsync({ groupId: id, owner, name })
+        : unlinkRepository.mutateAsync({ groupId: id, owner, name });
     });
-  }
+    await qc.invalidateQueries({ queryKey: ["group-repositories", id] });
+    await qc.invalidateQueries({ queryKey: ["group-repositories-available", id] });
+    setNotice(repoLinkMessage(outcome));
+  };
 
-  async function handleBulkRemove() {
-    if (rowSelected.size === 0) return;
-    const ids = Array.from(rowSelected);
-    await Promise.all(
-      ids.map((tid) =>
-        removeGroupTranscript.mutateAsync({ groupId: id, transcriptId: tid })
-      )
-    );
-    setRowSelected(new Set());
-    setConfirmingBulkRemove(false);
-  }
+  const hrefFor = (kind: string, target?: string): string | undefined => {
+    switch (kind) {
+      case "collectives":
+        return "/groups";
+      case "collective":
+        return target ? `/groups/${target}` : undefined;
+      case "transcript":
+        return target ? `/transcripts/${target}` : undefined;
+      case "pull-request":
+        return target ? cells.hrefs.get(target) : undefined;
+      default:
+        return undefined;
+    }
+  };
 
-  const roleOrder: Record<string, number> = { owner: 0, member: 1, contributor: 2 };
-
-  // Map API members to RoleRoster's RosterMember shape, matching the settings page's own
-  // adapter (src/app/groups/[id]/settings/page.tsx). Sorted owner-first, same ordering the
-  // previous hand-rolled list used.
-  const detailRosterMembers = [...members]
-    .sort((a, b) => (roleOrder[a.role] ?? 3) - (roleOrder[b.role] ?? 3))
-    .map((m) => ({
-      id: m.id,
-      // RoleRoster derives its fallback avatar from the first display-handle
-      // character, so include "@" here without changing the stored login.
-      handle: `@${m.github_username}`,
-      // RoleRoster renders the display name beneath the handle when present.
-      name: m.display_name ?? undefined,
-      role: m.role as "owner" | "member" | "contributor" | "guest",
-      owner: m.role === "owner",
-      avatar: m.avatar_url ?? undefined,
-    }));
-
-  // ── Rail: Members section body ─────────────────────────────────────────────
-  const membersSectionBody = (
-    <>
-      {group.linked_github_org && (
-        <div className="flex items-center gap-2.5 px-5 py-2.5 border-b border-rule">
-          <img
-            src={`https://avatars.githubusercontent.com/${group.linked_github_org}`}
-            alt={`${group.linked_github_org} avatar`}
-            className="size-7 border border-rule object-cover shrink-0"
-          />
-          <span className="text-[13px] text-ink truncate">
-            @{group.linked_github_org}
-          </span>
-          <span className="text-[10px] font-mono text-ink-3 shrink-0">org access</span>
-        </div>
-      )}
-      {/* RoleRoster, matching the settings page's own governance surface: an owner/admin
-          viewer gets an editable role dropdown per non-owner member (wired to the same
-          promoteMember/removeMember mutations settings uses) and can remove members inline;
-          a non-owner viewer (any signed-in member reaching this page -- unlike settings,
-          this page is NOT owner-gated) sees every role as plain read-only text via
-          canManage={isOwner}, no dropdown, no remove action. The true owner's own row stays
-          locked either way (RoleRoster's own owner flag). overflow/maxWidth wrapper matches
-          sections-react/70-governance.jsx's RoleRoster specimen (932e). */}
-      <div style={{ overflow: "auto", maxWidth: "100%" }}>
-        <RoleRoster
-          title="members"
-          members={detailRosterMembers}
-          roles={["contributor", "member"]}
-          canManage={isOwner}
-          onRole={(m, role) =>
-            promoteMember.mutate({ groupId: id, userId: m.id!, role: role as "member" | "contributor" })
-          }
-          onRemove={async (m) => {
-            await removeMember.mutateAsync({ groupId: id, userId: m.id! });
-          }}
-        />
-      </div>
-      {isOwner && (
-        <form
-          onSubmit={handleInvite}
-          className="px-5 py-4 border-t border-rule flex flex-col gap-2"
-        >
-          <label className="v2-eyebrow">Invite member</label>
-          <div className="flex gap-2">
-            <GitHubUserSearch
-              value={inviteUsername}
-              onChange={setInviteUsername}
-              onSelect={setInviteUsername}
-              className="flex-1"
-            />
-            <Button type="submit" size="md" disabled={addMember.isPending}>
-              Invite
-            </Button>
-          </div>
-          {addMember.isError && (
-            <p className="text-[11px] text-danger">{addMember.error?.message ?? "Unable to invite member."}</p>
-          )}
-        </form>
-      )}
-    </>
-  );
-
-  // ── Rail: right-rail composition ───────────────────────────────────────────
-  const pendingSharesList = pendingShares ?? [];
-  const mySharesList = myShares ?? [];
-  // Both of these lists fold with the SAME implementation every transcript list
-  // in this app uses, over each list's own row shape. A submission another
-  // session started is read under the submission that started it; a submission
-  // whose starter was not offered to this collective keeps its ordinary row.
-  const myShareFold = groupSessionRows(mySharesList, myShareIdentity);
-  const myShareChildren = childSessionsByRowID(myShareFold, myShareIdentity);
-  // Every contribution the flat rendering draws, folded children included. A
-  // grouped owner named here is ALREADY represented, so the grouped exit below
-  // skips it instead of mounting a second contribution row.
-  const flatMyShareOwnerIds = new Set(mySharesList.map((s) => s.id));
-  const myShareGroupedFallback = unownedGroupedItems(myShareGroupedItems, flatMyShareOwnerIds);
-  // Grouped content the flat contributions did not carry, plus the way to any
-  // grouped page not read yet. Either one is enough that the panel is not empty.
-  const hasMyShareGroupedExit =
-    myShareGroupedFallback.length > 0 || groupedMyShares.remainingItems > 0;
-  const currentUserId = user?.id;
-
-  const railContent = (
-    <>
-      {/* Pending member requests — ModerationQueue for owner-only approval.
-          overflow/maxWidth wrapper matches sections-react/70-governance.jsx's own specimen (932e). */}
-      {isOwner && pendingMembers.length > 0 && (
-        <div style={{ overflow: "auto", maxWidth: "100%" }}>
-          <ModerationQueue
-            title="pending requests"
-            items={pendingMembers.map((p) => ({
-              id: p.id,
-              kind: "member" as const,
-              who: `@${p.github_username}`,
-            }))}
-            onApprove={(item: { id: string }) => {
-              promoteMember.mutate({ groupId: id, userId: item.id, role: "contributor" });
-            }}
-            onReject={(item: { id: string }) => {
-              removeMember.mutate({ groupId: id, userId: item.id });
-            }}
-          />
-        </div>
-      )}
-
-      {/* Members — gated by display_members or owner. */}
-      {(group.display_members || isOwner) && (
-        <RailSection
-          title="members"
-          icon={Users}
-          meta={String(members.length)}
-          collapsible={members.length > 8}
-          defaultOpen={members.length <= 8}
-        >
-          {membersSectionBody}
-        </RailSection>
-      )}
-
-      {/* Linked repositories — has its own internal chrome; render as-is. */}
-      {isMember && (
-        <LinkedRepositories
-          groupId={id}
-          isOwner={isOwner}
-          transcripts={browserTranscripts}
-        />
-      )}
-
-      {/* About */}
-      <RailSection title="about">
-        <div className="px-5 py-4">
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] text-ink-3">Created</span>
-            <span className="text-xs font-mono text-ink tabular-nums">
-              {new Date(group.created_at).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </span>
-          </div>
-        </div>
-      </RailSection>
-
-      {/* Providers — ProviderBars replaces the manual bar chart. */}
-      {models && models.length > 0 && (
-        <RailSection title="providers">
-          <div className="px-5 py-4">
-            <ProviderBars
-              data={models.map((m) => ({
-                label: m.model_provider,
-                value: m.transcript_count,
-              }))}
-              total={stats?.total_transcripts}
-            />
-          </div>
-        </RailSection>
-      )}
-    </>
-  );
-
-  // ── Canvas: main content column ────────────────────────────────────────────
-  const canvasContent = (
-    <div className="flex flex-col gap-6">
-      {/* Contributors */}
-      {contributors && contributors.length > 0 && (
-        <div className="border border-rule bg-surface">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
-            <span className="text-sm font-medium text-ink">contributors</span>
-            <span className="text-xs font-mono text-ink-3 tabular-nums">
-              {contributors.length}
-            </span>
-          </div>
-          <div className="px-5 py-4 flex flex-wrap gap-2">
-            {contributors.map((c) => (
-              <Link
-                key={c.id}
-                href={`/users/${c.github_username}`}
-                className="group/contrib flex items-center gap-2 border border-rule bg-surface px-2.5 py-1.5 transition-colors hover:bg-surface-hover focus-mono cursor-pointer"
-              >
-                {c.avatar_url ? (
-                  <img
-                    src={c.avatar_url}
-                    alt=""
-                    className="size-6 border border-rule object-cover"
-                  />
-                ) : (
-                  <span className="size-6 border border-rule bg-surface-hover flex items-center justify-center text-[10px] font-mono font-semibold text-ink-2">
-                    {c.github_username[0].toUpperCase()}
-                  </span>
-                )}
-                <span className="flex flex-col leading-tight min-w-0">
-                  <span className="text-[13px] text-ink truncate">
-                    {c.github_username}
-                  </span>
-                  <span className="text-[10px] font-mono text-ink-3 tabular-nums">
-                    {c.transcript_count} transcript
-                    {c.transcript_count !== 1 ? "s" : ""}
-                  </span>
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Collective analytics */}
-      {canRead && browserTranscripts.length > 0 && (
-        <CollectiveAnalytics transcripts={browserTranscripts} />
-      )}
-
-      {/* Data browser */}
-      {canRead ? (
-        <div className="border border-rule bg-surface">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
-            <span className="text-sm font-medium text-ink">
-              {showDataBrowser ? "browse data" : "recent transcripts"}
-            </span>
-            <div className="flex items-center gap-3">
-              <div className="inline-flex border border-rule overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setBrowseView("list")}
-                  aria-pressed={browseView === "list"}
-                  className={`px-2.5 py-1 text-[11px] font-mono transition-colors cursor-pointer focus-mono ${
-                    browseView === "list"
-                      ? "bg-ink text-canvas"
-                      : "text-ink-3 hover:text-ink hover:bg-surface-hover"
-                  }`}
-                >
-                  list
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBrowseView("repos")}
-                  aria-pressed={browseView === "repos"}
-                  className={`px-2.5 py-1 text-[11px] font-mono border-l border-rule transition-colors cursor-pointer focus-mono ${
-                    browseView === "repos"
-                      ? "bg-ink text-canvas"
-                      : "text-ink-3 hover:text-ink hover:bg-surface-hover"
-                  }`}
-                >
-                  repos
-                </button>
-              </div>
-              {totalTranscripts > 5 && (
-                <button
-                  onClick={() => {
-                    setShowDataBrowser(!showDataBrowser);
-                    setDataPage(0);
-                  }}
-                  className="text-xs font-mono text-ink-3 hover:text-ink transition-colors cursor-pointer focus-mono"
-                >
-                  {showDataBrowser
-                    ? "Show less"
-                    : `Browse all ${totalTranscripts.toLocaleString()}`}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {transcripts && transcripts.length === 0 && !hasGroupedExit ? (
-            <div className="px-5 py-8 text-center">
-              <p className="text-[13px] text-ink-3">No transcripts shared yet.</p>
-            </div>
-          ) : browseView === "repos" ? (
-            <div className="p-5">
-              <CollectiveRepos transcripts={browserTranscripts} viewerIsOwner={isOwner} />
-            </div>
-          ) : transcripts && transcripts.length > 0 ? (
-            <>
-              {(visibleContributors.length > 1 || isOwner) && (
-                <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-b border-rule">
-                  <div className="flex items-center gap-2">
-                    {/* Select-all, which the dropped table carried in its
-                        header. It ticks EVERY row of the page including the
-                        ones folded under another row, so "select everything"
-                        means everything the page holds rather than only the
-                        rows that happen to be drawn at the top level. */}
-                    {isOwner && browserTranscripts.length > 0 && (
-                      <label className="inline-flex items-center gap-1.5 text-[12px] font-mono text-ink-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={allBrowserRowsSelected}
-                          ref={(box) => {
-                            if (box != null) {
-                              box.indeterminate =
-                                someBrowserRowsSelected && !allBrowserRowsSelected;
-                            }
-                          }}
-                          onChange={() => toggleAllRows(browserTranscripts)}
-                          aria-label="Select every transcript on this page"
-                          className="size-3.5 cursor-pointer accent-[var(--mark)] focus-mono"
-                        />
-                        all
-                      </label>
-                    )}
-                    <select
-                      id="contributor-filter"
-                      aria-label="Filter by contributor"
-                      value={contributorFilter}
-                      onChange={(e) => {
-                        setContributorFilter(e.target.value);
-                        setRowSelected(new Set());
-                      }}
-                      className="bg-canvas border border-rule text-ink text-[12px] font-mono px-2 py-1 focus-mono cursor-pointer"
-                    >
-                      <option value="">all contributors</option>
-                      {visibleContributors.map((c) => (
-                        <option key={c.key} value={c.key}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {isOwner && rowSelected.size > 0 && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-mono text-ink-3 tabular-nums">
-                        {rowSelected.size} selected
-                      </span>
-                      {confirmingBulkRemove ? (
-                        <>
-                          <span className="font-mono text-[11px] text-ink-3">
-                            Remove from collective?
-                          </span>
-                          <button
-                            type="button"
-                            disabled={removeGroupTranscript.isPending}
-                            onClick={handleBulkRemove}
-                            className="inline-flex items-center gap-1 h-7 px-2 text-[11.5px] font-medium border border-danger/40 bg-danger-soft text-danger hover:bg-danger hover:text-danger-fg focus-mono transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {removeGroupTranscript.isPending ? "Removing…" : "Yes"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmingBulkRemove(false)}
-                            className="inline-flex items-center gap-1 h-7 px-2 text-[11.5px] font-medium border border-rule bg-surface text-ink-2 hover:bg-surface-hover focus-mono transition-colors cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setConfirmingBulkRemove(true)}
-                          className="inline-flex items-center gap-1.5 h-7 px-2 text-[11.5px] font-medium border border-rule bg-surface text-ink-2 hover:bg-danger-soft hover:text-danger focus-mono transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={11} strokeWidth={1.75} />
-                          Remove from collective
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-              {/* The collective's contributions, drawn by the SAME list every
-                  other transcript surface in this app uses. It was a table of
-                  its own until a session that another session started needed to
-                  fold under the session that started it here as well: a second
-                  renderer would have needed a second fold, and the two would
-                  have drifted. Every column the table stated is stated here --
-                  the title, the contributor, the provider, the turns, the
-                  tokens and the date -- and the owner's selection box is on
-                  each row, folded rows included. */}
-              <TranscriptList
-                items={browserGrouping.rootItems}
-                childSessions={browserChildSessions}
-                facts={COLLECTIVE_BROWSE_FACTS}
-                selection={isOwner ? browserSelection : undefined}
-                viewerIsPrivileged={isOwner}
-                linkOwner
-                bare
-                helperGroupSlot={(item) => (
-                  <ScopedOwnerHelperGroups
-                    groups={helperGroups.get(item.transcript.id)}
-                    onRefreshOrigin={grouped.refreshOrigin}
-                  />
-                )}
-              />
-              {showDataBrowser && totalPages > 1 && (
-                <div className="flex items-center justify-between px-5 py-3 border-t border-rule">
-                  <span className="text-[11px] font-mono text-ink-3 tabular-nums">
-                    {isFetchingPage && (
-                      <span className="mr-2 text-ink-4">Loading…</span>
-                    )}
-                    {dataPage * DATA_PAGE_SIZE + 1}
-                    {"–"}
-                    {Math.min((dataPage + 1) * DATA_PAGE_SIZE, totalTranscripts)} of{" "}
-                    {totalTranscripts.toLocaleString()}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setDataPage(Math.max(0, dataPage - 1))}
-                      disabled={dataPage === 0}
-                      className="border border-rule px-2.5 py-1 text-xs font-mono text-ink-2 hover:bg-surface-hover hover:text-ink disabled:opacity-50 disabled:pointer-events-none transition-colors cursor-pointer focus-mono"
-                    >
-                      Prev
-                    </button>
-                    <span className="text-[11px] font-mono text-ink-3 px-2 tabular-nums">
-                      {dataPage + 1} / {totalPages}
-                    </span>
-                    <button
-                      onClick={() => setDataPage(Math.min(totalPages - 1, dataPage + 1))}
-                      disabled={dataPage >= totalPages - 1}
-                      className="border border-rule px-2.5 py-1 text-xs font-mono text-ink-2 hover:bg-surface-hover hover:text-ink disabled:opacity-50 disabled:pointer-events-none transition-colors cursor-pointer focus-mono"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : null}
-
-          {/* The grouped exits the flat rendering above did not draw: the
-              context containers it has no row for, and each owner row it does
-              not carry. Appended OUTSIDE the flat branches (and outside the
-              browse-view choice), so an empty or partial flat result -- or the
-              repos view -- still reaches the saved helper threads the server
-              grouped. An owner the flat list already draws is skipped, never
-              mounted twice. */}
-          {hasGroupedExit && (
-            <div className="border-t border-rule" data-testid="grouped-helper-fallback">
-              <ScopedUnownedHelperGroups
-                items={groupedItems}
-                representedOwnerIds={flatBrowseOwnerIds}
-                onRefreshOrigin={grouped.refreshOrigin}
-              />
-              <ScopedGroupedContinuation
-                remaining={grouped.remainingItems}
-                busy={grouped.isFetchingNextPage}
-                onLoadMore={() => void grouped.fetchNextPage()}
-              />
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="border border-rule bg-surface px-5 py-10 flex flex-col items-center gap-3 text-center">
-          <Lock size={28} className="text-ink-4" />
-          <p className="text-sm font-medium text-ink">Data access restricted</p>
-          <p className="text-[13px] text-ink-3 max-w-sm">
-            {group.data_access === "members_only"
-              ? "Only full members can browse this collective's data."
-              : "Only contributors and members can browse this collective's data."}
-          </p>
-          {!isMember && user && group.acceptance_mode === "open" && (
-            // size="sm" -- every other action button on this surface (<Manage>'s join/leave/
-            // contribute/settings, RailShell's invite) is the fairtrade small (28px) button; this
-            // one uses the same small size so adjacent actions remain consistent.
-            <Button
-              variant="primary"
-              size="sm"
-              className="mt-1"
-              loading={joinGroup.isPending}
-              disabled={joinGroup.isPending}
-              onClick={handleJoinClick}
-            >
-              {joinGroup.isPending ? "Joining…" : "Join as Contributor"}
-            </Button>
-          )}
-        </div>
-      )}
-
-      {/* Pending shares — ModerationQueue for curated collectives.
-          overflow/maxWidth wrapper matches sections-react/70-governance.jsx's own specimen (932e). */}
-      {isOwner &&
-        group.acceptance_mode === "curated" &&
-        pendingSharesList.length > 0 && (
-          <div className="flex flex-col gap-2">
-            {/* Deciding one submission at a time is what this block does. The
-                review page reads the SAME queue with the contribute page's
-                tree and transcript preview, so a reviewer can read the work
-                and decide a whole selection at once. Both stay: a queue of one
-                should not need a second page. */}
-            <div className="flex justify-end">
-              <Link
-                href={`/groups/${id}/review`}
-                className="text-sm text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-                data-testid="group-review-page-link"
-              >
-                review all {pendingSharesList.length} contribution
-                {pendingSharesList.length !== 1 ? "s" : ""}
-              </Link>
-            </div>
-            <div style={{ overflow: "auto", maxWidth: "100%" }}>
-            {/* The ONE transcript list in this app that does NOT read a started
-                submission under the submission that started it.
-                `ModerationQueue` offers no way to nest a row, and every way of
-                forcing one from here makes the queue worse to work in: the
-                revealed rows truncate their own titles inside the row they hang
-                under, and this row's approve and reject drift away from the
-                title they decide. On a surface where a person makes an
-                irreversible decision per row, that is worse than a flat list.
-                The rows carry `parent_session_id` already, so whoever draws the
-                grouping has what it needs; the review page linked above shows
-                it in a tree that folds natively. See
-                peasant-labs/fairtrade-design-system#75 for the affordance this
-                component is missing. */}
-            <ModerationQueue
-              title="pending review"
-              items={pendingSharesList.map((ps) => ({
-                id: ps.transcript_id,
-                kind: "share" as const,
-                who: ps.title || "Untitled",
-                detail: (
-                  <span className="inline-flex items-center gap-1.5">
-                    by @
-                    {ps.owner_is_discoverable === false && !isOwner
-                      ? "anon"
-                      : ps.owner_username}
-                    {" · "}
-                    <Link
-                      href={`/transcripts/${ps.transcript_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-0.5 text-ink-4 hover:text-ink transition-colors focus-mono"
-                      onClick={(e) => e.stopPropagation()}
-                      title="Preview transcript"
-                    >
-                      preview <ExternalLink size={10} className="inline-block" />
-                    </Link>
-                  </span>
-                ),
-              }))}
-              onApprove={(item: { id: string }) => {
-                reviewShare.mutate({ transcriptId: item.id, status: "approved" });
-              }}
-              onReject={(item: { id: string }) => {
-                reviewShare.mutate({ transcriptId: item.id, status: "rejected" });
-              }}
-            />
-            </div>
-          </div>
-        )}
-
-      {/* Your contributions. The flat contributions are the authority for their
-          own rows; the grouped exits the flat rendering did not draw -- the
-          context containers it has no row for, and each owner row it does not
-          carry -- are mounted below, outside the flat branch, so a partial or
-          empty flat result still reaches the saved helper threads the server
-          grouped. An owner the flat list already draws keeps its group under its
-          own row and is never mounted twice. */}
-      {isMember && user && (mySharesList.length > 0 || hasMyShareGroupedExit) && (
-        <div className="border border-rule bg-surface" data-testid="my-contributions-panel">
-          <div className="flex items-center justify-between gap-2 px-5 py-3 border-b border-rule">
-            <span className="text-sm font-medium text-ink">Your contributions</span>
-            <span className="text-xs font-mono text-ink-3 tabular-nums">
-              {mySharesList.length}
-            </span>
-          </div>
-          {/* A contribution another contribution started is read under the one
-              that started it, behind the same control every other list in this
-              app uses. A contribution whose starter was not offered to this
-              collective keeps its ordinary row. */}
-          {mySharesList.length > 0 && (
-            <div className="divide-y divide-rule">
-              {myShareFold.rootItems.map((s) => (
-                <div key={s.id}>
-                  <MyContributionRow
-                    share={s}
-                    groupID={id}
-                    onUnshare={unshareTranscript.mutate}
-                    unsharing={unshareTranscript.isPending}
-                    helperGroups={myShareHelperGroups.get(s.id)}
-                    onRefreshOrigin={groupedMyShares.refreshOrigin}
-                  />
-                  <MyContributionChildren
-                    parentShareID={s.id}
-                    startedShares={myShareChildren.get(s.id) ?? []}
-                    groupID={id}
-                    onUnshare={unshareTranscript.mutate}
-                    unsharing={unshareTranscript.isPending}
-                    helperGroupsByRowID={myShareHelperGroups}
-                    onRefreshOrigin={groupedMyShares.refreshOrigin}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-          {hasMyShareGroupedExit && (
-            <div
-              className={mySharesList.length > 0 ? "border-t border-rule" : undefined}
-              data-testid="grouped-helper-fallback"
-            >
-              <ScopedUnownedHelperGroups
-                items={myShareGroupedItems}
-                representedOwnerIds={flatMyShareOwnerIds}
-                onRefreshOrigin={groupedMyShares.refreshOrigin}
-              />
-              <ScopedGroupedContinuation
-                remaining={groupedMyShares.remainingItems}
-                busy={groupedMyShares.isFetchingNextPage}
-                onLoadMore={() => void groupedMyShares.fetchNextPage()}
-              />
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  const headerActions = [
+    canJoin ? (
+      <button
+        key="join"
+        type="button"
+        className="btn btn-primary btn-sm"
+        disabled={joinGroup.isPending}
+        aria-busy={joinGroup.isPending || undefined}
+        onClick={handleJoin}
+      >
+        <UserPlus size={14} aria-hidden="true" /> {joinGroup.isPending ? "joining" : "join"}
+      </button>
+    ) : null,
+    needsInstall ? (
+      <button
+        key="connect"
+        type="button"
+        className="btn btn-secondary btn-sm"
+        onClick={() => window.location.assign(githubInstallURL(id))}
+      >
+        <Github size={14} aria-hidden="true" /> connect github
+      </button>
+    ) : null,
+    canLeave ? (
+      <button key="leave" type="button" className="btn btn-ghost btn-sm" onClick={() => setConfirmingLeave(true)}>
+        <LogOut size={14} aria-hidden="true" /> leave
+      </button>
+    ) : null,
+  ].filter(Boolean);
 
   return (
-    <div className="cmg-root max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-
-      {/* Manage owns the single "village > collectives > name" breadcrumb.
-
-          An OWNER can contribute their own transcripts, but the shared manage
-          surface renders its contribute action only for a member or a
-          contributor, and exposes no header action slot -- so an owner had no
-          way to reach this collective's contribute route. Village renders the
-          same action itself, ONLY for an owner, so a member never sees two
-          contribute buttons. It is deliberately the same control the manage
-          surface renders for a member: fairtrade's primary small button, the
-          same glyph the shipped surface uses at the same size, the same
-          lowercase label. It is
-          placed in the header band beside the breadcrumb (static above it on a
-          small viewport, where an overlay could collide with a wrapped
-          breadcrumb). Rendering it INSIDE the manage header row is a fairtrade
-          change (a header action slot), not a village one. */}
-      <div className="relative">
-        {isOwner && (
-          <div className="flex items-center justify-end pb-4 sm:pb-0 sm:absolute sm:right-0 sm:top-0">
-            <Button
-              variant="primary"
-              size="sm"
-              icon={ShieldAlert}
-              onClick={() => router.push(`/groups/${id}/contribute`)}
-            >
-              contribute
-            </Button>
+    <div className="cmg-root max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-4 animate-fade-up">
+      {/* The view names no join, leave or connect action, so the page draws
+          them on the breadcrumb's line, above the view's own settings and more
+          actions: static above it on a small screen, beside it from md up. The
+          box is the view's own content column (fairtrade's .iu-page: 1184px
+          wide, 24px above and 16px beside its content), so an action lines up
+          with the breadcrumb it sits beside. */}
+      <div className="relative mx-auto w-full max-w-[1184px]">
+        {headerActions.length > 0 && (
+          <div
+            className="flex flex-wrap items-center justify-end gap-2 pt-3 md:absolute md:right-[var(--sp-4)] md:top-[calc(var(--sp-5)-4px)] md:z-[1] md:pt-0"
+            data-testid="collective-header-actions"
+          >
+            {headerActions}
           </div>
         )}
-        <Manage
-          data={manageData}
+        {notice && (
+          <div className="px-[var(--sp-4)] pt-[var(--sp-5)]" data-testid="collective-notice">
+            <Toast variant={notice.ok ? "ok" : "err"} title={notice.title} onClose={() => setNotice(null)}>
+              {notice.detail}
+            </Toast>
+          </div>
+        )}
+        <CollectiveDetailView
+          data={{
+            collective: {
+              id: group.id,
+              name: group.name,
+              purpose: group.description,
+              role,
+              whoCanRead: whoCanReadText(policy),
+              whoCanPublish: whoCanPublishText(policy),
+              yourRole: yourRoleText(policy),
+              stats: collectiveStats(stats, members.length),
+              transcriptCount: total,
+              transcripts: rows,
+              org: orgSummary(linkedOrg, repositories.data ? linked.length : undefined, available.data ? offered.length : undefined),
+              memberBreakdown: membersVisible ? memberBreakdown(members) : "the owner keeps the member list private.",
+              members: membersVisible ? members.map((m) => ({ handle: `@${m.github_username}`, name: m.display_name ?? undefined, role: m.role })) : [],
+              memberCount: membersVisible ? members.length : undefined,
+            },
+            owners,
+            linkedRepos: linkedRepoIds(linked, owners),
+            hrefFor,
+          }}
           actions={{
-            onJoin: user ? handleJoinClick : undefined,
-            onLeave: canLeave ? () => setConfirmingLeave(true) : undefined,
-            // Owners get their own contribute button above (rendered
-            // unconditionally by village, not gated on Manage's internal
-            // role check), so this callback is withheld for owners here at
-            // the village boundary. That keeps the no-double-button
-            // guarantee village's own responsibility instead of depending
-            // on Manage never rendering a contribute action for an owner.
-            onContribute: isMember && !isOwner ? () => router.push(`/groups/${id}/contribute`) : undefined,
             onSettings: isOwner ? () => router.push(`/groups/${id}/settings`) : undefined,
+            onContribute: isMember ? () => router.push(`/groups/${id}/contribute`) : undefined,
+            onReview: isOwner && group.acceptance_mode === "curated" ? () => router.push(`/groups/${id}/review`) : undefined,
+            onOpenTranscript: (transcriptId: string) => router.push(`/transcripts/${transcriptId}`),
+            onOpenPullRequest: (label: string) => {
+              const href = cells.hrefs.get(label);
+              if (href) router.push(href);
+            },
+            onLinkRepos: canManageRepos ? (diff) => void handleLinkRepos(diff) : undefined,
+            onShowMore: canRead && total > rows.length ? () => setShown((count) => count + PAGE_SIZE) : undefined,
           }}
         />
       </div>
 
-      {/* Main layout — RailShell: main canvas + sticky right rail. NOT a duplicate of <Manage>
-          above -- <Manage> only covers the governance summary (hero/GovTile/StatGrid, now
-          removed here since <Manage> renders it); this RailShell carries content <Manage> has no
-          equivalent for: the real data browser (list/repos toggle, contributor filter, bulk
-          remove, pagination), CollectiveAnalytics, CollectiveRepos, LinkedRepositories, pending
-          MEMBER join requests (distinct from <Manage>'s pending transcript-review queue), the
-          contributors list, and the About/created-date section. */}
-      <RailShell
-        sheetTitle="details"
-        rail={railContent}
-      >
-        {canvasContent}
-      </RailShell>
-
-      {/* Dialogs */}
       {user && canLeave && (
         <LeaveCollectiveDialog
           open={confirmingLeave}
           onClose={() => setConfirmingLeave(false)}
           onConfirm={(retract) =>
             removeMember.mutate(
-              { groupId: id, userId: currentUserId ?? "", retract },
-              { onSuccess: () => setConfirmingLeave(false) }
+              { groupId: id, userId: user.id, retract },
+              {
+                onSuccess: () => setConfirmingLeave(false),
+                onError: (error) => {
+                  setConfirmingLeave(false);
+                  setNotice({ ok: false, title: "could not leave", detail: error.message });
+                },
+              },
             )
           }
           collectiveName={group.name}
@@ -1268,7 +311,13 @@ export default function GroupDetailPage({
         open={showJoinConsent}
         onClose={() => setShowJoinConsent(false)}
         onConfirm={() =>
-          joinGroup.mutate(id, { onSuccess: () => setShowJoinConsent(false) })
+          joinGroup.mutate(id, {
+            onSuccess: () => setShowJoinConsent(false),
+            onError: (error) => {
+              setShowJoinConsent(false);
+              setNotice({ ok: false, title: "could not join", detail: error.message });
+            },
+          })
         }
         collectiveName={group.name}
         isSubmitting={joinGroup.isPending}

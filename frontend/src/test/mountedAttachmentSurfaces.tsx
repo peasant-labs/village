@@ -2,20 +2,17 @@ import { Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
-import { AuthProvider } from "@/providers/AuthProvider";
 import PullRequestPage from "@/app/pulls/[owner]/[name]/[number]/page";
-import GroupSettingsPage from "@/app/groups/[id]/settings/page";
 import type { PromptDigest, VillagePullRequestAttachmentResponse } from "@peasant-labs/schema";
 
 /**
- * Mount support for the real routes this change touches: the pull request page
- * and the collective settings page, with REST stubbed at `fetch` and every
- * outbound request recorded so a test asserts the route a control hit rather
- * than inspecting a mutation object.
+ * Mount support for the real pull request page, with REST stubbed at `fetch`
+ * and every outbound request recorded so a test asserts the route a control
+ * hit rather than inspecting a mutation object.
  *
  * The pull request page reads everything it needs from its own payload, so it
- * mounts without an auth provider; the settings surface reads the caller, so it
- * mounts inside the provider the app mounts it in.
+ * mounts without an auth provider. The collective settings page mounts through
+ * `src/test/mountedCollectivePages.tsx`.
  */
 
 /** One recorded outbound request. */
@@ -38,19 +35,6 @@ function QueryOnly({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={client}>
       <Suspense fallback={<div>loading</div>}>{children}</Suspense>
-    </QueryClientProvider>
-  );
-}
-
-function WithAuth({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return (
-    <QueryClientProvider client={client}>
-      <AuthProvider>
-        <Suspense fallback={<div>loading</div>}>{children}</Suspense>
-      </AuthProvider>
     </QueryClientProvider>
   );
 }
@@ -169,97 +153,6 @@ export async function renderPullRequestRoute(owner: string, name: string, number
       <QueryOnly>
         <PullRequestPage params={Promise.resolve({ owner, name, number: String(number) })} />
       </QueryOnly>,
-    );
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Collective settings
-// ---------------------------------------------------------------------------
-
-export interface GroupSettingsFixture {
-  id: string;
-  ownerUsername: string;
-  postPromptsCheck: boolean;
-  promptsCheckMode: "informational" | "required";
-  // The org the collective already records, as the install handshake leaves it.
-  linkedGithubOrg?: string | null;
-}
-
-export function installGroupSettingsREST(fixture: GroupSettingsFixture): RecordedRequest[] {
-  const requests: RecordedRequest[] = [];
-  const user = {
-    id: "22222222-2222-2222-2222-222222222222",
-    github_username: fixture.ownerUsername,
-    display_name: fixture.ownerUsername,
-    avatar_url: "",
-    is_discoverable: true,
-    created_at: "2026-01-01T00:00:00Z",
-  };
-  const group = {
-    id: fixture.id,
-    name: "fixture-collective",
-    description: "",
-    acceptance_mode: "open",
-    data_access: "members_only",
-    linked_github_org: fixture.linkedGithubOrg ?? null,
-    display_members: true,
-    transcript_deletion_policy: "user_choice",
-    post_prompts_check: fixture.postPromptsCheck,
-    prompts_check_mode: fixture.promptsCheckMode,
-  };
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
-    const method = (init?.method ?? "GET").toUpperCase();
-    let body: unknown = null;
-    if (typeof init?.body === "string") {
-      try {
-        body = JSON.parse(init.body);
-      } catch {
-        body = init.body;
-      }
-    }
-    requests.push({ method, url, body });
-
-    if (url.endsWith("/auth/me")) {
-      return json(user);
-    }
-    if (url.includes("/orgs")) {
-      return json([]);
-    }
-    if (method === "PATCH" && /\/groups\/[^/]+$/.test(url)) {
-      return json({ ...group, ...(body as object) });
-    }
-    if (url.includes("/groups/")) {
-      return json({
-        group,
-        members: [],
-        transcripts: [],
-        stats: {
-          contributor_count: 1,
-          total_duration_ms: 0,
-          total_tokens: 0,
-          total_transcripts: 0,
-          total_turns: 0,
-        },
-        models: [],
-        contributors: [],
-        can_read: true,
-        your_role: "owner",
-      });
-    }
-    throw new Error(`group settings fixture received an unexpected ${method} request to ${url}`);
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return requests;
-}
-
-export async function renderGroupSettingsRoute(id: string): Promise<void> {
-  await act(async () => {
-    render(
-      <WithAuth>
-        <GroupSettingsPage params={Promise.resolve({ id })} />
-      </WithAuth>,
     );
   });
 }
