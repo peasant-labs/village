@@ -47,13 +47,16 @@ import (
 const pullRequestSummaryRecentLimit = 3
 
 // pullRequestCandidate is one (transcript, attachment) binding with the facts
-// the visibility rule needs: the repository link the attachment's collective
-// holds now, and whether the viewer is a member of that collective. The
-// attachment carries the columns the candidate reads select, which excludes the
-// stored digest: nothing built from a candidate serves prompt text.
+// the visibility rule needs: the pull request, its state and author, the
+// repository link the attachment's collective holds now, and whether the viewer
+// is a member of that collective.
 type pullRequestCandidate struct {
 	transcriptID   pgtype.UUID
-	attachment     sqlc.PullRequestAttachment
+	owner          string
+	name           string
+	number         int
+	state          string
+	authorID       pgtype.UUID
 	installationID int64
 	isPrivate      bool
 	viewerIsMember bool
@@ -64,16 +67,9 @@ type pullRequestCandidate struct {
 // so the three statements cannot drift apart without this failing to compile.
 func candidateOf(row sqlc.ListPullRequestCandidatesByTranscriptsRow) pullRequestCandidate {
 	return pullRequestCandidate{
-		transcriptID: row.TranscriptID,
-		attachment: sqlc.PullRequestAttachment{
-			ID: row.ID, RepoOwner: row.RepoOwner, RepoName: row.RepoName, Number: row.Number,
-			HeadSha: row.HeadSha, State: row.State, AuthorID: row.AuthorID,
-			RequesterGithubID: row.RequesterGithubID, CommentID: row.CommentID, CheckRunID: row.CheckRunID,
-			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, AttachedAt: row.AttachedAt, DetachedAt: row.DetachedAt,
-		},
-		installationID: row.InstallationID,
-		isPrivate:      row.IsPrivate,
-		viewerIsMember: row.ViewerIsMember,
+		transcriptID: row.TranscriptID, owner: row.RepoOwner, name: row.RepoName, number: int(row.Number),
+		state: row.State, authorID: row.AuthorID, installationID: row.InstallationID,
+		isPrivate: row.IsPrivate, viewerIsMember: row.ViewerIsMember,
 	}
 }
 
@@ -104,16 +100,16 @@ func candidatesFromGroupRows(rows []sqlc.ListAttachedPullRequestCandidatesByGrou
 // pullRequestKey names one pull request case-insensitively on the repository,
 // the way the attachment routes address it, so the same pull request is listed
 // and counted once.
-func pullRequestKey(attachment sqlc.PullRequestAttachment) string {
-	return pullRequestKeyOf(attachment.RepoOwner, attachment.RepoName, int(attachment.Number))
+func pullRequestKey(c pullRequestCandidate) string {
+	return pullRequestKeyOf(c.owner, c.name, c.number)
 }
 
 func pullRequestKeyOf(owner, name string, number int) string {
 	return strings.ToLower(owner) + "/" + strings.ToLower(name) + "#" + strconv.Itoa(number)
 }
 
-func pullRequestRefOf(attachment sqlc.PullRequestAttachment) schema.VillagePullRequestRef {
-	return schema.VillagePullRequestRef{Owner: attachment.RepoOwner, Name: attachment.RepoName, Number: int(attachment.Number)}
+func pullRequestRefOf(c pullRequestCandidate) schema.VillagePullRequestRef {
+	return schema.VillagePullRequestRef{Owner: c.owner, Name: c.name, Number: c.number}
 }
 
 func emptyPullRequestsSummary() schema.VillagePullRequestsSummary {
@@ -138,7 +134,7 @@ func pullRequestReadable(viewer pgtype.UUID, c pullRequestCandidate) bool {
 	if !viewer.Valid {
 		return false
 	}
-	return viewer == c.attachment.AuthorID || c.viewerIsMember
+	return viewer == c.authorID || c.viewerIsMember
 }
 
 // readablePullRequests returns the candidates the viewer may read, each pull
@@ -147,7 +143,7 @@ func readablePullRequests(viewer pgtype.UUID, candidates []pullRequestCandidate)
 	out := make([]pullRequestCandidate, 0, len(candidates))
 	seen := map[pgtype.UUID]map[string]bool{}
 	for _, c := range candidates {
-		key := pullRequestKey(c.attachment)
+		key := pullRequestKey(c)
 		if seen[c.transcriptID][key] || !pullRequestReadable(viewer, c) {
 			continue
 		}
@@ -165,7 +161,7 @@ func readablePullRequests(viewer pgtype.UUID, candidates []pullRequestCandidate)
 func countReadablePullRequests(viewer pgtype.UUID, candidates []pullRequestCandidate) int32 {
 	counted := map[string]bool{}
 	for _, c := range readablePullRequests(viewer, candidates) {
-		counted[pullRequestKey(c.attachment)] = true
+		counted[pullRequestKey(c)] = true
 	}
 	return int32(len(counted))
 }
@@ -196,7 +192,7 @@ func (h *Handler) pullRequestSummaries(ctx context.Context, viewer *AuthUser, tr
 		}
 		summary.Count++
 		if len(summary.Recent) < pullRequestSummaryRecentLimit {
-			summary.Recent = append(summary.Recent, pullRequestRefOf(c.attachment))
+			summary.Recent = append(summary.Recent, pullRequestRefOf(c))
 		}
 		summaries[c.transcriptID] = summary
 	}
@@ -261,8 +257,10 @@ func (h *Handler) fillCollectivePullRequestSummaries(ctx context.Context, items 
 // GET /api/v1/transcripts/{id}/pulls (AuthOptional)
 //
 // The pull requests whose attachment includes this transcript, attached or
-// detached, that the caller may read, newest first, each with its title and
-// head branch. A caller who may not read the transcript gets 404, never 403.
+// detached, that the caller may read, newest first. Each row names the pull
+// request, its title and head branch, and whether it is attached - nothing of
+// the attachment's own bookkeeping. A caller who may not read the transcript
+// gets 404, never 403.
 func (h *Handler) ListTranscriptPullRequests(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -295,15 +293,13 @@ func (h *Handler) ListTranscriptPullRequests(w http.ResponseWriter, r *http.Requ
 	readable := readablePullRequests(viewerPgID(user), candidatesFromTranscriptRows(rows))
 	details := h.pullRequestDetailsFor(r.Context(), readable)
 
-	response := schema.VillageTranscriptPullRequestsResponse{PullRequests: make([]schema.VillagePullRequestAttachment, 0, len(readable))}
+	response := schema.VillageTranscriptPullRequestsResponse{PullRequests: make([]schema.VillageTranscriptPullRequest, 0, len(readable))}
 	for i, c := range readable {
-		mapped, err := mapVillageAttachment(c.attachment, c.isPrivate)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Could not read this transcript's pull requests; retry the request")
-			return
-		}
-		mapped.Title, mapped.HeadRef = details[i].title, details[i].headRef
-		response.PullRequests = append(response.PullRequests, mapped)
+		response.PullRequests = append(response.PullRequests, schema.VillageTranscriptPullRequest{
+			Owner: c.owner, Name: c.name, Number: c.number,
+			Title: details[i].title, HeadRef: details[i].headRef,
+			State: schema.VillagePullRequestAttachmentState(c.state),
+		})
 	}
 	if err := response.Validate(); err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not read this transcript's pull requests; retry the request")

@@ -54,7 +54,7 @@ func (h *Handler) pullRequestDetailsFor(ctx context.Context, candidates []pullRe
 		go func(i int, c pullRequestCandidate) {
 			defer wg.Done()
 			defer func() { <-slots }()
-			details[i] = h.pullRequestDetail(ctx, c.installationID, c.attachment.RepoOwner, c.attachment.RepoName, int(c.attachment.Number))
+			details[i] = h.pullRequestDetail(ctx, c.installationID, c.owner, c.name, c.number)
 		}(i, c)
 	}
 	wg.Wait()

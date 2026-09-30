@@ -76,58 +76,58 @@ cases:
     transcript: open-session
     status: 200
     expect:
-      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
-      - {ref: acme/app#18, state: detached, private: true, title: Retry the flaky upload, head_ref: fix/upload-retry}
-      - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
-      - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
-      - {ref: acme/app#11, state: attached, private: true, title: Tighten the ingest retry, head_ref: fix/ingest-retry}
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/app#18, state: detached, title: Retry the flaky upload, head_ref: fix/upload-retry}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
+      - {ref: acme/app#11, state: attached, title: Tighten the ingest retry, head_ref: fix/ingest-retry}
 
   - name: collective-member-sees-private-repository-pull-requests
     viewer: member
     transcript: open-session
     status: 200
     expect:
-      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
-      - {ref: acme/app#18, state: detached, private: true, title: Retry the flaky upload, head_ref: fix/upload-retry}
-      - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
-      - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
-      - {ref: acme/app#11, state: attached, private: true, title: Tighten the ingest retry, head_ref: fix/ingest-retry}
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/app#18, state: detached, title: Retry the flaky upload, head_ref: fix/upload-retry}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
+      - {ref: acme/app#11, state: attached, title: Tighten the ingest retry, head_ref: fix/ingest-retry}
 
   - name: anonymous-reader-sees-public-repository-pull-requests
     viewer: ""
     transcript: open-session
     status: 200
     expect:
-      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
-      - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
-      - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
 
   - name: signed-in-stranger-sees-public-repository-pull-requests
     viewer: stranger
     transcript: open-session
     status: 200
     expect:
-      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
-      - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
-      - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
 
   - name: pending-join-request-is-not-membership
     viewer: pending
     transcript: open-session
     status: 200
     expect:
-      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
-      - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
-      - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
 
   - name: repository-reader-outside-the-collective-sees-public-repository-pull-requests
     viewer: reader
     transcript: open-session
     status: 200
     expect:
-      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
-      - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
-      - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
 
   - name: titles-are-unknown-when-github-cannot-describe-them
     viewer: author
@@ -135,25 +135,25 @@ cases:
     github_fails: [pulls]
     status: 200
     expect:
-      - {ref: acme/site#19, state: detached, private: false, title: null, head_ref: null}
-      - {ref: acme/app#18, state: detached, private: true, title: null, head_ref: null}
-      - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
-      - {ref: acme/site#12, state: attached, private: false, title: null, head_ref: null}
-      - {ref: acme/app#11, state: attached, private: true, title: null, head_ref: null}
+      - {ref: acme/site#19, state: detached, title: null, head_ref: null}
+      - {ref: acme/app#18, state: detached, title: null, head_ref: null}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: null, head_ref: null}
+      - {ref: acme/app#11, state: attached, title: null, head_ref: null}
 
   - name: member-reads-a-transcript-shared-with-the-team
     viewer: member
     transcript: team-session
     status: 200
     expect:
-      - {ref: acme/app#21, state: attached, private: true, title: Share the team dashboard, head_ref: feat/team-dashboard}
+      - {ref: acme/app#21, state: attached, title: Share the team dashboard, head_ref: feat/team-dashboard}
 
   - name: owner-reads-a-private-transcript
     viewer: author
     transcript: private-session
     status: 200
     expect:
-      - {ref: acme/site#31, state: attached, private: false, title: Keep drafts private, head_ref: fix/private-drafts}
+      - {ref: acme/site#31, state: attached, title: Keep drafts private, head_ref: fix/private-drafts}
 
   - name: non-reader-of-a-private-transcript-gets-404
     viewer: stranger

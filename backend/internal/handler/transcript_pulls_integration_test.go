@@ -51,7 +51,6 @@ type transcriptPullCase struct {
 type transcriptPullExpected struct {
 	Ref     string  `yaml:"ref"`
 	State   string  `yaml:"state"`
-	Private bool    `yaml:"private"`
 	Title   *string `yaml:"title"`
 	HeadRef *string `yaml:"head_ref"`
 }
@@ -133,9 +132,9 @@ func TestTranscriptPullRequests_RealPostgres(t *testing.T) {
 			for i, want := range c.Expect {
 				row := got.PullRequests[i]
 				ref := fmt.Sprintf("%s/%s#%d", row.Owner, row.Name, row.Number)
-				if ref != want.Ref || string(row.State) != want.State || row.IsPrivateRepository != want.Private {
-					t.Fatalf("row %d = %s %s private=%v, want %s %s private=%v (all rows: %s)", i, ref, row.State,
-						row.IsPrivateRepository, want.Ref, want.State, want.Private, describePullRows(got.PullRequests))
+				if ref != want.Ref || string(row.State) != want.State {
+					t.Fatalf("row %d = %s %s, want %s %s (all rows: %s)", i, ref, row.State,
+						want.Ref, want.State, describePullRows(got.PullRequests))
 				}
 				if !equalOptionalString(row.Title, want.Title) || !equalOptionalString(row.HeadRef, want.HeadRef) {
 					t.Fatalf("row %d (%s) title/head_ref = %s/%s, want %s/%s", i, ref,
@@ -146,7 +145,7 @@ func TestTranscriptPullRequests_RealPostgres(t *testing.T) {
 	}
 }
 
-func describePullRows(rows []schema.VillagePullRequestAttachment) string {
+func describePullRows(rows []schema.VillageTranscriptPullRequest) string {
 	out := "["
 	for i, row := range rows {
 		if i > 0 {
