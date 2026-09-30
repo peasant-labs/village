@@ -213,8 +213,8 @@ type ListCollectiveSharedRemotesRow struct {
 // The git remotes of the transcripts already shared with one collective (an
 // approved share, not a submission awaiting review), with each transcript's
 // owner, for the repository picker's publisher count. A remote is reduced to its
-// repository in Go by schema.RemoteLabel, the one shared rule for reading a
-// remote, so no SQL here parses one.
+// repository in Go by schema.RemoteLabel, the contract's rule for naming a
+// remote's repository (githubRepositoryKey), so no SQL here parses one.
 func (q *Queries) ListCollectiveSharedRemotes(ctx context.Context, groupID pgtype.UUID) ([]ListCollectiveSharedRemotesRow, error) {
 	rows, err := q.db.Query(ctx, listCollectiveSharedRemotes, groupID)
 	if err != nil {

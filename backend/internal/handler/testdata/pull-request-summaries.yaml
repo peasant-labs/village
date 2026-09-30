@@ -1,6 +1,7 @@
 # The pull_requests summary on list rows and the collective's
-# stats.pull_request_count, against real PostgreSQL, on every surface that
-# serves them:
+# stats.pull_request_count, against real PostgreSQL, on the three surfaces a
+# page of them is read from (the helper-member expansion, which fills its page
+# the same way, is asserted in collective_grouped_integration_test.go):
 #
 #   list                GET /api/v1/transcripts?owner=<author>   (flat rows)
 #   collective          GET /api/v1/groups/{id}                  (flat rows and stats)
@@ -24,8 +25,9 @@
 # what a stranger sees.
 #
 # A case lists every row its surface returns, by transcript name, so a row that
-# appears or vanishes fails the case. `stats` is required on the collective
-# surfaces and absent on the list. `collective` defaults to team.
+# appears or vanishes fails the case. `stats` and `can_read` are required on the
+# collective surfaces and absent on the list: a page tells a withheld count from
+# an empty one by `can_read`. `collective` defaults to team.
 world:
   people: [author, member, pending, reader, stranger]
   collectives:
@@ -110,6 +112,7 @@ cases:
     viewer: member
     surface: collective
     stats: 5
+    can_read: true
     rows:
       busy: {count: 4, recent: [acme/site#4, acme/site#3, acme/site#2]}
       quiet: {count: 0, recent: []}
@@ -119,6 +122,7 @@ cases:
     viewer: stranger
     surface: collective
     stats: 3
+    can_read: true
     rows:
       busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
       quiet: {count: 0, recent: []}
@@ -128,6 +132,7 @@ cases:
     viewer: pending
     surface: collective
     stats: 3
+    can_read: true
     rows:
       busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
       quiet: {count: 0, recent: []}
@@ -137,6 +142,7 @@ cases:
     viewer: member
     surface: collective_grouped
     stats: 5
+    can_read: true
     rows:
       busy: {count: 4, recent: [acme/site#4, acme/site#3, acme/site#2]}
       quiet: {count: 0, recent: []}
@@ -146,6 +152,7 @@ cases:
     viewer: ""
     surface: collective_grouped
     stats: 3
+    can_read: true
     rows:
       busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
       quiet: {count: 0, recent: []}
@@ -155,6 +162,7 @@ cases:
     viewer: pending
     surface: collective_grouped
     stats: 3
+    can_read: true
     rows:
       busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
       quiet: {count: 0, recent: []}
@@ -165,6 +173,7 @@ cases:
     surface: collective
     collective: closed
     stats: 1
+    can_read: true
     rows:
       closed-session: {count: 1, recent: [acme/site#12]}
 
@@ -173,6 +182,7 @@ cases:
     surface: collective
     collective: closed
     stats: 0
+    can_read: false
     rows: {}
 
   - name: a-stranger-to-a-members-only-collective-is-counted-nothing-in-the-grouped-read
@@ -180,4 +190,5 @@ cases:
     surface: collective_grouped
     collective: closed
     stats: 0
+    can_read: false
     rows: {}

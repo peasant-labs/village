@@ -89,8 +89,11 @@ type Handler struct {
 
 	// pullDetails remembers for a short time the title and head branch GitHub
 	// reported for a pull request, so a page viewed again does not ask again.
-	// In-process and zero-value usable, like the two above.
-	pullDetails pullRequestDetailCache
+	// In-process and zero-value usable, like the two above. pullDetailDeadline
+	// bounds each read and each response's wait; zero means the shipped
+	// pullRequestDetailDeadline, and only a test sets a shorter one.
+	pullDetails        pullRequestDetailCache
+	pullDetailDeadline time.Duration
 
 	// githubDispatcher is the handling point for each subscribed webhook event
 	// type. Production uses noopGitHubDispatcher until the matching, digest, and

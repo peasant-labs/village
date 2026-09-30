@@ -13,13 +13,15 @@ import (
 // GitHub serves both as null, which the contract defines as "Village does not
 // know them", rather than failing the page.
 //
-// Three things keep that read cheap and bounded, whoever is asking. A
-// short-lived, bounded, in-process cache answers repeat views of the same pull
-// request without asking again - a refusal or failure too, for a shorter time,
-// so a pull request GitHub will not describe costs at most one read per
-// failure window however often it is viewed. A list asks for several pull
-// requests at once rather than one after another. And every read shares one
-// deadline, so a slow GitHub costs a page a few seconds, then unknown titles.
+// Four things keep that read cheap and bounded, whoever is asking and however
+// often. Views of the same pull request that arrive while it is being read share
+// that one read. Every outcome is remembered in a short-lived, bounded,
+// in-process cache - an answer for two minutes; a refusal, a failure, or a read
+// that ran out of time as unknown for thirty seconds - so one pull request costs
+// at most one GitHub read per window however many callers ask. A read never
+// runs longer than its deadline, and a response never waits on GitHub longer
+// than that either: what is not answered by then is served as unknown. And a
+// list asks for a few pull requests at once rather than one after another.
 
 // pullRequestDetail is what an attachment row shows beside its number.
 type pullRequestDetail struct {
@@ -31,10 +33,19 @@ const (
 	// pullRequestDetailFetchers bounds how many pull requests one list reads from
 	// GitHub at the same time.
 	pullRequestDetailFetchers = 4
-	// pullRequestDetailDeadline bounds how long one response waits on GitHub for
-	// every title it serves; what is not answered by then is served as unknown.
+	// pullRequestDetailDeadline bounds one GitHub read, and how long one response
+	// waits for the titles it serves.
 	pullRequestDetailDeadline = 4 * time.Second
 )
+
+// detailDeadline is the deadline in force: the handler's own when a test set a
+// shorter one, the shipped one otherwise.
+func (h *Handler) detailDeadline() time.Duration {
+	if h.pullDetailDeadline > 0 {
+		return h.pullDetailDeadline
+	}
+	return pullRequestDetailDeadline
+}
 
 // pullRequestDetailsFor reads the title and head branch of each candidate's
 // pull request, in the candidates' order. A pull request GitHub could not
@@ -44,7 +55,7 @@ func (h *Handler) pullRequestDetailsFor(ctx context.Context, candidates []pullRe
 	if h.gh == nil {
 		return details
 	}
-	ctx, cancel := context.WithTimeout(ctx, pullRequestDetailDeadline)
+	ctx, cancel := context.WithTimeout(ctx, h.detailDeadline())
 	defer cancel()
 	slots := make(chan struct{}, pullRequestDetailFetchers)
 	var wg sync.WaitGroup
@@ -61,43 +72,60 @@ func (h *Handler) pullRequestDetailsFor(ctx context.Context, candidates []pullRe
 	return details
 }
 
-// pullRequestDetail reads one pull request's title and head branch, from the
-// cache when it holds a recent answer, within the response's deadline.
+// pullRequestDetail answers one pull request's title and head branch: from the
+// cache, from a read already in flight, or from a read it starts. The caller
+// waits no longer than its own context allows; the read itself runs to its own
+// deadline regardless, so its outcome is remembered for the next caller even
+// when this one has stopped waiting.
 func (h *Handler) pullRequestDetail(ctx context.Context, installationID int64, owner, name string, number int) pullRequestDetail {
 	if h.gh == nil {
 		return pullRequestDetail{}
 	}
 	key := pullRequestKeyOf(owner, name, number)
-	now := time.Now()
-	if cached, ok := h.pullDetails.lookup(key, now); ok {
-		return cached.detail()
+	remembered, read, start := h.pullDetails.claim(key, time.Now())
+	if read == nil {
+		return remembered.detail()
 	}
-	ctx, cancel := context.WithTimeout(ctx, pullRequestDetailDeadline)
-	defer cancel()
-	pr, err := h.gh.GetPullRequest(ctx, installationID, owner, name, number)
-	if err != nil || pr == nil {
-		// GitHub's own refusal or failure is remembered as unknown, briefly, so
-		// a pull request it will not describe is not asked about on every view.
-		// Running out of this response's time is not GitHub's answer, so it is
-		// not remembered.
-		if ctx.Err() == nil {
-			h.pullDetails.store(key, pullRequestDetailEntry{}, now, pullRequestDetailFailureTTL)
-		}
+	if start {
+		readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), h.detailDeadline())
+		go func() {
+			defer cancel()
+			pr, err := h.gh.GetPullRequest(readCtx, installationID, owner, name, number)
+			if err != nil || pr == nil {
+				// A refusal, a failure, and a read that ran out of time are all
+				// remembered as unknown, briefly, so a pull request GitHub will not
+				// or cannot describe is not asked about on every view.
+				h.pullDetails.settle(key, read, pullRequestDetailEntry{}, time.Now(), pullRequestDetailFailureTTL)
+				return
+			}
+			h.pullDetails.settle(key, read, pullRequestDetailEntry{title: pr.Title, headRef: pr.HeadRef}, time.Now(), pullRequestDetailTTL)
+		}()
+	}
+	select {
+	case <-read.done:
+		return read.entry.detail()
+	case <-ctx.Done():
 		return pullRequestDetail{}
 	}
-	entry := pullRequestDetailEntry{title: pr.Title, headRef: pr.HeadRef}
-	h.pullDetails.store(key, entry, now, pullRequestDetailTTL)
-	return entry.detail()
 }
 
 // pullRequestDetailCache remembers, briefly and in this process alone, the
 // title and head branch GitHub last reported for a pull request. It stores
-// nothing durable and decides nothing: a miss costs one GitHub read.
+// nothing durable and decides nothing: a miss costs one GitHub read, shared by
+// every caller that asks for the same pull request while it runs.
 //
 // The zero value is ready to use and the table is bounded.
 type pullRequestDetailCache struct {
-	mu      sync.Mutex
-	entries map[string]pullRequestDetailEntry
+	mu       sync.Mutex
+	entries  map[string]pullRequestDetailEntry
+	inflight map[string]*pullRequestDetailRead
+}
+
+// pullRequestDetailRead is one GitHub read in flight. Every caller that asks for
+// the same pull request meanwhile waits on it instead of reading again.
+type pullRequestDetailRead struct {
+	done  chan struct{}
+	entry pullRequestDetailEntry
 }
 
 type pullRequestDetailEntry struct {
@@ -133,19 +161,38 @@ func (e pullRequestDetailEntry) detail() pullRequestDetail {
 	return out
 }
 
-func (c *pullRequestDetailCache) lookup(key string, now time.Time) (pullRequestDetailEntry, bool) {
+// claim answers from the cache when it holds a live entry (read is nil).
+// Otherwise it returns the read in flight for the key, and start reports whether
+// this caller created it and so must perform it.
+func (c *pullRequestDetailCache) claim(key string, now time.Time) (entry pullRequestDetailEntry, read *pullRequestDetailRead, start bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	entry, ok := c.entries[key]
-	if !ok || !now.Before(entry.expires) {
-		return pullRequestDetailEntry{}, false
+	if entry, ok := c.entries[key]; ok && now.Before(entry.expires) {
+		return entry, nil, false
 	}
-	return entry, true
+	if read, ok := c.inflight[key]; ok {
+		return pullRequestDetailEntry{}, read, false
+	}
+	if c.inflight == nil {
+		c.inflight = make(map[string]*pullRequestDetailRead)
+	}
+	read = &pullRequestDetailRead{done: make(chan struct{})}
+	c.inflight[key] = read
+	return pullRequestDetailEntry{}, read, true
 }
 
-func (c *pullRequestDetailCache) store(key string, entry pullRequestDetailEntry, now time.Time, ttl time.Duration) {
+// settle remembers a finished read's outcome for ttl and releases everyone
+// waiting on it.
+func (c *pullRequestDetailCache) settle(key string, read *pullRequestDetailRead, entry pullRequestDetailEntry, now time.Time, ttl time.Duration) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.storeLocked(key, entry, now, ttl)
+	read.entry = entry
+	delete(c.inflight, key)
+	c.mu.Unlock()
+	close(read.done)
+}
+
+func (c *pullRequestDetailCache) storeLocked(key string, entry pullRequestDetailEntry, now time.Time, ttl time.Duration) {
 	if c.entries == nil {
 		c.entries = make(map[string]pullRequestDetailEntry)
 	}

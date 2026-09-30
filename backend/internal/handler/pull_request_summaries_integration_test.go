@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -46,8 +48,10 @@ var requiredPullRequestSummariesCases = []string{
 }
 
 // requiredPullRequestListQueryCases is the name manifest for
-// testdata/pull-request-list-queries.yaml: one case per surface that carries a
-// pull request summary.
+// testdata/pull-request-list-queries.yaml: one case for each of the three
+// surfaces a page of summaries is read from. The helper-member expansion fills
+// its page through the same fillCollectivePullRequestSummaries as the grouped
+// read, and is asserted in collective_grouped_integration_test.go.
 var requiredPullRequestListQueryCases = []string{
 	"the-transcript-list-costs-the-same-for-one-row-and-fifty",
 	"the-flat-collective-read-costs-the-same-for-one-row-and-fifty",
@@ -67,6 +71,7 @@ type pullRequestSummariesFixture struct {
 		Surface    string                                `yaml:"surface"`
 		Collective string                                `yaml:"collective"`
 		Stats      *int32                                `yaml:"stats"`
+		CanRead    *bool                                 `yaml:"can_read"`
 		Rows       map[string]pullRequestSummaryExpected `yaml:"rows"`
 	} `yaml:"cases"`
 }
@@ -88,17 +93,20 @@ type summarySurfaceRead struct {
 	// transcript id; the other surfaces leave them empty.
 	owners map[string]string
 	tags   map[string][]string
+	// canRead is the collective reads' can_read, which is what tells a page a
+	// withheld count from an empty one.
+	canRead *bool
 }
 
 // readSummarySurface drives one surface as the viewer and decodes the rows'
 // summaries from the body the client receives.
-func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes http.Handler, viewer, surface, collective, owner string) summarySurfaceRead {
+func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes http.Handler, viewer, surface, collective, listFilter string) summarySurfaceRead {
 	t.Helper()
 	groupID := uuid.UUID(world.collectives[collective].Bytes).String()
 	var target string
 	switch surface {
 	case "list":
-		target = "/api/v1/transcripts?limit=100&owner=" + world.logins[owner]
+		target = "/api/v1/transcripts?limit=100&" + listFilter
 	case "collective":
 		target = "/api/v1/groups/" + groupID + "?limit=100"
 	case "collective_grouped":
@@ -151,6 +159,7 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 	case "collective":
 		var body struct {
 			Stats       schema.VillageGroupTranscriptStats `json:"stats"`
+			CanRead     bool                               `json:"can_read"`
 			Transcripts []struct {
 				ID           string                             `json:"id"`
 				PullRequests *schema.VillagePullRequestsSummary `json:"pull_requests"`
@@ -163,6 +172,7 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 			add(row.ID, row.PullRequests)
 		}
 		read.stats = &body.Stats.PullRequestCount
+		read.canRead = &body.CanRead
 	case "collective_grouped":
 		var body schema.VillageGroupedGroupDetailResponse
 		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
@@ -178,6 +188,7 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 			add(string(item.Transcript.Collective.ID), &item.Transcript.Collective.PullRequests)
 		}
 		read.stats = &body.Stats.PullRequestCount
+		read.canRead = &body.CanRead
 	}
 	return read
 }
@@ -201,8 +212,8 @@ func TestPullRequestSummaries_RealPostgres(t *testing.T) {
 			t.Fatalf("testdata/pull-request-summaries.yaml repeats %q", c.Name)
 		}
 		present[c.Name] = struct{}{}
-		if (c.Surface == "list") != (c.Stats == nil) {
-			t.Fatalf("case %q: stats is required on the collective surfaces and absent on the list", c.Name)
+		if (c.Surface == "list") != (c.Stats == nil) || (c.Surface == "list") != (c.CanRead == nil) {
+			t.Fatalf("case %q: stats and can_read are required on the collective surfaces and absent on the list", c.Name)
 		}
 	}
 	assertExactTitleFixtureNames(t, "pull-request-summaries", present, requiredPullRequestSummariesCases)
@@ -217,7 +228,7 @@ func TestPullRequestSummaries_RealPostgres(t *testing.T) {
 			if collective == "" {
 				collective = "team"
 			}
-			read := readSummarySurface(t, world, h, prWorldRouter(h), c.Viewer, c.Surface, collective, "author")
+			read := readSummarySurface(t, world, h, prWorldRouter(h), c.Viewer, c.Surface, collective, "owner="+world.logins["author"])
 			got := map[string]schema.VillagePullRequestsSummary{}
 			for id, summary := range read.rows {
 				got[world.transcriptName(t, id)] = summary
@@ -242,6 +253,9 @@ func TestPullRequestSummaries_RealPostgres(t *testing.T) {
 				if *read.stats != *c.Stats {
 					t.Fatalf("%s pull_request_count = %d, want %d", c.Surface, *read.stats, *c.Stats)
 				}
+			}
+			if c.CanRead != nil && (read.canRead == nil || *read.canRead != *c.CanRead) {
+				t.Fatalf("%s can_read = %v, want %v: a page tells a withheld count from an empty one by it", c.Surface, read.canRead, *c.CanRead)
 			}
 			if _, asks := world.github.counts(); asks != 0 {
 				t.Fatalf("the summaries asked GitHub %d permission question(s); they never ask what a viewer may read", asks)
@@ -274,14 +288,16 @@ func (c *queryCounter) take() int {
 	return n
 }
 
-// summaryGuardWorld is the page the guard reads: size public transcripts, each
-// shared with a public collective and bound to one attached pull request in a
-// private repository and one in a public repository.
+// summaryGuardWorld is the page the guard reads: size public transcripts by
+// two authors in turn, each shared with a public collective, tagged with the
+// page's tag and a tag of its own, and bound to one attached pull request in a
+// private repository and one in a public repository. The list is read by the
+// page's tag, so one page holds both authors' rows.
 var guardPrivate, guardPublic = true, false
 
 func summaryGuardWorld(size int) prWorld {
 	w := prWorld{
-		People: []string{"author", "member"},
+		People: []string{"author", "second", "member"},
 		Collectives: []prWorldCollective{{
 			Name: "team", CreatedBy: "author", DataAccess: "public", Members: map[string]string{"member": "member"},
 			Repositories: []prWorldRepo{{Repo: "acme/app", Private: &guardPrivate}, {Repo: "acme/site", Private: &guardPublic}},
@@ -289,18 +305,27 @@ func summaryGuardWorld(size int) prWorld {
 	}
 	for i := 1; i <= size; i++ {
 		name := fmt.Sprintf("session-%02d", i)
-		w.Transcripts = append(w.Transcripts, prWorldTranscript{Name: name, Owner: "author", Visibility: dbVisibilityPublic,
-			Shares: map[string]string{"team": "approved"}, Tags: []string{"guard"}})
+		owner := summaryGuardOwner(i)
+		w.Transcripts = append(w.Transcripts, prWorldTranscript{Name: name, Owner: owner, Visibility: dbVisibilityPublic,
+			Shares: map[string]string{"team": "approved"}, Tags: []string{"guard", name}})
 		w.Attachments = append(w.Attachments,
-			prWorldAttachment{Collective: "team", Repo: "acme/app", Number: i, Author: "author", State: "attached", Transcripts: []string{name}},
-			prWorldAttachment{Collective: "team", Repo: "acme/site", Number: 1000 + i, Author: "author", State: "attached", Transcripts: []string{name}})
+			prWorldAttachment{Collective: "team", Repo: "acme/app", Number: i, Author: owner, State: "attached", Transcripts: []string{name}},
+			prWorldAttachment{Collective: "team", Repo: "acme/site", Number: 1000 + i, Author: owner, State: "attached", Transcripts: []string{name}})
 	}
 	return w
 }
 
+// summaryGuardOwner is who publishes the guard's i-th transcript.
+func summaryGuardOwner(i int) string {
+	if i%2 == 0 {
+		return "second"
+	}
+	return "author"
+}
+
 // TestPullRequestSummariesCostTheSameForAnyPageSize is the no-N+1 guard: a page
-// of one row and a page of fifty rows issue the same number of queries on every
-// surface that carries a pull request summary.
+// of one row and a page of fifty rows issue the same number of queries on the
+// flat list and on both collective reads.
 func TestPullRequestSummariesCostTheSameForAnyPageSize(t *testing.T) {
 	fixture, err := decodeFixtureDocument[pullRequestListQueriesFixture](pullRequestListQueriesYAML)
 	if err != nil {
@@ -344,7 +369,7 @@ func TestPullRequestSummariesCostTheSameForAnyPageSize(t *testing.T) {
 				h := world.handler(t, reader)
 				routes := prWorldRouter(h)
 				counter.take()
-				read := readSummarySurface(t, world, h, routes, "member", c.Surface, "team", "author")
+				read := readSummarySurface(t, world, h, routes, "member", c.Surface, "team", "tags="+world.tags["guard"])
 				costs[i] = counter.take()
 
 				if len(read.rows) != size {
@@ -357,9 +382,16 @@ func TestPullRequestSummariesCostTheSameForAnyPageSize(t *testing.T) {
 					// The list reads each row's owner and tags for the whole page
 					// too; every row must still get its own.
 					if c.Surface == "list" {
-						if read.owners[id] != world.logins["author"] || strings.Join(read.tags[id], ",") != world.tags["guard"] {
-							t.Fatalf("row %s of the page of %d carries owner %q and tags %v, want %q and [%s]",
-								id, size, read.owners[id], read.tags[id], world.logins["author"], world.tags["guard"])
+						name := world.transcriptName(t, id)
+						number, _ := strconv.Atoi(strings.TrimPrefix(name, "session-"))
+						wantOwner := world.logins[summaryGuardOwner(number)]
+						wantTags := []string{world.tags["guard"], world.tags[name]}
+						gotTags := append([]string(nil), read.tags[id]...)
+						sort.Strings(wantTags)
+						sort.Strings(gotTags)
+						if read.owners[id] != wantOwner || strings.Join(gotTags, ",") != strings.Join(wantTags, ",") {
+							t.Fatalf("row %s of the page of %d carries owner %q and tags %v, want %q and %v",
+								name, size, read.owners[id], gotTags, wantOwner, wantTags)
 						}
 					}
 				}

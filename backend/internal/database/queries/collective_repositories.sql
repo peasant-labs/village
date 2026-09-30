@@ -92,8 +92,8 @@ LIMIT 1;
 -- The git remotes of the transcripts already shared with one collective (an
 -- approved share, not a submission awaiting review), with each transcript's
 -- owner, for the repository picker's publisher count. A remote is reduced to its
--- repository in Go by schema.RemoteLabel, the one shared rule for reading a
--- remote, so no SQL here parses one.
+-- repository in Go by schema.RemoteLabel, the contract's rule for naming a
+-- remote's repository (githubRepositoryKey), so no SQL here parses one.
 SELECT DISTINCT t.owner_id, t.git_remote
 FROM transcript_shares ts
 JOIN transcripts t ON t.id = ts.transcript_id

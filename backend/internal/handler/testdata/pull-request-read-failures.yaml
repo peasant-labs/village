@@ -35,6 +35,8 @@ cases:
   - {name: the-grouped-collective-refuses-a-failed-count, surface: collective_grouped, viewer: member, fails: ListAttachedPullRequestCandidatesByGroup, error: "collective metadata could not be read"}
   - {name: the-grouped-collective-refuses-failed-summaries, surface: collective_grouped, viewer: member, fails: ListPullRequestCandidatesByTranscripts, error: "no list or members returned"}
   - {name: the-transcript-list-of-pull-requests-refuses-a-failed-read, surface: transcript_pulls, viewer: member, fails: ListPullRequestCandidatesByTranscripts, error: "Could not read this transcript's pull requests"}
+  # A failed transcript read is not an absent transcript: 500, never 404.
+  - {name: the-transcript-list-of-pull-requests-refuses-a-failed-transcript-read, surface: transcript_pulls, viewer: member, fails: GetTranscriptByID, error: "Could not read the transcript"}
   - {name: personal-totals-refuse-a-failed-totals-read, surface: stats, viewer: author, fails: GetOwnerTranscriptTotals, error: "Could not read your totals"}
   - {name: personal-totals-refuse-a-failed-pull-request-read, surface: stats, viewer: author, fails: ListAttachedPullRequestCandidatesByOwner, error: "Could not read your totals"}
   - {name: the-repository-picker-refuses-a-failed-publisher-count, surface: available, viewer: author, fails: ListCollectiveSharedRemotes, error: "Could not count who publishes"}
