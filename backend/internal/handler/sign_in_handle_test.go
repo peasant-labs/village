@@ -230,7 +230,8 @@ func signInThroughCallback(t *testing.T, h *Handler, github fakeGitHubOAuth, oau
 // signInUsers is the slice of the users table a GitHub sign-in touches: the
 // handles other accounts hold, and this GitHub account's own row once it
 // exists. It enforces the one constraint these queries rely on, the
-// case-insensitive unique handle, and the confirm query's guard.
+// case-insensitive unique handle, and a copy of the confirm query's guard (the
+// real guard is pinned against PostgreSQL by confirm-own-handle.yaml).
 type signInUsers struct {
 	others       map[string]bool
 	self         *sqlc.User
@@ -306,7 +307,7 @@ func (s *signInUsers) querier(t *testing.T, githubID int64) *mockQuerier {
 // cliSessions is the CLI half of the mock: one pending session per OAuth
 // state, recorded when the callback stores its code and handed back once to
 // the exchange.
-func stubCLISessions(q *mockQuerier, pending *sqlc.CliAuthSession) {
+func stubCLISessions(t *testing.T, q *mockQuerier, pending *sqlc.CliAuthSession) {
 	var stored *sqlc.CliAuthSession
 	q.getCLISessionByState = func(_ context.Context, state string) (sqlc.CliAuthSession, error) {
 		if pending == nil || state != pending.OauthState {
@@ -315,6 +316,12 @@ func stubCLISessions(q *mockQuerier, pending *sqlc.CliAuthSession) {
 		return *pending, nil
 	}
 	q.updateCLISessionWithCode = func(_ context.Context, arg sqlc.UpdateCLISessionWithCodeParams) error {
+		if pending == nil {
+			// A web sign-in must never reach the CLI branch; fail the case
+			// by name and let the callback answer its error.
+			t.Errorf("a web sign-in stored a CLI exchange code")
+			return errors.New("no CLI session for this state")
+		}
 		session := *pending
 		session.ExchangeCode, session.UserID, session.Username = arg.ExchangeCode, arg.UserID, arg.Username
 		stored = &session
@@ -359,7 +366,7 @@ func TestGitHubSignInHandle(t *testing.T) {
 			if c.Flow == "cli" {
 				pending = &sqlc.CliAuthSession{ID: pgUUIDFrom(uuid.New()), OauthState: state, CliPort: 51234, CliState: "cli-state"}
 			}
-			stubCLISessions(q, pending)
+			stubCLISessions(t, q, pending)
 			h := newTestHandler(q, nil)
 
 			got := signInThroughCallback(t, h, fakeGitHubOAuth{id: githubID, login: c.Login}, state, c.Flow)

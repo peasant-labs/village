@@ -3,15 +3,20 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
+	_ "embed"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"gopkg.in/yaml.v3"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
@@ -19,12 +24,13 @@ import (
 // TestGitHubSignInHandleAgainstPostgres runs the sign-in-handle corpus through
 // the REAL mounted callback and the REAL queries on migrated PostgreSQL, with
 // only GitHub faked at the transport. The unit corpus decides over a mocked
-// table; this one proves the SQL the decision rests on: a returning account's
-// upsert keeps its handle and chosen flag, and the guarded confirm marks a
-// handle chosen only while it is still the login and still unchosen. The CLI
-// cases store a real session row and exchange it through the real endpoint.
-// Unit-only cases (an injected failure or a concurrent rename) are left to
-// the unit corpus.
+// table; this run observes the real rows: a returning account's upsert keeps
+// its handle and chosen flag, and a free login's confirm lands on the real
+// row. The CLI cases store a real session row and exchange it through the real
+// endpoint. Unit-only cases (an injected failure or a concurrent rename) are
+// left to the unit corpus. The confirm's guard is pinned on its own by
+// TestConfirmOwnHandleGuardAgainstPostgres, because no sign-in reaches a row
+// the guard refuses.
 func TestGitHubSignInHandleAgainstPostgres(t *testing.T) {
 	corpus := loadSignInHandleFixtures(t)
 	pool := govTestPool(t)
@@ -121,4 +127,106 @@ func randomGitHubID(t *testing.T) int64 {
 		t.Fatal(err)
 	}
 	return int64(binary.BigEndian.Uint64(b[:])>>2) + 1<<40
+}
+
+//go:embed testdata/confirm-own-handle.yaml
+var confirmOwnHandleFixtures []byte
+
+type confirmOwnHandleCase struct {
+	Name            string `yaml:"name"`
+	Why             string `yaml:"why"`
+	StoredHandle    string `yaml:"stored_handle"`
+	StoredChosen    bool   `yaml:"stored_chosen"`
+	ConfirmWith     string `yaml:"confirm_with"`
+	ExpectConfirmed bool   `yaml:"expect_confirmed"`
+}
+
+type confirmOwnHandleCorpus struct {
+	Required []string               `yaml:"required_names"`
+	Cases    []confirmOwnHandleCase `yaml:"cases"`
+}
+
+func loadConfirmOwnHandleFixtures(t *testing.T) confirmOwnHandleCorpus {
+	t.Helper()
+	var corpus confirmOwnHandleCorpus
+	d := yaml.NewDecoder(bytes.NewReader(confirmOwnHandleFixtures))
+	d.KnownFields(true)
+	if err := d.Decode(&corpus); err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	var sawConfirmed, sawRefused bool
+	for _, c := range corpus.Cases {
+		if c.Name == "" || names[c.Name] || strings.TrimSpace(c.Why) == "" {
+			t.Fatalf("confirm-own-handle case %q is unnamed, duplicated or has no why", c.Name)
+		}
+		names[c.Name] = true
+		// The guard's rule, derived from the case's own data: confirmed only
+		// on the approved handle and only while unchosen.
+		if want := c.StoredHandle == c.ConfirmWith && !c.StoredChosen; c.ExpectConfirmed != want {
+			t.Fatalf("confirm-own-handle case %q expects confirmed=%v, but its rows entail %v", c.Name, c.ExpectConfirmed, want)
+		}
+		sawConfirmed = sawConfirmed || c.ExpectConfirmed
+		sawRefused = sawRefused || !c.ExpectConfirmed
+	}
+	for _, required := range corpus.Required {
+		if !names[required] {
+			t.Fatalf("required-name manifest names a missing case %q", required)
+		}
+	}
+	if len(names) != len(corpus.Required) {
+		t.Fatalf("required-name manifest covers %d of %d cases; every case must be named", len(corpus.Required), len(names))
+	}
+	if !sawConfirmed || !sawRefused {
+		t.Fatal("confirm-own-handle corpus must hold a confirmed case and a refused one")
+	}
+	return corpus
+}
+
+// TestConfirmOwnHandleGuardAgainstPostgres runs the REAL guarded update on
+// real rows, including the two the guard must refuse, which no sign-in
+// reaches: a handle that changed since it was read, and a row already chosen.
+func TestConfirmOwnHandleGuardAgainstPostgres(t *testing.T) {
+	corpus := loadConfirmOwnHandleFixtures(t)
+	pool := govTestPool(t)
+	defer pool.Close()
+	q := sqlc.New(pool)
+
+	for _, c := range corpus.Cases {
+		t.Run(c.Name, func(t *testing.T) {
+			ctx := context.Background()
+			prefix := fmt.Sprintf("g%d-", randomGitHubID(t)%1_000_000)
+			id := insertSignInAccount(t, ctx, pool, randomGitHubID(t), prefix+c.StoredHandle, c.StoredChosen)
+			t.Cleanup(func() { cleanupOwners(t, ctx, pool, id) })
+
+			var before sqlc.User
+			if err := pool.QueryRow(ctx, `SELECT github_username, username_chosen, updated_at FROM users WHERE id = $1`, id).
+				Scan(&before.GithubUsername, &before.UsernameChosen, &before.UpdatedAt); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := q.ConfirmOwnHandle(ctx, sqlc.ConfirmOwnHandleParams{ID: id, GithubUsername: prefix + c.ConfirmWith})
+
+			var after sqlc.User
+			if err := pool.QueryRow(ctx, `SELECT github_username, username_chosen, updated_at FROM users WHERE id = $1`, id).
+				Scan(&after.GithubUsername, &after.UsernameChosen, &after.UpdatedAt); err != nil {
+				t.Fatal(err)
+			}
+			if c.ExpectConfirmed {
+				if err != nil {
+					t.Fatalf("ConfirmOwnHandle: %v", err)
+				}
+				if !got.UsernameChosen || !after.UsernameChosen || after.GithubUsername != before.GithubUsername {
+					t.Fatalf("row after confirm = {handle %q, chosen %v}, want {handle %q, chosen true}", after.GithubUsername, after.UsernameChosen, before.GithubUsername)
+				}
+				return
+			}
+			if !errors.Is(err, pgx.ErrNoRows) {
+				t.Fatalf("ConfirmOwnHandle = (%+v, %v), want pgx.ErrNoRows", got, err)
+			}
+			if after != before {
+				t.Fatalf("a refused confirm changed the row: before %+v, after %+v", before, after)
+			}
+		})
+	}
 }

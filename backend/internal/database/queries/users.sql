@@ -61,10 +61,10 @@ RETURNING *;
 
 -- name: ConfirmOwnHandle :one
 -- Marks the handle chosen at sign-in, when the handle the account holds is its
--- own login. Guarded on the handle it was read with and on still being
--- unchosen, so a handle the person chose in the meantime (PATCH
--- /auth/me/username from another tab) is never overwritten. No row means the
--- account was decided elsewhere; the caller re-reads it.
+-- own login. It writes only the flag, never the handle. The guard confirms
+-- exactly the handle the caller read and approved, and only while the row is
+-- still unchosen; no row means the account changed since it was read (renamed,
+-- or chosen by the person on the handle step), and the caller re-reads it.
 UPDATE users SET
     username_chosen = true,
     updated_at = now()

@@ -392,12 +392,16 @@ frontend redirect, `cli` follows the loopback redirect into the REAL CLI
 exchange. Both read the account back through the REAL `Me` handler, whose
 `username_chosen` is all the frontend's handle gate acts on.
 `sign_in_handle_integration_test.go` runs the same cases through the same
-callback against migrated PostgreSQL, for the SQL the decision rests on: a
-returning account's upsert keeps its handle and chosen flag, and
-`ConfirmOwnHandle` marks a handle chosen only while it is still the login and
-still unchosen. The two unit-only cases (a failed confirm, and a handle chosen
-in another tab between the upsert and the confirm) are left out of that run
-rather than skipped, because the integration gate rejects skips.
+callback against migrated PostgreSQL and reads the real rows: a returning
+account's upsert keeps its handle and chosen flag, and a free login's confirm
+lands on the real row. The two unit-only cases (a failed confirm, and a handle
+chosen in another tab between the upsert and the confirm) are left out of that
+run rather than skipped, because the integration gate rejects skips. No
+sign-in reaches a row the confirm's guard refuses, so the guard is pinned on
+its own: `testdata/confirm-own-handle.yaml` runs the real `ConfirmOwnHandle`
+on real rows and expects it to confirm only the approved handle, only while
+unchosen, and to leave a refused row exactly as it was. The statement writes
+only `username_chosen`, never the handle.
 
 The loader guards deletion with required-NAME lists, never a row count, and it
 derives every consistency rule from the fixture's OWN data rather than from the

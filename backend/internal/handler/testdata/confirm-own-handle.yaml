@@ -1,0 +1,45 @@
+# The guard on ConfirmOwnHandle, the statement sign-in uses to mark a handle
+# chosen. It sets only `username_chosen`, never the handle; the guard decides
+# which rows it may touch: exactly the handle the caller approved, and only
+# while that row is still unchosen.
+#
+# Every case runs the REAL query on a row inserted into migrated PostgreSQL
+# (`sign_in_handle_integration_test.go`). Handles are written relative to one
+# another; the test prefixes each with a per-run token so parallel packages
+# cannot collide.
+#
+#   stored_handle     the handle the row holds when the statement runs.
+#   stored_chosen     whether the row is already chosen.
+#   confirm_with      the handle the caller read and approved.
+#   expect_confirmed  true: the row comes back chosen. false: no row
+#                     (pgx.ErrNoRows) and the row is left exactly as it was.
+#
+# The loader derives each expectation from the case's own data and rejects a
+# case that disagrees, and the corpus must hold both outcomes.
+required_names:
+  - an-unchosen-row-on-the-approved-handle-is-confirmed
+  - a-row-whose-handle-changed-since-it-was-read-is-not-confirmed
+  - an-already-chosen-row-is-not-confirmed-again
+cases:
+  - name: an-unchosen-row-on-the-approved-handle-is-confirmed
+    why: The ordinary sign-in on a free login.
+    stored_handle: dora
+    stored_chosen: false
+    confirm_with: dora
+    expect_confirmed: true
+
+  - name: a-row-whose-handle-changed-since-it-was-read-is-not-confirmed
+    why: >
+      Another writer renamed the account without choosing it after sign-in read
+      it. The approved handle is no longer the row's, so nothing is confirmed.
+    stored_handle: dora-renamed
+    stored_chosen: false
+    confirm_with: dora
+    expect_confirmed: false
+
+  - name: an-already-chosen-row-is-not-confirmed-again
+    why: A chosen handle is settled; confirming it again would only rewrite updated_at.
+    stored_handle: dora
+    stored_chosen: true
+    confirm_with: dora
+    expect_confirmed: false

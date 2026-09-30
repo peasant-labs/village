@@ -21,8 +21,9 @@
 #   expect_chosen    whether `/auth/me` then reports the handle as chosen. False
 #                    is the only answer that opens `/welcome`.
 #
-# Two optional knobs make a case unit-only, because they inject what a real
-# database cannot be made to do on cue:
+# Two optional knobs make a case unit-only, because they inject a failure or
+# an interleaving the real-database run does not stage (the confirm's guard
+# itself is pinned against PostgreSQL by `confirm-own-handle.yaml`):
 #   confirm_fails           the statement that marks the handle chosen errors.
 #   renamed_before_confirm  the person picks this handle on the handle step in
 #                           another tab between the upsert and the confirm.
@@ -38,7 +39,7 @@ required_names:
   - a-returning-account-that-chose-another-handle-keeps-it
   - a-returning-account-confirmed-on-its-own-login-is-not-rewritten
   - a-failed-confirm-still-signs-in-and-leaves-the-handle-step-open
-  - a-handle-chosen-in-another-tab-is-not-written-back
+  - a-handle-chosen-in-another-tab-is-the-handle-the-session-names
   - a-login-too-short-for-a-handle-opens-welcome
   - a-login-too-long-for-a-handle-opens-welcome
   - the-cli-exchange-returns-the-handle-when-the-login-was-taken
@@ -142,11 +143,12 @@ cases:
     expect_handle: alice-dev
     expect_chosen: false
 
-  - name: a-handle-chosen-in-another-tab-is-not-written-back
+  - name: a-handle-chosen-in-another-tab-is-the-handle-the-session-names
     why: >
       An unconfirmed account on its own login signs in while it picks another
-      handle on the handle step in a second tab. The confirm must not write the
-      login back over the handle the person just chose.
+      handle on the handle step in a second tab. The confirm finds the row
+      changed, so sign-in re-reads it: the account keeps the handle the person
+      just chose, and the session names that handle rather than the login.
     flow: web
     login: carol
     taken_by_others: []

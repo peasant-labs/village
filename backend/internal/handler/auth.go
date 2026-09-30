@@ -175,20 +175,22 @@ func (h *Handler) signInGitHubUser(ctx context.Context, profile githubProfile) (
 		return user, nil
 	}
 
-	// Mark the same handle chosen. The update is guarded on the handle it was
-	// read with and on still being unchosen, so a handle the person picked on
-	// the handle step in another tab since the upsert is never written back.
+	// Mark the same handle chosen. The update writes only the flag, and its
+	// guard confirms exactly the handle approved above, only while unchosen.
 	chosen, err := h.queries.ConfirmOwnHandle(ctx, sqlc.ConfirmOwnHandleParams{
 		ID:             user.ID,
 		GithubUsername: user.GithubUsername,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		// Decided elsewhere in the meantime: answer with the account as it
-		// now stands, so the session names the handle it really has.
-		if current, readErr := h.queries.GetUserByID(ctx, user.ID); readErr == nil {
-			return current, nil
+		// Changed since the upsert read it (renamed, or chosen on the handle
+		// step): answer with the account as it now stands, so the session
+		// names the handle it really has.
+		current, readErr := h.queries.GetUserByID(ctx, user.ID)
+		if readErr != nil {
+			log.Printf("signInGitHubUser: could not re-read an account changed during sign-in: %v", readErr)
+			return user, nil
 		}
-		return user, nil
+		return current, nil
 	}
 	if err != nil {
 		// Not fatal: the handle stays unconfirmed, and the handle step asks
