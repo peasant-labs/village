@@ -364,9 +364,13 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Every field is optional and an omitted one keeps its stored value, so the
+	// settings page can save one field at a time. Name and description are
+	// pointers for that reason: a nil pointer is "not sent", while a sent value
+	// is written as before (an empty description clears it).
 	var req struct {
-		Name                     string  `json:"name"`
-		Description              string  `json:"description"`
+		Name                     *string `json:"name"`
+		Description              *string `json:"description"`
 		DataAccess               string  `json:"data_access"`
 		AcceptanceMode           string  `json:"acceptance_mode"`
 		LinkedGitHubOrg          *string `json:"linked_github_org"`
@@ -405,6 +409,14 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusNotFound, "Group not found")
 		return
+	}
+	name := currentGroup.Name
+	if req.Name != nil {
+		name = *req.Name
+	}
+	description := currentGroup.Description
+	if req.Description != nil {
+		description = toPgText(*req.Description)
 	}
 	dataAccess := req.DataAccess
 	if dataAccess == "" {
@@ -457,8 +469,8 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 
 	group, err := h.queries.UpdateGroup(r.Context(), sqlc.UpdateGroupParams{
 		ID:                       pgID,
-		Name:                     req.Name,
-		Description:              toPgText(req.Description),
+		Name:                     name,
+		Description:              description,
 		DataAccess:               dataAccess,
 		AcceptanceMode:           acceptanceMode,
 		LinkedGithubOrg:          linkedOrg,
