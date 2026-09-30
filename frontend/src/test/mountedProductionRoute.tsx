@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
-import type { Harness } from "@peasant-labs/schema";
+import { AuthProvider } from "@/providers/AuthProvider";
+import type { Harness, VillageTranscriptPullRequest } from "@peasant-labs/schema";
 import type { NameSource } from "@/lib/types";
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 import TranscriptDetailPage from "@/app/transcripts/[id]/page";
@@ -60,6 +61,9 @@ export interface MountedRouteTranscriptMetadata {
    *  everything — which is also what a transcript in no collective gets, by
    *  design. Callers that do not exercise the memberships omit it. */
   viewer_collectives?: Array<{ id: string; name: string }>;
+  /** The pull requests `GET /transcripts/{id}/pulls` serves to this viewer.
+   *  Defaults to none; callers that do not exercise the list omit it. */
+  pull_requests?: VillageTranscriptPullRequest[];
   /** The viewer-authorized relationship navigation the metadata read serves.
    *  Omitted when the fixture exercises no source/starter links. */
   relationshipNavigation?: unknown[];
@@ -92,18 +96,63 @@ function withProjectIdentityDefaults(
   };
 }
 
+/** A signed-in viewer for a mounted route rendered with `signedIn`: who
+ *  `GET /auth/me` answers as, and the GitHub orgs `GET /auth/orgs` lists. */
+export interface MountedRouteViewer {
+  id: string;
+  github_username: string;
+  orgs: Array<{ org_login: string; org_id: number; avatar_url: string | null; visible: boolean }>;
+}
+
+/** A test's own routes, asked first: it answers a request by returning a
+ *  `Response`, or declines it with `undefined` so the fixture's reads answer.
+ *  Mutations (a share, a withdrawal) and stateful reads live here, next to the
+ *  test that drives them. */
+export type MountedRouteHandler = (
+  url: string,
+  init: RequestInit | undefined,
+) => Response | undefined | Promise<Response | undefined>;
+
 /** Stubs `fetch` to serve exactly the four REST calls `TranscriptDetailPage` makes for one
- *  transcript id: metadata, content, annotations, and the caller's groups. `fixtureLabel` names
+ *  transcript id: metadata, content, annotations, and the caller's groups — plus, with a
+ *  `viewer`, the session and org reads a signed-in viewer's page makes. `fixtureLabel` names
  *  the calling test file in the "unexpected request" error so a failure identifies its source. */
 export function installRESTFixture(
   transcriptID: string,
   metadata: MountedRouteTranscriptMetadata,
   detail: unknown,
   fixtureLabel: string,
+  viewer?: MountedRouteViewer,
+  routes?: MountedRouteHandler,
 ): ReturnType<typeof vi.fn> {
   const resolvedMetadata = withProjectIdentityDefaults(metadata);
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    const answered = await routes?.(url, init);
+    if (answered) return answered;
+    if (viewer != null && url.endsWith("/auth/me")) {
+      return new Response(
+        JSON.stringify({
+          id: viewer.id,
+          github_id: 1,
+          github_username: viewer.github_username,
+          display_name: viewer.github_username,
+          avatar_url: null,
+          created_at: "2026-01-01T00:00:00.000Z",
+          updated_at: "2026-01-01T00:00:00.000Z",
+          is_discoverable: true,
+          username_chosen: true,
+          provider_username: viewer.github_username,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    if (viewer != null && url.endsWith("/auth/orgs")) {
+      return new Response(JSON.stringify(viewer.orgs), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
     if (url.endsWith(`/transcripts/${transcriptID}/content`)) {
       return new Response(JSON.stringify(detail), { status: 200, headers: { "content-type": "application/json" } });
     }
@@ -121,6 +170,12 @@ export function installRESTFixture(
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
+    }
+    if (url.endsWith(`/transcripts/${transcriptID}/pulls`)) {
+      return new Response(JSON.stringify({ pull_requests: resolvedMetadata.pull_requests ?? [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
     }
     if (url.endsWith(`/transcripts/${transcriptID}/annotations`)) {
       return new Response(JSON.stringify({ annotations: [] }), { status: 200, headers: { "content-type": "application/json" } });
@@ -142,19 +197,28 @@ export function installRESTFixture(
  *  `search` (e.g. `?entry=…`) is installed on the live jsdom location first, so the
  *  production component's `window.location.search` read sees the same URL a real router
  *  push would leave behind. */
-export async function renderProductionRoute(transcriptID: string, search = ""): Promise<void> {
+export async function renderProductionRoute(
+  transcriptID: string,
+  search = "",
+  options: { signedIn?: boolean } = {},
+): Promise<void> {
   if (typeof window !== "undefined") {
     window.history.replaceState({}, "", `/transcripts/${transcriptID}${search}`);
   }
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  const route = (
+    <Suspense fallback={<div>loading mounted transcript</div>}>
+      <TranscriptDetailPage params={Promise.resolve({ id: transcriptID })} />
+    </Suspense>
+  );
   await act(async () => {
     render(
       <QueryClientProvider client={client}>
-        <Suspense fallback={<div>loading mounted transcript</div>}>
-          <TranscriptDetailPage params={Promise.resolve({ id: transcriptID })} />
-        </Suspense>
+        {/* A signed-in mount sits inside the provider the app shell mounts,
+            so the page reads its viewer from the same `/auth/me` answer. */}
+        {options.signedIn ? <AuthProvider>{route}</AuthProvider> : route}
       </QueryClientProvider>,
     );
   });

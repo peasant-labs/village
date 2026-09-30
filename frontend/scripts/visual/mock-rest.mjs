@@ -805,6 +805,8 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && p === `/transcripts/${ID}`) return send(res, 200, detail)
   if (req.method === 'GET' && p === `/transcripts/${ID}/content`) return send(res, 200, content)
   if (req.method === 'GET' && p === `/transcripts/${ID}/annotations`) return send(res, 200, { annotations: [] })
+  // Bound to no pull request: the page shows no pull request list for it.
+  if (req.method === 'GET' && p === `/transcripts/${ID}/pulls`) return send(res, 200, { pull_requests: [] })
   if (req.method === 'GET' && p === `/transcripts/${ID}/attestations`) return send(res, 200, attestations)
   // The context target behind the child's exact branch-point link, so a capture
   // can click the real link and land on the CURRENT target at the anchored turn.

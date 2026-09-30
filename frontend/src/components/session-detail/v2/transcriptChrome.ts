@@ -1,5 +1,5 @@
 import type { adaptTranscript } from '@peasant-labs/fairtrade/ui';
-import { EXPLORE_SECTION } from '@/lib/nav/sections';
+import { HOME_SECTION } from '@/lib/nav/sections';
 
 /** Same label the explore card (`TranscriptCard.tsx`) shows for a transcript
  *  with no stored title. The hero must show this — never the composite's own
@@ -91,7 +91,8 @@ export interface TranscriptBreadcrumbCrumb {
 
 /**
  * Builds the detail page's host trail through the app router (lowercase
- * chrome): (1) the nav registry's home crumb; (2) the resolved project name,
+ * chrome): (1) the nav registry's home section, where a transcript is shown
+ * now that discovery has left the nav; (2) the resolved project name,
  * linking to `/users/{username}/projects/{projectHash}` when `projectHref`
  * is available; (3) the last crumb, reading the RAW stored title (trimmed,
  * truncated) — not the hero's overlaid "Untitled transcript" placeholder —
@@ -112,7 +113,7 @@ export function buildTranscriptBreadcrumb({
   const shortVillageId = transcriptId.slice(0, 8);
   const crumbTitle = trimmedTitle ? truncateCrumbLabel(trimmedTitle) : shortVillageId;
   return [
-    { label: EXPLORE_SECTION.label, href: EXPLORE_SECTION.href },
+    { label: HOME_SECTION.label, href: HOME_SECTION.href },
     { label: project, ...(projectHref ? { href: projectHref } : {}) },
     { label: crumbTitle },
   ];
