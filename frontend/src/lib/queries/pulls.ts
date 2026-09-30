@@ -94,3 +94,22 @@ export function useUpdateUserPromptSettings(username: string) {
     },
   });
 }
+
+/**
+ * Turns automatic pull request linking on or off for the signed-in person
+ * (`auto_attach_pull_requests` on `PATCH /users/me/settings`). Only this one
+ * field is sent, so the other setting on the route is left as it is.
+ */
+export function useUpdateAutoAttachPullRequests(username: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (autoAttach: boolean) =>
+      api<VillageUserSettings>("/users/me/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ auto_attach_pull_requests: autoAttach }),
+      }),
+    onSuccess: (updated) => {
+      qc.setQueryData(userPromptSettingsKey(username), updated);
+    },
+  });
+}

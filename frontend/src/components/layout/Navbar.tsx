@@ -52,6 +52,13 @@ function UserMenu({ user }: { user: { github_username: string; avatar_url: strin
           >
             Profile
           </Link>
+          <Link
+            href="/settings"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2 text-sm text-ink transition-colors hover:bg-surface-hover focus-mono cursor-pointer"
+          >
+            settings
+          </Link>
           <div className="my-1 border-t border-rule" />
           <button
             type="button"
