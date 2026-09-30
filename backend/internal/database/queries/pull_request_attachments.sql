@@ -184,12 +184,18 @@ ORDER BY a.id ASC;
 -- membership. Each is one statement for the whole page or the whole scope, never
 -- one per row.
 --
+-- The attachment's columns are named rather than embedded: the stored digest
+-- holds prompt text none of these reads serves, and a collective's count would
+-- otherwise move every digest it binds to produce one integer.
+--
 -- idx_pull_request_attachment_transcripts_transcript serves the transcript
 -- predicate. Rows come newest first within a transcript: by the latest of
 -- attached_at and detached_at, which for an attached attachment is when it was
 -- attached.
 SELECT pt.transcript_id,
-       sqlc.embed(a),
+       a.id, a.repo_owner, a.repo_name, a.number, a.head_sha, a.state, a.author_id,
+       a.requester_github_id, a.comment_id, a.check_run_id,
+       a.created_at, a.updated_at, a.attached_at, a.detached_at,
        cr.installation_id,
        cr.is_private,
        (gm.user_id IS NOT NULL)::boolean AS viewer_is_member
@@ -213,7 +219,9 @@ ORDER BY pt.transcript_id,
 -- The attached pull requests bound to any transcript one person published, for
 -- their own totals.
 SELECT pt.transcript_id,
-       sqlc.embed(a),
+       a.id, a.repo_owner, a.repo_name, a.number, a.head_sha, a.state, a.author_id,
+       a.requester_github_id, a.comment_id, a.check_run_id,
+       a.created_at, a.updated_at, a.attached_at, a.detached_at,
        cr.installation_id,
        cr.is_private,
        (gm.user_id IS NOT NULL)::boolean AS viewer_is_member
@@ -237,7 +245,9 @@ ORDER BY a.id, pt.transcript_id;
 -- transcripts with an approved share to it, which is the set
 -- GetGroupTranscriptStats totals.
 SELECT pt.transcript_id,
-       sqlc.embed(a),
+       a.id, a.repo_owner, a.repo_name, a.number, a.head_sha, a.state, a.author_id,
+       a.requester_github_id, a.comment_id, a.check_run_id,
+       a.created_at, a.updated_at, a.attached_at, a.detached_at,
        cr.installation_id,
        cr.is_private,
        (gm.user_id IS NOT NULL)::boolean AS viewer_is_member

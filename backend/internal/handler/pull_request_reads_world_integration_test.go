@@ -28,10 +28,16 @@ import (
 
 // prWorld is the world the pull request read fixtures declare: people,
 // collectives with their members and linked repositories, transcripts with
-// their shares, and attachments binding transcripts to pull requests. It is
-// written the way production writes it - shares through the attempt ledger,
-// attachment states through promptattach.Transition - so the reads under test
-// see rows the write paths could have produced.
+// their shares and tags, and attachments binding transcripts to pull requests.
+// It is written the way production writes it - shares through the attempt
+// ledger, attachment states through promptattach.Transition - so the reads
+// under test see rows the write paths could have produced.
+//
+// Attachments are recorded and moved to their states in declaration order,
+// except that every detach happens last, after every attachment has been
+// attached, again in declaration order. So a fixture can make a pull request
+// attached early and detached late, which is what tells "newest first by the
+// later of attached and detached" from "by attached" alone.
 type prWorld struct {
 	People      []string            `yaml:"people"`
 	Collectives []prWorldCollective `yaml:"collectives"`
@@ -64,6 +70,7 @@ type prWorldTranscript struct {
 	TokensIn   *int64            `yaml:"tokens_in"`
 	TokensOut  *int64            `yaml:"tokens_out"`
 	Shares     map[string]string `yaml:"shares"`
+	Tags       []string          `yaml:"tags"`
 }
 
 type prWorldAttachment struct {
@@ -98,7 +105,10 @@ type builtPRWorld struct {
 	githubIDs   map[string]int64
 	collectives map[string]pgtype.UUID
 	transcripts map[string]pgtype.UUID
-	github      *pullReadsGitHub
+	// tags maps a fixture tag to the name it was written under, which carries
+	// the world's suffix because tag names are global.
+	tags   map[string]string
+	github *pullReadsGitHub
 }
 
 // validate refuses a world whose names do not resolve, so a typo cannot make a
@@ -169,13 +179,26 @@ func buildPRWorld(t *testing.T, pool *pgxpool.Pool, w prWorld, fixture string) *
 	ctx := context.Background()
 	built := &builtPRWorld{
 		pool: pool, people: map[string]pgtype.UUID{}, logins: map[string]string{}, githubIDs: map[string]int64{},
-		collectives: map[string]pgtype.UUID{}, transcripts: map[string]pgtype.UUID{}, github: newPullReadsGitHub(t),
+		collectives: map[string]pgtype.UUID{}, transcripts: map[string]pgtype.UUID{}, tags: map[string]string{},
+		github: newPullReadsGitHub(t),
 	}
 	// Random identities, so two runs or two suites never collide on the unique
-	// GitHub id, login, or (repository, number) columns.
+	// GitHub id, login, tag, or (repository, number) columns.
 	base := 7_000_000_000 + rand.Int63n(1_000_000_000)
 	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	// Teardown is registered before the first write, so a world that fails
+	// halfway is still removed: the owners and everything cascading from them,
+	// the audit rows, then the world's own tags.
 	var ids []pgtype.UUID
+	t.Cleanup(func() {
+		ctx := context.Background()
+		if len(ids) > 0 {
+			cleanupOwners(t, ctx, pool, ids...)
+		}
+		if _, err := pool.Exec(ctx, `DELETE FROM tags WHERE name LIKE $1`, "prr-%-"+suffix); err != nil {
+			t.Errorf("remove the world's tags: %v", err)
+		}
+	})
 	for i, person := range w.People {
 		githubID := base + int64(i)
 		login := fmt.Sprintf("prr-%s-%s", person, suffix)
@@ -189,7 +212,6 @@ func buildPRWorld(t *testing.T, pool *pgxpool.Pool, w prWorld, fixture string) *
 		built.people[person], built.logins[person], built.githubIDs[person] = id, login, githubID
 		ids = append(ids, id)
 	}
-	t.Cleanup(func() { cleanupOwners(t, context.Background(), pool, ids...) })
 
 	for _, c := range w.Collectives {
 		dataAccess := c.DataAccess
@@ -222,8 +244,20 @@ func buildPRWorld(t *testing.T, pool *pgxpool.Pool, w prWorld, fixture string) *
 		}
 	}
 
+	queries := sqlc.New(pool)
 	for _, tr := range w.Transcripts {
 		built.transcripts[tr.Name] = insertPRWorldTranscript(t, ctx, pool, built.people[tr.Owner], tr, suffix)
+		for _, tag := range tr.Tags {
+			name := "prr-" + tag + "-" + suffix
+			created, err := queries.GetOrCreateTag(ctx, name)
+			if err != nil {
+				t.Fatalf("create tag %s: %v", tag, err)
+			}
+			if err := queries.LinkTranscriptTag(ctx, sqlc.LinkTranscriptTagParams{TranscriptID: built.transcripts[tr.Name], TagID: created.ID}); err != nil {
+				t.Fatalf("tag %s with %s: %v", tr.Name, tag, err)
+			}
+			built.tags[tag] = name
+		}
 		for collective, status := range tr.Shares {
 			if _, err := pool.Exec(ctx, `
 				INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status) VALUES ($1, $2, 1, $3)
@@ -233,8 +267,12 @@ func buildPRWorld(t *testing.T, pool *pgxpool.Pool, w prWorld, fixture string) *
 		}
 	}
 
-	queries := sqlc.New(pool)
 	repoIDs := map[string]int64{}
+	type pendingDetach struct {
+		id  pgtype.UUID
+		ref string
+	}
+	var detaches []pendingDetach
 	for _, a := range w.Attachments {
 		owner, name, _ := strings.Cut(a.Repo, "/")
 		if repoIDs[a.Repo] == 0 {
@@ -255,6 +293,10 @@ func buildPRWorld(t *testing.T, pool *pgxpool.Pool, w prWorld, fixture string) *
 			}
 		}
 		for _, step := range prWorldStatePath(a.State) {
+			if step == promptattach.Detached {
+				detaches = append(detaches, pendingDetach{id: created.ID, ref: fmt.Sprintf("%s#%d", a.Repo, a.Number)})
+				continue
+			}
 			if _, err := promptattach.Transition(ctx, queries, created.ID, step); err != nil {
 				t.Fatalf("move %s#%d to %s: %v", a.Repo, a.Number, step, err)
 			}
@@ -264,6 +306,12 @@ func buildPRWorld(t *testing.T, pool *pgxpool.Pool, w prWorld, fixture string) *
 				built.collectives[a.Collective], owner, name); err != nil {
 				t.Fatalf("unlink %s: %v", a.Repo, err)
 			}
+		}
+	}
+
+	for _, d := range detaches {
+		if _, err := promptattach.Transition(ctx, queries, d.id, promptattach.Detached); err != nil {
+			t.Fatalf("detach %s: %v", d.ref, err)
 		}
 	}
 

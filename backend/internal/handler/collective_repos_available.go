@@ -135,8 +135,12 @@ func (h *Handler) repositoryPublisherCounts(ctx context.Context, groupID pgtype.
 
 // githubRepositoryKey reduces a git remote to the lowercased "owner/name" of the
 // github.com repository it names. It reads the remote with schema.RemoteLabel,
-// the one rule every surface uses, so an SSH, HTTPS, or bare remote of the same
-// repository agree, and a remote on any other host names no GitHub repository.
+// the contract's rule for naming a remote's repository (the project display
+// names use it too), so an SSH, HTTPS, or bare remote of the same repository
+// agree, and a remote on any other host names no GitHub repository. Owner and
+// name must both match: this counts who publishes from one repository, unlike
+// the pull request matcher, which narrows by repository name alone and lets
+// commits decide.
 func githubRepositoryKey(remote string) (string, bool) {
 	label, ok := schema.RemoteLabel(remote)
 	if !ok {

@@ -720,12 +720,23 @@ along the same line:
   `pull-request-summaries.yaml` run against real PostgreSQL through a declared
   world (`pull_request_reads_world_integration_test.go`) that writes shares
   through the attempt ledger and attachment states through
-  `promptattach.Transition`. They prove what only the database decides: the
-  state filter, the repository link join (an unlinked repository's attachment is
-  omitted), membership from `group_members` (a pending join request is not
-  membership), 404 for a caller who cannot read the transcript, distinct counts,
-  and the newest-first order. Each summary case lists every row its surface
-  returns, so a row that appears or vanishes fails.
+  `promptattach.Transition`, detaching last so a pull request can be attached
+  early and detached late. Between them they prove, for the transcript
+  statement and the collective statement alike, what only the database
+  decides: the state filter, the repository link join scoped to the
+  attachment's own collective (an unlinked repository's attachment is omitted,
+  and another collective linking the same repository as public changes
+  nothing), membership from `group_members` (a pending join request is not
+  membership), approved shares only in the collective count, zero for a viewer
+  the collective does not let read its transcripts, 404 for a caller who cannot
+  read the transcript (byte-identical to a transcript that does not exist),
+  distinct counts, and newest first by the later of attached and detached. Each
+  summary case lists every row its surface returns, so a row that appears or
+  vanishes fails. The helper-member expansion's summaries are asserted in
+  `collective_grouped_integration_test.go`.
+- `pull-request-read-failures.yaml` makes exactly one read fail on each surface
+  (the rest are real) and requires a 500 naming it, so no surface serves a
+  failed read as zero pull requests.
 - `repo-publishers.yaml` pins `publisher_count`: distinct owners of transcripts
   with an APPROVED share to the collective whose remote `schema.RemoteLabel`
   reads as that github.com repository. An unshared transcript, a submission
@@ -735,8 +746,9 @@ along the same line:
   statement at the pool (a pgx tracer) while the flat transcript list, the flat
   collective read, and the grouped collective read answer a page of one row and
   a page of fifty, and fails when the two differ. Every row must carry a summary
-  of two and the collective count twice the page size, so the guard cannot pass
-  on empty summaries.
+  of two, its own owner and its own tag, and the collective count twice the page
+  size, so the guard cannot pass on empty or misplaced reads. (The helper-member
+  expansion fills its page through the same function as the grouped read.)
 
 Titles and head branches come from GitHub through the pull request fake in
 `pull_request_reads_github_fake_test.go`; a pull request it does not describe is

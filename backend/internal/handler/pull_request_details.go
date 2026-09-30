@@ -13,9 +13,13 @@ import (
 // GitHub serves both as null, which the contract defines as "Village does not
 // know them", rather than failing the page.
 //
-// Two things keep that read cheap. A short-lived, bounded, in-process cache
-// answers repeat views of the same pull request without asking again, and a
-// list asks for several pull requests at once rather than one after another.
+// Three things keep that read cheap and bounded, whoever is asking. A
+// short-lived, bounded, in-process cache answers repeat views of the same pull
+// request without asking again - a refusal or failure too, for a shorter time,
+// so a pull request GitHub will not describe costs at most one read per
+// failure window however often it is viewed. A list asks for several pull
+// requests at once rather than one after another. And every read shares one
+// deadline, so a slow GitHub costs a page a few seconds, then unknown titles.
 
 // pullRequestDetail is what an attachment row shows beside its number.
 type pullRequestDetail struct {
@@ -23,9 +27,14 @@ type pullRequestDetail struct {
 	headRef *string
 }
 
-// pullRequestDetailFetchers bounds how many pull requests one list reads from
-// GitHub at the same time.
-const pullRequestDetailFetchers = 4
+const (
+	// pullRequestDetailFetchers bounds how many pull requests one list reads from
+	// GitHub at the same time.
+	pullRequestDetailFetchers = 4
+	// pullRequestDetailDeadline bounds how long one response waits on GitHub for
+	// every title it serves; what is not answered by then is served as unknown.
+	pullRequestDetailDeadline = 4 * time.Second
+)
 
 // pullRequestDetailsFor reads the title and head branch of each candidate's
 // pull request, in the candidates' order. A pull request GitHub could not
@@ -35,6 +44,8 @@ func (h *Handler) pullRequestDetailsFor(ctx context.Context, candidates []pullRe
 	if h.gh == nil {
 		return details
 	}
+	ctx, cancel := context.WithTimeout(ctx, pullRequestDetailDeadline)
+	defer cancel()
 	slots := make(chan struct{}, pullRequestDetailFetchers)
 	var wg sync.WaitGroup
 	for i, c := range candidates {
@@ -51,7 +62,7 @@ func (h *Handler) pullRequestDetailsFor(ctx context.Context, candidates []pullRe
 }
 
 // pullRequestDetail reads one pull request's title and head branch, from the
-// cache when it holds a recent answer.
+// cache when it holds a recent answer, within the response's deadline.
 func (h *Handler) pullRequestDetail(ctx context.Context, installationID int64, owner, name string, number int) pullRequestDetail {
 	if h.gh == nil {
 		return pullRequestDetail{}
@@ -61,14 +72,21 @@ func (h *Handler) pullRequestDetail(ctx context.Context, installationID int64, o
 	if cached, ok := h.pullDetails.lookup(key, now); ok {
 		return cached.detail()
 	}
+	ctx, cancel := context.WithTimeout(ctx, pullRequestDetailDeadline)
+	defer cancel()
 	pr, err := h.gh.GetPullRequest(ctx, installationID, owner, name, number)
 	if err != nil || pr == nil {
-		// Not remembered: the next read asks again rather than serving an
-		// unknown title for the cache's lifetime.
+		// GitHub's own refusal or failure is remembered as unknown, briefly, so
+		// a pull request it will not describe is not asked about on every view.
+		// Running out of this response's time is not GitHub's answer, so it is
+		// not remembered.
+		if ctx.Err() == nil {
+			h.pullDetails.store(key, pullRequestDetailEntry{}, now, pullRequestDetailFailureTTL)
+		}
 		return pullRequestDetail{}
 	}
 	entry := pullRequestDetailEntry{title: pr.Title, headRef: pr.HeadRef}
-	h.pullDetails.store(key, entry, now)
+	h.pullDetails.store(key, entry, now, pullRequestDetailTTL)
 	return entry.detail()
 }
 
@@ -92,6 +110,9 @@ const (
 	// pullRequestDetailTTL bounds how stale a retitled pull request can look,
 	// and how often one pull request viewed repeatedly costs a GitHub read.
 	pullRequestDetailTTL = 2 * time.Minute
+	// pullRequestDetailFailureTTL is how long a refusal or failure is served as
+	// unknown before GitHub is asked again.
+	pullRequestDetailFailureTTL = 30 * time.Second
 	// pullRequestDetailMaxEntries bounds the table. Reaching it prunes expired
 	// entries and then, if every one is live, drops them all.
 	pullRequestDetailMaxEntries = 4096
@@ -122,7 +143,7 @@ func (c *pullRequestDetailCache) lookup(key string, now time.Time) (pullRequestD
 	return entry, true
 }
 
-func (c *pullRequestDetailCache) store(key string, entry pullRequestDetailEntry, now time.Time) {
+func (c *pullRequestDetailCache) store(key string, entry pullRequestDetailEntry, now time.Time, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.entries == nil {
@@ -138,6 +159,6 @@ func (c *pullRequestDetailCache) store(key string, entry pullRequestDetailEntry,
 			clear(c.entries)
 		}
 	}
-	entry.expires = now.Add(pullRequestDetailTTL)
+	entry.expires = now.Add(ttl)
 	c.entries[key] = entry
 }

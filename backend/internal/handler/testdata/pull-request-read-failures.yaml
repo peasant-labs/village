@@ -1,0 +1,40 @@
+# Every pull request read refuses a failed read with 500 rather than serving a
+# count of zero or an empty summary, which would tell the page there are no pull
+# requests. Each case runs one surface against real PostgreSQL with exactly one
+# query made to fail (the rest of the handler's reads are the real ones), and
+# names a phrase the error body must carry.
+#
+# surfaces:
+#   list                GET /api/v1/transcripts?owner=<author>
+#   collective          GET /api/v1/groups/{id}
+#   collective_grouped  GET /api/v1/groups/{id}?view=grouped
+#   transcript_pulls    GET /api/v1/transcripts/{id}/pulls
+#   stats               GET /api/v1/users/me/stats
+#   available           GET /api/v1/groups/{id}/repositories/available
+world:
+  people: [author, member]
+  collectives:
+    - name: team
+      created_by: author
+      data_access: public
+      linked_org: acme
+      members: {member: member}
+      repositories:
+        - {repo: acme/site, private: false}
+  transcripts:
+    - {name: session, owner: author, visibility: public, remote: "git@github.com:acme/site.git", shares: {team: approved}}
+  attachments:
+    - {collective: team, repo: acme/site, number: 1, author: author, state: attached, transcripts: [session]}
+
+cases:
+  - {name: the-list-refuses-a-failed-tags-read, surface: list, viewer: member, fails: ListTagsByTranscriptIDs, error: "tags of the listed transcripts could not be read"}
+  - {name: the-list-refuses-a-failed-owners-read, surface: list, viewer: member, fails: ListUsersByIDs, error: "owners of the listed transcripts could not be read"}
+  - {name: the-list-refuses-failed-summaries, surface: list, viewer: member, fails: ListPullRequestCandidatesByTranscripts, error: "pull requests of the listed transcripts could not be read"}
+  - {name: the-collective-refuses-a-failed-count, surface: collective, viewer: member, fails: ListAttachedPullRequestCandidatesByGroup, error: "Could not read the collective's pull requests"}
+  - {name: the-collective-refuses-failed-summaries, surface: collective, viewer: member, fails: ListPullRequestCandidatesByTranscripts, error: "Could not read the pull requests of the collective's transcripts"}
+  - {name: the-grouped-collective-refuses-a-failed-count, surface: collective_grouped, viewer: member, fails: ListAttachedPullRequestCandidatesByGroup, error: "collective metadata could not be read"}
+  - {name: the-grouped-collective-refuses-failed-summaries, surface: collective_grouped, viewer: member, fails: ListPullRequestCandidatesByTranscripts, error: "no list or members returned"}
+  - {name: the-transcript-list-of-pull-requests-refuses-a-failed-read, surface: transcript_pulls, viewer: member, fails: ListPullRequestCandidatesByTranscripts, error: "Could not read this transcript's pull requests"}
+  - {name: personal-totals-refuse-a-failed-totals-read, surface: stats, viewer: author, fails: GetOwnerTranscriptTotals, error: "Could not read your totals"}
+  - {name: personal-totals-refuse-a-failed-pull-request-read, surface: stats, viewer: author, fails: ListAttachedPullRequestCandidatesByOwner, error: "Could not read your totals"}
+  - {name: the-repository-picker-refuses-a-failed-publisher-count, surface: available, viewer: author, fails: ListCollectiveSharedRemotes, error: "Could not count who publishes"}

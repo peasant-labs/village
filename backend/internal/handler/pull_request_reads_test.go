@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -52,9 +51,9 @@ func loadPullRequestVisibilityCases(t *testing.T) []pullRequestVisibilityCase {
 	if err != nil {
 		t.Fatalf("load the pull request visibility fixture: %v", err)
 	}
-	present := map[string]bool{}
+	present := map[string]struct{}{}
 	for _, c := range file.Cases {
-		if present[c.Name] {
+		if _, repeated := present[c.Name]; repeated {
 			t.Fatalf("the pull request visibility fixture repeats %q", c.Name)
 		}
 		switch c.Viewer {
@@ -65,40 +64,10 @@ func loadPullRequestVisibilityCases(t *testing.T) []pullRequestVisibilityCase {
 		if c.State != "attached" && c.State != "detached" {
 			t.Fatalf("case %q uses state %q; the read lists only attached and detached attachments, and the database proof covers the rest", c.Name, c.State)
 		}
-		present[c.Name] = true
+		present[c.Name] = struct{}{}
 	}
-	assertExactCaseNames(t, "pull-request-visibility", present, requiredPullRequestVisibilityCases)
+	assertExactTitleFixtureNames(t, "pull-request-visibility", present, requiredPullRequestVisibilityCases)
 	return file.Cases
-}
-
-// assertExactCaseNames holds a fixture to exact membership against its
-// manifest in both directions, so a removed case is named and an added one
-// cannot slip in unprotected.
-func assertExactCaseNames(t *testing.T, fixture string, present map[string]bool, required []string) {
-	t.Helper()
-	declared := map[string]bool{}
-	for _, name := range required {
-		declared[name] = true
-	}
-	var missing, undeclared []string
-	for name := range declared {
-		if !present[name] {
-			missing = append(missing, name)
-		}
-	}
-	for name := range present {
-		if !declared[name] {
-			undeclared = append(undeclared, name)
-		}
-	}
-	sort.Strings(missing)
-	sort.Strings(undeclared)
-	if len(missing) > 0 {
-		t.Fatalf("testdata/%s.yaml no longer carries %v, which its manifest declares; restore the case rather than deleting the name", fixture, missing)
-	}
-	if len(undeclared) > 0 {
-		t.Fatalf("testdata/%s.yaml carries %v, which its manifest does not declare; add each new name in the same change", fixture, undeclared)
-	}
 }
 
 // TestTranscriptPullRequestsApplyTheVisibilityRule drives the production read
@@ -142,11 +111,9 @@ func TestTranscriptPullRequestsApplyTheVisibilityRule(t *testing.T) {
 					}
 					return []sqlc.ListPullRequestCandidatesByTranscriptsRow{{
 						TranscriptID: toPgUUID(transcriptID),
-						PullRequestAttachment: sqlc.PullRequestAttachment{
-							ID: toPgUUID(attachmentID), RepoOwner: "acme", RepoName: "app", Number: 42,
-							HeadSha: "headsha", State: c.State, AuthorID: toPgUUID(author),
-							CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}, UpdatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
-						},
+						ID:           toPgUUID(attachmentID), RepoOwner: "acme", RepoName: "app", Number: 42,
+						HeadSha: "headsha", State: c.State, AuthorID: toPgUUID(author),
+						CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}, UpdatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 						InstallationID: 4242,
 						IsPrivate:      c.Private,
 						ViewerIsMember: c.Viewer == "member",
@@ -189,30 +156,30 @@ func TestTranscriptPullRequestsApplyTheVisibilityRule(t *testing.T) {
 	}
 }
 
-// TestPullRequestDetailsAreRememberedBrieflyAndFailuresAreNot pins the cost of
-// reading titles from GitHub: a pull request viewed again within the cache's
-// lifetime is not read again, and a read GitHub failed is not remembered, so the
-// next view asks again rather than serving an unknown title until it expires.
-func TestPullRequestDetailsAreRememberedBrieflyAndFailuresAreNot(t *testing.T) {
+// TestPullRequestDetailsAreRemembered pins the cost of reading titles from
+// GitHub: a pull request viewed again within the cache's lifetime is not read
+// again, and neither is one GitHub just refused to describe - it is served as
+// unknown until the shorter failure window passes, however often it is viewed.
+func TestPullRequestDetailsAreRemembered(t *testing.T) {
 	fake := newPullReadsGitHub(t)
 	fake.setPull("acme/app", 42, "Tighten the ingest retry", "fix/ingest-retry")
 	h := newTestHandler(&mockQuerier{}, nil)
 	h.gh = fake.client(t)
 	ctx := context.Background()
 
-	fake.failPullReads(true)
-	if detail := h.pullRequestDetail(ctx, 4242, "acme", "app", 42); detail.title != nil || detail.headRef != nil {
-		t.Fatalf("a failed read served %v/%v, want both unknown", detail.title, detail.headRef)
-	}
-	fake.failPullReads(false)
 	for i := 0; i < 3; i++ {
 		detail := h.pullRequestDetail(ctx, 4242, "ACME", "App", 42)
 		if detail.title == nil || *detail.title != "Tighten the ingest retry" || detail.headRef == nil || *detail.headRef != "fix/ingest-retry" {
 			t.Fatalf("read %d served %v/%v, want GitHub's title and head branch", i, detail.title, detail.headRef)
 		}
 	}
+	for i := 0; i < 3; i++ {
+		if detail := h.pullRequestDetail(ctx, 4242, "acme", "gone", 7); detail.title != nil || detail.headRef != nil {
+			t.Fatalf("a pull request GitHub does not describe served %v/%v, want both unknown", detail.title, detail.headRef)
+		}
+	}
 	if reads, _ := fake.counts(); reads != 2 {
-		t.Fatalf("GitHub was read %d time(s), want 2: the failed read, then one read the next two views reuse", reads)
+		t.Fatalf("GitHub was read %d time(s), want 2: one per pull request, each reused by the next two views", reads)
 	}
 }
 

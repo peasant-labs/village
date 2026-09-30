@@ -83,7 +83,7 @@ func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, rol
 	if err != nil {
 		return failure()
 	}
-	pullRequestCount, err := h.collectivePullRequestCount(ctx, GetUser(ctx), group.ID)
+	pullRequestCount, err := h.collectivePullRequestCountFor(ctx, GetUser(ctx), group.ID, canRead)
 	if err != nil {
 		return failure()
 	}

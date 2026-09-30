@@ -36,8 +36,13 @@ var requiredPullRequestSummariesCases = []string{
 	"a-repository-reader-outside-the-collective-sees-what-a-stranger-sees",
 	"a-member-sees-private-repository-pull-requests-in-the-collective",
 	"a-stranger-counts-only-public-repository-pull-requests-in-the-collective",
+	"a-pending-join-request-counts-as-a-stranger-in-the-collective",
 	"a-member-sees-the-same-in-the-grouped-collective-read",
 	"an-anonymous-reader-sees-the-same-as-a-stranger-in-the-grouped-collective-read",
+	"a-pending-join-request-counts-as-a-stranger-in-the-grouped-collective-read",
+	"a-member-of-a-members-only-collective-sees-its-count",
+	"a-stranger-to-a-members-only-collective-is-counted-nothing",
+	"a-stranger-to-a-members-only-collective-is-counted-nothing-in-the-grouped-read",
 }
 
 // requiredPullRequestListQueryCases is the name manifest for
@@ -57,11 +62,12 @@ type pullRequestSummaryExpected struct {
 type pullRequestSummariesFixture struct {
 	World prWorld `yaml:"world"`
 	Cases []struct {
-		Name    string                                `yaml:"name"`
-		Viewer  string                                `yaml:"viewer"`
-		Surface string                                `yaml:"surface"`
-		Stats   *int32                                `yaml:"stats"`
-		Rows    map[string]pullRequestSummaryExpected `yaml:"rows"`
+		Name       string                                `yaml:"name"`
+		Viewer     string                                `yaml:"viewer"`
+		Surface    string                                `yaml:"surface"`
+		Collective string                                `yaml:"collective"`
+		Stats      *int32                                `yaml:"stats"`
+		Rows       map[string]pullRequestSummaryExpected `yaml:"rows"`
 	} `yaml:"cases"`
 }
 
@@ -78,6 +84,10 @@ type pullRequestListQueriesFixture struct {
 type summarySurfaceRead struct {
 	rows  map[string]schema.VillagePullRequestsSummary
 	stats *int32
+	// owners and tags are what the flat list serves beside each row, by
+	// transcript id; the other surfaces leave them empty.
+	owners map[string]string
+	tags   map[string][]string
 }
 
 // readSummarySurface drives one surface as the viewer and decodes the rows'
@@ -100,7 +110,7 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 	if rec.Code != http.StatusOK {
 		t.Fatalf("%s answered %d (%s), want 200", target, rec.Code, rec.Body.String())
 	}
-	read := summarySurfaceRead{rows: map[string]schema.VillagePullRequestsSummary{}}
+	read := summarySurfaceRead{rows: map[string]schema.VillagePullRequestsSummary{}, owners: map[string]string{}, tags: map[string][]string{}}
 	add := func(id string, summary *schema.VillagePullRequestsSummary) {
 		if summary == nil {
 			t.Fatalf("%s row %s carries no pull_requests summary", surface, id)
@@ -117,6 +127,12 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 				Transcript struct {
 					ID string `json:"id"`
 				} `json:"transcript"`
+				Owner struct {
+					GithubUsername string `json:"github_username"`
+				} `json:"owner"`
+				Tags []struct {
+					Name string `json:"name"`
+				} `json:"tags"`
 				PullRequests *schema.VillagePullRequestsSummary `json:"pull_requests"`
 			} `json:"transcripts"`
 		}
@@ -125,6 +141,12 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 		}
 		for _, row := range body.Transcripts {
 			add(row.Transcript.ID, row.PullRequests)
+			read.owners[row.Transcript.ID] = row.Owner.GithubUsername
+			names := []string{}
+			for _, tag := range row.Tags {
+				names = append(names, tag.Name)
+			}
+			read.tags[row.Transcript.ID] = names
 		}
 	case "collective":
 		var body struct {
@@ -173,17 +195,17 @@ func TestPullRequestSummaries_RealPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load testdata/pull-request-summaries.yaml: %v", err)
 	}
-	present := map[string]bool{}
+	present := map[string]struct{}{}
 	for _, c := range fixture.Cases {
-		if present[c.Name] {
+		if _, repeated := present[c.Name]; repeated {
 			t.Fatalf("testdata/pull-request-summaries.yaml repeats %q", c.Name)
 		}
-		present[c.Name] = true
+		present[c.Name] = struct{}{}
 		if (c.Surface == "list") != (c.Stats == nil) {
 			t.Fatalf("case %q: stats is required on the collective surfaces and absent on the list", c.Name)
 		}
 	}
-	assertExactCaseNames(t, "pull-request-summaries", present, requiredPullRequestSummariesCases)
+	assertExactTitleFixtureNames(t, "pull-request-summaries", present, requiredPullRequestSummariesCases)
 
 	pool := govTestPool(t)
 	t.Cleanup(pool.Close)
@@ -191,7 +213,11 @@ func TestPullRequestSummaries_RealPostgres(t *testing.T) {
 	for _, c := range fixture.Cases {
 		t.Run(c.Name, func(t *testing.T) {
 			h := world.handler(t, pool)
-			read := readSummarySurface(t, world, h, prWorldRouter(h), c.Viewer, c.Surface, "team", "author")
+			collective := c.Collective
+			if collective == "" {
+				collective = "team"
+			}
+			read := readSummarySurface(t, world, h, prWorldRouter(h), c.Viewer, c.Surface, collective, "author")
 			got := map[string]schema.VillagePullRequestsSummary{}
 			for id, summary := range read.rows {
 				got[world.transcriptName(t, id)] = summary
@@ -209,8 +235,13 @@ func TestPullRequestSummaries_RealPostgres(t *testing.T) {
 					t.Fatalf("%s summary of %s = %d %v, want %d %v", c.Surface, name, summary.Count, recent, want.Count, want.Recent)
 				}
 			}
-			if c.Stats != nil && (read.stats == nil || *read.stats != *c.Stats) {
-				t.Fatalf("%s pull_request_count = %v, want %d", c.Surface, read.stats, *c.Stats)
+			if c.Stats != nil {
+				if read.stats == nil {
+					t.Fatalf("%s carries no pull_request_count, want %d", c.Surface, *c.Stats)
+				}
+				if *read.stats != *c.Stats {
+					t.Fatalf("%s pull_request_count = %d, want %d", c.Surface, *read.stats, *c.Stats)
+				}
 			}
 			if _, asks := world.github.counts(); asks != 0 {
 				t.Fatalf("the summaries asked GitHub %d permission question(s); they never ask what a viewer may read", asks)
@@ -257,7 +288,7 @@ func summaryGuardWorld(size int) prWorld {
 	for i := 1; i <= size; i++ {
 		name := fmt.Sprintf("session-%02d", i)
 		w.Transcripts = append(w.Transcripts, prWorldTranscript{Name: name, Owner: "author", Visibility: dbVisibilityPublic,
-			Shares: map[string]string{"team": "approved"}})
+			Shares: map[string]string{"team": "approved"}, Tags: []string{"guard"}})
 		w.Attachments = append(w.Attachments,
 			prWorldAttachment{Collective: "team", Repo: "acme/app", Number: i, Author: "author", State: "attached", Transcripts: []string{name}},
 			prWorldAttachment{Collective: "team", Repo: "acme/site", Number: 1000 + i, Author: "author", State: "attached", Transcripts: []string{name}})
@@ -276,14 +307,14 @@ func TestPullRequestSummariesCostTheSameForAnyPageSize(t *testing.T) {
 	if len(fixture.PageSizes) != 2 || fixture.PageSizes[0] != 1 || fixture.PageSizes[1] < 50 {
 		t.Fatalf("page_sizes = %v; the guard compares a page of one row with a page of at least fifty", fixture.PageSizes)
 	}
-	present := map[string]bool{}
+	present := map[string]struct{}{}
 	for _, c := range fixture.Cases {
-		if present[c.Name] {
+		if _, repeated := present[c.Name]; repeated {
 			t.Fatalf("testdata/pull-request-list-queries.yaml repeats %q", c.Name)
 		}
-		present[c.Name] = true
+		present[c.Name] = struct{}{}
 	}
-	assertExactCaseNames(t, "pull-request-list-queries", present, requiredPullRequestListQueryCases)
+	assertExactTitleFixtureNames(t, "pull-request-list-queries", present, requiredPullRequestListQueryCases)
 
 	writer := govTestPool(t)
 	t.Cleanup(writer.Close)
@@ -321,9 +352,22 @@ func TestPullRequestSummariesCostTheSameForAnyPageSize(t *testing.T) {
 					if summary.Count != 2 || len(summary.Recent) != 2 {
 						t.Fatalf("row %s of the page of %d carries summary %+v, want the two pull requests bound to it", id, size, summary)
 					}
+					// The list reads each row's owner and tags for the whole page
+					// too; every row must still get its own.
+					if c.Surface == "list" {
+						if read.owners[id] != world.logins["author"] || strings.Join(read.tags[id], ",") != world.tags["guard"] {
+							t.Fatalf("row %s of the page of %d carries owner %q and tags %v, want %q and [%s]",
+								id, size, read.owners[id], read.tags[id], world.logins["author"], world.tags["guard"])
+						}
+					}
 				}
-				if c.Surface != "list" && (read.stats == nil || *read.stats != int32(2*size)) {
-					t.Fatalf("the page of %d reported pull_request_count %v, want %d", size, read.stats, 2*size)
+				if c.Surface != "list" {
+					if read.stats == nil {
+						t.Fatalf("the page of %d carries no pull_request_count, want %d", size, 2*size)
+					}
+					if *read.stats != int32(2*size) {
+						t.Fatalf("the page of %d reported pull_request_count %d, want %d", size, *read.stats, 2*size)
+					}
 				}
 			}
 			for i := 1; i < len(costs); i++ {

@@ -263,7 +263,9 @@ func (q *Queries) GetPullRequestAttachmentTranscript(ctx context.Context, arg Ge
 
 const listAttachedPullRequestCandidatesByGroup = `-- name: ListAttachedPullRequestCandidatesByGroup :many
 SELECT pt.transcript_id,
-       a.id, a.repo_owner, a.repo_name, a.github_repo_id, a.number, a.head_sha, a.base_remote, a.head_remote, a.author_id, a.requester_github_id, a.state, a.comment_id, a.check_run_id, a.digest, a.requested_at, a.waiting_at, a.preview_at, a.attached_at, a.detached_at, a.created_at, a.updated_at, a.group_id,
+       a.id, a.repo_owner, a.repo_name, a.number, a.head_sha, a.state, a.author_id,
+       a.requester_github_id, a.comment_id, a.check_run_id,
+       a.created_at, a.updated_at, a.attached_at, a.detached_at,
        cr.installation_id,
        cr.is_private,
        (gm.user_id IS NOT NULL)::boolean AS viewer_is_member
@@ -290,11 +292,24 @@ type ListAttachedPullRequestCandidatesByGroupParams struct {
 }
 
 type ListAttachedPullRequestCandidatesByGroupRow struct {
-	TranscriptID          pgtype.UUID           `db:"transcript_id" json:"transcript_id"`
-	PullRequestAttachment PullRequestAttachment `db:"pull_request_attachment" json:"pull_request_attachment"`
-	InstallationID        int64                 `db:"installation_id" json:"installation_id"`
-	IsPrivate             bool                  `db:"is_private" json:"is_private"`
-	ViewerIsMember        bool                  `db:"viewer_is_member" json:"viewer_is_member"`
+	TranscriptID      pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	ID                pgtype.UUID        `db:"id" json:"id"`
+	RepoOwner         string             `db:"repo_owner" json:"repo_owner"`
+	RepoName          string             `db:"repo_name" json:"repo_name"`
+	Number            int32              `db:"number" json:"number"`
+	HeadSha           string             `db:"head_sha" json:"head_sha"`
+	State             string             `db:"state" json:"state"`
+	AuthorID          pgtype.UUID        `db:"author_id" json:"author_id"`
+	RequesterGithubID pgtype.Int8        `db:"requester_github_id" json:"requester_github_id"`
+	CommentID         pgtype.Int8        `db:"comment_id" json:"comment_id"`
+	CheckRunID        pgtype.Int8        `db:"check_run_id" json:"check_run_id"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	AttachedAt        pgtype.Timestamptz `db:"attached_at" json:"attached_at"`
+	DetachedAt        pgtype.Timestamptz `db:"detached_at" json:"detached_at"`
+	InstallationID    int64              `db:"installation_id" json:"installation_id"`
+	IsPrivate         bool               `db:"is_private" json:"is_private"`
+	ViewerIsMember    bool               `db:"viewer_is_member" json:"viewer_is_member"`
 }
 
 // The attached pull requests bound to a transcript a collective counts: the
@@ -311,28 +326,20 @@ func (q *Queries) ListAttachedPullRequestCandidatesByGroup(ctx context.Context, 
 		var i ListAttachedPullRequestCandidatesByGroupRow
 		if err := rows.Scan(
 			&i.TranscriptID,
-			&i.PullRequestAttachment.ID,
-			&i.PullRequestAttachment.RepoOwner,
-			&i.PullRequestAttachment.RepoName,
-			&i.PullRequestAttachment.GithubRepoID,
-			&i.PullRequestAttachment.Number,
-			&i.PullRequestAttachment.HeadSha,
-			&i.PullRequestAttachment.BaseRemote,
-			&i.PullRequestAttachment.HeadRemote,
-			&i.PullRequestAttachment.AuthorID,
-			&i.PullRequestAttachment.RequesterGithubID,
-			&i.PullRequestAttachment.State,
-			&i.PullRequestAttachment.CommentID,
-			&i.PullRequestAttachment.CheckRunID,
-			&i.PullRequestAttachment.Digest,
-			&i.PullRequestAttachment.RequestedAt,
-			&i.PullRequestAttachment.WaitingAt,
-			&i.PullRequestAttachment.PreviewAt,
-			&i.PullRequestAttachment.AttachedAt,
-			&i.PullRequestAttachment.DetachedAt,
-			&i.PullRequestAttachment.CreatedAt,
-			&i.PullRequestAttachment.UpdatedAt,
-			&i.PullRequestAttachment.GroupID,
+			&i.ID,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.Number,
+			&i.HeadSha,
+			&i.State,
+			&i.AuthorID,
+			&i.RequesterGithubID,
+			&i.CommentID,
+			&i.CheckRunID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AttachedAt,
+			&i.DetachedAt,
 			&i.InstallationID,
 			&i.IsPrivate,
 			&i.ViewerIsMember,
@@ -349,7 +356,9 @@ func (q *Queries) ListAttachedPullRequestCandidatesByGroup(ctx context.Context, 
 
 const listAttachedPullRequestCandidatesByOwner = `-- name: ListAttachedPullRequestCandidatesByOwner :many
 SELECT pt.transcript_id,
-       a.id, a.repo_owner, a.repo_name, a.github_repo_id, a.number, a.head_sha, a.base_remote, a.head_remote, a.author_id, a.requester_github_id, a.state, a.comment_id, a.check_run_id, a.digest, a.requested_at, a.waiting_at, a.preview_at, a.attached_at, a.detached_at, a.created_at, a.updated_at, a.group_id,
+       a.id, a.repo_owner, a.repo_name, a.number, a.head_sha, a.state, a.author_id,
+       a.requester_github_id, a.comment_id, a.check_run_id,
+       a.created_at, a.updated_at, a.attached_at, a.detached_at,
        cr.installation_id,
        cr.is_private,
        (gm.user_id IS NOT NULL)::boolean AS viewer_is_member
@@ -375,11 +384,24 @@ type ListAttachedPullRequestCandidatesByOwnerParams struct {
 }
 
 type ListAttachedPullRequestCandidatesByOwnerRow struct {
-	TranscriptID          pgtype.UUID           `db:"transcript_id" json:"transcript_id"`
-	PullRequestAttachment PullRequestAttachment `db:"pull_request_attachment" json:"pull_request_attachment"`
-	InstallationID        int64                 `db:"installation_id" json:"installation_id"`
-	IsPrivate             bool                  `db:"is_private" json:"is_private"`
-	ViewerIsMember        bool                  `db:"viewer_is_member" json:"viewer_is_member"`
+	TranscriptID      pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	ID                pgtype.UUID        `db:"id" json:"id"`
+	RepoOwner         string             `db:"repo_owner" json:"repo_owner"`
+	RepoName          string             `db:"repo_name" json:"repo_name"`
+	Number            int32              `db:"number" json:"number"`
+	HeadSha           string             `db:"head_sha" json:"head_sha"`
+	State             string             `db:"state" json:"state"`
+	AuthorID          pgtype.UUID        `db:"author_id" json:"author_id"`
+	RequesterGithubID pgtype.Int8        `db:"requester_github_id" json:"requester_github_id"`
+	CommentID         pgtype.Int8        `db:"comment_id" json:"comment_id"`
+	CheckRunID        pgtype.Int8        `db:"check_run_id" json:"check_run_id"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	AttachedAt        pgtype.Timestamptz `db:"attached_at" json:"attached_at"`
+	DetachedAt        pgtype.Timestamptz `db:"detached_at" json:"detached_at"`
+	InstallationID    int64              `db:"installation_id" json:"installation_id"`
+	IsPrivate         bool               `db:"is_private" json:"is_private"`
+	ViewerIsMember    bool               `db:"viewer_is_member" json:"viewer_is_member"`
 }
 
 // The attached pull requests bound to any transcript one person published, for
@@ -395,28 +417,20 @@ func (q *Queries) ListAttachedPullRequestCandidatesByOwner(ctx context.Context, 
 		var i ListAttachedPullRequestCandidatesByOwnerRow
 		if err := rows.Scan(
 			&i.TranscriptID,
-			&i.PullRequestAttachment.ID,
-			&i.PullRequestAttachment.RepoOwner,
-			&i.PullRequestAttachment.RepoName,
-			&i.PullRequestAttachment.GithubRepoID,
-			&i.PullRequestAttachment.Number,
-			&i.PullRequestAttachment.HeadSha,
-			&i.PullRequestAttachment.BaseRemote,
-			&i.PullRequestAttachment.HeadRemote,
-			&i.PullRequestAttachment.AuthorID,
-			&i.PullRequestAttachment.RequesterGithubID,
-			&i.PullRequestAttachment.State,
-			&i.PullRequestAttachment.CommentID,
-			&i.PullRequestAttachment.CheckRunID,
-			&i.PullRequestAttachment.Digest,
-			&i.PullRequestAttachment.RequestedAt,
-			&i.PullRequestAttachment.WaitingAt,
-			&i.PullRequestAttachment.PreviewAt,
-			&i.PullRequestAttachment.AttachedAt,
-			&i.PullRequestAttachment.DetachedAt,
-			&i.PullRequestAttachment.CreatedAt,
-			&i.PullRequestAttachment.UpdatedAt,
-			&i.PullRequestAttachment.GroupID,
+			&i.ID,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.Number,
+			&i.HeadSha,
+			&i.State,
+			&i.AuthorID,
+			&i.RequesterGithubID,
+			&i.CommentID,
+			&i.CheckRunID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AttachedAt,
+			&i.DetachedAt,
 			&i.InstallationID,
 			&i.IsPrivate,
 			&i.ViewerIsMember,
@@ -682,7 +696,9 @@ func (q *Queries) ListPullRequestAttachmentTranscripts(ctx context.Context, atta
 
 const listPullRequestCandidatesByTranscripts = `-- name: ListPullRequestCandidatesByTranscripts :many
 SELECT pt.transcript_id,
-       a.id, a.repo_owner, a.repo_name, a.github_repo_id, a.number, a.head_sha, a.base_remote, a.head_remote, a.author_id, a.requester_github_id, a.state, a.comment_id, a.check_run_id, a.digest, a.requested_at, a.waiting_at, a.preview_at, a.attached_at, a.detached_at, a.created_at, a.updated_at, a.group_id,
+       a.id, a.repo_owner, a.repo_name, a.number, a.head_sha, a.state, a.author_id,
+       a.requester_github_id, a.comment_id, a.check_run_id,
+       a.created_at, a.updated_at, a.attached_at, a.detached_at,
        cr.installation_id,
        cr.is_private,
        (gm.user_id IS NOT NULL)::boolean AS viewer_is_member
@@ -710,11 +726,24 @@ type ListPullRequestCandidatesByTranscriptsParams struct {
 }
 
 type ListPullRequestCandidatesByTranscriptsRow struct {
-	TranscriptID          pgtype.UUID           `db:"transcript_id" json:"transcript_id"`
-	PullRequestAttachment PullRequestAttachment `db:"pull_request_attachment" json:"pull_request_attachment"`
-	InstallationID        int64                 `db:"installation_id" json:"installation_id"`
-	IsPrivate             bool                  `db:"is_private" json:"is_private"`
-	ViewerIsMember        bool                  `db:"viewer_is_member" json:"viewer_is_member"`
+	TranscriptID      pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	ID                pgtype.UUID        `db:"id" json:"id"`
+	RepoOwner         string             `db:"repo_owner" json:"repo_owner"`
+	RepoName          string             `db:"repo_name" json:"repo_name"`
+	Number            int32              `db:"number" json:"number"`
+	HeadSha           string             `db:"head_sha" json:"head_sha"`
+	State             string             `db:"state" json:"state"`
+	AuthorID          pgtype.UUID        `db:"author_id" json:"author_id"`
+	RequesterGithubID pgtype.Int8        `db:"requester_github_id" json:"requester_github_id"`
+	CommentID         pgtype.Int8        `db:"comment_id" json:"comment_id"`
+	CheckRunID        pgtype.Int8        `db:"check_run_id" json:"check_run_id"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	AttachedAt        pgtype.Timestamptz `db:"attached_at" json:"attached_at"`
+	DetachedAt        pgtype.Timestamptz `db:"detached_at" json:"detached_at"`
+	InstallationID    int64              `db:"installation_id" json:"installation_id"`
+	IsPrivate         bool               `db:"is_private" json:"is_private"`
+	ViewerIsMember    bool               `db:"viewer_is_member" json:"viewer_is_member"`
 }
 
 // The pull requests bound to a page of transcripts, in the requested states.
@@ -735,6 +764,10 @@ type ListPullRequestCandidatesByTranscriptsRow struct {
 // membership. Each is one statement for the whole page or the whole scope, never
 // one per row.
 //
+// The attachment's columns are named rather than embedded: the stored digest
+// holds prompt text none of these reads serves, and a collective's count would
+// otherwise move every digest it binds to produce one integer.
+//
 // idx_pull_request_attachment_transcripts_transcript serves the transcript
 // predicate. Rows come newest first within a transcript: by the latest of
 // attached_at and detached_at, which for an attached attachment is when it was
@@ -750,28 +783,20 @@ func (q *Queries) ListPullRequestCandidatesByTranscripts(ctx context.Context, ar
 		var i ListPullRequestCandidatesByTranscriptsRow
 		if err := rows.Scan(
 			&i.TranscriptID,
-			&i.PullRequestAttachment.ID,
-			&i.PullRequestAttachment.RepoOwner,
-			&i.PullRequestAttachment.RepoName,
-			&i.PullRequestAttachment.GithubRepoID,
-			&i.PullRequestAttachment.Number,
-			&i.PullRequestAttachment.HeadSha,
-			&i.PullRequestAttachment.BaseRemote,
-			&i.PullRequestAttachment.HeadRemote,
-			&i.PullRequestAttachment.AuthorID,
-			&i.PullRequestAttachment.RequesterGithubID,
-			&i.PullRequestAttachment.State,
-			&i.PullRequestAttachment.CommentID,
-			&i.PullRequestAttachment.CheckRunID,
-			&i.PullRequestAttachment.Digest,
-			&i.PullRequestAttachment.RequestedAt,
-			&i.PullRequestAttachment.WaitingAt,
-			&i.PullRequestAttachment.PreviewAt,
-			&i.PullRequestAttachment.AttachedAt,
-			&i.PullRequestAttachment.DetachedAt,
-			&i.PullRequestAttachment.CreatedAt,
-			&i.PullRequestAttachment.UpdatedAt,
-			&i.PullRequestAttachment.GroupID,
+			&i.ID,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.Number,
+			&i.HeadSha,
+			&i.State,
+			&i.AuthorID,
+			&i.RequesterGithubID,
+			&i.CommentID,
+			&i.CheckRunID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AttachedAt,
+			&i.DetachedAt,
 			&i.InstallationID,
 			&i.IsPrivate,
 			&i.ViewerIsMember,
