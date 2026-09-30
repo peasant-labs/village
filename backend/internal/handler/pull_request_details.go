@@ -60,8 +60,17 @@ func (h *Handler) pullRequestDetailsFor(ctx context.Context, candidates []pullRe
 	slots := make(chan struct{}, pullRequestDetailFetchers)
 	var wg sync.WaitGroup
 	for i, c := range candidates {
+		// No read starts once the response has stopped waiting: the pull requests
+		// not reached by then are served as unknown, and the list never has more
+		// than its few reads in flight, even when its caller has gone.
+		select {
+		case slots <- struct{}{}:
+		case <-ctx.Done():
+		}
+		if ctx.Err() != nil {
+			break
+		}
 		wg.Add(1)
-		slots <- struct{}{}
 		go func(i int, c pullRequestCandidate) {
 			defer wg.Done()
 			defer func() { <-slots }()

@@ -255,6 +255,66 @@ func TestPullRequestDetailReadsAreBoundedByTheirDeadline(t *testing.T) {
 	}
 }
 
+// TestPullRequestDetailsForAListStopAtItsDeadline pins what a slow GitHub costs
+// a list: the response arrives within its deadline with unknown titles, and no
+// more than the list's few reads ever start, however many pull requests it
+// holds and even once its caller has stopped waiting.
+func TestPullRequestDetailsForAListStopAtItsDeadline(t *testing.T) {
+	fake := newPullReadsGitHub(t)
+	fake.delayPullReads(5 * time.Second)
+	// Forty pull requests at four at a time: without the list's own deadline
+	// they would take ten read deadlines, not one.
+	candidates := make([]pullRequestCandidate, 40)
+	for i := range candidates {
+		fake.setPull("acme/app", i+1, "Tighten the ingest retry", "fix/ingest-retry")
+		candidates[i] = pullRequestCandidate{owner: "acme", name: "app", number: i + 1, installationID: 4242}
+	}
+	h := newTestHandler(&mockQuerier{}, nil)
+	h.gh = fake.client(t)
+	h.pullDetailDeadline = 100 * time.Millisecond
+
+	started := time.Now()
+	details := h.pullRequestDetailsFor(context.Background(), candidates)
+	if elapsed := time.Since(started); elapsed > 600*time.Millisecond {
+		t.Fatalf("a list of %d waited %s on a GitHub that does not answer, want about the %s deadline", len(candidates), elapsed, h.pullDetailDeadline)
+	}
+	for i, detail := range details {
+		if detail.title != nil || detail.headRef != nil {
+			t.Fatalf("pull request %d served %v/%v after the deadline, want both unknown", i+1, detail.title, detail.headRef)
+		}
+	}
+	// Give any read the list might still start the time to reach the fake.
+	time.Sleep(200 * time.Millisecond)
+	if reads, _ := fake.counts(); reads > pullRequestDetailFetchers {
+		t.Fatalf("the list started %d GitHub reads, want at most %d", reads, pullRequestDetailFetchers)
+	}
+}
+
+// TestPullRequestDetailOutlivesACallerWhoLeaves pins that a read belongs to the
+// pull request, not to the caller that started it: the first caller leaving
+// early does not cancel it, and the next caller gets GitHub's answer from that
+// same read.
+func TestPullRequestDetailOutlivesACallerWhoLeaves(t *testing.T) {
+	fake := newPullReadsGitHub(t)
+	fake.setPull("acme/app", 42, "Tighten the ingest retry", "fix/ingest-retry")
+	fake.delayPullReads(200 * time.Millisecond)
+	h := newTestHandler(&mockQuerier{}, nil)
+	h.gh = fake.client(t)
+
+	leaving, leave := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer leave()
+	if first := h.pullRequestDetail(leaving, 4242, "acme", "app", 42); first.title != nil {
+		t.Fatalf("a caller who left before GitHub answered was served %v, want unknown", first.title)
+	}
+	second := h.pullRequestDetail(context.Background(), 4242, "acme", "app", 42)
+	if second.title == nil || *second.title != "Tighten the ingest retry" {
+		t.Fatalf("the next caller was served %v, want GitHub's title from the read the first caller started", second.title)
+	}
+	if reads, _ := fake.counts(); reads != 1 {
+		t.Fatalf("GitHub was read %d time(s), want 1", reads)
+	}
+}
+
 // TestPullRequestDetailCacheWindows pins how long each outcome is remembered
 // and that the table stays bounded, at explicit instants rather than by sleeping.
 func TestPullRequestDetailCacheWindows(t *testing.T) {
