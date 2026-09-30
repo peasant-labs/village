@@ -82,24 +82,11 @@ export type SubmissionPairCase = {
   expectedChips: string[];
 };
 
-export type TranscriptCollectiveFixture = {
-  id: string;
-  name: string;
-};
-
-export type TranscriptCollectivesCase = {
-  name: string;
-  httpStatus: number;
-  collectives: TranscriptCollectiveFixture[];
-  expectedCollectiveNames: string[];
-};
-
 export type ProfileCollectivesFixtures = {
   viewerCases: ProfileViewerCase[];
   contributionCases: ContributionCase[];
   eventHistoryCases: EventHistoryCase[];
   submissionPairCases: SubmissionPairCase[];
-  transcriptCollectivesCases: TranscriptCollectivesCase[];
 };
 
 // Required-NAME manifests, not counts. A deleted case fails the loader because
@@ -132,12 +119,6 @@ const requiredEventHistoryCaseNames = [
   "removed-by-the-collective-is-distinct-from-a-refusal",
 ] as const;
 
-const requiredTranscriptCollectivesCaseNames = [
-  "approved-memberships-render-as-named-chips",
-  "owner-not-opted-in-returns-an-empty-list-not-a-refusal",
-  "transcript-in-no-collective-renders-nothing",
-] as const;
-
 const viewerCaseKeys = ["name", "viewer", "expectSection", "expectContributionsRequest"];
 const collectiveKeys = [
   "id",
@@ -166,14 +147,6 @@ const eventKeys = [
   "expectedDisplayedAt",
 ];
 const eventHistoryCaseKeys = ["name", "events", "expectedLabels"];
-const transcriptCollectiveKeys = ["id", "name"];
-const transcriptCollectivesCaseKeys = [
-  "name",
-  "httpStatus",
-  "collectives",
-  "expectedCollectiveNames",
-];
-
 const VIEWERS: readonly ProfileViewer[] = ["owner", "other-signed-in", "anonymous"];
 const STATUSES: readonly ShareEventStatus[] = [
   "pending",
@@ -197,7 +170,6 @@ export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
       "contributionCases",
       "eventHistoryCases",
       "submissionPairCases",
-      "transcriptCollectivesCases",
     ],
     "fixture root",
   );
@@ -492,35 +464,6 @@ export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
         );
       }
     });
-  }
-
-  assertNamesMatch(
-    fixtures.transcriptCollectivesCases.map((c) => c.name),
-    requiredTranscriptCollectivesCaseNames,
-    "profile-collectives transcriptCollectivesCases",
-  );
-  for (const c of fixtures.transcriptCollectivesCases) {
-    assertExactKeys(c, transcriptCollectivesCaseKeys, `transcript-collectives case ${c.name}`);
-    if (c.httpStatus !== 200) {
-      throw new Error(
-        `transcript-collectives case ${c.name}: this endpoint answers 200 with a list in every ` +
-          `case, including one where the visibility rule or the owner's contributor opt-in ` +
-          `withholds everything — a refusal status would itself confirm that memberships exist, ` +
-          `so no case may declare one (got ${c.httpStatus})`,
-      );
-    }
-    for (const g of c.collectives) {
-      assertExactKeys(g, transcriptCollectiveKeys, `transcript-collectives case ${c.name} collective`);
-    }
-    if (
-      c.expectedCollectiveNames.length !== c.collectives.length ||
-      c.expectedCollectiveNames.some((n, i) => n !== c.collectives[i].name)
-    ) {
-      throw new Error(
-        `transcript-collectives case ${c.name}: expectedCollectiveNames must restate the served ` +
-          `collective names in the order served`,
-      );
-    }
   }
 
   return fixtures;

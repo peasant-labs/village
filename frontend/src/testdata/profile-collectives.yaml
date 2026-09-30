@@ -1,5 +1,6 @@
-# Cases for the own-profile contributed-collectives section, the owner-only
-# share-event history, and the per-transcript collectives list.
+# Cases for the own-profile contributed-collectives section and the owner-only
+# share-event history. (Who can read a transcript is the owner's `manage
+# access` popup on the transcript page: see transcript-header-actions.yaml.)
 #
 # Deletion protection is by required NAME (see profileCollectivesFixtures.ts):
 # removing a case fails the loader because its name goes missing from the
@@ -383,28 +384,3 @@ submissionPairCases:
       - rejected
       - withdrawn
       - withdrawn
-
-# The auth-optional per-transcript list. The server answers an empty list, never
-# a refusal, when the viewer may not see a membership or the owner has not
-# opted in to being listed as a contributor.
-transcriptCollectivesCases:
-  - name: approved-memberships-render-as-named-chips
-    httpStatus: 200
-    collectives:
-      - id: 66666666-6666-4666-8666-666666666666
-        name: AI Research Team
-      - id: 77777777-7777-4777-8777-777777777777
-        name: Verified Contributors
-    expectedCollectiveNames:
-      - AI Research Team
-      - Verified Contributors
-
-  - name: owner-not-opted-in-returns-an-empty-list-not-a-refusal
-    httpStatus: 200
-    collectives: []
-    expectedCollectiveNames: []
-
-  - name: transcript-in-no-collective-renders-nothing
-    httpStatus: 200
-    collectives: []
-    expectedCollectiveNames: []

@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   VillagePullRequestAttachmentResponse,
+  VillageTranscriptPullRequest,
+  VillageTranscriptPullRequestsResponse,
   VillageUserSettings,
 } from "@peasant-labs/schema";
 import { api } from "../api";
@@ -28,6 +30,29 @@ export function usePullRequestAttachment(owner: string, name: string, number: nu
     queryFn: () => api<VillagePullRequestAttachmentResponse>(pullPath(owner, name, number)),
     retry: false,
     enabled: !!owner && !!name && Number.isInteger(number) && number > 0,
+  });
+}
+
+/**
+ * The pull requests one transcript is bound to, attached or detached, that THIS
+ * viewer may read (`GET /transcripts/{id}/pulls`). The server applies the
+ * transcript's own read check and each pull request's reader rule, so the list
+ * is already narrowed to the viewer; the page renders it as served.
+ */
+export function transcriptPullRequestsKey(transcriptId: string) {
+  return ["transcript-pull-requests", transcriptId] as const;
+}
+
+export function useTranscriptPullRequests(transcriptId: string, enabled = true) {
+  return useQuery({
+    queryKey: transcriptPullRequestsKey(transcriptId),
+    queryFn: async (): Promise<VillageTranscriptPullRequest[]> => {
+      const res = await api<VillageTranscriptPullRequestsResponse>(
+        `/transcripts/${encodeURIComponent(transcriptId)}/pulls`,
+      );
+      return res.pull_requests ?? [];
+    },
+    enabled: enabled && !!transcriptId,
   });
 }
 
