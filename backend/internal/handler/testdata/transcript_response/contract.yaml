@@ -101,14 +101,18 @@ mounted_paths:
   - name: public_group
     shape: flat_group
     resolves_project: false
+# The fields only the collective row carries. Its pull request summary starts
+# empty here; GET /groups/{id} fills it for the page it serves with one query.
 owner_fields:
   - owner_username
   - owner_avatar_url
   - owner_is_discoverable
+  - pull_requests
 owner_values:
   owner_username: route-owner
   owner_avatar_url: https://example.test/avatar.png
   owner_is_discoverable: true
+  pull_requests: {count: 0, recent: []}
 source_row:
   id: 10000000-0000-4000-8000-000000000001
   owner_id: 20000000-0000-4000-8000-000000000002

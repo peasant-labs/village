@@ -212,6 +212,11 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Get("/users/me/prompt-requests", h.ListMyPromptRequests)
 		r.With(h.AuthRequired).Get("/users/me/settings", h.GetUserSettings)
 		r.With(h.AuthRequired).Patch("/users/me/settings", h.UpdateUserSettings)
+		// A transcript's pull requests follow the transcript's own read: open to
+		// an anonymous reader of a public transcript, 404 for anyone who may not
+		// read it. The caller's totals are their own, so they need a session.
+		r.With(h.AuthOptional).Get("/transcripts/{id}/pulls", h.ListTranscriptPullRequests)
+		r.With(h.AuthRequired).Get("/users/me/stats", h.GetMyStats)
 
 		// GitHub App install handshake. Both routes are redirects, like the OAuth
 		// entry points, so neither is declared by the JSON contract; the install

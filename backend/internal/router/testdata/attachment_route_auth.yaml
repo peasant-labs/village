@@ -33,3 +33,13 @@ routes:
     method: PATCH
     path: /api/v1/users/me/settings
     anonymous: 401
+
+  - name: a transcript's pull requests are reachable anonymously
+    method: GET
+    path: /api/v1/transcripts/00000000-0000-4000-8000-000000000257/pulls
+    anonymous: 404
+
+  - name: personal totals require a session
+    method: GET
+    path: /api/v1/users/me/stats
+    anonymous: 401

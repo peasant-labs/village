@@ -81,6 +81,9 @@ func (h *Handler) GroupedList(ctx context.Context, request GroupedScopeRequest, 
 		}
 		payload.Items = append(payload.Items, item)
 	}
+	if err := h.fillCollectivePullRequestSummaries(ctx, payload.Items); err != nil {
+		return schema.VillageSessionListPayload{}, err
+	}
 	return payload, payload.Validate()
 }
 
@@ -126,6 +129,10 @@ func (h *Handler) ListHelperMembers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		payload.Members = append(payload.Members, item)
+	}
+	if err := h.fillCollectivePullRequestSummaries(r.Context(), payload.Members); err != nil {
+		WriteGroupedScopeError(w, err)
+		return
 	}
 	if err := payload.Validate(); err != nil {
 		WriteGroupedScopeError(w, err)

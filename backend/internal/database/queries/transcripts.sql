@@ -374,3 +374,14 @@ WHERE t.owner_id = @owner_id
   AND t.git_remote IS NOT NULL
   AND t.git_remote <> ''
 ORDER BY t.session_start ASC NULLS LAST, t.id ASC;
+
+-- name: GetOwnerTranscriptTotals :one
+-- The totals GET /users/me/stats reports over every transcript one person
+-- published: every visibility and every origin, because they are that person's
+-- own. Tokens are input plus output, as the collective's totals count them.
+SELECT COUNT(*)::int AS total_transcripts,
+       COALESCE(SUM(turn_count), 0)::bigint AS total_turns,
+       COALESCE(SUM(duration_ms), 0)::bigint AS total_duration_ms,
+       COALESCE(SUM(COALESCE(tokens_in, 0) + COALESCE(tokens_out, 0)), 0)::bigint AS total_tokens
+FROM transcripts
+WHERE owner_id = $1;

@@ -30,3 +30,11 @@ SELECT t.id, t.name
 FROM tags t
 JOIN transcript_tags tt ON t.id = tt.tag_id
 WHERE tt.transcript_id = $1;
+
+-- name: ListTagsByTranscriptIDs :many
+-- The tags of a whole page of transcripts in one statement, for list surfaces
+-- that would otherwise read GetTranscriptTags once per row.
+SELECT tt.transcript_id, t.id, t.name
+FROM tags t
+JOIN transcript_tags tt ON t.id = tt.tag_id
+WHERE tt.transcript_id = ANY(@transcript_ids::uuid[]);

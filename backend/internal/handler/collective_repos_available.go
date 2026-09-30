@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strings"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/schema"
 )
@@ -86,12 +89,66 @@ func (h *Handler) ListAvailableRepositories(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, "Could not read the repositories from GitHub")
 		return
 	}
+	publishers, err := h.repositoryPublisherCounts(r.Context(), groupID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not count who publishes from each repository; retry the request")
+		return
+	}
 	for _, repo := range repos {
 		response.Repositories = append(response.Repositories, schema.VillageAvailableRepository{
-			Owner:     repo.Owner,
-			Name:      repo.Name,
-			IsPrivate: repo.Private,
+			Owner:          repo.Owner,
+			Name:           repo.Name,
+			IsPrivate:      repo.Private,
+			PublisherCount: publishers[strings.ToLower(repo.Owner)+"/"+strings.ToLower(repo.Name)],
 		})
 	}
 	writeJSON(w, http.StatusOK, response)
+}
+
+// repositoryPublisherCounts counts, for each GitHub repository, the distinct
+// people whose transcripts are already shared with this collective and whose
+// git remote is that repository. A transcript that is not shared with the
+// collective, or whose submission is still awaiting review, counts nothing. The
+// map is keyed by lowercased "owner/name".
+func (h *Handler) repositoryPublisherCounts(ctx context.Context, groupID pgtype.UUID) (map[string]int32, error) {
+	rows, err := h.queries.ListCollectiveSharedRemotes(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	owners := map[string]map[pgtype.UUID]bool{}
+	for _, row := range rows {
+		key, ok := githubRepositoryKey(row.GitRemote.String)
+		if !ok {
+			continue
+		}
+		if owners[key] == nil {
+			owners[key] = map[pgtype.UUID]bool{}
+		}
+		owners[key][row.OwnerID] = true
+	}
+	counts := make(map[string]int32, len(owners))
+	for key, people := range owners {
+		counts[key] = int32(len(people))
+	}
+	return counts, nil
+}
+
+// githubRepositoryKey reduces a git remote to the lowercased "owner/name" of the
+// github.com repository it names. It reads the remote with schema.RemoteLabel,
+// the one rule every surface uses, so an SSH, HTTPS, or bare remote of the same
+// repository agree, and a remote on any other host names no GitHub repository.
+func githubRepositoryKey(remote string) (string, bool) {
+	label, ok := schema.RemoteLabel(remote)
+	if !ok {
+		return "", false
+	}
+	host, path, found := strings.Cut(label, ":")
+	if !found || host != "github.com" {
+		return "", false
+	}
+	owner, name, found := strings.Cut(path, "/")
+	if !found || owner == "" || name == "" || strings.Contains(name, "/") {
+		return "", false
+	}
+	return strings.ToLower(owner) + "/" + strings.ToLower(name), true
 }

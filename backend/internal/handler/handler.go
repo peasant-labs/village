@@ -87,6 +87,11 @@ type Handler struct {
 	repoAccess        repositoryAccessCache
 	repoAccessLimiter repositoryAccessLimiter
 
+	// pullDetails remembers for a short time the title and head branch GitHub
+	// reported for a pull request, so a page viewed again does not ask again.
+	// In-process and zero-value usable, like the two above.
+	pullDetails pullRequestDetailCache
+
 	// githubDispatcher is the handling point for each subscribed webhook event
 	// type. Production uses noopGitHubDispatcher until the matching, digest, and
 	// posting work fills it in; a test injects a recording dispatcher to prove

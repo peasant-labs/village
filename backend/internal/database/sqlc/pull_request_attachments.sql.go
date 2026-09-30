@@ -261,6 +261,176 @@ func (q *Queries) GetPullRequestAttachmentTranscript(ctx context.Context, arg Ge
 	return i, err
 }
 
+const listAttachedPullRequestCandidatesByGroup = `-- name: ListAttachedPullRequestCandidatesByGroup :many
+SELECT pt.transcript_id,
+       a.id, a.repo_owner, a.repo_name, a.github_repo_id, a.number, a.head_sha, a.base_remote, a.head_remote, a.author_id, a.requester_github_id, a.state, a.comment_id, a.check_run_id, a.digest, a.requested_at, a.waiting_at, a.preview_at, a.attached_at, a.detached_at, a.created_at, a.updated_at, a.group_id,
+       cr.installation_id,
+       cr.is_private,
+       (gm.user_id IS NOT NULL)::boolean AS viewer_is_member
+FROM transcript_shares ts
+JOIN pull_request_attachment_transcripts pt ON pt.transcript_id = ts.transcript_id
+JOIN pull_request_attachments a ON a.id = pt.attachment_id
+JOIN collective_repositories cr
+  ON cr.group_id = a.group_id
+ AND lower(cr.owner) = lower(a.repo_owner)
+ AND lower(cr.name) = lower(a.repo_name)
+LEFT JOIN group_members gm
+  ON gm.group_id = a.group_id
+ AND gm.user_id = $1::uuid
+ AND gm.role <> 'pending'
+WHERE ts.group_id = $2
+  AND ts.status = 'approved'
+  AND a.state = 'attached'
+ORDER BY a.id, pt.transcript_id
+`
+
+type ListAttachedPullRequestCandidatesByGroupParams struct {
+	ViewerID pgtype.UUID `db:"viewer_id" json:"viewer_id"`
+	GroupID  pgtype.UUID `db:"group_id" json:"group_id"`
+}
+
+type ListAttachedPullRequestCandidatesByGroupRow struct {
+	TranscriptID          pgtype.UUID           `db:"transcript_id" json:"transcript_id"`
+	PullRequestAttachment PullRequestAttachment `db:"pull_request_attachment" json:"pull_request_attachment"`
+	InstallationID        int64                 `db:"installation_id" json:"installation_id"`
+	IsPrivate             bool                  `db:"is_private" json:"is_private"`
+	ViewerIsMember        bool                  `db:"viewer_is_member" json:"viewer_is_member"`
+}
+
+// The attached pull requests bound to a transcript a collective counts: the
+// transcripts with an approved share to it, which is the set
+// GetGroupTranscriptStats totals.
+func (q *Queries) ListAttachedPullRequestCandidatesByGroup(ctx context.Context, arg ListAttachedPullRequestCandidatesByGroupParams) ([]ListAttachedPullRequestCandidatesByGroupRow, error) {
+	rows, err := q.db.Query(ctx, listAttachedPullRequestCandidatesByGroup, arg.ViewerID, arg.GroupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttachedPullRequestCandidatesByGroupRow{}
+	for rows.Next() {
+		var i ListAttachedPullRequestCandidatesByGroupRow
+		if err := rows.Scan(
+			&i.TranscriptID,
+			&i.PullRequestAttachment.ID,
+			&i.PullRequestAttachment.RepoOwner,
+			&i.PullRequestAttachment.RepoName,
+			&i.PullRequestAttachment.GithubRepoID,
+			&i.PullRequestAttachment.Number,
+			&i.PullRequestAttachment.HeadSha,
+			&i.PullRequestAttachment.BaseRemote,
+			&i.PullRequestAttachment.HeadRemote,
+			&i.PullRequestAttachment.AuthorID,
+			&i.PullRequestAttachment.RequesterGithubID,
+			&i.PullRequestAttachment.State,
+			&i.PullRequestAttachment.CommentID,
+			&i.PullRequestAttachment.CheckRunID,
+			&i.PullRequestAttachment.Digest,
+			&i.PullRequestAttachment.RequestedAt,
+			&i.PullRequestAttachment.WaitingAt,
+			&i.PullRequestAttachment.PreviewAt,
+			&i.PullRequestAttachment.AttachedAt,
+			&i.PullRequestAttachment.DetachedAt,
+			&i.PullRequestAttachment.CreatedAt,
+			&i.PullRequestAttachment.UpdatedAt,
+			&i.PullRequestAttachment.GroupID,
+			&i.InstallationID,
+			&i.IsPrivate,
+			&i.ViewerIsMember,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAttachedPullRequestCandidatesByOwner = `-- name: ListAttachedPullRequestCandidatesByOwner :many
+SELECT pt.transcript_id,
+       a.id, a.repo_owner, a.repo_name, a.github_repo_id, a.number, a.head_sha, a.base_remote, a.head_remote, a.author_id, a.requester_github_id, a.state, a.comment_id, a.check_run_id, a.digest, a.requested_at, a.waiting_at, a.preview_at, a.attached_at, a.detached_at, a.created_at, a.updated_at, a.group_id,
+       cr.installation_id,
+       cr.is_private,
+       (gm.user_id IS NOT NULL)::boolean AS viewer_is_member
+FROM transcripts t
+JOIN pull_request_attachment_transcripts pt ON pt.transcript_id = t.id
+JOIN pull_request_attachments a ON a.id = pt.attachment_id
+JOIN collective_repositories cr
+  ON cr.group_id = a.group_id
+ AND lower(cr.owner) = lower(a.repo_owner)
+ AND lower(cr.name) = lower(a.repo_name)
+LEFT JOIN group_members gm
+  ON gm.group_id = a.group_id
+ AND gm.user_id = $1::uuid
+ AND gm.role <> 'pending'
+WHERE t.owner_id = $2
+  AND a.state = 'attached'
+ORDER BY a.id, pt.transcript_id
+`
+
+type ListAttachedPullRequestCandidatesByOwnerParams struct {
+	ViewerID pgtype.UUID `db:"viewer_id" json:"viewer_id"`
+	OwnerID  pgtype.UUID `db:"owner_id" json:"owner_id"`
+}
+
+type ListAttachedPullRequestCandidatesByOwnerRow struct {
+	TranscriptID          pgtype.UUID           `db:"transcript_id" json:"transcript_id"`
+	PullRequestAttachment PullRequestAttachment `db:"pull_request_attachment" json:"pull_request_attachment"`
+	InstallationID        int64                 `db:"installation_id" json:"installation_id"`
+	IsPrivate             bool                  `db:"is_private" json:"is_private"`
+	ViewerIsMember        bool                  `db:"viewer_is_member" json:"viewer_is_member"`
+}
+
+// The attached pull requests bound to any transcript one person published, for
+// their own totals.
+func (q *Queries) ListAttachedPullRequestCandidatesByOwner(ctx context.Context, arg ListAttachedPullRequestCandidatesByOwnerParams) ([]ListAttachedPullRequestCandidatesByOwnerRow, error) {
+	rows, err := q.db.Query(ctx, listAttachedPullRequestCandidatesByOwner, arg.ViewerID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttachedPullRequestCandidatesByOwnerRow{}
+	for rows.Next() {
+		var i ListAttachedPullRequestCandidatesByOwnerRow
+		if err := rows.Scan(
+			&i.TranscriptID,
+			&i.PullRequestAttachment.ID,
+			&i.PullRequestAttachment.RepoOwner,
+			&i.PullRequestAttachment.RepoName,
+			&i.PullRequestAttachment.GithubRepoID,
+			&i.PullRequestAttachment.Number,
+			&i.PullRequestAttachment.HeadSha,
+			&i.PullRequestAttachment.BaseRemote,
+			&i.PullRequestAttachment.HeadRemote,
+			&i.PullRequestAttachment.AuthorID,
+			&i.PullRequestAttachment.RequesterGithubID,
+			&i.PullRequestAttachment.State,
+			&i.PullRequestAttachment.CommentID,
+			&i.PullRequestAttachment.CheckRunID,
+			&i.PullRequestAttachment.Digest,
+			&i.PullRequestAttachment.RequestedAt,
+			&i.PullRequestAttachment.WaitingAt,
+			&i.PullRequestAttachment.PreviewAt,
+			&i.PullRequestAttachment.AttachedAt,
+			&i.PullRequestAttachment.DetachedAt,
+			&i.PullRequestAttachment.CreatedAt,
+			&i.PullRequestAttachment.UpdatedAt,
+			&i.PullRequestAttachment.GroupID,
+			&i.InstallationID,
+			&i.IsPrivate,
+			&i.ViewerIsMember,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAttachmentsBindingTranscript = `-- name: ListAttachmentsBindingTranscript :many
 SELECT a.id, a.repo_owner, a.repo_name, a.github_repo_id, a.number, a.head_sha, a.base_remote, a.head_remote, a.author_id, a.requester_github_id, a.state, a.comment_id, a.check_run_id, a.digest, a.requested_at, a.waiting_at, a.preview_at, a.attached_at, a.detached_at, a.created_at, a.updated_at, a.group_id FROM pull_request_attachments a
 JOIN pull_request_attachment_transcripts pt ON pt.attachment_id = a.id
@@ -499,6 +669,112 @@ func (q *Queries) ListPullRequestAttachmentTranscripts(ctx context.Context, atta
 			&i.TranscriptID,
 			&i.Position,
 			&i.PreviousVisibility,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPullRequestCandidatesByTranscripts = `-- name: ListPullRequestCandidatesByTranscripts :many
+SELECT pt.transcript_id,
+       a.id, a.repo_owner, a.repo_name, a.github_repo_id, a.number, a.head_sha, a.base_remote, a.head_remote, a.author_id, a.requester_github_id, a.state, a.comment_id, a.check_run_id, a.digest, a.requested_at, a.waiting_at, a.preview_at, a.attached_at, a.detached_at, a.created_at, a.updated_at, a.group_id,
+       cr.installation_id,
+       cr.is_private,
+       (gm.user_id IS NOT NULL)::boolean AS viewer_is_member
+FROM pull_request_attachment_transcripts pt
+JOIN pull_request_attachments a ON a.id = pt.attachment_id
+JOIN collective_repositories cr
+  ON cr.group_id = a.group_id
+ AND lower(cr.owner) = lower(a.repo_owner)
+ AND lower(cr.name) = lower(a.repo_name)
+LEFT JOIN group_members gm
+  ON gm.group_id = a.group_id
+ AND gm.user_id = $1::uuid
+ AND gm.role <> 'pending'
+WHERE pt.transcript_id = ANY($2::uuid[])
+  AND a.state = ANY($3::text[])
+ORDER BY pt.transcript_id,
+         GREATEST(a.attached_at, a.detached_at) DESC NULLS LAST,
+         lower(a.repo_owner), lower(a.repo_name), a.number, a.id
+`
+
+type ListPullRequestCandidatesByTranscriptsParams struct {
+	ViewerID      pgtype.UUID   `db:"viewer_id" json:"viewer_id"`
+	TranscriptIds []pgtype.UUID `db:"transcript_ids" json:"transcript_ids"`
+	States        []string      `db:"states" json:"states"`
+}
+
+type ListPullRequestCandidatesByTranscriptsRow struct {
+	TranscriptID          pgtype.UUID           `db:"transcript_id" json:"transcript_id"`
+	PullRequestAttachment PullRequestAttachment `db:"pull_request_attachment" json:"pull_request_attachment"`
+	InstallationID        int64                 `db:"installation_id" json:"installation_id"`
+	IsPrivate             bool                  `db:"is_private" json:"is_private"`
+	ViewerIsMember        bool                  `db:"viewer_is_member" json:"viewer_is_member"`
+}
+
+// The pull requests bound to a page of transcripts, in the requested states.
+//
+// This and the two statements after it are the one candidate read behind every
+// pull request a reader is shown: the transcript's pull request list, the
+// summary on a list row, the collective's count, and the caller's own count.
+// Each returns one row per (transcript, attachment) binding with the repository
+// link the attachment's collective holds now and whether the viewer is a member
+// of that collective. The visibility rule itself is applied in Go
+// (pullRequestReadable), in the one place all four reads share, rather than
+// copied into each statement where the copies could drift apart.
+//
+// The repository comes from the collective's CURRENT link, exactly as the
+// attachment read resolves it, so an attachment whose collective is gone or
+// whose repository is no longer linked has no row: its visibility check cannot
+// complete, and it is omitted rather than guessed. A pending join request is not
+// membership. Each is one statement for the whole page or the whole scope, never
+// one per row.
+//
+// idx_pull_request_attachment_transcripts_transcript serves the transcript
+// predicate. Rows come newest first within a transcript: by the latest of
+// attached_at and detached_at, which for an attached attachment is when it was
+// attached.
+func (q *Queries) ListPullRequestCandidatesByTranscripts(ctx context.Context, arg ListPullRequestCandidatesByTranscriptsParams) ([]ListPullRequestCandidatesByTranscriptsRow, error) {
+	rows, err := q.db.Query(ctx, listPullRequestCandidatesByTranscripts, arg.ViewerID, arg.TranscriptIds, arg.States)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPullRequestCandidatesByTranscriptsRow{}
+	for rows.Next() {
+		var i ListPullRequestCandidatesByTranscriptsRow
+		if err := rows.Scan(
+			&i.TranscriptID,
+			&i.PullRequestAttachment.ID,
+			&i.PullRequestAttachment.RepoOwner,
+			&i.PullRequestAttachment.RepoName,
+			&i.PullRequestAttachment.GithubRepoID,
+			&i.PullRequestAttachment.Number,
+			&i.PullRequestAttachment.HeadSha,
+			&i.PullRequestAttachment.BaseRemote,
+			&i.PullRequestAttachment.HeadRemote,
+			&i.PullRequestAttachment.AuthorID,
+			&i.PullRequestAttachment.RequesterGithubID,
+			&i.PullRequestAttachment.State,
+			&i.PullRequestAttachment.CommentID,
+			&i.PullRequestAttachment.CheckRunID,
+			&i.PullRequestAttachment.Digest,
+			&i.PullRequestAttachment.RequestedAt,
+			&i.PullRequestAttachment.WaitingAt,
+			&i.PullRequestAttachment.PreviewAt,
+			&i.PullRequestAttachment.AttachedAt,
+			&i.PullRequestAttachment.DetachedAt,
+			&i.PullRequestAttachment.CreatedAt,
+			&i.PullRequestAttachment.UpdatedAt,
+			&i.PullRequestAttachment.GroupID,
+			&i.InstallationID,
+			&i.IsPrivate,
+			&i.ViewerIsMember,
 		); err != nil {
 			return nil, err
 		}

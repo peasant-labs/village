@@ -8,6 +8,9 @@ import (
 
 // collectiveSessionRow derives the collective arm from the same authorized
 // session as the common row. No second metadata read can mix two revisions.
+// Its pull request summary starts empty and is filled for the rows of the page
+// being served, with one query for the whole page
+// (fillCollectivePullRequestSummaries).
 func collectiveSessionRow(s schema.VillageTranscript, username string, avatar *string, discoverable bool) schema.VillageSessionRow {
 	return schema.VillageSessionRow{Session: s, Collective: &schema.VillageGroupTranscript{
 		ID: s.ID, OwnerID: s.OwnerID, LocalID: s.LocalID,
@@ -39,6 +42,7 @@ func collectiveSessionRow(s schema.VillageTranscript, username string, avatar *s
 		SessionOrigin: s.SessionOrigin, InputSubmissionCount: s.InputSubmissionCount,
 		RootSessionID: s.RootSessionID, Purpose: s.Purpose, Relationships: s.Relationships,
 		OwnerUsername: username, OwnerAvatarURL: avatar, OwnerIsDiscoverable: discoverable,
+		PullRequests: emptyPullRequestsSummary(),
 	}}
 }
 
