@@ -47,22 +47,26 @@ export default function AccountSettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="iu-page" data-testid="settings-pending">
-        <div className="h-8 w-64 animate-shimmer" />
-        <div className="h-48 animate-shimmer" />
+      <div className="iu-view">
+        <div className="iu-page" data-testid="settings-pending">
+          <div className="h-8 w-64 animate-shimmer" />
+          <div className="h-48 animate-shimmer" />
+        </div>
       </div>
     );
   }
 
   if (!isLoggedIn || user == null) {
     return (
-      <div className="iu-page" data-testid="settings-signed-out">
-        <header className="iu-page-head">
-          <h1 className="iu-page-title">your settings</h1>
-          <p className="iu-page-sub">
-            sign in to change your settings. <Link href="/" className="cmg-pr-link">go to sign-in</Link>
-          </p>
-        </header>
+      <div className="iu-view">
+        <div className="iu-page" data-testid="settings-signed-out">
+          <header className="iu-page-head">
+            <h1 className="iu-page-title">your settings</h1>
+            <p className="iu-page-sub">
+              sign in to change your settings. <Link href="/" className="cmg-pr-link">go to sign-in</Link>
+            </p>
+          </header>
+        </div>
       </div>
     );
   }
@@ -96,65 +100,67 @@ function Settings({ user }: { user: User }) {
   }
 
   return (
-    <div className="iu-page cmg-settings" data-testid="settings-page">
-      <header className="iu-page-head">
-        <h1 className="iu-page-title">your settings</h1>
-        <p className="iu-page-sub">switches apply right away. text changes when you press edit.</p>
-      </header>
+    <div className="iu-view">
+      <div className="iu-page cmg-settings" data-testid="settings-page">
+        <header className="iu-page-head">
+          <h1 className="iu-page-title">your settings</h1>
+          <p className="iu-page-sub">switches apply right away. text changes when you press edit.</p>
+        </header>
 
-      <SettingGroup label="profile" defaultOpen data-testid="settings-profile">
-        <SettingRow
-          label="handle"
-          control="text"
-          value={handle}
-          onCommit={commitHandle}
-          data-testid="settings-handle"
-        />
-        <SettingRow
-          label="discoverable profile"
-          help="on: your handle shows on your transcripts and in member lists. off: you show as anon."
-          control="switch"
-          value={user.is_discoverable}
-          onCommit={async (next) => {
-            await updateSettings.mutateAsync({ is_discoverable: Boolean(next) });
-          }}
-          data-testid="settings-discoverable"
-        />
-      </SettingGroup>
+        <SettingGroup label="profile" defaultOpen data-testid="settings-profile">
+          <SettingRow
+            label="handle"
+            control="text"
+            value={handle}
+            onCommit={commitHandle}
+            data-testid="settings-handle"
+          />
+          <SettingRow
+            label="discoverable profile"
+            help="on: your handle shows on your transcripts and in member lists. off: you show as anon."
+            control="switch"
+            value={user.is_discoverable}
+            onCommit={async (next) => {
+              await updateSettings.mutateAsync({ is_discoverable: Boolean(next) });
+            }}
+            data-testid="settings-discoverable"
+          />
+        </SettingGroup>
 
-      <SettingGroup label="pull requests" defaultOpen data-testid="settings-pull-requests">
-        <SettingRow
-          label="link my transcripts to my pull requests automatically"
-          help={
-            AUTO_LINK_PULL_REQUESTS_AVAILABLE
-              ? "off: comment /peasant attach on a pull request. on: when you open a pull request in a repo that one of your collectives links, your transcripts that trace its commits are linked. who can read them does not change."
-              : "village does not link pull requests on its own yet, so this stays off. until it does, comment /peasant attach on a pull request to link your transcripts to it."
-          }
-          control="switch"
-          value={settings.data?.auto_attach_pull_requests ?? false}
-          disabled={!AUTO_LINK_PULL_REQUESTS_AVAILABLE}
-          tag={AUTO_LINK_PULL_REQUESTS_AVAILABLE ? undefined : "not available yet"}
-          onCommit={async (next) => {
-            await updateAutoAttach.mutateAsync(Boolean(next));
-          }}
-          data-testid="settings-auto-link"
-        />
-      </SettingGroup>
+        <SettingGroup label="pull requests" defaultOpen data-testid="settings-pull-requests">
+          <SettingRow
+            label="link my transcripts to my pull requests automatically"
+            help={
+              AUTO_LINK_PULL_REQUESTS_AVAILABLE
+                ? "off: comment /peasant attach on a pull request. on: when you open a pull request in a repo that one of your collectives links, your transcripts that trace its commits are linked. who can read them does not change."
+                : "village does not link pull requests on its own yet, so this stays off. until it does, comment /peasant attach on a pull request to link your transcripts to it."
+            }
+            control="switch"
+            value={settings.data?.auto_attach_pull_requests ?? false}
+            disabled={!AUTO_LINK_PULL_REQUESTS_AVAILABLE}
+            tag={AUTO_LINK_PULL_REQUESTS_AVAILABLE ? undefined : "not available yet"}
+            onCommit={async (next) => {
+              await updateAutoAttach.mutateAsync(Boolean(next));
+            }}
+            data-testid="settings-auto-link"
+          />
+        </SettingGroup>
 
-      <SettingGroup
-        label="connections"
-        defaultOpen
-        count={2}
-        noun={["connection", "connections"]}
-        data-testid="settings-connections"
-      >
-        <GitHubConnection user={user} />
-        <PeasantConnection handle={handle} />
-      </SettingGroup>
+        <SettingGroup
+          label="connections"
+          defaultOpen
+          count={2}
+          noun={["connection", "connections"]}
+          data-testid="settings-connections"
+        >
+          <GitHubConnection user={user} />
+          <PeasantConnection handle={handle} />
+        </SettingGroup>
 
-      <SettingGroup label="danger zone" defaultOpen count={null} data-testid="settings-danger">
-        <DeleteAccount />
-      </SettingGroup>
+        <SettingGroup label="danger zone" defaultOpen count={null} data-testid="settings-danger">
+          <DeleteAccount />
+        </SettingGroup>
+      </div>
     </div>
   );
 }
