@@ -1,0 +1,73 @@
+# publisher_count on GET /api/v1/groups/{id}/repositories/available, against
+# real PostgreSQL.
+#
+# A repository's count is the number of DISTINCT people whose transcripts are
+# already shared with this collective - an approved share, not a submission
+# awaiting review - and whose git remote is that repository. Nothing else
+# counts: a transcript shared with no collective, or with another one, or whose
+# remote names another host.
+#
+# A remote is read with schema.RemoteLabel, the one rule every surface uses, so
+# the SSH, HTTPS, and bare forms of one repository, in any letter case, are the
+# same repository.
+#
+# Every case builds its own transcripts over the same people and collectives.
+# `team` is the collective under test; its owner controls the GitHub account
+# that installed the App, which offers the repositories in `available`. Each
+# case's `expect` names a count for every one of them.
+people: [owner, alice, bob, carol]
+collectives:
+  - {name: team, created_by: owner, linked_org: acme, members: {alice: member, bob: member, carol: member}}
+  - {name: elsewhere, created_by: owner, members: {alice: member}}
+available: [acme/app, acme/site, acme/empty]
+
+cases:
+  - name: a-transcript-not-shared-with-the-collective-adds-no-count
+    transcripts:
+      - {name: unshared, owner: alice, visibility: public, remote: "git@github.com:acme/app.git"}
+    expect: {acme/app: 0, acme/site: 0, acme/empty: 0}
+
+  - name: a-transcript-shared-with-the-collective-counts-its-owner
+    transcripts:
+      - {name: shared, owner: alice, visibility: shared, remote: "git@github.com:acme/app.git", shares: {team: approved}}
+    expect: {acme/app: 1, acme/site: 0, acme/empty: 0}
+
+  - name: a-submission-awaiting-review-adds-no-count
+    transcripts:
+      - {name: awaiting, owner: alice, visibility: shared, remote: "git@github.com:acme/app.git", shares: {team: pending}}
+    expect: {acme/app: 0, acme/site: 0, acme/empty: 0}
+
+  - name: a-transcript-shared-with-another-collective-adds-no-count
+    transcripts:
+      - {name: elsewhere-only, owner: alice, visibility: shared, remote: "git@github.com:acme/app.git", shares: {elsewhere: approved}}
+    expect: {acme/app: 0, acme/site: 0, acme/empty: 0}
+
+  - name: one-person-with-two-shared-transcripts-counts-once
+    transcripts:
+      - {name: first, owner: alice, visibility: shared, remote: "git@github.com:acme/app.git", shares: {team: approved}}
+      - {name: second, owner: alice, visibility: shared, remote: "https://github.com/acme/app", shares: {team: approved}}
+    expect: {acme/app: 1, acme/site: 0, acme/empty: 0}
+
+  - name: two-people-count-two
+    transcripts:
+      - {name: alices, owner: alice, visibility: shared, remote: "git@github.com:acme/app.git", shares: {team: approved}}
+      - {name: bobs, owner: bob, visibility: shared, remote: "git@github.com:acme/app.git", shares: {team: approved}}
+    expect: {acme/app: 2, acme/site: 0, acme/empty: 0}
+
+  - name: remote-forms-and-letter-case-name-one-repository
+    transcripts:
+      - {name: ssh, owner: alice, visibility: shared, remote: "git@github.com:acme/app.git", shares: {team: approved}}
+      - {name: https, owner: bob, visibility: shared, remote: "https://github.com/ACME/App.git", shares: {team: approved}}
+      - {name: bare, owner: carol, visibility: shared, remote: "github.com/acme/app", shares: {team: approved}}
+    expect: {acme/app: 3, acme/site: 0, acme/empty: 0}
+
+  - name: a-remote-on-another-host-names-no-github-repository
+    transcripts:
+      - {name: gitlab, owner: alice, visibility: shared, remote: "git@gitlab.com:acme/app.git", shares: {team: approved}}
+    expect: {acme/app: 0, acme/site: 0, acme/empty: 0}
+
+  - name: each-repository-counts-only-its-own-remotes
+    transcripts:
+      - {name: app, owner: alice, visibility: shared, remote: "git@github.com:acme/app.git", shares: {team: approved}}
+      - {name: site, owner: bob, visibility: shared, remote: "git@github.com:acme/site.git", shares: {team: approved}}
+    expect: {acme/app: 1, acme/site: 1, acme/empty: 0}

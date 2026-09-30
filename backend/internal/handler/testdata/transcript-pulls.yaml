@@ -6,12 +6,16 @@
 # which transcript and the exact list they must get back, newest first.
 #
 # What the database decides, and so what this file proves:
-#   - requested, waiting, and preview attachments are never listed;
+#   - attached and detached attachments are listed, newest first by the later of
+#     when each was attached and detached; requested, waiting, and preview
+#     attachments are never listed;
 #   - an attachment whose repository the collective no longer links is omitted,
 #     because its visibility cannot be checked;
 #   - membership comes from group_members, and a pending join request is not
 #     membership;
-#   - a caller who may not read the transcript gets 404, never 403.
+#   - a caller who may not read the transcript gets 404, never 403. The check
+#     is the transcript's own: a reader GitHub admits to the repository a
+#     transcript is attached to is not let in through that repository here.
 # The rule applied to each row (author, member) is pinned one attachment at a
 # time by pull-request-visibility.yaml. `reader` can read acme/app on GitHub but
 # is not in the collective, and is shown only what any stranger is: Village does
@@ -43,12 +47,16 @@ world:
     - {collective: team, repo: acme/site, number: 15, author: author, state: preview, transcripts: [open-session]}
     - {collective: team, repo: acme/gone, number: 16, author: author, state: attached, transcripts: [open-session], unlinked: true}
     - {collective: team, repo: acme/site, number: 17, author: author, state: attached, transcripts: [open-session]}
+    - {collective: team, repo: acme/app, number: 18, author: author, state: detached, transcripts: [open-session]}
+    - {collective: team, repo: acme/site, number: 19, author: author, state: detached, transcripts: [open-session]}
     - {collective: team, repo: acme/app, number: 21, author: author, state: attached, transcripts: [team-session]}
     - {collective: team, repo: acme/site, number: 31, author: author, state: attached, transcripts: [private-session]}
   github:
     pull_requests:
       - {ref: acme/app#11, title: Tighten the ingest retry, head_ref: fix/ingest-retry}
       - {ref: acme/site#12, title: Document the site build, head_ref: docs/site-build}
+      - {ref: acme/app#18, title: Retry the flaky upload, head_ref: fix/upload-retry}
+      - {ref: acme/site#19, title: Drop the old landing page, head_ref: chore/landing}
       - {ref: acme/app#21, title: Share the team dashboard, head_ref: feat/team-dashboard}
       - {ref: acme/site#31, title: Keep drafts private, head_ref: fix/private-drafts}
     readers:
@@ -60,6 +68,8 @@ cases:
     transcript: open-session
     status: 200
     expect:
+      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/app#18, state: detached, private: true, title: Retry the flaky upload, head_ref: fix/upload-retry}
       - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
       - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
       - {ref: acme/app#11, state: attached, private: true, title: Tighten the ingest retry, head_ref: fix/ingest-retry}
@@ -69,6 +79,8 @@ cases:
     transcript: open-session
     status: 200
     expect:
+      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/app#18, state: detached, private: true, title: Retry the flaky upload, head_ref: fix/upload-retry}
       - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
       - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
       - {ref: acme/app#11, state: attached, private: true, title: Tighten the ingest retry, head_ref: fix/ingest-retry}
@@ -78,6 +90,7 @@ cases:
     transcript: open-session
     status: 200
     expect:
+      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
       - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
       - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
 
@@ -86,6 +99,7 @@ cases:
     transcript: open-session
     status: 200
     expect:
+      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
       - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
       - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
 
@@ -94,6 +108,7 @@ cases:
     transcript: open-session
     status: 200
     expect:
+      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
       - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
       - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
 
@@ -102,6 +117,7 @@ cases:
     transcript: open-session
     status: 200
     expect:
+      - {ref: acme/site#19, state: detached, private: false, title: Drop the old landing page, head_ref: chore/landing}
       - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
       - {ref: acme/site#12, state: attached, private: false, title: Document the site build, head_ref: docs/site-build}
 
@@ -111,6 +127,8 @@ cases:
     github_fails: [pulls]
     status: 200
     expect:
+      - {ref: acme/site#19, state: detached, private: false, title: null, head_ref: null}
+      - {ref: acme/app#18, state: detached, private: true, title: null, head_ref: null}
       - {ref: acme/site#17, state: attached, private: false, title: null, head_ref: null}
       - {ref: acme/site#12, state: attached, private: false, title: null, head_ref: null}
       - {ref: acme/app#11, state: attached, private: true, title: null, head_ref: null}
@@ -132,6 +150,12 @@ cases:
   - name: non-reader-of-a-private-transcript-gets-404
     viewer: stranger
     transcript: private-session
+    status: 404
+    expect: []
+
+  - name: repository-reader-outside-the-collective-gets-404-on-a-transcript-shared-only-with-the-team
+    viewer: reader
+    transcript: team-session
     status: 404
     expect: []
 

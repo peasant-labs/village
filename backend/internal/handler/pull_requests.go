@@ -239,6 +239,15 @@ func (h *Handler) UpdateUserSettings(w http.ResponseWriter, r *http.Request) {
 	if !h.decodeContractBody(w, r, opUpdateUserSettings, &req) {
 		return
 	}
+	// The contract declares automatic pull request linking, but this server does
+	// not link anything automatically yet, so it always reports the setting off.
+	// Turning it on is refused out loud rather than accepted and dropped: a PATCH
+	// that answered 200 while ignoring the one field it carried would leave the
+	// caller believing their transcripts are being linked.
+	if req.AutoAttachPullRequests != nil && *req.AutoAttachPullRequests {
+		writeError(w, http.StatusBadRequest, "auto_attach_pull_requests cannot be turned on yet: this server does not link transcripts to pull requests automatically, so nothing was changed")
+		return
+	}
 	if req.PreviewBeforeAttach == nil {
 		// Nothing to change: report the current settings rather than a no-op
 		// error, which is what a PATCH with an omitted field means.

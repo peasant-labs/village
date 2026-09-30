@@ -19,9 +19,9 @@ import (
 // The pull request reads the transcript, home, and collective pages show: a
 // transcript's pull request list, the summary on a list row, the collective's
 // count, and the caller's own count. Each starts from transcripts the caller may
-// already read - the transcript read's own check, or the list's own visibility -
-// and then asks one question of each attachment bound to them, answered by
-// pullRequestReadable:
+// already read - the transcript's own read check (canViewTranscript), or the
+// list's own visibility - and then asks one question of each attachment bound to
+// them, answered by pullRequestReadable:
 //
 //   - an attachment on a public repository is readable by anyone who can read
 //     the transcript;
@@ -249,13 +249,11 @@ func (h *Handler) ListTranscriptPullRequests(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}
+	// The transcript's own read check. Access through a repository's readers is
+	// not consulted, so this read never asks GitHub who the caller is and is
+	// never throttled by that question.
 	user := GetUser(r.Context())
-	allowed, throttled := h.canReadTranscript(r.Context(), user, transcript)
-	if throttled {
-		writeError(w, http.StatusTooManyRequests, repositoryAccessThrottledMessage)
-		return
-	}
-	if !allowed {
+	if !h.canViewTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}

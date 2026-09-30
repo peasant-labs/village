@@ -30,6 +30,7 @@ var requiredTranscriptPullsCases = []string{
 	"member-reads-a-transcript-shared-with-the-team",
 	"owner-reads-a-private-transcript",
 	"non-reader-of-a-private-transcript-gets-404",
+	"repository-reader-outside-the-collective-gets-404-on-a-transcript-shared-only-with-the-team",
 	"anonymous-non-reader-of-a-shared-transcript-gets-404",
 }
 

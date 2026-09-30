@@ -736,6 +736,22 @@ authenticating. Both are custom Postgres parameters read via
   policy matrix itself is owned by the external auth docs), so the pinned places
   (one Go predicate, two membership queries: the pull list and the skip-gate
   batch, plus `CountPullableTranscripts` for count-consistency) cannot drift.
+- **Pull request reads apply one visibility rule over the collective's CURRENT
+  repository link.** The transcript pull request list, the list-row summaries,
+  and the collective and personal counts read their candidates from one
+  statement per page or scope and filter them in one Go function
+  (`pullRequestReadable`): a public repository's attachment reaches anyone who
+  can read the transcript, and a private repository's reaches only its author
+  and the linking collective's members (a pending join request is not
+  membership). Nobody is admitted through GitHub repository access here. The
+  repository's privacy is read through `collective_repositories` at call time,
+  as 041 established, so an attachment whose collective or repository link is
+  gone has no candidate row and is omitted rather than guessed. Counts cover
+  `attached` attachments only and count distinct pull requests. The
+  repository picker's `publisher_count` counts distinct owners of transcripts
+  with an APPROVED share to that collective whose remote names the repository;
+  a pending submission counts nothing. None of these reads stores anything: a
+  pull request's title and head branch are read from GitHub when served.
 - **A project's transcripts are addressed by `(owner_id, project_hash)`, and the
   boundary refuses anything else.** `ListOwnerProjectShareCandidates` puts both
   ownership and project identity in its WHERE clause, so a row that reaches the

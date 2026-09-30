@@ -1,0 +1,17 @@
+# The no-N+1 guard for the pull request summaries. Every surface that carries
+# one must answer a page of `page_sizes[0]` rows and a page of `page_sizes[1]`
+# rows with the SAME number of database queries, counted at the connection
+# pool. A query per row - the realistic regression, one extra read added later
+# for one more field - makes the larger page cost more and fails its case.
+#
+# Each page is built the same way: the author publishes that many public
+# transcripts, each shared with a public collective and bound to one attached
+# pull request in a private repository and one in a public repository, and a
+# member of the collective reads the page. Every row must then carry a summary
+# of two, and the collective surfaces a count of twice the page size, so a guard
+# that passed on empty summaries would fail here instead.
+page_sizes: [1, 50]
+cases:
+  - {name: the-transcript-list-costs-the-same-for-one-row-and-fifty, surface: list}
+  - {name: the-flat-collective-read-costs-the-same-for-one-row-and-fifty, surface: collective}
+  - {name: the-grouped-collective-read-costs-the-same-for-one-row-and-fifty, surface: collective_grouped}

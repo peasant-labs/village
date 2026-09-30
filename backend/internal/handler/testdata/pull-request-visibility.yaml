@@ -18,10 +18,9 @@
 # GitHub is never asked what a viewer may read: every case also asserts that no
 # permission question reached it.
 #
-# Detached attachments appear only here: the production detach clears an
-# attachment's transcript bindings, so a detached row with a binding is not a
-# state the database can be put in through the lifecycle today. The rule for it
-# is still the contract's, and this is where it is pinned.
+# A detached attachment is listed by the transcript read, so the rule is pinned
+# for detached rows too: a repository's readers never reach one, even in
+# principle, because nothing is attached any more.
 cases:
   - name: public-repository-attached-is-listed-to-anyone
     viewer: anonymous
