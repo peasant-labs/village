@@ -136,12 +136,15 @@ func TestAuthoritativePublicationMountedIntegration(t *testing.T) {
 	if got := guardedBlobs.keys(); !slices.Equal(got, durableKeys) {
 		t.Fatalf("transaction failure retained staged object: keys=%v want durable set %v", got, durableKeys)
 	}
+	// The replacement is known to have rolled back, so the narrowing it made
+	// before staging the object is compensated: the widened transcript is
+	// public again, even though it was durably private while S3 was written.
 	var visibility string
 	if err := pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id=$1`, tid).Scan(&visibility); err != nil {
 		t.Fatal(err)
 	}
-	if visibility != dbVisibilityPrivate {
-		t.Fatalf("visibility after failed replacement=%q want private", visibility)
+	if visibility != dbVisibilityPublic {
+		t.Fatalf("visibility after failed replacement=%q want public restored", visibility)
 	}
 	if !guardedBlobs.observedPrivate.Load() {
 		t.Fatal("S3 replacement began before the widened transcript was durably private")

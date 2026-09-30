@@ -19,11 +19,30 @@
 # approved_transcripts so the one case where those two diverge is visible rather
 # than inferred, and that case is named below.
 #
+# visibility: the transcript's visibility after the last step. Every case
+# starts shared unless it names a start_visibility. An owner's unshare narrows a
+# shared transcript to private once no collective holds a live submission of it
+# (live: the latest attempt is pending or approved), and a share flips a private
+# transcript to shared. A collective's own decision, removal, or a member
+# leaving is not an owner's unshare, and moves no visibility.
+#
+# visibility_events: the visibility of each governance event the case's own
+# steps wrote, in order. Every one must be a visibility change attributed to the
+# owner.
+#
 # steps: submit (the owner offers the transcript), decide (the collective
 # accepts or rejects the open attempt), unshare (the owner withdraws),
 # remove (the collective removes an accepted contribution), leave_collective
 # (the owner leaves and retracts), rewrite_terminal_attempt (an in-place edit of
-# decided history, which must be refused).
+# decided history, which must be refused), republish_left_private (the
+# narrowing a republish commits before staging new content, with nothing
+# restoring it afterwards), unshare_behind_the_publish_lock (the owner's unshare
+# while another writer holds the transcript's publish lock). A step may name
+# `inject: ledger_refusal`, which makes the attempt ledger refuse every write for
+# the transcript during that step only, and `expect: failed` for a 500. A step
+# acts on the first collective unless it names
+# `collective: second`; a case that does states second_attempts, the second
+# collective's own attempt sequence, and the counts stay those of the first.
 
 - name: first_submission_to_open_collective
   why: an open collective accepts on submission, so the first attempt is already decided
@@ -32,6 +51,8 @@
     - {do: submit, expect: ok}
   attempts: [approved]
   derived: approved
+  visibility: shared
+  visibility_events: []
   approved_transcripts: 1
   pending_transcripts: 0
   approved_attempts: 1
@@ -44,6 +65,8 @@
     - {do: submit, expect: ok}
   attempts: [pending]
   derived: pending
+  visibility: shared
+  visibility_events: []
   approved_transcripts: 0
   pending_transcripts: 1
   approved_attempts: 0
@@ -59,6 +82,8 @@
     - {do: decide, status: rejected, expect: ok}
   attempts: [rejected, rejected]
   derived: rejected
+  visibility: shared
+  visibility_events: []
   approved_transcripts: 0
   pending_transcripts: 0
   approved_attempts: 0
@@ -74,6 +99,8 @@
     - {do: decide, status: approved, expect: ok}
   attempts: [rejected, approved]
   derived: approved
+  visibility: shared
+  visibility_events: []
   approved_transcripts: 1
   pending_transcripts: 0
   approved_attempts: 1
@@ -87,6 +114,8 @@
     - {do: submit, expect: refused}
   attempts: [pending]
   derived: pending
+  visibility: shared
+  visibility_events: []
   approved_transcripts: 0
   pending_transcripts: 1
   approved_attempts: 0
@@ -100,6 +129,8 @@
     - {do: submit, expect: refused}
   attempts: [approved]
   derived: approved
+  visibility: shared
+  visibility_events: []
   approved_transcripts: 1
   pending_transcripts: 0
   approved_attempts: 1
@@ -113,6 +144,8 @@
     - {do: unshare, expect: ok}
   attempts: [approved, retracted]
   derived: absent
+  visibility: private
+  visibility_events: [private]
   approved_transcripts: 0
   pending_transcripts: 0
   approved_attempts: 1
@@ -126,6 +159,8 @@
     - {do: unshare, expect: ok}
   attempts: [retracted]
   derived: absent
+  visibility: private
+  visibility_events: [private]
   approved_transcripts: 0
   pending_transcripts: 0
   approved_attempts: 0
@@ -140,6 +175,8 @@
     - {do: submit, expect: ok}
   attempts: [retracted, pending]
   derived: pending
+  visibility: shared
+  visibility_events: [private, shared]
   approved_transcripts: 0
   pending_transcripts: 1
   approved_attempts: 0
@@ -153,6 +190,8 @@
     - {do: remove, expect: ok}
   attempts: [approved, revoked]
   derived: absent
+  visibility: shared
+  visibility_events: []
   approved_transcripts: 0
   pending_transcripts: 0
   approved_attempts: 1
@@ -167,6 +206,8 @@
     - {do: submit, expect: ok}
   attempts: [approved, revoked, approved]
   derived: approved
+  visibility: shared
+  visibility_events: []
   approved_transcripts: 1
   pending_transcripts: 0
   approved_attempts: 2
@@ -180,6 +221,8 @@
     - {do: leave_collective, expect: ok}
   attempts: [approved, retracted]
   derived: absent
+  visibility: shared
+  visibility_events: []
   approved_transcripts: 0
   pending_transcripts: 0
   approved_attempts: 1
@@ -193,6 +236,8 @@
     - {do: rewrite_terminal_attempt, expect: refused}
   attempts: [approved]
   derived: approved
+  visibility: shared
+  visibility_events: []
   approved_transcripts: 1
   pending_transcripts: 0
   approved_attempts: 1
@@ -207,6 +252,8 @@
     - {do: submit, expect: ok}
   attempts: [approved, retracted, approved]
   derived: approved
+  visibility: shared
+  visibility_events: [private, shared]
   approved_transcripts: 1
   pending_transcripts: 0
   approved_attempts: 2
@@ -223,6 +270,176 @@
     - {do: competing_event_ordinal, expect: refused}
   attempts: [approved]
   derived: approved
+  visibility: shared
+  visibility_events: []
+  approved_transcripts: 1
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: unshare_the_last_share_narrows_to_private
+  why: >
+    withdrawing the only live submission leaves 'shared' describing an audience that no longer exists, so the
+    transcript returns to private rather than being handed to whichever collective it is offered to next
+  acceptance: open
+  start_visibility: private
+  steps:
+    - {do: submit, expect: ok}
+    - {do: unshare, expect: ok}
+  attempts: [approved, retracted]
+  derived: absent
+  visibility: private
+  visibility_events: [shared, private]
+  approved_transcripts: 0
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: unshare_one_of_two_keeps_it_shared
+  why: >
+    a transcript still accepted by another collective keeps that collective's audience, so withdrawing one of two
+    contributions must not narrow it
+  acceptance: open
+  start_visibility: private
+  steps:
+    - {do: submit, expect: ok}
+    - {do: submit, collective: second, expect: ok}
+    - {do: unshare, expect: ok}
+  attempts: [approved, retracted]
+  second_attempts: [approved]
+  derived: absent
+  visibility: shared
+  visibility_events: [shared]
+  approved_transcripts: 0
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: unshare_one_of_two_while_the_other_awaits_review_keeps_it_shared
+  why: >
+    a submission awaiting review is live too, because it grants access the moment it is accepted; narrowing here
+    would leave the other collective accepting a transcript none of its members can open
+  acceptance: curated
+  start_visibility: private
+  steps:
+    - {do: submit, expect: ok}
+    - {do: submit, collective: second, expect: ok}
+    - {do: unshare, expect: ok}
+  attempts: [retracted]
+  second_attempts: [pending]
+  derived: absent
+  visibility: shared
+  visibility_events: [shared]
+  approved_transcripts: 0
+  pending_transcripts: 0
+  approved_attempts: 0
+  rejected_attempts: 0
+
+- name: reshare_recovers_the_audience_a_republish_left_private
+  why: >
+    a republish whose outcome could not be confirmed leaves the transcript private with its submissions still live,
+    so its collectives can no longer open it; sharing it to those same collectives again is how the owner gives them
+    their access back, which must answer 200 and flip it to shared rather than refuse a duplicate and change nothing.
+    No new attempt is opened, because the accepted one is still live
+  acceptance: open
+  start_visibility: private
+  steps:
+    - {do: submit, expect: ok}
+    - {do: republish_left_private}
+    - {do: submit, expect: ok}
+  attempts: [approved]
+  derived: approved
+  visibility: shared
+  visibility_events: [shared, private, shared]
+  approved_transcripts: 1
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: unshare_twice_is_idempotent
+  why: >
+    a double click, or a retry after a lost answer, withdraws a pair that has nothing live any more; that must be a
+    200 that changes nothing, not a second withdrawal the ledger refuses with a duplicate ordinal
+  acceptance: open
+  steps:
+    - {do: submit, expect: ok}
+    - {do: unshare, expect: ok}
+    - {do: unshare, expect: ok}
+  attempts: [approved, retracted]
+  derived: absent
+  visibility: private
+  visibility_events: [private]
+  approved_transcripts: 0
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: unshare_the_last_share_of_a_public_transcript_keeps_it_public
+  why: >
+    only shared describes an audience of collectives; a public transcript's audience does not depend on them, so
+    withdrawing its last submission must not make it private
+  acceptance: open
+  start_visibility: public
+  steps:
+    - {do: submit, expect: ok}
+    - {do: unshare, expect: ok}
+  attempts: [approved, retracted]
+  derived: absent
+  visibility: public
+  visibility_events: []
+  approved_transcripts: 0
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: a_refused_unshare_answers_500_and_changes_nothing
+  why: >
+    a withdrawal the database refuses used to be discarded and answered 200, so the owner believed a collective had
+    lost access it still had; it must be reported, and the submission and the visibility must stay as they were
+  acceptance: open
+  start_visibility: private
+  steps:
+    - {do: submit, expect: ok}
+    - {do: unshare, inject: ledger_refusal, expect: failed}
+  attempts: [approved]
+  derived: approved
+  visibility: shared
+  visibility_events: [shared]
+  approved_transcripts: 1
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: unshare_waits_for_the_publish_lock
+  why: >
+    the withdrawal and the narrowing it implies must not interleave with a share or a republish of the same
+    transcript, so the unshare takes the same publish lock they hold and waits for it
+  acceptance: open
+  steps:
+    - {do: submit, expect: ok}
+    - {do: unshare_behind_the_publish_lock, expect: ok}
+  attempts: [approved, retracted]
+  derived: absent
+  visibility: private
+  visibility_events: [private]
+  approved_transcripts: 0
+  pending_transcripts: 0
+  approved_attempts: 1
+  rejected_attempts: 0
+
+- name: duplicate_share_of_a_public_transcript_refused
+  why: >
+    the recovery that answers 200 is for a private transcript only; a public transcript whose submission is live
+    already loses nothing, so offering it again is the duplicate it always was
+  acceptance: open
+  start_visibility: public
+  steps:
+    - {do: submit, expect: ok}
+    - {do: submit, expect: refused}
+  attempts: [approved]
+  derived: approved
+  visibility: public
+  visibility_events: []
   approved_transcripts: 1
   pending_transcripts: 0
   approved_attempts: 1

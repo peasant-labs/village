@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -483,17 +482,7 @@ func (h *Handler) restoreTranscriptVisibility(ctx context.Context, binding sqlc.
 // ledger appends a retraction, so the acceptance's history is preserved rather
 // than rewritten. A pair with no live attempt is already retracted.
 func (h *Handler) retractAttachmentShare(ctx context.Context, transcriptID, groupID pgtype.UUID) error {
-	latest, err := h.queries.GetLatestShareAttempt(ctx, sqlc.GetLatestShareAttemptParams{TranscriptID: transcriptID, GroupID: groupID})
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil
-		}
-		return fmt.Errorf("could not read a transcript's share before retracting it: %w", err)
-	}
-	if latest.Status != string(ShareStatusApproved) && latest.Status != string(ShareStatusPending) {
-		return nil
-	}
-	if err := h.queries.UnshareTranscript(ctx, sqlc.UnshareTranscriptParams{TranscriptID: transcriptID, GroupID: groupID}); err != nil {
+	if _, err := withdrawLiveShare(ctx, h.queries, transcriptID, groupID); err != nil {
 		return fmt.Errorf("could not retract the collective's share: %w", err)
 	}
 	return nil

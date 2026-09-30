@@ -82,6 +82,10 @@ type batchShareCase struct {
 	ExpectVisibility        map[string]string      `yaml:"expect_visibility"`
 	ExpectRetryShared       []string               `yaml:"expect_retry_shared"`
 	ExpectRetryAlreadyShare []string               `yaml:"expect_retry_already_shared"`
+	// WhileWaitingVisibility is the visibility transcript b is moved to, as its
+	// owner, while the contribution waits for b's publish lock
+	// (mechanism visibility_changed_while_waiting).
+	WhileWaitingVisibility string `yaml:"while_waiting_visibility"`
 }
 
 // requiredGroupsBatchShareCases names the cases that must exist. Each is here
@@ -110,6 +114,8 @@ var requiredGroupsBatchShareCases = []string{
 	"duplicate_ids_deduped",
 	"mid_tx_conflict_rolls_back_then_retry_succeeds",
 	"event_num_conflict_rolls_back_then_retry_succeeds",
+	"a_visibility_restored_while_waiting_is_not_overwritten",
+	"a_transcript_made_private_while_waiting_needs_consent",
 }
 
 func loadBatchShareCases(t *testing.T) []batchShareCase {
@@ -438,6 +444,9 @@ func TestBatchShareProject(t *testing.T) {
 				return
 			case "event_num_conflict":
 				runEventOrderingConflictCase(t, ctx, h, world, testCase)
+				return
+			case "visibility_changed_while_waiting":
+				runVisibilityChangedWhileWaitingCase(t, ctx, h, world, testCase)
 				return
 			}
 
@@ -791,6 +800,64 @@ func TestShareAttemptConstraintNamesMatchTheCatalog(t *testing.T) {
 				"name nothing carries answers every conflict as an unexplained failure.", name)
 		}
 	}
+}
+
+// runVisibilityChangedWhileWaitingCase reproduces a contribution whose
+// candidate read goes stale while it waits for a publish lock. The test holds
+// transcript b's publish lock, as a republish or an owner's edit does, and
+// starts the contribution, which reads its candidates and then waits for that
+// lock. The owner then moves b to the case's while_waiting_visibility and the
+// lock is released. The contribution must decide both its flip and the consent
+// the flip needs from the value under the row lock:
+//
+//   - restored to public (a republish putting back what it narrowed): b must
+//     stay public, not become shared-only as the owner's own change;
+//   - made private (an owner's edit): b must not be shared without
+//     visibility_confirmed, which the stale read never asked for.
+func runVisibilityChangedWhileWaitingCase(t *testing.T, ctx context.Context, h *Handler, world *contributeWorld, testCase batchShareCase) {
+	lockCtx, cancelLock := context.WithTimeout(ctx, 30*time.Second)
+	defer cancelLock()
+	lockConn, err := world.pool.Acquire(lockCtx)
+	if err != nil {
+		t.Fatalf("acquire the connection that holds the publish lock: %v", err)
+	}
+	lockReleased := false
+	defer func() {
+		if !lockReleased {
+			_, _ = lockConn.Exec(context.Background(), "SELECT pg_advisory_unlock(hashtextextended($1, 0))", world.blockedLockKey())
+		}
+		lockConn.Release()
+	}()
+	if _, err := lockConn.Exec(lockCtx, "SELECT pg_advisory_lock(hashtextextended($1, 0))", world.blockedLockKey()); err != nil {
+		t.Fatalf("hold the publish lock for the transcript being republished: %v", err)
+	}
+
+	body := world.batchBody(t, testCase)
+	blocker := backendPID(t, ctx, lockConn)
+	var wg sync.WaitGroup
+	var rec *httptest.ResponseRecorder
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		rec = world.postBatch(h, body)
+	}()
+	waitForSessionBlockedBy(t, ctx, world.pool, blocker)
+
+	target := testCase.WhileWaitingVisibility
+	if err := h.inTxAs(ctx, world.member, func(q Querier) error {
+		_, err := applyMetadataPatch(ctx, q, world.transcripts["b"], metadataPatch{Visibility: &target})
+		return err
+	}); err != nil {
+		t.Fatalf("move the waiting transcript to %s as its owner: %v", target, err)
+	}
+	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", world.blockedLockKey()); err != nil {
+		t.Fatalf("release the publish lock: %v", err)
+	}
+	lockReleased = true
+	wg.Wait()
+
+	world.assertBatchOutcome(t, ctx, rec, testCase, testCase.ExpectStatus, testCase.ExpectShared, testCase.ExpectAlreadyShared)
+	assertProjectionMatchesLedger(t, ctx, world.pool, "case "+testCase.Name)
 }
 
 // blockedLockKey is the advisory-lock key of the transcript the conflict case

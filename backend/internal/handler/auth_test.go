@@ -576,6 +576,9 @@ func (m *mockQuerier) ListShareAttempts(ctx context.Context, arg sqlc.ListShareA
 func (m *mockQuerier) UnshareTranscript(ctx context.Context, arg sqlc.UnshareTranscriptParams) error {
 	panic("UnshareTranscript: not stubbed")
 }
+func (m *mockQuerier) TranscriptHasLiveShareAttempt(ctx context.Context, transcriptID pgtype.UUID) (bool, error) {
+	panic("TranscriptHasLiveShareAttempt: not stubbed")
+}
 func (m *mockQuerier) ListTranscriptShares(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.ListTranscriptSharesRow, error) {
 	panic("ListTranscriptShares: not stubbed")
 }

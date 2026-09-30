@@ -251,6 +251,51 @@ ledger) and never mentions `transcript_shares` (the derived projection), so the
 guard's word-boundary match on the table name does not fire for it and it needs
 no entry there.
 
+The same lattice also asserts the transcript's `visibility` after every case,
+and every governance event its steps wrote (each a visibility change by the
+owner), because an owner's unshare narrows a shared transcript once no
+collective holds a live submission, and a share to collectives that are all
+live already flips a private transcript back to shared instead of refusing it.
+Those cases name their start visibility and, when they need two collectives,
+carry the second collective's own attempt sequence. `republish_left_private`
+commits the narrowing a republish performs and nothing after it, which is the
+state an unconfirmed republish leaves; `unshare_behind_the_publish_lock` proves
+the unshare waits for the publish lock; `inject: ledger_refusal` makes the
+ledger refuse one step's writes, so a refused withdrawal is shown to answer 500
+and change nothing.
+
+### Republish keeps the audience: pre-image by outcome
+
+`internal/handler/republish_audience_integration_test.go` +
+`testdata/republish-audience.yaml` drive the real publish, share and owner-edit
+handlers over real PostgreSQL, one case per pre-image (`private`, `shared`,
+`public`) under each core outcome: success, a failed object write, a known
+rollback (a `BEFORE UPDATE` trigger that raises), and an ambiguous commit. On a
+shared transcript, more outcomes cover a client that hangs up during the
+narrowing, the object write and the replacement statement (a trigger that
+sleeps, with the request cancelled once `pg_stat_activity` shows this
+database's statement asleep, and the watcher joined before the case asserts),
+a compensating restore that is itself refused, and a narrowing whose own commit
+is unconfirmed. The ambiguous case installs a `DEFERRABLE INITIALLY DEFERRED`
+constraint trigger: PostgreSQL rolls the transaction back and answers the
+COMMIT with an error, and the handler classifies every COMMIT error other than
+the driver's rollback answer as ambiguous, because a lost acknowledgement of a
+commit that happened looks the same. If that classification ever learns to tell
+the two apart, those rows fail loudly rather than pass. Every case asserts the
+final visibility, the governance events the republish appended (each
+attributed to the owner), the live shares, whether a collective member who is
+not the owner can still open it, whether the content was replaced, and needles
+in the answer that are authored in the corpus; the unconfirmed shared case then
+shares again and requires the member's access back without a new attempt. The
+restore rule under the row lock, including the rows no mounted path can reach,
+is `testdata/republish-visibility-restore.yaml`. The pull request side of the
+same rule, a digest that keeps, drops or regains the row, is
+`attachment_visibility_drift_integration_test.go`, and a whole-project
+contribution that waited through a republish is
+`a_visibility_restored_while_waiting_is_not_overwritten` in
+`groups-batch-share.yaml`, with its mirror
+`a_transcript_made_private_while_waiting_needs_consent`.
+
 ### Contributing a whole project: refusals are asserted on the LEDGER
 
 `internal/handler/testdata/groups-batch-share.yaml` +

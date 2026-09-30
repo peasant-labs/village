@@ -263,7 +263,7 @@ func TestRepublish_LicenseChangeAndVisibilityPreserved_RealPostgres(t *testing.T
 			SessionOrigin: tr.SessionOrigin,
 		}
 		if err := h.inTxAs(ctx, owner, func(q Querier) error {
-			if err := pinRepublishGovernance(ctx, q, tr.ID, &params); err != nil {
+			if err := pinRepublishGovernance(ctx, q, tr.ID, &params, ""); err != nil {
 				return err
 			}
 			_, txErr := q.UpdateTranscriptByOwnerAndLocalID(ctx, params)

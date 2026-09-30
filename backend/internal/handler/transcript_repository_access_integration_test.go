@@ -296,8 +296,10 @@ func TestRepositoryReadEndsWhenTheOwnerNarrows_RealPostgres(t *testing.T) {
 }
 
 // TestRepositoryReadEndsWhenTheOwnerUnshares_RealPostgres is the other half: the
-// share is retracted without the transcript's tier changing, which the binding
-// and the visibility both survive, and the access must end anyway.
+// owner retracts the collective's share, which the binding survives, and the
+// access must end. That share was the transcript's only one, so the unshare
+// also narrows it to private, and the pull request must stop advertising it
+// without a second click.
 func TestRepositoryReadEndsWhenTheOwnerUnshares_RealPostgres(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
@@ -332,6 +334,20 @@ func TestRepositoryReadEndsWhenTheOwnerUnshares_RealPostgres(t *testing.T) {
 
 	if rec := transcriptViewAs(t, h, readerAuth, transcriptID); rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d after the owner retracted the share, want 404: a repository reader is admitted by the attachment's share and no further", rec.Code)
+	}
+
+	if visibility := readTranscriptVisibility(t, ctx, pool, transcriptID); visibility != "private" {
+		t.Errorf("visibility = %q after the owner withdrew its only share, want private: shared with no live share describes an audience that is gone", visibility)
+	}
+	attachments, err := h.queries.ListAttachmentsBindingTranscript(ctx, transcriptID)
+	if err != nil || len(attachments) != 1 {
+		t.Fatalf("the binding must survive the unshare: attachments=%d err=%v", len(attachments), err)
+	}
+	if digest := attachmentDigestOf(t, ctx, h, attachments[0].ID); strings.Contains(digest, id) {
+		t.Errorf("the digest must stop advertising a transcript the owner withdrew and narrowed; digest=%s", digest)
+	}
+	if !strings.Contains(fake.lastCommentBody, "No prompts are available for this pull request.") {
+		t.Errorf("the comment must say no prompts are left, since this attachment binds only the one; body=%s", fake.lastCommentBody)
 	}
 }
 

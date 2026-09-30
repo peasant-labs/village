@@ -5,6 +5,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
@@ -195,75 +197,182 @@ func TestWideningAnAttachedTranscriptRestoresIt_RealPostgres(t *testing.T) {
 	}
 }
 
-// TestRepublishedNarrowingDropsTheDigestRow_RealPostgres covers the path that
-// had no test: a republish narrows a transcript before replacing its content,
-// and that narrowing commits even though the publish hook cannot see it —
-// nothing new is accepted for the attachment and the head has not moved. The
-// digest must stop advertising the transcript, without a second click.
-func TestRepublishedNarrowingDropsTheDigestRow_RealPostgres(t *testing.T) {
-	t.Parallel()
+// republishedAttachment publishes a session, attaches it to a pull request in a
+// public repository (which widens it to public), and returns what a republish
+// test needs to republish the same session and read the attachment back.
+type republishedAttachment struct {
+	h            *Handler
+	pool         *pgxpool.Pool
+	fake         *attachmentGitHubFake
+	owner        pgtype.UUID
+	remote       string
+	sha          string
+	sessionID    string
+	transcriptID pgtype.UUID
+	attachment   sqlc.PullRequestAttachment
+}
+
+func newRepublishedAttachment(t *testing.T, githubID int64, number int, sha string) *republishedAttachment {
+	t.Helper()
 	h, pool, _, fake := attachmentTestHandler(t)
 	ctx := context.Background()
-	owner := attachmentInsertOwner(t, ctx, pool, 992006)
-	defer cleanupOwners(t, ctx, pool, owner)
+	owner := attachmentInsertOwner(t, ctx, pool, githubID)
+	t.Cleanup(func() { cleanupOwners(t, context.Background(), pool, owner) })
 
 	repoName := "widgets-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
 	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, false, "informational")
-	sha := "abc1234000000000000000000000000000000006"
-	remote := "git@github.com:acme/" + repoName + ".git"
-	sessionID := uuid.NewString()
+	a := &republishedAttachment{h: h, pool: pool, fake: fake, owner: owner, remote: "git@github.com:acme/" + repoName + ".git", sha: sha, sessionID: uuid.NewString()}
 
-	code, body := attachmentPublishSession(t, h, owner, "attachment-owner", remote, sha, sessionID, attachmentPublicationContent())
-	if code != http.StatusCreated {
+	if code, body := attachmentPublishSession(t, h, owner, "attachment-owner", a.remote, sha, a.sessionID, attachmentPublicationContent()); code != http.StatusCreated {
 		t.Fatalf("first publish status = %d (%s), want 201", code, body)
 	}
-
-	var transcriptID pgtype.UUID
-	if err := pool.QueryRow(ctx, `SELECT id FROM transcripts WHERE owner_id = $1 AND local_id = $2`, owner, sessionID).Scan(&transcriptID); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT id FROM transcripts WHERE owner_id = $1 AND local_id = $2`, owner, a.sessionID).Scan(&a.transcriptID); err != nil {
 		t.Fatalf("read the published transcript: %v", err)
 	}
 
-	attachment := attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 9)
+	a.attachment = attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, number)
 	fake.setPullCommits(sha)
-	if rec := attachmentServe(t, attachmentRouter(h), http.MethodPost, "/api/v1/pulls/acme/"+repoName+"/9/confirm", owner); rec.Code != http.StatusOK {
+	if rec := attachmentServe(t, attachmentRouter(h), http.MethodPost, fmt.Sprintf("/api/v1/pulls/acme/%s/%d/confirm", repoName, number), owner); rec.Code != http.StatusOK {
 		t.Fatalf("confirm status = %d (%s), want 200", rec.Code, rec.Body.String())
 	}
-
-	transcriptKey := uuidFromPg(transcriptID).String()
-	if digest := attachmentDigestOf(t, ctx, h, attachment.ID); !strings.Contains(digest, transcriptKey) {
+	if digest := attachmentDigestOf(t, ctx, h, a.attachment.ID); !strings.Contains(digest, a.key()) {
 		t.Fatalf("the confirmed digest must advertise the attached transcript; digest=%s", digest)
 	}
+	return a
+}
 
-	// The same session, republished with different content: the handler replaces
-	// the stored content, and narrows the transcript before it does.
+func (a *republishedAttachment) key() string { return uuidFromPg(a.transcriptID).String() }
+
+// republish sends the same session again with a revised prompt, so the stored
+// content is replaced and the transcript is narrowed before it is.
+func (a *republishedAttachment) republish(t *testing.T) (int, string) {
+	t.Helper()
 	revised := bytes.Replace(attachmentPublicationContent(),
 		[]byte("please attach my prompts"), []byte("please attach my prompts, revised"), 1)
-	code, body = attachmentPublishSession(t, h, owner, "attachment-owner", remote, sha, sessionID, revised)
-	if code != http.StatusCreated && code != http.StatusOK {
-		t.Fatalf("republish status = %d (%s), want 201 or 200", code, body)
-	}
+	return attachmentPublishSession(t, a.h, a.owner, "attachment-owner", a.remote, a.sha, a.sessionID, revised)
+}
 
-	if digest := attachmentDigestOf(t, ctx, h, attachment.ID); strings.Contains(digest, transcriptKey) {
-		t.Errorf("a republish that narrowed the transcript must drop it from the digest; digest=%s", digest)
-	}
-	if !strings.Contains(fake.lastCommentBody, "No prompts are available for this pull request.") {
-		t.Errorf("the comment must say no prompts are left, since this attachment binds only the one; body=%s", fake.lastCommentBody)
-	}
-	var visibility string
-	if err := pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id = $1`, transcriptID).Scan(&visibility); err != nil {
-		t.Fatalf("read visibility after the republish: %v", err)
-	}
-	if visibility != "private" {
-		t.Errorf("visibility = %q after the republish, want private", visibility)
-	}
-	binding, err := h.queries.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{
-		AttachmentID: attachment.ID, TranscriptID: transcriptID,
+func (a *republishedAttachment) visibility(t *testing.T) string {
+	t.Helper()
+	return readTranscriptVisibility(t, context.Background(), a.pool, a.transcriptID)
+}
+
+func (a *republishedAttachment) assertBindingSurvives(t *testing.T) {
+	t.Helper()
+	binding, err := a.h.queries.GetPullRequestAttachmentTranscript(context.Background(), sqlc.GetPullRequestAttachmentTranscriptParams{
+		AttachmentID: a.attachment.ID, TranscriptID: a.transcriptID,
 	})
 	if err != nil {
 		t.Fatalf("the binding must survive the republish: %v", err)
 	}
 	if binding.PreviousVisibility != "private" {
 		t.Errorf("previous_visibility = %q, want the value recorded at attach", binding.PreviousVisibility)
+	}
+}
+
+// TestRepublishKeepsTheDigestRow_RealPostgres covers the ordinary republish of
+// an attached transcript. The republish narrows the transcript before replacing
+// its content and restores it in the same transaction as the receipt, so the
+// pull request keeps advertising it, and the refresh that follows the narrowing
+// reposts the digest with the revised prompt rather than withdrawing the row.
+func TestRepublishKeepsTheDigestRow_RealPostgres(t *testing.T) {
+	t.Parallel()
+	a := newRepublishedAttachment(t, 992061, 9, "abc1234000000000000000000000000000000006")
+
+	code, body := a.republish(t)
+	if code != http.StatusOK {
+		t.Fatalf("republish status = %d (%s), want 200", code, body)
+	}
+
+	if visibility := a.visibility(t); visibility != "public" {
+		t.Errorf("visibility = %q after the republish, want public: the republish must put back the visibility it found", visibility)
+	}
+	digest := attachmentDigestOf(t, context.Background(), a.h, a.attachment.ID)
+	if !strings.Contains(digest, a.key()) {
+		t.Errorf("a republish that restored the transcript must keep it in the digest; digest=%s", digest)
+	}
+	if !strings.Contains(digest, "please attach my prompts, revised") {
+		t.Errorf("the digest must carry the republished prompt; digest=%s", digest)
+	}
+	if strings.Contains(a.fake.lastCommentBody, "No prompts are available for this pull request.") {
+		t.Errorf("the comment must not say the prompts are gone after a republish that kept them; body=%s", a.fake.lastCommentBody)
+	}
+	a.assertBindingSurvives(t)
+}
+
+// TestUnconfirmedRepublishDropsTheDigestRow_RealPostgres covers the one outcome
+// that leaves the narrowing in place: PostgreSQL does not confirm the
+// replacement's commit, so nothing can tell whether the restore committed with
+// it and the transcript stays private. That narrowing is invisible to the
+// publish hook (nothing new is accepted and the head has not moved), so the
+// digest must still stop advertising the transcript, without a second click.
+func TestUnconfirmedRepublishDropsTheDigestRow_RealPostgres(t *testing.T) {
+	t.Parallel()
+	a := newRepublishedAttachment(t, 992062, 12, "abc1234000000000000000000000000000000062")
+	installRepublishCommitRefusal(t, context.Background(), a.pool, a.transcriptID)
+
+	code, body := a.republish(t)
+	if code != http.StatusInternalServerError {
+		t.Fatalf("republish status = %d (%s), want 500: the commit was refused", code, body)
+	}
+
+	if visibility := a.visibility(t); visibility != "private" {
+		t.Errorf("visibility = %q after an unconfirmed republish, want private: the fail-safe answer", visibility)
+	}
+	if digest := attachmentDigestOf(t, context.Background(), a.h, a.attachment.ID); strings.Contains(digest, a.key()) {
+		t.Errorf("a republish that left the transcript private must drop it from the digest; digest=%s", digest)
+	}
+	if !strings.Contains(a.fake.lastCommentBody, "No prompts are available for this pull request.") {
+		t.Errorf("the comment must say no prompts are left, since this attachment binds only the one; body=%s", a.fake.lastCommentBody)
+	}
+	a.assertBindingSurvives(t)
+}
+
+// TestResharingAPrivateAttachedTranscriptRestoresTheDigestRow_RealPostgres is
+// the owner's way back from any narrowing that left the collective's share
+// live, such as a republish whose commit could not be confirmed: sharing the
+// transcript to that collective again flips it back to shared, and the pull
+// request must advertise it again without waiting for some later refresh.
+func TestResharingAPrivateAttachedTranscriptRestoresTheDigestRow_RealPostgres(t *testing.T) {
+	t.Parallel()
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	author := attachmentInsertOwner(t, ctx, pool, 992063)
+	defer cleanupOwners(t, ctx, pool, author)
+	authorAuth := &AuthUser{ID: uuid.UUID(author.Bytes), Username: "attachment-author"}
+	transcriptID, _, groupID := attachPrivateRepoTranscript(t, h, pool, blobs, fake, author, 81, "abc9999000000000000000000000000000000081")
+	key := uuidFromPg(transcriptID).String()
+	attachments, err := h.queries.ListAttachmentsBindingTranscript(ctx, transcriptID)
+	if err != nil || len(attachments) != 1 {
+		t.Fatalf("the attached transcript must be bound once: attachments=%d err=%v", len(attachments), err)
+	}
+	attachmentID := attachments[0].ID
+
+	if rec := transcriptVisibilityPatch(t, h, authorAuth, transcriptID, "private"); rec.Code != http.StatusOK {
+		t.Fatalf("narrow status = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	if digest := attachmentDigestOf(t, ctx, h, attachmentID); strings.Contains(digest, key) {
+		t.Fatalf("the digest must drop a transcript that fell below what the repository requires; digest=%s", digest)
+	}
+
+	body := []byte(`{"group_ids":["` + uuid.UUID(groupID.Bytes).String() + `"]}`)
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/"+key+"/share", bytes.NewReader(body))
+	r = withChiURLParam(r, "id", key)
+	r = r.WithContext(context.WithValue(r.Context(), UserContextKey, authorAuth))
+	rec := httptest.NewRecorder()
+	h.ShareTranscript(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reshare status = %d (%s), want 200: the collective's share is still live, so sharing again is how the owner restores its access", rec.Code, rec.Body.String())
+	}
+
+	if visibility := readTranscriptVisibility(t, ctx, pool, transcriptID); visibility != "shared" {
+		t.Fatalf("visibility = %q after the reshare, want shared", visibility)
+	}
+	if digest := attachmentDigestOf(t, ctx, h, attachmentID); !strings.Contains(digest, key) {
+		t.Errorf("the digest must advertise the transcript again once the reshare restored its audience; digest=%s", digest)
+	}
+	if strings.Contains(fake.lastCommentBody, "No prompts are available for this pull request.") {
+		t.Errorf("the comment must not keep saying the prompts are gone after they came back; body=%s", fake.lastCommentBody)
 	}
 }
 
