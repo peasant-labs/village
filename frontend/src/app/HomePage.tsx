@@ -111,10 +111,12 @@ export default function HomePage() {
 
   if (handleState === "choosing") {
     return (
-      <div className="iu-page animate-fade-up">
-        <div className="h-8 w-64 animate-shimmer" />
-        <div className="h-48 animate-shimmer" />
-        <div className="h-48 animate-shimmer" />
+      <div className="iu-view">
+        <div className="iu-page animate-fade-up">
+          <div className="h-8 w-64 animate-shimmer" />
+          <div className="h-48 animate-shimmer" />
+          <div className="h-48 animate-shimmer" />
+        </div>
       </div>
     );
   }
@@ -123,17 +125,19 @@ export default function HomePage() {
   // handle does not fire for an account that records having chosen one.
   if (handleState === "missing") {
     return (
-      <div className="iu-page" data-testid="home-page-no-handle">
-        <div
-          role="alert"
-          className="border border-danger/40 bg-danger-soft px-4 py-3 text-danger"
-        >
-          <p className="font-medium">your account has no handle</p>
-          <p className="mt-1">
-            your transcripts are stored under your handle, and this account is recorded as having
-            chosen one while carrying none, so they cannot be looked up. nothing has been lost.
-            sign out and back in; if the page still says this, the account needs a maintainer.
-          </p>
+      <div className="iu-view">
+        <div className="iu-page" data-testid="home-page-no-handle">
+          <div
+            role="alert"
+            className="border border-danger/40 bg-danger-soft px-4 py-3 text-danger"
+          >
+            <p className="font-medium">your account has no handle</p>
+            <p className="mt-1">
+              your transcripts are stored under your handle, and this account is recorded as having
+              chosen one while carrying none, so they cannot be looked up. nothing has been lost.
+              sign out and back in; if the page still says this, the account needs a maintainer.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -391,56 +395,58 @@ function HomeBody({ username }: { username: string }) {
   }
 
   return (
-    <div className="iu-page animate-fade-up" data-testid="home-page">
-      <p role="status" aria-live="polite" className="sr-only" data-testid="home-status">
-        {statusText}
-      </p>
-
-      <header className="iu-page-head">
-        <h1 className="iu-page-title">your transcripts</h1>
-        <p className="iu-page-sub">sessions you published from peasant, and who can read each one.</p>
-      </header>
-
-      {showStats ? (
-        <div data-testid="home-stats">
-          <StatsStrip items={statItems} label="your transcripts in numbers" />
-        </div>
-      ) : stats.isError ? (
-        <p className="cmg-note" data-testid="home-stats-failed">
-          your totals could not be loaded.
+    <div className="iu-view">
+      <div className="iu-page animate-fade-up" data-testid="home-page">
+        <p role="status" aria-live="polite" className="sr-only" data-testid="home-status">
+          {statusText}
         </p>
-      ) : null}
 
-      <div className="cmg-home">
-        <div className="cmg-home-main">
-          {!libraryEmpty && (
-            <div className="iu-page-search" role="search">
-              <Input
-                label="search your transcripts"
-                type="search"
-                iconLeft={Search}
-                placeholder="search your transcripts"
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-              />
-            </div>
-          )}
-          {listRegion}
+        <header className="iu-page-head">
+          <h1 className="iu-page-title">your transcripts</h1>
+          <p className="iu-page-sub">sessions you published from peasant, and who can read each one.</p>
+        </header>
+
+        {showStats ? (
+          <div data-testid="home-stats">
+            <StatsStrip items={statItems} label="your transcripts in numbers" />
+          </div>
+        ) : stats.isError ? (
+          <p className="cmg-note" data-testid="home-stats-failed">
+            your totals could not be loaded.
+          </p>
+        ) : null}
+
+        <div className="cmg-home">
+          <div className="cmg-home-main">
+            {!libraryEmpty && (
+              <div className="iu-page-search" role="search">
+                <Input
+                  label="search your transcripts"
+                  type="search"
+                  iconLeft={Search}
+                  placeholder="search your transcripts"
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                />
+              </div>
+            )}
+            {listRegion}
+          </div>
+          <HomeRail
+            collectives={{
+              data: collectives.data,
+              isError: collectives.isError,
+              isFetching: collectives.isFetching,
+              refetch: collectives.refetch,
+            }}
+            contributions={{
+              data: contributions.data,
+              isError: contributions.isError,
+              isFetching: contributions.isFetching,
+              refetch: contributions.refetch,
+            }}
+          />
         </div>
-        <HomeRail
-          collectives={{
-            data: collectives.data,
-            isError: collectives.isError,
-            isFetching: collectives.isFetching,
-            refetch: collectives.refetch,
-          }}
-          contributions={{
-            data: contributions.data,
-            isError: contributions.isError,
-            isFetching: contributions.isFetching,
-            refetch: contributions.refetch,
-          }}
-        />
       </div>
     </div>
   );
