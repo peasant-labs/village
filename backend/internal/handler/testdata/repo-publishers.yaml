@@ -7,9 +7,11 @@
 # counts: a transcript shared with no collective, or with another one, or whose
 # remote names another host.
 #
-# A remote is read with schema.RemoteLabel, the one rule every surface uses, so
-# the SSH, HTTPS, and bare forms of one repository, in any letter case, are the
-# same repository.
+# A remote is read with schema.RemoteLabel, the contract's rule for naming a
+# remote's repository, and owner and name must both match, so the SSH, HTTPS,
+# and bare forms of one repository, in any letter case, are the same
+# repository. (The pull request matcher narrows by repository name alone; this
+# count does not.)
 #
 # Every case builds its own transcripts over the same people and collectives.
 # `team` is the collective under test; its owner controls the GitHub account

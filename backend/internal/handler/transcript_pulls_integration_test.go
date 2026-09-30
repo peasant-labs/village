@@ -127,7 +127,7 @@ func TestTranscriptPullRequests_RealPostgres(t *testing.T) {
 				t.Fatalf("the response does not satisfy the contract: %v", err)
 			}
 			if len(got.PullRequests) != len(c.Expect) {
-				t.Fatalf("listed %d pull request(s) %s, want %v", len(got.PullRequests), describePullRows(got.PullRequests), c.Expect)
+				t.Fatalf("listed %d pull request(s) %s, want %s", len(got.PullRequests), describePullRows(got.PullRequests), describeExpectedPulls(c.Expect))
 			}
 			for i, want := range c.Expect {
 				row := got.PullRequests[i]
@@ -152,6 +152,17 @@ func describePullRows(rows []schema.VillageTranscriptPullRequest) string {
 			out += " "
 		}
 		out += fmt.Sprintf("%s/%s#%d", row.Owner, row.Name, row.Number)
+	}
+	return out + "]"
+}
+
+func describeExpectedPulls(rows []transcriptPullExpected) string {
+	out := "["
+	for i, row := range rows {
+		if i > 0 {
+			out += " "
+		}
+		out += fmt.Sprintf("%s %s title=%s head_ref=%s", row.Ref, row.State, describeOptional(row.Title), describeOptional(row.HeadRef))
 	}
 	return out + "]"
 }

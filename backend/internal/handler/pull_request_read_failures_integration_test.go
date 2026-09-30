@@ -31,6 +31,7 @@ var requiredPullRequestReadFailureCases = []string{
 	"the-grouped-collective-refuses-a-failed-count",
 	"the-grouped-collective-refuses-failed-summaries",
 	"the-transcript-list-of-pull-requests-refuses-a-failed-read",
+	"the-transcript-list-of-pull-requests-refuses-a-failed-transcript-read",
 	"personal-totals-refuse-a-failed-totals-read",
 	"personal-totals-refuse-a-failed-pull-request-read",
 	"the-repository-picker-refuses-a-failed-publisher-count",
@@ -45,6 +46,13 @@ type failingReadQuerier struct {
 }
 
 var errInjectedRead = errors.New("injected read failure")
+
+func (q failingReadQuerier) GetTranscriptByID(ctx context.Context, id pgtype.UUID) (sqlc.Transcript, error) {
+	if q.fails == "GetTranscriptByID" {
+		return sqlc.Transcript{}, errInjectedRead
+	}
+	return q.Querier.GetTranscriptByID(ctx, id)
+}
 
 func (q failingReadQuerier) ListTagsByTranscriptIDs(ctx context.Context, ids []pgtype.UUID) ([]sqlc.ListTagsByTranscriptIDsRow, error) {
 	if q.fails == "ListTagsByTranscriptIDs" {

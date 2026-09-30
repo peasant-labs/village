@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -191,6 +194,107 @@ func TestPullRequestDetailsAreRemembered(t *testing.T) {
 	}
 	if reads, _ := fake.counts(); reads != 2 {
 		t.Fatalf("GitHub was read %d time(s), want 2: one per pull request, each reused by the next two views", reads)
+	}
+}
+
+// TestPullRequestDetailReadsAreShared pins that views of one pull request
+// arriving while it is being read wait for that read instead of each asking
+// GitHub: twenty at once cost one read.
+func TestPullRequestDetailReadsAreShared(t *testing.T) {
+	fake := newPullReadsGitHub(t)
+	fake.setPull("acme/app", 42, "Tighten the ingest retry", "fix/ingest-retry")
+	fake.delayPullReads(100 * time.Millisecond)
+	h := newTestHandler(&mockQuerier{}, nil)
+	h.gh = fake.client(t)
+
+	var wg sync.WaitGroup
+	titles := make([]*string, 20)
+	for i := range titles {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			titles[i] = h.pullRequestDetail(context.Background(), 4242, "acme", "app", 42).title
+		}(i)
+	}
+	wg.Wait()
+	for i, title := range titles {
+		if title == nil || *title != "Tighten the ingest retry" {
+			t.Fatalf("view %d served title %v, want GitHub's", i, title)
+		}
+	}
+	if reads, _ := fake.counts(); reads != 1 {
+		t.Fatalf("twenty simultaneous views read GitHub %d time(s), want 1", reads)
+	}
+}
+
+// TestPullRequestDetailReadsAreBoundedByTheirDeadline pins what a slow GitHub
+// costs: a view waits no longer than the deadline and gets unknown titles, and
+// the read that ran out of time is remembered as unknown, so the next view does
+// not ask again.
+func TestPullRequestDetailReadsAreBoundedByTheirDeadline(t *testing.T) {
+	fake := newPullReadsGitHub(t)
+	fake.setPull("acme/app", 42, "Tighten the ingest retry", "fix/ingest-retry")
+	fake.delayPullReads(5 * time.Second)
+	h := newTestHandler(&mockQuerier{}, nil)
+	h.gh = fake.client(t)
+	h.pullDetailDeadline = 50 * time.Millisecond
+
+	started := time.Now()
+	detail := h.pullRequestDetail(context.Background(), 4242, "acme", "app", 42)
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("a view waited %s on a GitHub that does not answer, want about the %s deadline", elapsed, h.pullDetailDeadline)
+	}
+	if detail.title != nil || detail.headRef != nil {
+		t.Fatalf("a read that ran out of time served %v/%v, want both unknown", detail.title, detail.headRef)
+	}
+	if again := h.pullRequestDetail(context.Background(), 4242, "acme", "app", 42); again.title != nil {
+		t.Fatalf("the next view served %v, want the remembered unknown", again.title)
+	}
+	if reads, _ := fake.counts(); reads != 1 {
+		t.Fatalf("GitHub was read %d time(s), want 1: the timed-out read is remembered for the failure window", reads)
+	}
+}
+
+// TestPullRequestDetailCacheWindows pins how long each outcome is remembered
+// and that the table stays bounded, at explicit instants rather than by sleeping.
+func TestPullRequestDetailCacheWindows(t *testing.T) {
+	var cache pullRequestDetailCache
+	t0 := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+	settle := func(key string, entry pullRequestDetailEntry, ttl time.Duration) {
+		_, read, start := cache.claim(key, t0)
+		if !start {
+			t.Fatalf("claiming %s found it remembered or in flight", key)
+		}
+		cache.settle(key, read, entry, t0, ttl)
+	}
+	remembered := func(key string, at time.Time) bool {
+		_, read, start := cache.claim(key, at)
+		if read == nil {
+			return true
+		}
+		if start {
+			cache.settle(key, read, pullRequestDetailEntry{}, at, 0)
+		}
+		return false
+	}
+	settle("answered", pullRequestDetailEntry{title: "t"}, pullRequestDetailTTL)
+	settle("refused", pullRequestDetailEntry{}, pullRequestDetailFailureTTL)
+	if !remembered("answered", t0.Add(pullRequestDetailTTL-time.Second)) || remembered("answered", t0.Add(pullRequestDetailTTL)) {
+		t.Fatalf("an answer must be remembered for exactly %s", pullRequestDetailTTL)
+	}
+	if !remembered("refused", t0.Add(pullRequestDetailFailureTTL-time.Second)) || remembered("refused", t0.Add(pullRequestDetailFailureTTL)) {
+		t.Fatalf("a refusal must be remembered for exactly %s", pullRequestDetailFailureTTL)
+	}
+
+	var full pullRequestDetailCache
+	for i := 0; i < pullRequestDetailMaxEntries; i++ {
+		_, read, _ := full.claim(strconv.Itoa(i), t0)
+		full.settle(strconv.Itoa(i), read, pullRequestDetailEntry{}, t0, time.Hour)
+	}
+	_, read, _ := full.claim("one more", t0)
+	full.settle("one more", read, pullRequestDetailEntry{}, t0, time.Hour)
+	if len(full.entries) > pullRequestDetailMaxEntries || len(full.inflight) != 0 {
+		t.Fatalf("the table holds %d entries and %d reads in flight, want at most %d and none", len(full.entries), len(full.inflight), pullRequestDetailMaxEntries)
 	}
 }
 

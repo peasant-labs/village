@@ -2,12 +2,14 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/schema"
@@ -19,11 +21,12 @@ import (
 // The pull request reads the transcript, home, and collective pages show: a
 // transcript's pull request list, the summary on a list row, the collective's
 // count, and the caller's own count. Each starts from transcripts the caller may
-// already read - the transcript's own read check (canViewTranscript), the list's
-// own visibility, or the collective's data access, under which a viewer the
-// collective withholds its transcripts from is counted nothing - and then asks
-// one question of each attachment bound to them, answered by
-// pullRequestReadable:
+// already read - the transcript's own read check (canViewTranscript) on the
+// transcript read, the list's own visibility on the flat list, and on the
+// collective reads the collective's data access, which is what decides whether
+// the collective lists a transcript to the caller at all (a viewer it withholds
+// its transcripts from is counted nothing) - and then asks one question of each
+// attachment bound to them, answered by pullRequestReadable:
 //
 //   - an attachment on a public repository is readable by anyone who can read
 //     the transcript;
@@ -62,9 +65,13 @@ type pullRequestCandidate struct {
 	viewerIsMember bool
 }
 
-// candidateOf maps one candidate row. The owner and collective reads select
-// exactly the transcript read's columns, and their rows convert to its row type,
-// so the three statements cannot drift apart without this failing to compile.
+// candidateOf maps one candidate row. The owner and collective reads' rows
+// convert to the transcript read's row type, so the three statements cannot
+// select different columns without this failing to compile. Their conditions
+// (the link join scoped to the attachment's collective, the pending exclusion,
+// the state filter) are copies the compiler does not compare; the transcript
+// and collective statements' are pinned by transcript-pulls.yaml and
+// pull-request-summaries.yaml.
 func candidateOf(row sqlc.ListPullRequestCandidatesByTranscriptsRow) pullRequestCandidate {
 	return pullRequestCandidate{
 		transcriptID: row.TranscriptID, owner: row.RepoOwner, name: row.RepoName, number: int(row.Number),
@@ -268,8 +275,14 @@ func (h *Handler) ListTranscriptPullRequests(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	transcript, err := h.queries.GetTranscriptByID(r.Context(), toPgUUID(id))
-	if err != nil {
+	if errors.Is(err, pgx.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "Transcript not found")
+		return
+	}
+	if err != nil {
+		// A failed read is not an absent transcript: answered as one, the page
+		// would say the transcript does not exist instead of offering a retry.
+		writeError(w, http.StatusInternalServerError, "Could not read the transcript; retry the request")
 		return
 	}
 	// The transcript's own read check. Access through a repository's readers is

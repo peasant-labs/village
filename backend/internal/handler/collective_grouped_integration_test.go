@@ -416,6 +416,17 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 				}
 			}
 			assertMembers(get(memberPath, token), c.Members)
+			if helperPull != "" && c.Mutation == "" {
+				// A failed summary read fails the member page rather than serving
+				// every member as having no pull requests.
+				queries := h.queries
+				h.queries = failingReadQuerier{Querier: queries, fails: "ListPullRequestCandidatesByTranscripts"}
+				failed := get(memberPath, token)
+				h.queries = queries
+				if failed.Code != http.StatusInternalServerError || !strings.Contains(decodeError(t, failed.Body.Bytes()), "no list or members returned") {
+					t.Fatalf("members with a failed summary read = %d %s, want 500", failed.Code, failed.Body)
+				}
+			}
 			switch c.Mutation {
 			case "":
 				return

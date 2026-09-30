@@ -29,8 +29,10 @@ type pullReadsGitHub struct {
 	logins map[string]string
 	// permissions maps "login owner/name" (lowercased) to a permission.
 	permissions map[string]string
-	// failPulls makes pull request reads answer 500.
+	// failPulls makes pull request reads answer 500, and pullDelay makes them
+	// answer late (or not at all, once the caller stops waiting).
 	failPulls      bool
+	pullDelay      time.Duration
 	pullReads      int
 	permissionAsks int
 }
@@ -72,6 +74,12 @@ func (f *pullReadsGitHub) failPullReads(fail bool) {
 	f.failPulls = fail
 }
 
+func (f *pullReadsGitHub) delayPullReads(delay time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pullDelay = delay
+}
+
 func (f *pullReadsGitHub) counts() (pullReads, permissionAsks int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -88,6 +96,17 @@ func (f *pullReadsGitHub) serve(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"token":"ghs_pull_reads","expires_at":%q}`, time.Now().Add(time.Hour).UTC().Format(time.RFC3339))
 	case len(parts) == 5 && parts[0] == "repos" && parts[3] == "pulls":
 		f.pullReads++
+		if delay := f.pullDelay; delay > 0 {
+			f.mu.Unlock()
+			select {
+			case <-time.After(delay):
+			case <-r.Context().Done():
+			}
+			f.mu.Lock()
+			if r.Context().Err() != nil {
+				return
+			}
+		}
 		if f.failPulls {
 			http.Error(w, `{"message":"boom"}`, http.StatusInternalServerError)
 			return

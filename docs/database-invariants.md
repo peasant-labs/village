@@ -743,9 +743,11 @@ authenticating. Both are custom Postgres parameters read via
   (`pullRequestReadable`): a public repository's attachment reaches anyone who
   can read the transcript, and a private repository's reaches only its author
   and the linking collective's members (for this rule a pending join request is
-  not membership). Nobody is admitted through GitHub repository access here, and
-  a viewer the collective does not let read its transcripts is counted zero
-  pull requests. The
+  not membership). Nobody is admitted through GitHub repository access here. On
+  the collective reads, "can read the transcript" is the collective's data
+  access, which is what decides whether the collective lists the transcript to
+  the caller at all, so a viewer it withholds its transcripts from is counted
+  zero pull requests. The
   repository's privacy is read through `collective_repositories` at call time,
   as 041 established, so an attachment whose collective or repository link is
   gone has no candidate row and is omitted rather than guessed. Counts cover
