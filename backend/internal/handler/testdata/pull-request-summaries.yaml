@@ -7,30 +7,53 @@
 #   collective_grouped  GET /api/v1/groups/{id}?view=grouped     (collective arm and stats)
 #
 # A summary counts ATTACHED pull requests (never a requested, waiting, preview,
-# or detached one) the viewer may read - a public
-# repository's to anyone, a private repository's to its author and the linking
-# collective's members - and names the three most recently attached, newest
-# first. The collective's count is DISTINCT pull requests: acme/site#2 is bound to
-# two of its transcripts and counts once. `reader` can read acme/app on GitHub but
-# is not in the collective, and sees what a stranger sees.
+# or detached one) the viewer may read - a public repository's to anyone who
+# can read the transcript, a private repository's to its author and the linking
+# collective's members, where a pending join request is not membership - and
+# names the three most recently attached, newest first. An attachment whose
+# repository the collective no longer links (acme/gone#11) counts nowhere.
+#
+# The collective's count is DISTINCT pull requests over its APPROVED shares:
+# acme/site#2 is bound to two of its transcripts and counts once, and
+# acme/site#10 is bound only to a submission still awaiting review, so it is
+# not counted. `elsewhere` links acme/app as public; the team's acme/app pull
+# requests stay private, because an attachment's repository is the one its own
+# collective links. A viewer the collective does not let read its transcripts
+# (a stranger on the members-only `closed`) sees no rows and a count of zero.
+# `reader` can read acme/app on GitHub but is not in the collective, and sees
+# what a stranger sees.
 #
 # A case lists every row its surface returns, by transcript name, so a row that
 # appears or vanishes fails the case. `stats` is required on the collective
-# surfaces and absent on the list.
+# surfaces and absent on the list. `collective` defaults to team.
 world:
-  people: [author, member, reader, stranger]
+  people: [author, member, pending, reader, stranger]
   collectives:
     - name: team
       created_by: author
       data_access: public
-      members: {member: member}
+      members: {member: member, pending: pending}
       repositories:
         - {repo: acme/app, private: true}
+        - {repo: acme/site, private: false}
+        - {repo: acme/gone, private: false}
+    - name: elsewhere
+      created_by: author
+      data_access: public
+      repositories:
+        - {repo: acme/app, private: false}
+    - name: closed
+      created_by: author
+      data_access: members_only
+      members: {member: member}
+      repositories:
         - {repo: acme/site, private: false}
   transcripts:
     - {name: busy, owner: author, visibility: public, shares: {team: approved}}
     - {name: quiet, owner: author, visibility: public, shares: {team: approved}}
     - {name: team-only, owner: author, visibility: shared, shares: {team: approved}}
+    - {name: awaiting, owner: author, visibility: public, shares: {team: pending}}
+    - {name: closed-session, owner: author, visibility: shared, shares: {closed: approved}}
   attachments:
     - {collective: team, repo: acme/app, number: 1, author: author, state: attached, transcripts: [busy]}
     - {collective: team, repo: acme/site, number: 2, author: author, state: attached, transcripts: [busy, team-only]}
@@ -41,6 +64,9 @@ world:
     - {collective: team, repo: acme/site, number: 7, author: author, state: preview, transcripts: [quiet]}
     - {collective: team, repo: acme/app, number: 8, author: author, state: attached, transcripts: [team-only]}
     - {collective: team, repo: acme/site, number: 9, author: author, state: detached, transcripts: [busy]}
+    - {collective: team, repo: acme/site, number: 10, author: author, state: attached, transcripts: [awaiting]}
+    - {collective: team, repo: acme/gone, number: 11, author: author, state: attached, transcripts: [busy], unlinked: true}
+    - {collective: closed, repo: acme/site, number: 12, author: author, state: attached, transcripts: [closed-session]}
   github:
     readers:
       reader: {acme/app: read}
@@ -53,6 +79,8 @@ cases:
       busy: {count: 4, recent: [acme/site#4, acme/site#3, acme/site#2]}
       quiet: {count: 0, recent: []}
       team-only: {count: 2, recent: [acme/app#8, acme/site#2]}
+      awaiting: {count: 1, recent: [acme/site#10]}
+      closed-session: {count: 1, recent: [acme/site#12]}
 
   - name: a-stranger-sees-public-repository-pull-requests-on-the-list
     viewer: stranger
@@ -60,6 +88,7 @@ cases:
     rows:
       busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
       quiet: {count: 0, recent: []}
+      awaiting: {count: 1, recent: [acme/site#10]}
 
   - name: an-anonymous-reader-sees-public-repository-pull-requests-on-the-list
     viewer: ""
@@ -67,6 +96,7 @@ cases:
     rows:
       busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
       quiet: {count: 0, recent: []}
+      awaiting: {count: 1, recent: [acme/site#10]}
 
   - name: a-repository-reader-outside-the-collective-sees-what-a-stranger-sees
     viewer: reader
@@ -74,6 +104,7 @@ cases:
     rows:
       busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
       quiet: {count: 0, recent: []}
+      awaiting: {count: 1, recent: [acme/site#10]}
 
   - name: a-member-sees-private-repository-pull-requests-in-the-collective
     viewer: member
@@ -86,6 +117,15 @@ cases:
 
   - name: a-stranger-counts-only-public-repository-pull-requests-in-the-collective
     viewer: stranger
+    surface: collective
+    stats: 3
+    rows:
+      busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
+      quiet: {count: 0, recent: []}
+      team-only: {count: 1, recent: [acme/site#2]}
+
+  - name: a-pending-join-request-counts-as-a-stranger-in-the-collective
+    viewer: pending
     surface: collective
     stats: 3
     rows:
@@ -110,3 +150,34 @@ cases:
       busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
       quiet: {count: 0, recent: []}
       team-only: {count: 1, recent: [acme/site#2]}
+
+  - name: a-pending-join-request-counts-as-a-stranger-in-the-grouped-collective-read
+    viewer: pending
+    surface: collective_grouped
+    stats: 3
+    rows:
+      busy: {count: 3, recent: [acme/site#4, acme/site#3, acme/site#2]}
+      quiet: {count: 0, recent: []}
+      team-only: {count: 1, recent: [acme/site#2]}
+
+  - name: a-member-of-a-members-only-collective-sees-its-count
+    viewer: member
+    surface: collective
+    collective: closed
+    stats: 1
+    rows:
+      closed-session: {count: 1, recent: [acme/site#12]}
+
+  - name: a-stranger-to-a-members-only-collective-is-counted-nothing
+    viewer: stranger
+    surface: collective
+    collective: closed
+    stats: 0
+    rows: {}
+
+  - name: a-stranger-to-a-members-only-collective-is-counted-nothing-in-the-grouped-read
+    viewer: stranger
+    surface: collective_grouped
+    collective: closed
+    stats: 0
+    rows: {}

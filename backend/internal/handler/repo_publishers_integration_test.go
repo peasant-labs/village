@@ -48,12 +48,12 @@ func TestRepositoryPublisherCounts_RealPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load testdata/repo-publishers.yaml: %v", err)
 	}
-	present := map[string]bool{}
+	present := map[string]struct{}{}
 	for _, c := range fixture.Cases {
-		if present[c.Name] {
+		if _, repeated := present[c.Name]; repeated {
 			t.Fatalf("testdata/repo-publishers.yaml repeats %q", c.Name)
 		}
-		present[c.Name] = true
+		present[c.Name] = struct{}{}
 		if len(c.Expect) != len(fixture.Available) {
 			t.Fatalf("case %q names %d count(s); it must name one for each of the %d available repositories", c.Name, len(c.Expect), len(fixture.Available))
 		}
@@ -63,7 +63,7 @@ func TestRepositoryPublisherCounts_RealPostgres(t *testing.T) {
 			}
 		}
 	}
-	assertExactCaseNames(t, "repo-publishers", present, requiredRepoPublishersCases)
+	assertExactTitleFixtureNames(t, "repo-publishers", present, requiredRepoPublishersCases)
 
 	pool := govTestPool(t)
 	t.Cleanup(pool.Close)

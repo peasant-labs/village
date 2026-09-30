@@ -62,12 +62,12 @@ func loadTranscriptPullsFixture(t *testing.T) transcriptPullsFixture {
 	if err != nil {
 		t.Fatalf("load testdata/transcript-pulls.yaml: %v", err)
 	}
-	present := map[string]bool{}
+	present := map[string]struct{}{}
 	for _, c := range fixture.Cases {
-		if present[c.Name] {
+		if _, repeated := present[c.Name]; repeated {
 			t.Fatalf("testdata/transcript-pulls.yaml repeats %q", c.Name)
 		}
-		present[c.Name] = true
+		present[c.Name] = struct{}{}
 		if c.Status != http.StatusOK && len(c.Expect) != 0 {
 			t.Fatalf("case %q expects rows from a %d; a refusal carries none", c.Name, c.Status)
 		}
@@ -77,7 +77,7 @@ func loadTranscriptPullsFixture(t *testing.T) transcriptPullsFixture {
 			}
 		}
 	}
-	assertExactCaseNames(t, "transcript-pulls", present, requiredTranscriptPullsCases)
+	assertExactTitleFixtureNames(t, "transcript-pulls", present, requiredTranscriptPullsCases)
 	return fixture
 }
 
@@ -99,13 +99,23 @@ func TestTranscriptPullRequests_RealPostgres(t *testing.T) {
 			if !ok {
 				t.Fatalf("case names unknown transcript %q", c.Transcript)
 			}
-			rec := world.get(t, h, prWorldRouter(h), c.Viewer,
+			routes := prWorldRouter(h)
+			rec := world.get(t, h, routes, c.Viewer,
 				"/api/v1/transcripts/"+uuid.UUID(transcriptID.Bytes).String()+"/pulls")
 			if rec.Code != c.Status {
 				t.Fatalf("status = %d (%s), want %d", rec.Code, rec.Body.String(), c.Status)
 			}
 			if _, asks := world.github.counts(); asks != asksBefore {
 				t.Fatalf("the read asked GitHub %d permission question(s); it never asks what a viewer may read", asks-asksBefore)
+			}
+			if c.Status == http.StatusNotFound {
+				// The refusal must not tell the caller the transcript exists: it
+				// is the very answer a transcript that does not exist gets.
+				missing := world.get(t, h, routes, c.Viewer, "/api/v1/transcripts/"+uuid.NewString()+"/pulls")
+				if missing.Code != http.StatusNotFound || missing.Body.String() != rec.Body.String() {
+					t.Fatalf("refusal = %d %s, but a transcript that does not exist answers %d %s; the two must be identical",
+						rec.Code, rec.Body.String(), missing.Code, missing.Body.String())
+				}
 			}
 			if c.Status != http.StatusOK {
 				return

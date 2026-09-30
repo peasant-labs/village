@@ -144,8 +144,10 @@ type mockQuerier struct {
 	recordGitHubWebhookDelivery    func(ctx context.Context, arg sqlc.RecordGitHubWebhookDeliveryParams) (sqlc.RecordGitHubWebhookDeliveryRow, error)
 	completeGitHubWebhookDelivery  func(ctx context.Context, arg sqlc.CompleteGitHubWebhookDeliveryParams) error
 
-	// Pull request reads. Each answers an empty result when unstubbed, because
-	// the collective and list surfaces that other tests drive now ask them too.
+	// Pull request reads. The list reads answer an empty result when unstubbed,
+	// because the collective and list surfaces that other tests drive now ask
+	// them too; the personal totals, asked only by the route that serves them,
+	// panic.
 	listPullRequestCandidatesByTranscripts   func(ctx context.Context, arg sqlc.ListPullRequestCandidatesByTranscriptsParams) ([]sqlc.ListPullRequestCandidatesByTranscriptsRow, error)
 	listAttachedPullRequestCandidatesByOwner func(ctx context.Context, arg sqlc.ListAttachedPullRequestCandidatesByOwnerParams) ([]sqlc.ListAttachedPullRequestCandidatesByOwnerRow, error)
 	listAttachedPullRequestCandidatesByGroup func(ctx context.Context, arg sqlc.ListAttachedPullRequestCandidatesByGroupParams) ([]sqlc.ListAttachedPullRequestCandidatesByGroupRow, error)
@@ -154,6 +156,8 @@ type mockQuerier struct {
 	listUsersByIDs                           func(ctx context.Context, ids []pgtype.UUID) ([]sqlc.User, error)
 	listTagsByTranscriptIDs                  func(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListTagsByTranscriptIDsRow, error)
 	setUserPreviewBeforeAttach               func(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error)
+	createGroup                              func(ctx context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error)
+	addGroupMember                           func(ctx context.Context, arg sqlc.AddGroupMemberParams) error
 }
 
 // ---- CLI session ---------------------------------------------------------
@@ -527,6 +531,9 @@ func (m *mockQuerier) ListPopularTags(ctx context.Context, limit int32) ([]sqlc.
 	return nil, nil
 }
 func (m *mockQuerier) CreateGroup(ctx context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error) {
+	if m.createGroup != nil {
+		return m.createGroup(ctx, arg)
+	}
 	panic("CreateGroup: not stubbed")
 }
 func (m *mockQuerier) GetGroupByID(ctx context.Context, id pgtype.UUID) (sqlc.Group, error) {
@@ -551,6 +558,9 @@ func (m *mockQuerier) ListVisibleGroups(ctx context.Context, userID pgtype.UUID)
 	panic("ListVisibleGroups: not stubbed")
 }
 func (m *mockQuerier) AddGroupMember(ctx context.Context, arg sqlc.AddGroupMemberParams) error {
+	if m.addGroupMember != nil {
+		return m.addGroupMember(ctx, arg)
+	}
 	panic("AddGroupMember: not stubbed")
 }
 func (m *mockQuerier) RemoveGroupMember(ctx context.Context, arg sqlc.RemoveGroupMemberParams) error {

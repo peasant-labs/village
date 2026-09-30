@@ -34,14 +34,12 @@ var validDeletionPolicies = map[string]bool{
 
 func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
-	// linked_github_org omitted, null, or empty all mean no organization, as on
-	// update.
 	var req struct {
-		Name            string  `json:"name"`
-		Description     string  `json:"description"`
-		AcceptanceMode  string  `json:"acceptance_mode"`
-		DataAccess      string  `json:"data_access"`
-		LinkedGitHubOrg *string `json:"linked_github_org"`
+		Name            string `json:"name"`
+		Description     string `json:"description"`
+		AcceptanceMode  string `json:"acceptance_mode"`
+		DataAccess      string `json:"data_access"`
+		LinkedGitHubOrg string `json:"linked_github_org"`
 	}
 	if !h.decodeContractBody(w, r, opCreateGroup, &req) {
 		return
@@ -68,12 +66,10 @@ func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		dataAccess = "members_only"
 	}
 
+	// An omitted, null, or empty linked_github_org all decode to "" and mean no
+	// organization, as on update.
 	linkedOrg := pgtype.Text{Valid: false}
-	requestedOrg := ""
-	if req.LinkedGitHubOrg != nil {
-		requestedOrg = *req.LinkedGitHubOrg
-	}
-	if trimmed := strings.TrimSpace(requestedOrg); trimmed != "" {
+	if trimmed := strings.TrimSpace(req.LinkedGitHubOrg); trimmed != "" {
 		// Caller must currently have this org marked visible.
 		ok, err := h.queries.HasUserVisibleOrg(r.Context(), sqlc.HasUserVisibleOrgParams{
 			UserID: user.PgID(),
@@ -278,10 +274,10 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 		ViewerIsOwner: yourRole == "owner",
 	})
 	stats, _ := h.queries.GetGroupTranscriptStats(r.Context(), pgID)
-	// A count that could not be read is refused rather than served as zero: the
-	// page would otherwise say the collective has no pull requests.
-	pullRequestCount, err := h.collectivePullRequestCount(r.Context(), user, pgID)
+	pullRequestCount, err := h.collectivePullRequestCountFor(r.Context(), user, pgID, canRead)
 	if err != nil {
+		// Refused rather than served as zero: the page would otherwise say the
+		// collective has no pull requests.
 		writeError(w, http.StatusInternalServerError, "Could not read the collective's pull requests; retry the request")
 		return
 	}

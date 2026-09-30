@@ -44,14 +44,14 @@ func TestPersonalStats_RealPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load testdata/personal-stats.yaml: %v", err)
 	}
-	present := map[string]bool{}
+	present := map[string]struct{}{}
 	for _, c := range fixture.Cases {
-		if present[c.Name] {
+		if _, repeated := present[c.Name]; repeated {
 			t.Fatalf("testdata/personal-stats.yaml repeats %q", c.Name)
 		}
-		present[c.Name] = true
+		present[c.Name] = struct{}{}
 	}
-	assertExactCaseNames(t, "personal-stats", present, requiredPersonalStatsCases)
+	assertExactTitleFixtureNames(t, "personal-stats", present, requiredPersonalStatsCases)
 
 	pool := govTestPool(t)
 	t.Cleanup(pool.Close)

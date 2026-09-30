@@ -19,9 +19,11 @@ import (
 // The pull request reads the transcript, home, and collective pages show: a
 // transcript's pull request list, the summary on a list row, the collective's
 // count, and the caller's own count. Each starts from transcripts the caller may
-// already read - the transcript's own read check (canViewTranscript), or the
-// list's own visibility - and then asks one question of each attachment bound to
-// them, answered by pullRequestReadable:
+// already read - the transcript's own read check (canViewTranscript), the list's
+// own visibility, or the collective's data access, under which a viewer the
+// collective withholds its transcripts from is counted nothing - and then asks
+// one question of each attachment bound to them, answered by
+// pullRequestReadable:
 //
 //   - an attachment on a public repository is readable by anyone who can read
 //     the transcript;
@@ -46,7 +48,9 @@ const pullRequestSummaryRecentLimit = 3
 
 // pullRequestCandidate is one (transcript, attachment) binding with the facts
 // the visibility rule needs: the repository link the attachment's collective
-// holds now, and whether the viewer is a member of that collective.
+// holds now, and whether the viewer is a member of that collective. The
+// attachment carries the columns the candidate reads select, which excludes the
+// stored digest: nothing built from a candidate serves prompt text.
 type pullRequestCandidate struct {
 	transcriptID   pgtype.UUID
 	attachment     sqlc.PullRequestAttachment
@@ -55,11 +59,28 @@ type pullRequestCandidate struct {
 	viewerIsMember bool
 }
 
+// candidateOf maps one candidate row. The owner and collective reads select
+// exactly the transcript read's columns, and their rows convert to its row type,
+// so the three statements cannot drift apart without this failing to compile.
+func candidateOf(row sqlc.ListPullRequestCandidatesByTranscriptsRow) pullRequestCandidate {
+	return pullRequestCandidate{
+		transcriptID: row.TranscriptID,
+		attachment: sqlc.PullRequestAttachment{
+			ID: row.ID, RepoOwner: row.RepoOwner, RepoName: row.RepoName, Number: row.Number,
+			HeadSha: row.HeadSha, State: row.State, AuthorID: row.AuthorID,
+			RequesterGithubID: row.RequesterGithubID, CommentID: row.CommentID, CheckRunID: row.CheckRunID,
+			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, AttachedAt: row.AttachedAt, DetachedAt: row.DetachedAt,
+		},
+		installationID: row.InstallationID,
+		isPrivate:      row.IsPrivate,
+		viewerIsMember: row.ViewerIsMember,
+	}
+}
+
 func candidatesFromTranscriptRows(rows []sqlc.ListPullRequestCandidatesByTranscriptsRow) []pullRequestCandidate {
 	out := make([]pullRequestCandidate, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, pullRequestCandidate{transcriptID: row.TranscriptID, attachment: row.PullRequestAttachment,
-			installationID: row.InstallationID, isPrivate: row.IsPrivate, viewerIsMember: row.ViewerIsMember})
+		out = append(out, candidateOf(row))
 	}
 	return out
 }
@@ -67,8 +88,7 @@ func candidatesFromTranscriptRows(rows []sqlc.ListPullRequestCandidatesByTranscr
 func candidatesFromOwnerRows(rows []sqlc.ListAttachedPullRequestCandidatesByOwnerRow) []pullRequestCandidate {
 	out := make([]pullRequestCandidate, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, pullRequestCandidate{transcriptID: row.TranscriptID, attachment: row.PullRequestAttachment,
-			installationID: row.InstallationID, isPrivate: row.IsPrivate, viewerIsMember: row.ViewerIsMember})
+		out = append(out, candidateOf(sqlc.ListPullRequestCandidatesByTranscriptsRow(row)))
 	}
 	return out
 }
@@ -76,8 +96,7 @@ func candidatesFromOwnerRows(rows []sqlc.ListAttachedPullRequestCandidatesByOwne
 func candidatesFromGroupRows(rows []sqlc.ListAttachedPullRequestCandidatesByGroupRow) []pullRequestCandidate {
 	out := make([]pullRequestCandidate, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, pullRequestCandidate{transcriptID: row.TranscriptID, attachment: row.PullRequestAttachment,
-			installationID: row.InstallationID, isPrivate: row.IsPrivate, viewerIsMember: row.ViewerIsMember})
+		out = append(out, candidateOf(sqlc.ListPullRequestCandidatesByTranscriptsRow(row)))
 	}
 	return out
 }
@@ -184,9 +203,15 @@ func (h *Handler) pullRequestSummaries(ctx context.Context, viewer *AuthUser, tr
 	return summaries, nil
 }
 
-// collectivePullRequestCount counts the distinct attached pull requests the
-// viewer may read among the transcripts a collective's totals count.
-func (h *Handler) collectivePullRequestCount(ctx context.Context, viewer *AuthUser, groupID pgtype.UUID) (int32, error) {
+// collectivePullRequestCountFor counts the distinct attached pull requests the
+// viewer may read among the transcripts a collective's totals count. A viewer
+// the collective does not let read its transcripts is withheld those
+// transcripts, and so what they are attached to: they are counted zero without
+// asking.
+func (h *Handler) collectivePullRequestCountFor(ctx context.Context, viewer *AuthUser, groupID pgtype.UUID, canRead bool) (int32, error) {
+	if !canRead {
+		return 0, nil
+	}
 	rows, err := h.queries.ListAttachedPullRequestCandidatesByGroup(ctx, sqlc.ListAttachedPullRequestCandidatesByGroupParams{
 		ViewerID: viewerPgID(viewer),
 		GroupID:  groupID,

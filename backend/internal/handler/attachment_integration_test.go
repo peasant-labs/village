@@ -107,7 +107,7 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 				headID = 55
 			}
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, `{"number":7,"state":"open","head":{"sha":%q,"ref":"feat/x","repo":{"id":%d,"name":%q,"full_name":%q,"owner":{"login":%q}}},"base":{"repo":{"id":4242,"name":%q,"full_name":%q,"owner":{"login":%q}}},"user":{"id":%d},"merged":false}`,
+			fmt.Fprintf(w, `{"number":7,"title":"Attach the prompts","state":"open","head":{"sha":%q,"ref":"feat/x","repo":{"id":%d,"name":%q,"full_name":%q,"owner":{"login":%q}}},"base":{"repo":{"id":4242,"name":%q,"full_name":%q,"owner":{"login":%q}}},"user":{"id":%d},"merged":false}`,
 				headSHA, headID, lastPathSegment(headFull), headFull, firstPathSegment(headFull),
 				lastPathSegment(baseFull), baseFull, firstPathSegment(baseFull), authorID)
 		case strings.Contains(r.URL.Path, "/pulls/") && strings.HasSuffix(r.URL.Path, "/commits"):
@@ -494,6 +494,7 @@ func TestConfirmWidensSharesAndPosts_RealPostgres(t *testing.T) {
 	if response.Attachment.State != schema.VillagePullRequestAttachmentState("attached") {
 		t.Fatalf("state = %q, want attached", response.Attachment.State)
 	}
+	assertAttachmentDescribedByGitHub(t, "confirm", response.Attachment)
 	if response.Digest == nil {
 		t.Fatal("a confirmed attachment must carry its digest")
 	}
@@ -591,9 +592,15 @@ func TestDetachRestoresEachRecordedVisibility_RealPostgres(t *testing.T) {
 		}
 	}
 
-	if rec := attachmentServe(t, attachmentRouter(h), http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/8", owner); rec.Code != http.StatusOK {
+	rec := attachmentServe(t, attachmentRouter(h), http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/8", owner)
+	if rec.Code != http.StatusOK {
 		t.Fatalf("detach status = %d (%s), want 200", rec.Code, rec.Body.String())
 	}
+	var detached schema.VillagePullRequestAttachmentResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &detached); err != nil {
+		t.Fatalf("decode detach response: %v", err)
+	}
+	assertAttachmentDescribedByGitHub(t, "detach", detached.Attachment)
 
 	// Detaching restores exactly what each one started with.
 	for i, id := range ids {
@@ -736,6 +743,17 @@ func TestReadRouteIsAuthorOrCollectiveForPrivateRepositories(t *testing.T) {
 	}
 	if response.Transcripts == nil {
 		t.Error("transcripts must serialise as an empty array, not null")
+	}
+	assertAttachmentDescribedByGitHub(t, "the read", response.Attachment)
+}
+
+// assertAttachmentDescribedByGitHub checks that an attachment row carries the
+// title and head branch GitHub reported for its pull request, which Village
+// does not store and reads when it serves the row.
+func assertAttachmentDescribedByGitHub(t *testing.T, route string, attachment schema.VillagePullRequestAttachment) {
+	t.Helper()
+	if attachment.Title == nil || *attachment.Title != "Attach the prompts" || attachment.HeadRef == nil || *attachment.HeadRef != "feat/x" {
+		t.Fatalf("%s served title/head_ref %v/%v, want GitHub's %q/%q", route, attachment.Title, attachment.HeadRef, "Attach the prompts", "feat/x")
 	}
 }
 

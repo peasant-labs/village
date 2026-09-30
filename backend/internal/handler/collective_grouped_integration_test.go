@@ -25,6 +25,7 @@ import (
 	"github.com/peasant-labs/village/backend/internal/auth"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/projectname"
+	"github.com/peasant-labs/village/backend/internal/promptattach"
 	"github.com/peasant-labs/village/backend/internal/sessionorigin"
 	"gopkg.in/yaml.v3"
 )
@@ -220,6 +221,31 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 					}
 				}
 			}
+			// On the collective route, the helper G2 is bound to one attached pull
+			// request in a public repository the collective links, so the member
+			// expansion must carry its pull request summary like the top-level
+			// page does.
+			helperPull := ""
+			if c.Route == "collective" && !c.Legacy {
+				repoName := fmt.Sprintf("helper-%d", index)
+				helperPull = "acme/" + repoName + "#1"
+				if _, err := pool.Exec(ctx, `INSERT INTO collective_repositories (group_id, owner, name, installation_id, is_private, linked_by) VALUES ($1, 'acme', $2, 4242, false, $3)`, groupID, repoName, owner); err != nil {
+					t.Fatal(err)
+				}
+				attachment, err := h.queries.CreatePullRequestAttachment(ctx, sqlc.CreatePullRequestAttachmentParams{
+					GroupID: groupID, RepoOwner: "acme", RepoName: repoName, GithubRepoID: int64(982100000 + index), Number: 1,
+					HeadSha: "headsha", BaseRemote: "acme/" + repoName, HeadRemote: "acme/" + repoName, AuthorID: owner,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := h.queries.AttachPullRequestTranscript(ctx, sqlc.AttachPullRequestTranscriptParams{AttachmentID: attachment.ID, TranscriptID: ids["G2"], Position: 0, PreviousVisibility: dbVisibilityShared}); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := promptattach.Transition(ctx, h.queries, attachment.ID, promptattach.Attached); err != nil {
+					t.Fatal(err)
+				}
+			}
 			routes := chi.NewRouter()
 			routes.Route("/api/v1", func(r chi.Router) {
 				h.RegisterTranscriptBrowseRoutes(r)
@@ -369,6 +395,20 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 					row := &member
 					if (row.Collective != nil) != (c.Route == "collective") || (row.Pending != nil) != (c.Route == "pending") || (row.MyShare != nil) != (c.Route == "my-shares") || (row.Contributable != nil) != (c.Route == "contributable") {
 						t.Fatal("member changed route variant")
+					}
+					if row.Collective != nil && helperPull != "" {
+						summary := row.Collective.PullRequests
+						recent := []string{}
+						for _, ref := range summary.Recent {
+							recent = append(recent, fmt.Sprintf("%s/%s#%d", ref.Owner, ref.Name, ref.Number))
+						}
+						want := []string{}
+						if names[string(member.Session.ID)] == "G2" {
+							want = []string{helperPull}
+						}
+						if int(summary.Count) != len(want) || !reflect.DeepEqual(recent, want) {
+							t.Fatalf("member %s carries pull request summary %d %v, want %v", names[string(member.Session.ID)], summary.Count, recent, want)
+						}
 					}
 				}
 				if !reflect.DeepEqual(got, expected) || response.Total != len(expected) {

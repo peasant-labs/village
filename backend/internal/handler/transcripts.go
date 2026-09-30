@@ -1862,10 +1862,15 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Batch tags by transcript. A transcript with none serialises as [], as the
-	// per-row read it replaces did.
+	// per-row read it replaces did. A failed read fails the page: one failure
+	// would otherwise blank the tags and owner of every row on it.
 	tagsByTranscript := map[pgtype.UUID][]sqlc.Tag{}
 	if len(transcriptIDs) > 0 {
-		allTags, _ := h.queries.ListTagsByTranscriptIDs(r.Context(), transcriptIDs)
+		allTags, err := h.queries.ListTagsByTranscriptIDs(r.Context(), transcriptIDs)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the tags of the listed transcripts could not be read, so no transcript page was returned; retry the request")
+			return
+		}
 		for _, tag := range allTags {
 			tagsByTranscript[tag.TranscriptID] = append(tagsByTranscript[tag.TranscriptID], sqlc.Tag{ID: tag.ID, Name: tag.Name})
 		}
@@ -1874,7 +1879,11 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	// Batch owners by id.
 	ownersByID := map[pgtype.UUID]sqlc.User{}
 	if len(ownerIDs) > 0 {
-		owners, _ := h.queries.ListUsersByIDs(r.Context(), ownerIDs)
+		owners, err := h.queries.ListUsersByIDs(r.Context(), ownerIDs)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the owners of the listed transcripts could not be read, so no transcript page was returned; retry the request")
+			return
+		}
 		for _, owner := range owners {
 			ownersByID[owner.ID] = owner
 		}

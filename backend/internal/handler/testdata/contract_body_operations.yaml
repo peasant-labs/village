@@ -7,8 +7,7 @@
 - name: create group
   method: POST
   path: /api/v1/groups
-  # linked_github_org may be null on create, as on update.
-  conforming: '{"name":"Night Shift","description":"late sessions","acceptance_mode":"open","data_access":"members_only","linked_github_org":null}'
+  conforming: '{"name":"Night Shift","description":"late sessions","acceptance_mode":"open","data_access":"members_only"}'
   malformed:
     - name: name missing
       body: '{"description":"no name"}'

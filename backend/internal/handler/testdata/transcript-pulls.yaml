@@ -35,11 +35,21 @@ world:
         - {repo: acme/app, private: true}
         - {repo: acme/site, private: false}
         - {repo: acme/gone, private: false}
+    # Links acme/app as PUBLIC. The team's attachments on acme/app are still
+    # private: an attachment's repository is the one ITS collective links.
+    - name: elsewhere
+      created_by: author
+      repositories:
+        - {repo: acme/app, private: false}
   transcripts:
     - {name: open-session, owner: author, visibility: public}
     - {name: team-session, owner: author, visibility: shared, shares: {team: approved}}
     - {name: private-session, owner: author, visibility: private}
   attachments:
+    # Attached first, detached last (the world detaches after every attach), so
+    # newest-first by the later of the two puts them ahead of #17, #12 and #11.
+    - {collective: team, repo: acme/app, number: 18, author: author, state: detached, transcripts: [open-session]}
+    - {collective: team, repo: acme/site, number: 19, author: author, state: detached, transcripts: [open-session]}
     - {collective: team, repo: acme/app, number: 11, author: author, state: attached, transcripts: [open-session]}
     - {collective: team, repo: acme/site, number: 12, author: author, state: attached, transcripts: [open-session]}
     - {collective: team, repo: acme/app, number: 13, author: author, state: requested, transcripts: [open-session]}
@@ -47,8 +57,6 @@ world:
     - {collective: team, repo: acme/site, number: 15, author: author, state: preview, transcripts: [open-session]}
     - {collective: team, repo: acme/gone, number: 16, author: author, state: attached, transcripts: [open-session], unlinked: true}
     - {collective: team, repo: acme/site, number: 17, author: author, state: attached, transcripts: [open-session]}
-    - {collective: team, repo: acme/app, number: 18, author: author, state: detached, transcripts: [open-session]}
-    - {collective: team, repo: acme/site, number: 19, author: author, state: detached, transcripts: [open-session]}
     - {collective: team, repo: acme/app, number: 21, author: author, state: attached, transcripts: [team-session]}
     - {collective: team, repo: acme/site, number: 31, author: author, state: attached, transcripts: [private-session]}
   github:

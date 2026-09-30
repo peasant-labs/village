@@ -23,6 +23,10 @@ world:
     - {name: first, owner: author, visibility: public, turns: 10, duration_ms: 60000, tokens_in: 1000, tokens_out: 250}
     - {name: second, owner: author, visibility: private, turns: 4, duration_ms: 15000, tokens_in: 300}
     - {name: third, owner: author, visibility: shared, turns: 6, duration_ms: 5000, tokens_in: 50, tokens_out: 50, shares: {team: approved}}
+    # The publish contract sets no minimum on these metrics. A stored negative
+    # value counts as zero, so it cannot drag a total below what the caller's
+    # other transcripts add up to, or make the response unservable.
+    - {name: broken, owner: author, visibility: private, turns: -5, duration_ms: -60000, tokens_in: -10, tokens_out: -20}
     - {name: theirs, owner: other, visibility: public, turns: 99, duration_ms: 1000, tokens_in: 7, tokens_out: 3}
   attachments:
     - {collective: team, repo: acme/app, number: 1, author: author, state: attached, transcripts: [first, second]}
@@ -37,7 +41,7 @@ world:
 cases:
   - name: totals-cover-every-transcript-the-caller-published
     viewer: author
-    expect: {total_transcripts: 3, total_turns: 20, total_duration_ms: 80000, total_tokens: 1650, pull_request_count: 2}
+    expect: {total_transcripts: 4, total_turns: 20, total_duration_ms: 80000, total_tokens: 1650, pull_request_count: 2}
 
   - name: another-person-sees-only-their-own
     viewer: other
