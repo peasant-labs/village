@@ -1,37 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FolderOpen, Library, Plus } from "lucide-react";
-import { useTranscripts } from "@/lib/queries/transcripts";
+import { FolderOpen, Search } from "lucide-react";
+import { useTranscriptPages } from "@/lib/queries/transcripts";
 import { useGroupedTranscripts } from "@/lib/queries/helperGroups";
+import { useGroups } from "@/lib/queries/groups";
+import { useMyCollectiveContributions } from "@/lib/queries/collectives";
+import { useMyStats } from "@/lib/queries/account";
 import {
   ScopedContextContainerList,
   ScopedOwnerHelperGroups,
   helperGroupsByTranscript,
 } from "@/components/transcript/ScopedHelperGroups";
 import { useAuth } from "@/providers/AuthProvider";
-import TranscriptList from "@/components/transcript/TranscriptList";
-import { DataState, TeachingEmptyState } from "@/lib/ft-ui";
+import HomeTranscriptTable from "@/components/home/HomeTranscriptTable";
+import HomeRail from "@/components/home/HomeRail";
+import { Input, StatsStrip, TeachingEmptyState } from "@/lib/ft-ui";
 import RequestFailureState from "@/components/RequestFailureState";
 import MalformedProjectNotice from "@/components/MalformedProjectNotice";
 import RetryButton from "@/components/RetryButton";
-import { groupByProject, publishedAtDescending } from "@/lib/format";
+import { formatCompact, formatRecordedDuration, publishedAtDescending } from "@/lib/format";
 import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
 import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
 import type { TranscriptListItem } from "@/lib/types";
 
 /**
- * The signed-in landing surface: the caller's own recent sessions, then the
- * projects those sessions belong to.
+ * The signed-in landing surface: the caller's own transcripts in a table, with
+ * their totals above it and their collectives beside it.
  *
- * It reads the SAME owner-scoped list the profile page reads
- * (`useTranscripts({ owner })`) and groups it with the SAME `groupByProject`,
- * so a person's projects can never be described one way here and another way
- * on their profile. No new backend route is involved.
- *
- * Deliberately carries no stat tiles: this page answers "what was I working
- * on, and where do I continue" — a count of transcripts answers neither.
+ * Every read is the caller's own and already served: the owner-scoped
+ * transcript list (a page at a time, with search), `GET /users/me/stats` for
+ * the totals, `GET /groups` for the collectives they belong to, and
+ * `GET /users/me/collectives/contributions` for what is still waiting for a
+ * collective's approval.
  */
 
 /**
@@ -41,35 +43,29 @@ import type { TranscriptListItem } from "@/lib/types";
  */
 type HandleState = "known" | "choosing" | "missing";
 
-/** How many recent sessions the top list shows before the project list takes over. */
-const RECENT_SESSION_LIMIT = 5;
+/** How many transcripts one page of the list asks for, and `load more` adds. */
+export const HOME_PAGE_SIZE = 20;
 
-/**
- * Most recently published first.
- *
- * The order is applied here rather than trusted from the response because the
- * owner-scoped list request carries no explicit order parameter, so "recent"
- * would otherwise be a server default this page silently depends on.
- * `published_at` is an ISO-8601 UTC timestamp, so lexicographic comparison is
- * chronological; a value that does not parse sorts last instead of throwing.
- */
+/** How long typing has to pause before the list is asked again. */
+const SEARCH_SETTLE_MS = 250;
+
 /**
  * The rows a list of parents is shown in, most recently ACTIVE first.
  *
  * A row's own `published_at` is not what "recent" means once a row can hold the
  * sessions it started. A person's newest session is often one their last run
  * spawned, and that row is inside its parent's chip; ranking the parents by
- * their own timestamps alone would push that whole group down the list, and a
- * capped list would then drop the newest thing the person did off the page
- * entirely, with no chip left on screen to reach it from.
+ * their own timestamps alone would push that whole group down the list, where
+ * the newest thing the person did would sit inside a chip far below where it
+ * belongs.
  *
  * So a group is as recent as the newest row in it: the parent, or any session
  * it started. A row that started nothing is unaffected, and ranks exactly as it
  * did before.
  *
- * The comparison goes through the shared `publishedAtDescending`, so a value
- * that does not parse sorts last here for the same reason it does everywhere
- * else rather than scrambling the rows around it.
+ * The comparison goes through the shared `publishedAtDescending`, the one
+ * recency rule this page uses, so a value that does not parse sorts last here
+ * for the same reason it does everywhere else.
  */
 export function mostRecentGroupFirst(
   rootItems: TranscriptListItem[],
@@ -89,20 +85,29 @@ export function mostRecentGroupFirst(
   );
 }
 
-export function mostRecentFirst(
-  items: TranscriptListItem[],
-): TranscriptListItem[] {
+/**
+ * Most recently published first, through the one shared comparator.
+ *
+ * The server already answers newest first; the rows are ordered here as well so
+ * the pages a person has loaded read as one list, and so a value that does not
+ * parse sorts last instead of scrambling the rows around it.
+ */
+export function mostRecentFirst(items: TranscriptListItem[]): TranscriptListItem[] {
   return [...items].sort((a, b) =>
     publishedAtDescending(a.transcript.published_at, b.transcript.published_at),
   );
+}
+
+function counted(n: number, one: string, many: string): { label: string; value: number } {
+  return { label: n === 1 ? one : many, value: n };
 }
 
 export default function HomePage() {
   const { user } = useAuth();
   const username = user?.github_username ?? "";
   // A blank owner filter is DROPPED by the list handler, which would answer
-  // with the whole commons under a heading that says "your", so the request is
-  // not issued at all until the viewer's handle is known.
+  // with the whole commons under a heading that says "your", so nothing is
+  // asked until the viewer's handle is known.
   //
   // The three states are named rather than derived from two booleans at each
   // use, because they are answered differently and only one of them is a
@@ -116,142 +121,10 @@ export default function HomePage() {
   // than with the only caller that happens to hold the line today.
   const handleState: HandleState =
     username.trim() !== "" ? "known" : user?.username_chosen === true ? "missing" : "choosing";
-  const hasUsername = handleState === "known";
-  const { data, isLoading, isFetching, isError, error, refetch } = useTranscripts(
-    { owner: username },
-    { enabled: hasUsername },
-  );
 
-  // The grouped response is the server's own fold of saved helper threads onto
-  // their owner rows. It is a second, independent read of the same route: the
-  // flat list above still owns the rows, the ordinary child chip and the
-  // pagination, so nothing a person could reach before is removed. The helper
-  // groups ride on whichever of those rows the server placed them on.
-  //
-  // A grouped read that fails is not a page failure: it simply contributes no
-  // helper groups, and the owner rows below render exactly as they did.
-  const grouped = useGroupedTranscripts(
-    { owner: username, limit: "100" },
-    { enabled: hasUsername },
-  );
-  const groupedItems = grouped.data?.items ?? [];
-  const helperGroups = helperGroupsByTranscript(groupedItems);
-  const refreshGrouped = grouped.refreshOrigin;
-
-  // The failure has to OUTLIVE its own retry. With no rows to fall back on,
-  // a refetch puts the query back into its pending state, so `isError` goes
-  // false while the retry is in flight: reading it directly would drop the
-  // panel for a loading skeleton the moment the button was pressed, taking the
-  // alert, the focus and the retry with it. The cause is therefore remembered
-  // until a request actually succeeds.
-  //
-  // The reported cause is its own sentence wherever it is shown: it comes from
-  // the server and carries no guaranteed capital or full stop.
-  const reportedCause = isError
-    ? error instanceof Error
-      ? error.message
-      : "an unknown error"
-    : null;
-  // Remembered WITH the handle it belongs to. A failure recorded for one
-  // person's list must not describe the next one's first load.
-  const [remembered, setRemembered] = useState<{ owner: string; cause: string } | null>(
-    null,
-  );
-  // Recorded when EITHER the cause or the handle changes. Comparing the cause
-  // alone would leave a stale handle on the record, and the read below is keyed
-  // on the handle, so a second account failing with the same words would show
-  // no failure at all and fall through to "nothing published yet".
-  //
-  // The keyed READ is what stops a request that has merely not answered yet
-  // from inheriting the previous one's failure; the discovery corpus holds the
-  // same rule for the same machine.
-  if (
-    reportedCause !== null &&
-    (reportedCause !== remembered?.cause || username !== remembered?.owner)
-  ) {
-    setRemembered({ owner: username, cause: reportedCause });
-  }
-  // Cleared only by a request that actually answered. `!isError` is the load-
-  // bearing half; `data != null` is what stops a clear on the pending window of
-  // a retry that has no rows to fall back on. A third condition on `isFetching`
-  // was here and is deliberately gone: no reachable state distinguished it, and
-  // a guard nothing can reach is a guard nobody can maintain.
-  if (!isError && data != null && remembered !== null) {
-    setRemembered(null);
-  }
-  const failureCause = remembered?.owner === username ? remembered.cause : null;
-  const failed = failureCause !== null;
-
-  // A retry that fails again produces the SAME alert text, which a screen
-  // reader will not announce a second time and a sighted reader cannot
-  // distinguish from a button that did nothing. So the request being in flight
-  // is its own visible state on the control, and its own polite announcement.
-  const retrying = failed && isFetching;
-  const retryText = retrying ? "retrying" : "retry";
-
-  const items = data?.transcripts ?? [];
-  // Grouped BEFORE the slice, so the five rows this list shows are five
-  // sessions the viewer ran rather than five rows that may include the
-  // sessions those runs started. A session started from inside another one is
-  // published as its own transcript, so without the fold a single busy run
-  // could fill the whole list with its own offspring and push every other
-  // session the person ran off the page.
-  //
-  // Slicing after the grouping is also what lets a chip be complete: a row's
-  // started sessions are found in the whole list, not only among the first
-  // five, so the count on the chip is every session that row started.
-  const recentGrouping = groupChildSessions(mostRecentFirst(items));
-  // A row whose own parent is somewhere in this list is not shown here at all;
-  // it is inside its parent's chip. A row whose parent is absent keeps its
-  // ordinary place, so nothing a person published can fall out of this list.
-  const recentChildSessions = childSessionsByParentID(recentGrouping);
-  // Ranked by the newest row in each group BEFORE the cut, so a group holding
-  // the person's newest session cannot be cut off the page while that session
-  // is only reachable from inside it.
-  const recent = mostRecentGroupFirst(recentGrouping.rootItems, recentChildSessions).slice(
-    0,
-    RECENT_SESSION_LIMIT,
-  );
-  const { groups, malformed } = groupByProject(items);
-
-  // One teaching empty state serves both sections: a person with no sessions
-  // has no projects either, so two empty panels would say the same thing twice.
-  const emptyState = (
-    <div data-testid="home-empty-state">
-      <TeachingEmptyState
-        icon={FolderOpen}
-        title="nothing published yet"
-        body="publish a redacted transcript to start your library. your sessions and the projects they belong to appear here."
-        privacy={null}
-        style={{ border: "none", background: "transparent" }}
-      />
-      <div className="px-6 pb-6">
-        <Link
-          href="/publish"
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer"
-        >
-          <Plus size={14} />
-          publish your first transcript
-        </Link>
-      </div>
-    </div>
-  );
-
-  // Mounted on every branch below, not inside one of them: a polite region has
-  // to exist BEFORE its content changes for the change to be announced, and the
-  // branch a person retries from is one that swaps its own content.
-  const statusRegion = (
-    <p role="status" aria-live="polite" className="sr-only" data-testid="home-status">
-      {retrying ? "reloading your sessions" : ""}
-    </p>
-  );
-
-  // A failure that is being retried keeps its surface rather than falling back
-  // to the skeleton, so the alert, the focus and the control all survive.
-  if ((isLoading && !failed) || handleState === "choosing") {
+  if (handleState === "choosing") {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        {statusRegion}
+      <div className="iu-page animate-fade-up">
         <div className="h-8 w-64 animate-shimmer" />
         <div className="h-48 animate-shimmer" />
         <div className="h-48 animate-shimmer" />
@@ -263,173 +136,321 @@ export default function HomePage() {
   // handle does not fire for an account that records having chosen one.
   if (handleState === "missing") {
     return (
-      <div
-        className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
-        data-testid="home-page-no-handle"
-      >
-        {statusRegion}
+      <div className="iu-page" data-testid="home-page-no-handle">
         <div
           role="alert"
-          className="border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger"
+          className="border border-danger/40 bg-danger-soft px-4 py-3 text-danger"
         >
           <p className="font-medium">your account has no handle</p>
-          <p className="mt-1 text-[13px]">
-            Your sessions are stored under your handle, and this account is
-            recorded as having chosen one while carrying none, so they cannot be
-            looked up. Nothing has been lost. Sign out and back in; if the page
-            still says this, the account needs a maintainer.
+          <p className="mt-1">
+            your transcripts are stored under your handle, and this account is recorded as having
+            chosen one while carrying none, so they cannot be looked up. nothing has been lost.
+            sign out and back in; if the page still says this, the account needs a maintainer.
           </p>
         </div>
       </div>
     );
   }
 
-  // A failed request is NOT an empty library. Rendering the teaching empty
-  // state here would tell somebody with a shelf full of published sessions
-  // that they have published nothing, and send them off to publish another.
-  // The shared failure panel says what failed and offers the same retry the
-  // discovery list offers.
+  // One mount per person: a different handle is a different home, and nothing
+  // one person typed, loaded or saw fail may carry over to the next.
+  return <HomeBody key={username} username={username} />;
+}
+
+function HomeBody({ username }: { username: string }) {
+  const [draft, setDraft] = useState("");
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    const settled = draft.trim();
+    if (settled === query) return;
+    const timer = setTimeout(() => setQuery(settled), SEARCH_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [draft, query]);
+
+  const listParams: Record<string, string> =
+    query === "" ? { owner: username } : { owner: username, q: query };
+  const list = useTranscriptPages(listParams, HOME_PAGE_SIZE);
+
+  // The grouped response is the server's own fold of saved helper threads onto
+  // their owner rows. It is a second, independent read of the same route: the
+  // paged list above still owns the rows, the ordinary child chip and the
+  // paging, and the helper groups ride on whichever of those rows the server
+  // placed them on. A grouped read that fails contributes no helper groups; the
+  // rows render exactly as they would without it.
+  const grouped = useGroupedTranscripts({ owner: username, limit: "100" });
+  const groupedItems = grouped.data?.items ?? [];
+  const helperGroups = helperGroupsByTranscript(groupedItems);
+  const refreshGrouped = grouped.refreshOrigin;
+
+  const stats = useMyStats(username, true);
+  const collectives = useGroups();
+  const contributions = useMyCollectiveContributions(true);
+
+  // Rows of the list's OWN answer. While a new search loads, the previous
+  // search's rows stay on screen as a placeholder; they describe a different
+  // question, so no failure or count below may be read from them.
+  const own = list.isPlaceholderData ? undefined : list.data;
+  const listKey = `${username}\u0000${query}`;
+
+  // The failure has to OUTLIVE its own retry. With no rows to fall back on, a
+  // refetch puts the query back into its pending state, so `isError` goes false
+  // while the retry is in flight: reading it directly would drop the panel for
+  // a loading state the moment the button was pressed, taking the alert, the
+  // focus and the retry with it. The cause is therefore remembered until a
+  // request actually succeeds, together with the question it answered, so a
+  // failure recorded for one search never describes another.
   //
-  // Only when there is nothing to keep on screen. A refresh that fails in the
-  // background still holds the rows it confirmed earlier, and replacing a
-  // person's whole library with an error panel because a later request failed
-  // is the same lie in a different shape; that case keeps the rows and says so
-  // in a notice above them.
-  if (failed && data == null) {
-    return (
-      <div
-        className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
-        data-testid="home-page-error"
-      >
-        {statusRegion}
+  // A failed `load more` is not a failed list: the rows already shown are
+  // still right, and that failure is said beside the button instead.
+  const listFailed = list.isError && !list.isFetchNextPageError;
+  const reportedCause = listFailed
+    ? list.error instanceof Error
+      ? list.error.message
+      : "an unknown error"
+    : null;
+  const [remembered, setRemembered] = useState<{ key: string; cause: string } | null>(null);
+  if (reportedCause !== null && (reportedCause !== remembered?.cause || listKey !== remembered?.key)) {
+    setRemembered({ key: listKey, cause: reportedCause });
+  }
+  // Cleared only by a request that actually answered.
+  if (!list.isError && own != null && remembered !== null) {
+    setRemembered(null);
+  }
+  const failureCause = remembered?.key === listKey ? remembered.cause : null;
+  const failed = failureCause !== null;
+
+  // A retry that fails again produces the SAME alert text, which a screen
+  // reader will not announce a second time and a sighted reader cannot
+  // distinguish from a button that did nothing. So the request being in flight
+  // is its own visible state on the control, and its own polite announcement.
+  const retrying = failed && list.isFetching && !list.isFetchingNextPage;
+  const retryText = retrying ? "retrying" : "retry";
+
+  const pages = list.data?.pages ?? [];
+  const loaded = pages.flatMap((page) => page.transcripts);
+  const total = pages[0]?.total ?? 0;
+  const searching = list.isPlaceholderData;
+
+  // Grouped BEFORE ranking, so a row is a session the viewer ran rather than a
+  // session one of their runs started. A session started from inside another
+  // one is published as its own transcript; without the fold a single busy run
+  // would fill the list with its own offspring. A row whose parent is not
+  // loaded keeps its ordinary place, so nothing a person published falls out.
+  const grouping = groupChildSessions(mostRecentFirst(loaded));
+  const childSessions = childSessionsByParentID(grouping);
+  const rows = mostRecentGroupFirst(grouping.rootItems, childSessions);
+  const malformed = loaded.filter((item) => !item.transcript.project_hash).length;
+
+  const [now] = useState(() => Date.now());
+
+  // Mounted on every branch below, not inside one of them: a polite region has
+  // to exist BEFORE its content changes for the change to be announced.
+  const statusText = retrying
+    ? "reloading your transcripts"
+    : searching
+      ? "searching your transcripts"
+      : list.isFetchingNextPage
+        ? "loading more transcripts"
+        : "";
+
+  const statItems =
+    stats.data == null
+      ? []
+      : [
+          counted(stats.data.total_transcripts, "transcript", "transcripts"),
+          ...(collectives.data != null
+            ? [counted(collectives.data.length, "collective", "collectives")]
+            : []),
+          counted(stats.data.pull_request_count, "pull request", "pull requests"),
+          { label: "tokens", value: formatCompact(stats.data.total_tokens) },
+          { label: "recorded", value: formatRecordedDuration(stats.data.total_duration_ms) },
+        ];
+  const libraryEmpty = own != null && total === 0 && query === "";
+  const showStats = statItems.length > 0 && stats.data!.total_transcripts > 0;
+
+  let listRegion: React.ReactNode;
+  if (failed && own == null && !searching) {
+    // A failed request is NOT an empty library. The teaching empty state here
+    // would tell somebody with a shelf full of transcripts that they have
+    // published nothing. The failure panel says what failed and offers the same
+    // request again.
+    listRegion = (
+      <div data-testid="home-page-error">
         <RequestFailureState
-          title="Failed to load your sessions"
+          title="your transcripts could not be loaded"
           message={
-            `Your own published sessions could not be loaded from ` +
-            `${TRANSCRIPT_LIST_ENDPOINT}. A failed request is not an empty ` +
-            `library, and nothing has been deleted. Retry to load it again. ` +
-            `The request reported: ${failureCause}.`
+            `your own published transcripts could not be loaded from ` +
+            `${TRANSCRIPT_LIST_ENDPOINT}. a failed request is not an empty ` +
+            `library, and nothing has been deleted. retry to load it again. ` +
+            `the request reported: ${failureCause}.`
           }
-          onRetry={() => refetch()}
+          onRetry={() => list.refetch()}
           retryLabel={retryText}
           retryDisabled={retrying}
         />
       </div>
     );
+  } else if (list.data == null) {
+    listRegion = (
+      <div className="flex flex-col gap-[var(--sp-2)]" data-testid="home-list-loading" aria-hidden="true">
+        <div className="h-10 animate-shimmer" />
+        <div className="h-14 animate-shimmer" />
+        <div className="h-14 animate-shimmer" />
+      </div>
+    );
+  } else if (libraryEmpty) {
+    listRegion = (
+      <div data-testid="home-empty-state" className="border border-rule bg-surface">
+        <TeachingEmptyState
+          icon={FolderOpen}
+          title="nothing published yet"
+          body="sessions you publish from peasant appear here, with who can read each one. sign peasant in to village on your computer, then publish a session from it."
+          command="peasant village login"
+          privacy={null}
+          style={{ border: "none", background: "transparent" }}
+        />
+        <div className="px-6 pb-6">
+          <Link href="/publish" className="cmg-pr-link">
+            how to publish from peasant
+          </Link>
+        </div>
+      </div>
+    );
+  } else if (rows.length === 0) {
+    listRegion = (
+      <div data-testid="home-no-match" className="flex flex-col items-start gap-[var(--sp-2)] border border-rule bg-surface p-[var(--sp-4)]">
+        <p className="m-0">no transcript you published matches &ldquo;{query}&rdquo;.</p>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDraft("")}>
+          clear search
+        </button>
+      </div>
+    );
+  } else {
+    const more = Math.min(HOME_PAGE_SIZE, Math.max(total - loaded.length, 0));
+    listRegion = (
+      <div className="flex flex-col gap-[var(--sp-3)]" data-testid="home-transcripts" aria-busy={searching || undefined}>
+        {failed && (
+          // The rows below are the last ones the server confirmed. They are
+          // kept deliberately: a failed refresh is not news that the library
+          // shrank.
+          <div
+            data-testid="home-stale-notice"
+            className="border border-rule bg-surface px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+          >
+            {/* Only the sentence is the alert. The control sits outside it
+                because its label changes while a retry is in flight, and an
+                atomic alert re-announces the whole notice on that change. */}
+            <p role="alert" className="m-0 text-ink-2">
+              these transcripts could not be refreshed, so they are the ones last loaded and may be
+              out of date. the request reported: {failureCause}.
+            </p>
+            <RetryButton
+              label={retryText}
+              busy={retrying}
+              onRetry={() => list.refetch()}
+              testId="home-stale-retry"
+            />
+          </div>
+        )}
+        <MalformedProjectNotice
+          count={malformed}
+          testId="home-malformed-notice"
+          consequence="They are still listed below, without a link to a project page."
+        />
+        <div className={searching ? "opacity-60 transition-opacity" : undefined}>
+          <HomeTranscriptTable
+            rows={rows}
+            childSessions={childSessions}
+            viewerUsername={username}
+            now={now}
+            helperGroupSlot={(item) => (
+              <ScopedOwnerHelperGroups
+                groups={helperGroups.get(item.transcript.id)}
+                onRefreshOrigin={refreshGrouped}
+              />
+            )}
+          />
+          <ScopedContextContainerList items={groupedItems} onRefreshOrigin={refreshGrouped} />
+        </div>
+        <div className="iu-page-foot">
+          <span className="iu-page-count" data-testid="home-count">
+            <span className="tnum">{loaded.length.toLocaleString("en-US")}</span> of{" "}
+            <span className="tnum">{total.toLocaleString("en-US")}</span>{" "}
+            {total === 1 ? "transcript" : "transcripts"}
+          </span>
+          {list.hasNextPage && !searching && (
+            <span className="inline-flex items-center gap-[var(--sp-2)]">
+              {list.isFetchNextPageError && (
+                <span role="alert" className="cmg-note" data-testid="home-load-more-failed">
+                  the next transcripts could not be loaded:{" "}
+                  {list.error instanceof Error ? list.error.message : "an unknown error"}.
+                </span>
+              )}
+              <RetryButton
+                label={list.isFetchingNextPage ? "loading more" : `show ${more} more`}
+                busy={list.isFetchingNextPage}
+                onRetry={() => list.fetchNextPage()}
+                testId="home-load-more"
+              />
+            </span>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div
-      className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up"
-      data-testid="home-page"
-    >
-      {statusRegion}
+    <div className="iu-page animate-fade-up" data-testid="home-page">
+      <p role="status" aria-live="polite" className="sr-only" data-testid="home-status">
+        {statusText}
+      </p>
 
-      <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-ink">
-        home
-      </h1>
+      <header className="iu-page-head">
+        <h1 className="iu-page-title">your transcripts</h1>
+        <p className="iu-page-sub">sessions you published from peasant, and who can read each one.</p>
+      </header>
 
-      {failed && (
-        // The rows below are the last ones the server confirmed. They are kept
-        // deliberately: a failed refresh is not news that the library shrank.
-        <div
-          data-testid="home-stale-notice"
-          className="border border-rule bg-surface px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-        >
-          {/* Only the sentence is the alert. The control sits outside it
-              because its label changes while a retry is in flight, and an
-              atomic alert re-announces the whole notice on that change,
-              interrupting the polite region that already said it. */}
-          <p role="alert" className="text-[13px] text-ink-3">
-            These sessions could not be refreshed, so they are the ones last
-            loaded and may be out of date. The request reported: {failureCause}.
-          </p>
-          <RetryButton
-            label={retryText}
-            busy={retrying}
-            onRetry={() => refetch()}
-            testId="home-stale-retry"
-          />
+      {showStats ? (
+        <div data-testid="home-stats">
+          <StatsStrip items={statItems} label="your transcripts in numbers" />
         </div>
-      )}
+      ) : stats.isError ? (
+        <p className="cmg-note" data-testid="home-stats-failed">
+          your totals could not be loaded.
+        </p>
+      ) : null}
 
-      <MalformedProjectNotice
-        count={malformed.length}
-        testId="home-malformed-notice"
-      />
-
-      <DataState empty={items.length === 0} emptyState={emptyState}>
-        {/* The two panels carry their own spacing: DataState wraps its children,
-            so the page column's gap does not fall between them. */}
-        <div className="flex flex-col gap-6">
-          {/* Plain `div`s, not `section`s: the design system styles a bare
-            `section` with its own max-width and centring, which would inset
-            these panels inside the page's own width instead of filling it. */}
-          <div
-            className="border border-rule bg-surface"
-            data-testid="home-recent-sessions"
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
-              <span className="inline-flex items-center gap-2 text-sm font-medium text-ink">
-                <Library size={14} className="text-ink-3" />
-                your recent sessions
-              </span>
+      <div className="cmg-home">
+        <div className="cmg-home-main">
+          {!libraryEmpty && (
+            <div className="iu-page-search" role="search">
+              <Input
+                label="search your transcripts"
+                type="search"
+                iconLeft={Search}
+                placeholder="search your transcripts"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+              />
             </div>
-            <TranscriptList
-              items={recent}
-              childSessions={recentChildSessions}
-              showOwnerActions
-              hideOwner
-              bare
-              helperGroupSlot={(item) => (
-                <ScopedOwnerHelperGroups
-                  groups={helperGroups.get(item.transcript.id)}
-                  onRefreshOrigin={refreshGrouped}
-                />
-              )}
-            />
-            <ScopedContextContainerList
-              items={groupedItems}
-              onRefreshOrigin={refreshGrouped}
-            />
-          </div>
-
-          <div
-            className="border border-rule bg-surface"
-            data-testid="home-projects"
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
-              <span className="inline-flex items-center gap-2 text-sm font-medium text-ink">
-                <FolderOpen size={14} className="text-ink-3" />
-                your projects
-              </span>
-            </div>
-            <ul className="divide-y divide-rule">
-              {groups.map((group) => (
-                <li key={group.project_hash}>
-                  {/* Routed on `project_hash`: a project's identity is the hash,
-                    never a display name that could be re-derived. */}
-                  <Link
-                    href={`/users/${encodeURIComponent(username)}/projects/${group.project_hash}`}
-                    data-testid="home-project-row"
-                    className="flex items-center gap-3 px-5 py-3 hover:bg-surface-hover transition-colors focus-mono cursor-pointer"
-                  >
-                    {/* A project's display name is USER CONTENT, so `normal-case`
-                      overrides the design system's chrome lowercasing. */}
-                    <span className="font-[family-name:var(--font-display)] text-sm font-semibold text-ink truncate normal-case">
-                      {group.project}
-                    </span>
-                    <span className="font-mono text-xs text-ink-3 tabular-nums shrink-0">
-                      {group.items.length} session
-                      {group.items.length !== 1 ? "s" : ""}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+          )}
+          {listRegion}
         </div>
-      </DataState>
+        <HomeRail
+          collectives={{
+            data: collectives.data,
+            isError: collectives.isError,
+            isFetching: collectives.isFetching,
+            refetch: collectives.refetch,
+          }}
+          contributions={{
+            data: contributions.data,
+            isError: contributions.isError,
+            isFetching: contributions.isFetching,
+            refetch: contributions.refetch,
+          }}
+        />
+      </div>
     </div>
   );
 }

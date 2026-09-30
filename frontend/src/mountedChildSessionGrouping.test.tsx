@@ -43,8 +43,8 @@ import {
  *              There is NO control to reveal what was folded: a browse card
  *              names no parent, so a count hanging off one card would ask a
  *              visitor to guess which card it belonged to.
- *   /          a signed-in visitor's own home. Its recent-sessions list hangs
- *              an expandable chip off the row that started them.
+ *   /          a signed-in visitor's own home. Its table hangs an expandable
+ *              chip inside the title cell of the row that started them.
  *   /users/{username}/projects/{projectHash}   the same chip.
  *   /users/{username}   a person's library, where the chip hangs off the row
  *              inside the project group both sessions belong to.
@@ -93,9 +93,10 @@ afterEach(() => {
  * row are one unit, and the row closes up underneath it.
  *
  * `visibleRows` is passed rather than derived because the surfaces differ: a
- * project page lists every row that kept its place, and home shows the first
- * few groups. Each case states its own answer for the surface it is asserted
- * on, so neither assertion has to re-implement the rule it is checking.
+ * project page lists every row that kept its place in server order, and home
+ * ranks the groups by the newest row in each. Each case states its own answer
+ * for the surface it is asserted on, so neither assertion has to re-implement
+ * the rule it is checking.
  */
 async function assertChips(
   testCase: ChildSessionGroupingCase,
@@ -373,8 +374,27 @@ describe("the home page lists a started session inside its parent's chip", () =>
       await renderAppRoute("/");
       await flush();
 
-      const panel = await screen.findByTestId("home-recent-sessions");
-      await assertChips(testCase, panel, testCase.expectedHomeRows);
+      const table = await screen.findByTestId("home-transcripts");
+      // The home list is a table, so the chip cannot be a row of its own: it
+      // sits in the title cell of the row whose sessions it holds, which is
+      // what makes it read as that row's rather than the next one's.
+      const shownGroups = testCase.expectedGroups.filter((group) =>
+        testCase.expectedHomeRows.includes(group.parent),
+      );
+      for (const group of shownGroups) {
+        const chip = table.querySelector(`[data-parent-transcript-id="${group.parent}"]`);
+        expect(
+          chip?.closest('[data-testid="home-transcript-row"]')?.getAttribute("data-transcript-id"),
+          `${testCase.name}: the chip of ${group.parent}'s sessions sits in its title cell`,
+        ).toBe(group.parent);
+        for (const id of group.children) {
+          expect(
+            linkedIDs(table),
+            `${testCase.name}: ${id} is inside a collapsed chip, so it must not be on screen yet`,
+          ).not.toContain(id);
+        }
+      }
+      await assertDisclosures(testCase, table, testCase.expectedHomeRows, linkedIDs);
     });
   }
 });

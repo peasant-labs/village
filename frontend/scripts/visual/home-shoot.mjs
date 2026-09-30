@@ -1,16 +1,16 @@
 /* Screenshot the signed-in home surface on the REAL root route (`/`).
 
    Build provenance is asserted BEFORE any PNG is written: the served page must
-   carry the home surface, the two section headings in order, and project rows
-   whose links are keyed on the 64-character project hash. All of that exists
-   only in this change, so a stale server, or one serving another worktree,
-   fails with a nonzero exit instead of producing a misleading capture.
+   carry the home surface, the transcripts table, and project links in its rows
+   keyed on the 64-character project hash. A stale server, or one serving
+   another worktree, fails with a nonzero exit instead of producing a
+   misleading capture.
 
    Computed styles are read from the live DOM as well, because a scaled PNG
-   cannot tell two close token values apart: the run reports the session-count
-   text's computed font-family, font-variant-numeric (tabular figures are
-   load-bearing beside a name of any length) and border-radius (the design
-   system is square everywhere).
+   cannot tell two close token values apart: the run reports the count line's
+   computed font-family, font-variant-numeric (tabular figures are load-bearing
+   for a count that changes as rows load) and border-radius (the design system
+   is square everywhere).
 
    The `failure` mode captures the OTHER answer the page owes: the owner-scoped
    list request failed, so the page must show the failure surface and a retry,
@@ -166,7 +166,7 @@ if (MODE === 'no-handle') {
       alertExcludesControl: alert != null && alert.querySelector('button') == null,
       shimmer: document.querySelectorAll('.animate-shimmer').length,
       emptyState: document.querySelector('[data-testid="home-empty-state"]') != null,
-      rows: document.querySelectorAll('[data-testid="home-project-row"]').length,
+      rows: document.querySelectorAll('[data-testid="home-transcript-row"]').length,
     }
   })
   // The point of the surface: it TERMINATES. A shimmer still on screen would
@@ -241,8 +241,8 @@ if (MODE === 'failure') {
       alertExcludesControl: alert != null && alert.querySelector('button') == null,
       retry,
       emptyState: document.querySelector('[data-testid="home-empty-state"]') != null,
-      rows: document.querySelectorAll('[data-testid="home-project-row"]').length,
-      recentList: document.querySelector('[data-testid="home-recent-sessions"]') != null,
+      rows: document.querySelectorAll('[data-testid="home-transcript-row"]').length,
+      recentList: document.querySelector('[data-testid="home-transcripts"]') != null,
     }
   })
   // The whole point of the surface: a failed request is NOT an empty library,
@@ -253,7 +253,7 @@ if (MODE === 'failure') {
     shape.emptyState ||
     shape.rows !== 0 ||
     shape.recentList ||
-    !shape.alertText.includes('Failed to load your sessions') ||
+    !shape.alertText.includes('your transcripts could not be loaded') ||
     !shape.alertText.includes('not an empty library') ||
     !shape.alertExcludesControl ||
     shape.retry.length === 0
@@ -346,7 +346,7 @@ if (MODE === 'helpers') {
     const root = document.querySelector(sel)
     return {
       label: (root?.querySelector('[data-testid="helper-group-label"]')?.textContent ?? '').trim(),
-      ownerLink: document.querySelector('[data-testid="home-recent-sessions"] a[href^="/transcripts/"]')?.getAttribute('href') ?? null,
+      ownerLink: document.querySelector('[data-testid="home-transcripts"] a[href^="/transcripts/"]')?.getAttribute('href') ?? null,
       contextStatus: document.body.textContent.includes('owner is unavailable'),
       memberLinks: root?.querySelectorAll('a.helper-thread-open').length ?? 0,
     }
@@ -406,15 +406,15 @@ if (MODE === 'helpers') {
 
   await page.evaluate(() => window.scrollTo(0, 0))
   await pause(150)
-  const panelEl = await page.$('[data-testid="home-recent-sessions"]')
+  const panelEl = await page.$('[data-testid="home-transcripts"]')
   const panelBox = await panelEl.boundingBox()
   if (!panelBox || panelBox.width < 4 || panelBox.height < 4) {
-    await fail(`ERROR [home-shoot.mjs] the recent-sessions panel resolved to a blank box at ${URL}.`, 1)
+    await fail(`ERROR [home-shoot.mjs] the transcripts table resolved to a blank box at ${URL}.`, 1)
   }
   const file = `${out}/village-home-helpers.png`
   await panelEl.screenshot({ path: file, captureBeyondViewport: true })
   const r = await gate.assert('village-home-helpers', file, {
-    sel: '[data-testid="home-recent-sessions"]',
+    sel: '[data-testid="home-transcripts"]',
     where: 'home-shoot.mjs',
   })
   console.log('shot', 'village-home-helpers'.padEnd(30), `${Math.round(panelBox.width)}x${Math.round(panelBox.height)}`.padEnd(11), `nonbg=${(r.nonbgRatio * 100).toFixed(1)}% colors=${r.distinctColors} ${(statSync(file).size / 1024).toFixed(1)}KB`)
@@ -438,24 +438,21 @@ if (!ready) {
   )
 }
 
-// Build provenance: the two sections, in order, and hash-keyed project links.
+// Build provenance: the transcripts table, and hash-keyed project links in its rows.
 const provenance = await page.evaluate(() => {
-  const home = document.querySelector('[data-testid="home-page"]')
-  const order = [...home.querySelectorAll('[data-testid]')]
-    .map((e) => e.getAttribute('data-testid'))
-    .filter((id) => id === 'home-recent-sessions' || id === 'home-projects')
-  const rows = [...document.querySelectorAll('[data-testid="home-project-row"]')]
+  const table = document.querySelector('[data-testid="home-transcripts"] table')
+  const links = [...document.querySelectorAll('[data-testid="home-transcript-row"] .iu-session-sub a')]
   return {
-    order,
-    hrefs: rows.map((r) => r.getAttribute('href')),
+    table: table != null,
+    hrefs: links.map((a) => a.getAttribute('href')),
   }
 })
 
-if (provenance.order.join(',') !== 'home-recent-sessions,home-projects') {
+if (!provenance.table) {
   await fail(
-    `ERROR [home-shoot.mjs] the home sections are missing or out of order.
-  What failed: found [${provenance.order.join(', ')}].
-  Why: the served build does not render recent sessions above projects.
+    `ERROR [home-shoot.mjs] the transcripts table is missing.
+  What failed: no table under [data-testid="home-transcripts"].
+  Why: the served build does not render the home table.
   Where: home-shoot.mjs build-provenance check.
   Means: the capture would not show the surface under review.
   Fix: rebuild and restart the server from this worktree, then retry.`,
@@ -465,28 +462,27 @@ if (provenance.order.join(',') !== 'home-recent-sessions,home-projects') {
 const hashKeyed = provenance.hrefs.length > 0 && provenance.hrefs.every((h) => /\/projects\/[0-9a-f]{64}$/.test(h ?? ''))
 if (!hashKeyed) {
   await fail(
-    `ERROR [home-shoot.mjs] the project rows are absent or not keyed on a project hash.
+    `ERROR [home-shoot.mjs] the project links are absent or not keyed on a project hash.
   What failed: hrefs ${JSON.stringify(provenance.hrefs)}.
-  Why: the fixture served no projects, or the rows regressed to a name-keyed link.
+  Why: the fixture served no projects, or the links regressed to a name-keyed link.
   Where: home-shoot.mjs build-provenance check.
-  Means: the capture would not evidence the project list the change is about.
+  Means: the capture would not evidence the project links the rows carry.
   Fix: confirm the mock serves rows carrying project_hash, then retry.`,
     2,
   )
 }
 
-// The session count beside a project name is the surface's own token claim:
-// mono, tabular figures (so counts line up under names of any length), square.
-// Read from the live DOM and ASSERTED, not merely reported: a count that had
-// lost its font would be invisible in a scaled PNG.
+// The count line under the table is the surface's own token claim: mono,
+// tabular figures, square. Read from the live DOM and ASSERTED, not merely
+// reported: a count that had lost its font would be invisible in a scaled PNG.
 const countStyle = await assertComputed(
-  '[data-testid="home-project-row"] span.font-mono',
+  '[data-testid="home-count"] .tnum',
   {
     fontFamily: isMono,
     fontVariantNumeric: (v) => v === 'tabular-nums',
     borderRadius: isSquare,
   },
-  "the project row's session count",
+  "the table's count line",
 )
 
 await page.evaluate(() => window.scrollTo(0, 0))
@@ -512,6 +508,6 @@ const r = await gate.assert('village-home', file, { sel: 'body', where: 'home-sh
 const bytes = statSync(file).size
 
 console.log('shot', 'village-home'.padEnd(22), `${Math.round(box.width)}x${Math.round(box.height)}`.padEnd(11), `nonbg=${(r.nonbgRatio * 100).toFixed(1)}% colors=${r.distinctColors} ${(bytes / 1024).toFixed(1)}KB`)
-console.log('computed session-count style:', JSON.stringify(countStyle))
+console.log('computed count-line style:', JSON.stringify(countStyle))
 console.log('console errors:', errs.length ? errs.slice(0, 6) : 'none')
 await browser.close()

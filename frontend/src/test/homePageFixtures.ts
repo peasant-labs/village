@@ -26,6 +26,17 @@ export type HomeRouteCase = {
   expectSurface: HomeRouteSurface;
 };
 
+/** One pull request reference as a fixture writes it: `owner/name` and a number. */
+export type HomePullRequestRefCase = {
+  repo: string;
+  number: number;
+};
+
+export type HomePullRequestsCase = {
+  count: number;
+  recent: HomePullRequestRefCase[];
+};
+
 export type HomeTranscriptCase = {
   id: string;
   title: string;
@@ -39,12 +50,12 @@ export type HomeTranscriptCase = {
    *  did. Absent in `home-page.yaml`, whose cases are not about parentage; the
    *  started-session corpus supplies it. */
   parentSessionID?: string | null;
-};
-
-export type HomeProjectRowCase = {
-  displayName: string;
-  sessionCount: number;
-  href: string;
+  /** The row's pull request summary. Absent means none. */
+  pullRequests?: HomePullRequestsCase;
+  /** The collectives that approved the row. Absent means none. */
+  sharedWith?: string[];
+  /** The row's own visibility. Absent means private. */
+  visibility?: "private" | "shared" | "public";
 };
 
 /** How the owner-scoped list request behaves for a case. */
@@ -62,6 +73,37 @@ export type HomeSurface =
   | "skeleton"
   | "no-handle";
 
+export type HomeStatsCase = {
+  transcripts: number;
+  turns: number;
+  durationMs: number;
+  tokens: number;
+  pullRequests: number;
+};
+
+export type HomeCollectiveCase = {
+  id: string;
+  name: string;
+  role: "owner" | "member" | "contributor";
+  members: number;
+};
+
+export type HomeContributionCase = {
+  id: string;
+  name: string;
+  pending: number;
+};
+
+/** What the pull requests column does past the numbers it shows. */
+export type HomePullRequestMore = "none" | "reveal" | "link";
+
+export type HomePullRequestCellCase = {
+  title: string;
+  /** The numbers shown before any `+N`, as they read (`#42`). */
+  shown: string[];
+  more: HomePullRequestMore;
+};
+
 export type HomeCase = {
   name: string;
   viewerUsername: string;
@@ -69,9 +111,19 @@ export type HomeCase = {
   /** Whether the account claims a chosen handle. */
   usernameChosen: boolean;
   requestFailure: HomeRequestFailure;
-  expectRecentTitles: string[];
-  expectProjectRows: HomeProjectRowCase[];
   expectHomeSurface: HomeSurface;
+  expectRowTitles: string[];
+  expectProjectLinks: { title: string; href: string | null }[];
+  stats?: HomeStatsCase;
+  expectStats?: string[];
+  collectives?: HomeCollectiveCase[];
+  expectRailCollectives?: { name: string; meta: string }[];
+  contributions?: HomeContributionCase[];
+  expectWaiting?: string[];
+  search?: { query: string; expectRowTitles: string[] };
+  loadMore?: { expectRowTitles: string[] };
+  expectPullRequestCells?: HomePullRequestCellCase[];
+  expectSharedWithCells?: { title: string; text: string[] }[];
 };
 
 /**
@@ -87,7 +139,7 @@ export type HomeCase = {
  */
 export type LoadedHomeCase = HomeCase & {
   /** How many supplied rows carry no project identity, and so are reported as
-   *  an anomaly rather than grouped. */
+   *  an anomaly and listed without a project link. */
   malformedCount: number;
 };
 
@@ -160,20 +212,65 @@ const requiredHomeCaseNames = [
   "a-failed-refresh-keeps-the-rows-it-already-had",
   "a-handle-still-being-chosen-asks-for-nothing",
   "a-chosen-handle-that-is-blank-says-so",
+  "the-stats-line-states-the-personal-totals",
+  "a-search-lists-only-the-matching-transcripts",
+  "a-search-that-matches-nothing-says-so",
+  "the-pull-request-column-with-none-one-and-several",
+  "transcripts-waiting-for-approval-are-listed-by-collective",
+  "nothing-waiting-draws-no-waiting-section",
+  "the-rail-lists-your-collectives",
 ] as const;
 
 const routeCaseKeys = ["name", "path", "viewerUsername", "expectSurface"];
 const transcriptKeys = ["id", "title", "projectHash", "projectDisplayName", "publishedAt"];
-const projectRowKeys = ["displayName", "sessionCount", "href"];
+const optionalTranscriptKeys = ["pullRequests", "sharedWith", "visibility"];
 const homeCaseKeys = [
   "name",
   "viewerUsername",
   "transcripts",
   "usernameChosen",
   "requestFailure",
-  "expectRecentTitles",
-  "expectProjectRows",
   "expectHomeSurface",
+  "expectRowTitles",
+  "expectProjectLinks",
+];
+const optionalHomeCaseKeys = [
+  "stats",
+  "expectStats",
+  "collectives",
+  "expectRailCollectives",
+  "contributions",
+  "expectWaiting",
+  "search",
+  "loadMore",
+  "expectPullRequestCells",
+  "expectSharedWithCells",
+];
+
+/** Like {@link assertExactKeys}, for a row whose optional fields may be absent:
+ *  every required key present, and nothing outside required ∪ optional. */
+function assertKeysWithin(
+  value: object,
+  required: string[],
+  optional: string[],
+  location: string,
+): void {
+  const keys = Object.keys(value);
+  const missing = required.filter((k) => !keys.includes(k));
+  const unknown = keys.filter((k) => !required.includes(k) && !optional.includes(k));
+  if (missing.length > 0 || unknown.length > 0) {
+    throw new Error(
+      `${location} has unknown or missing fields: missing ${missing.join(", ") || "none"}; ` +
+        `unknown ${unknown.join(", ") || "none"}`,
+    );
+  }
+}
+
+/** Optional fields that only mean something as a pair: a served input and
+ *  what the page must show for it. One without the other is a dead field. */
+const pairedFields: ReadonlyArray<readonly [keyof HomeCase, keyof HomeCase]> = [
+  ["stats", "expectStats"],
+  ["contributions", "expectWaiting"],
 ];
 
 const requestFailures: readonly HomeRequestFailure[] = [
@@ -191,6 +288,8 @@ const homeSurfaces: readonly HomeSurface[] = [
   "no-handle",
 ];
 
+const pullRequestMores: readonly HomePullRequestMore[] = ["none", "reveal", "link"];
+
 /**
  * The surface a case's OWN inputs entail. Derived here, so a case cannot claim
  * an expectation its inputs do not support, and so each rule is stated once.
@@ -206,6 +305,14 @@ function surfaceFor(c: HomeCase): HomeSurface {
   if (c.requestFailure === "always") return "failure";
   if (c.requestFailure === "after-first-answer") return "stale";
   return c.transcripts.length === 0 ? "empty" : "rows";
+}
+
+/** A case's rows, most recently published first — the order the table lists
+ *  them in. Derived from the fixture, never from the page's sort. */
+function newestFirstTitles(rows: HomeTranscriptCase[]): string[] {
+  return [...rows]
+    .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+    .map((t) => t.title);
 }
 
 const surfaces: readonly HomeRouteSurface[] = ["home", "explore"];
@@ -314,9 +421,9 @@ export function loadHomePageFixtures(): HomePageFixtures {
   let sawCappedCase = false;
   let sawUnsortedInput = false;
   for (const c of fixtures.homeCases) {
-    assertExactKeys(c, homeCaseKeys, `home case ${c.name}`);
+    assertKeysWithin(c, homeCaseKeys, optionalHomeCaseKeys, `home case ${c.name}`);
     for (const t of c.transcripts) {
-      assertExactKeys(t, transcriptKeys, `home case ${c.name} transcript ${t.id}`);
+      assertKeysWithin(t, transcriptKeys, optionalTranscriptKeys, `home case ${c.name} transcript ${t.id}`);
       // An EMPTY hash is the malformed row this corpus deliberately models: the
       // wire contract guarantees the column, so a row without it is a server
       // contract violation the page must report rather than drop. Any other
@@ -332,6 +439,24 @@ export function loadHomePageFixtures(): HomePageFixtures {
           `home case ${c.name}: transcript ${t.id} has an unparseable publishedAt ` +
             `${t.publishedAt}; the recent-first order is meaningless without a real timestamp`,
         );
+      }
+      if (t.pullRequests !== undefined) {
+        assertExactKeys(t.pullRequests, ["count", "recent"], `home case ${c.name} ${t.id} pullRequests`);
+        // The contract carries at most three references, and never more than
+        // it counts.
+        if (t.pullRequests.recent.length > 3 || t.pullRequests.recent.length > t.pullRequests.count) {
+          throw new Error(
+            `home case ${c.name}: ${t.id} carries ${t.pullRequests.recent.length} pull request ` +
+              `references for a count of ${t.pullRequests.count}; a row carries at most three, and ` +
+              `never more than it counts`,
+          );
+        }
+        for (const ref of t.pullRequests.recent) {
+          assertExactKeys(ref, ["repo", "number"], `home case ${c.name} ${t.id} pull request`);
+          if (!/^[^/\s]+\/[^/\s]+$/.test(ref.repo)) {
+            throw new Error(`home case ${c.name}: pull request repo ${ref.repo} must read owner/name`);
+          }
+        }
       }
     }
 
@@ -392,87 +517,196 @@ export function loadHomePageFixtures(): HomePageFixtures {
     }
     // A surface that renders no list cannot be asserted against row
     // expectations, so carrying them would leave dead fields nothing checks.
+    const listless = c.expectHomeSurface !== "rows" && c.expectHomeSurface !== "stale";
+    const optionalPresent = optionalHomeCaseKeys.filter((k) => k in c);
     if (
-      (c.expectHomeSurface === "skeleton" || c.expectHomeSurface === "no-handle") &&
-      (c.expectRecentTitles.length > 0 || c.expectProjectRows.length > 0)
+      listless &&
+      (c.expectRowTitles.length > 0 || c.expectProjectLinks.length > 0 || optionalPresent.length > 0)
     ) {
       throw new Error(
-        `home case ${c.name}: the ${c.expectHomeSurface} surface renders no session or project ` +
-          `list, so its row expectations would never be read; leave both empty`,
+        `home case ${c.name}: the ${c.expectHomeSurface} surface renders no table, so its row and ` +
+          `feature expectations would never be read; leave them empty or absent`,
       );
+    }
+    for (const [input, expectation] of pairedFields) {
+      if ((input in c) !== (expectation in c)) {
+        throw new Error(
+          `home case ${c.name}: ${String(input)} and ${String(expectation)} come as a pair; one ` +
+            `without the other is a served input nothing checks, or an expectation nothing serves`,
+        );
+      }
+    }
+    if ("expectRailCollectives" in c && !("collectives" in c)) {
+      throw new Error(`home case ${c.name}: expectRailCollectives needs the collectives it names`);
     }
 
-    // The expected recent list is the case's OWN rows in most-recent-first
-    // order, truncated to the length the case declares. Derived from the
-    // fixture, so it stays a statement about the data rather than a copy of
-    // the page's sort.
-    const wantRecent = [...c.transcripts]
-      .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
-      .slice(0, c.expectRecentTitles.length)
-      .map((t) => t.title);
-    if (JSON.stringify(c.expectRecentTitles) !== JSON.stringify(wantRecent)) {
+    // The table lists the case's OWN rows newest first, truncated to the length
+    // the case declares. Derived from the fixture, so it stays a statement about
+    // the data rather than a copy of the page's sort.
+    const newest = newestFirstTitles(c.transcripts);
+    const wantFirst = newest.slice(0, c.expectRowTitles.length);
+    if (JSON.stringify(c.expectRowTitles) !== JSON.stringify(wantFirst)) {
       throw new Error(
-        `home case ${c.name}: expectRecentTitles is ${c.expectRecentTitles.join(", ")} but the ` +
-          `case's own rows, most recent first, are ${wantRecent.join(", ")}`,
+        `home case ${c.name}: expectRowTitles is ${c.expectRowTitles.join(", ")} but the case's ` +
+          `own rows, most recent first, are ${wantFirst.join(", ")}`,
       );
     }
-    if (c.transcripts.length > c.expectRecentTitles.length) sawCappedCase = true;
+    if (c.transcripts.length > c.expectRowTitles.length) {
+      sawCappedCase = true;
+      // The rows past the first page are only asserted by pressing `load more`.
+      // A case that holds them back without that step says nothing about them.
+      if (c.loadMore === undefined) {
+        throw new Error(
+          `home case ${c.name}: supplies more rows than its table first lists, so it must press ` +
+            `load more (loadMore) and say what the table lists after`,
+        );
+      }
+      // The first page must BE the newest rows as served: the mock serves rows
+      // in the order written, a page at a time.
+      const servedFirst = c.transcripts.slice(0, c.expectRowTitles.length).map((t) => t.title);
+      if (JSON.stringify([...servedFirst].sort()) !== JSON.stringify([...wantFirst].sort())) {
+        throw new Error(
+          `home case ${c.name}: its first ${c.expectRowTitles.length} rows as written are not its ` +
+            `newest ones, so the first page served could not list what expectRowTitles says`,
+        );
+      }
+    }
+    if (c.loadMore !== undefined) {
+      assertExactKeys(c.loadMore, ["expectRowTitles"], `home case ${c.name} loadMore`);
+      if (JSON.stringify(c.loadMore.expectRowTitles) !== JSON.stringify(newest)) {
+        throw new Error(
+          `home case ${c.name}: after load more the table lists every row, newest first ` +
+            `(${newest.join(", ")}); got ${c.loadMore.expectRowTitles.join(", ")}`,
+        );
+      }
+    }
     const givenOrder = c.transcripts.map((t) => t.title);
-    if (c.transcripts.length > 1 && JSON.stringify(givenOrder) !== JSON.stringify(wantRecent)) {
+    if (c.transcripts.length > 1 && JSON.stringify(givenOrder) !== JSON.stringify(newest)) {
       sawUnsortedInput = true;
     }
 
-    // Project rows are the distinct hashes, most recently worked first — the
-    // order the page's grouping produces, and the order that answers "what was
-    // I working on". Derived here from the case's own timestamps.
-    const malformedCount = c.transcripts.filter((t) => t.projectHash === "").length;
-    loadedHomeCases.push({ ...c, malformedCount });
-
-    const counts = new Map<string, number>();
-    const names = new Map<string, string>();
-    const latest = new Map<string, number>();
-    for (const t of c.transcripts) {
-      if (t.projectHash === "") continue;
-      const at = Date.parse(t.publishedAt);
-      if (!counts.has(t.projectHash)) names.set(t.projectHash, t.projectDisplayName);
-      counts.set(t.projectHash, (counts.get(t.projectHash) ?? 0) + 1);
-      latest.set(t.projectHash, Math.max(latest.get(t.projectHash) ?? at, at));
+    // Where each named row's project links: under the viewer's own profile,
+    // percent-encoded, keyed on the hash; or nowhere, for a row with no hash.
+    for (const link of c.expectProjectLinks) {
+      assertExactKeys(link, ["title", "href"], `home case ${c.name} project link`);
+      const row = c.transcripts.find((t) => t.title === link.title);
+      if (row === undefined) {
+        throw new Error(`home case ${c.name}: project link names ${link.title}, which is not a row`);
+      }
+      const want =
+        row.projectHash === ""
+          ? null
+          : `/users/${encodeURIComponent(c.viewerUsername)}/projects/${row.projectHash}`;
+      if (link.href !== want) {
+        throw new Error(
+          `home case ${c.name}: ${link.title} must link its project to ${want ?? "nothing"}; got ` +
+            `${link.href ?? "nothing"}`,
+        );
+      }
     }
-    const seen = [...latest.keys()].sort((a, b) => latest.get(b)! - latest.get(a)!);
-    if (c.expectProjectRows.length !== seen.length) {
-      throw new Error(
-        `home case ${c.name}: expects ${c.expectProjectRows.length} project rows but supplies ` +
-          `${seen.length} distinct project hashes`,
+
+    if (c.search !== undefined) {
+      assertExactKeys(c.search, ["query", "expectRowTitles"], `home case ${c.name} search`);
+      // What the mock server matches: the query anywhere in the title, ignoring
+      // case, as the list handler's ILIKE does.
+      const q = c.search.query.toLowerCase();
+      const want = newestFirstTitles(c.transcripts.filter((t) => t.title.toLowerCase().includes(q)));
+      if (JSON.stringify(c.search.expectRowTitles) !== JSON.stringify(want)) {
+        throw new Error(
+          `home case ${c.name}: searching "${c.search.query}" lists ${want.join(", ") || "nothing"}; ` +
+            `got ${c.search.expectRowTitles.join(", ") || "nothing"}`,
+        );
+      }
+    }
+
+    for (const cell of c.expectPullRequestCells ?? []) {
+      assertExactKeys(cell, ["title", "shown", "more"], `home case ${c.name} pull request cell`);
+      const row = c.transcripts.find((t) => t.title === cell.title);
+      if (row === undefined) {
+        throw new Error(`home case ${c.name}: pull request cell names ${cell.title}, which is not a row`);
+      }
+      if (!pullRequestMores.includes(cell.more)) {
+        throw new Error(`home case ${c.name}: ${cell.more} is not one of ${pullRequestMores.join(", ")}`);
+      }
+      const count = row.pullRequests?.count ?? 0;
+      const carried = row.pullRequests?.recent ?? [];
+      // Which `+N` a row's summary entails: none when everything it counts is
+      // shown, an in-place reveal when it carries every reference, and a link
+      // to the transcript page when it counts more than it carries.
+      const shownCount = cell.shown.length;
+      const entailedMore: HomePullRequestMore =
+        count <= shownCount ? "none" : count <= carried.length ? "reveal" : "link";
+      if (cell.more !== entailedMore) {
+        throw new Error(
+          `home case ${c.name}: ${cell.title} counts ${count} pull requests, carries ` +
+            `${carried.length} and shows ${shownCount}, which entails ${entailedMore}; got ${cell.more}`,
+        );
+      }
+      const wantShown = carried.slice(0, shownCount).map((ref) => `#${ref.number}`);
+      if (JSON.stringify(cell.shown) !== JSON.stringify(wantShown)) {
+        throw new Error(
+          `home case ${c.name}: ${cell.title} shows its newest references first: ` +
+            `${wantShown.join(", ")}; got ${cell.shown.join(", ")}`,
+        );
+      }
+    }
+
+    for (const cell of c.expectSharedWithCells ?? []) {
+      assertExactKeys(cell, ["title", "text"], `home case ${c.name} shared with cell`);
+      const row = c.transcripts.find((t) => t.title === cell.title);
+      if (row === undefined) {
+        throw new Error(`home case ${c.name}: shared with cell names ${cell.title}, which is not a row`);
+      }
+      const shared = row.sharedWith ?? [];
+      const want =
+        shared.length > 0 ? shared : [row.visibility === "public" ? "public" : "only you"];
+      if (JSON.stringify(cell.text) !== JSON.stringify(want)) {
+        throw new Error(
+          `home case ${c.name}: ${cell.title} is shared with ${want.join(", ")}; got ${cell.text.join(", ")}`,
+        );
+      }
+    }
+
+    if (c.collectives !== undefined) {
+      for (const collective of c.collectives) {
+        assertExactKeys(collective, ["id", "name", "role", "members"], `home case ${c.name} collective`);
+      }
+    }
+    if (c.expectRailCollectives !== undefined) {
+      const names = (c.collectives ?? []).map((collective) => collective.name);
+      const listed = c.expectRailCollectives.map((row) => {
+        assertExactKeys(row, ["name", "meta"], `home case ${c.name} rail collective`);
+        return row.name;
+      });
+      if (JSON.stringify(listed) !== JSON.stringify(names)) {
+        throw new Error(
+          `home case ${c.name}: the rail names the collectives in the order served ` +
+            `(${names.join(", ")}); got ${listed.join(", ")}`,
+        );
+      }
+    }
+    if (c.contributions !== undefined) {
+      for (const contribution of c.contributions) {
+        assertExactKeys(contribution, ["id", "name", "pending"], `home case ${c.name} contribution`);
+      }
+      const waiting = c.contributions.filter((x) => x.pending > 0).map((x) => x.name);
+      if (JSON.stringify(c.expectWaiting) !== JSON.stringify(waiting)) {
+        throw new Error(
+          `home case ${c.name}: the waiting section names the collectives holding something ` +
+            `(${waiting.join(", ") || "none"}); got ${(c.expectWaiting ?? []).join(", ") || "none"}`,
+        );
+      }
+    }
+    if (c.stats !== undefined) {
+      assertExactKeys(
+        c.stats,
+        ["transcripts", "turns", "durationMs", "tokens", "pullRequests"],
+        `home case ${c.name} stats`,
       );
     }
-    c.expectProjectRows.forEach((row, i) => {
-      assertExactKeys(row, projectRowKeys, `home case ${c.name} project row ${row.displayName}`);
-      const hash = seen[i];
-      if (row.displayName !== names.get(hash)) {
-        throw new Error(
-          `home case ${c.name}: project row ${i} expects the name ${row.displayName} but its ` +
-            `hash carries ${names.get(hash)}`,
-        );
-      }
-      if (row.sessionCount !== counts.get(hash)) {
-        throw new Error(
-          `home case ${c.name}: project row ${row.displayName} expects ${row.sessionCount} ` +
-            `sessions but the case supplies ${counts.get(hash)}`,
-        );
-      }
-      if (!row.href.endsWith(`/${hash}`)) {
-        throw new Error(
-          `home case ${c.name}: project row ${row.displayName} must link to a path ending in its ` +
-            `project hash, or the case cannot distinguish a hash-keyed link from a name-keyed one`,
-        );
-      }
-      if (row.href !== `/users/${encodeURIComponent(c.viewerUsername)}/projects/${hash}`) {
-        throw new Error(
-          `home case ${c.name}: project row ${row.displayName} must link under the viewer's own ` +
-            `profile, with the username percent-encoded; got ${row.href}`,
-        );
-      }
-    });
+
+    const malformedCount = c.transcripts.filter((t) => t.projectHash === "").length;
+    loadedHomeCases.push({ ...c, malformedCount });
   }
 
   // A page that dropped the anomaly notice, or silently folded an identity-less
@@ -487,8 +721,9 @@ export function loadHomePageFixtures(): HomePageFixtures {
   }
   if (!sawCappedCase) {
     throw new Error(
-      `home-page homeCases: at least one case must supply MORE transcripts than its recent list ` +
-        `shows. Without one, a page that dropped the cap and listed everything would still pass.`,
+      `home-page homeCases: at least one case must supply MORE transcripts than its table first ` +
+        `lists. Without one, a page that asked for everything at once, or never offered the rest, ` +
+        `would still pass.`,
     );
   }
   // Each answer the page can give needs at least one case, or a page that
@@ -529,6 +764,33 @@ export function loadHomePageFixtures(): HomePageFixtures {
       `home-page homeCases: at least one case must supply its transcripts in an order that is ` +
         `NOT already most-recent-first. Without one, a page that never sorted would still pass.`,
     );
+  }
+  // Each answer the new parts of the page can give needs a case too.
+  const cells = loadedHomeCases.flatMap((c) => c.expectPullRequestCells ?? []);
+  for (const more of pullRequestMores) {
+    if (!cells.some((cell) => cell.more === more)) {
+      throw new Error(`home-page homeCases: no pull request cell ends in ${more}`);
+    }
+  }
+  if (!cells.some((cell) => cell.shown.length === 0) || !cells.some((cell) => cell.shown.length === 1)) {
+    throw new Error("home-page homeCases: the pull request column needs a row with none and a row with one");
+  }
+  const searches = loadedHomeCases.flatMap((c) => (c.search ? [c.search] : []));
+  if (!searches.some((q) => q.expectRowTitles.length > 0) || !searches.some((q) => q.expectRowTitles.length === 0)) {
+    throw new Error("home-page homeCases: search needs a case that matches rows and one that matches none");
+  }
+  const waitingCases = loadedHomeCases.filter((c) => c.expectWaiting !== undefined);
+  if (
+    !waitingCases.some((c) => c.expectWaiting!.length > 0) ||
+    !waitingCases.some((c) => c.expectWaiting!.length === 0)
+  ) {
+    throw new Error("home-page homeCases: the waiting section needs a case with something waiting and one with nothing");
+  }
+  if (!loadedHomeCases.some((c) => c.expectStats !== undefined)) {
+    throw new Error("home-page homeCases: no case states the stats line");
+  }
+  if (!loadedHomeCases.some((c) => (c.expectRailCollectives ?? []).length > 0)) {
+    throw new Error("home-page homeCases: no case lists the collectives rail");
   }
 
   assertNamesMatch(

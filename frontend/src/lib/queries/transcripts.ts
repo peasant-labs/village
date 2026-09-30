@@ -1,4 +1,10 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { ApiError, api, API_URL_BASE, getAuthHeaders } from "../api";
 import type {
   ResolvedProject,
@@ -114,6 +120,58 @@ export function useTranscripts(
       return response;
     },
     placeholderData: (previousData) => previousData,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+/**
+ * The transcript list read a page at a time, for a list with a `load more`
+ * control rather than a pager: every page asked for so far stays on screen, and
+ * the next one is appended.
+ *
+ * Every page is asked for with an explicit `page` and `limit`, and each answer
+ * is held to them by the same pagination guard as {@link useTranscripts}, so a
+ * server that answered a different page cannot be appended as if it were the
+ * next one. There is a next page while fewer rows are loaded than the server's
+ * `total` and the last page was not empty.
+ *
+ * The query key starts with `transcripts`, so every mutation that invalidates
+ * the transcript lists refreshes this one too; a refresh re-reads every page
+ * already loaded.
+ *
+ * While a new filter (a search, say) is loading, the rows of the previous one
+ * stay on screen, but only for the same `owner`: another person's rows must
+ * never stand in for somebody else's list while theirs loads.
+ */
+export function useTranscriptPages(
+  params: Record<string, string>,
+  pageSize: number,
+  options?: { enabled?: boolean },
+) {
+  const limit = String(pageSize);
+  return useInfiniteQuery({
+    queryKey: ["transcripts", "pages", params, limit],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam, signal }) => {
+      const pageParams = { ...params, page: String(pageParam), limit };
+      const response = await api<TranscriptListResponse>(
+        `/transcripts?${new URLSearchParams(pageParams)}`,
+        { signal },
+      );
+      assertTranscriptListResponseMatchesRequest(pageParams, response);
+      return response;
+    },
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((n, page) => n + page.transcripts.length, 0);
+      return last.transcripts.length > 0 && loaded < last.total ? last.page + 1 : undefined;
+    },
+    placeholderData: (
+      previous: InfiniteData<TranscriptListResponse, number> | undefined,
+      previousQuery,
+    ) => {
+      const previousParams = previousQuery?.queryKey[2] as Record<string, string> | undefined;
+      return previousParams?.owner === params.owner ? previous : undefined;
+    },
     enabled: options?.enabled ?? true,
   });
 }
