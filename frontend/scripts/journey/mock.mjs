@@ -11,6 +11,7 @@
  * the world it needs without an env var or a restart. Today:
  *   default  - the composed fixtures as-is
  *   empty    - the browse list answers with no rows (empty-state journeys)
+ * Setting any scenario also puts the collectives world back as it started.
  *
  * The transcript half is proxied rather than imported because its contract
  * fixtures are large and stateful; proxying keeps it byte-for-byte the mock the
@@ -22,6 +23,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
 import { handleProjectRequest } from './lib/project-fixtures.mjs'
+import { handleCollectiveRequest, resetCollectiveWorld } from './lib/collective-fixtures.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)
@@ -34,7 +36,7 @@ const send = (res, code, body) => {
     'content-type': 'application/json',
     'access-control-allow-origin': '*',
     'access-control-allow-headers': '*',
-    'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS',
+    'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
   })
   res.end(body == null ? '' : JSON.stringify(body))
 }
@@ -110,6 +112,9 @@ const server = createServer(async (req, res) => {
       } catch {
         return send(res, 400, { error: 'invalid JSON body' })
       }
+      // Setting a scenario starts the collectives over, so one journey's
+      // links and settings writes never reach the next.
+      resetCollectiveWorld()
       return send(res, 200, { scenario })
     }
   }
@@ -125,6 +130,10 @@ const server = createServer(async (req, res) => {
   // The project fixture owns the project route and its own project-scoped
   // grouped helper read; it declines the plain browse list.
   if (handleProjectRequest(req, res)) return
+
+  // The collectives list, a collective, its settings and its repositories. A
+  // search that matches none of them falls through to the explore half.
+  if (handleCollectiveRequest(req, res)) return
 
   if (handleExploreRequest(req, res)) return
   return send(res, 404, { error: `no mock route for ${req.method} ${url.pathname}` })
