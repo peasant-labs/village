@@ -85,19 +85,6 @@ export function mostRecentGroupFirst(
   );
 }
 
-/**
- * Most recently published first, through the one shared comparator.
- *
- * The server already answers newest first; the rows are ordered here as well so
- * the pages a person has loaded read as one list, and so a value that does not
- * parse sorts last instead of scrambling the rows around it.
- */
-export function mostRecentFirst(items: TranscriptListItem[]): TranscriptListItem[] {
-  return [...items].sort((a, b) =>
-    publishedAtDescending(a.transcript.published_at, b.transcript.published_at),
-  );
-}
-
 function counted(n: number, one: string, many: string): { label: string; value: number } {
   return { label: n === 1 ? one : many, value: n };
 }
@@ -236,7 +223,11 @@ function HomeBody({ username }: { username: string }) {
   // one is published as its own transcript; without the fold a single busy run
   // would fill the list with its own offspring. A row whose parent is not
   // loaded keeps its ordinary place, so nothing a person published falls out.
-  const grouping = groupChildSessions(mostRecentFirst(loaded));
+  //
+  // The ranking below is the page's one recency order: every loaded page is
+  // ordered together by it, so the pages read as one list, and a row that
+  // started nothing ranks by its own timestamp.
+  const grouping = groupChildSessions(loaded);
   const childSessions = childSessionsByParentID(grouping);
   const rows = mostRecentGroupFirst(grouping.rootItems, childSessions);
   const malformed = loaded.filter((item) => !item.transcript.project_hash).length;
