@@ -255,6 +255,15 @@ export const TeachingEmptyState = FtTeachingEmptyState as ComponentType<
  */
 export { SignInProviders, HandleClaim, OnboardingCard } from "@peasant-labs/fairtrade/ui";
 
+// ── Menus ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Menu — a dropdown menu owned by one trigger button (`.menu-trigger`), with a
+ *   role="menu" popout of role="menuitem" rows (icon, label, optional kbd hint,
+ *   danger and separator rows). Keyboard behaviour is the design system's: arrow
+ *   keys move, Home/End jump, Esc/Tab/outside-click close, Esc returns focus to
+ *   the trigger. Rows fire `onSelect`; they are not links.
+ */
 export { Menu } from "@peasant-labs/fairtrade/ui";
 
 // ── CLI onboarding ────────────────────────────────────────────────────────────
@@ -362,19 +371,6 @@ export { RoleRoster, ConfirmInline, DangerZone } from "@peasant-labs/fairtrade/u
  */
 export { GraphSectionNav, Avatar, AvatarGroup } from "@peasant-labs/fairtrade/ui";
 
-/** Canonical modal; the published type marks optional runtime props required. */
-export const Dialog = FtDialog as ComponentType<{
-  open: boolean;
-  onClose: () => void;
-  title: ReactNode;
-  labelId?: string;
-  children: ReactNode;
-  footer?: ReactNode;
-  returnFocusRef?: RefObject<HTMLElement | null>;
-  size?: "default" | "wide";
-  className?: string;
-  dismissible?: boolean;
-}>;
 // ── Summary lines, short lists and per-field settings ────────────────────────
 
 /**
@@ -410,3 +406,35 @@ export const SettingRow = FtSettingRow as ComponentType<
 export const SettingGroup = FtSettingGroup as ComponentType<
   ComponentProps<typeof FtSettingGroup> & { id?: string; "data-testid"?: string }
 >;
+// ── Transcript page: link, access, dialog ────────────────────────────────────
+
+/**
+ * CopyIconButton — an icon-only copy control for the link beside it. Its name
+ *   says what it copies ("copy link"); after a copy the icon becomes a check and
+ *   a polite live region says "copied". It renders nothing without a clipboard
+ *   (an insecure context), so the link beside it stays the way to copy by hand.
+ * AccessList — who can read a transcript: one row per collective with a named
+ *   remove button. A row can be marked pending ("adding · waits for approval").
+ * CollectivePicker — search plus suggestions for adding a collective. The host
+ *   searches and passes the results; the picker reports the query and the choice.
+ */
+export { CopyIconButton, AccessList, CollectivePicker } from "@peasant-labs/fairtrade/ui";
+
+/**
+ * fairtrade Dialog — a real modal: role=dialog, focus trapped, Escape and the
+ * scrim close it, focus returns to the opener. Widened because the published
+ * `.d.ts` types every prop as a required `any`, although `footer`,
+ * `returnFocusRef`, `size` and `dismissible` are optional at runtime.
+ */
+export const Dialog = FtDialog as ComponentType<{
+  open: boolean;
+  onClose: () => void;
+  title: ReactNode;
+  labelId?: string;
+  children: ReactNode;
+  footer?: ReactNode;
+  returnFocusRef?: RefObject<HTMLElement | null>;
+  size?: "default" | "wide";
+  className?: string;
+  dismissible?: boolean;
+}>;

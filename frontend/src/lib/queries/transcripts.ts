@@ -6,6 +6,7 @@ import {
   type InfiniteData,
 } from "@tanstack/react-query";
 import { ApiError, api, API_URL_BASE, getAuthHeaders } from "../api";
+import type { VillageTranscriptShare } from "@peasant-labs/schema";
 import type {
   ResolvedProject,
   TranscriptDetailResponse,
@@ -357,37 +358,66 @@ export function useClearProjectDisplayName() {
   });
 }
 
+/**
+ * The query keys a change to one transcript's audience moves: the transcript's
+ * own metadata (its visibility flips between private and shared, and its
+ * `enriched_shares` carry pending submissions), the collectives read, the
+ * lists that show it, and the collective's own pages.
+ *
+ * The returned promise resolves once the reads on screen have been fetched
+ * again. A mutation that returns it from `onSettled` stays pending until then,
+ * so a caller reading the lists after the mutation settles reads the server's
+ * answer, never the state from before the request.
+ */
+function invalidateTranscriptAudience(
+  qc: ReturnType<typeof useQueryClient>,
+  transcriptId: string,
+  groupId: string,
+): Promise<unknown> {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ["transcripts"] }),
+    qc.invalidateQueries({ queryKey: ["transcript", transcriptId] }),
+    qc.invalidateQueries({ queryKey: ["transcript-collectives", transcriptId] }),
+    qc.invalidateQueries({ queryKey: ["group", groupId] }),
+    qc.invalidateQueries({ queryKey: ["group-my-shares", groupId] }),
+  ]);
+}
+
+/**
+ * Withdraw one owned transcript from one collective. The reads refresh when the
+ * request settles, not only when it succeeds: after a failure the lists show
+ * what the server holds, never what the page hoped it would hold.
+ */
 export function useUnshareTranscript() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ transcriptId, groupId }: { transcriptId: string; groupId: string }) =>
-      api(`/transcripts/${transcriptId}/share/${groupId}`, { method: "DELETE" }),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["transcripts"] });
-      qc.invalidateQueries({ queryKey: ["group", vars.groupId] });
-      qc.invalidateQueries({ queryKey: ["group-my-shares", vars.groupId] });
-    },
+      api(
+        `/transcripts/${encodeURIComponent(transcriptId)}/share/${encodeURIComponent(groupId)}`,
+        { method: "DELETE" },
+      ),
+    onSettled: (_data, _error, vars) => invalidateTranscriptAudience(qc, vars.transcriptId, vars.groupId),
   });
 }
 
-export function useBulkShareTranscripts() {
+/**
+ * Offer one owned transcript to one collective (`POST /transcripts/{id}/share`).
+ * A refused request rejects, so the caller can say it failed. The server skips a
+ * collective that does not take this owner's submission and still answers 200,
+ * so the caller reads the refreshed audience to learn whether it was added.
+ */
+export function useShareTranscript() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ transcriptIds, groupId }: { transcriptIds: string[]; groupId: string }) => {
-      const results = await Promise.allSettled(
-        transcriptIds.map((tid) =>
-          api(`/transcripts/${tid}/share`, {
-            method: "POST",
-            body: JSON.stringify({ group_ids: [groupId] }),
-          })
-        )
-      );
-      return results;
-    },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["transcripts"] });
-      qc.invalidateQueries({ queryKey: ["group", vars.groupId] });
-      qc.invalidateQueries({ queryKey: ["groups-public"] });
-    },
+    mutationFn: ({ transcriptId, groupId }: { transcriptId: string; groupId: string }) =>
+      api<VillageTranscriptShare[]>(`/transcripts/${encodeURIComponent(transcriptId)}/share`, {
+        method: "POST",
+        body: JSON.stringify({ group_ids: [groupId] }),
+      }),
+    onSettled: (_data, _error, vars) =>
+      Promise.all([
+        invalidateTranscriptAudience(qc, vars.transcriptId, vars.groupId),
+        qc.invalidateQueries({ queryKey: ["groups-public"] }),
+      ]),
   });
 }

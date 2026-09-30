@@ -1,0 +1,64 @@
+# Case corpus for `src/transcriptPullRequests.test.tsx`: the pull requests a
+# transcript is bound to, under the header's meta row, mounted through the real
+# `/transcripts/[id]` route with `GET /transcripts/{id}/pulls` faked.
+#
+# A transcript can be bound to many pull requests, so the list shows the first
+# `shownLimit` rows and a `show all N` control for the rest. The limit is the
+# contract here, so the fixture states it and the loader checks it against the
+# page's own constant.
+#
+# Each row is `owner/name #number`, linking to village's page for that pull
+# request, then its state and title. `expectShown` restates the rows on screen
+# in order; `expectAfterShowAll` is the list after pressing `show all`.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/transcriptPullRequestsFixtures.ts`.
+
+shownLimit: 3
+
+cases:
+  - name: no-pull-requests-shows-no-section
+    status: 200
+    pullRequests: []
+    expectShown: []
+    expectShowAll: null
+    expectAfterShowAll: []
+
+  - name: one-pull-request-shows-it-without-show-all
+    status: 200
+    pullRequests:
+      - { owner: acme, name: ingest-api, number: 42, title: Fix flaky ingest test, head_ref: fix/flaky-ingest, state: attached }
+    expectShown:
+      - "acme/ingest-api #42 · attached · Fix flaky ingest test"
+    expectShowAll: null
+    expectAfterShowAll:
+      - "acme/ingest-api #42 · attached · Fix flaky ingest test"
+
+  - name: more-than-the-limit-folds-behind-show-all
+    status: 200
+    pullRequests:
+      - { owner: acme, name: ingest-api, number: 42, title: Fix flaky ingest test, head_ref: fix/flaky-ingest, state: attached }
+      - { owner: acme, name: ingest-api, number: 45, title: Retry with the injected clock, head_ref: fix/retry-clock, state: attached }
+      - { owner: acme, name: web, number: 31, title: null, head_ref: null, state: detached }
+      - { owner: acme, name: ingest-api, number: 51, title: Drop the sleep, head_ref: chore/no-sleep, state: attached }
+      - { owner: Acme-Labs, name: Platform-API, number: 60, title: Bump the ingest client, head_ref: deps/ingest, state: attached }
+    expectShown:
+      - "acme/ingest-api #42 · attached · Fix flaky ingest test"
+      - "acme/ingest-api #45 · attached · Retry with the injected clock"
+      - "acme/web #31 · detached"
+    expectShowAll: show all 5
+    expectAfterShowAll:
+      - "acme/ingest-api #42 · attached · Fix flaky ingest test"
+      - "acme/ingest-api #45 · attached · Retry with the injected clock"
+      - "acme/web #31 · detached"
+      - "acme/ingest-api #51 · attached · Drop the sleep"
+      - "Acme-Labs/Platform-API #60 · attached · Bump the ingest client"
+
+  # A failed read is said out loud, with a retry, instead of looking like a
+  # transcript bound to no pull request.
+  - name: a-failed-read-says-so-and-offers-a-retry
+    status: 500
+    pullRequests: []
+    expectShown: []
+    expectShowAll: null
+    expectAfterShowAll: []

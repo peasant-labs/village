@@ -1,0 +1,164 @@
+# Case corpus for `src/transcriptHeaderActions.test.tsx`: the transcript page's
+# header actions, mounted through the real `/transcripts/[id]` route (and, for
+# the preview column, through the real contribute-page preview), with only the
+# REST layer faked.
+#
+# The header is the fairtrade in-use demo's: the link, an icon-only copy
+# button, and a `more` menu. `manage access` and `edit title` are the owner's;
+# every reader can download the markdown. Each case lists the EXACT set of
+# header entries that must show, drawn from `entries`: an entry a case does not
+# list must be absent.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/transcriptHeaderActionsFixtures.ts`.
+
+# Every header entry a viewer can meet. Closed set: a case naming anything else
+# fails the loader.
+entries:
+  - link
+  - copy link
+  - more
+  - manage access
+  - edit title
+  - download markdown
+
+# The transcript every case mounts. Names and the title keep their case.
+content:
+  transcriptId: 3f9c0a17-5b2e-4c1d-9a8f-2d6e7b40e21a
+  title: Fix flaky ingest test
+  ownerId: user-alice
+  ownerUsername: alice-dev
+  readerId: user-bob
+  readerUsername: bob-reads
+  # The collectives that can read it now (`GET /transcripts/{id}/collectives`).
+  collectives:
+    - id: 11111111-1111-4111-8111-111111111111
+      name: Acme Platform
+    - id: 22222222-2222-4222-8222-222222222222
+      name: Acme Company
+  # The collectives the owner belongs to (`GET /groups`): the picker's pool.
+  # `takes` is what the fake server does with a share to it: `approved` joins
+  # at once, `pending` waits for the collective owner's approval, `skipped` is
+  # a collective that does not take this owner's submission (the server skips
+  # it and still answers 200).
+  groups:
+    - id: 11111111-1111-4111-8111-111111111111
+      name: Acme Platform
+      acceptance_mode: open
+      member_count: 12
+      takes: approved
+    - id: 22222222-2222-4222-8222-222222222222
+      name: Acme Company
+      acceptance_mode: open
+      member_count: 87
+      takes: approved
+    - id: 33333333-3333-4333-8333-333333333333
+      name: Infra Guild
+      acceptance_mode: open
+      member_count: 5
+      takes: approved
+    - id: 44444444-4444-4444-8444-444444444444
+      name: ML Reading Group
+      acceptance_mode: curated
+      member_count: 21
+      takes: pending
+    - id: 55555555-5555-4555-8555-555555555555
+      name: Verified Makers
+      acceptance_mode: verified_only
+      member_count: 9
+      takes: skipped
+
+# One case per viewer. `expectAccessCaption` is what the owner's open `more`
+# menu says about who can read it (names keep their case). `readsCollectives`
+# says whether the page asks for the collectives at all: only the owner is
+# shown them, so nobody else's page may ask.
+cases:
+  - name: the-owner-sees-every-entry
+    viewer: owner
+    expectEntries: [link, copy link, more, manage access, edit title, download markdown]
+    expectAccessCaption: "who can read it: Acme Platform, Acme Company"
+    readsCollectives: true
+
+  - name: a-signed-in-reader-can-copy-and-download-only
+    viewer: reader
+    expectEntries: [link, copy link, more, download markdown]
+    expectAccessCaption: null
+    readsCollectives: false
+
+  - name: a-signed-out-reader-can-copy-and-download-only
+    viewer: signed-out
+    expectEntries: [link, copy link, more, download markdown]
+    expectAccessCaption: null
+    readsCollectives: false
+
+  - name: the-preview-column-shows-no-header-entries
+    viewer: preview
+    expectEntries: []
+    expectAccessCaption: null
+    readsCollectives: false
+
+# The owner's `manage access` popup. Each case opens it from the `more` menu,
+# makes one change, and reads the list again after the request settles.
+# `answer` is the HTTP status the fake server gives the change;
+# `expectAccessCaption` is the `more` menu's caption once the popup closes.
+manageAccessCases:
+  - name: removing-a-collective-withdraws-it-and-rereads-the-list
+    action: remove
+    collective: Acme Company
+    answer: 200
+    expectRequest: DELETE /transcripts/{transcriptId}/share/22222222-2222-4222-8222-222222222222
+    expectAccess: [Acme Platform]
+    expectAccessCaption: "who can read it: Acme Platform"
+    expectMessage: null
+
+  - name: a-failed-removal-keeps-the-collective-and-says-so
+    action: remove
+    collective: Acme Company
+    answer: 500
+    expectRequest: DELETE /transcripts/{transcriptId}/share/22222222-2222-4222-8222-222222222222
+    expectAccess: [Acme Platform, Acme Company]
+    expectAccessCaption: "who can read it: Acme Platform, Acme Company"
+    expectMessage: "could not remove Acme Company. it can still read it; try again."
+
+  - name: adding-an-open-collective-lists-it
+    action: add
+    collective: Infra Guild
+    answer: 200
+    expectRequest: POST /transcripts/{transcriptId}/share {"group_ids":["33333333-3333-4333-8333-333333333333"]}
+    expectAccess: [Acme Platform, Acme Company, Infra Guild]
+    expectAccessCaption: "who can read it: Acme Platform, Acme Company +1"
+    expectMessage: null
+
+  - name: adding-a-curated-collective-waits-for-its-approval
+    action: add
+    collective: ML Reading Group
+    answer: 200
+    expectRequest: POST /transcripts/{transcriptId}/share {"group_ids":["44444444-4444-4444-8444-444444444444"]}
+    expectAccess: [Acme Platform, Acme Company, "ML Reading Group · adding · waits for approval"]
+    expectAccessCaption: "who can read it: Acme Platform, Acme Company"
+    expectMessage: null
+
+  - name: a-collective-that-skips-the-submission-says-nothing-changed
+    action: add
+    collective: Verified Makers
+    answer: 200
+    expectRequest: POST /transcripts/{transcriptId}/share {"group_ids":["55555555-5555-4555-8555-555555555555"]}
+    expectAccess: [Acme Platform, Acme Company]
+    expectAccessCaption: "who can read it: Acme Platform, Acme Company"
+    expectMessage: "Verified Makers did not take it, so nothing changed."
+
+# `download markdown` for a signed-out reader: the file's name and lines the
+# test reads back out of the downloaded file, in order. Turns carry the labels
+# the page shows them under (an assistant reply to prompt 1 is `1a`).
+download:
+  viewer: signed-out
+  expectFileName: fix-flaky-ingest-test-3f9c0a17.md
+  expectLines:
+    - "# Fix flaky ingest test"
+    - "http://localhost:3000/transcripts/3f9c0a17-5b2e-4c1d-9a8f-2d6e7b40e21a"
+    - "- harness: claude code"
+    - "- turns: 2"
+    - "## turn 1 · user"
+    - "why is ingest dropping commits?"
+    - "## turn 1a · assistant"
+    - "Looking at the detector now."
