@@ -73,6 +73,19 @@ function installREST(): Calls {
     vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
       if (url.pathname.endsWith("/auth/me")) return json(OWNER_USER);
+      // The home page's own totals and collectives, answered empty: this file
+      // is about the helper groups on its table.
+      if (url.pathname.endsWith("/users/me/stats")) {
+        return json({
+          total_transcripts: 1,
+          total_turns: 0,
+          total_duration_ms: 0,
+          total_tokens: 0,
+          pull_request_count: 0,
+        });
+      }
+      if (url.pathname.endsWith("/groups")) return json([]);
+      if (url.pathname.endsWith("/users/me/collectives/contributions")) return json({ collectives: [] });
       if (url.pathname.endsWith("/transcripts")) {
         if (url.searchParams.get("view") === "grouped") {
           calls.grouped.push(url.search);
@@ -100,7 +113,13 @@ function installREST(): Calls {
           });
         }
         const item: TranscriptListItem = { transcript: ownerTranscript, tags: [], owner: OWNER_USER };
-        return json({ transcripts: [item], total: 1, agent_total: 0, page: 1, limit: 24 });
+        return json({
+          transcripts: [item],
+          total: 1,
+          agent_total: 0,
+          page: Number(url.searchParams.get("page") ?? 1),
+          limit: Number(url.searchParams.get("limit") ?? 24),
+        });
       }
       if (url.pathname.includes("/transcript-groups/")) {
         calls.members.push(url.search);
@@ -148,7 +167,7 @@ it("home attaches the grouped helper group to its owner row and expands it in pl
   const calls = installREST();
   await renderHome();
 
-  const panel = await screen.findByTestId("home-recent-sessions");
+  const panel = await screen.findByTestId("home-transcripts");
   // The flat owner row is still the row on screen.
   await waitFor(() =>
     expect(panel.querySelector(`a[href="/transcripts/${OWNER_ID}"]`)).not.toBeNull(),

@@ -81,7 +81,34 @@ describe("mounted routes: which surface each visitor lands on", () => {
 
 });
 
-describe("mounted home route: recent sessions, then projects", () => {
+/** The top-level rows of the transcripts table, as the reader sees them. */
+function tableRows(): HTMLTableRowElement[] {
+  return [...document.querySelectorAll<HTMLTableRowElement>('[data-testid="home-transcripts"] tr.tbl-row')];
+}
+
+/** The title a table row leads with. */
+function rowTitle(tr: Element): string {
+  return (
+    tr.querySelector('[data-testid="home-transcript-row"] > .iu-session-text > a.iu-session-title')
+      ?.textContent ?? ""
+  );
+}
+
+function tableTitles(): string[] {
+  return tableRows().map(rowTitle);
+}
+
+function rowTitled(title: string): HTMLTableRowElement {
+  const found = tableRows().filter((tr) => rowTitle(tr) === title);
+  if (found.length !== 1) throw new Error(`the table lists ${found.length} rows titled "${title}"`);
+  return found[0];
+}
+
+function text(el: Element | null | undefined): string {
+  return (el?.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+describe("mounted home route: your transcripts, their totals and your collectives", () => {
   for (const c of fixtures.homeCases) {
     it(c.name, async () => {
       const backend = installHomeRouteREST({
@@ -89,11 +116,15 @@ describe("mounted home route: recent sessions, then projects", () => {
         transcripts: c.transcripts,
         ownerRequestFailure: c.requestFailure,
         usernameChosen: c.usernameChosen,
+        stats: c.stats,
+        collectives: c.collectives,
+        contributions: c.contributions,
       });
       await renderAppRoute("/");
 
       const requested = backend.requested;
-      const ownerRequests = () => requested.filter((p) => p.includes("owner="));
+      const ownerRequests = () =>
+        requested.filter((p) => p.startsWith("/transcripts?") && !p.includes("view=grouped"));
 
       // Without a handle the page must ask NOTHING. A blank owner filter is
       // dropped by the list handler, so the request would answer a narrow
@@ -113,60 +144,63 @@ describe("mounted home route: recent sessions, then projects", () => {
         expect(homeSurface()).toBeNull();
         expect(homeErrorSurface()).toBeNull();
         expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
-        expect(requested.filter((p) => p.startsWith("/transcripts"))).toEqual([]);
+        // Nothing of the person's own is asked for: not the list, and not the
+        // totals or collectives that would sit beside it.
+        expect(requested.filter((p) => p !== "/auth/me")).toEqual([]);
         return;
       }
 
       await settled();
+      await waitFor(() => expect(document.querySelector('[data-testid="home-list-loading"]')).toBeNull());
 
       // A request that FAILED is not an empty library. The page owes the
       // person a surface that says so and a way to ask again; the teaching
-      // empty state and its "publish your first transcript" invitation would
-      // tell somebody with a full shelf that it is bare.
+      // empty state and its first-publish invitation would tell somebody with
+      // a full shelf that it is bare.
       if (c.expectHomeSurface === "failure") {
         const failure = homeErrorSurface();
         expect(failure).not.toBeNull();
         expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
-        expect(homeSurface()).toBeNull();
+        expect(document.querySelector('[data-testid="home-transcripts"]')).toBeNull();
         const alert = failure!.querySelector('[role="alert"]');
         expect(alert).not.toBeNull();
         // The whole message, not merely its heading. The sentence that says a
         // failure is not an emptiness IS the fix; a body that regressed to
         // nothing would otherwise pass.
-        const text = (alert!.textContent ?? "").replace(/\s+/g, " ");
-        expect(text).toContain("Failed to load your sessions");
-        expect(text).toContain(LIST_ENDPOINT);
-        expect(text).toContain("A failed request is not an empty library");
-        expect(text).toContain("nothing has been deleted");
+        const message = text(alert);
+        expect(message).toContain("your transcripts could not be loaded");
+        expect(message).toContain(LIST_ENDPOINT);
+        expect(message).toContain("a failed request is not an empty library");
+        expect(message).toContain("nothing has been deleted");
         // The server's own reported cause reaches the reader, rather than a
         // fixed string that would read identically for every failure.
-        expect(text).toContain("the session list is unavailable");
+        expect(message).toContain("the session list is unavailable");
 
         // Retry must re-issue the SAME owner-scoped request, not merely
         // re-render: a button that only cleared the panel would leave the
         // person on a page that can never recover.
         const before = ownerRequests().length;
         expect(before).toBeGreaterThan(0);
-        const retry = screen.getByRole("button", { name: /retry/i });
+        const retry = screen.getByRole("button", { name: /^retry$/i });
 
         // The panel must SURVIVE its own retry. With no rows to fall back on
         // the query returns to its pending state mid-flight, so a page reading
         // the error flag directly would swap this whole surface for a loading
-        // skeleton the moment the button was pressed, taking the alert, the
-        // focus and the retry with it.
+        // state the moment the button was pressed, taking the alert, the focus
+        // and the retry with it.
         backend.hold();
         retry.focus();
         await act(async () => {
           fireEvent.click(retry);
         });
         const busyPanel = await waitFor(() => {
-          const b = screen.getByRole("button", { name: /retry/i });
+          const b = homeErrorSurface()!.querySelector<HTMLButtonElement>("button")!;
           expect(b.getAttribute("aria-disabled")).toBe("true");
           return b;
         });
         expect(busyPanel.textContent, "panel retry: busy label").toContain("retrying");
         expect(homeErrorSurface(), "panel survives its own retry").not.toBeNull();
-        expect(document.querySelector(".animate-shimmer")).toBeNull();
+        expect(document.querySelector('[data-testid="home-list-loading"]')).toBeNull();
         // A real `disabled` would hand focus back to the document, and jsdom
         // does NOT model that blur, so asserting the attribute's absence is
         // what actually holds the line; activeElement only says the node was
@@ -185,7 +219,7 @@ describe("mounted home route: recent sessions, then projects", () => {
           whileBusyPanel,
         );
         expect(document.querySelector('[data-testid="home-status"]')?.textContent).toContain(
-          "reloading your sessions",
+          "reloading your transcripts",
         );
         await act(async () => {
           backend.release();
@@ -197,10 +231,12 @@ describe("mounted home route: recent sessions, then projects", () => {
         await waitFor(() => expect(homeErrorSurface()).not.toBeNull());
         backend.heal();
         await act(async () => {
-          fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+          fireEvent.click(homeErrorSurface()!.querySelector("button")!);
         });
         await waitFor(() => expect(homeErrorSurface()).toBeNull());
-        expect(homeSurface()).not.toBeNull();
+        // This person really has published nothing, so the answered list is
+        // the empty library, now that it is an answer.
+        expect(document.querySelector('[data-testid="home-empty-state"]')).not.toBeNull();
         return;
       }
 
@@ -217,9 +253,7 @@ describe("mounted home route: recent sessions, then projects", () => {
         // refetch is triggered the way the browser triggers it rather than by
         // reaching into the cache. What makes it fire IMMEDIATELY here is this
         // harness's own `staleTime: 0`; in the app a refresh within the stale
-        // window is skipped, and arrives on the next focus after it. The
-        // separate check below is what holds the production side of that: the
-        // app must not have turned focus refetching off.
+        // window is skipped, and arrives on the next focus after it.
         await act(async () => {
           document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
         });
@@ -239,13 +273,9 @@ describe("mounted home route: recent sessions, then projects", () => {
         expect(notice.textContent).toContain("the session list is unavailable");
         // The rows the server did confirm are still on screen, and the failure
         // panel did not take the page.
-        expect(homeSurface()).not.toBeNull();
         expect(homeErrorSurface()).toBeNull();
         expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
-        const stillListed = [
-          ...document.querySelectorAll('[data-testid="home-recent-sessions"] a[aria-label]'),
-        ].map((a) => (a.getAttribute("aria-label") ?? "").replace(/^Open transcript /, ""));
-        expect(stillListed).toEqual(c.expectRecentTitles);
+        expect(tableTitles()).toEqual(c.expectRowTitles);
 
         // The notice's OWN retry is a second control, and the only way back
         // from a failed refresh. A dead handler here would leave a person
@@ -297,7 +327,7 @@ describe("mounted home route: recent sessions, then projects", () => {
         });
         expect(ownerRequests().length).toBe(whileBusy);
         expect(document.querySelector('[data-testid="home-status"]')?.textContent).toContain(
-          "reloading your sessions",
+          "reloading your transcripts",
         );
         await act(async () => {
           backend.release();
@@ -321,67 +351,198 @@ describe("mounted home route: recent sessions, then projects", () => {
         await waitFor(() =>
           expect(document.querySelector('[data-testid="home-stale-notice"]')).toBeNull(),
         );
-        expect(homeSurface()).not.toBeNull();
         expect(homeErrorSurface()).toBeNull();
       }
 
-      // The page reads the viewer's OWN transcripts. A request without the
-      // owner filter would list the whole commons on a page titled "your".
+      // The page reads the viewer's OWN transcripts, a page at a time. A
+      // request without the owner filter would list the whole commons on a
+      // page titled "your".
       const listRequests = requested.filter((p) => p.startsWith("/transcripts"));
       expect(listRequests.length).toBeGreaterThan(0);
       for (const p of listRequests) {
         const query = new URLSearchParams(p.slice(p.indexOf("?") + 1));
         expect(query.get("owner")).toBe(c.viewerUsername);
       }
+      for (const p of ownerRequests()) {
+        const query = new URLSearchParams(p.slice(p.indexOf("?") + 1));
+        expect(query.get("page"), `${p} names its page`).not.toBeNull();
+        expect(query.get("limit"), `${p} names its page size`).not.toBeNull();
+      }
 
       // A row that arrived with no project identity is a server contract
-      // violation. It is reported and left out of the project list; it is never
-      // dropped from the page, and never folded into an invented project.
+      // violation. It is reported and still listed; it is never dropped from
+      // the page, and never linked to an invented project.
       const notice = document.querySelector('[data-testid="home-malformed-notice"]');
       expect(notice !== null).toBe(c.malformedCount > 0);
       if (c.malformedCount > 0) {
-        const text = (notice!.textContent ?? "").replace(/\s+/g, " ");
-        expect(text).toContain(
+        const message = text(notice);
+        expect(message).toContain(
           `${c.malformedCount} transcript${c.malformedCount !== 1 ? "s" : ""} could not be grouped by project`,
         );
+        expect(message).toContain("still listed below");
         expect(notice!.getAttribute("role")).toBe("alert");
       }
 
       const empty = document.querySelector('[data-testid="home-empty-state"]');
       expect(empty !== null).toBe(c.expectHomeSurface === "empty");
-
-      const recentSection = document.querySelector('[data-testid="home-recent-sessions"]');
       if (c.expectHomeSurface === "empty") {
-        expect(recentSection).toBeNull();
-        expect(document.querySelector('[data-testid="home-projects"]')).toBeNull();
+        expect(document.querySelector('[data-testid="home-transcripts"]')).toBeNull();
+        // Nothing to search, so no search box offering to.
+        expect(screen.queryByRole("searchbox")).toBeNull();
         return;
       }
 
-      const recentTitles = [...recentSection!.querySelectorAll("a[aria-label]")].map((a) =>
-        (a.getAttribute("aria-label") ?? "").replace(/^Open transcript /, ""),
-      );
-      expect(recentTitles).toEqual(c.expectRecentTitles);
+      expect(tableTitles()).toEqual(c.expectRowTitles);
+      // Every title leads to its transcript.
+      for (const tr of tableRows()) {
+        const id = tr.querySelector('[data-testid="home-transcript-row"]')!.getAttribute("data-transcript-id");
+        expect(
+          tr.querySelector("a.iu-session-title")!.getAttribute("href"),
+        ).toBe(`/transcripts/${id}`);
+      }
 
-      const rows = [...document.querySelectorAll('[data-testid="home-project-row"]')];
-      expect(rows.map((r) => r.getAttribute("href"))).toEqual(
-        c.expectProjectRows.map((r) => r.href),
-      );
-      expect(
-        rows.map((r) => [...r.children].map((child) => (child.textContent ?? "").trim())),
-      ).toEqual(
-        c.expectProjectRows.map((r) => [
-          r.displayName,
-          `${r.sessionCount} session${r.sessionCount !== 1 ? "s" : ""}`,
-        ]),
-      );
+      for (const link of c.expectProjectLinks) {
+        const sub = rowTitled(link.title).querySelector(
+          '[data-testid="home-transcript-row"] > .iu-session-text > .iu-session-sub',
+        );
+        expect(sub, `${link.title} names its project`).not.toBeNull();
+        expect(sub!.querySelector("a")?.getAttribute("href") ?? null).toBe(link.href);
+      }
 
-      // Recent sessions come FIRST. Order is part of the acceptance, and a
-      // page that rendered both sections in the other order would otherwise
-      // satisfy every assertion above.
-      const sections = [...home!.querySelectorAll("[data-testid]")]
-        .map((e) => e.getAttribute("data-testid"))
-        .filter((id) => id === "home-recent-sessions" || id === "home-projects");
-      expect(sections).toEqual(["home-recent-sessions", "home-projects"]);
+      for (const cell of c.expectSharedWithCells ?? []) {
+        const td = rowTitled(cell.title).querySelectorAll("td")[1];
+        const named = [...td.querySelectorAll(".cmg-shared > span")].map(text);
+        expect(named.length > 0 ? named : [text(td)]).toEqual(cell.text);
+      }
+
+      for (const cell of c.expectPullRequestCells ?? []) {
+        const tr = rowTitled(cell.title);
+        const td = tr.querySelectorAll("td")[2];
+        const numbers = () => [...td.querySelectorAll(".ovl-item a")].map(text);
+        if (cell.shown.length === 0) {
+          expect(text(td)).toBe("none");
+          continue;
+        }
+        expect(numbers()).toEqual(cell.shown);
+        // Every number leads to its pull request page.
+        for (const a of td.querySelectorAll<HTMLAnchorElement>(".ovl-item a")) {
+          expect(a.getAttribute("href")).toMatch(/^\/pulls\/[^/]+\/[^/]+\/\d+$/);
+        }
+        const more = td.querySelector(".ovl-more");
+        const row = c.transcripts.find((t) => t.title === cell.title)!;
+        const count = row.pullRequests?.count ?? 0;
+        if (cell.more === "none") {
+          expect(more).toBeNull();
+        } else if (cell.more === "reveal") {
+          // Every reference is in hand, so `+N` reveals them in place.
+          expect(more!.tagName).toBe("BUTTON");
+          expect(text(more)).toBe(`+${count - cell.shown.length}`);
+          await act(async () => {
+            fireEvent.click(more!);
+          });
+          expect(numbers()).toEqual(row.pullRequests!.recent.map((ref) => `#${ref.number}`));
+        } else {
+          // The row counts more than it carries, so `+N` leads to the
+          // transcript page, which lists them all; N is still the true count.
+          expect(more!.tagName).toBe("A");
+          expect(text(more)).toBe(`+${count - cell.shown.length}`);
+          expect(more!.getAttribute("href")).toBe(`/transcripts/${row.id}`);
+        }
+      }
+
+      if (c.expectStats !== undefined) {
+        const strip = await screen.findByTestId("home-stats");
+        await waitFor(() =>
+          expect([...strip.querySelectorAll("li")].map(text)).toEqual(c.expectStats),
+        );
+      }
+
+      if (c.expectRailCollectives !== undefined) {
+        await waitFor(() =>
+          expect(document.querySelectorAll('[data-testid="home-rail-collective"]')).toHaveLength(
+            c.expectRailCollectives!.length,
+          ),
+        );
+        const listed = [...document.querySelectorAll('[data-testid="home-rail-collective"]')];
+        expect(
+          listed.map((li) => ({ name: text(li.querySelector("a")), meta: text(li.querySelector(".cmg-rail-meta")) })),
+        ).toEqual(c.expectRailCollectives);
+        expect(listed.map((li) => li.querySelector("a")!.getAttribute("href"))).toEqual(
+          c.collectives!.map((collective) => `/groups/${collective.id}`),
+        );
+        expect(
+          screen.getByRole("link", { name: "view all" }).getAttribute("href"),
+        ).toBe("/groups");
+      }
+
+      if (c.expectWaiting !== undefined) {
+        // The contributions read has landed once its request was answered.
+        await waitFor(() =>
+          expect(requested).toContain("/users/me/collectives/contributions"),
+        );
+        if (c.expectWaiting.length === 0) {
+          expect(document.querySelector('[data-testid="home-rail-waiting"]')).toBeNull();
+        } else {
+          const section = await screen.findByTestId("home-rail-waiting");
+          expect(
+            [...section.querySelectorAll('[data-testid="home-rail-waiting-collective"] a')].map(text),
+          ).toEqual(c.expectWaiting);
+          for (const name of c.expectWaiting) {
+            const pending = c.contributions!.find((x) => x.name === name)!.pending;
+            expect(text(section)).toContain(`${pending} transcript${pending === 1 ? "" : "s"} waiting`);
+          }
+        }
+      }
+
+      if (c.search !== undefined) {
+        const box = screen.getByRole("searchbox", { name: "search your transcripts" });
+        await act(async () => {
+          fireEvent.change(box, { target: { value: c.search!.query } });
+        });
+        // The query reaches the server as `q` on the owner-scoped list.
+        await waitFor(() =>
+          expect(
+            ownerRequests().some(
+              (p) => new URLSearchParams(p.slice(p.indexOf("?") + 1)).get("q") === c.search!.query,
+            ),
+          ).toBe(true),
+        );
+        if (c.search.expectRowTitles.length === 0) {
+          const noMatch = await screen.findByTestId("home-no-match");
+          expect(text(noMatch)).toContain(c.search.query);
+          // An answered search with no rows is not an empty library.
+          expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
+          await act(async () => {
+            fireEvent.click(screen.getByRole("button", { name: "clear search" }));
+          });
+          await waitFor(() => expect(tableTitles()).toEqual(c.expectRowTitles));
+        } else {
+          await waitFor(() => expect(tableTitles()).toEqual(c.search!.expectRowTitles));
+        }
+      }
+
+      if (c.loadMore !== undefined) {
+        expect(text(screen.getByTestId("home-count"))).toBe(
+          `${c.expectRowTitles.length} of ${c.transcripts.length} transcripts`,
+        );
+        const more = screen.getByTestId("home-load-more");
+        expect(text(more)).toBe(`show ${c.transcripts.length - c.expectRowTitles.length} more`);
+        await act(async () => {
+          fireEvent.click(more);
+        });
+        await waitFor(() => expect(tableTitles()).toEqual(c.loadMore!.expectRowTitles));
+        // The next page was asked for as the NEXT page, not the first again.
+        expect(
+          ownerRequests().some((p) => new URLSearchParams(p.slice(p.indexOf("?") + 1)).get("page") === "2"),
+        ).toBe(true);
+        expect(screen.queryByTestId("home-load-more")).toBeNull();
+        expect(text(screen.getByTestId("home-count"))).toBe(
+          `${c.transcripts.length} of ${c.transcripts.length} transcripts`,
+        );
+      } else if (c.expectHomeSurface === "rows") {
+        // Everything fits on the first page, so nothing offers more.
+        expect(screen.queryByTestId("home-load-more")).toBeNull();
+      }
     });
   }
 });
