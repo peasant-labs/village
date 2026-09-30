@@ -33,7 +33,10 @@ import {
   RadioGroup as FtRadioGroup,
   RailSection as FtRailSection,
   RailShell as FtRailShell,
+  OverflowList as FtOverflowList,
   Select as FtSelect,
+  SettingGroup as FtSettingGroup,
+  SettingRow as FtSettingRow,
   Switch as FtSwitch,
   TeachingEmptyState as FtTeachingEmptyState,
   Textarea as FtTextarea,
@@ -370,3 +373,38 @@ export const Dialog = FtDialog as ComponentType<{
   className?: string;
   dismissible?: boolean;
 }>;
+// ── Summary lines, short lists and per-field settings ────────────────────────
+
+/**
+ * StatsStrip   — one quiet line of value/label pairs above a list ("38
+ *   transcripts  9 pull requests"). The host formats every value; a bare number
+ *   is grouped. No boxes and no big numerals, unlike StatTile.
+ * OverflowList — a short inline list that shows its first items and folds the
+ *   rest behind a `+N` button that reveals them in place ("#42, #45 +2").
+ *   Nothing is fetched: it can only reveal the items it was given. Widened
+ *   because the published type omits the `data-*` attributes it forwards.
+ */
+export { StatsStrip } from "@peasant-labs/fairtrade/ui";
+
+export const OverflowList = FtOverflowList as ComponentType<
+  ComponentProps<typeof FtOverflowList> & { "data-testid"?: string }
+>;
+
+/**
+ * SettingRow   — one setting that saves on its own: a switch applies the
+ *   moment it changes; a text value stays read-only until `edit`, then saves on
+ *   `save` or Enter. The host passes `onCommit(next)`, the one write; a rejected
+ *   promise restores the previous value and shows the error's message beside
+ *   the control. Widened because the published type omits the `data-*` and
+ *   `id` attributes it forwards onto its root.
+ * SettingGroup — a native <details> of setting rows whose summary names the
+ *   group and counts its rows (`count={null}` for a group of actions). Widened
+ *   the same way.
+ */
+export const SettingRow = FtSettingRow as ComponentType<
+  ComponentProps<typeof FtSettingRow> & { id?: string; "data-testid"?: string }
+>;
+
+export const SettingGroup = FtSettingGroup as ComponentType<
+  ComponentProps<typeof FtSettingGroup> & { id?: string; "data-testid"?: string }
+>;

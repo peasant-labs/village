@@ -19,12 +19,17 @@ export interface MalformedProjectNoticeProps {
   /** Names the surface for tests that assert WHICH page reported it. */
   testId?: string;
   className?: string;
+  /** What the missing identity costs on this page. Defaults to the project
+   *  list it is left out of; a page with no project list says what it does
+   *  instead. */
+  consequence?: React.ReactNode;
 }
 
 export default function MalformedProjectNotice({
   count,
   testId,
   className = "",
+  consequence = "They are omitted from the project list below; the rest of this page is unaffected.",
 }: MalformedProjectNoticeProps) {
   if (count <= 0) return null;
   return (
@@ -38,8 +43,7 @@ export default function MalformedProjectNotice({
       </p>
       <p className="mt-1 text-[13px]">
         Each is missing the project identity the server is expected to always
-        provide. They are omitted from the project list below; the rest of this
-        page is unaffected.
+        provide. {consequence}
       </p>
     </div>
   );

@@ -101,11 +101,11 @@ export type ChildSessionGroupingCase = {
   /** The number the list header must show above the grid. */
   expectedVisibleCount: number;
   expectedRootRows: string[];
-  /** The ordered rows the HOME list shows, on a `home` case; `[]` elsewhere.
-   *  Home caps its list, so what it shows is not always every row that kept its
-   *  place, and the ORDER is part of the answer: groups are ranked by the
-   *  newest row in each, so a group holding the person's newest session cannot
-   *  be cut off the page while that session is only reachable from inside it. */
+  /** The ordered rows the HOME table lists, on a `home` case; `[]` elsewhere.
+   *  Home lists every row the fold left in place, and the ORDER is the answer:
+   *  groups are ranked by the newest row in each, so a group holding the
+   *  person's newest session is not buried below rows older than that session,
+   *  which is only reachable from inside the group. */
   expectedHomeRows: string[];
   expectedGroups: ChildSessionExpectedGroup[];
 };
@@ -189,7 +189,6 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
   let sawFoldCorrectingTheCount = false;
   let sawLongerResultKeepingTheServerCount = false;
   let sawBothGroupsTogether = false;
-  let sawHomeCappingItsList = false;
   let sawHomeLedByAGroupsNewestRow = false;
 
   for (const c of fixtures.cases) {
@@ -347,8 +346,8 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
       sawLongerResultKeepingTheServerCount = true;
     }
 
-    // What home SHOWS is its own expectation, because home caps its list and
-    // ranks groups by the newest row in each. Only a `home` case may state it.
+    // What home LISTS is its own expectation, because home ranks groups by the
+    // newest row in each. Only a `home` case may state it.
     const onHome = c.surfaces.includes("home");
     if (!onHome && c.expectedHomeRows.length > 0) {
       throw new Error(
@@ -372,7 +371,15 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
           } not among the rows that kept their place; home can only show a row the fold left in the list`,
         );
       }
-      if (c.expectedHomeRows.length < c.expectedRootRows.length) sawHomeCappingItsList = true;
+      // Home lists a page of rows and offers the rest by `load more`; within
+      // what it has loaded it drops none. So its rows are exactly the rows the
+      // fold left in place, only ranked differently.
+      if (c.expectedHomeRows.length !== c.expectedRootRows.length) {
+        throw new Error(
+          `case ${c.name}: expectedHomeRows lists ${c.expectedHomeRows.length} rows but the fold leaves ` +
+            `${c.expectedRootRows.length} in place; home lists every one of them`,
+        );
+      }
       if (c.expectedHomeRows[0] !== c.expectedRootRows[0]) sawHomeLedByAGroupsNewestRow = true;
     }
 
@@ -441,18 +448,12 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
         "group render into the same column, and neither may take rows from the other",
     );
   }
-  if (!sawHomeCappingItsList) {
-    throw new Error(
-      "child-session-grouping fixtures cover no home case with more rows than home shows: the list is capped, so a " +
-        "corpus that never reaches the cap cannot tell a correct cut from one that drops the wrong rows",
-    );
-  }
   if (!sawHomeLedByAGroupsNewestRow) {
     throw new Error(
       "child-session-grouping fixtures cover no home case whose first shown row is not the first row the server " +
         "sent: home ranks a group by the NEWEST row in it, so without a case where that ranking moves a row, a " +
-        "build that ranked parents by their own timestamps alone would pass, and could cut the group holding the " +
-        "person's newest session off the page",
+        "build that ranked parents by their own timestamps alone would pass, and would bury the group holding the " +
+        "person's newest session below older rows",
     );
   }
   for (const cause of ABSENT_PARENT_CAUSES) {
