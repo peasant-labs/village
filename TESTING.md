@@ -396,12 +396,15 @@ callback against migrated PostgreSQL and reads the real rows: a returning
 account's upsert keeps its handle and chosen flag, and a free login's confirm
 lands on the real row. The two unit-only cases (a failed confirm, and a handle
 chosen in another tab between the upsert and the confirm) are left out of that
-run rather than skipped, because the integration gate rejects skips. No
-sign-in reaches a row the confirm's guard refuses, so the guard is pinned on
-its own: `testdata/confirm-own-handle.yaml` runs the real `ConfirmOwnHandle`
-on real rows and expects it to confirm only the approved handle, only while
-unchosen, and to leave a refused row exactly as it was. The statement writes
-only `username_chosen`, never the handle.
+run rather than skipped, because the integration gate rejects skips. A
+sign-in reaches a row the confirm's guard refuses only when it races the
+handle step, and that interleaving is staged in the unit corpus alone, so the
+guard is pinned on its own: `testdata/confirm-own-handle.yaml` runs the real
+`ConfirmOwnHandle` on real rows and expects it to confirm only this account's
+own approved handle, only while unchosen, and to leave every refused row
+exactly as it was, including another account that now holds the approved
+handle. The statement writes only `username_chosen` (and `updated_at`), never
+the handle.
 
 The loader guards deletion with required-NAME lists, never a row count, and it
 derives every consistency rule from the fixture's OWN data rather than from the

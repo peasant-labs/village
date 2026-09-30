@@ -28,9 +28,9 @@ import (
 // its handle and chosen flag, and a free login's confirm lands on the real
 // row. The CLI cases store a real session row and exchange it through the real
 // endpoint. Unit-only cases (an injected failure or a concurrent rename) are
-// left to the unit corpus. The confirm's guard is pinned on its own by
-// TestConfirmOwnHandleGuardAgainstPostgres, because no sign-in reaches a row
-// the guard refuses.
+// left to the unit corpus. This run stages no interleaving that reaches a row
+// the confirm's guard refuses (only the unit-only concurrent case does), so
+// the guard is pinned on its own by TestConfirmOwnHandleGuardAgainstPostgres.
 func TestGitHubSignInHandleAgainstPostgres(t *testing.T) {
 	corpus := loadSignInHandleFixtures(t)
 	pool := govTestPool(t)
@@ -137,6 +137,7 @@ type confirmOwnHandleCase struct {
 	Why             string `yaml:"why"`
 	StoredHandle    string `yaml:"stored_handle"`
 	StoredChosen    bool   `yaml:"stored_chosen"`
+	OthersHold      string `yaml:"others_hold"`
 	ConfirmWith     string `yaml:"confirm_with"`
 	ExpectConfirmed bool   `yaml:"expect_confirmed"`
 }
@@ -162,7 +163,8 @@ func loadConfirmOwnHandleFixtures(t *testing.T) confirmOwnHandleCorpus {
 		}
 		names[c.Name] = true
 		// The guard's rule, derived from the case's own data: confirmed only
-		// on the approved handle and only while unchosen.
+		// on this row's own approved handle and only while unchosen; another
+		// account holding the handle never makes a case confirmable.
 		if want := c.StoredHandle == c.ConfirmWith && !c.StoredChosen; c.ExpectConfirmed != want {
 			t.Fatalf("confirm-own-handle case %q expects confirmed=%v, but its rows entail %v", c.Name, c.ExpectConfirmed, want)
 		}
@@ -184,8 +186,10 @@ func loadConfirmOwnHandleFixtures(t *testing.T) confirmOwnHandleCorpus {
 }
 
 // TestConfirmOwnHandleGuardAgainstPostgres runs the REAL guarded update on
-// real rows, including the two the guard must refuse, which no sign-in
-// reaches: a handle that changed since it was read, and a row already chosen.
+// real rows, including the ones the guard must refuse: a handle that changed
+// since it was read, a row already chosen, and an approved handle another
+// account now holds. The sign-in corpus reaches a refused row only in its
+// unit-only concurrent case, so the guard is pinned here on its own.
 func TestConfirmOwnHandleGuardAgainstPostgres(t *testing.T) {
 	corpus := loadConfirmOwnHandleFixtures(t)
 	pool := govTestPool(t)
@@ -197,35 +201,49 @@ func TestConfirmOwnHandleGuardAgainstPostgres(t *testing.T) {
 			ctx := context.Background()
 			prefix := fmt.Sprintf("g%d-", randomGitHubID(t)%1_000_000)
 			id := insertSignInAccount(t, ctx, pool, randomGitHubID(t), prefix+c.StoredHandle, c.StoredChosen)
-			t.Cleanup(func() { cleanupOwners(t, ctx, pool, id) })
-
-			var before sqlc.User
-			if err := pool.QueryRow(ctx, `SELECT github_username, username_chosen, updated_at FROM users WHERE id = $1`, id).
-				Scan(&before.GithubUsername, &before.UsernameChosen, &before.UpdatedAt); err != nil {
-				t.Fatal(err)
+			accounts := []pgtype.UUID{id}
+			if c.OthersHold != "" {
+				accounts = append(accounts, insertSignInAccount(t, ctx, pool, randomGitHubID(t), prefix+c.OthersHold, false))
 			}
+			t.Cleanup(func() { cleanupOwners(t, ctx, pool, accounts...) })
+
+			read := func() map[pgtype.UUID]sqlc.User {
+				rows := map[pgtype.UUID]sqlc.User{}
+				for _, account := range accounts {
+					var u sqlc.User
+					if err := pool.QueryRow(ctx, `SELECT github_username, username_chosen, updated_at FROM users WHERE id = $1`, account).
+						Scan(&u.GithubUsername, &u.UsernameChosen, &u.UpdatedAt); err != nil {
+						t.Fatal(err)
+					}
+					rows[account] = u
+				}
+				return rows
+			}
+			before := read()
 
 			got, err := q.ConfirmOwnHandle(ctx, sqlc.ConfirmOwnHandleParams{ID: id, GithubUsername: prefix + c.ConfirmWith})
 
-			var after sqlc.User
-			if err := pool.QueryRow(ctx, `SELECT github_username, username_chosen, updated_at FROM users WHERE id = $1`, id).
-				Scan(&after.GithubUsername, &after.UsernameChosen, &after.UpdatedAt); err != nil {
-				t.Fatal(err)
-			}
+			after := read()
 			if c.ExpectConfirmed {
 				if err != nil {
 					t.Fatalf("ConfirmOwnHandle: %v", err)
 				}
-				if !got.UsernameChosen || !after.UsernameChosen || after.GithubUsername != before.GithubUsername {
-					t.Fatalf("row after confirm = {handle %q, chosen %v}, want {handle %q, chosen true}", after.GithubUsername, after.UsernameChosen, before.GithubUsername)
+				if got.ID != id {
+					t.Fatalf("ConfirmOwnHandle returned another account's row")
+				}
+				own := after[id]
+				if !got.UsernameChosen || !own.UsernameChosen || own.GithubUsername != before[id].GithubUsername {
+					t.Fatalf("row after confirm = {handle %q, chosen %v}, want {handle %q, chosen true}", own.GithubUsername, own.UsernameChosen, before[id].GithubUsername)
 				}
 				return
 			}
 			if !errors.Is(err, pgx.ErrNoRows) {
 				t.Fatalf("ConfirmOwnHandle = (%+v, %v), want pgx.ErrNoRows", got, err)
 			}
-			if after != before {
-				t.Fatalf("a refused confirm changed the row: before %+v, after %+v", before, after)
+			for _, account := range accounts {
+				if after[account] != before[account] {
+					t.Fatalf("a refused confirm changed a row: before %+v, after %+v", before[account], after[account])
+				}
 			}
 		})
 	}
