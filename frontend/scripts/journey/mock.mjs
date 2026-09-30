@@ -15,6 +15,12 @@
  *              (empty-state journeys)
  *   no-keys  - peasant is signed in on no computer (the settings page)
  * Setting any scenario also puts the collectives world back as it started.
+ *   default           - the composed fixtures as-is
+ *   empty             - the browse list answers with no rows (empty-state journeys)
+ *   transcript-owner  - `GET /groups` answers with the owner's collectives, the
+ *                       pool the transcript page's `manage access` picker offers
+ * Setting any scenario restores the owned transcript's audience
+ * (lib/transcript-fixtures.mjs), so each journey starts from the same readers.
  *
  * The transcript half is proxied rather than imported because its contract
  * fixtures are large and stateful; proxying keeps it byte-for-byte the mock the
@@ -28,6 +34,11 @@ import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
 import { handleProjectRequest } from './lib/project-fixtures.mjs'
 import { handleCollectiveRequest, resetCollectiveWorld } from './lib/collective-fixtures.mjs'
 import { handleHomeRequest } from './lib/home-fixtures.mjs'
+import {
+  OWNED_TRANSCRIPT,
+  handleOwnedTranscriptRequest,
+  resetOwnedTranscript,
+} from './lib/transcript-fixtures.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)
@@ -52,12 +63,12 @@ const readBody = (req) =>
     req.on('end', () => resolve(data))
   })
 
-const proxyToTranscript = (req, res) => {
+const proxyToTranscript = (req, res, path = req.url) => {
   const upstream = httpRequest(
     {
       hostname: '127.0.0.1',
       port: TRANSCRIPT_PORT,
-      path: req.url,
+      path,
       method: req.method,
       headers: req.headers,
     },
@@ -113,6 +124,7 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req)
       try {
         scenario = JSON.parse(body || '{}').name || scenario
+        resetOwnedTranscript()
       } catch {
         return send(res, 400, { error: 'invalid JSON body' })
       }
@@ -130,6 +142,13 @@ const server = createServer(async (req, res) => {
   if (scenario === 'empty' && req.method === 'GET' && path === '/transcripts') {
     return send(res, 200, { transcripts: [], total: 0, agent_total: 0, page: 1, limit: 24 })
   }
+
+  // The owned transcript: its turns are the transcript mock's own content, and
+  // the fixture serves its metadata, audience, pull requests and share routes.
+  if (req.method === 'GET' && path === `/transcripts/${OWNED_TRANSCRIPT.id}/content`) {
+    return proxyToTranscript(req, res, OWNED_TRANSCRIPT.contentPath)
+  }
+  if (handleOwnedTranscriptRequest(req, res, { ownerGroups: scenario === 'transcript-owner' })) return
 
   // Retained contribution withdrawals belong to the collective fixture,
   // before the generic transcript proxy claims that route.
