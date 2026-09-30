@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/peasant-labs/schema"
+
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	"github.com/peasant-labs/village/backend/internal/promptattach"
 )
@@ -32,12 +34,14 @@ var validDeletionPolicies = map[string]bool{
 
 func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
+	// linked_github_org omitted, null, or empty all mean no organization, as on
+	// update.
 	var req struct {
-		Name            string `json:"name"`
-		Description     string `json:"description"`
-		AcceptanceMode  string `json:"acceptance_mode"`
-		DataAccess      string `json:"data_access"`
-		LinkedGitHubOrg string `json:"linked_github_org"`
+		Name            string  `json:"name"`
+		Description     string  `json:"description"`
+		AcceptanceMode  string  `json:"acceptance_mode"`
+		DataAccess      string  `json:"data_access"`
+		LinkedGitHubOrg *string `json:"linked_github_org"`
 	}
 	if !h.decodeContractBody(w, r, opCreateGroup, &req) {
 		return
@@ -65,7 +69,11 @@ func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	linkedOrg := pgtype.Text{Valid: false}
-	if trimmed := strings.TrimSpace(req.LinkedGitHubOrg); trimmed != "" {
+	requestedOrg := ""
+	if req.LinkedGitHubOrg != nil {
+		requestedOrg = *req.LinkedGitHubOrg
+	}
+	if trimmed := strings.TrimSpace(requestedOrg); trimmed != "" {
 		// Caller must currently have this org marked visible.
 		ok, err := h.queries.HasUserVisibleOrg(r.Context(), sqlc.HasUserVisibleOrgParams{
 			UserID: user.PgID(),
@@ -270,16 +278,29 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 		ViewerIsOwner: yourRole == "owner",
 	})
 	stats, _ := h.queries.GetGroupTranscriptStats(r.Context(), pgID)
+	// A count that could not be read is refused rather than served as zero: the
+	// page would otherwise say the collective has no pull requests.
+	pullRequestCount, err := h.collectivePullRequestCount(r.Context(), user, pgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not read the collective's pull requests; retry the request")
+		return
+	}
 	models, _ := h.queries.ListGroupModelBreakdown(r.Context(), pgID)
 	contributors, _ := h.queries.ListGroupContributors(r.Context(), sqlc.ListGroupContributorsParams{
 		GroupID:       pgID,
 		ViewerIsOwner: yourRole == "owner",
 	})
 
+	groupStats := schema.VillageGroupTranscriptStats{
+		TotalTranscripts: stats.TotalTranscripts, ContributorCount: stats.ContributorCount,
+		TotalTurns: stats.TotalTurns, TotalDurationMs: stats.TotalDurationMs, TotalTokens: stats.TotalTokens,
+		PullRequestCount: pullRequestCount,
+	}
+
 	resp := map[string]any{
 		"group":        group,
 		"members":      members,
-		"stats":        stats,
+		"stats":        groupStats,
 		"models":       models,
 		"contributors": contributors,
 		"can_read":     canRead,
@@ -306,9 +327,20 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 			Limit:   limit,
 			Offset:  offset,
 		})
+		ids := make([]pgtype.UUID, 0, len(transcriptRows))
+		for _, row := range transcriptRows {
+			ids = append(ids, row.ID)
+		}
+		summaries, err := h.pullRequestSummaries(r.Context(), user, ids)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not read the pull requests of the collective's transcripts; retry the request")
+			return
+		}
 		transcripts := make([]groupTranscriptResponse, 0, len(transcriptRows))
 		for _, row := range transcriptRows {
-			transcripts = append(transcripts, groupTranscriptFromRow(row))
+			transcript := groupTranscriptFromRow(row)
+			transcript.PullRequests = summaries[row.ID]
+			transcripts = append(transcripts, transcript)
 		}
 		resp["transcripts"] = transcripts
 	} else {

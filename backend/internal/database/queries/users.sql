@@ -6,6 +6,11 @@
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
 
+-- name: ListUsersByIDs :many
+-- Several users in one statement, for list surfaces that would otherwise read
+-- GetUserByID once per row.
+SELECT * FROM users WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetUserByUsername :one
 -- Canonical handle lookup. github_username is globally unique (case-insensitive),
 -- so this resolves to exactly one user.

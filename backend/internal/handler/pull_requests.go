@@ -98,7 +98,7 @@ func (h *Handler) GetPullRequestAttachment(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	response, err := h.attachmentResponseOf(r.Context(), attachment, repo.isPrivate, viewerID, viewerKnown)
+	response, err := h.attachmentResponseOf(r.Context(), attachment, repo, viewerID, viewerKnown)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
@@ -146,7 +146,7 @@ func (h *Handler) ConfirmPullRequestAttachment(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
 	}
-	response, err := h.attachmentResponseOf(r.Context(), updated, repo.isPrivate, user.PgID(), true)
+	response, err := h.attachmentResponseOf(r.Context(), updated, repo, user.PgID(), true)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
@@ -190,7 +190,7 @@ func (h *Handler) DetachPullRequestAttachment(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
 	}
-	response, err := h.attachmentResponseOf(r.Context(), updated, repo.isPrivate, user.PgID(), true)
+	response, err := h.attachmentResponseOf(r.Context(), updated, repo, user.PgID(), true)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return

@@ -1848,6 +1848,38 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Every per-row field below is read for the whole page at once, so a page
+	// of fifty rows costs the same number of queries as a page of one.
+	var transcriptIDs []pgtype.UUID
+	ownerIDSet := map[pgtype.UUID]bool{}
+	var ownerIDs []pgtype.UUID
+	for _, t := range listed {
+		transcriptIDs = append(transcriptIDs, t.ID)
+		if !ownerIDSet[t.OwnerID] {
+			ownerIDSet[t.OwnerID] = true
+			ownerIDs = append(ownerIDs, t.OwnerID)
+		}
+	}
+
+	// Batch tags by transcript. A transcript with none serialises as [], as the
+	// per-row read it replaces did.
+	tagsByTranscript := map[pgtype.UUID][]sqlc.Tag{}
+	if len(transcriptIDs) > 0 {
+		allTags, _ := h.queries.ListTagsByTranscriptIDs(r.Context(), transcriptIDs)
+		for _, tag := range allTags {
+			tagsByTranscript[tag.TranscriptID] = append(tagsByTranscript[tag.TranscriptID], sqlc.Tag{ID: tag.ID, Name: tag.Name})
+		}
+	}
+
+	// Batch owners by id.
+	ownersByID := map[pgtype.UUID]sqlc.User{}
+	if len(ownerIDs) > 0 {
+		owners, _ := h.queries.ListUsersByIDs(r.Context(), ownerIDs)
+		for _, owner := range owners {
+			ownersByID[owner.ID] = owner
+		}
+	}
+
 	type parsedTranscript struct {
 		t     sqlc.Transcript
 		tags  []sqlc.Tag
@@ -1855,21 +1887,19 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	}
 	var parsed []parsedTranscript
 	for _, t := range listed {
-		tags, _ := h.queries.GetTranscriptTags(r.Context(), t.ID)
-		owner, _ := h.queries.GetUserByID(r.Context(), t.OwnerID)
-		parsed = append(parsed, parsedTranscript{t: t, tags: tags, owner: owner})
+		tags := tagsByTranscript[t.ID]
+		if tags == nil {
+			tags = []sqlc.Tag{}
+		}
+		parsed = append(parsed, parsedTranscript{t: t, tags: tags, owner: ownersByID[t.OwnerID]})
 	}
 
-	// Batch-fetch signalling data for all transcripts
-	var transcriptIDs []pgtype.UUID
-	ownerIDSet := map[pgtype.UUID]bool{}
-	var ownerIDs []pgtype.UUID
-	for _, p := range parsed {
-		transcriptIDs = append(transcriptIDs, p.t.ID)
-		if !ownerIDSet[p.t.OwnerID] {
-			ownerIDSet[p.t.OwnerID] = true
-			ownerIDs = append(ownerIDs, p.t.OwnerID)
-		}
+	// The pull requests each row is attached to, as the caller may read them. A
+	// summary that could not be read is refused rather than served as none.
+	pullRequests, err := h.pullRequestSummaries(r.Context(), user, transcriptIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the pull requests of the listed transcripts could not be read, so no transcript page was returned; retry the request")
+		return
 	}
 
 	// Batch org badges by owner
@@ -1910,12 +1940,13 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	transcripts := []map[string]any{}
 	for _, p := range parsed {
 		transcripts = append(transcripts, map[string]any{
-			"transcript":   listTranscriptResponse(p.t, resolvedProjects[projectIdentityKey{OwnerID: p.t.OwnerID, ProjectHash: p.t.ProjectHash}]),
-			"tags":         p.tags,
-			"owner":        p.owner,
-			"owner_orgs":   orgsByOwner[p.t.OwnerID],
-			"shares":       sharesByTranscript[p.t.ID],
-			"attestations": attestsByTranscript[p.t.ID],
+			"transcript":    listTranscriptResponse(p.t, resolvedProjects[projectIdentityKey{OwnerID: p.t.OwnerID, ProjectHash: p.t.ProjectHash}]),
+			"tags":          p.tags,
+			"owner":         p.owner,
+			"owner_orgs":    orgsByOwner[p.t.OwnerID],
+			"shares":        sharesByTranscript[p.t.ID],
+			"attestations":  attestsByTranscript[p.t.ID],
+			"pull_requests": pullRequests[p.t.ID],
 		})
 	}
 

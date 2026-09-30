@@ -13,15 +13,18 @@ import (
 	"github.com/peasant-labs/village/backend/internal/promptattach"
 )
 
-// attachmentResponseOf assembles the wire response for one attachment: its row,
-// the digest it stored, its transcripts, and whether the caller is its author.
-// Transcripts is always a non-nil slice because the contract declares it
-// non-nullable, so an attachment with none still serialises as [].
-func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.PullRequestAttachment, isPrivate bool, viewer pgtype.UUID, viewerKnown bool) (schema.VillagePullRequestAttachmentResponse, error) {
-	mapped, err := mapVillageAttachment(attachment, isPrivate)
+// attachmentResponseOf assembles the wire response for one attachment: its row
+// with the pull request's title and head branch, the digest it stored, its
+// transcripts, and whether the caller is its author. Transcripts is always a
+// non-nil slice because the contract declares it non-nullable, so an attachment
+// with none still serialises as [].
+func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, viewer pgtype.UUID, viewerKnown bool) (schema.VillagePullRequestAttachmentResponse, error) {
+	mapped, err := mapVillageAttachment(attachment, repo.isPrivate)
 	if err != nil {
 		return schema.VillagePullRequestAttachmentResponse{}, err
 	}
+	detail := h.pullRequestDetail(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, int(attachment.Number))
+	mapped.Title, mapped.HeadRef = detail.title, detail.headRef
 
 	summaries, err := h.queries.ListPullRequestAttachmentTranscriptSummaries(ctx, attachment.ID)
 	if err != nil {
@@ -61,7 +64,8 @@ func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.Pull
 
 // mapVillageAttachment maps a stored attachment to the wire type. It fails
 // closed on a state outside the menu rather than serving a value no reader can
-// interpret.
+// interpret. Title and HeadRef are left null: Village stores neither, and the
+// caller that can ask GitHub fills them in.
 func mapVillageAttachment(attachment sqlc.PullRequestAttachment, isPrivate bool) (schema.VillagePullRequestAttachment, error) {
 	if _, err := promptattach.Parse(attachment.State); err != nil {
 		return schema.VillagePullRequestAttachment{}, fmt.Errorf("the attachment's stored state %q is not one of the lifecycle menu: %w", attachment.State, err)

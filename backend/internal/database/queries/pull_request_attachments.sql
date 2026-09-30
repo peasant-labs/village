@@ -164,3 +164,95 @@ SELECT a.* FROM pull_request_attachments a
 JOIN pull_request_attachment_transcripts pt ON pt.attachment_id = a.id
 WHERE pt.transcript_id = @transcript_id AND a.state = 'attached'
 ORDER BY a.id ASC;
+
+-- name: ListPullRequestCandidatesByTranscripts :many
+-- The pull requests bound to a page of transcripts, in the requested states.
+--
+-- This and the two statements after it are the one candidate read behind every
+-- pull request a reader is shown: the transcript's pull request list, the
+-- summary on a list row, the collective's count, and the caller's own count.
+-- Each returns one row per (transcript, attachment) binding with the repository
+-- link the attachment's collective holds now and whether the viewer is a member
+-- of that collective. The visibility rule itself is applied in Go
+-- (pullRequestReadable), in the one place all four reads share, rather than
+-- copied into each statement where the copies could drift apart.
+--
+-- The repository comes from the collective's CURRENT link, exactly as the
+-- attachment read resolves it, so an attachment whose collective is gone or
+-- whose repository is no longer linked has no row: its visibility check cannot
+-- complete, and it is omitted rather than guessed. A pending join request is not
+-- membership. Each is one statement for the whole page or the whole scope, never
+-- one per row.
+--
+-- idx_pull_request_attachment_transcripts_transcript serves the transcript
+-- predicate. Rows come newest first within a transcript: by the latest of
+-- attached_at and detached_at, which for an attached attachment is when it was
+-- attached.
+SELECT pt.transcript_id,
+       sqlc.embed(a),
+       cr.installation_id,
+       cr.is_private,
+       (gm.user_id IS NOT NULL)::boolean AS viewer_is_member
+FROM pull_request_attachment_transcripts pt
+JOIN pull_request_attachments a ON a.id = pt.attachment_id
+JOIN collective_repositories cr
+  ON cr.group_id = a.group_id
+ AND lower(cr.owner) = lower(a.repo_owner)
+ AND lower(cr.name) = lower(a.repo_name)
+LEFT JOIN group_members gm
+  ON gm.group_id = a.group_id
+ AND gm.user_id = sqlc.narg(viewer_id)::uuid
+ AND gm.role <> 'pending'
+WHERE pt.transcript_id = ANY(@transcript_ids::uuid[])
+  AND a.state = ANY(@states::text[])
+ORDER BY pt.transcript_id,
+         GREATEST(a.attached_at, a.detached_at) DESC NULLS LAST,
+         lower(a.repo_owner), lower(a.repo_name), a.number, a.id;
+
+-- name: ListAttachedPullRequestCandidatesByOwner :many
+-- The attached pull requests bound to any transcript one person published, for
+-- their own totals.
+SELECT pt.transcript_id,
+       sqlc.embed(a),
+       cr.installation_id,
+       cr.is_private,
+       (gm.user_id IS NOT NULL)::boolean AS viewer_is_member
+FROM transcripts t
+JOIN pull_request_attachment_transcripts pt ON pt.transcript_id = t.id
+JOIN pull_request_attachments a ON a.id = pt.attachment_id
+JOIN collective_repositories cr
+  ON cr.group_id = a.group_id
+ AND lower(cr.owner) = lower(a.repo_owner)
+ AND lower(cr.name) = lower(a.repo_name)
+LEFT JOIN group_members gm
+  ON gm.group_id = a.group_id
+ AND gm.user_id = sqlc.narg(viewer_id)::uuid
+ AND gm.role <> 'pending'
+WHERE t.owner_id = @owner_id
+  AND a.state = 'attached'
+ORDER BY a.id, pt.transcript_id;
+
+-- name: ListAttachedPullRequestCandidatesByGroup :many
+-- The attached pull requests bound to a transcript a collective counts: the
+-- transcripts with an approved share to it, which is the set
+-- GetGroupTranscriptStats totals.
+SELECT pt.transcript_id,
+       sqlc.embed(a),
+       cr.installation_id,
+       cr.is_private,
+       (gm.user_id IS NOT NULL)::boolean AS viewer_is_member
+FROM transcript_shares ts
+JOIN pull_request_attachment_transcripts pt ON pt.transcript_id = ts.transcript_id
+JOIN pull_request_attachments a ON a.id = pt.attachment_id
+JOIN collective_repositories cr
+  ON cr.group_id = a.group_id
+ AND lower(cr.owner) = lower(a.repo_owner)
+ AND lower(cr.name) = lower(a.repo_name)
+LEFT JOIN group_members gm
+  ON gm.group_id = a.group_id
+ AND gm.user_id = sqlc.narg(viewer_id)::uuid
+ AND gm.role <> 'pending'
+WHERE ts.group_id = @group_id
+  AND ts.status = 'approved'
+  AND a.state = 'attached'
+ORDER BY a.id, pt.transcript_id;

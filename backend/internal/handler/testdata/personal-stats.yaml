@@ -1,0 +1,48 @@
+# GET /api/v1/users/me/stats against real PostgreSQL.
+#
+# The totals cover every transcript the caller published - public, shared, and
+# private alike - and nobody else's. Turns and duration are summed; tokens are
+# input plus output, with a missing side counted as zero, as the collective's
+# totals count them.
+#
+# pull_request_count counts DISTINCT attached pull requests: one bound to two
+# of the caller's transcripts counts once. A requested, waiting, or preview
+# attachment counts nothing, and neither does one whose repository the
+# collective no longer links. (A detached attachment keeps no bindings - detach
+# clears them - so it cannot count either.) A person with nothing published gets
+# zeros, not an error.
+world:
+  people: [author, other, newcomer]
+  collectives:
+    - name: team
+      created_by: author
+      repositories:
+        - {repo: acme/app, private: true}
+        - {repo: acme/site, private: false}
+        - {repo: acme/gone, private: true}
+  transcripts:
+    - {name: first, owner: author, visibility: public, turns: 10, duration_ms: 60000, tokens_in: 1000, tokens_out: 250}
+    - {name: second, owner: author, visibility: private, turns: 4, duration_ms: 15000, tokens_in: 300}
+    - {name: third, owner: author, visibility: shared, turns: 6, duration_ms: 5000, tokens_in: 50, tokens_out: 50, shares: {team: approved}}
+    - {name: theirs, owner: other, visibility: public, turns: 99, duration_ms: 1000, tokens_in: 7, tokens_out: 3}
+  attachments:
+    - {collective: team, repo: acme/app, number: 1, author: author, state: attached, transcripts: [first, second]}
+    - {collective: team, repo: acme/site, number: 2, author: author, state: attached, transcripts: [third]}
+    - {collective: team, repo: acme/app, number: 3, author: author, state: requested, transcripts: [first]}
+    - {collective: team, repo: acme/app, number: 4, author: author, state: waiting, transcripts: [second]}
+    - {collective: team, repo: acme/site, number: 5, author: author, state: preview, transcripts: [third]}
+    - {collective: team, repo: acme/gone, number: 7, author: author, state: attached, transcripts: [first], unlinked: true}
+    - {collective: team, repo: acme/site, number: 8, author: other, state: attached, transcripts: [theirs]}
+
+cases:
+  - name: totals-cover-every-transcript-the-caller-published
+    viewer: author
+    expect: {total_transcripts: 3, total_turns: 20, total_duration_ms: 80000, total_tokens: 1650, pull_request_count: 2}
+
+  - name: another-person-sees-only-their-own
+    viewer: other
+    expect: {total_transcripts: 1, total_turns: 99, total_duration_ms: 1000, total_tokens: 10, pull_request_count: 1}
+
+  - name: nothing-published-is-all-zeros
+    viewer: newcomer
+    expect: {total_transcripts: 0, total_turns: 0, total_duration_ms: 0, total_tokens: 0, pull_request_count: 0}

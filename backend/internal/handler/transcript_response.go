@@ -156,9 +156,10 @@ func projectPageTranscriptResponse(row sqlc.Transcript, resolved projectname.Res
 
 type groupTranscriptResponse struct {
 	transcriptResponse
-	OwnerUsername       pgtype.Text `json:"owner_username"`
-	OwnerAvatarURL      pgtype.Text `json:"owner_avatar_url"`
-	OwnerIsDiscoverable bool        `json:"owner_is_discoverable"`
+	OwnerUsername       pgtype.Text                       `json:"owner_username"`
+	OwnerAvatarURL      pgtype.Text                       `json:"owner_avatar_url"`
+	OwnerIsDiscoverable bool                              `json:"owner_is_discoverable"`
+	PullRequests        schema.VillagePullRequestsSummary `json:"pull_requests"`
 }
 
 func groupTranscriptFromRow(row sqlc.ListGroupTranscriptsRow) groupTranscriptResponse {
@@ -188,5 +189,6 @@ func groupTranscriptFromRow(row sqlc.ListGroupTranscriptsRow) groupTranscriptRes
 		OwnerUsername:       pgtype.Text{String: row.OwnerUsername, Valid: row.OwnerUsername != ""},
 		OwnerAvatarURL:      row.OwnerAvatarUrl,
 		OwnerIsDiscoverable: row.OwnerIsDiscoverable,
+		PullRequests:        emptyPullRequestsSummary(),
 	}
 }
