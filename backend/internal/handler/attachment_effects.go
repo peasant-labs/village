@@ -2,9 +2,9 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -23,15 +23,20 @@ import (
 // check tier, so neither exceeds what GitHub accepts for its surface.
 const attachmentCheckTitle = "peasant / prompts"
 
-// confirmAttachment moves a preview to attached: it re-applies #109's acceptance
-// to the pull request as it is now, widens exactly the transcripts it accepts,
-// posts the digest, and only then moves the state.
+// attachAcceptedAndPost moves an attachment to attached: it re-applies #109's
+// acceptance to the pull request as it is now, binds exactly the transcripts it
+// accepts, posts the digest, and only then moves the state.
+//
+// Attaching never changes who can read a transcript. It binds, and every surface
+// then shows a transcript's prompts only to readers of that transcript: the
+// pull request's comment and check list only the transcripts anyone can read,
+// and the pull request page narrows the stored digest to what its viewer can
+// open.
 //
 // Ordering is the contract. GitHub is called before the state moves, so a
-// failure answers 502 and leaves the attachment in preview for a retry; the
-// per-transcript widening is idempotent (a binding preserves its first snapshot,
-// an already-approved share is not reopened) so a retry completes rather than
-// duplicates.
+// failure answers 502 and leaves the attachment in its state for a retry; the
+// bindings this attempt made are removed, so the retry starts from the state the
+// caller saw.
 func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.PullRequestAttachment) (sqlc.PullRequestAttachment, error) {
 	repo, err := h.resolveAttachmentRepository(ctx, h.queries, attachment)
 	if err != nil {
@@ -42,36 +47,36 @@ func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.Pul
 		return attachment, err
 	}
 	if len(match.Accepted) == 0 {
-		// Nothing is accepted, so there is nothing to attach or expose. The
-		// preview stays a preview rather than becoming an empty attachment.
+		// Nothing is accepted, so there is nothing to attach. The attachment
+		// stays where it is rather than becoming an empty attachment.
 		return attachment, errAttachmentNothingAccepted
 	}
-	acceptedIDs := make([]schema.TranscriptID, 0, len(match.Accepted))
-	for _, accepted := range match.Accepted {
-		acceptedIDs = append(acceptedIDs, accepted.TranscriptID)
-	}
-	value, _, err := h.buildAttachmentDigest(ctx, acceptedIDs, commitSet, match, "")
+	acceptedIDs := acceptedTranscriptIDs(match)
+	digests, err := h.buildAttachmentDigests(ctx, acceptedIDs, commitSet, match)
 	if err != nil {
 		return attachment, err
 	}
 
-	if err := h.widenAttachedTranscripts(ctx, attachment, repo, match.Accepted, 0); err != nil {
+	if err := h.clearEarlierBindings(ctx, attachment, repo); err != nil {
 		return attachment, err
 	}
-	commentID, checkRunID, err := h.postAttachment(ctx, attachment, repo, value, false, 0)
+	if err := h.bindAcceptedTranscripts(ctx, attachment, match.Accepted, 0); err != nil {
+		return attachment, err
+	}
+	commentID, checkRunID, err := h.postAttachment(ctx, attachment, repo, digests, false)
 	if err != nil {
-		// Posting failed, so undo the widening: an attachment that never
-		// attached must not leave a transcript shared. The retry then starts
-		// from exactly the state the caller saw.
-		if compensateErr := h.undoWidening(ctx, attachment.ID, acceptedIDs); compensateErr != nil {
-			return attachment, fmt.Errorf("%w: and the widening could not be undone, so a retry will redo both: %v", err, compensateErr)
+		// Posting failed, so the attachment never attached: remove what this
+		// attempt bound, and the retry starts from exactly the state the caller
+		// saw.
+		if unbindErr := h.unbindTranscripts(ctx, attachment.ID, acceptedIDs); unbindErr != nil {
+			return attachment, fmt.Errorf("%w: and the bindings could not be removed, so a retry will bind again: %v", err, unbindErr)
 		}
 		return attachment, err
 	}
 
-	encoded, err := json.Marshal(value)
+	encoded, err := encodeDigest(digests.complete)
 	if err != nil {
-		return attachment, fmt.Errorf("could not encode the digest for storage: %w", err)
+		return attachment, err
 	}
 	if err := h.queries.SetPullRequestAttachmentArtifacts(ctx, sqlc.SetPullRequestAttachmentArtifactsParams{
 		ID:         attachment.ID,
@@ -95,46 +100,44 @@ func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.Pul
 // action can complete) rather than attaching an empty set.
 var errAttachmentNothingAccepted = errors.New("no transcript was accepted for this pull request, so there is nothing to attach")
 
-// widenAttachedTranscripts binds each accepted transcript to the attachment,
-// records the visibility it held, and widens it: shared with the collective
-// whose owner opted in by linking the repository, or public when the repository
-// is public. Ownership is re-checked here, so the lifecycle never widens a
+// bindAcceptedTranscripts binds each accepted transcript to the attachment and
+// records the visibility it holds now. It changes nothing about the transcript:
+// its visibility and its shares are the owner's, and attaching is not a way to
+// move them. Ownership is re-checked here, so the lifecycle never binds a
 // transcript the attachment's author does not own.
 // startPosition is where this batch's positions begin. A refresh passes the
 // number of transcripts already bound, because positions are unique per
 // attachment and re-using one would collide with an existing binding.
-func (h *Handler) widenAttachedTranscripts(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, accepted []matcher.AcceptedTranscript, startPosition int) error {
+func (h *Handler) bindAcceptedTranscripts(ctx context.Context, attachment sqlc.PullRequestAttachment, accepted []matcher.AcceptedTranscript, startPosition int) error {
 	for index, item := range accepted {
 		transcriptID, err := uuid.Parse(string(item.TranscriptID))
 		if err != nil {
 			return fmt.Errorf("an accepted transcript id was not a uuid: %w", err)
 		}
-		if err := h.widenOneTranscript(ctx, attachment, repo, pgtype.UUID{Bytes: transcriptID, Valid: true}, startPosition+index); err != nil {
+		if err := h.bindOneTranscript(ctx, attachment, pgtype.UUID{Bytes: transcriptID, Valid: true}, startPosition+index); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (h *Handler) widenOneTranscript(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, transcriptID pgtype.UUID, position int) error {
+func (h *Handler) bindOneTranscript(ctx context.Context, attachment sqlc.PullRequestAttachment, transcriptID pgtype.UUID, position int) error {
 	transcript, err := h.queries.GetTranscriptByID(ctx, transcriptID)
 	if err != nil {
-		return fmt.Errorf("could not read an accepted transcript before widening it: %w", err)
+		return fmt.Errorf("could not read an accepted transcript before binding it: %w", err)
 	}
 	if transcript.OwnerID != attachment.AuthorID {
-		return errors.New("refusing to widen a transcript the attachment's author does not own")
+		return errors.New("refusing to bind a transcript the attachment's author does not own")
 	}
 
-	desired := requiredAttachmentVisibility(repo)
-
+	// The visibility is read under the publish lock every writer of this
+	// transcript's audience holds, so a republish's brief private window is
+	// never what the binding records.
 	return h.withPublishLocks(ctx, transcript.OwnerID, transcript.LocalID, nil, func(conn *pgxpool.Conn) error {
 		return h.inTxAsOnConn(ctx, conn, transcript.OwnerID, func(q Querier) error {
-			// Read the LOCKED pre-image: the visibility recorded on the binding
-			// must be the one the transcript held immediately before this
-			// widening, not one read before the lock.
 			pre, err := q.GetTranscriptGovernanceForUpdate(ctx, transcriptID)
 			if err != nil {
-				return fmt.Errorf("could not lock an accepted transcript before widening it: %w", err)
+				return fmt.Errorf("could not lock an accepted transcript before binding it: %w", err)
 			}
 			if err := q.AttachPullRequestTranscript(ctx, sqlc.AttachPullRequestTranscriptParams{
 				AttachmentID:       attachment.ID,
@@ -144,60 +147,45 @@ func (h *Handler) widenOneTranscript(ctx context.Context, attachment sqlc.PullRe
 			}); err != nil {
 				return fmt.Errorf("could not bind an accepted transcript to the attachment: %w", err)
 			}
-			// Attaching WIDENS; it never narrows content the owner had already
-			// made more public than the repository requires.
-			target := widestVisibility(pre.Visibility, desired)
-			if repo.isPrivate {
-				if err := ensureApprovedShare(ctx, q, transcriptID, repo.groupID); err != nil {
-					return err
-				}
-			}
-			if target != pre.Visibility {
-				if _, err := applyMetadataPatch(ctx, q, transcriptID, metadataPatch{Visibility: &target}); err != nil {
-					return fmt.Errorf("could not widen an accepted transcript's visibility: %w", err)
-				}
-			}
 			return nil
 		})
 	})
 }
 
-// requiredAttachmentVisibility is the visibility an attachment's repository
-// requires of the transcripts it advertises: public for a public repository,
-// shared with the collective for a private one. The widening path raises
-// transcripts to it, and the refresh path drops rows that have fallen below it.
-func requiredAttachmentVisibility(repo attachmentRepository) string {
-	if repo.isPrivate {
-		return dbVisibilityShared
-	}
-	return dbVisibilityPublic
+// listedOnPullRequest reports whether a transcript's prompts may appear in the
+// pull request's comment and check. Those are read by whoever can read the pull
+// request, and Village cannot know who that is for a private repository, so only
+// a transcript anyone can read is listed there. Every other attached transcript
+// is counted and not described; its own readers open it on village.
+func listedOnPullRequest(visibility string) bool {
+	return visibility == dbVisibilityPublic
 }
 
-// attachmentNoPromptsNote is the line a digest carries when it has nothing left
-// to show. It says so without counting what is missing or naming a cause.
-func attachmentNoPromptsNote() string {
-	return "\n_No prompts are available for this pull request._\n"
+// readableBeyondItsAuthor reports whether anyone besides the transcript's owner
+// can read it. It decides the check's conclusion: prompts only their author can
+// open are not prompts the pull request's reviewers have.
+func readableBeyondItsAuthor(visibility string) bool {
+	return visibility != dbVisibilityPrivate
 }
 
-// attachmentDroppedNote is the line a digest carries when transcripts it used to
-// advertise are no longer listed, so a reader is told something is missing
+// attachmentUnlistedNote is the line a digest carries when attached transcripts
+// are not listed on the pull request, so a reader is told something is there
 // rather than left to notice the absence.
 //
-// It counts and says nothing else. A reason — even a true one — would describe a
-// transcript and its owner's action to every reader of the pull request, and the
-// page's own marking is deliberately as general, so this surface does not
-// become the one that says more.
-func attachmentDroppedNote(dropped int) string {
-	if dropped == 1 {
-		return "\n_1 transcript is no longer listed here._\n"
+// It counts and says nothing else. A reason, even a true one, would describe a
+// transcript and its owner's choice of audience to every reader of the pull
+// request, and the page's own marking is deliberately as general, so this
+// surface does not become the one that says more.
+func attachmentUnlistedNote(unlisted int) string {
+	if unlisted == 1 {
+		return "\n_1 attached transcript is not listed here._\n"
 	}
-	return fmt.Sprintf("\n_%d transcripts are no longer listed here._\n", dropped)
+	return fmt.Sprintf("\n_%d attached transcripts are not listed here._\n", unlisted)
 }
 
 // disclosureRank orders the visibility tiers by how widely they disclose:
-// private, then shared with a collective, then public. Attaching takes the
-// WIDER of the transcript's current tier and the repository's requirement, so a
-// private repository cannot narrow a transcript the owner already published.
+// private, then shared with a collective, then public. Only the release of a
+// binding an older attach widened still compares tiers.
 func disclosureRank(value string) int {
 	switch value {
 	case dbVisibilityPrivate:
@@ -207,9 +195,9 @@ func disclosureRank(value string) int {
 	case dbVisibilityPublic:
 		return 2
 	default:
-		// An unknown tier ranks above every known one, so a widening decision
-		// leaves it alone and a restore never downgrades it. Adding a tier to the
-		// menu must update this ordering deliberately.
+		// An unknown tier ranks above every known one, so a restore never
+		// downgrades it. Adding a tier to the menu must update this ordering
+		// deliberately.
 		return 3
 	}
 }
@@ -228,99 +216,76 @@ func narrowestVisibility(current, recorded string) string {
 	return current
 }
 
-func widestVisibility(current, desired string) string {
-	if disclosureRank(current) >= disclosureRank(desired) {
-		return current
-	}
-	return desired
-}
-
-// ensureApprovedShare opens an approved share from the transcript to the
-// collective, because the collective's owner opted in by linking the repository.
-// It bypasses the collective's acceptance mode deliberately: the mode decides
-// what a *contribution* becomes, and an attachment is not a contribution. An
-// already-approved share is left alone, so a retry does not append a second
-// event to the ledger.
-func ensureApprovedShare(ctx context.Context, q Querier, transcriptID, groupID pgtype.UUID) error {
-	latest, err := q.GetLatestShareAttempt(ctx, sqlc.GetLatestShareAttemptParams{
-		TranscriptID: transcriptID,
-		GroupID:      groupID,
-	})
-	if err == nil && latest.Status == string(ShareStatusApproved) {
-		return nil
-	}
-	if err := q.ShareTranscriptWithStatus(ctx, sqlc.ShareTranscriptWithStatusParams{
-		TranscriptID: transcriptID,
-		GroupID:      groupID,
-		Status:       string(ShareStatusApproved),
-	}); err != nil {
-		return fmt.Errorf("could not open the collective's share for an accepted transcript: %w", err)
-	}
-	return nil
-}
-
-// unwidenAttachedTranscripts restores each bound transcript from its recorded
-// snapshot and clears the bindings, undoing a widening whose posting failed. The
-// approved share is deliberately left in place: with the transcript private it
-// grants nothing, and a retry finds it already approved instead of appending a
-// second event to the share ledger.
-func (h *Handler) undoWidening(ctx context.Context, attachmentID pgtype.UUID, transcripts []schema.TranscriptID) error {
+// unbindTranscripts removes the bindings one attempt made, undoing an attach or
+// refresh whose posting failed. Those bindings changed nothing about their
+// transcripts, so removing them is the whole undo.
+func (h *Handler) unbindTranscripts(ctx context.Context, attachmentID pgtype.UUID, transcripts []schema.TranscriptID) error {
 	for _, transcriptID := range transcripts {
 		parsed, err := uuid.Parse(string(transcriptID))
 		if err != nil {
-			return fmt.Errorf("a widened transcript id was not a uuid: %w", err)
-		}
-		binding, err := h.queries.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{
-			AttachmentID: attachmentID,
-			TranscriptID: pgtype.UUID{Bytes: parsed, Valid: true},
-		})
-		if err != nil {
-			return fmt.Errorf("could not read a binding to undo a widening: %w", err)
-		}
-		if err := h.restoreTranscriptVisibility(ctx, binding); err != nil {
-			return err
+			return fmt.Errorf("a bound transcript id was not a uuid: %w", err)
 		}
 		if err := h.queries.DeletePullRequestAttachmentTranscript(ctx, sqlc.DeletePullRequestAttachmentTranscriptParams{
 			AttachmentID: attachmentID,
 			TranscriptID: pgtype.UUID{Bytes: parsed, Valid: true},
 		}); err != nil {
-			return fmt.Errorf("could not remove a binding to undo a widening: %w", err)
+			return fmt.Errorf("could not remove a binding an unposted attach made: %w", err)
 		}
 	}
 	return nil
 }
 
+// clearEarlierBindings removes the bindings an earlier cycle left before a new
+// attach binds. Detach keeps its bindings so a detached pull request still lists
+// what it held; a new attach starts afresh, so each binding records the
+// visibility that is true when it is made. A binding an older attach widened is
+// released first, exactly as a detach would release it.
+func (h *Handler) clearEarlierBindings(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository) error {
+	bindings, err := h.queries.ListPullRequestAttachmentTranscripts(ctx, attachment.ID)
+	if err != nil {
+		return fmt.Errorf("could not read the bindings an earlier attach left: %w", err)
+	}
+	if len(bindings) == 0 {
+		return nil
+	}
+	for _, binding := range bindings {
+		if !binding.AttachWidened {
+			continue
+		}
+		if _, err := h.releaseWidenedBinding(ctx, binding, repo.groupID); err != nil {
+			return err
+		}
+	}
+	if err := h.queries.DeletePullRequestAttachmentTranscripts(ctx, attachment.ID); err != nil {
+		return fmt.Errorf("could not clear the bindings an earlier attach left: %w", err)
+	}
+	return nil
+}
+
 // postAttachment posts the check (when the collective asked for one) and the one
-// sticky comment, returning the ids to record. A GitHub failure is returned
-// unwrapped so the caller answers 502 with the state unchanged.
-func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, value schema.PromptDigest, headChanged bool, dropped int) (commentID, checkRunID int64, err error) {
+// sticky comment, returning the ids to record. Both carry only the transcripts
+// listed on the pull request, and say how many attached transcripts are not
+// listed. A GitHub failure is returned unwrapped so the caller answers 502 with
+// the state unchanged.
+func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, digests attachmentDigests, headChanged bool) (commentID, checkRunID int64, err error) {
 	if h.gh == nil {
 		return 0, 0, errAttachmentGitHubUnavailable
 	}
 
-	comment, err := digest.Render(value, digest.CommentTier)
+	comment, err := digest.Render(digests.listed, digest.CommentTier)
 	if err != nil {
 		return 0, 0, fmt.Errorf("could not render the digest for the comment: %w", err)
 	}
-	summary, err := digest.Render(value, digest.CheckRunTier)
+	summary, err := digest.Render(digests.listed, digest.CheckRunTier)
 	if err != nil {
 		return 0, 0, fmt.Errorf("could not render the digest for the check: %w", err)
 	}
-	hasPrompts := len(value.Items) > 0
-	switch {
-	case !hasPrompts:
-		// Nothing is left to review, so say that rather than how many rows went:
-		// a count invites a reader to work out which, and the reason a transcript
-		// is gone describes its owner's action, which is not the pull request's to
-		// tell. The note is added after rendering because the digest payload is
-		// the wire contract and carries no such field.
-		note := attachmentNoPromptsNote()
-		comment += note
-		summary += note
-	case dropped > 0:
-		// The reader is told a row is gone rather than left to notice the absence,
-		// without being told why.
-		note := attachmentDroppedNote(dropped)
+	if digests.unlisted > 0 {
+		// The reader is told attached transcripts are not listed rather than left
+		// to notice, without being told which or why. The note is added after
+		// rendering because the digest payload is the wire contract and carries
+		// no such field.
+		note := attachmentUnlistedNote(digests.unlisted)
 		comment += note
 		summary += note
 	}
@@ -329,7 +294,7 @@ func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullReques
 		request := github.CheckRunRequest{
 			HeadSHA:    attachment.HeadSha,
 			ExternalID: attachmentExternalID(attachment),
-			Conclusion: github.PromptCheckConclusion(repo.checkMode, true, hasPrompts),
+			Conclusion: github.PromptCheckConclusion(repo.checkMode, true, digests.readableBeyondAuthor),
 			Title:      attachmentCheckTitle,
 			Summary:    summary,
 			Actions:    github.PromptCheckActions(),
@@ -378,10 +343,16 @@ func attachmentExternalID(attachment sqlc.PullRequestAttachment) string {
 	return "village-attachment-" + uuid.UUID(attachment.ID.Bytes).String()
 }
 
-// detachAttachment deletes the comment, resets the check, restores every bound
-// transcript from the visibility recorded when it was widened, and moves the
-// attachment to detached. GitHub is called first: a failure leaves the state and
-// every transcript untouched for a retry.
+// detachAttachment deletes the comment, resets the check, releases every
+// binding an older attach widened, and moves the attachment to detached. GitHub
+// is called first: a failure leaves the state and every transcript untouched for
+// a retry.
+//
+// A binding made since attaching stopped widening changed nothing about its
+// transcript, so detaching it changes nothing either: the owner's shares and
+// visibility, including a widening they chose while it was attached, stay as
+// they are. The bindings themselves are kept, so the detached pull request still
+// lists the transcripts it held.
 func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequestAttachment) (sqlc.PullRequestAttachment, error) {
 	repo, err := h.resolveAttachmentRepository(ctx, h.queries, attachment)
 	if err != nil {
@@ -410,22 +381,20 @@ func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequ
 
 	bindings, err := h.queries.ListPullRequestAttachmentTranscripts(ctx, attachment.ID)
 	if err != nil {
-		return attachment, fmt.Errorf("could not read the attachment's transcripts before restoring them: %w", err)
+		return attachment, fmt.Errorf("could not read the attachment's transcripts before releasing them: %w", err)
 	}
+	var narrowed []pgtype.UUID
 	for _, binding := range bindings {
-		// Retract the grant BEFORE restoring visibility: detaching ends the
-		// collective's access, so the share the attach opened goes with it. If a
-		// restore then fails, the transcript is shared with nobody and the access
-		// is already gone, which is the safe direction.
-		if err := h.retractAttachmentShare(ctx, binding.TranscriptID, repo.groupID); err != nil {
+		if !binding.AttachWidened {
+			continue
+		}
+		changed, err := h.releaseWidenedBinding(ctx, binding, repo.groupID)
+		if err != nil {
 			return attachment, err
 		}
-		if err := h.restoreTranscriptVisibility(ctx, binding); err != nil {
-			return attachment, err
+		if changed {
+			narrowed = append(narrowed, binding.TranscriptID)
 		}
-	}
-	if err := h.queries.DeletePullRequestAttachmentTranscripts(ctx, attachment.ID); err != nil {
-		return attachment, fmt.Errorf("could not clear the attachment's transcript bindings: %w", err)
 	}
 
 	// The posted objects are gone or reset; keep the digest but drop the ids so
@@ -444,46 +413,79 @@ func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequ
 	if err != nil {
 		return attachment, err
 	}
+
+	// A released binding narrowed its transcript, so any other pull request that
+	// lists it must stop. This attachment is detached by now, so the refresh
+	// never takes its lock, and it never fails the detach the author asked for.
+	for _, transcriptID := range narrowed {
+		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(ctx, transcriptID); refreshErr != nil {
+			log.Printf("pull request attachment refresh after a detach narrowed a transcript failed: %v", refreshErr)
+		}
+	}
 	return updated, nil
 }
 
-// restoreTranscriptVisibility puts one transcript back to the value recorded on
-// its binding, attributed to the transcript's owner so the governance audit
-// records who moved the axis.
-func (h *Handler) restoreTranscriptVisibility(ctx context.Context, binding sqlc.PullRequestAttachmentTranscript) error {
+// releaseWidenedBinding undoes what an older attach did to one transcript, and
+// reports whether its visibility narrowed. Attaching used to widen: it opened an
+// approved share to the linking collective and raised the transcript to the
+// tier the repository required, recording the tier it had before. Only a
+// binding marked attach_widened (every binding that existed when migration 044
+// ran) is released; nothing made since is.
+//
+// One transaction, under the publish lock every writer of the transcript's
+// audience holds, and attributed to the owner:
+//   - the share the attach opened is withdrawn, so a concurrent unshare of the
+//     same pair waits instead of racing it to the next ledger ordinal;
+//   - the recorded tier is restored when it is narrower than the tier now, so an
+//     owner who narrowed the transcript while it was attached keeps that. A
+//     restore to private becomes shared when a collective still holds a live
+//     submission the owner made, so detaching never takes away their own grant;
+//   - the binding is marked released, so a later detach restores nothing twice.
+func (h *Handler) releaseWidenedBinding(ctx context.Context, binding sqlc.PullRequestAttachmentTranscript, groupID pgtype.UUID) (bool, error) {
 	transcript, err := h.queries.GetTranscriptByID(ctx, binding.TranscriptID)
 	if err != nil {
-		return fmt.Errorf("could not read a bound transcript before restoring it: %w", err)
+		return false, fmt.Errorf("could not read a bound transcript before releasing it: %w", err)
 	}
-	return h.withPublishLocks(ctx, transcript.OwnerID, transcript.LocalID, nil, func(conn *pgxpool.Conn) error {
+	var narrowed bool
+	err = h.withPublishLocks(ctx, transcript.OwnerID, transcript.LocalID, nil, func(conn *pgxpool.Conn) error {
 		return h.inTxAsOnConn(ctx, conn, transcript.OwnerID, func(q Querier) error {
-			// Restore the recorded value only when it is not WIDER than the tier
-			// now: if the owner widened the transcript while it was attached,
-			// detaching must not undo their later choice.
+			narrowed = false
+			if groupID.Valid {
+				if _, err := withdrawLiveShare(ctx, q, binding.TranscriptID, groupID); err != nil {
+					return fmt.Errorf("could not retract the collective's share: %w", err)
+				}
+			}
 			pre, err := q.GetTranscriptGovernanceForUpdate(ctx, binding.TranscriptID)
 			if err != nil {
 				return fmt.Errorf("could not lock a bound transcript before restoring it: %w", err)
 			}
 			target := narrowestVisibility(pre.Visibility, binding.PreviousVisibility)
-			if target == pre.Visibility {
-				return nil
+			if target == dbVisibilityPrivate && pre.Visibility != dbVisibilityPrivate {
+				live, err := q.TranscriptHasLiveShareAttempt(ctx, binding.TranscriptID)
+				if err != nil {
+					return fmt.Errorf("could not read the transcript's remaining submissions: %w", err)
+				}
+				if live {
+					target = dbVisibilityShared
+				}
 			}
-			if _, err := applyMetadataPatch(ctx, q, binding.TranscriptID, metadataPatch{Visibility: &target}); err != nil {
-				return fmt.Errorf("could not restore a transcript's recorded visibility: %w", err)
+			if target != pre.Visibility {
+				if _, err := applyMetadataPatch(ctx, q, binding.TranscriptID, metadataPatch{Visibility: &target}); err != nil {
+					return fmt.Errorf("could not restore a transcript's recorded visibility: %w", err)
+				}
+				narrowed = true
+			}
+			if err := q.ReleasePullRequestAttachmentTranscript(ctx, sqlc.ReleasePullRequestAttachmentTranscriptParams{
+				AttachmentID: binding.AttachmentID,
+				TranscriptID: binding.TranscriptID,
+			}); err != nil {
+				return fmt.Errorf("could not record that a widened binding was released: %w", err)
 			}
 			return nil
 		})
 	})
-}
-
-// retractAttachmentShare withdraws the approved share the attach opened to the
-// linking collective, so detaching ends the collective's access instead of
-// leaving a live grant on a transcript that may be private again. The share
-// ledger appends a retraction, so the acceptance's history is preserved rather
-// than rewritten. A pair with no live attempt is already retracted.
-func (h *Handler) retractAttachmentShare(ctx context.Context, transcriptID, groupID pgtype.UUID) error {
-	if _, err := withdrawLiveShare(ctx, h.queries, transcriptID, groupID); err != nil {
-		return fmt.Errorf("could not retract the collective's share: %w", err)
+	if err != nil {
+		return false, err
 	}
-	return nil
+	return narrowed, nil
 }

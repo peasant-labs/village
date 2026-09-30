@@ -1,10 +1,29 @@
-# One row per visibility an attached transcript can hold before an attach
-# widens it. The detach path must preserve the recorded value exactly, so a
-# transcript that started `private` must not come back as a `private` default
-# by coincidence of the fixture - each row names the value it started with.
-- name: private_is_preserved_exactly
+# One row per visibility a binding can record, for each kind of binding.
+#
+# bind_only is a binding made since attaching stopped widening: the only
+# application writer states attach_widened = false and records the visibility
+# the transcript holds when it is bound. legacy is a binding an older attach
+# widened; every binding that existed when migration 044 ran reads
+# attach_widened = true, and detach still restores what it recorded.
+#
+# The detach transition must keep both the recorded value and the kind exactly,
+# so a transcript that started private is never restored from a private default
+# by coincidence, and a new binding is never mistaken for one detach narrows.
+- name: bind_only_private_is_preserved_exactly
+  kind: bind_only
   visibility: private
-- name: shared_is_preserved_exactly
+- name: bind_only_shared_is_preserved_exactly
+  kind: bind_only
   visibility: shared
-- name: public_is_preserved_exactly
+- name: bind_only_public_is_preserved_exactly
+  kind: bind_only
+  visibility: public
+- name: legacy_private_is_preserved_exactly
+  kind: legacy
+  visibility: private
+- name: legacy_shared_is_preserved_exactly
+  kind: legacy
+  visibility: shared
+- name: legacy_public_is_preserved_exactly
+  kind: legacy
   visibility: public

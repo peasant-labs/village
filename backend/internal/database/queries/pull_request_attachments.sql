@@ -57,15 +57,18 @@ RETURNING *;
 
 -- name: AttachPullRequestTranscript :exec
 -- Binds a transcript to an attachment at a position, recording the visibility the
--- transcript held before an attach widened it so detach can restore exactly that
--- value. Idempotent on the (attachment, transcript) key: re-binding updates the
--- position but PRESERVES the original previous_visibility, because the snapshot
--- describes the transcript before the FIRST widening. A refresh or retry after the
--- transcript was widened must not overwrite it with the already-widened tier.
+-- transcript holds when the binding is made. Attaching binds only and never
+-- changes who can read a transcript, so this, the only application writer of a
+-- binding, states attach_widened = false as a literal: no caller can create a
+-- binding that detach would narrow. The true rows are the ones an older attach
+-- widened (migration 044). Idempotent on the (attachment, transcript) key:
+-- re-binding updates the position and preserves previous_visibility and
+-- attach_widened, so a retry can never turn a widened binding into one detach
+-- leaves alone.
 INSERT INTO pull_request_attachment_transcripts (
-    attachment_id, transcript_id, position, previous_visibility
+    attachment_id, transcript_id, position, previous_visibility, attach_widened
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, false
 )
 ON CONFLICT (attachment_id, transcript_id) DO UPDATE SET
     position = EXCLUDED.position;
@@ -113,21 +116,31 @@ WHERE pt.attachment_id = @attachment_id
 ORDER BY pt.position ASC, pt.transcript_id ASC;
 
 -- name: DeletePullRequestAttachmentTranscripts :exec
--- Clears an attachment's transcript bindings. Called after a detach has restored
--- each transcript from its recorded previous_visibility, so the next attach
--- records the visibility that is true at that time rather than replaying a
--- snapshot from a cycle that is over.
+-- Clears the bindings an earlier cycle left when a new attach begins. Detach
+-- keeps its bindings, so a detached pull request still lists the transcripts it
+-- held; the next attach binds afresh and records the visibility that is true at
+-- that time rather than a snapshot from a cycle that is over. The caller
+-- releases any binding an older attach widened before clearing it.
 DELETE FROM pull_request_attachment_transcripts WHERE attachment_id = $1;
 
 -- name: GetPullRequestAttachmentTranscript :one
 -- One binding, for a compensation that must undo exactly the transcripts one
--- attempt widened rather than every binding the attachment holds.
+-- attempt bound rather than every binding the attachment holds.
 SELECT * FROM pull_request_attachment_transcripts
 WHERE attachment_id = $1 AND transcript_id = $2;
 
 -- name: DeletePullRequestAttachmentTranscript :exec
--- Removes one binding, paired with restoring its recorded visibility.
+-- Removes one binding that an attach which never completed made.
 DELETE FROM pull_request_attachment_transcripts
+WHERE attachment_id = $1 AND transcript_id = $2;
+
+-- name: ReleasePullRequestAttachmentTranscript :exec
+-- Records that a detach has undone what an older attach widened for one
+-- binding. It runs in the transaction that restores the transcript, under the
+-- transcript's publish lock. The row stays, so the detached pull request still
+-- lists it, and a later detach of the same binding restores nothing twice.
+UPDATE pull_request_attachment_transcripts
+SET attach_widened = false
 WHERE attachment_id = $1 AND transcript_id = $2;
 
 -- name: ListAuthorAttachmentsForRepo :many
@@ -156,10 +169,11 @@ WHERE id = @id
 RETURNING *;
 
 -- name: ListAttachmentsBindingTranscript :many
--- The attachments that bind one transcript. The owner's visibility change reads
--- them so an attachment stops advertising prompts that are no longer as visible
--- as the repository it belongs to requires. Only attached attachments can be
--- advertising anything.
+-- The attachments that bind one transcript. A change to the transcript's
+-- visibility reads them so a pull request stops listing prompts that are no
+-- longer public, lists them when they become public, and its check says whether
+-- anyone besides the author can read what is attached. Only attached
+-- attachments can be listing anything.
 SELECT a.* FROM pull_request_attachments a
 JOIN pull_request_attachment_transcripts pt ON pt.attachment_id = a.id
 WHERE pt.transcript_id = @transcript_id AND a.state = 'attached'

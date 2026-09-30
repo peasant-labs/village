@@ -1476,6 +1476,10 @@ func (m *mockQuerier) DeletePullRequestAttachmentTranscript(ctx context.Context,
 	return nil
 }
 
+func (m *mockQuerier) ReleasePullRequestAttachmentTranscript(ctx context.Context, arg sqlc.ReleasePullRequestAttachmentTranscriptParams) error {
+	return nil
+}
+
 func (m *mockQuerier) ListAuthorAttachmentsForRepo(ctx context.Context, arg sqlc.ListAuthorAttachmentsForRepoParams) ([]sqlc.PullRequestAttachment, error) {
 	return nil, nil
 }

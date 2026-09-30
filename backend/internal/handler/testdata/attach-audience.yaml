@@ -1,0 +1,120 @@
+# Attaching never changes who can read a transcript.
+#
+# Each row attaches one transcript, through the author's preview and confirm, to
+# a pull request in a repository that one collective linked. The transcript
+# starts at the row's visibility; a shared one is shared with that linking
+# collective, approved. Four readers then ask:
+#
+#   owner              the transcript's author
+#   member             a member of the linking collective
+#   repository_reader  a signed-in reader who is not a member. On a private
+#                      repository GitHub admits them to it; on a public one
+#                      anyone may read it.
+#   anonymous          nobody signed in
+#
+# reads is the status of GET /transcripts/{id} for each reader. page is what the
+# pull request page shows each reader: prompts (200, with the transcript's title
+# and its prompt), no_prompts (200, with neither), or not_found (404).
+# listed_on_pull_request says whether the posted comment and check carry the
+# prompt; check is the check's conclusion.
+#
+# expect describes the state just before the detach: after the attach, and
+# after owner_then_sets when the row has one. It is what the transcript's own
+# audience allows, and nothing about the repository widens it: attaching appends
+# no governance event and opens no share. Every row then detaches, which must leave the visibility and
+# the linking collective's share exactly as they were before it, append no
+# governance event, and keep the binding. owner_then_sets, when present, is a
+# visibility the owner chooses through the PATCH route after attaching and
+# before detaching; detach must keep it.
+- name: public_repository_private_transcript
+  repository: public
+  transcript: private
+  expect:
+    visibility: private
+    linking_share_live: false
+    reads: {owner: 200, member: 404, repository_reader: 404, anonymous: 404}
+    page: {owner: prompts, member: no_prompts, repository_reader: no_prompts, anonymous: no_prompts}
+    listed_on_pull_request: false
+    check: neutral
+
+- name: public_repository_shared_transcript
+  repository: public
+  transcript: shared
+  expect:
+    visibility: shared
+    linking_share_live: true
+    reads: {owner: 200, member: 200, repository_reader: 404, anonymous: 404}
+    page: {owner: prompts, member: prompts, repository_reader: no_prompts, anonymous: no_prompts}
+    listed_on_pull_request: false
+    check: success
+
+- name: public_repository_public_transcript
+  repository: public
+  transcript: public
+  expect:
+    visibility: public
+    linking_share_live: false
+    reads: {owner: 200, member: 200, repository_reader: 200, anonymous: 200}
+    page: {owner: prompts, member: prompts, repository_reader: prompts, anonymous: prompts}
+    listed_on_pull_request: true
+    check: success
+
+- name: private_repository_private_transcript
+  repository: private
+  transcript: private
+  expect:
+    visibility: private
+    linking_share_live: false
+    reads: {owner: 200, member: 404, repository_reader: 404, anonymous: 404}
+    page: {owner: prompts, member: no_prompts, repository_reader: no_prompts, anonymous: not_found}
+    listed_on_pull_request: false
+    check: neutral
+
+- name: private_repository_shared_transcript
+  repository: private
+  transcript: shared
+  expect:
+    visibility: shared
+    linking_share_live: true
+    reads: {owner: 200, member: 200, repository_reader: 404, anonymous: 404}
+    page: {owner: prompts, member: prompts, repository_reader: no_prompts, anonymous: not_found}
+    listed_on_pull_request: false
+    check: success
+
+- name: private_repository_public_transcript
+  repository: private
+  transcript: public
+  expect:
+    visibility: public
+    linking_share_live: false
+    reads: {owner: 200, member: 200, repository_reader: 200, anonymous: 200}
+    page: {owner: prompts, member: prompts, repository_reader: prompts, anonymous: not_found}
+    listed_on_pull_request: true
+    check: success
+
+# A binding made since attaching stopped widening changed nothing, so detaching
+# it changes nothing: the owner's later widening survives the detach.
+- name: a_new_binding_keeps_the_owners_later_widening
+  repository: public
+  transcript: private
+  owner_then_sets: public
+  expect:
+    visibility: public
+    linking_share_live: false
+    reads: {owner: 200, member: 200, repository_reader: 200, anonymous: 200}
+    page: {owner: prompts, member: prompts, repository_reader: prompts, anonymous: prompts}
+    listed_on_pull_request: true
+    check: success
+
+# And the owner's later narrowing survives it too.
+- name: a_new_binding_keeps_the_owners_later_narrowing
+  repository: private
+  transcript: shared
+  owner_then_sets: private
+  expect:
+    visibility: private
+    linking_share_live: true
+    reads: {owner: 200, member: 404, repository_reader: 404, anonymous: 404}
+    page: {owner: prompts, member: no_prompts, repository_reader: no_prompts, anonymous: not_found}
+    listed_on_pull_request: false
+    check: neutral

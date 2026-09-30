@@ -1113,7 +1113,7 @@ func (h *Handler) ListTranscriptCollectives(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusNotFound, transcriptCollectivesInvisible)
 		return
 	}
-	if allowed, _ := h.canReadTranscript(r.Context(), user, transcript); !allowed {
+	if !h.canViewTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound, transcriptCollectivesInvisible)
 		return
 	}

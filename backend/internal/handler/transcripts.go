@@ -770,8 +770,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	// it was briefly private has already dropped it from the digest.
 	//
 	// This runs at return, so a waiting attachment is completed first and the
-	// refresh sees the state completion left behind. (Completion may widen the
-	// transcript back: a pending request is completed by the publish.)
+	// refresh sees the state completion left behind.
 	if narrowedFrom != "" {
 		defer func() {
 			if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), narrowedID); refreshErr != nil {
@@ -989,12 +988,7 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := GetUser(r.Context())
-	allowed, throttled := h.canReadTranscript(r.Context(), user, transcript)
-	if throttled {
-		writeError(w, http.StatusTooManyRequests, repositoryAccessThrottledMessage)
-		return
-	}
-	if !allowed {
+	if !h.canViewTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}
@@ -1045,19 +1039,13 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := GetUser(r.Context())
-	allowed, throttled := h.canReadTranscript(r.Context(), user, transcript)
-	if throttled {
-		writeError(w, http.StatusTooManyRequests, repositoryAccessThrottledMessage)
-		return
-	}
-	if !allowed {
+	if !h.canViewTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}
 
 	readResult, err := h.readEncryptedTranscript(r.Context(), transcript, "", func(fresh sqlc.Transcript) bool {
-		allowed, _ := h.canReadTranscript(r.Context(), user, fresh)
-		return allowed
+		return h.canViewTranscript(r.Context(), user, fresh)
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -1622,10 +1610,11 @@ func (h *Handler) UnshareTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A pull request's digest lists a bound transcript by its visibility, so the
-	// narrowing is what changes what the pull request may advertise. The repost
-	// runs after the publish locks are released, because it may take them
-	// itself, and it never fails the unshare the owner asked for.
+	// A pull request's check says whether anyone besides the author can read
+	// what is attached, so the narrowing is what changes what the pull request
+	// may claim. The repost runs after the publish locks are released, because
+	// it may take them itself, and it never fails the unshare the owner asked
+	// for.
 	if narrowed {
 		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), pgID); refreshErr != nil {
 			log.Printf("pull request attachment refresh after an unshare failed: %v", refreshErr)
@@ -2116,26 +2105,6 @@ func (h *Handler) canViewTranscript(ctx context.Context, user *AuthUser, t sqlc.
 		}
 	}
 	return false
-}
-
-// canReadTranscript is canViewTranscript plus the one grant Village cannot make
-// on its own: a reader GitHub admits to the private repository the prompts are
-// attached to. Reads use this. Writes do not, so repository access opens the
-// prompts and never lets a non-member label somebody else's transcript.
-func (h *Handler) canReadTranscript(ctx context.Context, user *AuthUser, t sqlc.Transcript) (allowed bool, throttled bool) {
-	if h.canViewTranscript(ctx, user, t) {
-		return true, false
-	}
-	// A viewer who has spent their burst is told so for ANY refused read, before
-	// anything looks at the transcript. Were the answer a repository's refusal for
-	// one transcript and a throttle for another, a throttled caller could tell
-	// which transcripts the repository path covers — the existence the 404s are
-	// there to hide. Asked this way it depends only on their own budget, and
-	// nothing is spent answering it.
-	if user != nil && h.repoAccessLimiter.overBudget(user.PgID(), time.Now()) {
-		return false, true
-	}
-	return h.canReadThroughAttachedRepository(ctx, user, t)
 }
 
 // persistCommits replaces a transcript's stored git commits with the payload's

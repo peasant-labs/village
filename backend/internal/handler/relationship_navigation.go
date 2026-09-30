@@ -74,7 +74,7 @@ func (h *Handler) resolveRelationship(ctx context.Context, user *AuthUser, child
 	case err != nil:
 		return nil, err
 	}
-	if allowed, _ := h.canReadTranscript(ctx, user, target); !allowed {
+	if !h.canViewTranscript(ctx, user, target) {
 		navigation.Status = schema.RelationshipNavigationInaccessible
 		return navigation, nil
 	}

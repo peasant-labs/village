@@ -1,0 +1,92 @@
+# pull_request "opened" and the author's choice to link their transcripts
+# automatically (users.auto_attach_pull_requests).
+#
+# Each row opens one pull request in a repository a collective linked, unless
+# linked is false. The author has a Village account that chose automatic linking
+# (opted_in) or did not (opted_out), or has no Village account at all (unknown).
+# member says whether the author belongs to the linking collective; the setting
+# reaches only repositories the author's own collectives link. fork opens the
+# pull request from a fork, whose head repository is what the transcript
+# recorded. transcript_matches says whether the author's transcript records a
+# commit the pull request carries. deliveries is how many times the same event is
+# dispatched: GitHub's delivery is at least once, so a repeat must not post
+# again. then_publishes_a_match publishes, after the event, a session that
+# records a commit the pull request carries, through the real publish route.
+#
+# expect.state is the attachment the pull request has afterwards (none when it
+# has no attachment row), and comments_posted how many sticky comments were
+# created. Every row also requires that the transcript keeps its visibility and
+# that no share is opened: linking never changes who can read a transcript.
+- name: opted_in_author_is_attached_without_a_preview
+  author: opted_in
+  member: true
+  linked: true
+  transcript_matches: true
+  deliveries: 1
+  expect: {state: attached, comments_posted: 1}
+
+- name: opted_out_author_gets_no_attachment
+  author: opted_out
+  member: true
+  linked: true
+  transcript_matches: true
+  deliveries: 1
+  expect: {state: none, comments_posted: 0}
+
+- name: unknown_author_gets_no_attachment
+  author: unknown
+  member: true
+  linked: true
+  transcript_matches: true
+  deliveries: 1
+  expect: {state: none, comments_posted: 0}
+
+- name: unlinked_repository_gets_no_attachment
+  author: opted_in
+  member: true
+  linked: false
+  transcript_matches: true
+  deliveries: 1
+  expect: {state: none, comments_posted: 0}
+
+- name: author_outside_the_linking_collective_gets_no_attachment
+  author: opted_in
+  member: false
+  linked: true
+  transcript_matches: true
+  deliveries: 1
+  expect: {state: none, comments_posted: 0}
+
+- name: fork_pull_request_is_attached_from_its_head_repository
+  author: opted_in
+  member: true
+  linked: true
+  fork: true
+  transcript_matches: true
+  deliveries: 1
+  expect: {state: attached, comments_posted: 1}
+
+- name: redelivery_posts_no_second_comment
+  author: opted_in
+  member: true
+  linked: true
+  transcript_matches: true
+  deliveries: 2
+  expect: {state: attached, comments_posted: 1}
+
+- name: nothing_matching_yet_waits_for_a_publish
+  author: opted_in
+  member: true
+  linked: true
+  transcript_matches: false
+  deliveries: 1
+  expect: {state: waiting, comments_posted: 0}
+
+- name: a_waiting_pull_request_is_completed_by_a_later_publish
+  author: opted_in
+  member: true
+  linked: true
+  transcript_matches: false
+  deliveries: 1
+  then_publishes_a_match: true
+  expect: {state: attached, comments_posted: 1}
