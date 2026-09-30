@@ -6,7 +6,7 @@ import {
   renderAppRoute,
 } from "@/test/mountedHomeRoute";
 import { loadHomePageFixtures } from "@/test/homePageFixtures";
-import { mostRecentFirst } from "@/app/HomePage";
+import { mostRecentGroupFirst } from "@/app/HomePage";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { TranscriptListItem } from "@/lib/types";
 
@@ -562,9 +562,13 @@ describe("recent-first ordering, including timestamps the server should never se
         owner: null,
       })) as unknown as TranscriptListItem[];
 
-      expect(mostRecentFirst(rows).map((r) => r.transcript.id)).toEqual(c.expectOrder);
-      // The sort does not mutate what it was given: the page groups the SAME
-      // array afterwards, and a sort in place would reorder that too.
+      // Rows that started nothing rank by their own timestamps, so the page's
+      // one ranking is exercised here on its plainest input.
+      expect(mostRecentGroupFirst(rows, new Map()).map((r) => r.transcript.id)).toEqual(
+        c.expectOrder,
+      );
+      // The ranking does not mutate what it was given: the page folds the SAME
+      // rows, and a sort in place would reorder those too.
       expect(rows.map((r) => r.transcript.id)).toEqual(c.given.map((r) => r.id));
     });
   }
