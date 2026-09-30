@@ -196,22 +196,24 @@ func (q *Queries) ListUsersByIDs(ctx context.Context, ids []pgtype.UUID) ([]User
 	return items, nil
 }
 
-const setUserPreviewBeforeAttach = `-- name: SetUserPreviewBeforeAttach :one
-UPDATE users
-SET preview_before_attach = $2, updated_at = now()
+const setUsername = `-- name: SetUsername :one
+UPDATE users SET
+    github_username = $2,
+    username_chosen = true,
+    updated_at = now()
 WHERE id = $1
 RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests
 `
 
-type SetUserPreviewBeforeAttachParams struct {
-	ID                  pgtype.UUID `db:"id" json:"id"`
-	PreviewBeforeAttach bool        `db:"preview_before_attach" json:"preview_before_attach"`
+type SetUsernameParams struct {
+	ID             pgtype.UUID `db:"id" json:"id"`
+	GithubUsername string      `db:"github_username" json:"github_username"`
 }
 
-// Sets whether this user's own pull request attachments stop at a preview the
-// user confirms, instead of attaching immediately.
-func (q *Queries) SetUserPreviewBeforeAttach(ctx context.Context, arg SetUserPreviewBeforeAttachParams) (User, error) {
-	row := q.db.QueryRow(ctx, setUserPreviewBeforeAttach, arg.ID, arg.PreviewBeforeAttach)
+// Sets the user's canonical handle and marks it explicitly chosen. Relies on the
+// case-insensitive unique index to reject collisions (caller maps 23505 -> 409).
+func (q *Queries) SetUsername(ctx context.Context, arg SetUsernameParams) (User, error) {
+	row := q.db.QueryRow(ctx, setUsername, arg.ID, arg.GithubUsername)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -232,24 +234,29 @@ func (q *Queries) SetUserPreviewBeforeAttach(ctx context.Context, arg SetUserPre
 	return i, err
 }
 
-const setUsername = `-- name: SetUsername :one
-UPDATE users SET
-    github_username = $2,
-    username_chosen = true,
-    updated_at = now()
-WHERE id = $1
+const updateUserAttachSettings = `-- name: UpdateUserAttachSettings :one
+UPDATE users
+SET preview_before_attach     = COALESCE($1, preview_before_attach),
+    auto_attach_pull_requests = COALESCE($2, auto_attach_pull_requests),
+    updated_at                = now()
+WHERE id = $3
 RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests
 `
 
-type SetUsernameParams struct {
-	ID             pgtype.UUID `db:"id" json:"id"`
-	GithubUsername string      `db:"github_username" json:"github_username"`
+type UpdateUserAttachSettingsParams struct {
+	PreviewBeforeAttach    pgtype.Bool `db:"preview_before_attach" json:"preview_before_attach"`
+	AutoAttachPullRequests pgtype.Bool `db:"auto_attach_pull_requests" json:"auto_attach_pull_requests"`
+	ID                     pgtype.UUID `db:"id" json:"id"`
 }
 
-// Sets the user's canonical handle and marks it explicitly chosen. Relies on the
-// case-insensitive unique index to reject collisions (caller maps 23505 -> 409).
-func (q *Queries) SetUsername(ctx context.Context, arg SetUsernameParams) (User, error) {
-	row := q.db.QueryRow(ctx, setUsername, arg.ID, arg.GithubUsername)
+// Sets the attach choices one settings PATCH carries: whether this user's own
+// pull request attachments stop at a preview the user confirms, and whether
+// their transcripts are linked automatically when a pull request opens in a
+// repository one of their collectives links. A NULL leaves that choice as it
+// is, so a PATCH that carries one field changes that one only, in one
+// statement.
+func (q *Queries) UpdateUserAttachSettings(ctx context.Context, arg UpdateUserAttachSettingsParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserAttachSettings, arg.PreviewBeforeAttach, arg.AutoAttachPullRequests, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,

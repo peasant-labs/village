@@ -200,7 +200,7 @@ type Querier interface {
 	ListAuthorWaitingPromptRequests(ctx context.Context, authorID pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
 	ListAuthorAttachmentsForRepo(ctx context.Context, arg sqlc.ListAuthorAttachmentsForRepoParams) ([]sqlc.PullRequestAttachment, error)
 	SetPullRequestAttachmentRequester(ctx context.Context, arg sqlc.SetPullRequestAttachmentRequesterParams) (sqlc.PullRequestAttachment, error)
-	SetUserPreviewBeforeAttach(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error)
+	UpdateUserAttachSettings(ctx context.Context, arg sqlc.UpdateUserAttachSettingsParams) (sqlc.User, error)
 	GetCollectiveRepositoryByRepo(ctx context.Context, arg sqlc.GetCollectiveRepositoryByRepoParams) (sqlc.CollectiveRepository, error)
 
 	// Pull request reads for the transcript, home, and collective pages: one

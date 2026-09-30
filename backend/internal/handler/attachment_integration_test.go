@@ -802,9 +802,10 @@ func TestPromptRequestsCarryTheForkRemote(t *testing.T) {
 	}
 }
 
-// TestUserSettingsRoundTrip proves the preview preference reads back after it is
-// written, which is what decides whether an author's own pull request stops at a
-// preview.
+// TestUserSettingsRoundTrip proves both attach choices read back after they are
+// written, through the real UPDATE statement: the preview preference, and the
+// choice to link transcripts automatically. A PATCH that carries one of them
+// leaves the other as it was stored.
 func TestUserSettingsRoundTrip(t *testing.T) {
 	h, pool, _, _ := attachmentTestHandler(t)
 	ctx := context.Background()
@@ -812,35 +813,49 @@ func TestUserSettingsRoundTrip(t *testing.T) {
 	defer cleanupOwners(t, ctx, pool, owner)
 	router := attachmentRouter(h)
 
-	rec := attachmentServe(t, router, http.MethodGet, "/api/v1/users/me/settings", owner)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("get settings = %d, want 200", rec.Code)
+	read := func(rec *httptest.ResponseRecorder) schema.VillageUserSettings {
+		t.Helper()
+		if rec.Code != http.StatusOK {
+			t.Fatalf("settings status = %d (%s), want 200", rec.Code, rec.Body.String())
+		}
+		var settings schema.VillageUserSettings
+		if err := json.Unmarshal(rec.Body.Bytes(), &settings); err != nil {
+			t.Fatal(err)
+		}
+		return settings
 	}
-	var settings schema.VillageUserSettings
-	if err := json.Unmarshal(rec.Body.Bytes(), &settings); err != nil {
-		t.Fatal(err)
+	patch := func(body string) schema.VillageUserSettings {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPatch, "/api/v1/users/me/settings", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(context.WithValue(req.Context(), UserContextKey, &AuthUser{ID: uuid.UUID(owner.Bytes), Username: "attachment"}))
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return read(rec)
 	}
-	if settings.PreviewBeforeAttach {
-		t.Fatal("preview_before_attach = true before it was set")
+	get := func() schema.VillageUserSettings {
+		t.Helper()
+		return read(attachmentServe(t, router, http.MethodGet, "/api/v1/users/me/settings", owner))
 	}
 
-	patched := attachmentServe(t, router, http.MethodPatch, "/api/v1/users/me/settings", owner)
-	if patched.Code != http.StatusOK {
-		t.Fatalf("patch settings = %d (%s), want 200", patched.Code, patched.Body.String())
+	if settings := get(); settings.PreviewBeforeAttach || settings.AutoAttachPullRequests {
+		t.Fatalf("settings = %+v before either was set, want both off", settings)
 	}
-	if err := json.Unmarshal(patched.Body.Bytes(), &settings); err != nil {
-		t.Fatal(err)
+	if settings := patch(`{"preview_before_attach":true}`); !settings.PreviewBeforeAttach || settings.AutoAttachPullRequests {
+		t.Fatalf("settings = %+v after setting the preview, want the preview on and automatic linking still off", settings)
 	}
-	if !settings.PreviewBeforeAttach {
-		t.Fatal("preview_before_attach = false after it was set to true")
+	if settings := patch(`{"auto_attach_pull_requests":true}`); !settings.PreviewBeforeAttach || !settings.AutoAttachPullRequests {
+		t.Fatalf("settings = %+v after turning automatic linking on, want both on", settings)
 	}
-
-	again := attachmentServe(t, router, http.MethodGet, "/api/v1/users/me/settings", owner)
-	if err := json.Unmarshal(again.Body.Bytes(), &settings); err != nil {
-		t.Fatal(err)
+	if settings := get(); !settings.PreviewBeforeAttach || !settings.AutoAttachPullRequests {
+		t.Fatalf("settings = %+v on a fresh read, want both choices persisted", settings)
 	}
-	if !settings.PreviewBeforeAttach {
-		t.Fatal("preview_before_attach did not persist")
+	var stored bool
+	if err := pool.QueryRow(ctx, `SELECT auto_attach_pull_requests FROM users WHERE id = $1`, owner).Scan(&stored); err != nil || !stored {
+		t.Fatalf("users.auto_attach_pull_requests = %t (err %v), want true", stored, err)
+	}
+	if settings := patch(`{"preview_before_attach":false}`); settings.PreviewBeforeAttach || !settings.AutoAttachPullRequests {
+		t.Fatalf("settings = %+v after clearing the preview alone, want automatic linking kept on", settings)
 	}
 }
 
