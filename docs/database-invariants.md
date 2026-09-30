@@ -233,7 +233,10 @@ boundary are documented in
   `users.auto_attach_pull_requests BOOLEAN NOT NULL DEFAULT false`, the author's
   choice to link their own transcripts when a pull request opens in a
   repository a collective they belong to links. It is separate from
-  `preview_before_attach`, which asks before each attach. Because the binding
+  `preview_before_attach`, which asks before each attach. `GET` and `PATCH
+  /users/me/settings` carry both; a PATCH that carries one leaves the other as
+  stored, through one UPDATE that reads an omitted field as NULL
+  (`UpdateUserAttachSettings`). Because the binding
   column has no default, code older than 044 cannot bind once the migration
   has run: during a rolling deploy its attach fails loudly and a retry after the
   rollout succeeds.

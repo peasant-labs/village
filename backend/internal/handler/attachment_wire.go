@@ -201,5 +201,17 @@ func (h *Handler) isCollectiveMember(ctx context.Context, userID, groupID pgtype
 
 // mapVillageUserSettings maps the stored user settings to the wire type.
 func mapVillageUserSettings(user sqlc.User) schema.VillageUserSettings {
-	return schema.VillageUserSettings{PreviewBeforeAttach: user.PreviewBeforeAttach}
+	return schema.VillageUserSettings{
+		PreviewBeforeAttach:    user.PreviewBeforeAttach,
+		AutoAttachPullRequests: user.AutoAttachPullRequests,
+	}
+}
+
+// optionalBool is a PATCH field's nullable column form: an omitted field is
+// NULL, which the settings update reads as "leave it as it is".
+func optionalBool(value *bool) pgtype.Bool {
+	if value == nil {
+		return pgtype.Bool{}
+	}
+	return pgtype.Bool{Bool: *value, Valid: true}
 }

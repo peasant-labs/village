@@ -1,0 +1,44 @@
+# PATCH /api/v1/users/me/settings. Each row starts from the stored choices,
+# sends one body, and pins the answer and what was written. A field the body
+# omits keeps its stored value: the handler passes it as NULL and the one
+# UPDATE statement leaves that column alone. A body that sets nothing reads the
+# stored choices back and writes nothing. A body the contract refuses answers
+# 400 and writes nothing.
+- name: automatic_linking_turns_on
+  stored: {preview_before_attach: false, auto_attach_pull_requests: false}
+  body: '{"auto_attach_pull_requests":true}'
+  want_status: 200
+  want_written: {auto_attach_pull_requests: true}
+  want: {preview_before_attach: false, auto_attach_pull_requests: true}
+
+- name: automatic_linking_turns_off
+  stored: {preview_before_attach: false, auto_attach_pull_requests: true}
+  body: '{"auto_attach_pull_requests":false}'
+  want_status: 200
+  want_written: {auto_attach_pull_requests: false}
+  want: {preview_before_attach: false, auto_attach_pull_requests: false}
+
+- name: preview_alone_keeps_automatic_linking
+  stored: {preview_before_attach: false, auto_attach_pull_requests: true}
+  body: '{"preview_before_attach":true}'
+  want_status: 200
+  want_written: {preview_before_attach: true}
+  want: {preview_before_attach: true, auto_attach_pull_requests: true}
+
+- name: both_choices_change_together
+  stored: {preview_before_attach: true, auto_attach_pull_requests: false}
+  body: '{"preview_before_attach":false,"auto_attach_pull_requests":true}'
+  want_status: 200
+  want_written: {preview_before_attach: false, auto_attach_pull_requests: true}
+  want: {preview_before_attach: false, auto_attach_pull_requests: true}
+
+- name: an_empty_body_reads_back_and_writes_nothing
+  stored: {preview_before_attach: true, auto_attach_pull_requests: true}
+  body: '{}'
+  want_status: 200
+  want: {preview_before_attach: true, auto_attach_pull_requests: true}
+
+- name: a_value_that_is_not_a_boolean_is_refused
+  stored: {preview_before_attach: false, auto_attach_pull_requests: false}
+  body: '{"auto_attach_pull_requests":"yes"}'
+  want_status: 400

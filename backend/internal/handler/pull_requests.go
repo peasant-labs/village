@@ -244,18 +244,9 @@ func (h *Handler) UpdateUserSettings(w http.ResponseWriter, r *http.Request) {
 	if !h.decodeContractBody(w, r, opUpdateUserSettings, &req) {
 		return
 	}
-	// The contract declares automatic pull request linking, but this server does
-	// not link anything automatically yet, so it always reports the setting off.
-	// Turning it on is refused out loud rather than accepted and dropped: a PATCH
-	// that answered 200 while ignoring the one field it carried would leave the
-	// caller believing their transcripts are being linked.
-	if req.AutoAttachPullRequests != nil && *req.AutoAttachPullRequests {
-		writeError(w, http.StatusBadRequest, "auto_attach_pull_requests cannot be turned on yet: this server does not link transcripts to pull requests automatically, so nothing was changed")
-		return
-	}
-	if req.PreviewBeforeAttach == nil {
+	if req.PreviewBeforeAttach == nil && req.AutoAttachPullRequests == nil {
 		// Nothing to change: report the current settings rather than a no-op
-		// error, which is what a PATCH with an omitted field means.
+		// error, which is what a PATCH with every field omitted means.
 		row, err := h.queries.GetUserByID(r.Context(), user.PgID())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Could not read your settings")
@@ -265,9 +256,12 @@ func (h *Handler) UpdateUserSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	row, err := h.queries.SetUserPreviewBeforeAttach(r.Context(), sqlc.SetUserPreviewBeforeAttachParams{
-		ID:                  user.PgID(),
-		PreviewBeforeAttach: *req.PreviewBeforeAttach,
+	// Either field may come alone; the one the PATCH omits keeps its stored
+	// value, and both change in one statement when both come.
+	row, err := h.queries.UpdateUserAttachSettings(r.Context(), sqlc.UpdateUserAttachSettingsParams{
+		ID:                     user.PgID(),
+		PreviewBeforeAttach:    optionalBool(req.PreviewBeforeAttach),
+		AutoAttachPullRequests: optionalBool(req.AutoAttachPullRequests),
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not save your settings")

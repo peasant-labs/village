@@ -335,7 +335,10 @@ event through the production dispatcher for each case of the author's
 `auto_attach_pull_requests` choice: opted in, opted out, no Village account, an
 unlinked repository, an author outside the linking collective, a fork, a
 redelivery that must not post a second comment, and a pull request that waits
-until a later publish completes it.
+until a later publish completes it. The setting itself is written by
+`PATCH /users/me/settings`, pinned field by field in
+`testdata/user-settings-patch.yaml` and read back through PostgreSQL by
+`TestUserSettingsRoundTrip`.
 
 ### Contributing a whole project: refusals are asserted on the LEDGER
 
