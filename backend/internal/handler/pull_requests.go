@@ -30,9 +30,12 @@ import (
 //
 // A public repository's attachment is readable by anyone, which is what lets
 // the pull request page render for a reviewer with no Village account. A private
-// repository's attachment is readable only by its author or a member of the
-// collective that linked the repository; anyone else gets 404, never 403, so the
-// route does not confirm that an attachment exists.
+// repository's attachment is readable by its author, a member of the collective
+// that linked the repository, and, once attached, a reader GitHub admits to the
+// repository; anyone else gets 404, never 403, so the route does not confirm
+// that an attachment exists. Reading the attachment is not reading its
+// transcripts: each transcript's title and prompts reach only a viewer who can
+// open that transcript.
 func (h *Handler) GetPullRequestAttachment(w http.ResponseWriter, r *http.Request) {
 	owner, name, number, ok := pullRequestTarget(w, r)
 	if !ok {
@@ -69,12 +72,13 @@ func (h *Handler) GetPullRequestAttachment(w http.ResponseWriter, r *http.Reques
 	}
 	if repo.isPrivate && !(viewerKnown && viewerID == attachment.AuthorID) {
 		if !viewerKnown || !h.isCollectiveMember(r.Context(), viewerID, attachment.GroupID) {
-			// The repository's own readers reach the prompts attached to its pull
-			// requests through the same live question the transcripts ask, so they
-			// can arrive where the transcripts are listed rather than needing the
-			// link already. Only an attached attachment: a preview is the author's
-			// own review step, is not the repository's to show, and is not asked
-			// about at all.
+			// The repository's own readers may open the page for a pull request
+			// they can already read on GitHub, so they can arrive from the check.
+			// That admits them to the page, never to a transcript: the response
+			// shows each transcript's title and prompts only to a viewer who can
+			// open it. Only an attached attachment: a preview is the author's own
+			// review step, is not the repository's to show, and is not asked about
+			// at all.
 			// Over budget is said before anything is looked at, for the same
 			// reason the transcript read says it there: an answer that depended on
 			// this attachment would confirm it exists.
@@ -98,7 +102,7 @@ func (h *Handler) GetPullRequestAttachment(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	response, err := h.attachmentResponseOf(r.Context(), attachment, repo, viewerID, viewerKnown)
+	response, err := h.attachmentResponseOf(r.Context(), attachment, repo, viewer)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
@@ -108,7 +112,7 @@ func (h *Handler) GetPullRequestAttachment(w http.ResponseWriter, r *http.Reques
 
 // POST /api/v1/pulls/{owner}/{name}/{number}/confirm (AuthRequired)
 //
-// Author only. It confirms a preview into attached: the same widening and
+// Author only. It confirms a preview into attached: the same binding and
 // posting a direct attach performs. A pull request not in preview answers 409,
 // and a GitHub failure answers 502 with the state unchanged.
 func (h *Handler) ConfirmPullRequestAttachment(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +150,7 @@ func (h *Handler) ConfirmPullRequestAttachment(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
 	}
-	response, err := h.attachmentResponseOf(r.Context(), updated, repo, user.PgID(), true)
+	response, err := h.attachmentResponseOf(r.Context(), updated, repo, user)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
@@ -156,8 +160,9 @@ func (h *Handler) ConfirmPullRequestAttachment(w http.ResponseWriter, r *http.Re
 
 // DELETE /api/v1/pulls/{owner}/{name}/{number} (AuthRequired)
 //
-// Author only. It deletes the comment, resets the check, restores each bound
-// transcript's recorded visibility, and moves the attachment to detached.
+// Author only. It deletes the comment, resets the check, releases each binding
+// an older attach widened, and moves the attachment to detached. A binding made
+// since attaching stopped widening is left as it is, and so is its transcript.
 func (h *Handler) DetachPullRequestAttachment(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	if user == nil {
@@ -190,7 +195,7 @@ func (h *Handler) DetachPullRequestAttachment(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
 	}
-	response, err := h.attachmentResponseOf(r.Context(), updated, repo, user.PgID(), true)
+	response, err := h.attachmentResponseOf(r.Context(), updated, repo, user)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return

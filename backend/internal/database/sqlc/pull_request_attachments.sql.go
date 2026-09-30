@@ -13,9 +13,9 @@ import (
 
 const attachPullRequestTranscript = `-- name: AttachPullRequestTranscript :exec
 INSERT INTO pull_request_attachment_transcripts (
-    attachment_id, transcript_id, position, previous_visibility
+    attachment_id, transcript_id, position, previous_visibility, attach_widened
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, false
 )
 ON CONFLICT (attachment_id, transcript_id) DO UPDATE SET
     position = EXCLUDED.position
@@ -29,11 +29,14 @@ type AttachPullRequestTranscriptParams struct {
 }
 
 // Binds a transcript to an attachment at a position, recording the visibility the
-// transcript held before an attach widened it so detach can restore exactly that
-// value. Idempotent on the (attachment, transcript) key: re-binding updates the
-// position but PRESERVES the original previous_visibility, because the snapshot
-// describes the transcript before the FIRST widening. A refresh or retry after the
-// transcript was widened must not overwrite it with the already-widened tier.
+// transcript holds when the binding is made. Attaching binds only and never
+// changes who can read a transcript, so this, the only application writer of a
+// binding, states attach_widened = false as a literal: no caller can create a
+// binding that detach would narrow. The true rows are the ones an older attach
+// widened (migration 044). Idempotent on the (attachment, transcript) key:
+// re-binding updates the position and preserves previous_visibility and
+// attach_widened, so a retry can never turn a widened binding into one detach
+// leaves alone.
 func (q *Queries) AttachPullRequestTranscript(ctx context.Context, arg AttachPullRequestTranscriptParams) error {
 	_, err := q.db.Exec(ctx, attachPullRequestTranscript,
 		arg.AttachmentID,
@@ -139,7 +142,7 @@ type DeletePullRequestAttachmentTranscriptParams struct {
 	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
 }
 
-// Removes one binding, paired with restoring its recorded visibility.
+// Removes one binding that an attach which never completed made.
 func (q *Queries) DeletePullRequestAttachmentTranscript(ctx context.Context, arg DeletePullRequestAttachmentTranscriptParams) error {
 	_, err := q.db.Exec(ctx, deletePullRequestAttachmentTranscript, arg.AttachmentID, arg.TranscriptID)
 	return err
@@ -149,10 +152,11 @@ const deletePullRequestAttachmentTranscripts = `-- name: DeletePullRequestAttach
 DELETE FROM pull_request_attachment_transcripts WHERE attachment_id = $1
 `
 
-// Clears an attachment's transcript bindings. Called after a detach has restored
-// each transcript from its recorded previous_visibility, so the next attach
-// records the visibility that is true at that time rather than replaying a
-// snapshot from a cycle that is over.
+// Clears the bindings an earlier cycle left when a new attach begins. Detach
+// keeps its bindings, so a detached pull request still lists the transcripts it
+// held; the next attach binds afresh and records the visibility that is true at
+// that time rather than a snapshot from a cycle that is over. The caller
+// releases any binding an older attach widened before clearing it.
 func (q *Queries) DeletePullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deletePullRequestAttachmentTranscripts, attachmentID)
 	return err
@@ -238,7 +242,7 @@ func (q *Queries) GetPullRequestAttachmentForPull(ctx context.Context, arg GetPu
 }
 
 const getPullRequestAttachmentTranscript = `-- name: GetPullRequestAttachmentTranscript :one
-SELECT attachment_id, transcript_id, position, previous_visibility FROM pull_request_attachment_transcripts
+SELECT attachment_id, transcript_id, position, previous_visibility, attach_widened FROM pull_request_attachment_transcripts
 WHERE attachment_id = $1 AND transcript_id = $2
 `
 
@@ -248,7 +252,7 @@ type GetPullRequestAttachmentTranscriptParams struct {
 }
 
 // One binding, for a compensation that must undo exactly the transcripts one
-// attempt widened rather than every binding the attachment holds.
+// attempt bound rather than every binding the attachment holds.
 func (q *Queries) GetPullRequestAttachmentTranscript(ctx context.Context, arg GetPullRequestAttachmentTranscriptParams) (PullRequestAttachmentTranscript, error) {
 	row := q.db.QueryRow(ctx, getPullRequestAttachmentTranscript, arg.AttachmentID, arg.TranscriptID)
 	var i PullRequestAttachmentTranscript
@@ -257,6 +261,7 @@ func (q *Queries) GetPullRequestAttachmentTranscript(ctx context.Context, arg Ge
 		&i.TranscriptID,
 		&i.Position,
 		&i.PreviousVisibility,
+		&i.AttachWidened,
 	)
 	return i, err
 }
@@ -412,10 +417,11 @@ WHERE pt.transcript_id = $1 AND a.state = 'attached'
 ORDER BY a.id ASC
 `
 
-// The attachments that bind one transcript. The owner's visibility change reads
-// them so an attachment stops advertising prompts that are no longer as visible
-// as the repository it belongs to requires. Only attached attachments can be
-// advertising anything.
+// The attachments that bind one transcript. A change to the transcript's
+// visibility reads them so a pull request stops listing prompts that are no
+// longer public, lists them when they become public, and its check says whether
+// anyone besides the author can read what is attached. Only attached
+// attachments can be listing anything.
 func (q *Queries) ListAttachmentsBindingTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]PullRequestAttachment, error) {
 	rows, err := q.db.Query(ctx, listAttachmentsBindingTranscript, transcriptID)
 	if err != nil {
@@ -624,7 +630,7 @@ func (q *Queries) ListPullRequestAttachmentTranscriptSummaries(ctx context.Conte
 }
 
 const listPullRequestAttachmentTranscripts = `-- name: ListPullRequestAttachmentTranscripts :many
-SELECT attachment_id, transcript_id, position, previous_visibility FROM pull_request_attachment_transcripts
+SELECT attachment_id, transcript_id, position, previous_visibility, attach_widened FROM pull_request_attachment_transcripts
 WHERE attachment_id = $1
 ORDER BY position ASC, transcript_id ASC
 `
@@ -643,6 +649,7 @@ func (q *Queries) ListPullRequestAttachmentTranscripts(ctx context.Context, atta
 			&i.TranscriptID,
 			&i.Position,
 			&i.PreviousVisibility,
+			&i.AttachWidened,
 		); err != nil {
 			return nil, err
 		}
@@ -751,6 +758,26 @@ func (q *Queries) ListPullRequestCandidatesByTranscripts(ctx context.Context, ar
 		return nil, err
 	}
 	return items, nil
+}
+
+const releasePullRequestAttachmentTranscript = `-- name: ReleasePullRequestAttachmentTranscript :exec
+UPDATE pull_request_attachment_transcripts
+SET attach_widened = false
+WHERE attachment_id = $1 AND transcript_id = $2
+`
+
+type ReleasePullRequestAttachmentTranscriptParams struct {
+	AttachmentID pgtype.UUID `db:"attachment_id" json:"attachment_id"`
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+}
+
+// Records that a detach has undone what an older attach widened for one
+// binding. It runs in the transaction that restores the transcript, under the
+// transcript's publish lock. The row stays, so the detached pull request still
+// lists it, and a later detach of the same binding restores nothing twice.
+func (q *Queries) ReleasePullRequestAttachmentTranscript(ctx context.Context, arg ReleasePullRequestAttachmentTranscriptParams) error {
+	_, err := q.db.Exec(ctx, releasePullRequestAttachmentTranscript, arg.AttachmentID, arg.TranscriptID)
+	return err
 }
 
 const setPullRequestAttachmentArtifacts = `-- name: SetPullRequestAttachmentArtifacts :exec

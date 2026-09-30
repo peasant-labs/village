@@ -20,7 +20,7 @@ import (
 // The attachment lifecycle's non-HTTP entry points: a webhook-driven command
 // (a `/peasant attach` comment or a check-run button), a pull request event, and
 // the publish hook. They all funnel into the same acceptance result, the same
-// widening, and the same state machine the routes use, so a click, a push, and a
+// binding, and the same state machine the routes use, so a click, a push, and a
 // publish cannot diverge.
 
 // attachmentPull is the pull request facts an attachment is scoped to. A comment
@@ -175,13 +175,15 @@ func (h *Handler) applyPromptCommand(ctx context.Context, command matcher.Comman
 // authorAttachOrPreview applies the author's click: stop at a preview for the
 // author to confirm, or record a wait when nothing is accepted yet.
 //
-// publishDriven marks the one caller that is not a person: the hook running the
-// author's own push. That path completes a waiting request directly, because the
-// author's publish is the consent and a hook has no page to confirm on.
-// Everything a person clicks previews, on every repository — attaching widens
-// the transcripts' visibility, and a private repository's audience is no more
-// obvious than a public one's.
-func (h *Handler) authorAttachOrPreview(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, headSHA string, publishDriven bool) error {
+// consented marks the callers that are not a person acting on this pull
+// request: the hook running the author's own publish, and the author's standing
+// choice to link their transcripts when a pull request opens
+// (users.auto_attach_pull_requests). Both complete a new or waiting request
+// directly, because the author's publish or setting is the consent and neither
+// has a page to confirm on. Everything a person clicks previews, on every
+// repository, so the author sees which of their transcripts the pull request
+// will name before it does.
+func (h *Handler) authorAttachOrPreview(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, headSHA string, consented bool) error {
 	if promptattach.State(attachment.State) == promptattach.Attached {
 		// The prompts are already attached, so there is nothing to ask. A repeat
 		// action refreshes the digest for the current head instead of trying to
@@ -207,10 +209,11 @@ func (h *Handler) authorAttachOrPreview(ctx context.Context, attachment sqlc.Pul
 		return err
 	}
 
-	// A publish completes a WAITING request without a second click. A preview is
-	// different: the author has been asked and has not answered, so a publish
-	// refreshes what they are being asked about rather than answering for them.
-	if publishDriven && promptattach.State(attachment.State) == promptattach.Waiting {
+	// A publish or the author's setting completes a new or WAITING request
+	// without a click. A preview is different: the author has been asked and has
+	// not answered, so neither answers for them.
+	state := promptattach.State(attachment.State)
+	if consented && (state == promptattach.Requested || state == promptattach.Waiting) {
 		if _, err := h.attachAcceptedAndPost(ctx, attachment); err != nil {
 			return err
 		}
@@ -219,15 +222,15 @@ func (h *Handler) authorAttachOrPreview(ctx context.Context, attachment sqlc.Pul
 	return h.previewWithMatch(ctx, attachment, match, commitSet)
 }
 
-// previewWithMatch computes and stores the digest without sharing, posting, or
-// widening anything, and moves the attachment to preview.
+// previewWithMatch computes and stores the digest without binding or posting
+// anything, and moves the attachment to preview.
 func (h *Handler) previewWithMatch(ctx context.Context, attachment sqlc.PullRequestAttachment, match matcher.Result, commitSet []string) error {
 	acceptedIDs := acceptedTranscriptIDs(match)
-	value, _, err := h.buildAttachmentDigest(ctx, acceptedIDs, commitSet, match, "")
+	digests, err := h.buildAttachmentDigests(ctx, acceptedIDs, commitSet, match)
 	if err != nil {
 		return err
 	}
-	encoded, err := encodeDigest(value)
+	encoded, err := encodeDigest(digests.complete)
 	if err != nil {
 		return err
 	}
@@ -243,7 +246,7 @@ func (h *Handler) previewWithMatch(ctx context.Context, attachment sqlc.PullRequ
 }
 
 // refreshAttachedAttachment recomputes an attached attachment for a new head:
-// newly accepted transcripts are widened, the digest is rebuilt from every bound
+// newly accepted transcripts are bound, the digest is rebuilt from every bound
 // transcript (so a transcript whose recorded commits no longer resolve stays as
 // history rather than disappearing), and the comment is edited and the check
 // updated for the new head SHA. An acceptance result that adds nothing leaves
@@ -288,7 +291,7 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 		}
 	}
 	if len(newlyAccepted) > 0 {
-		if err := h.widenAttachedTranscripts(ctx, attachment, repo, newlyAccepted, nextPosition); err != nil {
+		if err := h.bindAcceptedTranscripts(ctx, attachment, newlyAccepted, nextPosition); err != nil {
 			return err
 		}
 		for _, accepted := range newlyAccepted {
@@ -301,7 +304,7 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 		return nil
 	}
 
-	value, dropped, err := h.buildAttachmentDigest(ctx, ordered, commitSet, match, requiredAttachmentVisibility(repo))
+	digests, err := h.buildAttachmentDigests(ctx, ordered, commitSet, match)
 	if err != nil {
 		return err
 	}
@@ -311,15 +314,15 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 	scoped := attachment
 	scoped.HeadSha = headSHA
 
-	commentID, checkRunID, err := h.postAttachment(ctx, scoped, repo, value, headSHA != attachment.HeadSha, dropped)
+	commentID, checkRunID, err := h.postAttachment(ctx, scoped, repo, digests, headSHA != attachment.HeadSha)
 	if err != nil {
-		if compensateErr := h.undoWidening(ctx, attachment.ID, acceptedTranscriptIDs(matcher.Result{Accepted: newlyAccepted})); compensateErr != nil {
-			return fmt.Errorf("%w: and the widening could not be undone, so a retry will redo both: %v", err, compensateErr)
+		if unbindErr := h.unbindTranscripts(ctx, attachment.ID, acceptedTranscriptIDs(matcher.Result{Accepted: newlyAccepted})); unbindErr != nil {
+			return fmt.Errorf("%w: and the new bindings could not be removed, so a retry will bind again: %v", err, unbindErr)
 		}
 		return err
 	}
 
-	encoded, err := encodeDigest(value)
+	encoded, err := encodeDigest(digests.complete)
 	if err != nil {
 		return err
 	}
@@ -337,9 +340,9 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 }
 
 // refreshAttachmentsForTranscriptVisibility reposts the attachments that bind a
-// transcript whose visibility its owner just changed, so a pull request stops
-// advertising prompts its readers can no longer open — and starts advertising
-// them again when the owner widens the transcript back.
+// transcript whose visibility just changed, so a pull request stops listing
+// prompts that are no longer public, lists them when they become public, and
+// its check says whether reviewers can read what is attached.
 //
 // It is the publish hook's sibling and follows the same discipline: the work
 // runs on a detached, bounded context, each attachment is taken under its own
@@ -436,9 +439,63 @@ func (h *Handler) completeAttachmentsForPublishedTranscript(ctx context.Context,
 	return errors.Join(failures...)
 }
 
+// autoAttachOpenedPullRequest links the author's transcripts to a pull request
+// that just opened, when the author chose that (users.auto_attach_pull_requests)
+// and belongs to the collective that linked the repository. It reports whether
+// it took the pull request on; anything else records nothing and posts nothing,
+// exactly as an unclicked pull request always has.
+//
+// It runs the author's own attach path without a preview: an accepted match is
+// attached and posted, and a pull request nothing matches yet waits for the
+// publish that completes it. An attachment the author already previewed or
+// detached is theirs to decide and is left alone; one already attached (a
+// redelivery of the same event) is refreshed, which posts nothing new when
+// nothing changed. Attaching never changes who can read a transcript, so no
+// click is needed to consent to that.
+func (h *Handler) autoAttachOpenedPullRequest(ctx context.Context, link sqlc.CollectiveRepository, pull attachmentPull) (bool, error) {
+	authorID, known := h.resolveGitHubActor(ctx, pull.authorID)
+	if !known {
+		return false, nil
+	}
+	author, err := h.queries.GetUserByID(ctx, authorID)
+	if err != nil {
+		return false, fmt.Errorf("could not read the pull request author's settings: %w", err)
+	}
+	if !author.AutoAttachPullRequests {
+		return false, nil
+	}
+	if !h.isCollectiveMember(ctx, authorID, link.GroupID) {
+		// The setting reaches repositories the author's own collectives link.
+		return false, nil
+	}
+	repo, err := h.resolveAttachmentRepositoryForLink(ctx, h.queries, link)
+	if err != nil {
+		return true, err
+	}
+	attachment, err := h.ensureAttachment(ctx, link.GroupID, authorID, pull, pgtype.Int8{})
+	if err != nil {
+		return true, err
+	}
+	if attachment.AuthorID != authorID {
+		return true, errors.New("the stored attachment's author does not match the pull request's author")
+	}
+	return true, h.withAttachmentLock(ctx, attachment.ID, func() error {
+		fresh, err := h.queries.GetPullRequestAttachment(ctx, attachment.ID)
+		if err != nil {
+			return err
+		}
+		switch promptattach.State(fresh.State) {
+		case promptattach.Preview, promptattach.Detached:
+			return nil
+		}
+		return h.authorAttachOrPreview(ctx, fresh, repo, pull.headSHA, true)
+	})
+}
+
 // syncAttachmentForPullRequest handles a pull_request event: a push to a pull
 // request that already attached refreshes it for the new head. Opening a pull
-// request that no click has touched records nothing and posts nothing.
+// request that no click and no author setting has touched records nothing and
+// posts nothing.
 func (h *Handler) syncAttachmentForPullRequest(ctx context.Context, pull attachmentPull) error {
 	if pull.state != "" && pull.state != "open" {
 		// A closed or merged pull request has nothing to keep current.

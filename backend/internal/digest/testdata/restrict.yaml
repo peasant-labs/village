@@ -1,0 +1,160 @@
+# Named cases for Restrict: a built digest narrowed to the transcripts one reader
+# may open. Each case is accepted input (the same shape as cases.yaml), the
+# transcripts the reader may open (keep), and what the restricted chain must say.
+#
+# matches_filtered_build says the restricted chain must equal Build over the kept
+# transcripts alone. The one case where it cannot is a commit two transcripts
+# recorded, attributed to the one the reader may not open: Restrict drops that
+# anchor rather than guess, so the chain covers fewer commits than a fresh build.
+cases:
+  - name: the_later_session_alone
+    villageUrl: https://village.example
+    commitSet:
+      - "1111111111111111111111111111111111111111"
+      - "2222222222222222222222222222222222222222"
+    sessions:
+      - transcriptId: 11111111-1111-4111-8111-111111111111
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T14:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "hidden first ask", timestamp: "2026-09-06T14:01:00Z"}
+          - {index: 1, role: user, content: "hidden plan", timestamp: "2026-09-06T14:02:00Z", command: {name: "/plan", args: "hidden argument"}}
+          - {index: 2, role: user, content: "hidden second ask", timestamp: "2026-09-06T14:03:00Z"}
+      - transcriptId: 22222222-2222-4222-8222-222222222222
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T15:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "shown ask", timestamp: "2026-09-06T15:01:00Z"}
+          - {index: 1, role: user, content: "shown review", timestamp: "2026-09-06T15:02:00Z", command: {name: "/review", args: ""}}
+    commits:
+      - {transcriptId: 11111111-1111-4111-8111-111111111111, commitSha: "1111111111111111111111111111111111111111", authoredAt: "2026-09-06T14:04:00Z"}
+      - {transcriptId: 22222222-2222-4222-8222-222222222222, commitSha: "2222222222222222222222222222222222222222", authoredAt: "2026-09-06T15:03:00Z", additions: 4, deletions: 1, filesChanged: 2}
+    keep: [22222222-2222-4222-8222-222222222222]
+    matches_filtered_build: true
+    expected:
+      sessionCount: 1
+      promptCount: 1
+      commitsCovered: 1
+      prompts: ["shown ask"]
+      skills:
+        - {name: "/review", invocationCount: 1}
+      absent: ["hidden first ask", "hidden second ask", "/plan", "hidden argument"]
+
+  - name: the_earlier_session_alone
+    villageUrl: https://village.example
+    commitSet:
+      - "1111111111111111111111111111111111111111"
+    sessions:
+      - transcriptId: 11111111-1111-4111-8111-111111111111
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T14:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "shown first ask", timestamp: "2026-09-06T14:01:00Z"}
+      - transcriptId: 22222222-2222-4222-8222-222222222222
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T14:30:00Z"
+        turns:
+          - {index: 0, role: user, content: "hidden interleaved ask", timestamp: "2026-09-06T14:31:00Z"}
+      - transcriptId: 33333333-3333-4333-8333-333333333333
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T15:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "shown last ask", timestamp: "2026-09-06T15:01:00Z"}
+    commits:
+      - {transcriptId: 11111111-1111-4111-8111-111111111111, commitSha: "1111111111111111111111111111111111111111", authoredAt: "2026-09-06T14:05:00Z"}
+    keep: [11111111-1111-4111-8111-111111111111, 33333333-3333-4333-8333-333333333333]
+    matches_filtered_build: true
+    expected:
+      sessionCount: 2
+      promptCount: 2
+      commitsCovered: 1
+      prompts: ["shown first ask", "shown last ask"]
+      skills: []
+      absent: ["hidden interleaved ask"]
+
+  - name: every_transcript_is_unchanged
+    villageUrl: https://village.example
+    commitSet:
+      - "1111111111111111111111111111111111111111"
+    sessions:
+      - transcriptId: 11111111-1111-4111-8111-111111111111
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T14:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "first ask", timestamp: "2026-09-06T14:01:00Z"}
+      - transcriptId: 22222222-2222-4222-8222-222222222222
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T15:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "second ask", timestamp: "2026-09-06T15:01:00Z"}
+    commits:
+      - {transcriptId: 22222222-2222-4222-8222-222222222222, commitSha: "1111111111111111111111111111111111111111", authoredAt: "2026-09-06T15:02:00Z"}
+    keep: [11111111-1111-4111-8111-111111111111, 22222222-2222-4222-8222-222222222222]
+    matches_filtered_build: true
+    expected:
+      sessionCount: 2
+      promptCount: 2
+      commitsCovered: 1
+      prompts: ["first ask", "second ask"]
+      skills: []
+      absent: []
+
+  - name: no_transcript_is_an_empty_chain
+    villageUrl: https://village.example
+    commitSet:
+      - "1111111111111111111111111111111111111111"
+    sessions:
+      - transcriptId: 11111111-1111-4111-8111-111111111111
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T14:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "hidden ask", timestamp: "2026-09-06T14:01:00Z"}
+    commits:
+      - {transcriptId: 11111111-1111-4111-8111-111111111111, commitSha: "1111111111111111111111111111111111111111", authoredAt: "2026-09-06T14:02:00Z"}
+    keep: []
+    matches_filtered_build: true
+    expected:
+      sessionCount: 0
+      promptCount: 0
+      commitsCovered: 0
+      prompts: []
+      skills: []
+      absent: ["hidden ask", "11111111-1111-4111-8111-111111111111"]
+
+  - name: a_shared_commit_goes_with_the_removed_transcript
+    villageUrl: https://village.example
+    commitSet:
+      - "1111111111111111111111111111111111111111"
+    sessions:
+      - transcriptId: 11111111-1111-4111-8111-111111111111
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T14:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "hidden ask", timestamp: "2026-09-06T14:01:00Z"}
+      - transcriptId: 22222222-2222-4222-8222-222222222222
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T15:00:00Z"
+        turns:
+          - {index: 0, role: user, content: "shown ask", timestamp: "2026-09-06T15:01:00Z"}
+    commits:
+      - {transcriptId: 11111111-1111-4111-8111-111111111111, commitSha: "1111111111111111111111111111111111111111", authoredAt: "2026-09-06T14:02:00Z"}
+      - {transcriptId: 22222222-2222-4222-8222-222222222222, commitSha: "1111111111111111111111111111111111111111", authoredAt: "2026-09-06T14:02:00Z"}
+    keep: [22222222-2222-4222-8222-222222222222]
+    matches_filtered_build: false
+    expected:
+      sessionCount: 1
+      promptCount: 1
+      commitsCovered: 0
+      prompts: ["shown ask"]
+      skills: []
+      absent: ["hidden ask", "11111111-1111-4111-8111-111111111111"]

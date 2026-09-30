@@ -178,6 +178,7 @@ type PullRequestAttachmentTranscript struct {
 	TranscriptID       pgtype.UUID `db:"transcript_id" json:"transcript_id"`
 	Position           int32       `db:"position" json:"position"`
 	PreviousVisibility string      `db:"previous_visibility" json:"previous_visibility"`
+	AttachWidened      bool        `db:"attach_widened" json:"attach_widened"`
 }
 
 type RepositoryCommit struct {
@@ -364,19 +365,20 @@ type TranscriptTag struct {
 }
 
 type User struct {
-	ID                  pgtype.UUID        `db:"id" json:"id"`
-	GithubID            int64              `db:"github_id" json:"github_id"`
-	GithubUsername      string             `db:"github_username" json:"github_username"`
-	DisplayName         pgtype.Text        `db:"display_name" json:"display_name"`
-	AvatarUrl           pgtype.Text        `db:"avatar_url" json:"avatar_url"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	IsDiscoverable      bool               `db:"is_discoverable" json:"is_discoverable"`
-	Provider            string             `db:"provider" json:"provider"`
-	ProviderUserID      string             `db:"provider_user_id" json:"provider_user_id"`
-	UsernameChosen      bool               `db:"username_chosen" json:"username_chosen"`
-	ProviderUsername    pgtype.Text        `db:"provider_username" json:"provider_username"`
-	PreviewBeforeAttach bool               `db:"preview_before_attach" json:"preview_before_attach"`
+	ID                     pgtype.UUID        `db:"id" json:"id"`
+	GithubID               int64              `db:"github_id" json:"github_id"`
+	GithubUsername         string             `db:"github_username" json:"github_username"`
+	DisplayName            pgtype.Text        `db:"display_name" json:"display_name"`
+	AvatarUrl              pgtype.Text        `db:"avatar_url" json:"avatar_url"`
+	CreatedAt              pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	IsDiscoverable         bool               `db:"is_discoverable" json:"is_discoverable"`
+	Provider               string             `db:"provider" json:"provider"`
+	ProviderUserID         string             `db:"provider_user_id" json:"provider_user_id"`
+	UsernameChosen         bool               `db:"username_chosen" json:"username_chosen"`
+	ProviderUsername       pgtype.Text        `db:"provider_username" json:"provider_username"`
+	PreviewBeforeAttach    bool               `db:"preview_before_attach" json:"preview_before_attach"`
+	AutoAttachPullRequests bool               `db:"auto_attach_pull_requests" json:"auto_attach_pull_requests"`
 }
 
 type UserGithubOrg struct {

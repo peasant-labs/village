@@ -49,7 +49,7 @@ func (h *Handler) ListTranscriptCommits(w http.ResponseWriter, r *http.Request) 
 	}
 
 	user := GetUser(r.Context())
-	if allowed, _ := h.canReadTranscript(r.Context(), user, transcript); !allowed {
+	if !h.canViewTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}

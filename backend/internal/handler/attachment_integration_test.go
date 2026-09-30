@@ -308,6 +308,10 @@ func (f *attachmentGitHubFake) setPullCommits(shas ...string) {
 func attachmentTestHandler(t *testing.T) (*Handler, *pgxpool.Pool, *recordingTranscriptBlobStore, *attachmentGitHubFake) {
 	t.Helper()
 	pool := publishLockPool(t, 8)
+	// Closed after the test's own cleanups, which still need it. Each world opens
+	// a pool, so one left open holds its connections for the rest of the package
+	// run and the suite runs out of them.
+	t.Cleanup(pool.Close)
 	blobs := newRecordingTranscriptBlobStore()
 	titles, err := redact.NewTitlePipeline()
 	if err != nil {
@@ -465,11 +469,14 @@ func attachmentConfirm(t *testing.T, h *Handler, owner pgtype.UUID, repoOwner, r
 	}
 }
 
-// TestConfirmWidensSharesAndPosts_RealPostgres is the attached path end to end:
-// a preview whose recorded commit is in the pull request is confirmed, the
-// transcript is shared with the linking collective through an APPROVED share
-// recorded before the widening, and the check and sticky comment are posted.
-func TestConfirmWidensSharesAndPosts_RealPostgres(t *testing.T) {
+// TestConfirmBindsWithoutChangingTheAudience_RealPostgres is the attached path
+// end to end: a preview whose recorded commit is in the pull request is
+// confirmed, the transcript is bound with the visibility it holds, the check and
+// sticky comment are posted, and nothing about who can read the transcript
+// moves. It stays private, no share is opened, and no governance event is
+// written; the pull request lists nothing a private transcript's readers alone
+// may see.
+func TestConfirmBindsWithoutChangingTheAudience_RealPostgres(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
 	owner := attachmentInsertOwner(t, ctx, pool, 992001)
@@ -482,6 +489,7 @@ func TestConfirmWidensSharesAndPosts_RealPostgres(t *testing.T) {
 
 	attachment := attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 7)
 	fake.setPullCommits(sha)
+	eventsBefore := governanceEventCount(t, ctx, pool, transcriptID)
 
 	rec := attachmentServe(t, attachmentRouter(h), http.MethodPost, "/api/v1/pulls/acme/"+repoName+"/7/confirm", owner)
 	if rec.Code != http.StatusOK {
@@ -495,8 +503,8 @@ func TestConfirmWidensSharesAndPosts_RealPostgres(t *testing.T) {
 		t.Fatalf("state = %q, want attached", response.Attachment.State)
 	}
 	assertAttachmentDescribedByGitHub(t, "confirm", response.Attachment)
-	if response.Digest == nil {
-		t.Fatal("a confirmed attachment must carry its digest")
+	if response.Digest == nil || response.Digest.Header.PromptCount != 1 {
+		t.Fatalf("the author's confirmed attachment must carry their own prompt; digest = %+v", response.Digest)
 	}
 	if !response.Attachment.IsPrivateRepository {
 		t.Error("is_private_repository = false, want true for a private repository")
@@ -505,26 +513,20 @@ func TestConfirmWidensSharesAndPosts_RealPostgres(t *testing.T) {
 		t.Fatalf("transcripts = %+v, want one bound at private", response.Transcripts)
 	}
 
-	// The transcript was widened to the collective and holds an APPROVED share.
-	var visibility string
-	if err := pool.QueryRow(ctx, "SELECT visibility FROM transcripts WHERE id = $1", transcriptID).Scan(&visibility); err != nil {
+	if visibility := readTranscriptVisibility(t, ctx, pool, transcriptID); visibility != "private" {
+		t.Fatalf("transcript visibility = %q after attaching, want private: attaching never changes who can read a transcript", visibility)
+	}
+	var attempts int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM transcript_share_attempts WHERE transcript_id = $1`, transcriptID).Scan(&attempts); err != nil {
 		t.Fatal(err)
 	}
-	if visibility != "shared" {
-		t.Fatalf("transcript visibility = %q, want shared", visibility)
+	if attempts != 0 {
+		t.Fatalf("attaching appended %d share attempts, want none: attaching opens no share", attempts)
 	}
-	var shareStatus string
-	if err := pool.QueryRow(ctx, `
-		SELECT status FROM transcript_shares WHERE transcript_id = $1 AND group_id = $2
-	`, transcriptID, groupID).Scan(&shareStatus); err != nil {
-		t.Fatalf("read the derived share: %v", err)
-	}
-	if shareStatus != "approved" {
-		t.Fatalf("derived share status = %q, want approved", shareStatus)
+	if events := governanceEventCount(t, ctx, pool, transcriptID); events != eventsBefore {
+		t.Fatalf("attaching appended %d governance events, want none", events-eventsBefore)
 	}
 
-	// The snapshot is the visibility before the widening, and the posted ids and
-	// digest were recorded.
 	stored, err := h.queries.GetPullRequestAttachment(ctx, attachment.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -532,67 +534,34 @@ func TestConfirmWidensSharesAndPosts_RealPostgres(t *testing.T) {
 	if !stored.CommentID.Valid || !stored.CheckRunID.Valid || len(stored.Digest) == 0 {
 		t.Fatalf("stored attachment = %+v, want a comment, a check run, and a digest", stored)
 	}
-	var previous string
-	if err := pool.QueryRow(ctx, `
-		SELECT previous_visibility FROM pull_request_attachment_transcripts WHERE attachment_id = $1 AND transcript_id = $2
-	`, attachment.ID, transcriptID).Scan(&previous); err != nil {
+	binding, err := h.queries.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{AttachmentID: attachment.ID, TranscriptID: transcriptID})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if previous != "private" {
-		t.Fatalf("recorded previous_visibility = %q, want private", previous)
+	if binding.PreviousVisibility != "private" || binding.AttachWidened {
+		t.Fatalf("binding = %q widened %t, want private and not widened", binding.PreviousVisibility, binding.AttachWidened)
 	}
 
 	fake.mu.Lock()
-	creates, comments := fake.checkCreates, fake.commentCreates
+	creates, comments, body, conclusion := fake.checkCreates, fake.commentCreates, fake.lastCommentBody, fake.lastCheckConclusion
 	fake.mu.Unlock()
 	if creates != 1 || comments != 1 {
 		t.Fatalf("check creates = %d and comment creates = %d, want one each", creates, comments)
 	}
-}
-
-// TestDetachRestoresEachRecordedVisibility_RealPostgres covers the visibility
-// trio: a transcript that started private widens to shared, one that started
-// shared stays shared, and one that started public is never narrowed by a
-// private repository. Detaching restores each one's recorded value exactly.
-func TestDetachRestoresEachRecordedVisibility_RealPostgres(t *testing.T) {
-	h, pool, blobs, fake := attachmentTestHandler(t)
-	ctx := context.Background()
-	owner := attachmentInsertOwner(t, ctx, pool, 992002)
-	defer cleanupOwners(t, ctx, pool, owner)
-
-	repoName := "trio-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
-	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
-
-	shas := []string{
-		"aaa1234000000000000000000000000000000001",
-		"bbb1234000000000000000000000000000002",
-		"ccc1234000000000000000000000000000003",
+	if strings.Contains(body, "please attach my prompts") {
+		t.Errorf("the comment carries a private transcript's prompt: %s", body)
 	}
-	started := []string{"private", "shared", "public"}
-	ids := make([]pgtype.UUID, 0, 3)
-	for i, sha := range shas {
-		ids = append(ids, attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, started[i], "", time.Now().Add(-time.Duration(i+1)*time.Hour)))
+	if !strings.Contains(body, "1 attached transcript is not listed here.") {
+		t.Errorf("the comment must say an attached transcript is not listed: %s", body)
 	}
-	attachment := attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, shas[0], 8)
-	fake.setPullCommits(shas...)
-
-	if rec := attachmentServe(t, attachmentRouter(h), http.MethodPost, "/api/v1/pulls/acme/"+repoName+"/8/confirm", owner); rec.Code != http.StatusOK {
-		t.Fatalf("confirm status = %d (%s), want 200", rec.Code, rec.Body.String())
+	if conclusion != "neutral" {
+		t.Errorf("conclusion = %q, want neutral: nobody besides its author can read what is attached", conclusion)
 	}
 
-	// Attaching widens: private becomes shared, the others are not narrowed.
-	wantAfterAttach := []string{"shared", "shared", "public"}
-	for i, id := range ids {
-		var visibility string
-		if err := pool.QueryRow(ctx, "SELECT visibility FROM transcripts WHERE id = $1", id).Scan(&visibility); err != nil {
-			t.Fatal(err)
-		}
-		if visibility != wantAfterAttach[i] {
-			t.Fatalf("transcript starting %s has visibility %q after attach, want %q", started[i], visibility, wantAfterAttach[i])
-		}
-	}
-
-	rec := attachmentServe(t, attachmentRouter(h), http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/8", owner)
+	// Detaching a binding that changed nothing changes nothing either: the
+	// comment goes, the transcript stays private, and the binding is kept so
+	// the detached pull request still lists it.
+	rec = attachmentServe(t, attachmentRouter(h), http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/7", owner)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("detach status = %d (%s), want 200", rec.Code, rec.Body.String())
 	}
@@ -601,23 +570,11 @@ func TestDetachRestoresEachRecordedVisibility_RealPostgres(t *testing.T) {
 		t.Fatalf("decode detach response: %v", err)
 	}
 	assertAttachmentDescribedByGitHub(t, "detach", detached.Attachment)
-
-	// Detaching restores exactly what each one started with.
-	for i, id := range ids {
-		var visibility string
-		if err := pool.QueryRow(ctx, "SELECT visibility FROM transcripts WHERE id = $1", id).Scan(&visibility); err != nil {
-			t.Fatal(err)
-		}
-		if visibility != started[i] {
-			t.Fatalf("transcript starting %s was restored to %q, want %q", started[i], visibility, started[i])
-		}
+	if visibility := readTranscriptVisibility(t, ctx, pool, transcriptID); visibility != "private" {
+		t.Fatalf("transcript visibility = %q after detaching, want private", visibility)
 	}
-	var bindings int
-	if err := pool.QueryRow(ctx, "SELECT count(*) FROM pull_request_attachment_transcripts WHERE attachment_id = $1", attachment.ID).Scan(&bindings); err != nil {
-		t.Fatal(err)
-	}
-	if bindings != 0 {
-		t.Fatalf("bindings = %d after detach, want 0", bindings)
+	if len(detached.Transcripts) != 1 {
+		t.Fatalf("the detached pull request lists %d transcripts, want the one it held", len(detached.Transcripts))
 	}
 	fake.mu.Lock()
 	deletes := fake.commentDeletes
@@ -910,103 +867,6 @@ func TestDetachIsConflictWhenNothingCanBeDetached(t *testing.T) {
 	}
 }
 
-// TestDetachRetractsTheCollectiveShare is the privacy rule: detaching ends the
-// collective's access to the prompts, so the approved share the attach opened is
-// retracted and the derived current-state row disappears, rather than leaving a
-// live grant on a transcript that is private again.
-func TestDetachRetractsTheCollectiveShare(t *testing.T) {
-	h, pool, blobs, fake := attachmentTestHandler(t)
-	ctx := context.Background()
-	owner := attachmentInsertOwner(t, ctx, pool, 992009)
-	defer cleanupOwners(t, ctx, pool, owner)
-
-	repoName := "retract-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
-	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
-	sha := "1111234000000000000000000000000000000031"
-	transcriptID := attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "", time.Now().Add(-time.Hour))
-	attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 41)
-	fake.setPullCommits(sha)
-
-	router := attachmentRouter(h)
-	if rec := attachmentServe(t, router, http.MethodPost, "/api/v1/pulls/acme/"+repoName+"/41/confirm", owner); rec.Code != http.StatusOK {
-		t.Fatalf("confirm = %d (%s), want 200", rec.Code, rec.Body.String())
-	}
-	var shareStatus string
-	if err := pool.QueryRow(ctx, `SELECT status FROM transcript_shares WHERE transcript_id = $1 AND group_id = $2`, transcriptID, groupID).Scan(&shareStatus); err != nil {
-		t.Fatalf("the attach opened no share: %v", err)
-	}
-	if shareStatus != "approved" {
-		t.Fatalf("share status = %q, want approved", shareStatus)
-	}
-
-	if rec := attachmentServe(t, router, http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/41", owner); rec.Code != http.StatusOK {
-		t.Fatalf("detach = %d (%s), want 200", rec.Code, rec.Body.String())
-	}
-
-	var derived int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM transcript_shares WHERE transcript_id = $1 AND group_id = $2`, transcriptID, groupID).Scan(&derived); err != nil {
-		t.Fatal(err)
-	}
-	if derived != 0 {
-		t.Fatal("the collective's share survived the detach, so its access did not end")
-	}
-	var latest string
-	if err := pool.QueryRow(ctx, `
-		SELECT status FROM transcript_share_attempts WHERE transcript_id = $1 AND group_id = $2
-		ORDER BY event_num DESC LIMIT 1
-	`, transcriptID, groupID).Scan(&latest); err != nil {
-		t.Fatal(err)
-	}
-	if latest != "retracted" {
-		t.Fatalf("latest attempt = %q, want retracted (the ledger keeps the history)", latest)
-	}
-}
-
-// TestDetachKeepsANarrowingTheOwnerMade proves the restore never re-widens: an
-// owner who made a transcript private while it was attached keeps it private.
-func TestDetachKeepsANarrowingTheOwnerMade(t *testing.T) {
-	h, pool, blobs, fake := attachmentTestHandler(t)
-	ctx := context.Background()
-	owner := attachmentInsertOwner(t, ctx, pool, 992010)
-	defer cleanupOwners(t, ctx, pool, owner)
-
-	repoName := "narrow-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
-	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
-	sha := "2221234000000000000000000000000000000032"
-	transcriptID := attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "shared", "", time.Now().Add(-time.Hour))
-	attachment := attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 42)
-	fake.setPullCommits(sha)
-
-	router := attachmentRouter(h)
-	if rec := attachmentServe(t, router, http.MethodPost, "/api/v1/pulls/acme/"+repoName+"/42/confirm", owner); rec.Code != http.StatusOK {
-		t.Fatalf("confirm = %d (%s), want 200", rec.Code, rec.Body.String())
-	}
-
-	// The owner narrows it to private while it is attached, through the same
-	// governance path the PATCH route uses.
-	if err := h.withPublishLocks(ctx, owner, "narrow", nil, func(conn *pgxpool.Conn) error {
-		return h.inTxAsOnConn(ctx, conn, owner, func(q Querier) error {
-			private := dbVisibilityPrivate
-			_, err := applyMetadataPatch(ctx, q, transcriptID, metadataPatch{Visibility: &private})
-			return err
-		})
-	}); err != nil {
-		t.Fatalf("narrow the transcript: %v", err)
-	}
-
-	if rec := attachmentServe(t, router, http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/42", owner); rec.Code != http.StatusOK {
-		t.Fatalf("detach = %d (%s), want 200", rec.Code, rec.Body.String())
-	}
-	var visibility string
-	if err := pool.QueryRow(ctx, "SELECT visibility FROM transcripts WHERE id = $1", transcriptID).Scan(&visibility); err != nil {
-		t.Fatal(err)
-	}
-	if visibility != "private" {
-		t.Fatalf("visibility = %q, want the owner's private narrowing kept", visibility)
-	}
-	_ = attachment
-}
-
 // TestConcurrentConfirmsPostOnce is the serialization rule: two confirms at the
 // same time must produce one comment and one state change, not two posts.
 func TestConcurrentConfirmsPostOnce(t *testing.T) {
@@ -1059,7 +919,7 @@ func TestConcurrentConfirmsPostOnce(t *testing.T) {
 
 // TestDetachToleratesAnAlreadyDeletedComment proves detach is idempotent against
 // the comment being gone, which is what a retry or an out-of-band deletion
-// leaves behind: it must finish the restore rather than fail forever.
+// leaves behind: it must finish rather than fail forever.
 func TestDetachToleratesAnAlreadyDeletedComment(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
@@ -1096,6 +956,6 @@ func TestDetachToleratesAnAlreadyDeletedComment(t *testing.T) {
 		t.Fatal(err)
 	}
 	if visibility != "private" {
-		t.Fatalf("visibility = %q, want the restore to have happened", visibility)
+		t.Fatalf("visibility = %q, want private: the detach leaves the transcript as it was", visibility)
 	}
 }

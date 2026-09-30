@@ -22,9 +22,10 @@ type promptCommandDispatcher struct{ h *Handler }
 
 func (promptCommandDispatcher) Installation(context.Context, github.Event) error { return nil }
 
-// PullRequest refreshes an already-attached pull request when a new push arrives.
-// Opening or reopening a pull request that nobody has attached records nothing
-// by itself, which is why the click is the only thing that starts an attachment.
+// PullRequest refreshes an already-attached pull request when a new push arrives,
+// and, when a pull request opens, links its author's transcripts if the author
+// chose that. Opening or reopening a pull request that nobody has attached and
+// whose author did not choose it records nothing by itself.
 func (d promptCommandDispatcher) PullRequest(ctx context.Context, event github.Event) error {
 	var payload github.WebhookPullRequestPayload
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
@@ -38,7 +39,8 @@ func (d promptCommandDispatcher) PullRequest(ctx context.Context, event github.E
 
 	owner := payload.Repository.Owner.Login
 	name := payload.Repository.Name
-	if _, err := d.h.queries.GetCollectiveRepositoryByRepo(ctx, sqlc.GetCollectiveRepositoryByRepoParams{Owner: owner, Name: name}); err != nil {
+	link, err := d.h.queries.GetCollectiveRepositoryByRepo(ctx, sqlc.GetCollectiveRepositoryByRepoParams{Owner: owner, Name: name})
+	if err != nil {
 		// No collective linked this repository, so there is no attachment to
 		// refresh and nothing to report.
 		return nil
@@ -47,7 +49,7 @@ func (d promptCommandDispatcher) PullRequest(ctx context.Context, event github.E
 	if payload.IsFork() {
 		headRemote = payload.PullRequest.Head.Repo.FullName
 	}
-	return d.h.syncAttachmentForPullRequest(ctx, attachmentPull{
+	pull := attachmentPull{
 		repoOwner:    owner,
 		repoName:     name,
 		githubRepoID: payload.Repository.ID,
@@ -58,7 +60,14 @@ func (d promptCommandDispatcher) PullRequest(ctx context.Context, event github.E
 		headRemote:   headRemote,
 		isFork:       payload.IsFork(),
 		authorID:     payload.PullRequest.User.ID,
-	})
+	}
+	if payload.Action == "opened" {
+		handled, err := d.h.autoAttachOpenedPullRequest(ctx, link, pull)
+		if handled || err != nil {
+			return err
+		}
+	}
+	return d.h.syncAttachmentForPullRequest(ctx, pull)
 }
 
 // CheckRun handles a clicked check-run button. The button's identifier is the

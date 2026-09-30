@@ -105,7 +105,7 @@ var republishAudienceOutcomes = map[string]int{
 	"hangup_during_object_write": http.StatusInternalServerError,
 	"hangup_during_replacement":  http.StatusOK,
 	"restore_refused":            http.StatusInternalServerError,
-	"hangup_during_narrowing":    http.StatusOK,
+	"hangup_during_narrowing":    http.StatusInternalServerError,
 	"narrowing_unconfirmed":      http.StatusInternalServerError,
 }
 
@@ -503,6 +503,13 @@ type failableTranscriptBlobStore struct {
 }
 
 func (s *failableTranscriptBlobStore) Write(ctx context.Context, id uuid.UUID, contents []byte) (storage.BlobDescriptor, storage.ContentIdentity, error) {
+	// The production store hands its context to the key service and the object
+	// store, so a write on a request whose client has already hung up fails.
+	// The fake does the same, or a hang-up before the write would look like a
+	// republish that completed.
+	if err := ctx.Err(); err != nil {
+		return storage.BlobDescriptor{}, storage.ContentIdentity{}, err
+	}
 	if s.failNextWrite.CompareAndSwap(true, false) {
 		if s.beforeFailedWrite != nil {
 			s.beforeFailedWrite()

@@ -290,12 +290,52 @@ in the answer that are authored in the corpus; the unconfirmed shared case then
 shares again and requires the member's access back without a new attempt. The
 restore rule under the row lock, including the rows no mounted path can reach,
 is `testdata/republish-visibility-restore.yaml`. The pull request side of the
-same rule, a digest that keeps, drops or regains the row, is
+same rule, a listing that keeps, drops or regains the row, is
 `attachment_visibility_drift_integration_test.go`, and a whole-project
 contribution that waited through a republish is
 `a_visibility_restored_while_waiting_is_not_overwritten` in
 `groups-batch-share.yaml`, with its mirror
 `a_transcript_made_private_while_waiting_needs_consent`.
+
+### Attaching keeps the audience: four readers, three surfaces
+
+`internal/handler/attach_audience_integration_test.go` +
+`testdata/attach-audience.yaml` attach one transcript per row through the
+author's preview and confirm, on a public or a private repository, at each
+visibility, and then ask four readers (the owner, a member of the linking
+collective, a signed-in non-member whom GitHub admits to a private repository,
+and nobody signed in) what they can read: the transcript route's status, and
+whether the pull request page shows them its title and prompts. Each row also
+pins whether the posted comment and check list the prompt, the check's
+conclusion, that attaching and then detaching append no governance event and
+move no share, and that the detached pull request keeps its binding. Two rows
+change the visibility between attach and detach, through the owner's PATCH, and
+require the detach to keep it.
+
+Bindings an older attach widened are built directly in the state that attach
+left, marked `attach_widened`, by
+`attachment_legacy_detach_integration_test.go` + `testdata/legacy-detach.yaml`;
+each row detaches through the mounted route and pins the restored visibility,
+both collectives' live shares, the owner-attributed event when the detach
+narrowed, and the cleared mark. The same file proves the release waits for the
+transcript's publish lock (the share stays approved while the lock is held) and
+that a narrowing release reposts another pull request that listed the
+transcript. The database-level half, that a binding keeps its recorded value
+and kind through the detach transition and a re-bind, is
+`internal/promptattach/testdata/visibility_restore.yaml`.
+
+`internal/digest/testdata/restrict.yaml` pins `digest.Restrict`, the per-viewer
+narrowing the page applies: no item or text of a removed transcript, prompts
+renumbered from one, and, except for a commit two transcripts recorded, the
+same chain a fresh build over the kept transcripts produces.
+
+`attachment_auto_attach_integration_test.go` +
+`testdata/github_webhook/auto-attach.yaml` dispatch a `pull_request` `opened`
+event through the production dispatcher for each case of the author's
+`auto_attach_pull_requests` choice: opted in, opted out, no Village account, an
+unlinked repository, an author outside the linking collective, a fork, a
+redelivery that must not post a second comment, and a pull request that waits
+until a later publish completes it.
 
 ### Contributing a whole project: refusals are asserted on the LEDGER
 
@@ -1022,8 +1062,8 @@ transaction control. A
 `schema_migrations(version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ)` table
 tracks what has run; each migration is checked before exec, so `RunMigrations`
 is idempotent. Files are paired `NNN_name.up.sql` / `NNN_name.down.sql`. The
-latest registered version is **032** (`032_authoritative_publication_receipts`);
-the next new migration is **033**. Versions 19 and 25 are intentionally absent
+latest registered version is **044** (`044_attach_widened_and_auto_attach`);
+the next new migration is **045**. Versions 19 and 25 are intentionally absent
 from the registry and must not be reused. See `docs/database-invariants.md` §1.
 
 **Registry-wide invariants live in ONE central test** -

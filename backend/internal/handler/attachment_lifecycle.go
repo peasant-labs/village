@@ -190,18 +190,32 @@ func (h *Handler) loadAttachmentCandidates(ctx context.Context, authorID pgtype.
 	return candidates, nil
 }
 
-// buildAttachmentDigest projects an accepted match into the reviewer-facing
-// digest. It reads each accepted transcript's turns through Village's single
+// attachmentDigests is one accepted set of transcripts projected for each
+// audience that reads it.
+type attachmentDigests struct {
+	// complete covers every transcript. It is what the attachment stores, and
+	// the pull request page narrows it to what its viewer can open before
+	// serving it.
+	complete schema.PromptDigest
+	// listed covers only the transcripts the pull request's comment and check
+	// may show (listedOnPullRequest).
+	listed schema.PromptDigest
+	// unlisted counts the transcripts listed leaves out.
+	unlisted int
+	// readableBeyondAuthor says whether anyone besides the author can read at
+	// least one of the transcripts, which is what the check's conclusion asks.
+	readableBeyondAuthor bool
+}
+
+// buildAttachmentDigests projects an accepted match into the reviewer-facing
+// digests. It reads each transcript's turns once, through Village's single
 // decrypting read path, and takes its anchor time and change counts from the
-// transcript's own recorded commit, never from the pull request side.
-// requiredVisibility, when set, drops every transcript whose current visibility
-// is narrower than it, and counts the rows it dropped. It is set only on the
-// refresh path: an attach or a preview builds the digest it is about to widen
-// for, so filtering there would empty it.
-func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []schema.TranscriptID, commitSet []string, match matcher.Result, requiredVisibility string) (schema.PromptDigest, int, error) {
-	sessions := make([]digest.Session, 0, len(transcriptIDs))
-	dropped := 0
-	var commits []digest.CommitMatch
+// transcript's own recorded commit, never from the pull request side. Each
+// digest is built from its own transcripts rather than cut down from another,
+// so its counts and numbering describe only what it shows.
+func (h *Handler) buildAttachmentDigests(ctx context.Context, transcriptIDs []schema.TranscriptID, commitSet []string, match matcher.Result) (attachmentDigests, error) {
+	var complete, listed digest.Input
+	var result attachmentDigests
 
 	anchorsByTranscript := map[schema.TranscriptID][]matcher.Anchor{}
 	for _, accepted := range match.Accepted {
@@ -211,33 +225,25 @@ func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []sch
 	for _, accepted := range transcriptIDs {
 		transcriptID, err := uuid.Parse(string(accepted))
 		if err != nil {
-			return schema.PromptDigest{}, 0, fmt.Errorf("an accepted transcript id was not a uuid: %w", err)
+			return attachmentDigests{}, fmt.Errorf("an accepted transcript id was not a uuid: %w", err)
 		}
 		row, err := h.queries.GetTranscriptByID(ctx, pgtype.UUID{Bytes: transcriptID, Valid: true})
 		if err != nil {
-			return schema.PromptDigest{}, 0, fmt.Errorf("could not read an accepted transcript for the digest: %w", err)
-		}
-		if requiredVisibility != "" && disclosureRank(row.Visibility) < disclosureRank(requiredVisibility) {
-			// The owner has made this transcript less visible than the repository
-			// the attachment belongs to requires, so the pull request must stop
-			// advertising it. The binding stays: detach still restores the value
-			// it recorded.
-			dropped++
-			continue
+			return attachmentDigests{}, fmt.Errorf("could not read an accepted transcript for the digest: %w", err)
 		}
 
 		read, err := h.readEncryptedTranscript(ctx, row, "", func(candidate sqlc.Transcript) bool {
 			return candidate.ID == row.ID
 		})
 		if err != nil {
-			return schema.PromptDigest{}, 0, fmt.Errorf("could not read an accepted transcript's turns for the digest: %w", err)
+			return attachmentDigests{}, fmt.Errorf("could not read an accepted transcript's turns for the digest: %w", err)
 		}
 		detail, err := decodePublicationDetail(read.Plaintext)
 		if err != nil {
-			return schema.PromptDigest{}, 0, fmt.Errorf("could not decode an accepted transcript's turns for the digest: %w", err)
+			return attachmentDigests{}, fmt.Errorf("could not decode an accepted transcript's turns for the digest: %w", err)
 		}
 		if detail == nil {
-			return schema.PromptDigest{}, 0, errors.New("an accepted transcript's stored content was not a decodable publication, so no digest could be built")
+			return attachmentDigests{}, errors.New("an accepted transcript's stored content was not a decodable publication, so no digest could be built")
 		}
 
 		turns := make([]digest.Turn, 0, len(detail.Turns))
@@ -250,14 +256,14 @@ func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []sch
 				Command:   turn.Command,
 			})
 		}
-		sessions = append(sessions, digest.Session{
+		session := digest.Session{
 			TranscriptID:   accepted,
 			Harness:        schema.Harness(row.ModelProvider),
 			RedactionLevel: attachmentRedactionLevel,
 			SessionStart:   row.SessionStart.Time,
 			Turns:          turns,
-		})
-
+		}
+		var commits []digest.CommitMatch
 		for _, anchor := range anchorsByTranscript[accepted] {
 			commits = append(commits, digest.CommitMatch{
 				TranscriptID: accepted,
@@ -268,18 +274,32 @@ func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []sch
 				FilesChanged: anchor.FilesChanged,
 			})
 		}
+
+		complete.Sessions = append(complete.Sessions, session)
+		complete.Commits = append(complete.Commits, commits...)
+		if listedOnPullRequest(row.Visibility) {
+			listed.Sessions = append(listed.Sessions, session)
+			listed.Commits = append(listed.Commits, commits...)
+		} else {
+			result.unlisted++
+		}
+		if readableBeyondItsAuthor(row.Visibility) {
+			result.readableBeyondAuthor = true
+		}
 	}
 
-	value, err := digest.Build(digest.Input{
-		VillageURL: strings.TrimRight(h.cfg.FrontendURL, "/"),
-		CommitSet:  commitSet,
-		Sessions:   sessions,
-		Commits:    commits,
-	})
-	if err != nil {
-		return schema.PromptDigest{}, 0, err
+	villageURL := strings.TrimRight(h.cfg.FrontendURL, "/")
+	complete.VillageURL, listed.VillageURL = villageURL, villageURL
+	complete.CommitSet, listed.CommitSet = commitSet, commitSet
+
+	var err error
+	if result.complete, err = digest.Build(complete); err != nil {
+		return attachmentDigests{}, err
 	}
-	return value, dropped, nil
+	if result.listed, err = digest.Build(listed); err != nil {
+		return attachmentDigests{}, err
+	}
+	return result, nil
 }
 
 // intPointerFromPg converts a nullable integer column to the optional count the
