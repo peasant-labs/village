@@ -122,14 +122,14 @@ describe("mounted production transcript route: routable breadcrumb", () => {
         expect(href?.startsWith("/projects")).toBe(false);
       }
 
-      // Two links now: the explore crumb, and the project crumb, which the app
+      // Two links now: the home crumb, and the project crumb, which the app
       // requires to navigate to /users/{username}/projects/{projectHash}.
       const crumbAnchors = [...nav!.querySelectorAll("a")];
       expect(crumbAnchors).toHaveLength(2);
-      // Discovery has its own address. `/` is the signed-in person's home, so
-      // the crumb that says "explore" must lead to the explore route itself.
-      expect(crumbAnchors[0]?.getAttribute("href")).toBe("/explore");
-      expect(crumbAnchors[0]?.textContent).toBe("explore");
+      // A transcript is shown under home, the section the nav keeps it in, so
+      // the first crumb says "home" and leads to `/`, not to discovery.
+      expect(crumbAnchors[0]?.getAttribute("href")).toBe("/");
+      expect(crumbAnchors[0]?.textContent).toBe("home");
 
       expect(crumbAnchors[1]?.getAttribute("href")).toBe(expectedProjectHref);
       expect(crumbAnchors[1]?.textContent).toBe(c.expectedProjectCrumbLabel);
