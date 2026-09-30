@@ -6,6 +6,7 @@ cases:
     response: |
       {
         "number": 42,
+        "title": "Fix flaky ingest test",
         "state": "open",
         "merged": false,
         "user": {"id": 1001, "login": "author"},
@@ -14,6 +15,7 @@ cases:
       }
     expect:
       number: 42
+      title: "Fix flaky ingest test"
       repo_id: 7
       head_sha: "headsha"
       head_ref: "feature/x"
@@ -28,6 +30,7 @@ cases:
     response: |
       {
         "number": 43,
+        "title": "Keep a transcript's audience across republish",
         "state": "open",
         "merged": false,
         "user": {"id": 1001, "login": "author"},
@@ -36,6 +39,7 @@ cases:
       }
     expect:
       number: 43
+      title: "Keep a transcript's audience across republish"
       repo_id: 7
       head_sha: "headsha2"
       head_ref: "feature/y"
