@@ -159,6 +159,7 @@ function groupTranscript(row: ChildSessionRow, index: number): GroupTranscript {
     owner_username: row.ownerID,
     owner_avatar_url: null,
     owner_is_discoverable: true,
+    pull_requests: { count: 0, recent: [] },
   };
 }
 

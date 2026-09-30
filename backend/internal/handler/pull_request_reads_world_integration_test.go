@@ -56,8 +56,10 @@ type prWorldCollective struct {
 }
 
 type prWorldRepo struct {
-	Repo    string `yaml:"repo"`
-	Private bool   `yaml:"private"`
+	Repo string `yaml:"repo"`
+	// Private is required: a repository whose privacy a fixture forgot to state
+	// must not silently become public.
+	Private *bool `yaml:"private"`
 }
 
 type prWorldTranscript struct {
@@ -131,6 +133,9 @@ func (w prWorld) validate(t *testing.T, fixture string) {
 		}
 		repos := map[string]bool{}
 		for _, r := range c.Repositories {
+			if r.Private == nil {
+				t.Fatalf("%s: collective %q links %s without saying whether it is private", fixture, c.Name, r.Repo)
+			}
 			repos[r.Repo] = true
 		}
 		collectives[c.Name] = repos
@@ -238,7 +243,7 @@ func buildPRWorld(t *testing.T, pool *pgxpool.Pool, w prWorld, fixture string) *
 			if _, err := pool.Exec(ctx, `
 				INSERT INTO collective_repositories (group_id, owner, name, installation_id, is_private, linked_by)
 				VALUES ($1, $2, $3, 4242, $4, $5)
-			`, id, owner, name, r.Private, built.people[c.CreatedBy]); err != nil {
+			`, id, owner, name, *r.Private, built.people[c.CreatedBy]); err != nil {
 				t.Fatalf("link %s to %s: %v", r.Repo, c.Name, err)
 			}
 		}

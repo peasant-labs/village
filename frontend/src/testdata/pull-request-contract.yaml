@@ -15,6 +15,8 @@ examples:
         owner: acme
         name: widgets
         number: 7
+        title: Fix the flaky retry
+        head_ref: fix/flaky-retry
         head_sha: "0123456789abcdef0123456789abcdef01234567"
         is_private_repository: true
         state: waiting
@@ -49,6 +51,7 @@ examples:
     parser: zVillageUserSettings
     value:
       preview_before_attach: false
+      auto_attach_pull_requests: false
   - name: update user settings request
     parser: zVillageUpdateUserSettingsRequest
     value:
@@ -57,3 +60,19 @@ examples:
     parser: zVillageStatusResponse
     value:
       status: accepted
+  - name: transcript pull requests response
+    parser: zVillageTranscriptPullRequestsResponse
+    value:
+      pull_requests:
+        - owner: acme
+          name: widgets
+          number: 7
+          title: Fix the flaky retry
+          head_ref: fix/flaky-retry
+          state: attached
+        - owner: acme
+          name: widgets
+          number: 9
+          title: null
+          head_ref: null
+          state: detached

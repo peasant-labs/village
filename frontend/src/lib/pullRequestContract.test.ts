@@ -32,6 +32,7 @@ const requiredExamples: string[] = [
   "user settings",
   "update user settings request",
   "webhook acknowledgement",
+  "transcript pull requests response",
 ];
 
 /** A named package export that parses like a zod schema. Narrow and local: only

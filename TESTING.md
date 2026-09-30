@@ -1315,10 +1315,11 @@ escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
-The served/enforced contract expectation is Village API 0.23.0, including the
-pull request reads (a transcript's pull requests, the caller's totals, list-row
-summaries, and the collective and repository counts), retained unknown evidence,
-and the preceding head-remote prompt-request contract. Consumer
+The served/enforced contract expectation is Village API 0.24.0, including the
+pull request reads (a transcript's pull requests as the narrow
+`VillageTranscriptPullRequest` row, the caller's totals, list-row summaries, and
+the collective and repository counts), retained unknown evidence, and the
+preceding head-remote prompt-request contract. Consumer
 release still requires a published Schema tag and the corresponding module pin.
 For a pre-release contract prototype only, the encrypted aggregate accepts an
 explicit absolute `GOWORK` pointing outside the repository; its default remains

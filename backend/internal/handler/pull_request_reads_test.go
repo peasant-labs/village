@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -79,7 +79,6 @@ func TestTranscriptPullRequestsApplyTheVisibilityRule(t *testing.T) {
 			author := uuid.New()
 			viewer := uuid.New()
 			transcriptID := uuid.New()
-			attachmentID := uuid.New()
 			fake := newPullReadsGitHub(t)
 			fake.setPull("acme/app", 42, "Tighten the ingest retry", "fix/ingest-retry")
 			fake.setReader("4242", "reading-octocat", "acme/app", map[string]string{"reader": "read", "stranger": "none"}[c.Viewer])
@@ -110,13 +109,9 @@ func TestTranscriptPullRequestsApplyTheVisibilityRule(t *testing.T) {
 						t.Fatalf("the candidate read carried viewer %+v for viewer %q", arg.ViewerID, c.Viewer)
 					}
 					return []sqlc.ListPullRequestCandidatesByTranscriptsRow{{
-						TranscriptID: toPgUUID(transcriptID),
-						ID:           toPgUUID(attachmentID), RepoOwner: "acme", RepoName: "app", Number: 42,
-						HeadSha: "headsha", State: c.State, AuthorID: toPgUUID(author),
-						CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}, UpdatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
-						InstallationID: 4242,
-						IsPrivate:      c.Private,
-						ViewerIsMember: c.Viewer == "member",
+						TranscriptID: toPgUUID(transcriptID), RepoOwner: "acme", RepoName: "app", Number: 42,
+						State: c.State, AuthorID: toPgUUID(author), InstallationID: 4242,
+						IsPrivate: c.Private, ViewerIsMember: c.Viewer == "member",
 					}}, nil
 				},
 			}
@@ -142,11 +137,27 @@ func TestTranscriptPullRequestsApplyTheVisibilityRule(t *testing.T) {
 			}
 			if c.Listed {
 				row := got.PullRequests[0]
+				if row.Owner != "acme" || row.Name != "app" || row.Number != 42 || string(row.State) != c.State {
+					t.Fatalf("row = %+v, want acme/app#42 in state %s", row, c.State)
+				}
 				if row.Title == nil || *row.Title != "Tighten the ingest retry" || row.HeadRef == nil || *row.HeadRef != "fix/ingest-retry" {
 					t.Fatalf("title/head_ref = %v/%v, want GitHub's values", row.Title, row.HeadRef)
 				}
-				if row.IsPrivateRepository != c.Private || string(row.State) != c.State {
-					t.Fatalf("row = %+v, want private=%v state=%s", row, c.Private, c.State)
+				// The row names the pull request and nothing of the attachment's
+				// bookkeeping (ids, commit, check run, comment, author).
+				var raw struct {
+					PullRequests []map[string]json.RawMessage `json:"pull_requests"`
+				}
+				if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
+					t.Fatal(err)
+				}
+				keys := make([]string, 0, len(raw.PullRequests[0]))
+				for key := range raw.PullRequests[0] {
+					keys = append(keys, key)
+				}
+				sort.Strings(keys)
+				if strings.Join(keys, ",") != "head_ref,name,number,owner,state,title" {
+					t.Fatalf("row carries %v, want exactly owner, name, number, title, head_ref, state", keys)
 				}
 			}
 			if _, asks := fake.counts(); asks != 0 {

@@ -277,12 +277,14 @@ func (c *queryCounter) take() int {
 // summaryGuardWorld is the page the guard reads: size public transcripts, each
 // shared with a public collective and bound to one attached pull request in a
 // private repository and one in a public repository.
+var guardPrivate, guardPublic = true, false
+
 func summaryGuardWorld(size int) prWorld {
 	w := prWorld{
 		People: []string{"author", "member"},
 		Collectives: []prWorldCollective{{
 			Name: "team", CreatedBy: "author", DataAccess: "public", Members: map[string]string{"member": "member"},
-			Repositories: []prWorldRepo{{Repo: "acme/app", Private: true}, {Repo: "acme/site", Private: false}},
+			Repositories: []prWorldRepo{{Repo: "acme/app", Private: &guardPrivate}, {Repo: "acme/site", Private: &guardPublic}},
 		}},
 	}
 	for i := 1; i <= size; i++ {

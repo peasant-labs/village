@@ -29,6 +29,8 @@ function fixtureFor(
       owner: OWNER,
       name: NAME,
       number: NUMBER,
+      title: null,
+      head_ref: null,
       head_sha: "0123456789abcdef0123456789abcdef01234567",
       is_private_repository: row.is_private_repository,
       state: row.state,

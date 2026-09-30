@@ -87,6 +87,8 @@ github.com/peasant-labs/schema v0.24.0 h1:n2tjpbQxsbx0MCxoqBEvvfoHuCXPunCQEUWLrq
 github.com/peasant-labs/schema v0.24.0/go.mod h1:Jv78ZReuAmOx+83NGo39hCRcH48FG/DiD7MvFf2lUrI=
 github.com/peasant-labs/schema v0.24.1-0.20260929233934-cb2314226485 h1:YOmfJpxv8w1CA7jbHZLZ9m5YFO5J8geW4FAiBqBjQOA=
 github.com/peasant-labs/schema v0.24.1-0.20260929233934-cb2314226485/go.mod h1:Jv78ZReuAmOx+83NGo39hCRcH48FG/DiD7MvFf2lUrI=
+github.com/peasant-labs/schema v0.25.0 h1:IIbHLV1BJdcEPS1+2NPRWd1czErcmnxr2Gf1nV2pt6Y=
+github.com/peasant-labs/schema v0.25.0/go.mod h1:Jv78ZReuAmOx+83NGo39hCRcH48FG/DiD7MvFf2lUrI=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
