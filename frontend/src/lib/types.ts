@@ -65,6 +65,7 @@ import type {
   VillageGroupTranscriptStats,
   VillageLinkedRepositoriesResponse,
   VillageLinkedRepository,
+  VillagePullRequestsSummary,
   VillageRepositoryCommit,
   VillageRepositoryCommitsResponse,
   VillageShareEvent,
@@ -90,6 +91,9 @@ export interface User {
   // provider_username is the raw handle from the OAuth provider (suggestion).
   username_chosen: boolean;
   provider_username: string | null;
+  /** The sign-in provider the account belongs to (`github`, ...). Optional
+   *  because older fixtures and responses omit it. */
+  provider?: string;
 }
 
 /**
@@ -415,6 +419,10 @@ export interface TranscriptListItem {
   owner: User;
   shares?: EnrichedTranscriptShare[];
   attestations?: AttestationSummary[];
+  /** The pull requests this row is attached to that the caller may read: how
+   *  many, and up to three of the newest. Absent on a row from a server that
+   *  predates the summary, which a reader treats as none. */
+  pull_requests?: VillagePullRequestsSummary;
 }
 
 export interface TranscriptListResponse {
