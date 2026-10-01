@@ -209,7 +209,7 @@ function contributableRow(row: ChildSessionRow, index: number): ContributableTra
  *  puts over it. */
 function browseRowFor(row: ChildSessionRow): HTMLElement {
   const anchor = document.querySelector<HTMLAnchorElement>(
-    `a[aria-label="Open transcript ${ROW_TITLE(row)}"]`,
+    `a[aria-label="open transcript ${ROW_TITLE(row)}"]`,
   );
   if (anchor == null) throw new Error(`${row.name} is not drawn on the collective's browse list`);
   return anchor.parentElement!;
@@ -218,7 +218,7 @@ function browseRowFor(row: ChildSessionRow): HTMLElement {
 /** The selection box on one row, root or folded. */
 function selectionBoxFor(row: ChildSessionRow): HTMLInputElement {
   return within(browseRowFor(row)).getByRole("checkbox", {
-    name: `Select transcript ${ROW_TITLE(row)}`,
+    name: `select transcript ${ROW_TITLE(row)}`,
   }) as HTMLInputElement;
 }
 
@@ -281,7 +281,7 @@ describe("a collective's contributions read a started session under the session 
       // library -- the app's own way from a collective into a contributor's
       // work.
       expect(
-        rowElement.querySelector('a[aria-label^="Open transcript"]')!.getAttribute("href"),
+        rowElement.querySelector('a[aria-label^="open transcript"]')!.getAttribute("href"),
         `${where} links to the transcript`,
       ).toBe(`/transcripts/${row.name}`);
       expect(

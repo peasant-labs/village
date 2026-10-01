@@ -137,7 +137,7 @@ const server = createServer(async (req, res) => {
   }
   // The signed-in person's own home and settings reads, including the
   // owner-scoped list, which answers its own `empty` scenario.
-  if (await handleHomeRequest(req, res, scenario)) return
+  if (scenario !== 'transcript-owner' && await handleHomeRequest(req, res, scenario)) return
 
   if (scenario === 'empty' && req.method === 'GET' && path === '/transcripts') {
     return send(res, 200, { transcripts: [], total: 0, agent_total: 0, page: 1, limit: 24 })
