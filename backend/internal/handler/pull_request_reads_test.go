@@ -247,18 +247,22 @@ func TestPullRequestDetailReadsAreBoundedByTheirDeadline(t *testing.T) {
 	if detail.title != nil || detail.headRef != nil {
 		t.Fatalf("a read that ran out of time served %v/%v, want both unknown", detail.title, detail.headRef)
 	}
+	// The read may have timed out before its request reached GitHub, so the
+	// first view costs at most one read; the next view must cost none.
+	readsAfterFirst, _ := fake.counts()
 	if again := h.pullRequestDetail(context.Background(), 4242, "acme", "app", 42); again.title != nil {
 		t.Fatalf("the next view served %v, want the remembered unknown", again.title)
 	}
-	if reads, _ := fake.counts(); reads != 1 {
-		t.Fatalf("GitHub was read %d time(s), want 1: the timed-out read is remembered for the failure window", reads)
+	if reads, _ := fake.counts(); readsAfterFirst > 1 || reads != readsAfterFirst {
+		t.Fatalf("GitHub was read %d time(s) by the first view and %d by the next, want at most 1 and then none: the timed-out read is remembered for the failure window", readsAfterFirst, reads-readsAfterFirst)
 	}
 }
 
 // TestPullRequestDetailsForAListStopAtItsDeadline pins what a slow GitHub costs
-// a list: the response arrives within its deadline with unknown titles, and no
-// more than the list's few reads ever start, however many pull requests it
-// holds and even once its caller has stopped waiting.
+// a list: the response arrives within its deadline, no more than the list's few
+// reads ever start however many pull requests it holds, a pull request not
+// reached is served as unknown, and one whose answer is already remembered is
+// still served its title.
 func TestPullRequestDetailsForAListStopAtItsDeadline(t *testing.T) {
 	fake := newPullReadsGitHub(t)
 	fake.delayPullReads(5 * time.Second)
@@ -272,6 +276,11 @@ func TestPullRequestDetailsForAListStopAtItsDeadline(t *testing.T) {
 	h := newTestHandler(&mockQuerier{}, nil)
 	h.gh = fake.client(t)
 	h.pullDetailDeadline = 100 * time.Millisecond
+	// The last pull request's answer is already remembered, and it sits behind
+	// every pull request the list will not reach.
+	remembered := len(candidates) - 1
+	_, read, _ := h.pullDetails.claim(pullRequestKeyOf("acme", "app", remembered+1), time.Now())
+	h.pullDetails.settle(pullRequestKeyOf("acme", "app", remembered+1), read, pullRequestDetailEntry{title: "Remembered title", headRef: "fix/remembered"}, time.Now(), time.Hour)
 
 	started := time.Now()
 	details := h.pullRequestDetailsFor(context.Background(), candidates)
@@ -279,6 +288,12 @@ func TestPullRequestDetailsForAListStopAtItsDeadline(t *testing.T) {
 		t.Fatalf("a list of %d waited %s on a GitHub that does not answer, want about the %s deadline", len(candidates), elapsed, h.pullDetailDeadline)
 	}
 	for i, detail := range details {
+		if i == remembered {
+			if detail.title == nil || *detail.title != "Remembered title" {
+				t.Fatalf("the remembered pull request was served %v, want its remembered title", detail.title)
+			}
+			continue
+		}
 		if detail.title != nil || detail.headRef != nil {
 			t.Fatalf("pull request %d served %v/%v after the deadline, want both unknown", i+1, detail.title, detail.headRef)
 		}
@@ -355,6 +370,23 @@ func TestPullRequestDetailCacheWindows(t *testing.T) {
 	full.settle("one more", read, pullRequestDetailEntry{}, t0, time.Hour)
 	if len(full.entries) > pullRequestDetailMaxEntries || len(full.inflight) != 0 {
 		t.Fatalf("the table holds %d entries and %d reads in flight, want at most %d and none", len(full.entries), len(full.inflight), pullRequestDetailMaxEntries)
+	}
+}
+
+// TestPullRequestDetailShippedBounds pins the decided bounds themselves, which
+// the timing tests read from the constants or override: a four-second
+// deadline, four reads at once, an answer remembered two minutes, a refusal,
+// failure, or timeout thirty seconds, and at most 4096 remembered pull
+// requests. Changing one is a decision, and this is where it shows.
+func TestPullRequestDetailShippedBounds(t *testing.T) {
+	if pullRequestDetailDeadline != 4*time.Second || pullRequestDetailFetchers != 4 ||
+		pullRequestDetailTTL != 2*time.Minute || pullRequestDetailFailureTTL != 30*time.Second ||
+		pullRequestDetailMaxEntries != 4096 {
+		t.Fatalf("shipped bounds = deadline %s, fetchers %d, answer %s, failure %s, entries %d; want 4s, 4, 2m, 30s, 4096",
+			pullRequestDetailDeadline, pullRequestDetailFetchers, pullRequestDetailTTL, pullRequestDetailFailureTTL, pullRequestDetailMaxEntries)
+	}
+	if h := newTestHandler(&mockQuerier{}, nil); h.detailDeadline() != pullRequestDetailDeadline {
+		t.Fatalf("a handler with no deadline set uses %s, want the shipped %s", h.detailDeadline(), pullRequestDetailDeadline)
 	}
 }
 

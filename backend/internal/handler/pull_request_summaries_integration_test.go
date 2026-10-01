@@ -93,6 +93,9 @@ type summarySurfaceRead struct {
 	// transcript id; the other surfaces leave them empty.
 	owners map[string]string
 	tags   map[string][]string
+	// rawTags is each list row's tags exactly as served, so an untagged row's
+	// [] can be told from a null.
+	rawTags map[string]string
 	// canRead is the collective reads' can_read, which is what tells a page a
 	// withheld count from an empty one.
 	canRead *bool
@@ -118,7 +121,7 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 	if rec.Code != http.StatusOK {
 		t.Fatalf("%s answered %d (%s), want 200", target, rec.Code, rec.Body.String())
 	}
-	read := summarySurfaceRead{rows: map[string]schema.VillagePullRequestsSummary{}, owners: map[string]string{}, tags: map[string][]string{}}
+	read := summarySurfaceRead{rows: map[string]schema.VillagePullRequestsSummary{}, owners: map[string]string{}, tags: map[string][]string{}, rawTags: map[string]string{}}
 	add := func(id string, summary *schema.VillagePullRequestsSummary) {
 		if summary == nil {
 			t.Fatalf("%s row %s carries no pull_requests summary", surface, id)
@@ -138,9 +141,7 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 				Owner struct {
 					GithubUsername string `json:"github_username"`
 				} `json:"owner"`
-				Tags []struct {
-					Name string `json:"name"`
-				} `json:"tags"`
+				Tags         json.RawMessage                    `json:"tags"`
 				PullRequests *schema.VillagePullRequestsSummary `json:"pull_requests"`
 			} `json:"transcripts"`
 		}
@@ -150,8 +151,15 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 		for _, row := range body.Transcripts {
 			add(row.Transcript.ID, row.PullRequests)
 			read.owners[row.Transcript.ID] = row.Owner.GithubUsername
+			read.rawTags[row.Transcript.ID] = string(row.Tags)
+			var tags []struct {
+				Name string `json:"name"`
+			}
+			if err := json.Unmarshal(row.Tags, &tags); err != nil {
+				t.Fatalf("decode the tags of %s: %v", row.Transcript.ID, err)
+			}
 			names := []string{}
-			for _, tag := range row.Tags {
+			for _, tag := range tags {
 				names = append(names, tag.Name)
 			}
 			read.tags[row.Transcript.ID] = names
@@ -252,6 +260,13 @@ func TestPullRequestSummaries_RealPostgres(t *testing.T) {
 				}
 				if *read.stats != *c.Stats {
 					t.Fatalf("%s pull_request_count = %d, want %d", c.Surface, *read.stats, *c.Stats)
+				}
+			}
+			// The summaries world tags nothing, so every list row serves the
+			// contract's [] for its tags, never null.
+			for id, raw := range read.rawTags {
+				if raw != "[]" {
+					t.Fatalf("list row %s serves tags %s, want [] for a transcript with none", world.transcriptName(t, id), raw)
 				}
 			}
 			if c.CanRead != nil && (read.canRead == nil || *read.canRead != *c.CanRead) {

@@ -55,20 +55,37 @@ func (h *Handler) pullRequestDetailsFor(ctx context.Context, candidates []pullRe
 	if h.gh == nil {
 		return details
 	}
-	ctx, cancel := context.WithTimeout(ctx, h.detailDeadline())
+	deadline := time.Now().Add(h.detailDeadline())
+	ctx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 	slots := make(chan struct{}, pullRequestDetailFetchers)
 	var wg sync.WaitGroup
+	stopped := false
 	for i, c := range candidates {
+		// A remembered answer needs no slot and no read, so it is served even
+		// after the list has stopped waiting on GitHub.
+		if remembered, ok := h.pullDetails.peek(pullRequestKeyOf(c.owner, c.name, c.number), time.Now()); ok {
+			details[i] = remembered.detail()
+			continue
+		}
+		if stopped {
+			continue
+		}
 		// No read starts once the response has stopped waiting: the pull requests
-		// not reached by then are served as unknown, and the list never has more
-		// than its few reads in flight, even when its caller has gone.
+		// not reached by then are served as unknown, the list never has more than
+		// its few reads in flight, and it starts none once its caller has gone.
+		// A slot opens only when a read settles, so against a GitHub that does
+		// not answer no more than those few ever start. The clock is
+		// checked as well as the context, because a read that timed out on
+		// schedule can free its slot a moment before the list's own timer fires,
+		// and no read may start in that moment either.
 		select {
 		case slots <- struct{}{}:
 		case <-ctx.Done():
 		}
-		if ctx.Err() != nil {
-			break
+		if ctx.Err() != nil || !time.Now().Before(deadline) {
+			stopped = true
+			continue
 		}
 		wg.Add(1)
 		go func(i int, c pullRequestCandidate) {
@@ -188,6 +205,17 @@ func (c *pullRequestDetailCache) claim(key string, now time.Time) (entry pullReq
 	read = &pullRequestDetailRead{done: make(chan struct{})}
 	c.inflight[key] = read
 	return pullRequestDetailEntry{}, read, true
+}
+
+// peek answers from the cache alone, starting nothing.
+func (c *pullRequestDetailCache) peek(key string, now time.Time) (pullRequestDetailEntry, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[key]
+	if !ok || !now.Before(entry.expires) {
+		return pullRequestDetailEntry{}, false
+	}
+	return entry, true
 }
 
 // settle remembers a finished read's outcome for ttl and releases everyone
