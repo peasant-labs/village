@@ -1,0 +1,1319 @@
+{
+  "config": {
+    "argv": [
+      "/opt/homebrew/Cellar/node/26.7.0/bin/node",
+      "/Users/vitorhugo/Documents/Projects/polyrepo/village/village-256--feat--github-only-front-door/node_modules/.pnpm/@playwright+test@1.63.0/node_modules/@playwright/test/cli.js",
+      "test",
+      "--config",
+      "/tmp/village267-final-prod-capture.config.mjs"
+    ],
+    "configFile": "/tmp/village267-final-prod-capture.config.mjs",
+    "rootDir": "/Users/vitorhugo/Documents/Projects/polyrepo/village/village-256--feat--github-only-front-door/frontend/scripts/journey",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/tmp/village-267-final-production-captures/results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "dark",
+        "name": "dark",
+        "testDir": "/Users/vitorhugo/Documents/Projects/polyrepo/village/village-256--feat--github-only-front-door/frontend/scripts/journey",
+        "testIgnore": [],
+        "testMatch": [
+          "sign-in.journey.mjs",
+          "explore.journey.mjs",
+          "project.journey.mjs",
+          "transcript.journey.mjs"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/tmp/village-267-final-production-captures/results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "light",
+        "name": "light",
+        "testDir": "/Users/vitorhugo/Documents/Projects/polyrepo/village/village-256--feat--github-only-front-door/frontend/scripts/journey",
+        "testIgnore": [],
+        "testMatch": [
+          "sign-in.journey.mjs",
+          "explore.journey.mjs",
+          "project.journey.mjs",
+          "transcript.journey.mjs"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "/tmp/village-267-final-production-captures/report.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "explore.journey.mjs",
+      "file": "explore.journey.mjs",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "explore",
+          "file": "explore.journey.mjs",
+          "line": 19,
+          "column": 6,
+          "specs": [
+            {
+              "title": "browses, searches, and opens a transcript",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1247,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:22.981Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "explore-aria.yml",
+                          "contentType": "text/yaml",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explor-6c83c-ches-and-opens-a-transcript-dark/attachments/explore-aria-yml-6449a28b690fd99a5adec4c47c61f10135f054e3.yml"
+                        },
+                        {
+                          "name": "axe.json",
+                          "contentType": "application/json",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explor-6c83c-ches-and-opens-a-transcript-dark/attachments/axe-json-e955cdd572aba4c93df466f5a31bc60ffd2b2a02.json"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explor-6c83c-ches-and-opens-a-transcript-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-1da785e73835091f7f4f",
+              "file": "explore.journey.mjs",
+              "line": 20,
+              "column": 3
+            },
+            {
+              "title": "filters the list by provider",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 411,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:24.665Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explore-filters-the-list-by-provider-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-af273a734a0c5f90545a",
+              "file": "explore.journey.mjs",
+              "line": 71,
+              "column": 3
+            },
+            {
+              "title": "reorders the list by turn count",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 377,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:25.080Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explore-reorders-the-list-by-turn-count-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-cf7f33f890e39d862094",
+              "file": "explore.journey.mjs",
+              "line": 89,
+              "column": 3
+            },
+            {
+              "title": "switches between grid and list",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 382,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:25.463Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explore-switches-between-grid-and-list-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-7d7504f17771dfe42662",
+              "file": "explore.journey.mjs",
+              "line": 105,
+              "column": 3
+            },
+            {
+              "title": "search surfaces a matching collective and opens it",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 707,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:25.850Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explor-94dec-ing-collective-and-opens-it-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-de14f486354bffbe324e",
+              "file": "explore.journey.mjs",
+              "line": 121,
+              "column": 3
+            },
+            {
+              "title": "renders no rows when the server returns an empty list",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 348,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:26.561Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explor-dfc14-erver-returns-an-empty-list-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-19e1a450e1d87ec7324e",
+              "file": "explore.journey.mjs",
+              "line": 137,
+              "column": 3
+            },
+            {
+              "title": "browses, searches, and opens a transcript",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1236,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:31.167Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "explore-aria.yml",
+                          "contentType": "text/yaml",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explor-6c83c-ches-and-opens-a-transcript-light/attachments/explore-aria-yml-67f34187c50c81e62c6aa673a3dcc184f8d64b19.yml"
+                        },
+                        {
+                          "name": "axe.json",
+                          "contentType": "application/json",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explor-6c83c-ches-and-opens-a-transcript-light/attachments/axe-json-d77d0c40d3728de47713d6a5e2ccbd5d02301963.json"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explor-6c83c-ches-and-opens-a-transcript-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-f1222b1fdc809b63779f",
+              "file": "explore.journey.mjs",
+              "line": 20,
+              "column": 3
+            },
+            {
+              "title": "filters the list by provider",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 477,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:32.583Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explore-filters-the-list-by-provider-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-dd4ab14e11f169a41e89",
+              "file": "explore.journey.mjs",
+              "line": 71,
+              "column": 3
+            },
+            {
+              "title": "reorders the list by turn count",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 427,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:33.068Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explore-reorders-the-list-by-turn-count-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-98a755d29ce7d1b23a83",
+              "file": "explore.journey.mjs",
+              "line": 89,
+              "column": 3
+            },
+            {
+              "title": "switches between grid and list",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 416,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:33.500Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explore-switches-between-grid-and-list-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-f86d479b8d630ebef551",
+              "file": "explore.journey.mjs",
+              "line": 105,
+              "column": 3
+            },
+            {
+              "title": "search surfaces a matching collective and opens it",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 742,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:33.922Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explor-94dec-ing-collective-and-opens-it-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-b05449481de61508ac78",
+              "file": "explore.journey.mjs",
+              "line": 121,
+              "column": 3
+            },
+            {
+              "title": "renders no rows when the server returns an empty list",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 324,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:34.671Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explor-dfc14-erver-returns-an-empty-list-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6ba160732bb803356f18-ba0455ed63663cae0cec",
+              "file": "explore.journey.mjs",
+              "line": 137,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "project.journey.mjs",
+      "file": "project.journey.mjs",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "project orphan sessions",
+          "file": "project.journey.mjs",
+          "line": 18,
+          "column": 6,
+          "specs": [
+            {
+              "title": "expands the orphan group and opens a session",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 711,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:26.919Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "project-orphan-aria.yml",
+                          "contentType": "text/yaml",
+                          "path": "/tmp/village-267-final-production-captures/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/attachments/project-orphan-aria-yml-cc5227ad0854a800f840cc8a5c195589b8b93cc1.yml"
+                        },
+                        {
+                          "name": "project-orphan-group.png",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/attachments/project-orphan-group-png-e7d271380761dba3176040652a547625a5e0a289.png"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "4d738534b4f326af279c-700352bbeb2d85425c87",
+              "file": "project.journey.mjs",
+              "line": 19,
+              "column": 3
+            },
+            {
+              "title": "expands the orphan group and opens a session",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 616,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:35.003Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "project-orphan-aria.yml",
+                          "contentType": "text/yaml",
+                          "path": "/tmp/village-267-final-production-captures/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-light/attachments/project-orphan-aria-yml-9f24d7122ab4eee659313ebce6288a949204ceda.yml"
+                        },
+                        {
+                          "name": "project-orphan-group.png",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-light/attachments/project-orphan-group-png-c063eea55e225936f3f2d2f5820487c120dc7d52.png"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/project.journey.mjs-projec-8c474-n-group-and-opens-a-session-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "4d738534b4f326af279c-f66ee59863983774712a",
+              "file": "project.journey.mjs",
+              "line": 19,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "sign-in.journey.mjs",
+      "file": "sign-in.journey.mjs",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "sign-in",
+          "file": "sign-in.journey.mjs",
+          "line": 22,
+          "column": 6,
+          "specs": [
+            {
+              "title": "a signed-out root is one github sign-in",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 590,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:27.639Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "sign-in-aria.yml",
+                          "contentType": "text/yaml",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-2918f--root-is-one-github-sign-in-dark/attachments/sign-in-aria-yml-30f10bb5d4cafaaa05234ab7c755afd668ce200b.yml"
+                        },
+                        {
+                          "name": "axe.json",
+                          "contentType": "application/json",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-2918f--root-is-one-github-sign-in-dark/attachments/axe-json-349623253672803bc607020862d1795a9a7c73bc.json"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-2918f--root-is-one-github-sign-in-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "139c4a6db09bd0ab37d7-4aad9f21f2f718c53fd5",
+              "file": "sign-in.journey.mjs",
+              "line": 23,
+              "column": 3
+            },
+            {
+              "title": "the sign-in page fits a phone",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 303,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:28.234Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-in-the-sign-in-page-fits-a-phone-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "139c4a6db09bd0ab37d7-445413e64940475a85d7",
+              "file": "sign-in.journey.mjs",
+              "line": 88,
+              "column": 3
+            },
+            {
+              "title": "a signed-in nav is home and collectives",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 330,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:28.543Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-f9524-nav-is-home-and-collectives-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "139c4a6db09bd0ab37d7-b27da6ead807412f527d",
+              "file": "sign-in.journey.mjs",
+              "line": 107,
+              "column": 3
+            },
+            {
+              "title": "the account menu holds profile and sign out",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 418,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:28.878Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-8e0a0--holds-profile-and-sign-out-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "139c4a6db09bd0ab37d7-68d7d3ef90efe828dfb8",
+              "file": "sign-in.journey.mjs",
+              "line": 123,
+              "column": 3
+            },
+            {
+              "title": "header sign-out announces pending and failed requests with retry",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 819,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:29.300Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "header-sign-out-pending",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-21646--failed-requests-with-retry-dark/attachments/header-sign-out-pending-ae06675f2f316e55874820124aac68fea3c34f20.png"
+                        },
+                        {
+                          "name": "header-sign-out-failed",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-21646--failed-requests-with-retry-dark/attachments/header-sign-out-failed-42e65fb21b17ca51acedb773049dd1e9f87187aa.png"
+                        },
+                        {
+                          "name": "header-sign-out-axe.json",
+                          "contentType": "application/json",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-21646--failed-requests-with-retry-dark/attachments/header-sign-out-axe-json-b0a5fd557dfdcc6e85f59969b1ca85efc268f5f9.json"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-21646--failed-requests-with-retry-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "139c4a6db09bd0ab37d7-55b0053f6ec33a62324d",
+              "file": "sign-in.journey.mjs",
+              "line": 146,
+              "column": 3
+            },
+            {
+              "title": "a signed-out root is one github sign-in",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 609,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:35.628Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "sign-in-aria.yml",
+                          "contentType": "text/yaml",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-2918f--root-is-one-github-sign-in-light/attachments/sign-in-aria-yml-baec2475fb1b805d03299946cb1f9149b6b22e94.yml"
+                        },
+                        {
+                          "name": "axe.json",
+                          "contentType": "application/json",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-2918f--root-is-one-github-sign-in-light/attachments/axe-json-fe63f71eb5a6e8687ed33ee697f4350e9c43e5f3.json"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-2918f--root-is-one-github-sign-in-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "139c4a6db09bd0ab37d7-7d960dfe293a642a280c",
+              "file": "sign-in.journey.mjs",
+              "line": 23,
+              "column": 3
+            },
+            {
+              "title": "the sign-in page fits a phone",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 326,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:36.242Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-in-the-sign-in-page-fits-a-phone-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "139c4a6db09bd0ab37d7-56f7de608d0e809354b0",
+              "file": "sign-in.journey.mjs",
+              "line": 88,
+              "column": 3
+            },
+            {
+              "title": "a signed-in nav is home and collectives",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 336,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:36.574Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-f9524-nav-is-home-and-collectives-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "139c4a6db09bd0ab37d7-ea5c5cbd1f2bb7057af0",
+              "file": "sign-in.journey.mjs",
+              "line": 107,
+              "column": 3
+            },
+            {
+              "title": "the account menu holds profile and sign out",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 446,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:36.915Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-8e0a0--holds-profile-and-sign-out-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "139c4a6db09bd0ab37d7-52bc030c066f134c7381",
+              "file": "sign-in.journey.mjs",
+              "line": 123,
+              "column": 3
+            },
+            {
+              "title": "header sign-out announces pending and failed requests with retry",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 840,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:37.366Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "header-sign-out-pending",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-21646--failed-requests-with-retry-light/attachments/header-sign-out-pending-4f430839f02ecf21dcb34740a641176bddc277d0.png"
+                        },
+                        {
+                          "name": "header-sign-out-failed",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-21646--failed-requests-with-retry-light/attachments/header-sign-out-failed-55340be3111b3ba29c2cdb0a37676d400ab500e5.png"
+                        },
+                        {
+                          "name": "header-sign-out-axe.json",
+                          "contentType": "application/json",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-21646--failed-requests-with-retry-light/attachments/header-sign-out-axe-json-7b47b8c3938953d9c56787a924e6a8593b65d932.json"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-21646--failed-requests-with-retry-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "139c4a6db09bd0ab37d7-b636f119e0bbaaf63d2e",
+              "file": "sign-in.journey.mjs",
+              "line": 146,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "transcript.journey.mjs",
+      "file": "transcript.journey.mjs",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "transcript viewer",
+          "file": "transcript.journey.mjs",
+          "line": 12,
+          "column": 6,
+          "specs": [
+            {
+              "title": "opens a stored transcript",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "dark",
+                  "projectName": "dark",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 765,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:30.128Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "transcript-aria.yml",
+                          "contentType": "text/yaml",
+                          "path": "/tmp/village-267-final-production-captures/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-dark/attachments/transcript-aria-yml-00bcbce25394817904657c0c6a353dd61c00d1ee.yml"
+                        },
+                        {
+                          "name": "axe.json",
+                          "contentType": "application/json",
+                          "path": "/tmp/village-267-final-production-captures/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-dark/attachments/axe-json-6f73176089c2a10fb209c9b76c6b9e4fb8a58260.json"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-dark/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "66a5ae50842ab86c680d-fc49804504d01718fa9c",
+              "file": "transcript.journey.mjs",
+              "line": 13,
+              "column": 3
+            },
+            {
+              "title": "opens a stored transcript",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "light",
+                  "projectName": "light",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 763,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-01T23:04:38.215Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "transcript-aria.yml",
+                          "contentType": "text/yaml",
+                          "path": "/tmp/village-267-final-production-captures/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-light/attachments/transcript-aria-yml-b847eb8f09dd06d9d2aedc8997b8d797924a0e79.yml"
+                        },
+                        {
+                          "name": "axe.json",
+                          "contentType": "application/json",
+                          "path": "/tmp/village-267-final-production-captures/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-light/attachments/axe-json-4113c6b1dd7f851fd9039e3fac803aa51c21bbc6.json"
+                        },
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/tmp/village-267-final-production-captures/results/transcript.journey.mjs-tra-8a602-r-opens-a-stored-transcript-light/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "66a5ae50842ab86c680d-be92486ca8b371d73e36",
+              "file": "transcript.journey.mjs",
+              "line": 13,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-01T23:04:21.829Z",
+    "duration": 17237.453999999998,
+    "expected": 26,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

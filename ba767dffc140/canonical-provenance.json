@@ -1,0 +1,36 @@
+{
+  "sourceHead": "ba767dffc1408208dc97b20433161d2d9c44921d",
+  "builtSourceHead": "ba767dffc1408208dc97b20433161d2d9c44921d",
+  "servedAssetsVerified": 21,
+  "canonicalHead": "708c858face29261b41faa0a91f0e9167b30dc45",
+  "comparisons": [
+    {
+      "surface": "signin",
+      "theme": "dark",
+      "current": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-2918f--root-is-one-github-sign-in-dark/test-finished-1.png",
+      "url": "http://localhost:6132/?app=commons&commons=signin&theme=dark#inuse",
+      "font": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif"
+    },
+    {
+      "surface": "explore",
+      "theme": "dark",
+      "current": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explore-reorders-the-list-by-turn-count-dark/test-finished-1.png",
+      "url": "http://localhost:6132/?app=commons&commons=explore&theme=dark#inuse",
+      "font": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif"
+    },
+    {
+      "surface": "signin",
+      "theme": "light",
+      "current": "/tmp/village-267-final-production-captures/results/sign-in.journey.mjs-sign-i-2918f--root-is-one-github-sign-in-light/test-finished-1.png",
+      "url": "http://localhost:6132/?app=commons&commons=signin&theme=light#inuse",
+      "font": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif"
+    },
+    {
+      "surface": "explore",
+      "theme": "light",
+      "current": "/tmp/village-267-final-production-captures/results/explore.journey.mjs-explore-reorders-the-list-by-turn-count-light/test-finished-1.png",
+      "url": "http://localhost:6132/?app=commons&commons=explore&theme=light#inuse",
+      "font": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif"
+    }
+  ]
+}
