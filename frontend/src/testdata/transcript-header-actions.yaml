@@ -21,6 +21,8 @@ entries:
   - manage access
   - edit title
   - download markdown
+  - download json
+  - download jsonl
 
 # The transcript every case mounts. Names and the title keep their case.
 content:
@@ -75,19 +77,26 @@ content:
 cases:
   - name: the-owner-sees-every-entry
     viewer: owner
-    expectEntries: [link, copy link, more, manage access, edit title, download markdown]
+    expectEntries: [link, copy link, more, manage access, edit title, download markdown, download json, download jsonl]
     expectAccessCaption: "who can read it: Acme Platform, Acme Company"
+    readsCollectives: true
+
+  - name: a-public-owner-sees-everyone-in-the-audience-caption
+    viewer: owner
+    visibility: public
+    expectEntries: [link, copy link, more, manage access, edit title, download markdown, download json, download jsonl]
+    expectAccessCaption: "who can read it: anyone with the link"
     readsCollectives: true
 
   - name: a-signed-in-reader-can-copy-and-download-only
     viewer: reader
-    expectEntries: [link, copy link, more, download markdown]
+    expectEntries: [link, copy link, more, download markdown, download json, download jsonl]
     expectAccessCaption: null
     readsCollectives: false
 
   - name: a-signed-out-reader-can-copy-and-download-only
     viewer: signed-out
-    expectEntries: [link, copy link, more, download markdown]
+    expectEntries: [link, copy link, more, download markdown, download json, download jsonl]
     expectAccessCaption: null
     readsCollectives: false
 
@@ -118,7 +127,7 @@ manageAccessCases:
     expectRequest: DELETE /transcripts/{transcriptId}/share/22222222-2222-4222-8222-222222222222
     expectAccess: [Acme Platform, Acme Company]
     expectAccessCaption: "who can read it: Acme Platform, Acme Company"
-    expectMessage: "could not remove Acme Company. it can still read it; try again."
+    expectMessage: "could not remove Acme Company. review the list and try again."
 
   - name: adding-an-open-collective-lists-it
     action: add
@@ -130,6 +139,7 @@ manageAccessCases:
     expectMessage: null
 
   - name: adding-a-curated-collective-waits-for-its-approval
+    reopen: true
     action: add
     collective: ML Reading Group
     answer: 200
@@ -138,14 +148,24 @@ manageAccessCases:
     expectAccessCaption: "who can read it: Acme Platform, Acme Company"
     expectMessage: null
 
-  - name: a-collective-that-skips-the-submission-says-nothing-changed
+  - name: adding-a-private-transcript-requires-consent
+    visibility: private
+    action: add
+    collective: Infra Guild
+    answer: 200
+    expectRequest: POST /transcripts/{transcriptId}/share {"group_ids":["33333333-3333-4333-8333-333333333333"]}
+    expectAccess: [Acme Platform, Acme Company, Infra Guild]
+    expectAccessCaption: "who can read it: Acme Platform, Acme Company +1"
+    expectMessage: "submitted to Infra Guild."
+
+  - name: a-collective-that-skips-the-submission-says-it-was-not-recorded
     action: add
     collective: Verified Makers
     answer: 200
     expectRequest: POST /transcripts/{transcriptId}/share {"group_ids":["55555555-5555-4555-8555-555555555555"]}
     expectAccess: [Acme Platform, Acme Company]
     expectAccessCaption: "who can read it: Acme Platform, Acme Company"
-    expectMessage: "Verified Makers did not take it, so nothing changed."
+    expectMessage: "Verified Makers did not record a submission."
 
 # `download markdown` for a signed-out reader: the file's name and lines the
 # test reads back out of the downloaded file, in order. Turns carry the labels
@@ -162,3 +182,32 @@ download:
     - "why is ingest dropping commits?"
     - "## turn 1a · assistant"
     - "Looking at the detector now."
+
+rawDownloads:
+  - name: download-json-from-the-mounted-menu
+    format: json
+    expectFileName: fix-flaky-ingest-test-3f9c0a17.json
+  - name: download-jsonl-from-the-mounted-menu
+    format: jsonl
+    expectFileName: fix-flaky-ingest-test-3f9c0a17.jsonl
+
+readRecovery:
+  - name: approved-audience-read-failure-is-retryable
+    path: /transcripts/{transcriptId}/collectives
+    message: the collectives could not load.
+  - name: owner-contribution-read-failure-is-retryable
+    path: /users/me/collectives/contributions
+    message: the collectives could not load.
+  - name: owner-submission-read-failure-is-retryable
+    path: /groups/11111111-1111-4111-8111-111111111111/my-shares
+    message: the collectives could not load.
+  - name: picker-membership-read-failure-is-retryable
+    path: /groups
+    message: your collectives could not load.
+consentCancel:
+  name: cancelling-private-sharing-sends-no-request
+  collective: Infra Guild
+departedCollective:
+  name: a-departed-collective-stays-visible-and-withdrawable
+  id: 22222222-2222-4222-8222-222222222222
+  collective: Acme Company

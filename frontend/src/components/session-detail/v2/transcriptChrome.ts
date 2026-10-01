@@ -67,6 +67,8 @@ export function buildProjectHref(
 }
 
 export interface TranscriptBreadcrumbInput {
+  /** Signed-out readers have no home link: the root is their sign-in page. */
+  isLoggedIn?: boolean;
   /** The one server-resolved project display name (`Transcript.project_display_name`)
    *  — never a locally re-derived name. */
   project: string;
@@ -106,6 +108,7 @@ export interface TranscriptBreadcrumbCrumb {
 export function buildTranscriptBreadcrumb({
   project,
   projectHref,
+  isLoggedIn = true,
   storedTitle,
   transcriptId,
 }: TranscriptBreadcrumbInput): TranscriptBreadcrumbCrumb[] {
@@ -113,7 +116,7 @@ export function buildTranscriptBreadcrumb({
   const shortVillageId = transcriptId.slice(0, 8);
   const crumbTitle = trimmedTitle ? truncateCrumbLabel(trimmedTitle) : shortVillageId;
   return [
-    { label: HOME_SECTION.label, href: HOME_SECTION.href },
+    { label: HOME_SECTION.label, ...(isLoggedIn ? { href: HOME_SECTION.href } : {}) },
     { label: project, ...(projectHref ? { href: projectHref } : {}) },
     { label: crumbTitle },
   ];

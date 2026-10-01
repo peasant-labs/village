@@ -88,12 +88,12 @@ function metadata() {
     },
     tags: [],
     shares: [],
-    enriched_shares: pending.map((id) => ({
+    enriched_shares: readers.map((id) => ({
       transcript_id: OWNED_TRANSCRIPT.id,
       group_id: id,
       group_name: groupById(id).name,
       acceptance_mode: groupById(id).acceptance_mode,
-      status: 'pending',
+      status: 'approved',
       shared_at: '2026-09-01T00:00:00Z',
     })),
     owner: { id: OWNED_TRANSCRIPT.ownerId, github_username: OWNED_TRANSCRIPT.ownerUsername },
@@ -112,6 +112,19 @@ export function handleOwnedTranscriptRequest(req, res, { ownerGroups }) {
 
   if (ownerGroups && req.method === 'GET' && path === '/groups') {
     send(res, 200, OWNER_GROUPS.map((g) => ({ ...g, role: 'member', member_since: '2026-01-01T00:00:00Z' })))
+    return true
+  }
+  if (ownerGroups && req.method === 'GET' && path === '/users/me/collectives/contributions') {
+    send(res, 200, { collectives: OWNER_GROUPS.filter((g) => readers.includes(g.id) || pending.includes(g.id))
+      .map((g) => ({ id: g.id, name: g.name, approved_count: readers.includes(g.id) ? 1 : 0,
+        pending_count: pending.includes(g.id) ? 1 : 0, rejected_attempt_count: 0, withdrawn_attempt_count: 0 })) })
+    return true
+  }
+  const ownShares = path.match(/^\/groups\/([^/]+)\/my-shares$/)
+  if (ownerGroups && req.method === 'GET' && ownShares) {
+    const id = ownShares[1]
+    send(res, 200, readers.includes(id) || pending.includes(id)
+      ? [{ id: OWNED_TRANSCRIPT.id, status: readers.includes(id) ? 'approved' : 'pending' }] : [])
     return true
   }
   if (!path.startsWith(base)) return false
@@ -149,7 +162,7 @@ export function handleOwnedTranscriptRequest(req, res, { ownerGroups }) {
         if (group.acceptance_mode === 'curated') pending.push(id)
         else readers.push(id)
       }
-      send(res, 200, [])
+      send(res, 200, [...readers, ...pending].map((id) => ({ group_id: id, group_name: groupById(id).name, shared_at: '2026-09-01T00:00:00Z' })))
     })
     return true
   }

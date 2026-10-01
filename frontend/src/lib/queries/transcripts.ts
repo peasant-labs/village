@@ -361,7 +361,7 @@ export function useClearProjectDisplayName() {
 /**
  * The query keys a change to one transcript's audience moves: the transcript's
  * own metadata (its visibility flips between private and shared, and its
- * `enriched_shares` carry pending submissions), the collectives read, the
+ * title and visibility stay current), the collectives read, the
  * lists that show it, and the collective's own pages.
  *
  * The returned promise resolves once the reads on screen have been fetched
@@ -380,6 +380,7 @@ function invalidateTranscriptAudience(
     qc.invalidateQueries({ queryKey: ["transcript-collectives", transcriptId] }),
     qc.invalidateQueries({ queryKey: ["group", groupId] }),
     qc.invalidateQueries({ queryKey: ["group-my-shares", groupId] }),
+    qc.invalidateQueries({ queryKey: ["my-collective-contributions"] }),
   ]);
 }
 
@@ -404,7 +405,7 @@ export function useUnshareTranscript() {
  * Offer one owned transcript to one collective (`POST /transcripts/{id}/share`).
  * A refused request rejects, so the caller can say it failed. The server skips a
  * collective that does not take this owner's submission and still answers 200,
- * so the caller reads the refreshed audience to learn whether it was added.
+ * so the caller compares the returned group IDs to learn whether it was recorded.
  */
 export function useShareTranscript() {
   const qc = useQueryClient();
