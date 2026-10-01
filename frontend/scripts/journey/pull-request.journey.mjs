@@ -68,6 +68,13 @@ test.describe('pull request page', () => {
     )
     await expect(page.getByTestId('pull-request-coverage')).toHaveText('3 of 4 commits traced')
 
+    // The canonical in-use callout puts consent actions after its explanation.
+    const audienceBox = await page.getByTestId('transcript-audience').boundingBox()
+    const attachBox = await page.getByTestId('confirm-attachment').boundingBox()
+    expect(audienceBox).not.toBeNull()
+    expect(attachBox).not.toBeNull()
+    expect(attachBox.y).toBeGreaterThan(audienceBox.y + audienceBox.height)
+
     // The split list names each transcript by its title, the first selected.
     const options = page.getByRole('option')
     await expect(options).toHaveCount(2)
