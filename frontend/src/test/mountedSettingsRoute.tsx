@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
@@ -108,15 +109,22 @@ export function installSettingsRouteREST(c: SettingsCase): MountedSettingsBacken
   return { writes };
 }
 
+/**
+ * Mounted under React's StrictMode, as `next dev` mounts every page: a row
+ * that only settles its writes when mounted once would pass a plain render and
+ * still sit at "saving" forever in development.
+ */
 async function renderWithProviders(element: React.ReactElement): Promise<void> {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   await act(async () => {
     render(
-      <QueryClientProvider client={client}>
-        <AuthProvider>{element}</AuthProvider>
-      </QueryClientProvider>,
+      <StrictMode>
+        <QueryClientProvider client={client}>
+          <AuthProvider>{element}</AuthProvider>
+        </QueryClientProvider>
+      </StrictMode>,
     );
   });
 }
