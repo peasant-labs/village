@@ -36,7 +36,7 @@ describe("collective settings: the public data-access option", () => {
       });
       await renderGroupSettingsRoute(GROUP_ID);
 
-      const select = (await screen.findByLabelText("Data access")) as HTMLSelectElement;
+      const select = (await screen.findByLabelText("data access")) as HTMLSelectElement;
       expect(Array.from(select.options).map((o) => o.value)).toEqual(c.expectOptions);
       // The collective's own value is shown, with its own label: a select with
       // no option for its value would silently display another one.
