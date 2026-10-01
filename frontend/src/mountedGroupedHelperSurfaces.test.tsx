@@ -5,6 +5,7 @@ import {
 } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import HomePage from "@/app/HomePage";
 import ExplorePage from "@/app/explore/ExplorePage";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { renderProfileRoute } from "@/test/mountedProfileRoute";
@@ -158,7 +159,11 @@ function installContinuationREST(testCase: ContinuationCase): string[] {
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       calls.push(url);
-      if (url.includes("/auth/me")) return json({ error: "signed out" }, 401);
+      if (url.includes("/auth/me")) return testCase.route === "home"
+        ? json(userFixture(testCase.owner)) : json({ error: "signed out" }, 401);
+      if (url.includes("/users/me/stats")) return json({ total_transcripts: 1, total_turns: 0, total_duration_ms: 0, total_tokens: 0, pull_request_count: 0 });
+      if (url.includes("/users/me/collectives/contributions")) return json({ collectives: [] });
+      if (/\/groups(?:\?|$)/.test(url)) return json([]);
       if (url.includes("/transcript-groups/")) return json(surfaceMemberPayload(testCase.laterMember));
       if (url.includes("/transcripts")) {
         const params = new URL(url).searchParams;
@@ -172,7 +177,7 @@ function installContinuationREST(testCase: ContinuationCase): string[] {
           total: testCase.flatTranscripts,
           agent_total: 0,
           page: 1,
-          limit: 24,
+          limit: Number(params.get("limit") ?? 24),
         });
       }
       if (url.includes("/projects/")) return json(projectPayload(testCase));
@@ -215,7 +220,14 @@ it(fixtures.explore.name, async () => {
 for (const testCase of fixtures.continuationCases) {
   it(testCase.name, async () => {
     const calls = installContinuationREST(testCase);
-    if (testCase.route === "profile") {
+    if (testCase.route === "home") {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      await act(async () => { render(
+        <QueryClientProvider client={client}>
+          <AppRouterContext.Provider value={makeRouter()}><AuthProvider><HomePage /></AuthProvider></AppRouterContext.Provider>
+        </QueryClientProvider>,
+      ); });
+    } else if (testCase.route === "profile") {
       await renderProfileRoute(testCase.owner);
     } else {
       await renderProjectRoute(testCase.owner, testCase.projectHash!);

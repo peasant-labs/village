@@ -9,7 +9,7 @@ The signed-out front door remains its own mounted route surface.
 | Surface | Read | Meaning |
 | --- | --- | --- |
 | Transcript table | Owner-filtered `GET /transcripts`, paginated | The caller's published sessions; a blank handle never produces an unfiltered request |
-| Helper relationships | The existing grouped transcript read | Server decisions about stored helper relationships; the consumer does not recompute them |
+| Helper relationships | The existing grouped transcript read, explicitly paginated | Server decisions about stored helper relationships; the consumer does not recompute them |
 | Totals | `GET /users/me/stats` | Server aggregates for the signed-in account, including recorded duration |
 | Collective rail | `GET /groups` | The collectives the caller belongs to |
 | Waiting contributions | `GET /users/me/collectives/contributions` | The caller's pending counts, separate from accepted contributions |
@@ -18,7 +18,16 @@ The signed-out front door remains its own mounted route surface.
 Search is settled before issuing a request. Loading another page preserves
 already loaded rows; a failed continuation is distinct from an empty first page.
 The list, totals and rail reads report their own failures and retry separately.
-Parent and child rows use one published-time comparison for ordering.
+Parent and child rows use one published-time comparison for ordering. Grouped
+continuation uses the server's reported total and original owner filter, one
+page per press; it does not automatically reopen expired helper expansions.
+The opaque member scope remains the authority for expanding returned groups.
+
+The audience column always names “anyone with the link” for public transcripts,
+alongside any approved collective names. No approved collective says “not shared
+with collective members”, rather than claiming author-only access: a collective
+owner may still read a pending submission for review. Pending counts stay in
+the separate waiting rail.
 
 The home page has no pull request action queue or provider icons, following the
 owner's review decisions. Pull request references are a many-valued list. User
