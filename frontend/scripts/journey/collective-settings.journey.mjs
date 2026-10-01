@@ -10,6 +10,7 @@ import { writeFileSync } from 'node:fs'
 import { test, expect } from './lib/fixtures.mjs'
 import { setScenario } from './lib/scenario.mjs'
 import { scanAxe, seriousViolations, expectTheme, expectComputedTokens } from './lib/assertions.mjs'
+import { loadCollectiveInviteSearchFixtures } from '../../src/test/collectiveInviteSearchFixtures.ts'
 import { JOURNEY_COLLECTIVES } from './lib/collective-fixtures.mjs'
 
 const OWNER = JOURNEY_COLLECTIVES.owner
@@ -97,4 +98,31 @@ test.describe('collective settings', () => {
     await expect(github).toContainText('2 of 14 repos linked')
     await still(page, testInfo, 'settings-github-connected')
   })
+  test('retains github user search and confirms the selected invitation', async ({ page, theme }, testInfo) => {
+    const entry = loadCollectiveInviteSearchFixtures().find((row) => row.name === 'invite-search-preserves-the-selected-github-handle')
+    const searches = []
+    await page.route('https://api.github.com/search/users*', (route) => {
+      searches.push(new URL(route.request().url()).searchParams.get('q'))
+      return route.fulfill({ json: { items: [{ login: entry.handle, avatar_url: '' }] } })
+    })
+    await page.goto(SETTINGS)
+    await expectTheme(page, theme)
+    await page.getByRole('button', { name: 'find a github user to invite' }).click()
+    const dialog = page.getByRole('dialog', { name: 'invite a github user' })
+    await dialog.getByRole('combobox', { name: 'github username' }).fill(entry.query)
+    const choice = dialog.getByRole('menuitem', { name: entry.handle })
+    await expect(choice).toBeVisible()
+    expect(searches).toEqual([entry.query])
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await still(page, testInfo, 'settings-github-user-search')
+    const axe = await scanAxe(page)
+    expect(seriousViolations(axe), JSON.stringify(seriousViolations(axe))).toEqual([])
+    await choice.click()
+    const invited = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().endsWith('/members'))
+    await dialog.getByRole('button', { name: 'invite', exact: true }).click()
+    expect((await invited).request().postDataJSON()).toEqual({ username: entry.handle })
+    await expect(dialog).not.toBeVisible()
+    await expect(page.getByTestId('collective-notice')).toContainText(`@${entry.handle} can now publish here.`)
+  })
+
 })

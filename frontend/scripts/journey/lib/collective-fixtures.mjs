@@ -339,6 +339,13 @@ export function handleCollectiveRequest(req, res) {
     send(res, 200, { status: 'unlinked' })
     return true
   }
+  if (rest === '/members' && req.method === 'POST') {
+    readJSON(req).then((body) => {
+      entry.members.push(person(`invited-${body.username}`, body.username, null, 'member'))
+      send(res, 200, { status: 'added' })
+    })
+    return true
+  }
   const memberRole = rest.match(/^\/members\/([^/]+)\/role$/)
   if (memberRole && req.method === 'PATCH') {
     readJSON(req).then((body) => {

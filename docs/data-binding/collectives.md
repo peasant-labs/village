@@ -89,3 +89,11 @@ generation sits below the viewer in their cache keys, so returning credentials
 start a fresh scope. Two mounted refetch fixtures observe rejected dispatch and
 discarded late data, including recovery back to the original credential. Both
 guard-removal mutations fail at their named HTTP/cache assertions.
+
+The owner also retains GitHub handle search from the settings page. The
+canonical settings body stays intact; an additive search exit opens Fairtrade's
+Dialog with the existing typeahead. Picking a result only selects its handle;
+invite sends the existing member POST. A failed invitation stays announced in
+the dialog with retry, and names retain their original case. Named mounted
+fixtures and a both-theme production journey cover search, explicit confirmation,
+the exact request body, and recovery.
