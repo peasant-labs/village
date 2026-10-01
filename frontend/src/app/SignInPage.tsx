@@ -14,39 +14,26 @@ import { SIGN_IN_PROVIDERS, startSignIn } from "@/lib/signIn";
  */
 export default function SignInPage() {
   return (
-    <div className="px-4 sm:px-8" data-testid="sign-in-page">
-      <section
-        aria-labelledby="sign-in-heading"
-        className="mx-auto w-full max-w-[var(--measure-read)] pt-[clamp(var(--sp-8),18vh,calc(var(--sp-8)*3))] pb-[var(--sp-8)]"
-      >
-        <h1
-          id="sign-in-heading"
-          className="font-[family-name:var(--font-display)] text-[length:var(--fs-xl)] font-semibold leading-tight tracking-tight text-ink text-balance"
-        >
+    <div className="iu-page cmg-signin" data-testid="sign-in-page">
+      <section aria-labelledby="sign-in-heading" className="cmg-signin-card">
+        <p className="cmg-signin-brand mono">village</p>
+        <h1 id="sign-in-heading" className="iu-page-title">
           the agent sessions behind your team&apos;s pull requests
         </h1>
-        <p className="mt-4 text-ink-2">
+        <p className="iu-page-sub">
           peasant records your ai coding sessions on your machine. village keeps the ones you
           publish, shared with your collectives, and links them to pull requests.
         </p>
-
-        <div className="mt-8">
-          <SignInProviders providers={SIGN_IN_PROVIDERS} onSignIn={startSignIn} />
-        </div>
-
-        <div className="mt-8 flex flex-col gap-2 border-t border-rule pt-5 text-ink-3">
-          <p>
+        <SignInProviders providers={SIGN_IN_PROVIDERS} onSignIn={startSignIn} />
+        <ul className="cmg-signin-notes">
+          <li>
             first time here? your handle is your github login. if someone already has it, or it
             does not fit a village handle, you choose another.
-          </p>
-          <p>
-            using the cli?{" "}
-            <code className="whitespace-nowrap border border-rule bg-canvas px-1 font-mono text-ink-2">
-              peasant village login
-            </code>{" "}
-            uses the same <span className="whitespace-nowrap">github sign-in</span>.
-          </p>
-        </div>
+          </li>
+          <li>
+            using the cli? <code className="mono">peasant village login</code> uses the same github sign-in.
+          </li>
+        </ul>
       </section>
     </div>
   );
