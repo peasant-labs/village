@@ -40,12 +40,12 @@ func TestPromptChecksFollowActualTranscriptGrants_RealPostgres(t *testing.T) {
 			t.Fatalf("empty or duplicate grant case %q", c.Name)
 		}
 		present[c.Name] = struct{}{}
-		if !containsString([]string{"private", "shared"}, c.Visibility) || !containsString([]string{"", "pending", "approved"}, c.Share) || !containsString([]string{"owner", "member", "pending"}, c.Member) || !containsString([]string{"none", "approve", "batch-approve", "reject", "remove-transcript", "remove-member"}, c.Action) || !containsString([]string{"success", "neutral"}, c.Before) || !containsString([]string{"success", "neutral"}, c.After) {
+		if !containsString([]string{"private", "shared"}, c.Visibility) || !containsString([]string{"", "pending", "approved"}, c.Share) || !containsString([]string{"owner", "member", "pending", "absent"}, c.Member) || !containsString([]string{"none", "approve", "batch-approve", "reject", "remove-transcript", "remove-member", "add-member", "promote-member", "join"}, c.Action) || !containsString([]string{"success", "neutral"}, c.Before) || !containsString([]string{"success", "neutral"}, c.After) {
 			t.Fatalf("invalid grant fixture %q", c.Name)
 		}
 	}
 	assertExactTitleFixtureNames(t, "attachment-grants", present, []string{
-		"shared_without_an_accepted_grant_is_neutral", "a_pending_member_cannot_satisfy_the_check", "an_accepted_member_satisfies_the_check", "a_review_owner_can_read_a_private_submission", "approval_refreshes_the_check_without_a_visibility_change", "batch_approval_refreshes_the_check_without_a_visibility_change", "rejection_refreshes_the_unaccepted_check", "removing_the_contribution_revokes_the_check", "the_last_member_leaving_revokes_the_check", "shared_to_private_during_post_revokes_check_success",
+		"shared_without_an_accepted_grant_is_neutral", "a_pending_member_cannot_satisfy_the_check", "an_accepted_member_satisfies_the_check", "a_review_owner_can_read_a_private_submission", "approval_refreshes_the_check_without_a_visibility_change", "batch_approval_refreshes_the_check_without_a_visibility_change", "rejection_refreshes_the_unaccepted_check", "removing_the_contribution_revokes_the_check", "the_last_member_leaving_revokes_the_check", "shared_to_private_during_post_revokes_check_success", "adding_the_first_member_refreshes_the_check", "accepting_a_pending_member_refreshes_the_check", "an_open_join_refreshes_the_check",
 	})
 	for i, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
@@ -55,8 +55,15 @@ func TestPromptChecksFollowActualTranscriptGrants_RealPostgres(t *testing.T) {
 				t.Fatal(err)
 			}
 			execAsSystem(t, ctx, w.pool, `UPDATE transcripts SET visibility = $2 WHERE id = $1`, w.transcriptID, c.Visibility)
-			if _, err := w.pool.Exec(ctx, `UPDATE group_members SET role = $3 WHERE group_id = $1 AND user_id = $2`, w.groupID, pgtype.UUID{Bytes: w.member.ID, Valid: true}, c.Member); err != nil {
-				t.Fatal(err)
+			if c.Member != "absent" {
+				if _, err := w.pool.Exec(ctx, `UPDATE group_members SET role = $3 WHERE group_id = $1 AND user_id = $2`, w.groupID, pgtype.UUID{Bytes: w.member.ID, Valid: true}, c.Member); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if c.Member == "absent" {
+				if _, err := w.pool.Exec(ctx, `DELETE FROM group_members WHERE group_id=$1 AND user_id=$2`, w.groupID, w.member.PgID()); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if c.Share != "" {
 				if _, err := w.pool.Exec(ctx, `INSERT INTO transcript_share_attempts (transcript_id,group_id,event_num,status) VALUES ($1,$2,1,$3)`, w.transcriptID, w.groupID, c.Share); err != nil {
@@ -91,6 +98,10 @@ func TestPromptChecksFollowActualTranscriptGrants_RealPostgres(t *testing.T) {
 			router.Patch("/groups/{id}/shares", w.h.BatchReviewShares)
 			router.Delete("/groups/{id}/transcripts/{transcriptID}", w.h.RemoveGroupTranscript)
 			router.Delete("/groups/{id}/members/{userID}", w.h.RemoveGroupMember)
+			router.Post("/groups/{id}/members", w.h.AddGroupMember)
+			router.Post("/groups/{id}/join", w.h.JoinGroup)
+			router.Patch("/groups/{id}/members/{userID}/role", w.h.PromoteMember)
+			actor := w.owner
 			method, path, body := http.MethodPatch, fmt.Sprintf("/groups/%s/shares/%s", uuidFromPg(w.groupID), uuidFromPg(w.transcriptID)), `{"status":"approved"}`
 			switch c.Action {
 			case "batch-approve":
@@ -102,6 +113,25 @@ func TestPromptChecksFollowActualTranscriptGrants_RealPostgres(t *testing.T) {
 				method = http.MethodDelete
 				path = fmt.Sprintf("/groups/%s/transcripts/%s", uuidFromPg(w.groupID), uuidFromPg(w.transcriptID))
 				body = ""
+			case "add-member":
+				target, err := w.h.queries.GetUserByID(ctx, w.member.PgID())
+				if err != nil {
+					t.Fatal(err)
+				}
+				method = http.MethodPost
+				path = fmt.Sprintf("/groups/%s/members", uuidFromPg(w.groupID))
+				body = fmt.Sprintf(`{"username":%q}`, target.GithubUsername)
+			case "promote-member":
+				path = fmt.Sprintf("/groups/%s/members/%s/role", uuidFromPg(w.groupID), w.member.ID)
+				body = `{"role":"contributor"}`
+			case "join":
+				if _, err := w.pool.Exec(ctx, `UPDATE groups SET acceptance_mode='open' WHERE id=$1`, w.groupID); err != nil {
+					t.Fatal(err)
+				}
+				method = http.MethodPost
+				path = fmt.Sprintf("/groups/%s/join", uuidFromPg(w.groupID))
+				body = ""
+				actor = w.member
 			case "remove-member":
 				method = http.MethodDelete
 				path = fmt.Sprintf("/groups/%s/members/%s", uuidFromPg(w.groupID), w.member.ID)
@@ -109,7 +139,7 @@ func TestPromptChecksFollowActualTranscriptGrants_RealPostgres(t *testing.T) {
 			}
 			req := httptest.NewRequest(method, path, bytes.NewBufferString(body))
 			req.Header.Set("Content-Type", "application/json")
-			req = req.WithContext(context.WithValue(req.Context(), UserContextKey, w.owner))
+			req = req.WithContext(context.WithValue(req.Context(), UserContextKey, actor))
 			rec := httptest.NewRecorder()
 			router.ServeHTTP(rec, req)
 			if rec.Code != http.StatusOK {

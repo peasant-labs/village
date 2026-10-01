@@ -1665,7 +1665,7 @@ these systems:
 ### Attachment grants and deletion
 
 `attachment-grants.yaml` drives mounted collective approval, batch approval,
-rejection, removal and member-departure routes against real PostgreSQL, asserting
+rejection, removal, member-departure and accepted membership routes against real PostgreSQL, asserting
 both the actual posted check and unchanged visibility. It also revokes a shared
 read grant during the real GitHub post and observes reconciliation.
 
@@ -1681,3 +1681,8 @@ already-released binding and the older marked binding cleared by a reattach,
 including the second pull request's actual repost. `attachment-actor-lookup.yaml`
 separates missing accounts from retryable database errors at the lookup boundary.
 All corpora use strict decoding and required-name manifests.
+
+`attachment-refresh-budget.yaml` observes the real batch helper's query contexts
+and exact shared deadline, including a canceled caller and a failing first read.
+It needs no real-time sleep or external service: the invariant is the completion
+budget, not database lock timing.

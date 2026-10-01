@@ -139,10 +139,8 @@ func (h *Handler) audienceMovedSince(ctx context.Context, digests attachmentDige
 // is taken under its own lock; failures are logged, never returned, because the
 // change that narrowed the transcript has already committed.
 func (h *Handler) repostAfterNarrowing(ctx context.Context, narrowed []pgtype.UUID) {
-	for _, transcriptID := range narrowed {
-		if err := h.refreshAttachmentsForTranscriptVisibility(ctx, transcriptID); err != nil {
-			log.Printf("pull request attachment refresh after a release narrowed a transcript failed: %v", err)
-		}
+	if err := h.refreshAttachmentsForTranscripts(ctx, narrowed); err != nil {
+		log.Printf("pull request attachment refresh after a release narrowed transcripts failed: %v", err)
 	}
 }
 

@@ -543,6 +543,7 @@ func (h *Handler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.refreshAfterCollectiveMembershipChange(r, pgID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "added"})
 }
 
@@ -807,6 +808,7 @@ func (h *Handler) JoinGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.refreshAfterCollectiveMembershipChange(r, pgID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "joined", "role": "contributor"})
 }
 
@@ -869,6 +871,7 @@ func (h *Handler) PromoteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.refreshAfterCollectiveMembershipChange(r, pgID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "role": req.Role})
 }
 
@@ -1179,9 +1182,22 @@ func (h *Handler) refreshAfterCollectiveGrantChange(r *http.Request, transcriptI
 	if h.gh == nil {
 		return
 	}
-	for _, id := range transcriptIDs {
-		if err := h.refreshAttachmentsForTranscriptVisibility(r.Context(), id); err != nil {
-			log.Printf("pull request attachment refresh after a collective grant changed failed: %v", err)
-		}
+	if err := h.refreshAttachmentsForTranscripts(r.Context(), transcriptIDs); err != nil {
+		log.Printf("pull request attachment refresh after collective grants changed failed: %v", err)
+	}
+}
+
+func (h *Handler) refreshAfterCollectiveMembershipChange(r *http.Request, groupID pgtype.UUID) {
+	if h.gh == nil {
+		return
+	}
+	ctx, cancel := attachmentWorkContext(r.Context())
+	defer cancel()
+	attachments, err := h.queries.ListAttachmentsForCollectiveGrants(ctx, groupID)
+	if err == nil {
+		err = h.refreshKnownAttachments(ctx, attachments)
+	}
+	if err != nil {
+		log.Printf("pull request attachment refresh after collective membership changed failed: %v", err)
 	}
 }

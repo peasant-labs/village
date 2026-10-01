@@ -34,6 +34,8 @@ type mockQuerier struct {
 	updateCLISessionWithCode func(ctx context.Context, arg sqlc.UpdateCLISessionWithCodeParams) error
 	exchangeCLISession       func(ctx context.Context, arg sqlc.ExchangeCLISessionParams) (sqlc.CliAuthSession, error)
 
+	listAttachmentsBindingTranscript func(context.Context, pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
+
 	// User stubs
 	upsertUser                func(ctx context.Context, arg sqlc.UpsertUserParams) (sqlc.User, error)
 	upsertUserByProvider      func(ctx context.Context, arg sqlc.UpsertUserByProviderParams) (sqlc.User, error)
@@ -1435,6 +1437,9 @@ func (m *mockQuerier) ListPullRequestAttachmentTranscripts(ctx context.Context, 
 }
 
 func (m *mockQuerier) ListAttachmentsBindingTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.PullRequestAttachment, error) {
+	if m.listAttachmentsBindingTranscript != nil {
+		return m.listAttachmentsBindingTranscript(ctx, transcriptID)
+	}
 	return nil, nil
 }
 
