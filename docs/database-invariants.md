@@ -672,6 +672,13 @@ authenticating. Both are custom Postgres parameters read via
   read: it cannot turn a restored public transcript into a shared-only one, and
   it cannot share a transcript made private while it waited without
   `visibility_confirmed`.
+- **Collective membership grants transcript access only after acceptance.**
+  Direct shared-transcript reads use `ListApprovedTranscriptShareGroups`, then
+  require an accepted member role (`owner`, `member`, or `contributor`). Pending
+  join requests and pending or rejected submissions grant no member access.
+  The transcript owner keeps access, and collective owners keep the separate
+  review-preview grant for submissions they must decide. This uses existing
+  rows and queries; it adds no stored state or migration.
 - **An owner's unshare never leaves `shared` with no live submission.** Live is
   the attempt ledger's meaning: the latest attempt of the pair is `pending` or
   `approved` (a pending one counts, because it grants access the moment it is
