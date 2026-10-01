@@ -61,7 +61,8 @@ export default function GroupDetailPage({
   const router = useRouter();
   const qc = useQueryClient();
   const { user } = useAuth();
-  const { data, isLoading } = useGroup(id);
+  const collective = useGroup(id);
+  const { data, isLoading } = collective;
 
   const role = data?.your_role ?? "";
   const isOwner = role === "owner";
@@ -99,6 +100,17 @@ export default function GroupDetailPage({
           ))}
         </div>
         <div className="h-64 w-full bg-surface-hover animate-shimmer" />
+      </div>
+    );
+  }
+
+  if (collective.isError) {
+    return (
+      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12">
+        <div role="alert" className="text-[var(--fs-body)] text-danger">
+          <p>could not read the collective: {collective.error.message}</p>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={collective.isFetching} onClick={() => void collective.refetch()}>try again</button>
+        </div>
       </div>
     );
   }

@@ -176,19 +176,20 @@ export function installCollectiveREST(world: CollectiveWorld): RecordedRequest[]
     if (typeof init?.body === "string") body = JSON.parse(init.body);
     requests.push({ method, path: `${path}${url.search}`, body });
 
-    if (method !== "GET") {
-      writes += 1;
-      const failure = (world.failures ?? []).find(
-        (f) =>
-          (f.write === undefined || f.write === writes) &&
-          (f.method === undefined || f.method === method) &&
-          (f.path === undefined || f.path === path),
-      );
-      if (failure) return json({ error: failure.error }, failure.status);
-    }
+    if (method !== "GET") writes += 1;
+    const failure = (world.failures ?? []).find(
+      (f) =>
+        (f.write === undefined || (method !== "GET" && f.write === writes)) &&
+        (f.method === undefined || f.method === method) &&
+        (f.path === undefined || f.path === path),
+    );
+    if (failure) return json({ error: failure.error }, failure.status);
 
     if (path === "/auth/me") return json(makeViewer(world.viewer.id, world.viewer.username));
     if (path === "/auth/orgs") return json([]);
+    if (path === "/groups" && method === "POST") {
+      return json({ ...world.group, ...(body as object) });
+    }
     if (path === "/groups/visible") return json(world.visible ?? []);
     if (path === "/users/me/collectives/contributions") return json({ collectives: [] });
     if (path === "/groups/search") {
@@ -302,7 +303,7 @@ export async function renderCollectivesList(): Promise<void> {
  * viewer have both arrived: the policy boxes are drawn from the one and the
  * header actions from the other.
  */
-export async function renderCollectivePage(world: CollectiveWorld): Promise<void> {
+export async function renderCollectivePage(world: CollectiveWorld, expectReadFailure = false): Promise<void> {
   await act(async () => {
     render(
       <Providers>
@@ -310,6 +311,10 @@ export async function renderCollectivePage(world: CollectiveWorld): Promise<void
       </Providers>,
     );
   });
+  if (expectReadFailure) {
+    await screen.findByRole("alert");
+    return;
+  }
   await screen.findByRole("heading", { name: world.group.name });
   await waitFor(() => {
     if (!document.querySelector(".cmg-policy")) throw new Error("the policy boxes have not rendered");
@@ -317,7 +322,7 @@ export async function renderCollectivePage(world: CollectiveWorld): Promise<void
 }
 
 /** Renders the real `/groups/{id}/settings` route and waits for its sections. */
-export async function renderCollectiveSettings(world: CollectiveWorld): Promise<void> {
+export async function renderCollectiveSettings(world: CollectiveWorld, expectReadFailure = false): Promise<void> {
   await act(async () => {
     render(
       <Providers>
@@ -325,6 +330,10 @@ export async function renderCollectiveSettings(world: CollectiveWorld): Promise<
       </Providers>,
     );
   });
+  if (expectReadFailure) {
+    await screen.findByRole("alert");
+    return;
+  }
   await screen.findByRole("navigation", { name: "settings sections" });
 }
 

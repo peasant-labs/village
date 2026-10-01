@@ -59,7 +59,8 @@ export default function GroupSettingsPage({
   const router = useRouter();
   const searchParams = useSearchParams();
   const qc = useQueryClient();
-  const { data, isLoading } = useGroup(id);
+  const collective = useGroup(id);
+  const { data, isLoading } = collective;
   const updateGroup = useUpdateGroup();
   const deleteGroup = useDeleteGroup();
   const promoteMember = usePromoteMember();
@@ -105,6 +106,17 @@ export default function GroupSettingsPage({
         <div className="h-4 w-56 bg-surface-hover animate-shimmer" />
         <div className="h-16 w-72 bg-surface-hover animate-shimmer" />
         <div className="h-64 w-full bg-surface-hover animate-shimmer" />
+      </div>
+    );
+  }
+
+  if (collective.isError) {
+    return (
+      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12">
+        <div role="alert" className="text-[var(--fs-body)] text-danger">
+          <p>could not read the collective: {collective.error.message}</p>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={collective.isFetching} onClick={() => void collective.refetch()}>try again</button>
+        </div>
       </div>
     );
   }

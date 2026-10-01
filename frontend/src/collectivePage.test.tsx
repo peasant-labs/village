@@ -3,12 +3,13 @@ import { describe, expect, it } from "vitest";
 import { pullRequestCells } from "@/lib/adapters/collective";
 import type { GroupTranscript } from "@/lib/types";
 import { pushedRoutes } from "@/test/nextNavigationMock";
-import { loadCollectivePageFixtures } from "@/test/collectivePageFixtures";
+import { loadCollectivePageFixtures, loadCollectiveRecoveryFixtures } from "@/test/collectivePageFixtures";
 import {
   installCollectivePagesTeardown,
   installCollectiveREST,
   renderCollectivePage,
   renderCollectivesList,
+  renderCollectiveSettings,
   textOf,
 } from "@/test/mountedCollectivePages";
 
@@ -181,5 +182,55 @@ describe("the pull request cells", () => {
       prCase.why,
     ).toEqual(prCase.expect);
     expect(Object.fromEntries(cells.hrefs)).toEqual(prCase.hrefs);
+  });
+});
+
+
+describe("collective read and create recovery", () => {
+  it.each(loadCollectiveRecoveryFixtures().map((c) => [c.name, c] as const))("%s", async (_name, c) => {
+    const world = fixtures.listWorld();
+    world.role = "owner";
+    world.canRead = true;
+    const path = c.operation === "read"
+      ? c.surface === "list" ? "/groups/visible" : `/groups/${world.group.id}`
+      : "/groups";
+    world.failures = c.error ? [{ method: c.operation === "read" ? "GET" : "POST", path, status: 503, error: c.error }] : [];
+    const requests = installCollectiveREST(world);
+    if (c.surface === "detail") await renderCollectivePage(world, true);
+    else if (c.surface === "settings") await renderCollectiveSettings(world, true);
+    else await renderCollectivesList();
+
+    if (c.operation === "read") {
+      expect(await screen.findByRole("alert")).toHaveTextContent(c.error!);
+      expect(screen.queryByText("collective not found")).not.toBeInTheDocument();
+      const before = requests.filter((r) => r.path === path && r.method === "GET").length;
+      expect(before).toBeGreaterThan(0);
+      world.failures = [];
+      fireEvent.click(screen.getByRole("button", { name: "try again" }));
+      await waitFor(() => {
+        expect(requests.filter((r) => r.path === path && r.method === "GET").length).toBeGreaterThan(before);
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      });
+      if (c.surface === "list") expect(screen.getByRole("table", { name: /^collectives/ })).toBeInTheDocument();
+      else if (c.surface === "detail") expect(screen.getByRole("heading", { name: world.group.name })).toBeInTheDocument();
+      else expect(screen.getByRole("navigation", { name: "settings sections" })).toBeInTheDocument();
+      return;
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "new collective" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "name" }), { target: { value: world.group.name } });
+    fireEvent.click(screen.getByRole("button", { name: "create collective" }));
+    if (c.operation === "create-retry") {
+      expect(await screen.findByRole("alert")).toHaveTextContent(c.error!);
+      expect(pushedRoutes).toEqual([]);
+      expect(screen.getByRole("textbox", { name: "name" })).toHaveValue(world.group.name);
+      expect(requests.filter((r) => r.method === "POST" && r.path === "/groups")).toHaveLength(1);
+      world.failures = [];
+      fireEvent.click(screen.getByRole("button", { name: "create collective" }));
+    }
+    await waitFor(() => expect(pushedRoutes).toEqual([`/groups/${world.group.id}`]));
+    const writes = requests.filter((r) => r.method === "POST" && r.path === "/groups");
+    expect(writes).toHaveLength(c.operation === "create-retry" ? 2 : 1);
+    expect(writes[0].body).toMatchObject({ name: world.group.name });
   });
 });

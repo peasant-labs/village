@@ -19,7 +19,8 @@ export default function GroupsPage() {
   // person browsing collectives is asking which ones exist for them, and the
   // membership-only list answered a different question. Rows the caller does
   // not belong to carry a null role.
-  const { data: groups } = useVisibleGroups();
+  const visible = useVisibleGroups();
+  const groups = visible.data;
   const { data: contributions } = useMyCollectiveContributions(isLoggedIn);
   const createGroup = useCreateGroup();
   // The search the person submitted. An empty search shows the list again.
@@ -53,7 +54,9 @@ export default function GroupsPage() {
   }
 
   const handleCreateCollective = ({ name, purpose, mode, access, org }: { name: string; purpose: string; mode: string; access: string; org: string }) => {
-    createGroup.mutate(createGroupRequest({ name, purpose, mode, access, org }));
+    createGroup.mutate(createGroupRequest({ name, purpose, mode, access, org }), {
+      onSuccess: (created) => router.push(`/groups/${created.id}`),
+    });
   };
 
   return (
@@ -72,6 +75,17 @@ export default function GroupsPage() {
           onSearchCollectives: (next: string) => setQuery(next.trim()),
         }}
       />
+      {visible.isError ? (
+        <div role="alert" className="text-[var(--fs-body)] text-danger">
+          <p>could not read collectives: {visible.error.message}</p>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={visible.isFetching} onClick={() => void visible.refetch()}>try again</button>
+        </div>
+      ) : null}
+      {createGroup.isError ? (
+        <p role="alert" className="text-[var(--fs-body)] text-danger">
+          could not create the collective: {createGroup.error.message}
+        </p>
+      ) : null}
       {searching && search.isError ? (
         <p role="alert" className="text-[13px] text-danger">
           the search failed: {search.error.message}

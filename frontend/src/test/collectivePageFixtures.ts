@@ -296,3 +296,36 @@ export function loadRepoPickerFixtures(): RepoPickerFixtures {
     }),
   };
 }
+
+export interface CollectiveRecoveryCase {
+  name: string;
+  why: string;
+  surface: "list" | "detail" | "settings";
+  operation: "read" | "create" | "create-retry";
+  error: string | null;
+}
+
+export function loadCollectiveRecoveryFixtures(): CollectiveRecoveryCase[] {
+  const root = readYAML("collective-recovery.yaml");
+  assertExactKeys(root, ["cases"], "collective recovery root");
+  const cases = root.cases as CollectiveRecoveryCase[];
+  assertNamesMatch(cases.map((c) => c.name), [
+    "a-list-read-can-be-retried",
+    "a-detail-read-can-be-retried",
+    "a-settings-read-can-be-retried",
+    "a-failed-create-preserves-the-form-for-retry",
+    "a-successful-create-opens-the-returned-collective",
+  ], "collective recovery");
+  for (const c of cases) {
+    assertExactKeys(c, ["name", "why", "surface", "operation", "error"], `recovery ${c.name}`);
+    if (!c.why?.trim() || !["list", "detail", "settings"].includes(c.surface) ||
+        !["read", "create", "create-retry"].includes(c.operation)) {
+      fail(c.name, "has an unknown recovery operation or surface");
+    }
+    if (c.operation !== "read" && c.surface !== "list") fail(c.name, "creates outside the list");
+    if ((c.operation === "create") !== (c.error === null) || (c.error !== null && !c.error.trim())) {
+      fail(c.name, "has no diagnostic for a refusal or an error on success");
+    }
+  }
+  return cases;
+}
