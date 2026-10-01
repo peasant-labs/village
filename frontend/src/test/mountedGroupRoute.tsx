@@ -346,8 +346,8 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
   return requests;
 }
 
-function Providers({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
+function Providers({ children, queryClient }: { children: ReactNode; queryClient?: QueryClient }) {
+  const client = queryClient ?? new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return (
@@ -360,14 +360,16 @@ function Providers({ children }: { children: ReactNode }) {
 }
 
 /** Renders the real `/groups/{id}` route. */
-export async function renderGroupDetailRoute(id: string): Promise<void> {
+export async function renderGroupDetailRoute(id: string): Promise<QueryClient> {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   await act(async () => {
     render(
-      <Providers>
+      <Providers queryClient={queryClient}>
         <GroupDetailPage params={Promise.resolve({ id })} />
       </Providers>,
     );
   });
+  return queryClient;
 }
 
 /** Renders the real `/groups/{id}/contribute` route. */

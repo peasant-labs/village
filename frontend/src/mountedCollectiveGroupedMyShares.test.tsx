@@ -86,7 +86,7 @@ async function linkedMember(transcriptID: string): Promise<HTMLElement> {
 
 for (const testCase of fixtures.cases) {
   it(testCase.name, async () => {
-    installGroupRouteREST({
+    const requests = installGroupRouteREST({
       viewer: VIEWER,
       groupId: GROUP_ID,
       groupName: "commons",
@@ -97,14 +97,22 @@ for (const testCase of fixtures.cases) {
       helperMembers,
     });
 
-    await act(async () => {
-      await renderGroupDetailRoute(GROUP_ID);
-    });
+    const queryClient = await renderGroupDetailRoute(GROUP_ID);
 
     if (testCase.grouped === "empty") {
       // Neither read carries a contribution, so the panel must not be mounted at
       // all -- no header, no grouped exit.
-      await waitFor(() => expect(screen.queryByTestId("my-contributions-panel")).toBeNull());
+      await waitFor(() => {
+        expect(requests.some((request) => request.url.endsWith(`/groups/${GROUP_ID}/my-shares`))).toBe(true);
+        expect(requests.some((request) => request.url.includes(`/groups/${GROUP_ID}/my-shares?view=grouped`))).toBe(true);
+        const flat = queryClient.getQueryCache().find({ queryKey: ["group-my-shares", GROUP_ID], exact: true });
+        const grouped = queryClient.getQueryCache().findAll({ queryKey: ["group-my-shares", GROUP_ID] }).find((query) => query.queryKey[2] === "grouped-paged");
+        expect(flat?.state.status).toBe("success");
+        expect(flat?.state.data).toEqual([]);
+        expect(grouped?.state.status).toBe("success");
+        expect(grouped?.state.data).toMatchObject({ pages: [{ items: [] }] });
+      });
+      expect(screen.queryByTestId("my-contributions-panel")).toBeNull();
       expect(document.querySelector('[data-testid="grouped-helper-fallback"]')).toBeNull();
       return;
     }
