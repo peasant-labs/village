@@ -510,6 +510,9 @@ export function loadHomePageFixtures(): HomePageFixtures {
   let sawUnsortedInput = false;
   for (const c of fixtures.homeCases) {
     assertKeysWithin(c, homeCaseKeys, optionalHomeCaseKeys, `home case ${c.name}`);
+    if (c.name === "canonical-provider-marks-use-received-harness-without-provider-facts" && c.expectProviderMarks === undefined) {
+      throw new Error(`home case ${c.name}: the provider identity expectations are required`);
+    }
     for (const t of c.transcripts) {
       assertKeysWithin(t, transcriptKeys, optionalTranscriptKeys, `home case ${c.name} transcript ${t.id}`);
       if (t.modelProvider !== undefined && (typeof t.modelProvider !== "string" || t.modelProvider.trim() === "")) {
