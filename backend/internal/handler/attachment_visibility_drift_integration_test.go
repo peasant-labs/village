@@ -5,6 +5,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -57,6 +58,35 @@ func postedNow(fake *attachmentGitHubFake) postedState {
 	return postedState{comment: fake.lastCommentBody, check: fake.lastCheckText, conclusion: fake.lastCheckConclusion, edits: fake.commentEdits}
 }
 
+//go:embed testdata/attachment-posted-copy.yaml
+var attachmentPostedCopyYAML []byte
+
+type attachmentPostedCopy struct {
+	Name      string `yaml:"name"`
+	Forbidden string `yaml:"forbidden"`
+}
+
+func loadAttachmentPostedCopy(t *testing.T) []string {
+	t.Helper()
+	rows, err := decodeFixtureRows[attachmentPostedCopy](attachmentPostedCopyYAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	present := map[string]struct{}{}
+	var forbidden []string
+	for _, row := range rows {
+		if _, repeated := present[row.Name]; repeated || row.Forbidden == "" {
+			t.Fatal("posted copy fixtures require unique names and nonempty forbidden text")
+		}
+		present[row.Name] = struct{}{}
+		forbidden = append(forbidden, row.Forbidden)
+	}
+	assertExactTitleFixtureNames(t, "attachment-posted-copy", present, []string{
+		"visibility-is-not-described", "private-is-not-described", "narrowing-is-not-described", "change-is-not-described",
+	})
+	return forbidden
+}
+
 // assertListed pins whether the comment and the check carry the prompt, and the
 // note that says otherwise.
 func (p postedState) assertListed(t *testing.T, listed bool, conclusion string) {
@@ -69,7 +99,7 @@ func (p postedState) assertListed(t *testing.T, listed bool, conclusion string) 
 			t.Errorf("the %s sends readers to village for the transcript = %t, want %t: %s", surface, got, !listed, text)
 		}
 		// The rows say whose transcript it is, never what changed about it.
-		for _, word := range []string{"visibility", "private", "narrow", "changed"} {
+		for _, word := range loadAttachmentPostedCopy(t) {
 			if strings.Contains(text, word) {
 				t.Errorf("the %s describes the change (%q): %s", surface, word, text)
 			}
