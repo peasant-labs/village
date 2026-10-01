@@ -318,7 +318,7 @@ export function SessionDetailV2({
       : `${window.location.origin}/transcripts/${transcriptId}`;
 
   // Every download, from the header's `download markdown` row and from the
-  // viewer's own `onExport`, is one file written from what the page shows.
+  // raw json/jsonl rows, is one file written from what the page shows.
   function handleExport(format: TranscriptExportFormat) {
     if (!vm || !detail) return;
     saveTranscriptFile(
@@ -439,12 +439,15 @@ export function SessionDetailV2({
                       isOwner
                         ? {
                             accessNames,
+                            visibility,
                             onManageAccess: () => setAccessOpen(true),
                             onEditTitle: () => setEditOpen(true),
                           }
                         : undefined
                     }
                     onDownloadMarkdown={() => handleExport('markdown')}
+                    onDownloadJSON={() => handleExport('json')}
+                    onDownloadJSONL={() => handleExport('jsonl')}
                   />
                 )}
               </span>
@@ -461,22 +464,16 @@ export function SessionDetailV2({
               />
             ) : undefined
           }
-          // The composite's capability flags gate only its share/more tail,
-          // which is off; they still say what the host wires. Contributing is
-          // `manage access` now, and visibility is set in the edit dialog.
+          // The composite tail is hidden. Header menus own downloads and
+          // editing; the viewer retains only its mounted per-turn labels.
           capabilities={{
             canLabel,
-            canEdit: !isPreview && isOwner && !!transcriptId,
+            canEdit: false,
             canChangeVisibility: false,
             canContribute: false,
-            canExport: !isPreview,
+            canExport: false,
           }}
           callbacks={{
-            onEdit: isPreview ? undefined : () => setEditOpen(true),
-            onExport: isPreview ? undefined : handleExport,
-            onCopyLink: () => {
-              void navigator.clipboard?.writeText(transcriptUrl);
-            },
             // Village owns the route to the current source/starter target and
             // the read-state restoration on Back. The adapter only reports a
             // target the viewer is authorized to open.
@@ -494,6 +491,7 @@ export function SessionDetailV2({
           breadcrumb={buildTranscriptBreadcrumb({
             project,
             projectHref,
+            isLoggedIn: !!user,
             storedTitle: transcriptTitle,
             transcriptId,
           })}

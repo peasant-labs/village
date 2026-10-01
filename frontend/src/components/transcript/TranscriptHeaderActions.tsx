@@ -36,16 +36,19 @@ interface TranscriptHeaderActionsProps {
   owner?: {
     /** Names of the collectives that can read it now; undefined while loading. */
     accessNames: string[] | undefined;
+    visibility: "private" | "shared" | "public";
     onManageAccess: () => void;
     onEditTitle: () => void;
   };
   onDownloadMarkdown: () => void;
+  onDownloadJSON: () => void;
+  onDownloadJSONL: () => void;
 }
 
 /**
  * The transcript page's header actions, as the fairtrade in-use demo composes
  * them: the link, an icon-only copy button, and a `more` menu. The menu holds
- * `manage access` and `edit title` for the owner, and `download markdown` for
+ * `manage access` and `edit title` for the owner, and markdown, JSON and JSONL downloads for
  * every reader.
  *
  * For the owner the menu also says who can read it now. fairtrade's menu sets
@@ -53,18 +56,20 @@ interface TranscriptHeaderActionsProps {
  * keeps its case, so the names sit in the caption inside a span that keeps
  * their case, not in the `manage access` row where they would be lowercased.
  */
-export default function TranscriptHeaderActions({ url, owner, onDownloadMarkdown }: TranscriptHeaderActionsProps) {
+export default function TranscriptHeaderActions({ url, owner, onDownloadMarkdown, onDownloadJSON, onDownloadJSONL }: TranscriptHeaderActionsProps) {
   const items: MenuItems = [
     ...(owner
       ? [
-          { label: "manage access", icon: Eye, onSelect: owner.onManageAccess },
-          { label: "edit title", icon: Pencil, onSelect: owner.onEditTitle },
+          { label: "manage access", icon: Eye, onSelect: () => requestAnimationFrame(() => requestAnimationFrame(owner.onManageAccess)) },
+          { label: "edit title", icon: Pencil, onSelect: () => requestAnimationFrame(() => requestAnimationFrame(owner.onEditTitle)) },
         ]
       : []),
     { label: "download markdown", icon: Download, onSelect: onDownloadMarkdown },
+    { label: "download json", icon: Download, onSelect: onDownloadJSON },
+    { label: "download jsonl", icon: Download, onSelect: onDownloadJSONL },
   ];
 
-  const names = owner ? accessNamesLine(owner.accessNames) : null;
+  const names = owner?.visibility === "public" ? "anyone with the link" : owner ? accessNamesLine(owner.accessNames) : null;
   const caption =
     names != null ? (
       <span data-testid="transcript-access-caption">

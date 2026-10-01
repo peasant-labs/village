@@ -2,9 +2,8 @@ import type { adaptTranscript } from "@peasant-labs/fairtrade/ui";
 import type { SessionDetailPayload } from "@/types/messages";
 
 /**
- * The transcript downloads. The page offers `download markdown`; the viewer's
- * `onExport` callback carries the same three formats its own download actions
- * name, so every download goes through this one module.
+ * The transcript header offers markdown, json, and jsonl downloads. Each
+ * mounted menu row writes through this module.
  *
  * Markdown is written from the cooked view model, the output of fairtrade's one
  * wire adapter, so the file reads the way the page does: the stored title, each
@@ -54,7 +53,7 @@ export function transcriptFileName(
 ): string {
   const slug = (title ?? "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60)
     .replace(/-+$/g, "");
@@ -130,5 +129,5 @@ export function saveTranscriptFile(file: TranscriptFile): void {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  setTimeout(() => URL.revokeObjectURL(href), 0);
+  setTimeout(() => URL.revokeObjectURL(href), 1000);
 }

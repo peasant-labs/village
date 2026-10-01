@@ -11,7 +11,9 @@ export type HeaderEntry =
   | "more"
   | "manage access"
   | "edit title"
-  | "download markdown";
+  | "download markdown"
+  | "download json"
+  | "download jsonl";
 
 export type HeaderViewer = "owner" | "reader" | "signed-out" | "preview";
 
@@ -40,6 +42,7 @@ export interface HeaderCase {
   expectEntries: HeaderEntry[];
   expectAccessCaption: string | null;
   readsCollectives: boolean;
+  visibility?: "private" | "shared" | "public";
 }
 
 export interface ManageAccessCase {
@@ -47,6 +50,8 @@ export interface ManageAccessCase {
   action: "add" | "remove";
   collective: string;
   answer: number;
+  visibility?: "private" | "shared" | "public";
+  reopen?: boolean;
   expectRequest: string;
   expectAccess: string[];
   expectAccessCaption: string;
@@ -65,6 +70,10 @@ export interface TranscriptHeaderActionsFixtures {
   cases: HeaderCase[];
   manageAccessCases: ManageAccessCase[];
   download: DownloadCase;
+  readRecovery: Array<{ name: string; path: string; message: string }>;
+  consentCancel: { name: string; collective: string };
+  departedCollective: { name: string; id: string; collective: string };
+  rawDownloads: Array<{ name: string; format: "json" | "jsonl"; expectFileName: string }>;
 }
 
 /** The closed set of header entries. The fixture restates it; a drift is a
@@ -76,12 +85,15 @@ const HEADER_ENTRIES: readonly HeaderEntry[] = [
   "manage access",
   "edit title",
   "download markdown",
+  "download json",
+  "download jsonl",
 ];
 
 const VIEWERS: readonly HeaderViewer[] = ["owner", "reader", "signed-out", "preview"];
 
 const requiredCaseNames = [
   "the-owner-sees-every-entry",
+  "a-public-owner-sees-everyone-in-the-audience-caption",
   "a-signed-in-reader-can-copy-and-download-only",
   "a-signed-out-reader-can-copy-and-download-only",
   "the-preview-column-shows-no-header-entries",
@@ -92,7 +104,8 @@ const requiredManageAccessCaseNames = [
   "a-failed-removal-keeps-the-collective-and-says-so",
   "adding-an-open-collective-lists-it",
   "adding-a-curated-collective-waits-for-its-approval",
-  "a-collective-that-skips-the-submission-says-nothing-changed",
+  "adding-a-private-transcript-requires-consent",
+  "a-collective-that-skips-the-submission-says-it-was-not-recorded",
 ] as const;
 
 export function loadTranscriptHeaderActionsFixtures(): TranscriptHeaderActionsFixtures {
@@ -101,7 +114,7 @@ export function loadTranscriptHeaderActionsFixtures(): TranscriptHeaderActionsFi
   if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("transcript-header-actions fixture root must be an object");
   }
-  assertExactKeys(parsed, ["entries", "content", "cases", "manageAccessCases", "download"], "fixture root");
+  assertExactKeys(parsed, ["entries", "content", "cases", "manageAccessCases", "download", "rawDownloads", "readRecovery", "consentCancel", "departedCollective"], "fixture root");
   const fixtures = parsed as TranscriptHeaderActionsFixtures;
 
   if (JSON.stringify([...fixtures.entries].sort()) !== JSON.stringify([...HEADER_ENTRIES].sort())) {
@@ -122,7 +135,7 @@ export function loadTranscriptHeaderActionsFixtures(): TranscriptHeaderActionsFi
 
   assertNamesMatch(fixtures.cases.map((c) => c.name), requiredCaseNames, "transcript-header-actions cases");
   for (const c of fixtures.cases) {
-    assertExactKeys(c, ["name", "viewer", "expectEntries", "expectAccessCaption", "readsCollectives"], `case ${c.name}`);
+    assertExactKeys(c, ["name", "viewer", "expectEntries", "expectAccessCaption", "readsCollectives"].concat("visibility" in c ? ["visibility"] : []), `case ${c.name}`);
     if (!VIEWERS.includes(c.viewer)) throw new Error(`case ${c.name}: unknown viewer ${c.viewer}`);
     for (const e of c.expectEntries) {
       if (!HEADER_ENTRIES.includes(e)) throw new Error(`case ${c.name}: unknown header entry ${e}`);
@@ -144,7 +157,7 @@ export function loadTranscriptHeaderActionsFixtures(): TranscriptHeaderActionsFi
   for (const c of fixtures.manageAccessCases) {
     assertExactKeys(
       c,
-      ["name", "action", "collective", "answer", "expectRequest", "expectAccess", "expectAccessCaption", "expectMessage"],
+      ["name", "action", "collective", "answer", "expectRequest", "expectAccess", "expectAccessCaption", "expectMessage"].concat(["visibility", "reopen"].filter((key) => key in c)),
       `manage access case ${c.name}`,
     );
     if (!fixtures.content.groups.some((g) => g.name === c.collective)) {
@@ -153,5 +166,16 @@ export function loadTranscriptHeaderActionsFixtures(): TranscriptHeaderActionsFi
   }
 
   assertExactKeys(fixtures.download, ["viewer", "expectFileName", "expectLines"], "download");
+  assertNamesMatch(fixtures.rawDownloads.map((c) => c.name), ["download-json-from-the-mounted-menu", "download-jsonl-from-the-mounted-menu"], "raw downloads");
+  for (const c of fixtures.rawDownloads) assertExactKeys(c, ["name", "format", "expectFileName"], c.name);
+  assertNamesMatch(fixtures.readRecovery.map((c) => c.name), [
+    "approved-audience-read-failure-is-retryable", "owner-contribution-read-failure-is-retryable",
+    "owner-submission-read-failure-is-retryable", "picker-membership-read-failure-is-retryable",
+  ], "read recovery");
+  for (const c of fixtures.readRecovery) assertExactKeys(c, ["name", "path", "message"], c.name);
+  assertExactKeys(fixtures.consentCancel, ["name", "collective"], "consent cancellation");
+  assertNamesMatch([fixtures.consentCancel.name], ["cancelling-private-sharing-sends-no-request"], "consent cancellation");
+  assertExactKeys(fixtures.departedCollective, ["name", "id", "collective"], "departed collective");
+  assertNamesMatch([fixtures.departedCollective.name], ["a-departed-collective-stays-visible-and-withdrawable"], "departed collective");
   return fixtures;
 }
