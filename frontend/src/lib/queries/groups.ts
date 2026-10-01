@@ -8,7 +8,7 @@ import type { Group, VisibleGroup, GroupMember, GroupContributor, GroupTranscrip
 // in memory only and never become a query key or persisted cache entry.
 let observedAuthorization: string | undefined;
 let credentialVersion = 0;
-function useCollectiveReadBinding() {
+export function useCollectiveReadBinding() {
   const { user, isLoading } = useAuth();
   const client = useQueryClient();
   const authorization: string | undefined = getAuthHeaders().Authorization;
