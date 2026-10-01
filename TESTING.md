@@ -804,8 +804,10 @@ along the same line:
   `collective_grouped_integration_test.go`.
 - The title and head branch reads have their own unit tests in
   `pull_request_reads_test.go`: views of one pull request share one read, a
-  read and a list each stop at the deadline (a list starts no read after it),
-  a read one caller started still answers the next caller, each outcome is
+  read and a list each stop at the deadline, a list starts no read after it or
+  after its caller leaves (counted from the cache's own tables against a
+  GitHub that holds every read, so no assertion depends on machine speed), a
+  read one caller started still answers the next caller, each outcome is
   remembered for its window at explicit instants, the table stays bounded, and
   the shipped bounds themselves are pinned.
 - `router/transcript_pulls_route_integration_test.go` drives the production

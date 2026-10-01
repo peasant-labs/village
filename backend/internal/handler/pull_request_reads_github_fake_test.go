@@ -35,6 +35,10 @@ type pullReadsGitHub struct {
 	pullDelay      time.Duration
 	pullReads      int
 	permissionAsks int
+	// held makes pull request reads wait until the test releases them (or the
+	// caller gives up), and arrivals announces each read as it reaches the fake.
+	held     chan struct{}
+	arrivals chan struct{}
 }
 
 func newPullReadsGitHub(t *testing.T) *pullReadsGitHub {
@@ -80,6 +84,34 @@ func (f *pullReadsGitHub) delayPullReads(delay time.Duration) {
 	f.pullDelay = delay
 }
 
+// holdPullReads holds every pull request read until the test ends.
+func (f *pullReadsGitHub) holdPullReads(t *testing.T) {
+	t.Helper()
+	f.mu.Lock()
+	f.held = make(chan struct{})
+	f.arrivals = make(chan struct{}, 256)
+	held := f.held
+	f.mu.Unlock()
+	t.Cleanup(func() { close(held) })
+}
+
+// awaitPullReads waits until n held pull request reads have reached the fake.
+// It is a failure bound, not a timing assumption: the reads it waits for are
+// already started, and only a broken list would leave it waiting.
+func (f *pullReadsGitHub) awaitPullReads(t *testing.T, n int) {
+	f.mu.Lock()
+	arrivals := f.arrivals
+	f.mu.Unlock()
+	for i := 0; i < n; i++ {
+		select {
+		case <-arrivals:
+		case <-time.After(time.Minute):
+			t.Errorf("only %d of %d pull request reads reached GitHub within a minute", i, n)
+			return
+		}
+	}
+}
+
 func (f *pullReadsGitHub) counts() (pullReads, permissionAsks int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -96,6 +128,21 @@ func (f *pullReadsGitHub) serve(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"token":"ghs_pull_reads","expires_at":%q}`, time.Now().Add(time.Hour).UTC().Format(time.RFC3339))
 	case len(parts) == 5 && parts[0] == "repos" && parts[3] == "pulls":
 		f.pullReads++
+		if held := f.held; held != nil {
+			select {
+			case f.arrivals <- struct{}{}:
+			default:
+			}
+			f.mu.Unlock()
+			select {
+			case <-held:
+			case <-r.Context().Done():
+			}
+			f.mu.Lock()
+			if r.Context().Err() != nil {
+				return
+			}
+		}
 		if delay := f.pullDelay; delay > 0 {
 			f.mu.Unlock()
 			select {
