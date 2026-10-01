@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/promptattach"
 )
 
 // The pull request's comment and check list a bound transcript's prompts only
@@ -469,4 +470,79 @@ func TestCheckFollowsWhetherAnyReviewerCanRead_RealPostgres(t *testing.T) {
 			t.Errorf("the %s rendered a header with no rows under it, which reads as a rendering fault rather than a state; %s", surface, text)
 		}
 	}
+}
+
+// TestAnAttachReconcilesANarrowingDuringItsPost_RealPostgres is the race an
+// attach would otherwise lose: the owner narrows a public transcript while the
+// attach is posting the comment that lists it. The owner's repost finds no
+// attached attachment yet, so the attach itself must notice once it is attached
+// and repost without the prompt.
+func TestAnAttachReconcilesANarrowingDuringItsPost_RealPostgres(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 992081)
+	defer cleanupOwners(t, ctx, pool, owner)
+	ownerAuth := &AuthUser{ID: uuid.UUID(owner.Bytes), Username: "attachment"}
+
+	repoName := "race-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, false, "informational")
+	sha := "abc1234000000000000000000000000000000081"
+	transcriptID := attachmentSeedTranscript(t, ctx, pool, blobs, owner,
+		"git@github.com:acme/"+repoName+".git", sha, "public", "feat/x", time.Now().Add(-time.Hour))
+	attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 7)
+	fake.setPullCommits(sha)
+
+	narrowed := false
+	fake.mu.Lock()
+	fake.beforeCommentWrite = func() {
+		if rec := transcriptVisibilityPatch(t, h, ownerAuth, transcriptID, "private"); rec.Code == http.StatusOK {
+			narrowed = true
+		}
+	}
+	fake.mu.Unlock()
+	attachmentConfirm(t, h, owner, "acme", repoName, 7)
+	if !narrowed {
+		t.Fatal("the owner's narrowing did not land during the post, so the race this test describes never happened")
+	}
+	postedNow(fake).assertListed(t, false, "neutral")
+}
+
+// TestReattachingBindsAfresh_RealPostgres covers a second attach cycle. Detach
+// keeps its bindings so the detached pull request still lists them; the next
+// attach clears them and binds again, so the binding records the visibility the
+// transcript holds at that second attach, not the first.
+func TestReattachingBindsAfresh_RealPostgres(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 992091)
+	defer cleanupOwners(t, ctx, pool, owner)
+	ownerAuth := &AuthUser{ID: uuid.UUID(owner.Bytes), Username: "attachment"}
+
+	repoName := "reattach-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, false, "informational")
+	sha := "abc1234000000000000000000000000000000091"
+	transcriptID := attachmentSeedTranscript(t, ctx, pool, blobs, owner,
+		"git@github.com:acme/"+repoName+".git", sha, "private", "feat/x", time.Now().Add(-time.Hour))
+	attachment := attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 7)
+	fake.setPullCommits(sha)
+	attachmentConfirm(t, h, owner, "acme", repoName, 7)
+	if rec := attachmentServe(t, attachmentRouter(h), http.MethodDelete, "/api/v1/pulls/acme/"+repoName+"/7", owner); rec.Code != http.StatusOK {
+		t.Fatalf("detach status = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+	if rec := transcriptVisibilityPatch(t, h, ownerAuth, transcriptID, "public"); rec.Code != http.StatusOK {
+		t.Fatalf("widen status = %d (%s), want 200", rec.Code, rec.Body.String())
+	}
+
+	if _, err := promptattach.Transition(ctx, h.queries, attachment.ID, promptattach.Preview); err != nil {
+		t.Fatalf("preview again: %v", err)
+	}
+	attachmentConfirm(t, h, owner, "acme", repoName, 7)
+	bindings, err := h.queries.ListPullRequestAttachmentTranscripts(ctx, attachment.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bindings) != 1 || bindings[0].PreviousVisibility != "public" || bindings[0].AttachWidened {
+		t.Fatalf("bindings = %+v after attaching again, want one binding recorded at public and not widened", bindings)
+	}
+	postedNow(fake).assertListed(t, true, "success")
 }

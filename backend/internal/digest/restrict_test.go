@@ -124,6 +124,9 @@ func TestRestrictShowsOnlyWhatTheReaderMayOpen(t *testing.T) {
 					restricted.Header.SessionCount, restricted.Header.PromptCount, restricted.Header.CommitsCovered,
 					c.Expected.SessionCount, c.Expected.PromptCount, c.Expected.CommitsCovered)
 			}
+			if restricted.Header.Harness != full.Header.Harness || restricted.Header.RedactionLevel != full.Header.RedactionLevel {
+				t.Fatalf("header harness/level = %q/%q, want the chain's %q/%q: the contract requires both", restricted.Header.Harness, restricted.Header.RedactionLevel, full.Header.Harness, full.Header.RedactionLevel)
+			}
 			if restricted.Header.CommitsTotal != full.Header.CommitsTotal {
 				t.Fatalf("commitsTotal = %d, want the pull request's %d: the commit set is the pull request's, not a transcript's",
 					restricted.Header.CommitsTotal, full.Header.CommitsTotal)
@@ -186,12 +189,10 @@ func TestRestrictShowsOnlyWhatTheReaderMayOpen(t *testing.T) {
 				fresh.Items = []schema.PromptDigestItem{}
 			}
 			if c.MatchesFilteredBuild {
-				if len(fresh.Items) > 0 {
-					// The header's harness is the whole chain's first session; a
-					// fresh build over nothing has none, and these cases share one.
-					fresh.Header.Harness = restricted.Header.Harness
-					fresh.Header.RedactionLevel = restricted.Header.RedactionLevel
-				}
+				// The header's harness is the whole chain's first session; a fresh
+				// build over nothing has none, and these cases share one.
+				fresh.Header.Harness = restricted.Header.Harness
+				fresh.Header.RedactionLevel = restricted.Header.RedactionLevel
 				if !reflect.DeepEqual(restricted, fresh) {
 					t.Fatalf("restricted chain differs from a fresh build over the kept transcripts\n--- restricted ---\n%+v\n--- fresh ---\n%+v", restricted, fresh)
 				}

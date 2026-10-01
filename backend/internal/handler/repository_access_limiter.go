@@ -40,11 +40,11 @@ type repositoryAccessBucket struct {
 }
 
 const (
-	// repositoryAccessBurst is what one viewer may spend before a refill. A
-	// transcript view costs up to four questions — its metadata, its content, its
-	// annotations and its collectives — because an admission is deliberately asked
-	// live rather than remembered, so the burst covers roughly twenty-five views:
-	// a reader browsing a digest, not a loop.
+	// repositoryAccessBurst is what one viewer may spend before a refill. Only the
+	// pull request page asks, one question per view of a private repository's
+	// pull request, because an admission is deliberately asked live rather than
+	// remembered; the burst covers a reader moving between pull requests, not a
+	// loop.
 	repositoryAccessBurst = 100.0
 	// repositoryAccessPerSecond is the steady rate. A loop settles at one
 	// question every ten seconds per viewer; a person reading never reaches it.
@@ -117,10 +117,10 @@ func (l *repositoryAccessLimiter) limits() (burst float64, perSecond float64) {
 }
 
 // overBudget reports whether this viewer has no question left, WITHOUT spending
-// one. It is what lets a refused read say it was throttled regardless of which
-// transcript was asked for: the answer depends on the viewer's own budget, never
-// on the transcript, so a throttled caller cannot use it to discover anything
-// about what they asked for.
+// one. It is what lets a refused page read say it was throttled regardless of
+// which pull request was asked for: the answer depends on the viewer's own
+// budget, never on the attachment, so a throttled caller cannot use it to
+// discover anything about what they asked for.
 func (l *repositoryAccessLimiter) overBudget(viewer pgtype.UUID, now time.Time) bool {
 	burst, perSecond := l.limits()
 	key := viewerKey(viewer)
