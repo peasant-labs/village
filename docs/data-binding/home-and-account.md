@@ -24,7 +24,9 @@ page per press; it does not automatically reopen expired helper expansions.
 The opaque member scope remains the authority for expanding returned groups.
 
 The audience column always names “anyone with the link” for public transcripts,
-alongside any approved collective names. No approved collective says “not shared
+alongside any approved collective names. Approved collective names identify
+member access only while the served visibility is `shared`; retained approved
+rows on a private transcript do not promise members access. No approved collective says “not shared
 with collective members”, rather than claiming author-only access: a collective
 owner may still read a pending submission for review. Pending counts stay in
 the separate waiting rail.
@@ -38,6 +40,12 @@ handles and transcript text preserve their case.
 `/settings` is keyed by account ID so text edits and failures from one account
 cannot survive into another. Every `me` query is also keyed by the account handle.
 Fairtrade supplies the settings groups, rows, switches and inline confirmations.
+The header uses its canonical account menu, including the mounted settings exit.
+Profile handle and discoverability writes share one mutation scope: each route
+returns a whole profile, so queued writes run after the preceding response has
+settled rather than letting an old response restore the other setting.
+A failed account sign-out announces its error beside the connection and keeps
+the control available for another attempt.
 
 | Control | Read/write |
 | --- | --- |
@@ -67,3 +75,13 @@ navigation into settings. Captures must use a production build from the reviewed
 source head, verify its served chunks, and inspect the full shell in both themes.
 The consolidated integration build also includes the backend attachment and
 transcript-page dependencies; branch screenshots remain separate from its proof.
+
+Profile writes capture the existing signed-in account ID and credential when the
+person saves. Both are compared again before a queued request starts and after
+its response. Changing sign-in cancels the old queued decision and prevents the
+old whole-profile response from replacing the current account cache. No new wire
+fields or persisted state are introduced.
+
+The persistent header account menu also announces failed sign-out requests in
+the canonical dialog and offers another attempt. While a request is pending,
+the dialog prevents repeated sign-out writes without changing header geometry.

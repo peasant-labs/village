@@ -27,9 +27,9 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function userFor(handle: string, discoverable: boolean): User {
+function userFor(handle: string, discoverable: boolean, id = "user-alice"): User {
   return {
-    id: "user-alice",
+    id,
     github_id: 1,
     github_username: handle,
     display_name: handle,
@@ -38,7 +38,7 @@ function userFor(handle: string, discoverable: boolean): User {
     updated_at: "2026-01-01T00:00:00.000Z",
     is_discoverable: discoverable,
     username_chosen: true,
-    provider_username: SETTINGS_VIEWER,
+    provider_username: id === "user-alice" ? SETTINGS_VIEWER : handle,
     provider: "github",
   };
 }
@@ -47,16 +47,33 @@ export interface MountedSettingsBackend {
   /** Every non-GET request, as `METHOD path` plus its JSON body when it has one. */
   writes: string[];
   promptReads: number;
+  releaseProfile(): void;
+  releaseLogout(): void;
+  switchAccount(id: string, handle: string, discoverable: boolean): void;
 }
 
-export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: boolean; read: "ok" | "failed"; write: "ok" | "failed" }): MountedSettingsBackend {
+export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: boolean; read: "ok" | "failed"; write: "ok" | "failed" }, controls?: { deferProfile?: "handle" | "discoverable"; failLogout?: boolean; deferLogout?: boolean }): MountedSettingsBackend {
   const writes: string[] = [];
+  let accountID = "user-alice";
   let handle = SETTINGS_VIEWER;
   let discoverable = c.discoverable;
   const revoked = new Set(c.keys.filter((key) => key.revoked).map((key) => key.id));
   let revocations = 0;
   let automatic = prompt?.initial ?? false;
-  const backend: MountedSettingsBackend = { writes, promptReads: 0 };
+  let releaseProfile = () => {};
+  const pendingProfile = controls?.deferProfile ? new Promise<void>((resolve) => { releaseProfile = resolve; }) : null;
+  let releaseLogout = () => {};
+  const pendingLogout = controls?.deferLogout ? new Promise<void>((resolve) => { releaseLogout = resolve; }) : null;
+  const backend: MountedSettingsBackend = { writes, promptReads: 0, releaseProfile, releaseLogout, switchAccount(id, nextHandle, nextDiscoverable) { accountID = id; handle = nextHandle; discoverable = nextDiscoverable; } };
+  let deferred = false;
+  async function profileAnswer(kind: "handle" | "discoverable") {
+    const answer = userFor(handle, discoverable, accountID);
+    if (!deferred && controls?.deferProfile === kind) {
+      deferred = true;
+      await pendingProfile;
+    }
+    return json(answer);
+  }
 
   vi.stubGlobal(
     "fetch",
@@ -69,7 +86,7 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
         writes.push(`${method} ${path}${body}`);
       }
 
-      if (method === "GET" && path === "/auth/me") return json(userFor(handle, discoverable));
+      if (method === "GET" && path === "/auth/me") return json(userFor(handle, discoverable, accountID));
       if (method === "GET" && path === "/users/me/settings") {
         backend.promptReads += 1;
         if (prompt?.read === "failed" && backend.promptReads === 1) return json({ error: "the settings service is unavailable" }, 500);
@@ -96,12 +113,12 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
         if (c.server === "conflict") return json({ error: "That username is already taken" }, 409);
         if (c.server === "failure") return json({ error: "the account service is unavailable" }, 500);
         handle = JSON.parse(String(init?.body)).username;
-        return json(userFor(handle, discoverable));
+        return profileAnswer("handle");
       }
       if (method === "PATCH" && path === "/auth/me/settings") {
         if (c.server === "failure") return json({ error: "the settings service is unavailable" }, 500);
         discoverable = JSON.parse(String(init?.body)).is_discoverable;
-        return json(userFor(handle, discoverable));
+        return profileAnswer("discoverable");
       }
       if (method === "DELETE" && path.startsWith("/auth/api-keys/")) {
         revocations += 1;
@@ -112,7 +129,10 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
         return json({ status: "revoked" });
       }
       if (method === "DELETE" && path === "/auth/me") return json({ status: "deleted" });
-      if (method === "POST" && path === "/auth/logout") return json({ status: "logged out" });
+      if (method === "POST" && path === "/auth/logout") {
+        await pendingLogout;
+        return controls?.failLogout ? json({ error: "the account service is unavailable" }, 500) : json({ status: "logged out" });
+      }
       throw new Error(`mounted settings route fixture received an unexpected ${method} ${url}`);
     }),
   );
@@ -124,7 +144,7 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
  * that only settles its writes when mounted once would pass a plain render and
  * still sit at "saving" forever in development.
  */
-async function renderWithProviders(element: React.ReactElement): Promise<void> {
+async function renderWithProviders(element: React.ReactElement): Promise<QueryClient> {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -137,15 +157,16 @@ async function renderWithProviders(element: React.ReactElement): Promise<void> {
       </StrictMode>,
     );
   });
+  return client;
 }
 
 /** Renders the real route registered at `/settings`. */
-export function renderSettingsRoute(): Promise<void> {
+export function renderSettingsRoute(): Promise<QueryClient> {
   return renderWithProviders(<SettingsRoute />);
 }
 
 /** Renders the real header, whose account menu leads to the settings route. */
-export function renderHeader(): Promise<void> {
+export function renderHeader(): Promise<QueryClient> {
   return renderWithProviders(<Navbar />);
 }
 

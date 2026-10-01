@@ -8,6 +8,8 @@ import {
   loadGroupsContributeTreeFixtures,
   toContributableTranscript,
 } from "@/test/groupsContributeTreeFixtures";
+import { AuthProvider } from "@/providers/AuthProvider";
+import { makeUser } from "@/test/mountedGroupRoute";
 import GroupContributePage from "@/app/groups/[id]/contribute/page";
 
 const cases = loadGroupsContributeTreeFixtures();
@@ -48,6 +50,7 @@ function installContributeRouteREST(groupId: string, contributable: Contributabl
     const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
     requests.push({ method, url, body });
 
+    if (url.endsWith("/auth/me")) return new Response(JSON.stringify(makeUser("viewer")), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith(`/groups/${groupId}`)) {
       return new Response(
         JSON.stringify({
@@ -89,7 +92,7 @@ function renderRoute(groupId: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <GroupContributePage params={Promise.resolve({ id: groupId })} />
+      <AuthProvider><GroupContributePage params={Promise.resolve({ id: groupId })} /></AuthProvider>
     </QueryClientProvider>,
   );
 }

@@ -241,6 +241,7 @@ const requiredHomeCaseNames = [
   "recent-sessions-lead-and-projects-follow",
   "public-link-access-is-named-alongside-approved-collectives",
   "pending-private-submission-does-not-claim-author-only-access",
+  "private-visibility-does-not-claim-retained-approved-members-can-read",
   "more-sessions-than-the-recent-list-shows-are-capped",
   "a-person-with-nothing-published-gets-the-teaching-empty-state",
   "a-username-needing-escaping-still-links-to-its-project",

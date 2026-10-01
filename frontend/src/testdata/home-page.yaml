@@ -219,6 +219,18 @@ homeCases:
     expectSharedWithCells:
       - { title: Private pending session, text: [not shared with collective members] }
 
+  - name: private-visibility-does-not-claim-retained-approved-members-can-read
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: private-approved, title: Private approved session, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T10:00:00Z", visibility: private, sharedWith: [Acme Platform] }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles: [Private approved session]
+    expectProjectLinks: []
+    expectSharedWithCells:
+      - { title: Private approved session, text: [not shared with collective members] }
+
   - name: more-sessions-than-the-recent-list-shows-are-capped
     # More rows than one page: the table lists the first page, says how many it
     # holds out of the total, and `show N more` appends the rest. The rows are

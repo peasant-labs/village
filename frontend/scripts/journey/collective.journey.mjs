@@ -83,7 +83,7 @@ test.describe('collectives', () => {
     await page.keyboard.press('Escape')
 
     await still(page, testInfo, 'collective-owner')
-    await record(page, testInfo, page.locator('.iu-page'), 'collective-owner')
+    await record(page, testInfo, page.getByRole('main'), 'collective-owner')
   })
 
   test('retains transcript grouping and private contribution withdrawal on the mounted detail page', async ({ page, theme }, testInfo) => {
@@ -100,6 +100,9 @@ test.describe('collectives', () => {
     await expect(contribution.getByRole('link', { name: RETAINED_CONTRIBUTIONS[1].title })).toBeVisible()
     await library.getByRole('button', { name: 'repos', exact: true }).click()
     await expect(library).toContainText('repositories')
+    const repositoryLinks = library.getByRole('link', { name: 'open repository', exact: true })
+    await expect(repositoryLinks).toHaveCount(2)
+    expect(await repositoryLinks.evaluateAll((links) => links.every((link) => !link.closest('button, [role="button"]')))).toBe(true)
     await page.evaluate(() => window.scrollTo(0, 0))
     await still(page, testInfo, 'collective-retained-flows')
     await record(page, testInfo, library, 'collective-retained-flows')
@@ -122,7 +125,7 @@ test.describe('collectives', () => {
     await expect(page.getByRole('button', { name: 'leave' })).toBeVisible()
 
     await still(page, testInfo, 'collective-member')
-    await record(page, testInfo, page.locator('.iu-page'), 'collective-member')
+    await record(page, testInfo, page.getByRole('main'), 'collective-member')
   })
 
   test('opens the repo picker, links a repository and says what it saved', async ({ page, theme }, testInfo) => {

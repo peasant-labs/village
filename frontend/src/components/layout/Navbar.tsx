@@ -1,17 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, LogOut, Moon, Sun, Settings, UserRound } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLogout } from "@/lib/queries/auth";
 import { useTheme } from "@/hooks/useTheme";
-import { Avatar, GraphSectionNav, Menu, SignInProviders } from "@/lib/ft-ui";
+import { Avatar, GraphSectionNav, Menu, Dialog, SignInProviders } from "@/lib/ft-ui";
 import { HOME_SECTION, navSections, isSectionActive, backTarget } from "@/lib/nav/sections";
 import { SIGN_IN_PROVIDERS, startSignIn } from "@/lib/signIn";
 
 /**
- * The account menu: the signed-in person's handle, and the two things they do
+ * The account menu: the signed-in person's handle, and the actions they take
  * with their account from the chrome. The design system's `Menu` owns the
  * trigger, the popout and the keyboard behaviour; the trigger reads as the
  * person (their avatar and handle) rather than as a generic "account" button.
@@ -20,8 +21,25 @@ function AccountMenu({ user }: { user: { github_username: string; avatar_url: st
   const router = useRouter();
   const logout = useLogout();
   const handle = user.github_username;
+  const logoutAdmission = useRef(false);
+  const [logoutQueued, setLogoutQueued] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  function beginLogout() {
+    if (logoutAdmission.current || logout.isPending) return;
+    logoutAdmission.current = true;
+    setLogoutQueued(true);
+    // The menu returns focus when it closes. Open the modal after that frame
+    // so its canonical focus trap remains the active interaction.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      setLogoutOpen(true);
+      logout.mutate();
+      setLogoutQueued(false);
+      logoutAdmission.current = false;
+    }));
+  }
 
   return (
+    <>
     <Menu
       align="end"
       label={
@@ -47,9 +65,25 @@ function AccountMenu({ user }: { user: { github_username: string; avatar_url: st
         },
         { label: "settings", icon: Settings, onSelect: () => router.push("/settings") },
         { label: "", separator: true },
-        { label: "sign out", icon: LogOut, onSelect: () => logout.mutate() },
+        { label: "sign out", icon: LogOut, disabled: logoutQueued || logout.isPending, onSelect: beginLogout },
       ]}
     />
+    <Dialog
+      open={logoutOpen}
+      onClose={() => setLogoutOpen(false)}
+      title={logout.isError ? "could not sign out" : "signing out"}
+      dismissible={logout.isError}
+      footer={logout.isError ? (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => logout.mutate()}>try again</button>
+      ) : undefined}
+    >
+      <p role={logout.isError ? "alert" : "status"} style={{ fontSize: "var(--fs-body)" }}>
+        {logout.isError
+          ? `the sign-out request failed: ${logout.error instanceof Error ? logout.error.message : "an unknown error"}. try again.`
+          : "waiting for the sign-out request."}
+      </p>
+    </Dialog>
+    </>
   );
 }
 

@@ -350,6 +350,8 @@ describe("a collective's contributions read a started session under the session 
       `remove selected (${testCase.rows.length})`,
     );
     await userEvent.click(screen.getByRole("button", { name: `remove selected (${testCase.rows.length})` }));
+    expect(requests.filter((request) => request.method === "DELETE")).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: "yes" }));
     await waitFor(() => expect(requests.filter((request) => request.method === "DELETE").map((request) => new URL(request.url).pathname)).toEqual(testCase.rows.map((row) => `/api/v1/groups/${GROUP_ID}/transcripts/${row.name}`)));
   });
 });
@@ -382,6 +384,17 @@ describe("a repository's rows read a started session under the session that star
     await renderCollectiveDetail(testCase.rows);
     await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
     await showRepositories();
+
+    const repositoryLink = within(library()).getByRole("link", { name: "open repository" });
+    expect(repositoryLink.closest("button, [role='button']")).toBeNull();
+    const repositoryToggle = within(repositoryLink.parentElement!).getByRole("button");
+    expect(repositoryToggle).toHaveAttribute("aria-expanded", "true");
+    repositoryToggle.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(repositoryToggle).toHaveAttribute("aria-expanded", "false");
+    expect(repositoryLink).toHaveAttribute("href", `https://${REPO_REMOTE}`);
+    await userEvent.keyboard(" ");
+    expect(repositoryToggle).toHaveAttribute("aria-expanded", "true");
 
     const group = testCase.expectedGroups[0];
     const { chip, toggle } = disclosureFor(group.parent);

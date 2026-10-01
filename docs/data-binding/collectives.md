@@ -65,3 +65,35 @@ fail its named user-visible assertion. The harness can be reduced if these exits
 move to another canonical route and its mounted fixtures retain the same
 observations. Exact-head both-theme shell and canonical side-by-side captures
 remain a separate review gate.
+
+Bulk removal retains the canonical inline confirmation. Selection and the
+confirmed batch bind the current account and credential; each sequential DELETE
+checks that binding before dispatch and after its response. A changed account or
+credential stops the remaining batch, without applying its old failure to the new
+viewer. Flat detail, paged transcript, and own-contribution reads include viewer
+identity below their existing invalidation prefixes; pagination retains previous
+rows only for the same viewer. Credentials stay out of query keys and storage.
+
+Five named mounted removal fixtures hold the first real DELETE response while
+changing identity or credentials, independently for success and failure. They
+observe the actual confirmation, exact HTTP authorization, absence of a second
+DELETE, and current-viewer private-row isolation after a real `/auth/me` refetch.
+The dispatch case changes credentials synchronously after confirmation, proving
+the mutation function rechecks the binding even when React Query defers it.
+The existing in-memory route harness supplies these observations without new
+processes or lifetime resources.
+
+The three flat collective reads also bind the viewer and credential before
+dispatch and before accepting the response. A monotonic in-memory credential
+generation sits below the viewer in their cache keys, so returning credentials
+start a fresh scope. Two mounted refetch fixtures observe rejected dispatch and
+discarded late data, including recovery back to the original credential. Both
+guard-removal mutations fail at their named HTTP/cache assertions.
+
+The owner also retains GitHub handle search from the settings page. The
+canonical settings body stays intact; an additive search exit opens Fairtrade's
+Dialog with the existing typeahead. Picking a result only selects its handle;
+invite sends the existing member POST. A failed invitation stays announced in
+the dialog with retry, and names retain their original case. Named mounted
+fixtures and a both-theme production journey cover search, explicit confirmation,
+the exact request body, and recovery.

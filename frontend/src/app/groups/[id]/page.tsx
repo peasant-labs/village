@@ -297,7 +297,7 @@ export default function GroupDetailPage({
         />
       </div>
 
-      <CollectiveTranscriptLibrary groupID={id} transcripts={readable} canRead={canRead} isOwner={isOwner} />
+      <CollectiveTranscriptLibrary key={user?.id ?? "anonymous"} groupID={id} transcripts={readable} canRead={canRead} isOwner={isOwner} />
 
       {user && canLeave && (
         <LeaveCollectiveDialog

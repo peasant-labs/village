@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Github, Lock, Trash2, UserMinus, Users } from "lucide-react";
 import { CollectiveSettingsView } from "@peasant-labs/fairtrade/commons";
-import { ConsentDialog, Toast } from "@/lib/ft-ui";
+import { ConsentDialog, Dialog, Toast } from "@/lib/ft-ui";
 import {
   useAddGroupMember,
   useDeleteGroup,
@@ -38,6 +38,7 @@ import {
 } from "@/lib/adapters/collective";
 import { applyRepoLinks, repoLinkMessage, repoLinkSteps, splitRepo } from "@/lib/repoLinks";
 import { githubInstallURL } from "@/lib/githubInstall";
+import GitHubUserSearch from "@/components/GitHubUserSearch";
 import type { GroupMember } from "@/lib/types";
 
 /** One line the page tells the owner after an action: saved, or what went wrong. */
@@ -74,6 +75,8 @@ export default function GroupSettingsPage({
   const repositories = useRepositories(id, isOwner);
   const available = useAvailableRepositories(id, isOwner && !!linkedOrg);
 
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteHandle, setInviteHandle] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
   const [removing, setRemoving] = useState<GroupMember | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -206,7 +209,7 @@ export default function GroupSettingsPage({
     addMember.mutate(
       { groupId: id, username },
       {
-        onSuccess: () => setNotice({ ok: true, title: "member added", detail: `@${username} can now publish here.` }),
+        onSuccess: () => { setInviteOpen(false); setNotice({ ok: true, title: "member added", detail: `@${username} can now publish here.` }); },
         onError: (error) => setNotice({ ok: false, title: "could not add a member", detail: `@${username}: ${error.message}` }),
       },
     );
@@ -281,6 +284,14 @@ export default function GroupSettingsPage({
         />
       </div>
 
+      <div className="iu-page"><div className="iu-page-summary border border-rule bg-surface px-5 py-3">
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setInviteHandle(""); addMember.reset(); setInviteOpen(true); }}>find a github user to invite</button>
+      </div></div>
+      <Dialog open={inviteOpen} onClose={() => setInviteOpen(false)} title="invite a github user" dismissible={!addMember.isPending} footer={<button type="button" className="btn btn-secondary btn-sm" disabled={!inviteHandle.trim() || addMember.isPending} onClick={() => handleInvite(inviteHandle)}>{addMember.isPending ? "inviting" : "invite"}</button>}>
+        <p className="text-[var(--fs-body)] text-ink-2">find their github handle, then invite them to this collective.</p>
+        <GitHubUserSearch value={inviteHandle} onChange={setInviteHandle} onSelect={setInviteHandle}/>
+        {addMember.isError && <p role="alert" className="text-[var(--fs-body)] text-danger">could not add a member: {addMember.error.message}. try again.</p>}
+      </Dialog>
       <ConsentDialog
         open={removing !== null}
         labelId="cns-remove-member"

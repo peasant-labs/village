@@ -105,7 +105,7 @@ for (const testCase of fixtures.cases) {
       await waitFor(() => {
         expect(requests.some((request) => request.url.endsWith(`/groups/${GROUP_ID}/my-shares`))).toBe(true);
         expect(requests.some((request) => request.url.includes(`/groups/${GROUP_ID}/my-shares?view=grouped`))).toBe(true);
-        const flat = queryClient.getQueryCache().find({ queryKey: ["group-my-shares", GROUP_ID], exact: true });
+        const flat = queryClient.getQueryCache().findAll({ queryKey: ["group-my-shares", GROUP_ID] }).find((query) => query.queryKey[2] === "flat" && query.queryKey[3] !== "anonymous");
         const grouped = queryClient.getQueryCache().findAll({ queryKey: ["group-my-shares", GROUP_ID] }).find((query) => query.queryKey[2] === "grouped-paged");
         expect(flat?.state.status).toBe("success");
         expect(flat?.state.data).toEqual([]);

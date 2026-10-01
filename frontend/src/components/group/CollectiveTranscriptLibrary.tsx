@@ -1,10 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getAuthHeaders } from "@/lib/api";
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import type { HelperGroupSummary } from "@peasant-labs/schema";
-import type { GroupTranscript, UserGroupShare } from "@/lib/types";
-import { Checkbox, SessionGroupDisclosure } from "@/lib/ft-ui";
+import type { GroupTranscript, UserGroupShare, User } from "@/lib/types";
+import { Checkbox, ConfirmInline, SessionGroupDisclosure } from "@/lib/ft-ui";
 import { useAuth } from "@/providers/AuthProvider";
 import { useMyGroupShares, useRemoveGroupTranscript } from "@/lib/queries/groups";
 import { useUnshareTranscript } from "@/lib/queries/transcripts";
@@ -123,6 +125,18 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
     isOwner: boolean;
 }) {
     const { user } = useAuth();
+    const client = useQueryClient();
+    const removalActive = useRef(false);
+    const selectionActor = useRef<{ id: string; authorization: string | undefined } | null>(null);
+    const actor = (): { id: string; authorization: string | undefined } => ({ id: client.getQueryData<User>(["me"])?.id ?? "", authorization: getAuthHeaders().Authorization });
+    const sameActor = (decision: ReturnType<typeof actor>) => { const current = actor(); return !!decision.id && current.id === decision.id && current.authorization === decision.authorization; };
+    function changeSelection(update: (current: Set<string>) => Set<string>) {
+        if (removalActive.current) return;
+        const current = actor();
+        const retain = selectionActor.current && sameActor(selectionActor.current);
+        selectionActor.current = current;
+        setSelected((previous) => update(retain ? previous : new Set()));
+    }
     const [expanded, setExpanded] = useState(false);
     const [view, setView] = useState<"list" | "repos">("list");
     const [contributor, setContributor] = useState("");
@@ -151,22 +165,38 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
     const myHelpers = helperGroupsByTranscript(groupedMine.items);
     const myFallback = unownedGroupedItems(groupedMine.items, representedMine);
     async function removeSelected() {
+        const decision = selectionActor.current;
+        if (removalActive.current) return;
+        if (!decision || !sameActor(decision)) {
+            setSelected(new Set());
+            return;
+        }
+        const transcriptIDs = [...selected].filter((id) => transcripts.some((row) => row.id === id));
+        removalActive.current = true;
         setRemoving(true);
         setRemoveError(null);
         const failed = new Set<string>();
-        for (const transcriptId of selected) {
-            if (!transcripts.some((row) => row.id === transcriptId))
-                continue;
-            try {
-                await remove.mutateAsync({ groupId: groupID, transcriptId });
+        try {
+            for (const transcriptId of transcriptIDs) {
+                if (!sameActor(decision)) return;
+                try {
+                    await remove.mutateAsync({ groupId: groupID, transcriptId, decision });
+                } catch (error) {
+                    if (!sameActor(decision)) return;
+                    failed.add(transcriptId);
+                    setRemoveError(error instanceof Error ? error.message : "the request failed");
+                }
+                if (!sameActor(decision)) return;
             }
-            catch (error) {
-                failed.add(transcriptId);
-                setRemoveError(error instanceof Error ? error.message : "the request failed");
+            setSelected(failed);
+        } finally {
+            removalActive.current = false;
+            setRemoving(false);
+            if (!sameActor(decision) && selectionActor.current === decision) {
+                selectionActor.current = null;
+                setSelected(new Set());
             }
         }
-        setSelected(failed);
-        setRemoving(false);
     }
     function retry(query: {
         error: Error | null;
@@ -175,23 +205,23 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
     }) {
         return <div role="alert" className="text-[var(--fs-body)] text-danger px-5 py-3"><p>could not read saved transcript groups: {query.error?.message}</p><button type="button" className="btn btn-secondary btn-sm" disabled={query.isFetching} onClick={() => void query.refetch()}>try again</button></div>;
     }
-    return <div className="mx-auto w-full max-w-[1152px] flex flex-col gap-4" data-testid="collective-transcript-library">
+    return <div className="iu-page"><div className="iu-page-summary flex flex-col gap-4" data-testid="collective-transcript-library">
     {canRead && (transcripts.length > 0 || fallback.length > 0 || grouped.remainingItems > 0 || grouped.isError) && <div className="border border-rule bg-surface">
       <SessionGroupDisclosure label="transcript groups" collapsedLabel="transcript groups" expanded={expanded} onToggle={() => setExpanded((open) => !open)} rowsID={`collective-library-${groupID}`} testID="collective-library-disclosure" bare>
         <div id={`collective-library-${groupID}`}>
           {transcripts.length > 0 && <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-rule">
             <label className="text-sm font-mono text-ink-3">contributor <select aria-label="filter transcripts by contributor" value={contributor} onChange={(event) => setContributor(event.target.value)} className="bg-surface border border-rule text-sm text-ink ml-2"><option value="">all contributors</option>{[...contributors].map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
             <div className="flex items-center gap-2"><button type="button" className="btn btn-ghost btn-sm" aria-pressed={view === "list"} onClick={() => setView("list")}>list</button><button type="button" className="btn btn-ghost btn-sm" aria-pressed={view === "repos"} onClick={() => setView("repos")}>repos</button></div>
-            {isOwner && <><Checkbox checked={visible.length > 0 && visible.every((row) => selected.has(row.id))} disabled={removing} onChange={(checked) => setSelected((current) => { const next = new Set(current); for (const row of visible) {
+            {isOwner && <><Checkbox checked={visible.length > 0 && visible.every((row) => selected.has(row.id))} disabled={removing} onChange={(checked) => changeSelection((current) => { const next = new Set(current); for (const row of visible) {
                 if (checked)
                     next.add(row.id);
                 else
                     next.delete(row.id);
-            } return next; })}>select all</Checkbox><button type="button" className="btn btn-secondary btn-sm tabular-nums" disabled={removing || selected.size === 0} onClick={() => void removeSelected()}>{removing ? "removing" : `remove selected (${selected.size})`}</button></>}
+            } return next; })}>select all</Checkbox><ConfirmInline aria-label={`remove selected (${selected.size})`} label={`remove selected (${selected.size})`} confirmLabel="remove from collective" disabled={selected.size === 0} busy={removing} onConfirm={removeSelected}/></>}
           </div>}
           {removeError && <p role="alert" className="text-[var(--fs-body)] text-danger px-5 py-3">could not remove all selected contributions: {removeError}. failed rows remain selected; try again.</p>}
           {view === "repos" ? <CollectiveRepos transcripts={visible} viewerIsOwner={isOwner} helperGroups={helpers} onRefreshOrigin={grouped.refreshOrigin}/> : <TranscriptList items={folded.rootItems} childSessions={children} facts={COLLECTIVE_BROWSE_FACTS} selection={isOwner ? { selectedIDs: selected, onToggle: (id) => { if (removing)
-                return; setSelected((current) => { const next = new Set(current); if (next.has(id))
+                return; changeSelection((current) => { const next = new Set(current); if (next.has(id))
                 next.delete(id);
             else
                 next.add(id); return next; }); } } : undefined} viewerIsPrivileged={isOwner} linkOwner bare helperGroupSlot={(item) => <ScopedOwnerHelperGroups groups={helpers.get(item.transcript.id)} onRefreshOrigin={grouped.refreshOrigin}/>}/>}
@@ -208,5 +238,5 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
       {groupedMine.isError && retry(groupedMine)}
       {(myFallback.length > 0 || groupedMine.remainingItems > 0) && <div data-testid="grouped-helper-fallback" className="border-t border-rule"><ScopedUnownedHelperGroups items={groupedMine.items} representedOwnerIds={representedMine} onRefreshOrigin={groupedMine.refreshOrigin}/><ScopedGroupedContinuation remaining={groupedMine.remainingItems} busy={groupedMine.isFetchingNextPage} onLoadMore={() => void groupedMine.fetchNextPage()}/></div>}
     </div>}
-  </div>;
+  </div></div>;
 }
