@@ -11,7 +11,7 @@ import { writeFileSync } from 'node:fs'
 import { test, expect } from './lib/fixtures.mjs'
 import { setScenario } from './lib/scenario.mjs'
 import { scanAxe, seriousViolations, expectTheme, expectComputedTokens } from './lib/assertions.mjs'
-import { JOURNEY_COLLECTIVES, RETAINED_CONTRIBUTIONS } from './lib/collective-fixtures.mjs'
+import { JOURNEY_COLLECTIVES, RETAINED_CONTRIBUTIONS, RETAINED_GROUPED } from './lib/collective-fixtures.mjs'
 
 const OWNER = JOURNEY_COLLECTIVES.owner
 const MEMBER = JOURNEY_COLLECTIVES.member
@@ -81,6 +81,7 @@ test.describe('collectives', () => {
     await page.getByRole('button', { name: 'more', exact: true }).click()
     await expect(page.getByRole('menuitem')).toHaveText(['publish several transcripts'])
     await page.keyboard.press('Escape')
+    await expect(page.getByRole('menu')).toHaveCount(0)
 
     await still(page, testInfo, 'collective-owner')
     await record(page, testInfo, page.getByRole('main'), 'collective-owner')
@@ -98,6 +99,15 @@ test.describe('collectives', () => {
     await expect(contribution).toContainText('pending')
     await contribution.getByTestId('child-session-disclosure-toggle').click()
     await expect(contribution.getByRole('link', { name: RETAINED_CONTRIBUTIONS[1].title })).toBeVisible()
+    await expect(library.getByRole('alert')).toHaveCount(0)
+    const continuation = contribution.getByTestId('grouped-helper-continuation')
+    const laterPage = page.waitForResponse((response) => response.url().includes(`/groups/${OWNER.id}/my-shares?`) && new URL(response.url()).searchParams.get('page') === '2')
+    await continuation.getByRole('button', { name: /load/ }).click()
+    expect((await laterPage).ok()).toBe(true)
+    const helpers = contribution.locator(`[data-group-id="${RETAINED_GROUPED.groupID}"]`)
+    await helpers.getByTestId('helper-group-toggle').click()
+    await expect(helpers.getByRole('link', { name: RETAINED_GROUPED.title })).toBeVisible()
+    await expect(library.getByRole('alert')).toHaveCount(0)
     await library.getByRole('button', { name: 'repos', exact: true }).click()
     await expect(library).toContainText('repositories')
     const repositoryLinks = library.getByRole('link', { name: 'open repository', exact: true })

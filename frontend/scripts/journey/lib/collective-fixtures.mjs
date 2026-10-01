@@ -16,14 +16,31 @@
  */
 import { readFileSync } from 'node:fs'
 import { parse } from 'yaml'
+import { createHash } from 'node:crypto'
+import { zVillageGroupedGroupDetailResponse, zVillageSessionListPayload, zVillageHelperMembersPayload } from '@peasant-labs/schema'
+import { makeTranscriptFixture } from '../../../src/test/transcriptRowFixture.ts'
 import { FROZEN_EPOCH_MS } from './determinism-constants.mjs'
 
-export const RETAINED_CONTRIBUTIONS = parse(readFileSync(new URL('../testdata/collective-retained-flows.yaml', import.meta.url), 'utf8'), { strict: true }).contributions
+const retainedWorld = parse(readFileSync(new URL('../testdata/collective-retained-flows.yaml', import.meta.url), 'utf8'), { strict: true })
+if (Object.keys(retainedWorld).sort().join() !== 'contributions,grouped') throw new Error('invalid retained collective fixture world')
+export const RETAINED_CONTRIBUTIONS = retainedWorld.contributions
+export const RETAINED_GROUPED = retainedWorld.grouped
+if (Object.keys(RETAINED_GROUPED).sort().join() !== 'groupID,memberID,memberScope,pageSize,purpose,title,totalItems' || RETAINED_GROUPED.pageSize !== 100 || RETAINED_GROUPED.totalItems !== 101 || RETAINED_GROUPED.purpose !== 'helper_review' || !RETAINED_GROUPED.groupID || !RETAINED_GROUPED.memberScope || !RETAINED_GROUPED.memberID || !RETAINED_GROUPED.title) throw new Error('invalid retained grouped fixture')
+// Legacy mock IDs are aliases; grouped wire rows use deterministic real UUIDs.
+const validated = (schema, value) => { schema.parse(value); return value }
+const fixtureUUID = (id) => { const hex = createHash('sha256').update(id).digest('hex'); return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-8${hex.slice(17,20)}-${hex.slice(20,32)}` }
+
 if (!Array.isArray(RETAINED_CONTRIBUTIONS) || JSON.stringify(RETAINED_CONTRIBUTIONS.map((row) => row.name).sort()) !== JSON.stringify(['approved-private-child', 'pending-private-parent'])) throw new Error('retained collective contribution fixtures are missing or duplicated')
 for (const row of RETAINED_CONTRIBUTIONS) {
   if (Object.keys(row).sort().join(',') !== ['name', 'id', 'localID', 'parentSessionID', 'title', 'status'].sort().join(',') || !['pending', 'approved'].includes(row.status) || !row.id || !row.localID || !row.title || !(row.parentSessionID === null || typeof row.parentSessionID === 'string')) throw new Error('invalid retained collective contribution fixture')
 }
 const emptyGrouped = (url) => ({ items: [], page: Number(url.searchParams.get('page') || 1), limit: Number(url.searchParams.get('limit') || 100), totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 })
+function retainedGrouped(url) {
+  const page = Number(url.searchParams.get('page') || 1)
+  const limit = Number(url.searchParams.get('limit') || RETAINED_GROUPED.pageSize)
+  const items = page === 1 ? Array.from({ length: limit }, (_, index) => ({ kind: 'transcript', transcript: { session: makeTranscriptFixture({ id: fixtureUUID(`retained-ordinary-${index}`), owner_id: fixtureUUID('user-demo'), local_id: `retained-ordinary-${index}`, visibility: 'private', title: `ordinary grouped contribution ${index}` }) } })) : [{ kind: 'context_container', context: { groupId: RETAINED_GROUPED.groupID, ownerStatus: 'known_unavailable' }, helperGroups: [{ groupId: RETAINED_GROUPED.groupID, purpose: RETAINED_GROUPED.purpose, helperThreadCount: 1, memberScope: RETAINED_GROUPED.memberScope }] }]
+  return validated(zVillageSessionListPayload, { items, page, limit, totalItems: RETAINED_GROUPED.totalItems, ordinarySessionTotal: RETAINED_GROUPED.pageSize, helperThreadTotal: 1 })
+}
 const VIEWER_ID = 'user-demo'
 const ago = (minutes) => new Date(FROZEN_EPOCH_MS - minutes * 60_000).toISOString()
 
@@ -277,6 +294,12 @@ export function handleCollectiveRequest(req, res) {
     return true
   }
 
+  if (req.method === 'GET' && path === `/transcript-groups/${RETAINED_GROUPED.groupID}/members`) {
+    if (url.searchParams.get('scope') !== RETAINED_GROUPED.memberScope) { send(res, 409, { error: 'scope expired' }); return true }
+    const member = { kind: 'transcript', transcript: { session: makeTranscriptFixture({ id: RETAINED_GROUPED.memberID, owner_id: fixtureUUID(VIEWER_ID), local_id: 'retained-later-helper', title: RETAINED_GROUPED.title, visibility: 'private' }) } }
+    send(res, 200, validated(zVillageHelperMembersPayload, { members: [member], page: 1, limit: Number(url.searchParams.get('limit')), total: 1 }))
+    return true
+  }
   const withdrawal = path.match(/^\/transcripts\/([^/]+)\/share\/([^/]+)$/)
   if (withdrawal && req.method === 'DELETE') {
     const entry = world.collectives[withdrawal[2]]
@@ -292,7 +315,7 @@ export function handleCollectiveRequest(req, res) {
   const rest = match[2] || ''
 
   if (rest === '' && req.method === 'GET') {
-    send(res, 200, url.searchParams.get("view") === "grouped" ? { groupId: entry.group.id, transcriptList: emptyGrouped(url) } : detail(entry, url))
+    send(res, 200, url.searchParams.get("view") === "grouped" ? validated(zVillageGroupedGroupDetailResponse, { ...detail(entry, url), group: { ...entry.group, created_by: fixtureUUID(entry.group.created_by) }, members: entry.members.map((member) => ({ ...member, id: fixtureUUID(member.id) })), transcriptList: emptyGrouped(url) }) : detail(entry, url))
     return true
   }
   if (rest === '' && req.method === 'PATCH') {
@@ -307,7 +330,7 @@ export function handleCollectiveRequest(req, res) {
     return true
   }
   if (rest === '/my-shares' && req.method === 'GET') {
-    send(res, 200, url.searchParams.get("view") === "grouped" ? emptyGrouped(url) : (entry.myShares || []))
+    send(res, 200, url.searchParams.get("view") === "grouped" ? (entry.group.id === JOURNEY_COLLECTIVES.owner.id ? retainedGrouped(url) : emptyGrouped(url)) : (entry.myShares || []))
     return true
   }
   const removedTranscript = rest.match(/^\/transcripts\/([^/]+)$/)
