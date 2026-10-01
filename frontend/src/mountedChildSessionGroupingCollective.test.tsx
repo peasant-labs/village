@@ -350,6 +350,8 @@ describe("a collective's contributions read a started session under the session 
       `remove selected (${testCase.rows.length})`,
     );
     await userEvent.click(screen.getByRole("button", { name: `remove selected (${testCase.rows.length})` }));
+    expect(requests.filter((request) => request.method === "DELETE")).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: "yes" }));
     await waitFor(() => expect(requests.filter((request) => request.method === "DELETE").map((request) => new URL(request.url).pathname)).toEqual(testCase.rows.map((row) => `/api/v1/groups/${GROUP_ID}/transcripts/${row.name}`)));
   });
 });

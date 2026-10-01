@@ -158,7 +158,7 @@ export interface GroupRouteFixture {
   contributable?: ContributableTranscript[];
 }
 
-function makeUser(username: string): User {
+export function makeUser(username: string): User {
   return {
     id: `user-${username}`,
     github_id: 1,

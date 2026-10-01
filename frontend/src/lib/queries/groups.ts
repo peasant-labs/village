@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { VillageCreateGroupRequest, VillageGroup, VillageUpdateGroupRequest } from "@peasant-labs/schema";
-import { api } from "../api";
-import type { Group, VisibleGroup, GroupMember, GroupContributor, GroupTranscript, GroupTranscriptStats, GroupModelBreakdown, CollectiveSearchResponse, UserGroupShare } from "../types";
+import { api, getAuthHeaders } from "../api";
+import { useAuth } from "@/providers/AuthProvider";
+import type { Group, VisibleGroup, GroupMember, GroupContributor, GroupTranscript, GroupTranscriptStats, GroupModelBreakdown, CollectiveSearchResponse, UserGroupShare, User } from "../types";
 
 /**
  * The collectives the caller BELONGS to (`GET /groups`).
@@ -32,8 +33,9 @@ export function useVisibleGroups() {
 }
 
 export function useGroup(id: string) {
+  const { user, isLoading } = useAuth();
   return useQuery({
-    queryKey: ["group", id],
+    queryKey: ["group", id, "flat", user?.id ?? "anonymous"],
     queryFn: () =>
       api<{
         group: Group;
@@ -46,30 +48,37 @@ export function useGroup(id: string) {
         your_role: string;
         pending_members?: GroupMember[];
       }>(`/groups/${id}`),
-    enabled: !!id,
+    enabled: !isLoading && !!id,
   });
 }
 
 export function useGroupTranscripts(groupId: string, page: number, pageSize: number, enabled: boolean) {
+  const { user, isLoading } = useAuth();
   return useQuery({
-    queryKey: ["group-transcripts", groupId, page, pageSize],
+    queryKey: ["group-transcripts", groupId, user?.id ?? "anonymous", page, pageSize],
     queryFn: async () => {
       const res = await api<{
         transcripts: GroupTranscript[];
       }>(`/groups/${groupId}?limit=${pageSize}&offset=${page * pageSize}`);
       return res.transcripts ?? [];
     },
-    enabled: enabled && !!groupId,
-    placeholderData: (prev) => prev,
+    enabled: !isLoading && enabled && !!groupId,
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[2] === (user?.id ?? "anonymous") ? previous : undefined,
   });
 }
 
 export function useRemoveGroupTranscript() {
   const qc = useQueryClient();
+  type Decision = { id: string; authorization: string | undefined };
+  const current = (decision?: Decision) => !decision || (qc.getQueryData<User>(["me"])?.id === decision.id && getAuthHeaders().Authorization === decision.authorization);
   return useMutation({
-    mutationFn: ({ groupId, transcriptId }: { groupId: string; transcriptId: string }) =>
-      api(`/groups/${groupId}/transcripts/${transcriptId}`, { method: "DELETE" }),
+    mutationFn: ({ groupId, transcriptId, decision }: { groupId: string; transcriptId: string; decision?: Decision }) => {
+      // React Query may defer dispatch after the page's confirmation guard.
+      if (!current(decision)) throw new Error("the signed-in account changed before removal");
+      return api(`/groups/${groupId}/transcripts/${transcriptId}`, { method: "DELETE" });
+    },
     onSuccess: (_, vars) => {
+      if (!current(vars.decision)) return;
       qc.invalidateQueries({ queryKey: ["group", vars.groupId] });
       qc.invalidateQueries({ queryKey: ["group-transcripts", vars.groupId] });
     },
@@ -110,10 +119,11 @@ export function useUpdateGroup() {
 }
 
 export function useMyGroupShares(groupId: string, enabled = true) {
+  const { user, isLoading } = useAuth();
   return useQuery({
-    queryKey: ["group-my-shares", groupId],
+    queryKey: ["group-my-shares", groupId, "flat", user?.id ?? "anonymous"],
     queryFn: () => api<UserGroupShare[]>(`/groups/${groupId}/my-shares`),
-    enabled: enabled && !!groupId,
+    enabled: !isLoading && enabled && !!groupId,
   });
 }
 
