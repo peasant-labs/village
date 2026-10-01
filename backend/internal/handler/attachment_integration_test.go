@@ -64,6 +64,7 @@ type attachmentGitHubFake struct {
 	deleteNotFound      bool
 	checkCreates        int
 	checkCreateSHAs     []string
+	checkHeads          map[int64]string
 	checkUpdates        int
 	commentCreates      int
 	commentEdits        int
@@ -126,6 +127,17 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			}
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "[%s]", strings.Join(parts, ","))
+		case strings.Contains(r.URL.Path, "/check-runs/") && r.Method == http.MethodGet:
+			var id int64
+			fmt.Sscan(lastPathSegment(r.URL.Path), &id)
+			fake.mu.Lock()
+			head, exists := fake.checkHeads[id]
+			fake.mu.Unlock()
+			if !exists {
+				http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
+				return
+			}
+			fmt.Fprintf(w, `{"id":%d,"head_sha":%q,"status":"completed","conclusion":"success"}`, id, head)
 		case strings.Contains(r.URL.Path, "/check-runs"):
 			raw, _ := io.ReadAll(r.Body)
 			if writeFailure() {
@@ -143,11 +155,16 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			}
 			_ = json.Unmarshal(raw, &payload)
 			if r.Method == http.MethodPatch {
+				fmt.Sscan(lastPathSegment(r.URL.Path), &id)
 				fake.checkUpdates++
 			} else {
 				fake.checkCreates++
 				id = int64(10 + fake.checkCreates)
 				fake.checkCreateSHAs = append(fake.checkCreateSHAs, payload.HeadSHA)
+				if fake.checkHeads == nil {
+					fake.checkHeads = make(map[int64]string)
+				}
+				fake.checkHeads[id] = payload.HeadSHA
 			}
 			if payload.Output.Summary != "" {
 				fake.lastCheckText = payload.Output.Summary

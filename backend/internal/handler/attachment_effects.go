@@ -384,7 +384,15 @@ func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullReques
 	// A check run's head SHA is fixed when it is created; an update cannot move
 	// it. So a new head needs a NEW run, or the new commit has no check at all
 	// and a required check never satisfies branch protection.
-	if !attachment.CheckRunID.Valid || headChanged {
+	createRun := !attachment.CheckRunID.Valid || headChanged
+	if !createRun {
+		run, readErr := h.gh.GetCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, attachment.CheckRunID.Int64)
+		if readErr != nil && !github.IsNotFound(readErr) {
+			return 0, 0, fmt.Errorf("%w: reading the recorded check run: %v", errAttachmentGitHub, readErr)
+		}
+		createRun = github.IsNotFound(readErr) || run == nil || run.HeadSHA != attachment.HeadSha
+	}
+	if createRun {
 		created, createErr := h.gh.CreateCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, request)
 		if createErr != nil {
 			return 0, 0, fmt.Errorf("%w: creating the check run: %v", errAttachmentGitHub, createErr)
@@ -466,7 +474,7 @@ func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequ
 		// A 404 means the comment is already gone, which is the outcome detach
 		// wants; failing here would leave a partial detach stuck forever.
 	}
-	if repo.postCheck && attachment.CheckRunID.Valid {
+	if attachment.CheckRunID.Valid {
 		if _, err := h.gh.UpdateCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, attachment.CheckRunID.Int64, github.CheckRunRequest{
 			Conclusion: github.CheckConclusionNeutral,
 			Title:      attachmentCheckTitle,

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   PULL_REQUEST_CONTROLS,
   loadPullRequestPageFixtures,
+  loadForbiddenAttachmentClaims,
+  loadPullRequestItemLinks,
   pullRequestPageCase,
   type PullRequestPageCase,
 } from "@/test/pullRequestPageFixtures";
@@ -61,6 +63,9 @@ function fixtureFor(row: PullRequestPageCase): PullRequestFixture {
       session_start: "2026-01-01T00:00:00Z",
     })),
     confirmStatus: row.confirm_status ?? undefined,
+    detachStatus: row.detach_status ?? undefined,
+    detachMessage: row.expect_error ?? undefined,
+    attachmentStatus: row.attachment_status ?? undefined,
     confirmMessage: "This pull request is not in a state that allows that action",
     transcriptReads: row.transcript_reads.map((read) => ({
       id: read.id,
@@ -113,6 +118,14 @@ function splitLabels(): string[] {
 describe("the pull request page", () => {
   for (const row of loadPullRequestPageFixtures()) {
     it(`renders ${row.name}`, async () => {
+      if (row.expect_route_error) {
+        const requests = installPullRequestREST(fixtureFor(row));
+        await renderPullRequestRoute(OWNER, NAME, row.route_number);
+        await screen.findByText(row.expect_route_error);
+        expect(document.querySelector('.pd')).toBeNull();
+        if (row.route_number === "wrong") expect(requests).toHaveLength(0);
+        return;
+      }
       await mountSettled(row);
 
       expect(spoken(screen.getByTestId("pull-request-title"))).toBe(row.expect_title);
@@ -133,10 +146,10 @@ describe("the pull request page", () => {
       // description at all while a read has not answered.
       const audienceText = spoken(screen.queryByTestId("pull-request-actions"));
       if (row.expect_audience_form === "sentence") {
-        expect(audienceText).toMatch(/who can read (it|them): .+\. attaching does not change that\./);
+        expect(audienceText).toContain(row.expect_audience_sentence);
       } else if (row.expect_audience_form === "list") {
         expect(audienceText).toContain("who can read them (attaching does not change that):");
-        const listed = row.transcript_reads.map((read, index) => `${read.title}: ${row.expect_audience_lines[index]}`);
+        const listed = row.transcript_reads.map((read, index) => `${read.title?.trim() ? read.title : `session ${index + 1}`}: ${row.expect_audience_lines[index]}`);
         for (const line of listed) expect(audienceText).toContain(line);
       } else if (row.expect_audience_form === "fallback") {
         expect(audienceText).toContain("attaching does not change who can read them.");
@@ -158,6 +171,14 @@ describe("the pull request page", () => {
         expect(document.querySelector(".pd")).toBeNull();
         expect(screen.queryByTestId("digest-empty") !== null).toBe(row.expect_digest_block === "empty");
         expect(screen.queryByTestId("digest-absent") !== null).toBe(row.expect_digest_block === "absent");
+        expect(spoken(screen.getByTestId(`digest-${row.expect_digest_block}`))).toBe(row.expect_digest_text);
+      }
+
+      if (row.action) {
+        fireEvent.click(screen.getByTestId(row.action));
+        await waitFor(() => expect(spoken(screen.getByTestId("attachment-action-error"))).toBe(row.expect_error));
+        expect(screen.getByTestId("attachment-state-line").getAttribute("data-state")).toBe(row.state);
+        expect(screen.getByTestId(row.action)).toBeTruthy();
       }
 
       // The attach-state list and its per-row marks are gone: the split list
@@ -173,16 +194,10 @@ describe("the pull request page", () => {
     // its audience line; that is the only place such words may appear. Every
     // other word on the page is scanned for a claim that attaching opens,
     // shares or widens access.
-    const forbidden = [
-      /readable by/i,
-      /makes the transcripts/i,
-      /collaborators/i,
-      /\banyone\b/i,
-      /attaching (makes|opens|shares|widens|publishes|grants)/i,
-    ];
+    const forbidden = loadForbiddenAttachmentClaims();
     let statedAudiences = 0;
     let saidAttachingChangesNothing = 0;
-    for (const row of loadPullRequestPageFixtures()) {
+    for (const row of loadPullRequestPageFixtures().filter(row => !row.expect_route_error)) {
       await mountSettled(row);
       const page = document.body.cloneNode(true) as HTMLElement;
       for (const line of page.querySelectorAll('[data-testid="transcript-audience"]')) {
@@ -301,6 +316,19 @@ describe("the pull request page", () => {
     expect(screen.getByText("please add the picker")).toBeTruthy();
   });
 
+  for (const row of loadPullRequestItemLinks()) {
+    it(row.name, async () => {
+      const fixture = fixtureFor(pullRequestPageCase("reader of an attached digest"));
+      const item = fixture.digest!.items.find(item => item.kind === row.kind)!;
+      if (row.turnIndex !== null) item.turnIndex = row.turnIndex;
+      if (row.commitSha !== null) item.commitSha = row.commitSha;
+      installPullRequestREST(fixture);
+      await renderPullRequestRoute(OWNER, NAME, NUMBER);
+      await screen.findByTestId("pull-request-title");
+      await waitFor(() => expect(document.querySelector(`.pd a[href="${row.expected}"]`)).toBeTruthy());
+    });
+  }
+
   it("links each chain item where it belongs", async () => {
     await mountSettled(pullRequestPageCase("reader of an attached digest"));
     await waitFor(() => expect(document.querySelector(".pd")).toBeTruthy());
@@ -313,6 +341,7 @@ describe("the pull request page", () => {
       a.getAttribute("href"),
     );
     expect(turnLinks).toContain("/transcripts/11111111-1111-1111-1111-111111111111?turn=0");
+    expect(turnLinks).toContain("/transcripts/11111111-1111-1111-1111-111111111111?turn=1");
     // The commit anchor is the only chain link that leaves village, and it
     // resolves through the attachment's repository.
     const commit = document.querySelector('.pd a[href*="/commit/"]');

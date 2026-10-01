@@ -763,7 +763,12 @@ authenticating. Both are custom Postgres parameters read via
   it on village, because Village cannot know who reads a private repository's
   pull request. A preview posts one comment that counts the author's matching
   transcripts and names none of them. The collective's `post_prompts_check`
-  gates that comment, the attached comment, and the check alike.
+  gates posting and editing that comment, the attached comment, and the check
+  alike. Off refreshes keep previously recorded artifact IDs; explicit detach
+  deletes the recorded comment and neutralizes its check regardless of the toggle.
+  On refresh, the recorded check's immutable GitHub head is read before reuse,
+  so a head that advanced while posting was off gets a new check after re-enable.
+  This uses existing attachment rows and GitHub reads, without a migration.
 - **Content replacement uses immutable, content-addressed objects.** Publish
   uploads to an owner/transcript/content-hash key, then swaps `blob_key` in the
   same database transaction as the authoritative receipt. A database failure

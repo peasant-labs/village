@@ -12,6 +12,15 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 
 /** Every case this corpus must carry, by name. */
 const REQUIRED_CASE_NAMES = [
+  "author previewing one transcript shared with three collectives",
+  "shared transcript with no current collective grants",
+  "missing transcript title keeps a session label in the audience list",
+  "not now refused with a conflict",
+  "detach refused with a conflict",
+  "non numeric pull number",
+  "missing attachment",
+  "attachment read fails",
+
   "author previewing two transcripts with one audience",
   "author previewing two transcripts with different audiences",
   "author previewing one public transcript on a public repository",
@@ -52,6 +61,14 @@ export interface PullRequestTranscriptRead {
 }
 
 export interface PullRequestPageCase {
+  detach_status: number | null;
+  action: string | null;
+  expect_error: string | null;
+  route_number: string;
+  attachment_status: number | null;
+  expect_route_error: string | null;
+  expect_digest_text: string | null;
+  expect_audience_sentence: string | null;
   name: string;
   viewer_is_author: boolean;
   is_private_repository: boolean;
@@ -78,6 +95,15 @@ export interface PullRequestPageCase {
 }
 
 const CASE_FIELDS = [
+  "detach_status",
+  "action",
+  "expect_error",
+  "route_number",
+  "attachment_status",
+  "expect_route_error",
+  "expect_digest_text",
+  "expect_audience_sentence",
+
   "name",
   "viewer_is_author",
   "is_private_repository",
@@ -110,7 +136,9 @@ export function loadPullRequestPageFixtures(): PullRequestPageCase[] {
   const path = resolve(process.cwd(), "src/testdata/pull-request-page.yaml");
   const document = parse(readFileSync(path, "utf8"), { strict: true }) as {
     cases: PullRequestPageCase[];
+    forbiddenClaims: {name: string; pattern: string}[];
   };
+  assertExactKeys(document, ["cases", "forbiddenClaims", "itemLinks"], "pull request page fixture");
   if (!Array.isArray(document?.cases) || document.cases.length === 0) {
     throw new Error("pull-request-page.yaml has no cases");
   }
@@ -141,4 +169,23 @@ export function pullRequestPageCase(name: (typeof REQUIRED_CASE_NAMES)[number]):
   const row = loadPullRequestPageFixtures().find((candidate) => candidate.name === name);
   if (!row) throw new Error(`pull-request-page.yaml has no case named ${name}`);
   return row;
+}
+
+export function loadForbiddenAttachmentClaims(): RegExp[] {
+  const path = resolve(process.cwd(), "src/testdata/pull-request-page.yaml");
+  const document = parse(readFileSync(path, "utf8"), { strict: true }) as { forbiddenClaims: { name: string; pattern: string }[] };
+  const required = ["readability claim", "making transcripts accessible", "repository collaborators grant", "public grant outside audience", "attachment widens access"];
+  assertNamesMatch(document.forbiddenClaims.map(row => row.name), required, "attachment claim patterns");
+  return document.forbiddenClaims.map(row => {
+    assertExactKeys(row, ["name", "pattern"], "attachment claim pattern");
+    return new RegExp(row.pattern, "i");
+  });
+}
+
+export function loadPullRequestItemLinks(): {name: string; kind: "skill" | "commit"; turnIndex: number | null; commitSha: string | null; expected: string}[] {
+  const path = resolve(process.cwd(), "src/testdata/pull-request-page.yaml");
+  const document = parse(readFileSync(path, "utf8"), { strict: true });
+  assertNamesMatch(document.itemLinks.map((row: {name: string}) => row.name), ["skill opens its recorded turn", "commit reference is a single encoded path segment"], "pull request item links");
+  for (const row of document.itemLinks) assertExactKeys(row, ["name", "kind", "turnIndex", "commitSha", "expected"], "pull request item link");
+  return document.itemLinks;
 }
