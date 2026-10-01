@@ -155,8 +155,8 @@ type mockQuerier struct {
 	listUsersByIDs                           func(ctx context.Context, ids []pgtype.UUID) ([]sqlc.User, error)
 	listTagsByTranscriptIDs                  func(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListTagsByTranscriptIDsRow, error)
 
-	// Writes a test drives directly. Each falls back to its method's existing
-	// behavior when unset.
+	// Writes a test drives directly. Unset, setUserPreviewBeforeAttach returns a
+	// zero user, and createGroup and addGroupMember panic as not stubbed.
 	setUserPreviewBeforeAttach func(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error)
 	createGroup                func(ctx context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error)
 	addGroupMember             func(ctx context.Context, arg sqlc.AddGroupMemberParams) error

@@ -18,7 +18,8 @@ import (
 // that one read. Every outcome is remembered in a short-lived, bounded,
 // in-process cache - an answer for two minutes; a refusal, a failure, or a read
 // that ran out of time as unknown for thirty seconds - so one pull request costs
-// at most one GitHub read per window however many callers ask. A read never
+// at most one GitHub read per window in this process however many callers ask
+// (a full table is dropped, which costs a read again). A read never
 // runs longer than its deadline, and a response never waits on GitHub longer
 // than that either: what is not answered by then is served as unknown. And a
 // list asks for a few pull requests at once rather than one after another.
@@ -49,7 +50,8 @@ func (h *Handler) detailDeadline() time.Duration {
 
 // pullRequestDetailsFor reads the title and head branch of each candidate's
 // pull request, in the candidates' order. A pull request GitHub could not
-// describe gets a detail with both fields null.
+// describe, or that the list did not reach before its deadline, gets a detail
+// with both fields null.
 func (h *Handler) pullRequestDetailsFor(ctx context.Context, candidates []pullRequestCandidate) []pullRequestDetail {
 	details := make([]pullRequestDetail, len(candidates))
 	if h.gh == nil {
@@ -74,11 +76,11 @@ func (h *Handler) pullRequestDetailsFor(ctx context.Context, candidates []pullRe
 		// No read starts once the response has stopped waiting: the pull requests
 		// not reached by then are served as unknown, the list never has more than
 		// its few reads in flight, and it starts none once its caller has gone.
-		// A slot opens only when a read settles, so against a GitHub that does
-		// not answer no more than those few ever start. The clock is
-		// checked as well as the context, because a read that timed out on
-		// schedule can free its slot a moment before the list's own timer fires,
-		// and no read may start in that moment either.
+		// A slot opens when a read settles or when the list's context ends, so
+		// both the context and the clock are checked after taking one. The clock
+		// check is what holds when a read times out on schedule: its timer can
+		// fire, and free its slot, a moment before the list's own timer does.
+		// Removing it lets a list start more reads than it has slots.
 		select {
 		case slots <- struct{}{}:
 		case <-ctx.Done():
