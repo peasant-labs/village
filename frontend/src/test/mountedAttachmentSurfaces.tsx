@@ -69,6 +69,8 @@ export interface PullRequestFixture {
   transcripts: VillagePullRequestAttachmentResponse["transcripts"];
   /** Status a confirm answers; 200 (or unset) returns the attached response. */
   confirmStatus?: number;
+  detachStatus?: number;
+  detachMessage?: string;
   confirmMessage?: string;
   /** Status the attachment read answers; unset (or 200) serves the attachment. */
   attachmentStatus?: number;
@@ -219,6 +221,7 @@ export function installPullRequestREST(fixture: PullRequestFixture): RecordedReq
       return json(makeAttachmentResponse({ ...fixture, attachment }));
     }
     if (method === "DELETE") {
+      if (fixture.detachStatus && fixture.detachStatus >= 400) return json({ error: fixture.detachMessage ?? "refused" }, fixture.detachStatus);
       attachment = { ...attachment, state: "detached" };
       return json(makeAttachmentResponse({ ...fixture, attachment }));
     }
@@ -245,7 +248,7 @@ export function installPullRequestREST(fixture: PullRequestFixture): RecordedReq
   return requests;
 }
 
-export async function renderPullRequestRoute(owner: string, name: string, number: number): Promise<void> {
+export async function renderPullRequestRoute(owner: string, name: string, number: number | string): Promise<void> {
   await act(async () => {
     render(
       <QueryOnly>

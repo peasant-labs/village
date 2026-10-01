@@ -195,7 +195,7 @@ export default function PullRequestPage({
               <Link
                 href="/groups"
                 data-testid="pull-request-back-link"
-                className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
+                className="font-mono text-[length:var(--fs-label)] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
               >
                 back to collectives
               </Link>
@@ -211,7 +211,7 @@ export default function PullRequestPage({
       <div className={shell}>
         <div className="border border-danger/40 bg-danger-soft px-5 py-6 text-danger">
           <p className="font-medium">this pull request page could not be loaded</p>
-          <p className="mt-1 text-[14px]">
+          <p className="mt-1">
             the request to village failed before the attachment could be read, so nothing is
             shown rather than a partial page. reload to try again.
           </p>
@@ -532,7 +532,7 @@ function AuthorPanel({
           </div>
         )}
         {error && (
-          <p data-testid="attachment-action-error" className="m-0 text-[14px] text-danger" role="alert">
+          <p data-testid="attachment-action-error" className="m-0 text-danger" role="alert">
             {error.message}
           </p>
         )}

@@ -1,34 +1,3 @@
-# The pull request page, one case per situation a reader can land in. Case
-# names are held to the loader's required-name manifest, so a removed row fails
-# rather than shrinking the corpus.
-#
-# The page states what the server decided and decides nothing itself:
-#
-# - digest is present, empty, or absent. digest_transcripts are the transcripts
-#   the served digest carries (one session each, in order), and commits_covered
-#   and commits_total are its header's coverage.
-# - bound_transcripts are the attachment's own list as the server serves it to
-#   this viewer: a null title is a transcript this viewer cannot open. A bound
-#   transcript the digest does not carry is counted on the coverage line, never
-#   named.
-# - transcript_reads are what GET /transcripts/{id} and
-#   GET /transcripts/{id}/collectives answer. Only the author's page reads them,
-#   in preview and attached, to say who can read each transcript. A read with a
-#   status of 400 or more fails.
-#
-# Expectations:
-#
-# - expect_title is the h1; expect_sub the mono line under it (null: no line).
-# - expect_state_line is the author's plain state line (null: no author panel).
-# - expect_controls is the exact set of action controls on the page.
-# - expect_confirm_label is the attach button's words (null: no attach button).
-# - expect_audience_form is how "who can read them" is said: sentence (one
-#   audience for every transcript), list (one line per transcript), fallback
-#   (a read failed, so nothing is described), or none. expect_audience_lines are
-#   the audiences it names, in order.
-# - expect_coverage is the coverage line (null: no line).
-# - expect_digest_block is split (the digest's split view), empty, or absent,
-#   and expect_split_labels the names its list shows, in order.
 cases:
   - name: author previewing two transcripts with one audience
     viewer_is_author: true
@@ -38,26 +7,52 @@ cases:
     head_ref: fix/flaky-ingest
     digest: present
     digest_transcripts:
-      - "11111111-1111-1111-1111-111111111111"
-      - "22222222-2222-2222-2222-222222222222"
+      - 11111111-1111-1111-1111-111111111111
+      - 22222222-2222-2222-2222-222222222222
     commits_covered: 3
     commits_total: 4
     bound_transcripts: []
     transcript_reads:
-      - {id: "11111111-1111-1111-1111-111111111111", title: Fix flaky ingest test, visibility: shared, collectives: [Acme Platform, Acme Company], status: null}
-      - {id: "22222222-2222-2222-2222-222222222222", title: Guard empty turns in the digest, visibility: shared, collectives: [Acme Platform, Acme Company], status: null}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: Fix flaky ingest test
+        visibility: shared
+        collectives:
+          - Acme Platform
+          - Acme Company
+        status: null
+      - id: 22222222-2222-2222-2222-222222222222
+        title: Guard empty turns in the digest
+        visibility: shared
+        collectives:
+          - Acme Platform
+          - Acme Company
+        status: null
     confirm_status: null
     expect_title: Fix flaky ingest test
     expect_sub: fix/flaky-ingest · 4 commits
-    expect_state_line: 2 of your transcripts match this pull request. attach them so reviewers can read them next to the code.
-    expect_controls: [confirm-attachment, not-now-attachment]
+    expect_state_line: 2 of your transcripts match this pull request. attach them so
+      reviewers can read them next to the code.
+    expect_controls:
+      - confirm-attachment
+      - not-now-attachment
     expect_confirm_label: attach 2 transcripts
     expect_audience_form: sentence
-    expect_audience_lines: [members of Acme Platform and Acme Company]
+    expect_audience_lines:
+      - members of Acme Platform and Acme Company
     expect_coverage: 3 of 4 commits traced
     expect_digest_block: split
-    expect_split_labels: [Fix flaky ingest test, Guard empty turns in the digest]
-
+    expect_split_labels:
+      - Fix flaky ingest test
+      - Guard empty turns in the digest
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: "who can read them: members of Acme Platform and Acme
+      Company. attaching does not change that."
   - name: author previewing two transcripts with different audiences
     viewer_is_author: true
     is_private_repository: true
@@ -66,26 +61,49 @@ cases:
     head_ref: fix/flaky-ingest
     digest: present
     digest_transcripts:
-      - "11111111-1111-1111-1111-111111111111"
-      - "22222222-2222-2222-2222-222222222222"
+      - 11111111-1111-1111-1111-111111111111
+      - 22222222-2222-2222-2222-222222222222
     commits_covered: 3
     commits_total: 4
     bound_transcripts: []
     transcript_reads:
-      - {id: "11111111-1111-1111-1111-111111111111", title: Fix flaky ingest test, visibility: shared, collectives: [acme], status: null}
-      - {id: "22222222-2222-2222-2222-222222222222", title: Guard empty turns in the digest, visibility: private, collectives: [], status: null}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: Fix flaky ingest test
+        visibility: shared
+        collectives:
+          - acme
+        status: null
+      - id: 22222222-2222-2222-2222-222222222222
+        title: Guard empty turns in the digest
+        visibility: private
+        collectives: []
+        status: null
     confirm_status: null
     expect_title: Fix flaky ingest test
     expect_sub: fix/flaky-ingest · 4 commits
-    expect_state_line: 2 of your transcripts match this pull request. attach them so reviewers can read them next to the code.
-    expect_controls: [confirm-attachment, not-now-attachment]
+    expect_state_line: 2 of your transcripts match this pull request. attach them so
+      reviewers can read them next to the code.
+    expect_controls:
+      - confirm-attachment
+      - not-now-attachment
     expect_confirm_label: attach 2 transcripts
     expect_audience_form: list
-    expect_audience_lines: [members of acme, only you]
+    expect_audience_lines:
+      - members of acme
+      - only you
     expect_coverage: 3 of 4 commits traced
     expect_digest_block: split
-    expect_split_labels: [Fix flaky ingest test, Guard empty turns in the digest]
-
+    expect_split_labels:
+      - Fix flaky ingest test
+      - Guard empty turns in the digest
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: null
   - name: author previewing one public transcript on a public repository
     viewer_is_author: true
     is_private_repository: false
@@ -94,24 +112,40 @@ cases:
     head_ref: feat/picker
     digest: present
     digest_transcripts:
-      - "11111111-1111-1111-1111-111111111111"
+      - 11111111-1111-1111-1111-111111111111
     commits_covered: 1
     commits_total: 1
     bound_transcripts: []
     transcript_reads:
-      - {id: "11111111-1111-1111-1111-111111111111", title: picker work, visibility: public, collectives: [], status: null}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+        visibility: public
+        collectives: []
+        status: null
     confirm_status: null
     expect_title: Add the picker
     expect_sub: feat/picker · 1 commit
-    expect_state_line: 1 of your transcripts matches this pull request. attach it so reviewers can read it next to the code.
-    expect_controls: [confirm-attachment, not-now-attachment]
+    expect_state_line: 1 of your transcripts matches this pull request. attach it so
+      reviewers can read it next to the code.
+    expect_controls:
+      - confirm-attachment
+      - not-now-attachment
     expect_confirm_label: attach 1 transcript
     expect_audience_form: sentence
-    expect_audience_lines: [anyone]
+    expect_audience_lines:
+      - anyone
     expect_coverage: 1 of 1 commits traced
     expect_digest_block: split
-    expect_split_labels: [picker work]
-
+    expect_split_labels:
+      - picker work
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: "who can read it: anyone. attaching does not change that."
   - name: author previewing while a transcript read fails
     viewer_is_author: true
     is_private_repository: true
@@ -120,24 +154,40 @@ cases:
     head_ref: null
     digest: present
     digest_transcripts:
-      - "11111111-1111-1111-1111-111111111111"
+      - 11111111-1111-1111-1111-111111111111
     commits_covered: 1
     commits_total: 2
     bound_transcripts: []
     transcript_reads:
-      - {id: "11111111-1111-1111-1111-111111111111", title: picker work, visibility: shared, collectives: [acme], status: 500}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+        visibility: shared
+        collectives:
+          - acme
+        status: 500
     confirm_status: null
     expect_title: Add the picker
     expect_sub: 2 commits
-    expect_state_line: 1 of your transcripts matches this pull request. attach it so reviewers can read it next to the code.
-    expect_controls: [confirm-attachment, not-now-attachment]
+    expect_state_line: 1 of your transcripts matches this pull request. attach it so
+      reviewers can read it next to the code.
+    expect_controls:
+      - confirm-attachment
+      - not-now-attachment
     expect_confirm_label: attach 1 transcript
     expect_audience_form: fallback
     expect_audience_lines: []
     expect_coverage: 1 of 2 commits traced
     expect_digest_block: split
-    expect_split_labels: [session 1]
-
+    expect_split_labels:
+      - session 1
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: null
   - name: confirm refused with a conflict
     viewer_is_author: true
     is_private_repository: true
@@ -146,24 +196,41 @@ cases:
     head_ref: feat/picker
     digest: present
     digest_transcripts:
-      - "11111111-1111-1111-1111-111111111111"
+      - 11111111-1111-1111-1111-111111111111
     commits_covered: 1
     commits_total: 2
     bound_transcripts: []
     transcript_reads:
-      - {id: "11111111-1111-1111-1111-111111111111", title: picker work, visibility: shared, collectives: [acme], status: null}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+        visibility: shared
+        collectives:
+          - acme
+        status: null
     confirm_status: 409
     expect_title: Add the picker
     expect_sub: feat/picker · 2 commits
-    expect_state_line: 1 of your transcripts matches this pull request. attach it so reviewers can read it next to the code.
-    expect_controls: [confirm-attachment, not-now-attachment]
+    expect_state_line: 1 of your transcripts matches this pull request. attach it so
+      reviewers can read it next to the code.
+    expect_controls:
+      - confirm-attachment
+      - not-now-attachment
     expect_confirm_label: attach 1 transcript
     expect_audience_form: sentence
-    expect_audience_lines: [members of acme]
+    expect_audience_lines:
+      - members of acme
     expect_coverage: 1 of 2 commits traced
     expect_digest_block: split
-    expect_split_labels: [picker work]
-
+    expect_split_labels:
+      - picker work
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: "who can read it: members of acme. attaching does not change that."
   - name: author viewing an attached digest
     viewer_is_author: true
     is_private_repository: true
@@ -172,25 +239,41 @@ cases:
     head_ref: feat/picker
     digest: present
     digest_transcripts:
-      - "11111111-1111-1111-1111-111111111111"
+      - 11111111-1111-1111-1111-111111111111
     commits_covered: 1
     commits_total: 2
     bound_transcripts:
-      - {id: "11111111-1111-1111-1111-111111111111", title: picker work}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
     transcript_reads:
-      - {id: "11111111-1111-1111-1111-111111111111", title: picker work, visibility: shared, collectives: [acme], status: null}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+        visibility: shared
+        collectives:
+          - acme
+        status: null
     confirm_status: null
     expect_title: Add the picker
     expect_sub: feat/picker · 2 commits
     expect_state_line: 1 of your transcripts is attached to this pull request.
-    expect_controls: [detach-attachment]
+    expect_controls:
+      - detach-attachment
     expect_confirm_label: null
     expect_audience_form: sentence
-    expect_audience_lines: [members of acme]
+    expect_audience_lines:
+      - members of acme
     expect_coverage: 1 of 2 commits traced
     expect_digest_block: split
-    expect_split_labels: [picker work]
-
+    expect_split_labels:
+      - picker work
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: "who can read it: members of acme. attaching does not change that."
   - name: author on a waiting attachment
     viewer_is_author: true
     is_private_repository: true
@@ -206,15 +289,24 @@ cases:
     confirm_status: null
     expect_title: Add the picker
     expect_sub: feat/picker
-    expect_state_line: none of your transcripts match this pull request yet. publish the session behind one of its commits and it is attached.
-    expect_controls: [detach-attachment]
+    expect_state_line: none of your transcripts match this pull request yet. publish
+      the session behind one of its commits and it is attached.
+    expect_controls:
+      - detach-attachment
     expect_confirm_label: null
     expect_audience_form: none
     expect_audience_lines: []
     expect_coverage: null
     expect_digest_block: absent
     expect_split_labels: []
-
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: the prompts appear here once the author attaches them.
+    expect_audience_sentence: null
   - name: author on a requested attachment
     viewer_is_author: true
     is_private_repository: true
@@ -230,7 +322,8 @@ cases:
     confirm_status: null
     expect_title: Add the picker
     expect_sub: feat/picker
-    expect_state_line: you were asked to attach your transcripts. comment /peasant attach on the pull request to review them here.
+    expect_state_line: you were asked to attach your transcripts. comment /peasant
+      attach on the pull request to review them here.
     expect_controls: []
     expect_confirm_label: null
     expect_audience_form: none
@@ -238,7 +331,14 @@ cases:
     expect_coverage: null
     expect_digest_block: absent
     expect_split_labels: []
-
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: the prompts appear here once the author attaches them.
+    expect_audience_sentence: null
   - name: author on a detached attachment
     viewer_is_author: true
     is_private_repository: true
@@ -247,24 +347,34 @@ cases:
     head_ref: feat/picker
     digest: present
     digest_transcripts:
-      - "11111111-1111-1111-1111-111111111111"
+      - 11111111-1111-1111-1111-111111111111
     commits_covered: 1
     commits_total: 2
     bound_transcripts:
-      - {id: "11111111-1111-1111-1111-111111111111", title: picker work}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
     transcript_reads: []
     confirm_status: null
     expect_title: Add the picker
     expect_sub: feat/picker · 2 commits
-    expect_state_line: you detached your transcripts from this pull request. comment /peasant attach on it to attach them again.
+    expect_state_line: you detached your transcripts from this pull request. comment
+      /peasant attach on it to attach them again.
     expect_controls: []
     expect_confirm_label: null
     expect_audience_form: none
     expect_audience_lines: []
     expect_coverage: 1 of 2 commits traced
     expect_digest_block: split
-    expect_split_labels: [picker work]
-
+    expect_split_labels:
+      - picker work
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: null
   - name: reader of an attached digest
     viewer_is_author: false
     is_private_repository: true
@@ -273,11 +383,12 @@ cases:
     head_ref: feat/picker
     digest: present
     digest_transcripts:
-      - "11111111-1111-1111-1111-111111111111"
+      - 11111111-1111-1111-1111-111111111111
     commits_covered: 1
     commits_total: 2
     bound_transcripts:
-      - {id: "11111111-1111-1111-1111-111111111111", title: picker work}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
     transcript_reads: []
     confirm_status: null
     expect_title: "acme/widgets #7"
@@ -289,8 +400,16 @@ cases:
     expect_audience_lines: []
     expect_coverage: 1 of 2 commits traced
     expect_digest_block: split
-    expect_split_labels: [picker work]
-
+    expect_split_labels:
+      - picker work
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: null
   - name: reader moving through two transcripts
     viewer_is_author: false
     is_private_repository: false
@@ -299,13 +418,15 @@ cases:
     head_ref: fix/flaky-ingest
     digest: present
     digest_transcripts:
-      - "11111111-1111-1111-1111-111111111111"
-      - "22222222-2222-2222-2222-222222222222"
+      - 11111111-1111-1111-1111-111111111111
+      - 22222222-2222-2222-2222-222222222222
     commits_covered: 3
     commits_total: 4
     bound_transcripts:
-      - {id: "11111111-1111-1111-1111-111111111111", title: Fix flaky ingest test}
-      - {id: "22222222-2222-2222-2222-222222222222", title: Guard empty turns in the digest}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: Fix flaky ingest test
+      - id: 22222222-2222-2222-2222-222222222222
+        title: Guard empty turns in the digest
     transcript_reads: []
     confirm_status: null
     expect_title: Fix flaky ingest test
@@ -317,8 +438,17 @@ cases:
     expect_audience_lines: []
     expect_coverage: 3 of 4 commits traced
     expect_digest_block: split
-    expect_split_labels: [Fix flaky ingest test, Guard empty turns in the digest]
-
+    expect_split_labels:
+      - Fix flaky ingest test
+      - Guard empty turns in the digest
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: null
   - name: reader who cannot open one bound transcript
     viewer_is_author: false
     is_private_repository: true
@@ -327,12 +457,14 @@ cases:
     head_ref: feat/picker
     digest: present
     digest_transcripts:
-      - "11111111-1111-1111-1111-111111111111"
+      - 11111111-1111-1111-1111-111111111111
     commits_covered: 1
     commits_total: 2
     bound_transcripts:
-      - {id: "11111111-1111-1111-1111-111111111111", title: picker work}
-      - {id: "22222222-2222-2222-2222-222222222222", title: null}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+      - id: 22222222-2222-2222-2222-222222222222
+        title: null
     transcript_reads: []
     confirm_status: null
     expect_title: Add the picker
@@ -344,8 +476,16 @@ cases:
     expect_audience_lines: []
     expect_coverage: 1 of 2 commits traced · 1 attached transcript is not listed here.
     expect_digest_block: split
-    expect_split_labels: [picker work]
-
+    expect_split_labels:
+      - picker work
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: null
   - name: reader on a preview without a digest
     viewer_is_author: false
     is_private_repository: false
@@ -369,7 +509,14 @@ cases:
     expect_coverage: null
     expect_digest_block: absent
     expect_split_labels: []
-
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: the prompts appear here once the author attaches them.
+    expect_audience_sentence: null
   - name: an attached attachment whose prompts are all gone
     viewer_is_author: false
     is_private_repository: true
@@ -381,8 +528,10 @@ cases:
     commits_covered: 0
     commits_total: 2
     bound_transcripts:
-      - {id: "11111111-1111-1111-1111-111111111111", title: null}
-      - {id: "22222222-2222-2222-2222-222222222222", title: null}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: null
+      - id: 22222222-2222-2222-2222-222222222222
+        title: null
     transcript_reads: []
     confirm_status: null
     expect_title: Add the picker
@@ -395,7 +544,14 @@ cases:
     expect_coverage: 0 of 2 commits traced · 2 attached transcripts are not listed here.
     expect_digest_block: empty
     expect_split_labels: []
-
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: no prompts are available for this pull request.
+    expect_audience_sentence: null
   - name: an attached attachment with no digest
     viewer_is_author: false
     is_private_repository: true
@@ -407,7 +563,8 @@ cases:
     commits_covered: 0
     commits_total: 0
     bound_transcripts:
-      - {id: "11111111-1111-1111-1111-111111111111", title: null}
+      - id: 11111111-1111-1111-1111-111111111111
+        title: null
     transcript_reads: []
     confirm_status: null
     expect_title: "acme/widgets #7"
@@ -420,3 +577,374 @@ cases:
     expect_coverage: null
     expect_digest_block: absent
     expect_split_labels: []
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: no prompts are shown for this pull request.
+    expect_audience_sentence: null
+  - name: author previewing one transcript shared with three collectives
+    viewer_is_author: true
+    is_private_repository: false
+    state: preview
+    pull_title: Add the picker
+    head_ref: feat/picker
+    digest: present
+    digest_transcripts:
+      - 11111111-1111-1111-1111-111111111111
+    commits_covered: 1
+    commits_total: 1
+    bound_transcripts: []
+    transcript_reads:
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+        visibility: shared
+        collectives:
+          - Acme Platform
+          - Acme Company
+          - ML Reading Group
+        status: null
+    confirm_status: null
+    expect_title: Add the picker
+    expect_sub: feat/picker · 1 commit
+    expect_state_line: 1 of your transcripts matches this pull request. attach it so
+      reviewers can read it next to the code.
+    expect_controls:
+      - confirm-attachment
+      - not-now-attachment
+    expect_confirm_label: attach 1 transcript
+    expect_audience_form: sentence
+    expect_audience_lines:
+      - members of Acme Platform, Acme Company and ML Reading Group
+    expect_coverage: 1 of 1 commits traced
+    expect_digest_block: split
+    expect_split_labels:
+      - picker work
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: "who can read it: members of Acme Platform, Acme
+      Company and ML Reading Group. attaching does not change that."
+  - name: shared transcript with no current collective grants
+    viewer_is_author: true
+    is_private_repository: false
+    state: preview
+    pull_title: Add the picker
+    head_ref: feat/picker
+    digest: present
+    digest_transcripts:
+      - 11111111-1111-1111-1111-111111111111
+    commits_covered: 1
+    commits_total: 1
+    bound_transcripts: []
+    transcript_reads:
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+        visibility: shared
+        collectives: []
+        status: null
+    confirm_status: null
+    expect_title: Add the picker
+    expect_sub: feat/picker · 1 commit
+    expect_state_line: 1 of your transcripts matches this pull request. attach it so
+      reviewers can read it next to the code.
+    expect_controls:
+      - confirm-attachment
+      - not-now-attachment
+    expect_confirm_label: attach 1 transcript
+    expect_audience_form: sentence
+    expect_audience_lines:
+      - only you
+    expect_coverage: 1 of 1 commits traced
+    expect_digest_block: split
+    expect_split_labels:
+      - picker work
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: "who can read it: only you. attaching does not change that."
+  - name: missing transcript title keeps a session label in the audience list
+    viewer_is_author: true
+    is_private_repository: true
+    state: preview
+    pull_title: Fix flaky ingest test
+    head_ref: fix/flaky-ingest
+    digest: present
+    digest_transcripts:
+      - 11111111-1111-1111-1111-111111111111
+      - 22222222-2222-2222-2222-222222222222
+    commits_covered: 3
+    commits_total: 4
+    bound_transcripts: []
+    transcript_reads:
+      - id: 11111111-1111-1111-1111-111111111111
+        title: Fix flaky ingest test
+        visibility: shared
+        collectives:
+          - acme
+        status: null
+      - id: 22222222-2222-2222-2222-222222222222
+        title: null
+        visibility: private
+        collectives: []
+        status: null
+    confirm_status: null
+    expect_title: Fix flaky ingest test
+    expect_sub: fix/flaky-ingest · 4 commits
+    expect_state_line: 2 of your transcripts match this pull request. attach them so
+      reviewers can read them next to the code.
+    expect_controls:
+      - confirm-attachment
+      - not-now-attachment
+    expect_confirm_label: attach 2 transcripts
+    expect_audience_form: list
+    expect_audience_lines:
+      - members of acme
+      - only you
+    expect_coverage: 3 of 4 commits traced
+    expect_digest_block: split
+    expect_split_labels:
+      - Fix flaky ingest test
+      - session 2
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: null
+  - name: not now refused with a conflict
+    viewer_is_author: true
+    is_private_repository: true
+    state: preview
+    pull_title: Fix flaky ingest test
+    head_ref: fix/flaky-ingest
+    digest: present
+    digest_transcripts:
+      - 11111111-1111-1111-1111-111111111111
+      - 22222222-2222-2222-2222-222222222222
+    commits_covered: 3
+    commits_total: 4
+    bound_transcripts: []
+    transcript_reads:
+      - id: 11111111-1111-1111-1111-111111111111
+        title: Fix flaky ingest test
+        visibility: shared
+        collectives:
+          - Acme Platform
+          - Acme Company
+        status: null
+      - id: 22222222-2222-2222-2222-222222222222
+        title: Guard empty turns in the digest
+        visibility: shared
+        collectives:
+          - Acme Platform
+          - Acme Company
+        status: null
+    confirm_status: null
+    expect_title: Fix flaky ingest test
+    expect_sub: fix/flaky-ingest · 4 commits
+    expect_state_line: 2 of your transcripts match this pull request. attach them so
+      reviewers can read them next to the code.
+    expect_controls:
+      - confirm-attachment
+      - not-now-attachment
+    expect_confirm_label: attach 2 transcripts
+    expect_audience_form: sentence
+    expect_audience_lines:
+      - members of Acme Platform and Acme Company
+    expect_coverage: 3 of 4 commits traced
+    expect_digest_block: split
+    expect_split_labels:
+      - Fix flaky ingest test
+      - Guard empty turns in the digest
+    detach_status: 409
+    action: not-now-attachment
+    expect_error: This pull request is not in a state that allows that action
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: "who can read them: members of Acme Platform and Acme
+      Company. attaching does not change that."
+  - name: detach refused with a conflict
+    viewer_is_author: true
+    is_private_repository: true
+    state: attached
+    pull_title: Add the picker
+    head_ref: feat/picker
+    digest: present
+    digest_transcripts:
+      - 11111111-1111-1111-1111-111111111111
+    commits_covered: 1
+    commits_total: 2
+    bound_transcripts:
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+    transcript_reads:
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+        visibility: shared
+        collectives:
+          - acme
+        status: null
+    confirm_status: null
+    expect_title: Add the picker
+    expect_sub: feat/picker · 2 commits
+    expect_state_line: 1 of your transcripts is attached to this pull request.
+    expect_controls:
+      - detach-attachment
+    expect_confirm_label: null
+    expect_audience_form: sentence
+    expect_audience_lines:
+      - members of acme
+    expect_coverage: 1 of 2 commits traced
+    expect_digest_block: split
+    expect_split_labels:
+      - picker work
+    detach_status: 409
+    action: detach-attachment
+    expect_error: This pull request is not in a state that allows that action
+    route_number: "7"
+    attachment_status: null
+    expect_route_error: null
+    expect_digest_text: null
+    expect_audience_sentence: "who can read it: members of acme. attaching does not change that."
+  - name: non numeric pull number
+    viewer_is_author: false
+    is_private_repository: true
+    state: attached
+    pull_title: null
+    head_ref: feat/picker
+    digest: present
+    digest_transcripts:
+      - 11111111-1111-1111-1111-111111111111
+    commits_covered: 1
+    commits_total: 2
+    bound_transcripts:
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+    transcript_reads: []
+    confirm_status: null
+    expect_title: "acme/widgets #7"
+    expect_sub: feat/picker · 2 commits
+    expect_state_line: null
+    expect_controls: []
+    expect_confirm_label: null
+    expect_audience_form: none
+    expect_audience_lines: []
+    expect_coverage: 1 of 2 commits traced
+    expect_digest_block: split
+    expect_split_labels:
+      - picker work
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: wrong
+    attachment_status: null
+    expect_route_error: no attachment here
+    expect_digest_text: null
+    expect_audience_sentence: null
+  - name: missing attachment
+    viewer_is_author: false
+    is_private_repository: true
+    state: attached
+    pull_title: null
+    head_ref: feat/picker
+    digest: present
+    digest_transcripts:
+      - 11111111-1111-1111-1111-111111111111
+    commits_covered: 1
+    commits_total: 2
+    bound_transcripts:
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+    transcript_reads: []
+    confirm_status: null
+    expect_title: "acme/widgets #7"
+    expect_sub: feat/picker · 2 commits
+    expect_state_line: null
+    expect_controls: []
+    expect_confirm_label: null
+    expect_audience_form: none
+    expect_audience_lines: []
+    expect_coverage: 1 of 2 commits traced
+    expect_digest_block: split
+    expect_split_labels:
+      - picker work
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: 404
+    expect_route_error: no attachment here
+    expect_digest_text: null
+    expect_audience_sentence: null
+  - name: attachment read fails
+    viewer_is_author: false
+    is_private_repository: true
+    state: attached
+    pull_title: null
+    head_ref: feat/picker
+    digest: present
+    digest_transcripts:
+      - 11111111-1111-1111-1111-111111111111
+    commits_covered: 1
+    commits_total: 2
+    bound_transcripts:
+      - id: 11111111-1111-1111-1111-111111111111
+        title: picker work
+    transcript_reads: []
+    confirm_status: null
+    expect_title: "acme/widgets #7"
+    expect_sub: feat/picker · 2 commits
+    expect_state_line: null
+    expect_controls: []
+    expect_confirm_label: null
+    expect_audience_form: none
+    expect_audience_lines: []
+    expect_coverage: 1 of 2 commits traced
+    expect_digest_block: split
+    expect_split_labels:
+      - picker work
+    detach_status: null
+    action: null
+    expect_error: null
+    route_number: "7"
+    attachment_status: 500
+    expect_route_error: this pull request page could not be loaded
+    expect_digest_text: null
+    expect_audience_sentence: null
+forbiddenClaims:
+  - name: readability claim
+    pattern: readable by
+  - name: making transcripts accessible
+    pattern: makes the transcripts
+  - name: repository collaborators grant
+    pattern: collaborators
+  - name: public grant outside audience
+    pattern: \banyone\b
+  - name: attachment widens access
+    pattern: attaching (makes|opens|shares|widens|publishes|grants)
+itemLinks:
+  - name: skill opens its recorded turn
+    kind: skill
+    turnIndex: 8
+    commitSha: null
+    expected: /transcripts/11111111-1111-1111-1111-111111111111?turn=8
+  - name: commit reference is a single encoded path segment
+    kind: commit
+    turnIndex: null
+    commitSha: topic/abc?view=1#part
+    expected: https://github.com/acme/widgets/commit/topic%2Fabc%3Fview%3D1%23part

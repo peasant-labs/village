@@ -606,7 +606,7 @@ func (h *Handler) refreshAttachmentForCommand(ctx context.Context, owner, name s
 		if promptattach.State(fresh.State) != promptattach.Attached {
 			return nil
 		}
-		return h.refreshAttachedAttachment(ctx, fresh, repo, pull.headSHA, false)
+		return h.refreshAttachedAttachment(ctx, fresh, repo, pull.headSHA, true)
 	})
 }
 
