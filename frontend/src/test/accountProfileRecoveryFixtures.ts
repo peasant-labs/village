@@ -4,9 +4,9 @@ import { parse } from "yaml";
 import { assertExactKeys, assertNamesMatch } from "./fixtureAssertions";
 export type ProfileRecoveryCase = { name: string; first: "handle" | "discoverable"; handle: string; discoverable: boolean };
 type AccountSwitchCase = ProfileRecoveryCase & { nextAccountID: string; changeCredential: boolean; nextHandle: string; nextDiscoverable: boolean };
-export function loadAccountProfileRecoveryFixtures(): { headerPending: { name: string }; accountSwitchCases: AccountSwitchCase[]; cases: ProfileRecoveryCase[]; logout: { name: string; error: string }; headerLogout: { name: string; error: string } } {
+export function loadAccountProfileRecoveryFixtures(): { headerRapid: { name: string }; headerPending: { name: string }; accountSwitchCases: AccountSwitchCase[]; cases: ProfileRecoveryCase[]; logout: { name: string; error: string }; headerLogout: { name: string; error: string } } {
   const raw = parse(readFileSync(resolve(process.cwd(), "src/testdata/account-profile-recovery.yaml"), "utf8"), { strict: true });
-  assertExactKeys(raw, ["cases", "logout", "headerLogout", "accountSwitchCases", "headerPending"], "account-profile-recovery root");
+  assertExactKeys(raw, ["cases", "logout", "headerLogout", "accountSwitchCases", "headerPending", "headerRapid"], "account-profile-recovery root");
   if (!Array.isArray(raw.cases)) throw new Error("profile recovery cases must be an array");
   for (const row of raw.cases) {
     assertExactKeys(row, ["name", "first", "handle", "discoverable"], "profile recovery case");
@@ -25,5 +25,7 @@ export function loadAccountProfileRecoveryFixtures(): { headerPending: { name: s
   assertNamesMatch(raw.accountSwitchCases.map((row: AccountSwitchCase) => row.name), ["a-queued-discoverability-save-cannot-write-under-a-new-account", "a-queued-handle-save-cannot-write-under-a-new-account", "a-changed-credential-blocks-a-queued-save-before-account-refresh", "a-changed-account-blocks-a-queued-save-with-the-same-credential"], "account switch recovery");
   assertExactKeys(raw.headerPending, ["name"], "header pending sign out");
   if (raw.headerPending.name !== "the-header-sign-out-prevents-repeat-writes-while-the-request-is-pending") throw new Error("invalid header pending fixture");
+  assertExactKeys(raw.headerRapid, ["name"], "rapid header sign out");
+  if (raw.headerRapid.name !== "rapid-header-sign-out-reselection-sends-one-request") throw new Error("invalid rapid header sign out fixture");
   return raw;
 }
