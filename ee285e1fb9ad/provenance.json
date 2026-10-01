@@ -1,0 +1,81 @@
+{
+  "sourceHead": "ee285e1fb9ad6926690a8533083578379d7f2ee5",
+  "buildId": "VUx2-yv3lu7nDv7QifgI_",
+  "packagePins": {
+    "@peasant-labs/fairtrade": "0.0.24",
+    "@peasant-labs/schema": "0.25.0"
+  },
+  "servedChunks": [
+    {
+      "path": "/_next/static/chunks/c999e5e2159c600b.js",
+      "sha256": "cb8144a6f41d1e10bb2dd570dfc28c60e0e26f198bfc07c898b496f5f2e87969",
+      "matchesBuiltArtifact": true
+    }
+  ],
+  "productionCommand": "pnpm start --port 3013",
+  "buildCommand": "NEXT_PUBLIC_API_URL=http://localhost:8812/api/v1 pnpm build",
+  "viewport": {
+    "width": 1440,
+    "height": 1080
+  },
+  "journeys": {
+    "passed": 6,
+    "productionRoutes": true,
+    "themes": [
+      "dark",
+      "light"
+    ],
+    "axeSeriousViolations": 0,
+    "computedAtkinsonBodyFloor": 16,
+    "computedRadius": "0px",
+    "calloutActionsBelowAudience": true,
+    "fullHeaderAndPageHeadingVisible": true
+  },
+  "provenanceNote": "Production capture servers resolve this exact worktree with reuseExistingServer=false; served feature chunk bytes verified against its unchanged build.",
+  "captures": [
+    {
+      "file": "pr-preview-author-dark.png",
+      "sha256": "315b92b1a1950d23663fec04a77fc957fb99d59d9e7cf9bbbdd2b7b5c6dc1c0a",
+      "theme": "dark",
+      "surface": "pr-preview-author",
+      "inspected": true
+    },
+    {
+      "file": "pr-attached-reader-dark.png",
+      "sha256": "eaac3e9e40c895923a703dfdbe1b9e5b60c21ef3a72d7a25294f5ae68bcd0002",
+      "theme": "dark",
+      "surface": "pr-attached-reader",
+      "inspected": true
+    },
+    {
+      "file": "pr-split-selected-dark.png",
+      "sha256": "41668e4ce5ecfd8279f3b9c5247d0a3a0c9eb053ad8f4dc336beba898416cbc5",
+      "theme": "dark",
+      "surface": "pr-split-selected",
+      "inspected": true
+    },
+    {
+      "file": "pr-preview-author-light.png",
+      "sha256": "471ac2c6fc756672e945ae98bfdbd398014a5bb25ea3ddf363285567878480ec",
+      "theme": "light",
+      "surface": "pr-preview-author",
+      "inspected": true
+    },
+    {
+      "file": "pr-attached-reader-light.png",
+      "sha256": "92fec3f29f6d34449cf10fd4f39abc775a3caf445bdea4e1c8271069f8b2e5b6",
+      "theme": "light",
+      "surface": "pr-attached-reader",
+      "inspected": true
+    },
+    {
+      "file": "pr-split-selected-light.png",
+      "sha256": "b713e7d89b4bdd22d5b29d5258b1527e011de014abc58b7aef4061a7a2333784",
+      "theme": "light",
+      "surface": "pr-split-selected",
+      "inspected": true
+    }
+  ],
+  "buildSourceHead": "05c44b40bc6a36a945a822aee50bc47025f29405",
+  "productionTreeComparison": "git diff 05c44b4..ee285e1 -- frontend/src frontend/package.json pnpm-lock.yaml is empty; only the capture harness changed"
+}
