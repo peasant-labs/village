@@ -40,6 +40,9 @@ test.describe('sign-in', () => {
       await expectTheme(page, theme)
 
       const signIn = page.getByTestId('sign-in-page')
+      await expect(signIn.locator('.cmg-signin-brand')).toHaveText('village')
+      await expectComputedTokens(page, '.cmg-signin-card', { borderRadius: '0px' })
+      expect(await signIn.locator('.cmg-signin-card').evaluate((card) => getComputedStyle(card).borderTopWidth)).toBe('1px')
       await expect(signIn.getByRole('heading', { level: 1, name: HEADLINE })).toBeVisible()
 
       // One front door: one GitHub button, nothing behind a chevron, and no
