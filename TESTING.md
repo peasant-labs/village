@@ -734,9 +734,17 @@ along the same line:
   summary case lists every row its surface returns, so a row that appears or
   vanishes fails. The helper-member expansion's summaries are asserted in
   `collective_grouped_integration_test.go`.
-- `pull-request-read-failures.yaml` makes exactly one read fail on each surface
-  (the rest are real) and requires a 500 naming it, so no surface serves a
-  failed read as zero pull requests.
+- `pull-request-read-failures.yaml` makes exactly one read fail on each of the
+  list, collective, transcript, stats, and picker surfaces (the rest are real)
+  and requires a 500 naming it, so no surface serves a failed read as zero pull
+  requests; the helper-member expansion's failure case is in
+  `collective_grouped_integration_test.go`.
+- The title and head branch reads have their own unit tests in
+  `pull_request_reads_test.go`: views of one pull request share one read, a
+  read and a list each stop at the deadline (a list starts no read after it),
+  a read one caller started still answers the next caller, each outcome is
+  remembered for its window at explicit instants, the table stays bounded, and
+  the shipped bounds themselves are pinned.
 - `repo-publishers.yaml` pins `publisher_count`: distinct owners of transcripts
   with an APPROVED share to the collective whose remote `schema.RemoteLabel`
   reads as that github.com repository. An unshared transcript, a submission

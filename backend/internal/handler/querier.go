@@ -202,7 +202,8 @@ type Querier interface {
 	GetCollectiveRepositoryByRepo(ctx context.Context, arg sqlc.GetCollectiveRepositoryByRepoParams) (sqlc.CollectiveRepository, error)
 
 	// Pull request reads for the transcript, home, and collective pages: one
-	// candidate read per page or scope, filtered by readablePullRequests.
+	// candidate read per page or scope, filtered by pullRequestReadable, and the
+	// shared remotes behind the repository picker's publisher count.
 	ListPullRequestCandidatesByTranscripts(ctx context.Context, arg sqlc.ListPullRequestCandidatesByTranscriptsParams) ([]sqlc.ListPullRequestCandidatesByTranscriptsRow, error)
 	ListAttachedPullRequestCandidatesByOwner(ctx context.Context, arg sqlc.ListAttachedPullRequestCandidatesByOwnerParams) ([]sqlc.ListAttachedPullRequestCandidatesByOwnerRow, error)
 	ListAttachedPullRequestCandidatesByGroup(ctx context.Context, arg sqlc.ListAttachedPullRequestCandidatesByGroupParams) ([]sqlc.ListAttachedPullRequestCandidatesByGroupRow, error)
