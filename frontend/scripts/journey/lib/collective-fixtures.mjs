@@ -38,7 +38,7 @@ const emptyGrouped = (url) => ({ items: [], page: Number(url.searchParams.get('p
 function retainedGrouped(url) {
   const page = Number(url.searchParams.get('page') || 1)
   const limit = Number(url.searchParams.get('limit') || RETAINED_GROUPED.pageSize)
-  const items = page === 1 ? Array.from({ length: limit }, (_, index) => ({ kind: 'transcript', transcript: { session: makeTranscriptFixture({ id: fixtureUUID(`retained-ordinary-${index}`), owner_id: fixtureUUID('user-demo'), local_id: `retained-ordinary-${index}`, visibility: 'private', title: `ordinary grouped contribution ${index}` }) } })) : [{ kind: 'context_container', context: { groupId: RETAINED_GROUPED.groupID, ownerStatus: 'known_unavailable' }, helperGroups: [{ groupId: RETAINED_GROUPED.groupID, purpose: RETAINED_GROUPED.purpose, helperThreadCount: 1, memberScope: RETAINED_GROUPED.memberScope }] }]
+  const items = page === 1 ? Array.from({ length: limit }, (_, index) => ({ kind: 'transcript', transcript: { session: makeTranscriptFixture({ id: fixtureUUID(`retained-ordinary-${index}`), owner_id: fixtureUUID('user-demo'), local_id: `ses_ordinary${index}`, visibility: 'private', title: `ordinary grouped contribution ${index}` }) } })) : [{ kind: 'context_container', context: { groupId: RETAINED_GROUPED.groupID, ownerStatus: 'known_unavailable' }, helperGroups: [{ groupId: RETAINED_GROUPED.groupID, purpose: RETAINED_GROUPED.purpose, helperThreadCount: 1, memberScope: RETAINED_GROUPED.memberScope }] }]
   return validated(zVillageSessionListPayload, { items, page, limit, totalItems: RETAINED_GROUPED.totalItems, ordinarySessionTotal: RETAINED_GROUPED.pageSize, helperThreadTotal: 1 })
 }
 const VIEWER_ID = 'user-demo'
@@ -296,7 +296,7 @@ export function handleCollectiveRequest(req, res) {
 
   if (req.method === 'GET' && path === `/transcript-groups/${RETAINED_GROUPED.groupID}/members`) {
     if (url.searchParams.get('scope') !== RETAINED_GROUPED.memberScope) { send(res, 409, { error: 'scope expired' }); return true }
-    const member = { kind: 'transcript', transcript: { session: makeTranscriptFixture({ id: RETAINED_GROUPED.memberID, owner_id: fixtureUUID(VIEWER_ID), local_id: 'retained-later-helper', title: RETAINED_GROUPED.title, visibility: 'private' }) } }
+    const member = { kind: 'transcript', transcript: { session: makeTranscriptFixture({ id: RETAINED_GROUPED.memberID, owner_id: fixtureUUID(VIEWER_ID), local_id: 'ses_laterhelper', title: RETAINED_GROUPED.title, visibility: 'private' }) } }
     send(res, 200, validated(zVillageHelperMembersPayload, { members: [member], page: 1, limit: Number(url.searchParams.get('limit')), total: 1 }))
     return true
   }
