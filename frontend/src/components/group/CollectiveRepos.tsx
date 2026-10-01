@@ -8,6 +8,8 @@ import {
   FolderGit2,
   HelpCircle,
 } from "lucide-react";
+import type { HelperGroupSummary } from "@peasant-labs/schema";
+import { ScopedOwnerHelperGroups } from "@/components/transcript/ScopedHelperGroups";
 import type { GroupTranscript } from "@/lib/types";
 import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
 import { collectiveTranscriptRow, formatCompact, groupByRepo } from "@/lib/format";
@@ -23,6 +25,8 @@ interface CollectiveReposProps {
    *  the shared transcript list, which reads the signed-in person itself, and
    *  two answers to "who is looking" could disagree. */
   viewerIsOwner?: boolean;
+  helperGroups?: ReadonlyMap<string, HelperGroupSummary[]>;
+  onRefreshOrigin?: () => void;
 }
 
 /**
@@ -60,6 +64,8 @@ function remoteHref(remote: string | null): string | null {
 export default function CollectiveRepos({
   transcripts,
   viewerIsOwner = false,
+  helperGroups,
+  onRefreshOrigin,
 }: CollectiveReposProps) {
   const repoGroups = useMemo(() => groupByRepo(transcripts), [transcripts]);
   // One fold per repository, computed once rather than at each render of an
@@ -95,7 +101,7 @@ export default function CollectiveRepos({
       <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
         <div className="flex items-center gap-2">
           <FolderGit2 className="size-3.5 text-ink-3" />
-          <span className="text-sm font-medium text-ink">Repositories</span>
+          <span className="text-sm font-medium text-ink">repositories</span>
         </div>
         <span className="text-xs font-mono text-ink-3 tabular-nums">
           {repoGroups.length}
@@ -127,32 +133,32 @@ export default function CollectiveRepos({
                   <GitBranch className="size-4 shrink-0 text-ink-3" />
                 )}
                 <div className="min-w-0 flex-1 flex flex-col">
-                  <span className="font-[family-name:var(--font-display)] text-sm text-ink tracking-tight truncate">
-                    {repo.name}
+                  <span className="font-[family-name:var(--font-display)] text-[var(--fs-body)] text-ink tracking-tight truncate">
+                    {repo.unattributed ? "unattributed" : repo.name}
                   </span>
                   {repo.remote ? (
                     <span
-                      className="text-[11px] font-mono text-ink-3 truncate"
+                      className="text-sm font-mono text-ink-3 truncate"
                       title={repo.remote}
                     >
                       {repo.remote}
                     </span>
                   ) : (
-                    <span className="text-[11px] font-mono text-ink-4">
-                      No git remote
+                    <span className="text-sm font-mono text-ink-4">
+                      no git remote
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-4 shrink-0 text-[11px] font-mono text-ink-3 tabular-nums">
-                  <span title="Transcripts">
+                <div className="flex items-center gap-4 shrink-0 text-sm font-mono text-ink-3 tabular-nums">
+                  <span title="transcripts">
                     {repo.transcriptCount} transcript
                     {repo.transcriptCount !== 1 ? "s" : ""}
                   </span>
-                  <span title="Contributors" className="hidden sm:inline">
+                  <span title="contributors" className="hidden sm:inline">
                     {repo.contributorCount} contributor
                     {repo.contributorCount !== 1 ? "s" : ""}
                   </span>
-                  <span title="Total tokens" className="hidden sm:inline">
+                  <span title="total tokens" className="hidden sm:inline">
                     {formatCompact(repo.totalTokens)} tok
                   </span>
                 </div>
@@ -183,6 +189,7 @@ export default function CollectiveRepos({
                     childSessions={childSessionsByParentID(fold)}
                     facts={REPO_TRANSCRIPT_FACTS}
                     viewerIsPrivileged={viewerIsOwner}
+                    helperGroupSlot={helperGroups && onRefreshOrigin ? (item) => <ScopedOwnerHelperGroups groups={helperGroups.get(item.transcript.id)} onRefreshOrigin={onRefreshOrigin} /> : undefined}
                     bare
                   />
                 </div>

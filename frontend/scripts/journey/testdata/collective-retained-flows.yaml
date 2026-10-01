@@ -1,0 +1,13 @@
+contributions:
+  - name: pending-private-parent
+    id: 6aeefaaa-0000-4000-8000-000000000001
+    localID: review-parent
+    parentSessionID: null
+    title: Investigate the private review
+    status: pending
+  - name: approved-private-child
+    id: 6aeefaaa-0000-4000-8000-000000000002
+    localID: review-child
+    parentSessionID: review-parent
+    title: Follow up on the private review
+    status: approved

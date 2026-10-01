@@ -202,6 +202,7 @@ export function installCollectiveREST(world: CollectiveWorld): RecordedRequest[]
 
     const base = `/groups/${id}`;
     if (path === base && method === "GET") {
+      if (url.searchParams.get("view") === "grouped") return json({ groupId: world.group.id, transcriptList: { items: [], page: Number(url.searchParams.get("page") ?? 1), limit: Number(url.searchParams.get("limit") ?? 100), totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 } });
       const limit = Number(url.searchParams.get("limit") ?? 20);
       const offset = Number(url.searchParams.get("offset") ?? 0);
       const transcripts = world.canRead
@@ -229,7 +230,7 @@ export function installCollectiveREST(world: CollectiveWorld): RecordedRequest[]
       world.group = { ...world.group, ...(body as Partial<Group>) };
       return json(world.group);
     }
-    if (path === `${base}/my-shares`) return json([]);
+    if (path === `${base}/my-shares`) return json(url.searchParams.get("view") === "grouped" ? { items: [], page: Number(url.searchParams.get("page") ?? 1), limit: Number(url.searchParams.get("limit") ?? 100), totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 } : []);
     if (path === `${base}/join` && method === "POST") return json({ status: "joined", role: "contributor" });
     if (path === `${base}/repositories` && method === "GET") {
       return json({ repositories: world.linked.map((repo) => linkedRow(world, repo)) });

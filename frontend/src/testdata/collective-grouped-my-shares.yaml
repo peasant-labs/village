@@ -1,0 +1,76 @@
+# Mounted grouped my-shares on the collective page.
+#
+# The "your contributions" panel reads the flat contributions it always read AND
+# the grouped variant of the same route, so a saved helper group the server
+# grouped under one of the caller's own contributions renders beneath that
+# contribution with individually linked members. Each case names the
+# contribution the group hangs under, the group the server grouped with it, and
+# whether the flat contributions the panel already draws carry the case's row.
+#
+# The member labels are human names; the wire carries deterministic UUID
+# transcript ids derived from them, exactly as the canonical validator demands.
+groupId: 60000000-0000-4000-8000-000000000001
+groups:
+  owner:
+    groupId: hg_my_shares_owner
+    purpose: helper_review
+    helperThreadCount: 2
+    memberScope: scope-my-shares-owner
+  context:
+    groupId: hg_my_shares_context
+    purpose: helper_review
+    helperThreadCount: 1
+    memberScope: scope-my-shares-context
+members:
+  owner:
+    - {name: M1, title: "the first saved helper"}
+    - {name: M2, title: "the second saved helper"}
+  context:
+    - {name: C1, title: "a helper whose starter is not in this collective"}
+rows:
+  - {name: S1, id: 61000000-0000-4000-8000-000000000001, local_id: sess_s1, title: "my shared session", status: pending}
+  - {name: S2, id: 61000000-0000-4000-8000-000000000002, local_id: sess_s2, title: "my later shared session", status: approved}
+  - {name: H1, id: 61000000-0000-4000-8000-000000000003, local_id: sess_h1, title: "my helper whose starter is unshared", status: approved}
+# `flat` is whether the flat contributions the panel already reads carry the
+# case's row. `grouped` is the grouped item the same route's grouped page
+# serves: an owner row with its saved helper group, the helper-only context
+# container, or nothing. The two empty-flat cases hold the panel's guard honest:
+# they serve grouped content with NO flat contribution at all, so a guard that
+# only mounted the panel on a non-empty flat list would fail them.
+cases:
+  - name: my-shares-nests-the-group-under-its-contribution
+    why: The flat contribution row is on the page and the grouped page carries its saved helper group, which must render beneath that contribution.
+    row: S1
+    flat: rendered
+    grouped: owner
+  - name: my-shares-context-container-mounts-on-the-grouped-exit
+    why: A helper whose starter was not shared with this collective has no owner row at all, so its saved helper group must mount on the grouped exit.
+    row: H1
+    flat: rendered
+    grouped: context
+  - name: my-shares-empty-flat-mounts-a-grouped-owner-group
+    why: The flat contributions are empty while the grouped page names an owner with a saved helper group, so the panel and its disclosure must mount from the grouped read alone.
+    row: S1
+    flat: empty
+    grouped: owner
+  - name: my-shares-empty-flat-mounts-a-helper-only-context
+    why: The flat contributions are empty while the grouped page carries a helper-only context container, so its saved helper group must mount without any flat row.
+    row: H1
+    flat: empty
+    grouped: context
+  - name: my-shares-empty-both-reads-mount-no-panel
+    why: Neither read carries a contribution, so the panel must not mount at all.
+    row: S1
+    flat: empty
+    grouped: empty
+# A grouped read pages. The first page is full of ordinary owners that carry no
+# saved helpers, so the owner group on page two is unreachable until the
+# continuation reads it; the same page size the panel requests is stated here so
+# a case cannot declare a page the grouped endpoint could not serve.
+continuationCases:
+  - name: my-shares-continuation-reaches-a-later-owner-group
+    why: A contribution whose group sits on grouped page two has no disclosure until the continuation reads that page, and must mount one when it does.
+    pageSize: 100
+    firstPageItems: 100
+    totalItems: 101
+    laterRow: S2

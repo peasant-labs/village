@@ -23,7 +23,7 @@ import type { PendingShare } from "@/lib/review/types";
 
 export const GROUP_KEYS = ["owner", "other", "context"] as const;
 export type GroupKey = (typeof GROUP_KEYS)[number];
-export type ActionSurface = "contribute" | "review";
+export type ActionSurface = "browse" | "contribute" | "review";
 
 export interface MemberSpec {
   name: string;
@@ -108,6 +108,7 @@ export interface CollectiveGroupedActionFixtures {
 }
 
 const REQUIRED_CASES = [
+  "browse-renders-the-group-under-its-owner-row",
   "contribute-selects-one-helper-only",
   "contribute-context-container-is-not-selectable",
   "review-selects-one-helper-only",
@@ -120,6 +121,9 @@ const REQUIRED_OVERLAP_CASES = [
 ];
 
 const REQUIRED_FALLBACK_CASES = [
+  "browse-empty-flat-mounts-helper-only-context",
+  "browse-grouped-owner-absent-from-flat-mounts-its-group",
+  "browse-grouped-owner-in-flat-mounts-its-group-once",
   "contribute-empty-flat-mounts-helper-only-context",
   "contribute-grouped-owner-absent-from-flat-mounts-its-group",
   "contribute-grouped-owner-in-tree-mounts-its-group-once",
@@ -129,6 +133,7 @@ const REQUIRED_FALLBACK_CASES = [
 ];
 
 const REQUIRED_CONTINUATION_CASES = [
+  "browse-continuation-reaches-later-owner-group",
   "contribute-continuation-reaches-later-owner-group",
   "review-continuation-reaches-later-owner-group",
 ];
@@ -223,7 +228,7 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     for (const field of Object.keys(value)) {
       if (!allowedFields.has(field)) fail(`${where} "${name}"`, `states an unknown field "${field}"`);
     }
-    if (value.surface !== "contribute" && value.surface !== "review") {
+    if (value.surface !== "contribute" && value.surface !== "review" && value.surface !== "browse") {
       fail(`${where} "${name}"`, `states an unknown surface "${String(value.surface)}"`);
     }
     if (!value.why?.trim()) fail(`${where} "${name}"`, "states no reason it exists");
@@ -274,7 +279,7 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     for (const field of Object.keys(value)) {
       if (!FALLBACK_FIELDS.has(field)) fail(`fallback case "${name}"`, `states an unknown field "${field}"`);
     }
-    if (value.surface !== "contribute" && value.surface !== "review") {
+    if (value.surface !== "contribute" && value.surface !== "review" && value.surface !== "browse") {
       fail(`fallback case "${name}"`, `states an unknown surface "${String(value.surface)}"`);
     }
     if (!value.why?.trim()) fail(`fallback case "${name}"`, "states no reason it exists");
@@ -311,7 +316,7 @@ export function loadCollectiveGroupedActionFixtures(): CollectiveGroupedActionFi
     for (const field of Object.keys(value)) {
       if (!CONTINUATION_FIELDS.has(field)) fail(`continuation case "${name}"`, `states an unknown field "${field}"`);
     }
-    if (value.surface !== "contribute" && value.surface !== "review") {
+    if (value.surface !== "contribute" && value.surface !== "review" && value.surface !== "browse") {
       fail(`continuation case "${name}"`, `states an unknown surface "${String(value.surface)}"`);
     }
     if (!value.why?.trim()) fail(`continuation case "${name}"`, "states no reason it exists");
@@ -430,6 +435,9 @@ export function memberItem(label: string, title: string, surface: ActionSurface,
     parent_session_id: null,
     session_origin: "user",
   });
+  if (surface === "browse") {
+    return { kind: "transcript", transcript: { session } } as VillageSessionListItem;
+  }
   if (surface === "contribute") {
     return {
       kind: "transcript",
@@ -529,6 +537,33 @@ export function flatContributeRows(fixtures: CollectiveGroupedActionFixtures): C
   return [...owned, ...members];
 }
 
+/** One flat collective browse row for a declared row identity. */
+function collectiveBrowseRow(fixtures: CollectiveGroupedActionFixtures, row: RowSpec) {
+  return {
+    ...makeTranscriptFixture({
+      id: row.id,
+      local_id: row.local_id,
+      owner_id: "30000000-0000-4000-8000-000000000010",
+      title: row.title,
+      project_hash: fixtures.projectHash,
+      project_name: fixtures.projectName,
+      project_display_name: fixtures.projectName,
+      parent_session_id: null,
+      visibility: "shared",
+    }),
+    pull_requests: { count: 0, recent: [] },
+    owner_username: "member-owner",
+    owner_avatar_url: null,
+    owner_is_discoverable: true,
+  };
+}
+
+/** The flat collective browse rows: the same submission set the grouped page
+ *  nests, drawn by the pre-existing list. */
+export function flatBrowseRows(fixtures: CollectiveGroupedActionFixtures) {
+  return fixtures.rows.map((row) => collectiveBrowseRow(fixtures, row));
+}
+
 /** One flat pending-share row for a declared row identity. */
 function pendingShareRow(
   fixtures: CollectiveGroupedActionFixtures,
@@ -579,6 +614,13 @@ export function fallbackFlatPendingRows(
   testCase: CollectiveFallbackCase,
 ): PendingShare[] {
   return testCase.flat === "empty" ? [] : [pendingShareRow(fixtures, rowSpec(fixtures, testCase.row))];
+}
+
+export function fallbackFlatBrowseRows(
+  fixtures: CollectiveGroupedActionFixtures,
+  testCase: CollectiveFallbackCase,
+) {
+  return testCase.flat === "empty" ? [] : [collectiveBrowseRow(fixtures, rowSpec(fixtures, testCase.row))];
 }
 
 /** One ordinary grouped owner item, with any saved helper groups attached. */
@@ -644,6 +686,60 @@ export interface GroupedPageShape {
   totalItems: number;
   ordinarySessionTotal: number;
   helperThreadTotal: number;
+}
+
+/** The `GET /groups/{id}?view=grouped` body carrying an explicit page. */
+export function groupedDetailPage(
+  fixtures: CollectiveGroupedActionFixtures,
+  page: GroupedPageShape,
+) {
+  return {
+    group: {
+      id: fixtures.groupId,
+      name: "grouped actions collective",
+      description: null,
+      created_by: "30000000-0000-4000-8000-000000000099",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      acceptance_mode: "curated",
+      data_access: "members_only",
+      linked_github_org: null,
+      display_members: true,
+      transcript_deletion_policy: "user_choice",
+    },
+    members: [],
+    stats: {
+      total_transcripts: fixtures.rows.length,
+      contributor_count: 1,
+      total_turns: 0,
+      total_duration_ms: 0,
+      total_tokens: 0,
+      pull_request_count: 0,
+    },
+    models: [],
+    contributors: [],
+    can_read: true,
+    your_role: "owner",
+    pending_members: [],
+    transcriptList: page,
+  };
+}
+
+/** The `GET /groups/{id}?view=grouped` body: the flat collective metadata with
+ *  only its transcript collection replaced by the grouped page. */
+export function groupedDetailPayload(
+  fixtures: CollectiveGroupedActionFixtures,
+  testCase: CollectiveActionCase,
+) {
+  const items = groupedItems(fixtures, testCase);
+  return groupedDetailPage(fixtures, {
+    items,
+    page: 1,
+    limit: 100,
+    totalItems: items.length,
+    ordinarySessionTotal: fixtures.rows.length,
+    helperThreadTotal: 2,
+  });
 }
 
 /** The grouped items one fallback case's page serves. */

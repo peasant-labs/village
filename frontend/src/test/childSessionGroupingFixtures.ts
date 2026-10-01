@@ -35,7 +35,10 @@ export type ChildSessionSurface =
   | "home"
   | "project"
   | "profile"
-  | "contribute";
+  | "contribute"
+  | "collective-browse"
+  | "collective-repos"
+  | "my-contributions";
 
 const CHILD_SESSION_SURFACES: readonly ChildSessionSurface[] = [
   "explore",
@@ -43,6 +46,9 @@ const CHILD_SESSION_SURFACES: readonly ChildSessionSurface[] = [
   "project",
   "profile",
   "contribute",
+  "collective-browse",
+  "collective-repos",
+  "my-contributions",
 ];
 
 /**
@@ -59,6 +65,7 @@ const OWNER_SCOPED_SURFACES: readonly ChildSessionSurface[] = [
   "project",
   "profile",
   "contribute",
+  "my-contributions",
 ];
 
 /** One transcript in a mocked `/api/v1/transcripts` response. `name` is also
@@ -131,6 +138,10 @@ const requiredCaseNames = [
   "home-shows-the-group-holding-the-newest-session",
   "the-contribute-tree-nests-a-started-session-under-its-starter",
   "a-contributable-row-naming-an-unlisted-parent-keeps-its-own-place",
+  "a-collectives-contributions-read-a-started-session-under-its-starter",
+  "a-collective-row-naming-a-session-this-page-omits-keeps-its-row",
+  "your-contributions-read-a-started-contribution-under-its-starter",
+  "a-contribution-whose-starter-is-not-in-this-collective-keeps-its-row",
 ] as const;
 
 const caseKeys = [
