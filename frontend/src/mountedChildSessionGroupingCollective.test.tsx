@@ -385,6 +385,17 @@ describe("a repository's rows read a started session under the session that star
     await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
     await showRepositories();
 
+    const repositoryLink = within(library()).getByRole("link", { name: "open repository" });
+    expect(repositoryLink.closest("button, [role='button']")).toBeNull();
+    const repositoryToggle = within(repositoryLink.parentElement!).getByRole("button");
+    expect(repositoryToggle).toHaveAttribute("aria-expanded", "true");
+    repositoryToggle.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(repositoryToggle).toHaveAttribute("aria-expanded", "false");
+    expect(repositoryLink).toHaveAttribute("href", `https://${REPO_REMOTE}`);
+    await userEvent.keyboard(" ");
+    expect(repositoryToggle).toHaveAttribute("aria-expanded", "true");
+
     const group = testCase.expectedGroups[0];
     const { chip, toggle } = disclosureFor(group.parent);
     await expandDisclosure(toggle, chip);
