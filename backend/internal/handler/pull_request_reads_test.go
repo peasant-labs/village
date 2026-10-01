@@ -258,35 +258,37 @@ func TestPullRequestDetailReadsAreBoundedByTheirDeadline(t *testing.T) {
 	}
 }
 
-// TestPullRequestDetailsForAListStopAtItsDeadline pins what a slow GitHub costs
-// a list: the response arrives within its deadline, no more than the list's few
-// reads ever start however many pull requests it holds, a pull request not
-// reached is served as unknown, and one whose answer is already remembered is
-// still served its title.
-func TestPullRequestDetailsForAListStopAtItsDeadline(t *testing.T) {
-	fake := newPullReadsGitHub(t)
-	fake.delayPullReads(5 * time.Second)
-	// Forty pull requests at four at a time: without the list's own deadline
-	// they would take ten read deadlines, not one.
-	candidates := make([]pullRequestCandidate, 40)
+// heldListWorld is forty uncached pull requests on a GitHub that holds every
+// pull request read until the test ends, with the last one's answer already
+// remembered behind all the others.
+func heldListWorld(t *testing.T, fake *pullReadsGitHub, h *Handler) (candidates []pullRequestCandidate, remembered int) {
+	t.Helper()
+	candidates = make([]pullRequestCandidate, 40)
 	for i := range candidates {
 		fake.setPull("acme/app", i+1, "Tighten the ingest retry", "fix/ingest-retry")
 		candidates[i] = pullRequestCandidate{owner: "acme", name: "app", number: i + 1, installationID: 4242}
 	}
-	h := newTestHandler(&mockQuerier{}, nil)
-	h.gh = fake.client(t)
-	h.pullDetailDeadline = 100 * time.Millisecond
-	// The last pull request's answer is already remembered, and it sits behind
-	// every pull request the list will not reach.
-	remembered := len(candidates) - 1
-	_, read, _ := h.pullDetails.claim(pullRequestKeyOf("acme", "app", remembered+1), time.Now())
-	h.pullDetails.settle(pullRequestKeyOf("acme", "app", remembered+1), read, pullRequestDetailEntry{title: "Remembered title", headRef: "fix/remembered"}, time.Now(), time.Hour)
+	remembered = len(candidates) - 1
+	key := pullRequestKeyOf("acme", "app", remembered+1)
+	_, read, _ := h.pullDetails.claim(key, time.Now())
+	h.pullDetails.settle(key, read, pullRequestDetailEntry{title: "Remembered title", headRef: "fix/remembered"}, time.Now(), time.Hour)
+	return candidates, remembered
+}
 
-	started := time.Now()
-	details := h.pullRequestDetailsFor(context.Background(), candidates)
-	if elapsed := time.Since(started); elapsed > 600*time.Millisecond {
-		t.Fatalf("a list of %d waited %s on a GitHub that does not answer, want about the %s deadline", len(candidates), elapsed, h.pullDetailDeadline)
-	}
+// readsStartedBy counts the GitHub reads a list started, from the cache's own
+// tables: every read it started is either still in flight or has settled into
+// an entry. It is exact once the list has returned, because every read is
+// claimed before the list's workers return, so it needs no waiting.
+func readsStartedBy(h *Handler, alreadyRemembered int) int {
+	h.pullDetails.mu.Lock()
+	defer h.pullDetails.mu.Unlock()
+	return len(h.pullDetails.inflight) + len(h.pullDetails.entries) - alreadyRemembered
+}
+
+// assertHeldListAnswers checks what a list on a held GitHub serves: the
+// remembered pull request's title, and unknown for every other.
+func assertHeldListAnswers(t *testing.T, details []pullRequestDetail, remembered int) {
+	t.Helper()
 	for i, detail := range details {
 		if i == remembered {
 			if detail.title == nil || *detail.title != "Remembered title" {
@@ -295,13 +297,54 @@ func TestPullRequestDetailsForAListStopAtItsDeadline(t *testing.T) {
 			continue
 		}
 		if detail.title != nil || detail.headRef != nil {
-			t.Fatalf("pull request %d served %v/%v after the deadline, want both unknown", i+1, detail.title, detail.headRef)
+			t.Fatalf("pull request %d served %v/%v, want both unknown", i+1, detail.title, detail.headRef)
 		}
 	}
-	// Give any read the list might still start the time to reach the fake.
-	time.Sleep(200 * time.Millisecond)
-	if reads, _ := fake.counts(); reads > pullRequestDetailFetchers {
-		t.Fatalf("the list started %d GitHub reads, want at most %d", reads, pullRequestDetailFetchers)
+}
+
+// TestPullRequestDetailsForAListStopWhenTheirCallerLeaves pins that a list
+// keeps to its slots and starts no read once its caller has gone. The caller
+// leaves only after GitHub has received the list's first reads, so nothing
+// here depends on how fast the machine is: exactly that many reads start,
+// the remembered title is still served, and the rest are unknown.
+func TestPullRequestDetailsForAListStopWhenTheirCallerLeaves(t *testing.T) {
+	fake := newPullReadsGitHub(t)
+	fake.holdPullReads(t)
+	h := newTestHandler(&mockQuerier{}, nil)
+	h.gh = fake.client(t)
+	h.pullDetailDeadline = time.Minute
+	candidates, remembered := heldListWorld(t, fake, h)
+
+	ctx, leave := context.WithCancel(context.Background())
+	defer leave()
+	go func() {
+		fake.awaitPullReads(t, pullRequestDetailFetchers)
+		leave()
+	}()
+	details := h.pullRequestDetailsFor(ctx, candidates)
+	assertHeldListAnswers(t, details, remembered)
+	if started := readsStartedBy(h, 1); started != pullRequestDetailFetchers {
+		t.Fatalf("the list started %d GitHub reads, want exactly its %d slots", started, pullRequestDetailFetchers)
+	}
+}
+
+// TestPullRequestDetailsForAListStopAtItsDeadline pins the same bound at the
+// list's own deadline: against a GitHub that holds every read, the list returns
+// at its deadline, starts no more reads than it has slots - a held read frees
+// its slot only by timing out, which cannot happen before the list's deadline
+// has passed - serves the remembered title, and serves the rest as unknown.
+func TestPullRequestDetailsForAListStopAtItsDeadline(t *testing.T) {
+	fake := newPullReadsGitHub(t)
+	fake.holdPullReads(t)
+	h := newTestHandler(&mockQuerier{}, nil)
+	h.gh = fake.client(t)
+	h.pullDetailDeadline = 100 * time.Millisecond
+	candidates, remembered := heldListWorld(t, fake, h)
+
+	details := h.pullRequestDetailsFor(context.Background(), candidates)
+	assertHeldListAnswers(t, details, remembered)
+	if started := readsStartedBy(h, 1); started > pullRequestDetailFetchers {
+		t.Fatalf("the list started %d GitHub reads, want at most its %d slots", started, pullRequestDetailFetchers)
 	}
 }
 
