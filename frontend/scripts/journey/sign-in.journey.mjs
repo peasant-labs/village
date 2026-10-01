@@ -120,14 +120,14 @@ test.describe('sign-in', () => {
     await expect(page.getByRole('button', { name: /continue with/i })).toHaveCount(0)
   })
 
-  test('the account menu holds profile and sign out', async ({ page, theme }) => {
+  test('the account menu holds profile, settings and sign out', async ({ page, theme }) => {
     await page.goto('/')
     await expectTheme(page, theme)
 
     const trigger = page.getByRole('button', { name: 'account menu for @alice-dev' })
     await trigger.click()
     const menu = page.getByRole('menu')
-    await expect(menu.getByRole('menuitem')).toHaveText(['profile', 'sign out'])
+    await expect(menu.getByRole('menuitem')).toHaveText(['profile', 'settings', 'sign out'])
     await expect(trigger).toHaveAttribute('aria-expanded', 'true')
     // Opening moves focus to the first row one frame later (fairtrade's Menu
     // defers it to the next animation frame). Keys go to the row, not the
