@@ -1,0 +1,10 @@
+cases:
+  - name: the-header-sign-out-announces-a-failed-request-and-can-retry
+    mode: failed
+    error: the account service is unavailable
+  - name: the-header-sign-out-prevents-repeat-writes-while-the-request-is-pending
+    mode: pending
+    error: the account service is unavailable
+  - name: rapid-header-sign-out-reselection-sends-one-request
+    mode: rapid
+    error: the account service is unavailable

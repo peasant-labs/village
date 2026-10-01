@@ -447,3 +447,9 @@ not justify extending the wire or adding a profile read.
 Production journeys check the consent actions' computed position in both
 themes. A unit mount cannot observe CSS layout; this assertion reuses the
 existing real-route journey and creates no additional service or process.
+
+The actual persistent account menu announces failed sign-out requests in the
+canonical dialog and offers another attempt. Its pending dialog and immediate
+admission guard prevent repeated requests, including reselecting the menu
+before the focus handoff frames finish. Named mounted fixtures cover failure,
+pending feedback, and rapid reselection through the production header.

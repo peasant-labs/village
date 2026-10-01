@@ -26,8 +26,8 @@ import type {
 } from "react";
 import {
   Button as FtButton,
-  Checkbox as FtCheckbox,
   Dialog as FtDialog,
+  Checkbox as FtCheckbox,
   Input as FtInput,
   PromptDigest as FtPromptDigest,
   Radio as FtRadio,
