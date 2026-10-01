@@ -32,28 +32,59 @@ navCases:
   - name: signed-in-visitor-at-the-root-highlights-home
     isLoggedIn: true
     pathname: "/"
-    expectLabels: [home, explore, collectives, publish, profile]
+    expectLabels: [home, collectives]
     expectActiveLabel: home
-  - name: signed-in-visitor-at-explore-highlights-explore
+    expectBackHref: null
+  - name: signed-in-visitor-at-a-collective-highlights-collectives
     isLoggedIn: true
-    pathname: "/explore"
-    expectLabels: [home, explore, collectives, publish, profile]
-    expectActiveLabel: explore
-  - name: signed-out-visitor-at-the-root-highlights-explore
-    isLoggedIn: false
-    pathname: "/"
-    expectLabels: [explore]
-    expectActiveLabel: explore
-  - name: signed-out-visitor-has-no-home-entry-at-explore
-    isLoggedIn: false
-    pathname: "/explore"
-    expectLabels: [explore]
-    expectActiveLabel: explore
-  - name: a-transcript-page-still-highlights-explore
+    pathname: "/groups/acme-platform"
+    expectLabels: [home, collectives]
+    expectActiveLabel: collectives
+    expectBackHref: "/groups"
+  - name: a-transcript-page-highlights-home
     isLoggedIn: true
     pathname: "/transcripts/abc123"
-    expectLabels: [home, explore, collectives, publish, profile]
-    expectActiveLabel: explore
+    expectLabels: [home, collectives]
+    expectActiveLabel: home
+    expectBackHref: "/"
+  - name: a-pull-request-page-highlights-home
+    isLoggedIn: true
+    pathname: "/pulls/acme/app/42"
+    expectLabels: [home, collectives]
+    expectActiveLabel: home
+    expectBackHref: null
+  - name: signed-in-visitor-at-explore-highlights-nothing
+    isLoggedIn: true
+    pathname: "/explore"
+    expectLabels: [home, collectives]
+    expectActiveLabel: null
+    expectBackHref: null
+  - name: signed-in-visitor-at-publish-highlights-nothing
+    isLoggedIn: true
+    pathname: "/publish"
+    expectLabels: [home, collectives]
+    expectActiveLabel: null
+    expectBackHref: null
+  - name: signed-out-visitor-at-the-root-is-offered-no-entries
+    isLoggedIn: false
+    pathname: "/"
+    expectLabels: []
+    expectActiveLabel: null
+    expectBackHref: null
+  - name: signed-out-visitor-at-explore-is-offered-no-entries
+    isLoggedIn: false
+    pathname: "/explore"
+    expectLabels: []
+    expectActiveLabel: null
+    expectBackHref: null
+  - name: a-signed-out-transcript-reader-gets-no-back-link
+    # Their `/` is the sign-in page, which is not where a shared link's reader
+    # came from, so the header offers no way "back" to it.
+    isLoggedIn: false
+    pathname: "/transcripts/abc123"
+    expectLabels: []
+    expectActiveLabel: null
+    expectBackHref: null
 
 # What the home surface renders for a given owner-scoped transcript list: the
 # table of the person's own transcripts, the totals above it, and the rail of
@@ -167,6 +198,18 @@ homeCases:
     expectWaiting: [ML Reading Group]
     expectSharedWithCells:
       - { title: Private pending session, text: [not shared with collective members] }
+
+  - name: private-visibility-does-not-claim-retained-approved-members-can-read
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: private-approved, title: Private approved session, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T10:00:00Z", visibility: private, sharedWith: [Acme Platform] }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles: [Private approved session]
+    expectProjectLinks: []
+    expectSharedWithCells:
+      - { title: Private approved session, text: [not shared with collective members] }
 
   - name: more-sessions-than-the-recent-list-shows-are-capped
     # More rows than one page: the table lists the first page, says how many it

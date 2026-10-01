@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSectionActive, navSections } from "@/lib/nav/sections";
+import { backTarget, isSectionActive, navSections } from "@/lib/nav/sections";
 import { loadHomePageFixtures } from "@/test/homePageFixtures";
 
 // The top nav is the only place a visitor can see WHERE they are. Discovery
@@ -13,7 +13,6 @@ describe("top nav: which entries are offered, and which one is active", () => {
     it(c.name, () => {
       const sections = navSections({
         isLoggedIn: c.isLoggedIn,
-        githubUsername: c.isLoggedIn ? "alice-dev" : undefined,
       });
 
       expect(sections.map((s) => s.label)).toEqual(c.expectLabels);
@@ -21,7 +20,8 @@ describe("top nav: which entries are offered, and which one is active", () => {
       const active = sections.filter((s) => isSectionActive(s, c.pathname));
       // Exactly one entry may be highlighted: two would leave a visitor unable
       // to tell which section they are in.
-      expect(active.map((s) => s.label)).toEqual([c.expectActiveLabel]);
+      expect(active.map((s) => s.label)).toEqual(c.expectActiveLabel === null ? [] : [c.expectActiveLabel]);
+      expect(backTarget(c.pathname, c.isLoggedIn)?.href ?? null).toBe(c.expectBackHref);
     });
   }
 });

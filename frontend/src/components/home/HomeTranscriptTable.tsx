@@ -33,7 +33,7 @@ function sharedWith(item: TranscriptListItem): ReactNode {
   const names = [...new Set((item.shares ?? []).map((share) => share.group_name))];
   const audience = item.transcript.visibility === "public"
     ? ["anyone with the link", ...names]
-    : names;
+    : item.transcript.visibility === "shared" ? names : [];
   if (audience.length > 0) {
     return (
       <span className="cmg-shared">

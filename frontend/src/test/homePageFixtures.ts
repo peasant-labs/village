@@ -165,7 +165,8 @@ export type HomeNavCase = {
   isLoggedIn: boolean;
   pathname: string;
   expectLabels: string[];
-  expectActiveLabel: string;
+  expectActiveLabel: string | null;
+  expectBackHref: string | null;
 };
 
 /** The parsed file, before the loader derives anything. */
@@ -194,18 +195,30 @@ const requiredRouteCaseNames = [
 
 const requiredNavCaseNames = [
   "signed-in-visitor-at-the-root-highlights-home",
-  "signed-in-visitor-at-explore-highlights-explore",
-  "signed-out-visitor-at-the-root-highlights-explore",
-  "signed-out-visitor-has-no-home-entry-at-explore",
-  "a-transcript-page-still-highlights-explore",
+  "signed-in-visitor-at-a-collective-highlights-collectives",
+  "a-transcript-page-highlights-home",
+  "a-pull-request-page-highlights-home",
+  "signed-in-visitor-at-explore-highlights-nothing",
+  "signed-in-visitor-at-publish-highlights-nothing",
+  "signed-out-visitor-at-the-root-is-offered-no-entries",
+  "signed-out-visitor-at-explore-is-offered-no-entries",
+  "a-signed-out-transcript-reader-gets-no-back-link",
 ] as const;
 
-const navCaseKeys = ["name", "isLoggedIn", "pathname", "expectLabels", "expectActiveLabel"];
+const navCaseKeys = [
+  "name",
+  "isLoggedIn",
+  "pathname",
+  "expectLabels",
+  "expectActiveLabel",
+  "expectBackHref",
+];
 
 const requiredHomeCaseNames = [
   "recent-sessions-lead-and-projects-follow",
   "public-link-access-is-named-alongside-approved-collectives",
   "pending-private-submission-does-not-claim-author-only-access",
+  "private-visibility-does-not-claim-retained-approved-members-can-read",
   "more-sessions-than-the-recent-list-shows-are-capped",
   "a-person-with-nothing-published-gets-the-teaching-empty-state",
   "a-username-needing-escaping-still-links-to-its-project",
@@ -390,7 +403,7 @@ export function loadHomePageFixtures(): HomePageFixtures {
   );
   for (const c of fixtures.navCases) {
     assertExactKeys(c, navCaseKeys, `nav case ${c.name}`);
-    if (!c.expectLabels.includes(c.expectActiveLabel)) {
+    if (c.expectActiveLabel !== null && !c.expectLabels.includes(c.expectActiveLabel)) {
       throw new Error(
         `nav case ${c.name}: the active entry ${c.expectActiveLabel} is not among the entries the ` +
           `case expects (${c.expectLabels.join(", ")})`,

@@ -168,6 +168,11 @@ function GitHubConnection({ user }: { user: User }) {
           {provider} · <span className="normal-case">{login}</span>
         </span>
         <span className="srow-help">you sign in to village with this account.</span>
+        {logout.isError && (
+          <span role="alert" style={{ fontSize: "var(--fs-body)", color: "var(--error)" }}>
+            could not sign out: {errorMessage(logout.error)}. try again.
+          </span>
+        )}
       </span>
       <button
         type="button"

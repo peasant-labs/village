@@ -12,8 +12,9 @@ import { loadAccountSettingsFixtures, type SettingsCase } from "@/test/accountSe
 // DOM and on the writes the page actually sends, so a regression cannot hide
 // behind a hook that was never called.
 
+const routePush = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: routePush, replace: vi.fn() }),
   usePathname: () => "/settings",
 }));
 
@@ -148,6 +149,7 @@ describe("the account menu", () => {
     await act(async () => {
       fireEvent.click(trigger);
     });
-    expect(screen.getByRole("link", { name: "settings" }).getAttribute("href")).toBe("/settings");
+    fireEvent.click(screen.getByRole("menuitem", { name: "settings" }));
+    expect(routePush).toHaveBeenCalledWith("/settings");
   });
 });
