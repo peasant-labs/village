@@ -20,7 +20,7 @@ export function pullRequestAttachmentKey(owner: string, name: string, number: nu
   return ["pull-request-attachment", owner.toLowerCase(), name.toLowerCase(), number] as const;
 }
 
-function pullPath(owner: string, name: string, number: number): string {
+export function pullPath(owner: string, name: string, number: number): string {
   return `/pulls/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${number}`;
 }
 
@@ -33,16 +33,16 @@ export function usePullRequestAttachment(owner: string, name: string, number: nu
   });
 }
 
+export function transcriptPullRequestsKey(transcriptId: string) {
+  return ["transcript-pull-requests", transcriptId] as const;
+}
+
 /**
  * The pull requests one transcript is bound to, attached or detached, that THIS
  * viewer may read (`GET /transcripts/{id}/pulls`). The server applies the
  * transcript's own read check and each pull request's reader rule, so the list
  * is already narrowed to the viewer; the page renders it as served.
  */
-export function transcriptPullRequestsKey(transcriptId: string) {
-  return ["transcript-pull-requests", transcriptId] as const;
-}
-
 export function useTranscriptPullRequests(transcriptId: string, enabled = true) {
   return useQuery({
     queryKey: transcriptPullRequestsKey(transcriptId),

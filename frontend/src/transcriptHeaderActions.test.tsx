@@ -48,12 +48,12 @@ function sessionDetail(): SessionDetailPayload {
   };
 }
 
-function metadata(): MountedRouteTranscriptMetadata {
+function metadata(visibility: "shared" | "private" | "public" = "shared"): MountedRouteTranscriptMetadata {
   return {
     transcript: {
       id: content.transcriptId,
       local_id: "session-header-actions",
-      visibility: "shared",
+      visibility,
       title: content.title,
       description: null,
       project_name: "village",
@@ -77,6 +77,7 @@ const json = (body: unknown, status = 200) =>
  *  and a share or withdrawal that changes the served audience in place, the
  *  way the server's own reads would answer afterwards. */
 function audienceRoutes(served: MountedRouteTranscriptMetadata, answer: number, log: string[]): MountedRouteHandler {
+  const pending = new Set<string>();
   return (url, init) => {
     const method = init?.method ?? "GET";
     const path = url.replace(API_PREFIX, "");
@@ -91,6 +92,18 @@ function audienceRoutes(served: MountedRouteTranscriptMetadata, answer: number, 
         })),
       );
     }
+    if (method === "GET" && path === "/users/me/collectives/contributions") {
+      return json({ collectives: content.groups
+        .filter((g) => pending.has(g.id) || served.viewer_collectives!.some((c) => c.id === g.id))
+        .map((g) => ({ id: g.id, name: g.name, approved_count: served.viewer_collectives!.some((c) => c.id === g.id) ? 1 : 0,
+          pending_count: pending.has(g.id) ? 1 : 0, rejected_attempt_count: 0, withdrawn_attempt_count: 0 })) });
+    }
+    const ownShares = path.match(/^\/groups\/([^/]+)\/my-shares$/);
+    if (method === "GET" && ownShares) {
+      const id = ownShares[1];
+      const approved = served.viewer_collectives!.some((c) => c.id === id);
+      return json(approved || pending.has(id) ? [{ id: content.transcriptId, status: approved ? "approved" : "pending" }] : []);
+    }
     if (method === "POST" && path === `/transcripts/${content.transcriptId}/share`) {
       log.push(`POST ${path} ${String(init?.body)}`);
       if (answer !== 200) return json({ error: "share failed" }, answer);
@@ -98,18 +111,11 @@ function audienceRoutes(served: MountedRouteTranscriptMetadata, answer: number, 
       for (const id of group_ids) {
         const group = content.groups.find((g) => g.id === id)!;
         if (group.takes === "approved") served.viewer_collectives!.push({ id, name: group.name });
-        if (group.takes === "pending") {
-          served.enriched_shares.push({
-            transcript_id: content.transcriptId,
-            group_id: id,
-            group_name: group.name,
-            acceptance_mode: group.acceptance_mode,
-            status: "pending",
-            shared_at: "2026-08-22T00:00:00.000Z",
-          });
-        }
+        if (group.takes === "pending") pending.add(id);
       }
-      return json([]);
+      if (served.transcript.visibility === "private") served.transcript.visibility = "shared";
+      return json(content.groups.filter((g) => pending.has(g.id) || served.viewer_collectives!.some((c) => c.id === g.id))
+        .map((g) => ({ group_id: g.id, group_name: g.name, shared_at: "2026-08-22T00:00:00.000Z" })));
     }
     const unshare = path.match(new RegExp(`^/transcripts/${content.transcriptId}/share/([^/]+)$`));
     if (method === "DELETE" && unshare) {
@@ -117,6 +123,7 @@ function audienceRoutes(served: MountedRouteTranscriptMetadata, answer: number, 
       if (answer !== 200) return json({ error: "unshare failed" }, answer);
       const at = served.viewer_collectives!.findIndex((c) => c.id === unshare[1]);
       if (at >= 0) served.viewer_collectives!.splice(at, 1);
+      pending.delete(unshare[1]);
       return json({ status: "unshared" });
     }
     return undefined;
@@ -218,11 +225,15 @@ installMountedRouteTeardown();
 describe("mounted transcript route: header actions per viewer", () => {
   for (const c of fx.cases) {
     it(c.name, async () => {
-      const fetchMock = await mount(c.viewer);
+      const fetchMock = await mount(c.viewer, metadata(c.visibility));
       if (c.viewer === "preview") {
         await waitFor(() => expect(screen.getByTestId("preview-header")).toBeInTheDocument());
       }
 
+      if (c.viewer !== "preview") {
+        const home = document.querySelector('nav[aria-label="breadcrumb"] a[href="/"]');
+        expect(home !== null).toBe(c.viewer !== "signed-out");
+      }
       const entries = await readHeaderEntries();
       expect([...entries].sort()).toEqual([...c.expectEntries].sort());
 
@@ -260,7 +271,7 @@ describe("mounted transcript route: header actions per viewer", () => {
 describe("mounted transcript route: the owner's manage access popup", () => {
   for (const c of fx.manageAccessCases) {
     it(c.name, async () => {
-      const served = metadata();
+      const served = metadata(c.visibility);
       const log: string[] = [];
       const fetchMock = await mount("owner", served, audienceRoutes(served, c.answer, log));
 
@@ -268,6 +279,7 @@ describe("mounted transcript route: the owner's manage access popup", () => {
       fireEvent.click(within(menu).getByRole("menuitem", { name: "manage access" }));
       const dialog = await screen.findByRole("dialog", { name: "manage access" });
       await waitFor(() => expect(accessRows()).toEqual(content.collectives.map((g) => g.name)));
+      await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
       const readsBefore = fetchMock.mock.calls.filter((call) => String(call[0]).endsWith("/collectives")).length;
 
       if (c.action === "remove") {
@@ -277,6 +289,13 @@ describe("mounted transcript route: the owner's manage access popup", () => {
           expect(within(dialog).getByRole("button", { name: `add ${c.collective}` })).toBeInTheDocument(),
         );
         fireEvent.click(within(dialog).getByRole("button", { name: `add ${c.collective}` }));
+        if (c.visibility === "private") {
+          const confirm = await screen.findByRole("dialog", { name: "make 1 transcript visible?" });
+          expect(log).toHaveLength(0);
+          fireEvent.click(within(confirm).getByRole("checkbox"));
+          fireEvent.click(within(confirm).getByRole("button", { name: "contribute & make visible" }));
+          await screen.findByRole("dialog", { name: "manage access" });
+        }
       }
 
       // The request settles, then the list is read again and shows the answer.
@@ -287,19 +306,25 @@ describe("mounted transcript route: the owner's manage access popup", () => {
       expect(readsAfter).toBeGreaterThan(readsBefore);
 
       if (c.expectMessage) {
-        await waitFor(() => expect(within(dialog).getByText(c.expectMessage!)).toBeInTheDocument());
+        await waitFor(() => expect(within(screen.getByRole("dialog", { name: "manage access" })).getByText(c.expectMessage!)).toBeInTheDocument());
       } else {
         expect(within(dialog).queryByRole("alert")).toBeNull();
         expect(within(dialog).queryByText(/did not take it/)).toBeNull();
       }
 
-      fireEvent.click(within(dialog).getByRole("button", { name: "done" }));
+      fireEvent.click(within(screen.getByRole("dialog", { name: "manage access" })).getByRole("button", { name: "done" }));
       await waitFor(() => expect(screen.queryByRole("dialog", { name: "manage access" })).toBeNull());
       await openMore();
       await waitFor(() =>
         expect(screen.getByTestId("transcript-access-caption")).toHaveTextContent(c.expectAccessCaption),
       );
       closeMore();
+      if (c.reopen) {
+        const menu = await openMore();
+        fireEvent.click(within(menu).getByRole("menuitem", { name: "manage access" }));
+        await screen.findByRole("dialog", { name: "manage access" });
+        await waitFor(() => expect(accessRows()).toEqual(c.expectAccess));
+      }
     });
   }
 });
@@ -338,4 +363,94 @@ describe("mounted transcript route: download markdown", () => {
       vi.restoreAllMocks();
     }
   });
+});
+
+
+describe("mounted transcript route: raw downloads", () => {
+  for (const c of fx.rawDownloads) {
+    it(c.name, async () => {
+      const saved: Blob[] = [];
+      const names: string[] = [];
+      vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => { saved.push(blob as Blob); return "blob:transcript"; });
+      vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { names.push(this.download); });
+      try {
+        await mount("signed-out");
+        const menu = await openMore();
+        fireEvent.click(within(menu).getByRole("menuitem", { name: `download ${c.format}` }));
+        expect(names).toEqual([c.expectFileName]);
+        expect(saved).toHaveLength(1);
+        const text = await saved[0].text();
+        if (c.format === "json") expect(JSON.parse(text)).toEqual(sessionDetail());
+        else expect(text.trim().split("\n").map((line) => JSON.parse(line))).toEqual(sessionDetail().turns);
+      } finally { vi.restoreAllMocks(); }
+    });
+  }
+});
+
+
+describe("mounted transcript route: audience read recovery", () => {
+  for (const c of fx.readRecovery) {
+    it(c.name, async () => {
+      const served = metadata();
+      const log: string[] = [];
+      const base = audienceRoutes(served, 200, log);
+      let fail = true;
+      const path = c.path.replace("{transcriptId}", content.transcriptId);
+      await mount("owner", served, (url, init) => {
+        if (fail && (init?.method ?? "GET") === "GET" && url.replace(API_PREFIX, "") === path) {
+          return json({ error: "read failed" }, 500);
+        }
+        return base(url, init);
+      });
+      fireEvent.click(within(await openMore()).getByRole("menuitem", { name: "manage access" }));
+      const dialog = await screen.findByRole("dialog", { name: "manage access" });
+      const alert = await within(dialog).findByRole("alert");
+      expect(alert).toHaveTextContent(c.message);
+      expect(within(dialog).queryByRole("button", { name: "add Infra Guild" })).toBeNull();
+      fail = false;
+      fireEvent.click(within(alert).getByRole("button", { name: "retry" }));
+      await waitFor(() => expect(within(dialog).queryByRole("alert")).toBeNull());
+      await waitFor(() => expect(accessRows()).toEqual(content.collectives.map((g) => g.name)));
+      expect(await within(dialog).findByRole("button", { name: "add Infra Guild" })).toBeInTheDocument();
+      expect(log).toEqual([]);
+    });
+  }
+});
+
+it(fx.consentCancel.name, async () => {
+  const served = metadata("private");
+  const log: string[] = [];
+  await mount("owner", served, audienceRoutes(served, 200, log));
+  fireEvent.click(within(await openMore()).getByRole("menuitem", { name: "manage access" }));
+  const dialog = await screen.findByRole("dialog", { name: "manage access" });
+  fireEvent.click(await within(dialog).findByRole("button", { name: `add ${fx.consentCancel.collective}` }));
+  const confirm = await screen.findByRole("dialog", { name: "make 1 transcript visible?" });
+  await waitFor(() => expect(confirm.contains(document.activeElement)).toBe(true));
+  expect(within(confirm).getByRole("button", { name: "contribute & make visible" })).toBeDisabled();
+  fireEvent.click(within(confirm).getByRole("button", { name: "cancel" }));
+  const restored = await screen.findByRole("dialog", { name: "manage access" });
+  await waitFor(() => expect(restored.contains(document.activeElement)).toBe(true));
+  expect(log).toEqual([]);
+  expect(served.transcript.visibility).toBe("private");
+});
+
+it(fx.departedCollective.name, async () => {
+  const served = metadata();
+  const log: string[] = [];
+  const base = audienceRoutes(served, 200, log);
+  await mount("owner", served, (url, init) => {
+    const path = url.replace(API_PREFIX, "");
+    if (path === "/groups" && (init?.method ?? "GET") === "GET") {
+      return json(content.groups.filter((g) => g.id !== fx.departedCollective.id).map((g) => ({ ...g, role: "member" })));
+    }
+    if (path === `/transcripts/${content.transcriptId}/collectives`) return json({ collectives: [] });
+    return base(url, init);
+  });
+  fireEvent.click(within(await openMore()).getByRole("menuitem", { name: "manage access" }));
+  const dialog = await screen.findByRole("dialog", { name: "manage access" });
+  const remove = await within(dialog).findByRole("button", { name: `remove ${fx.departedCollective.collective}` });
+  fireEvent.click(remove);
+  await waitFor(() => expect(log).toEqual([`DELETE /transcripts/${content.transcriptId}/share/${fx.departedCollective.id}`]));
+  await waitFor(() => expect(accessRows()).toEqual([content.collectives[0].name]));
 });

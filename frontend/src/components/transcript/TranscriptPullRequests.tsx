@@ -2,14 +2,11 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { pullPath } from "@/lib/queries/pulls";
 import type { VillageTranscriptPullRequest } from "@peasant-labs/schema";
 
 /** How many pull requests show before `show all N`. */
 export const PULL_REQUESTS_SHOWN = 3;
-
-function pullRequestHref(pr: VillageTranscriptPullRequest): string {
-  return `/pulls/${encodeURIComponent(pr.owner)}/${encodeURIComponent(pr.name)}/${pr.number}`;
-}
 
 interface TranscriptPullRequestsProps {
   pullRequests: VillageTranscriptPullRequest[];
@@ -57,7 +54,7 @@ export default function TranscriptPullRequests({ pullRequests, failed = false, o
           <ul className="cmg-pr-list" ref={listRef}>
             {shown.map((pr) => (
               <li key={`${pr.owner}/${pr.name}#${pr.number}`} data-testid="transcript-pull-request">
-                <Link className="cmg-pr-link mono" href={pullRequestHref(pr)}>
+                <Link className="cmg-pr-link mono" href={pullPath(pr.owner, pr.name, pr.number)}>
                   {pr.owner}/{pr.name} <span className="tnum">#{pr.number}</span>
                 </Link>
                 <span className="cmg-none">

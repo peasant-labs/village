@@ -171,21 +171,17 @@ export default function VisualHarnessPage() {
         <TranscriptViewer
           viewModel={vm}
           theme={theme}
-          // All capabilities on so every action affordance renders for capture;
-          // the demo enables the same set.
+          // The transcript production path hides the composite tail; its
+          // header menu owns downloads and editing.
           capabilities={{
             canLabel: true,
-            canEdit: true,
-            canChangeVisibility: true,
-            canContribute: true,
-            canExport: true,
+            canEdit: false,
+            canChangeVisibility: false,
+            canContribute: false,
+            canExport: false,
           }}
-          callbacks={{
-            onEdit: () => {},
-            onContribute: () => {},
-            onChangeVisibility: () => {},
-            onCopyLink: () => {},
-          }}
+          showTail={false}
+          showOutcome={false}
           // Built through the SAME shared builder SessionDetailV2 calls
           // (village#32/#33), so this harness cannot drift onto a
           // hand-copied second rule.
