@@ -11,7 +11,7 @@ import { writeFileSync } from 'node:fs'
 import { test, expect } from './lib/fixtures.mjs'
 import { setScenario } from './lib/scenario.mjs'
 import { scanAxe, seriousViolations, expectTheme, expectComputedTokens } from './lib/assertions.mjs'
-import { JOURNEY_COLLECTIVES } from './lib/collective-fixtures.mjs'
+import { JOURNEY_COLLECTIVES, RETAINED_CONTRIBUTIONS } from './lib/collective-fixtures.mjs'
 
 const OWNER = JOURNEY_COLLECTIVES.owner
 const MEMBER = JOURNEY_COLLECTIVES.member
@@ -84,6 +84,29 @@ test.describe('collectives', () => {
 
     await still(page, testInfo, 'collective-owner')
     await record(page, testInfo, page.locator('.iu-page'), 'collective-owner')
+  })
+
+  test('retains transcript grouping and private contribution withdrawal on the mounted detail page', async ({ page, theme }, testInfo) => {
+    await page.goto(`/groups/${OWNER.id}`)
+    await expectTheme(page, theme)
+    const library = page.getByTestId('collective-transcript-library')
+    await library.getByTestId('collective-library-disclosure-toggle').click()
+    await expect(library.getByRole('combobox', { name: 'filter transcripts by contributor' })).toBeVisible()
+    await expect(library.getByRole('checkbox', { name: 'select all' })).toBeVisible()
+    const contribution = page.getByTestId('my-contributions-panel')
+    await expect(contribution).toContainText(RETAINED_CONTRIBUTIONS[0].title)
+    await expect(contribution).toContainText('pending')
+    await contribution.getByTestId('child-session-disclosure-toggle').click()
+    await expect(contribution.getByRole('link', { name: RETAINED_CONTRIBUTIONS[1].title })).toBeVisible()
+    await library.getByRole('button', { name: 'repos', exact: true }).click()
+    await expect(library).toContainText('repositories')
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await still(page, testInfo, 'collective-retained-flows')
+    await record(page, testInfo, library, 'collective-retained-flows')
+    const request = page.waitForResponse((response) => response.request().method() === 'DELETE' && response.url().endsWith(`/transcripts/${RETAINED_CONTRIBUTIONS[1].id}/share/${OWNER.id}`))
+    await contribution.getByTestId('child-session-disclosure-rows').getByTitle('withdraw contribution').click()
+    expect((await request).ok()).toBe(true)
+    await expect(contribution.getByRole('link', { name: RETAINED_CONTRIBUTIONS[1].title })).toHaveCount(0)
   })
 
   test('shows a member the org without manage, and leave', async ({ page, theme }, testInfo) => {

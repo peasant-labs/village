@@ -1,8 +1,25 @@
-import { cleanup, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { act } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import type { GroupTranscript, UserGroupShare } from "@/lib/types";
 import type { ContributableTranscript } from "@/lib/contribute/types";
-import { installGroupRouteREST, renderGroupContributeRoute } from "@/test/mountedGroupRoute";
-import { assertDisclosures, chippedParentIDs, flush } from "@/test/childSessionDom";
+import {
+  installGroupRouteREST,
+  renderGroupContributeRoute,
+  renderGroupDetailRoute,
+  type RecordedGroupRequest,
+} from "@/test/mountedGroupRoute";
+import {
+  assertDisclosures,
+  chippedParentIDs,
+  disclosureFor,
+  expandDisclosure,
+  flush,
+  linkedIDs,
+  rowFor,
+} from "@/test/childSessionDom";
 import {
   loadChildSessionGroupingFixtures,
   type ChildSessionGroupingCase,
@@ -12,15 +29,27 @@ import {
 
 /**
  * Mounted evidence for a session that another session started, on the REAL
- * collective contribute route, with only HTTP controlled.
+ * collective routes, with only HTTP controlled.
  *
+ *   /groups/{id}              a collective's contributions, read as a list and
+ *                             read by repository; the owner's review queue of a
+ *                             curated collective; and a member's own
+ *                             contributions to it.
  *   /groups/{id}/contribute   the project > branch > session selection tree.
  *
- * The tree draws a checkbox row rather than a link, so its rows are read by the
- * test id each row carries, while the expectations, the labels and the fold
- * itself come from the ONE corpus in src/testdata/child-session-grouping.yaml,
- * shared with the discovery, home, project and library surfaces in
- * src/mountedChildSessionGrouping.test.tsx.
+ * These four lists do not agree on what a row IS -- a transcript list draws an
+ * anchor, a review queue draws a queue item with its own approve and reject
+ * actions, a person's contributions draw an unshare action, a selection tree
+ * draws a checkbox -- so each is read here through its own row reader while the
+ * expectations, the labels and the fold itself come from the ONE corpus in
+ * src/testdata/child-session-grouping.yaml, shared with the discovery, home,
+ * project and library surfaces in src/mountedChildSessionGrouping.test.tsx.
+ *
+ * Beyond the fold, these are the assertions the collective surfaces owe on
+ * their own account: a browse row still states every column its dropped table
+ * stated, the owner's select-everything control reaches a folded row, a
+ * repository's rows still state the model and the branch they ran on, and a
+ * revealed submission can still be approved.
  */
 
 vi.mock("next/navigation", () => ({
@@ -35,6 +64,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
   useSearchParams: () => new URLSearchParams(),
 }));
+
+function library(): HTMLElement { const element = document.querySelector<HTMLElement>('[data-testid="collective-transcript-library"]'); if (!element) throw new Error("the real collective page did not mount its transcript library"); return element; }
 
 const fixtures = loadChildSessionGroupingFixtures();
 
@@ -51,13 +82,19 @@ afterEach(() => {
 // ── the wire rows a case's transcripts arrive as ─────────────────────────────
 
 const GROUP_ID = "collective-1";
-/** The signed-in person for every case here. The contribute route is
+/** The signed-in person for every case here. The collective surfaces are
  *  membership-gated, so a viewer is always named. */
 const VIEWER = "ada";
+/** One remote across every row, so the repository view draws ONE repository and
+ *  what is asserted there is the fold inside it. A session and the sessions it
+ *  starts share a working tree, so one remote is also the realistic case. */
+const REPO_REMOTE = "github.com/ada/commons";
 
 /**
  * Published times descending with the row's position, so the corpus order IS
- * the order the listing answers in.
+ * the order the collective's own most-recent-first repository grouping
+ * produces. Without this the repository view would reorder the rows and the
+ * expectations would be asserting the sort rather than the fold.
  */
 const PUBLISHED_BASE = Date.UTC(2026, 7, 20, 12, 0, 0);
 
@@ -65,9 +102,86 @@ function publishedAt(index: number): string {
   return new Date(PUBLISHED_BASE - index * 60_000).toISOString();
 }
 
+/** The date a row states, written from the same Intl request the design system
+ *  makes of every date in this app -- stated here independently, so dropping
+ *  the date from a row fails rather than agreeing with itself. */
+function expectedDate(index: number): string {
+  return new Date(publishedAt(index)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/** Turns and tokens vary by row, so an assertion cannot pass on a list that
+ *  states one row's numbers against every row. */
+function expectedTurns(index: number): number {
+  return 3 + index;
+}
+
+function tokenCount(index: number): number {
+  return 1000 * (index + 1) + 500;
+}
+
+/** What {@link tokenCount} reads as once the list has shortened it. */
+function expectedTokens(index: number): string {
+  return `${(tokenCount(index) / 1000).toFixed(1)}K tok`;
+}
+
 const ROW_TITLE = (row: ChildSessionRow) => `Session ${row.name}`;
 const ROW_PROVIDER = "claude-code";
+const ROW_MODEL_NAME = "sonnet-4-5";
+/** {@link ROW_MODEL_NAME} as the list writes it out. */
+const EXPECTED_MODEL = "Sonnet 4.5";
 const ROW_BRANCH = "main";
+
+function groupTranscript(row: ChildSessionRow, index: number): GroupTranscript {
+  return {
+    ...makeTranscriptFixture({
+      id: row.name,
+      owner_id: row.ownerID,
+      local_id: row.localID,
+      parent_session_id: row.parentSessionID,
+      title: ROW_TITLE(row),
+      model_provider: ROW_PROVIDER,
+      model_name: ROW_MODEL_NAME,
+      turn_count: expectedTurns(index),
+      token_count: tokenCount(index),
+      published_at: publishedAt(index),
+      git_branch: ROW_BRANCH,
+      git_remote: REPO_REMOTE,
+      project_remote_label: "github.com:ada/commons",
+    }),
+    // The contract narrows these to closed sets; the shared fixture types them as strings.
+    license_id: null,
+    outcome: null,
+    source_format: null,
+    subagents: null,
+    owner_username: row.ownerID,
+    owner_avatar_url: null,
+    owner_is_discoverable: true,
+    pull_requests: { count: 0, recent: [] },
+  };
+}
+
+function myShare(row: ChildSessionRow, index: number): UserGroupShare {
+  return {
+    id: row.name,
+    owner_id: row.ownerID,
+    local_id: row.localID,
+    parent_session_id: row.parentSessionID,
+    title: ROW_TITLE(row),
+    model_provider: ROW_PROVIDER,
+    model_name: ROW_MODEL_NAME,
+    visibility: "shared",
+    published_at: publishedAt(index),
+    turn_count: expectedTurns(index),
+    tokens_in: null,
+    tokens_out: null,
+    status: "approved",
+    shared_at: publishedAt(index),
+  };
+}
 
 function contributableRow(row: ChildSessionRow, index: number): ContributableTranscript {
   return {
@@ -88,6 +202,246 @@ function contributableRow(row: ChildSessionRow, index: number): ContributableTra
     already_shared: false,
   };
 }
+
+// ── the collective's contributions, read as a list ───────────────────────────
+
+/** The row one transcript is drawn into, found by the row-wide link the list
+ *  puts over it. */
+function browseRowFor(row: ChildSessionRow): HTMLElement {
+  const anchor = document.querySelector<HTMLAnchorElement>(
+    `a[aria-label="Open transcript ${ROW_TITLE(row)}"]`,
+  );
+  if (anchor == null) throw new Error(`${row.name} is not drawn on the collective's browse list`);
+  return anchor.parentElement!;
+}
+
+/** The selection box on one row, root or folded. */
+function selectionBoxFor(row: ChildSessionRow): HTMLInputElement {
+  return within(browseRowFor(row)).getByRole("checkbox", {
+    name: `Select transcript ${ROW_TITLE(row)}`,
+  }) as HTMLInputElement;
+}
+
+async function renderCollectiveDetail(
+  fixtureRows: ChildSessionRow[],
+  extra: Partial<Parameters<typeof installGroupRouteREST>[0]> = {},
+): Promise<RecordedGroupRequest[]> {
+  const requests = installGroupRouteREST({
+    viewer: VIEWER,
+    groupId: GROUP_ID,
+    groupName: "commons",
+    role: "owner",
+    transcripts: fixtureRows.map(groupTranscript),
+    ...extra,
+  });
+  await renderGroupDetailRoute(GROUP_ID);
+  await flush();
+  if (fixtureRows.length > 0) await userEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
+  return requests;
+}
+
+describe("a collective's contributions read a started session under the session that started it", () => {
+  for (const testCase of casesFor("collective-browse")) {
+    it(testCase.name, async () => {
+      await renderCollectiveDetail(testCase.rows);
+      await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
+
+      // The browse list is the only thing on this page that links a transcript,
+      // so the whole document is the list's own root here.
+      await assertDisclosures(testCase, library(), testCase.expectedRootRows, linkedIDs);
+    });
+  }
+
+  it("states every column the dropped table stated, on a row and on a folded row alike", async () => {
+    const testCase = fixtures.cases.find(
+      (c) => c.name === "a-collectives-contributions-read-a-started-session-under-its-starter",
+    )!;
+    await renderCollectiveDetail(testCase.rows);
+    await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
+
+    // Reveal the folded rows, so a folded row is held to the same columns as a
+    // row that kept its place. A row that lost its columns on the way into a
+    // group would be a worse row for having been folded.
+    const group = testCase.expectedGroups[0];
+    const { chip, toggle } = disclosureFor(group.parent);
+    await expandDisclosure(toggle, chip);
+
+    for (const [index, row] of testCase.rows.entries()) {
+      const rowElement = browseRowFor(row);
+      const text = rowElement.textContent ?? "";
+      const where = `${row.name}: the collective's browse row`;
+      expect(text, `${where} states its title`).toContain(ROW_TITLE(row));
+      expect(text, `${where} states who contributed it`).toContain(row.ownerID);
+      expect(text, `${where} states the provider`).toContain(ROW_PROVIDER);
+      expect(text, `${where} states the turns`).toContain(`${expectedTurns(index)} turns`);
+      expect(text, `${where} states the tokens`).toContain(expectedTokens(index));
+      expect(text, `${where} states the date`).toContain(expectedDate(index));
+
+      // The row opens the transcript, and the handle leads to that person's
+      // library -- the app's own way from a collective into a contributor's
+      // work.
+      expect(
+        rowElement.querySelector('a[aria-label^="Open transcript"]')!.getAttribute("href"),
+        `${where} links to the transcript`,
+      ).toBe(`/transcripts/${row.name}`);
+      expect(
+        rowElement.querySelector(`a[href="/users/${row.ownerID}"]`),
+        `${where} links the contributor's handle`,
+      ).not.toBeNull();
+    }
+  });
+
+  it("lets the owner pick out a folded row, exactly like a row that kept its place", async () => {
+    const testCase = fixtures.cases.find(
+      (c) => c.name === "a-collectives-contributions-read-a-started-session-under-its-starter",
+    )!;
+    await renderCollectiveDetail(testCase.rows);
+    await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
+
+    const group = testCase.expectedGroups[0];
+    const { chip, toggle } = disclosureFor(group.parent);
+    await expandDisclosure(toggle, chip);
+
+    const foldedRow = testCase.rows.find((row) => row.name === group.children[0])!;
+    const box = selectionBoxFor(foldedRow);
+    expect(box.checked, `${foldedRow.name} starts unpicked`).toBe(false);
+
+    await act(async () => {
+      await userEvent.click(box);
+    });
+    await flush();
+
+    expect(selectionBoxFor(foldedRow).checked, `${foldedRow.name} is picked out`).toBe(true);
+    // The page reports the picked-out rows, which is what the remove action
+    // then acts on; a box that ticked without joining the set would remove
+    // nothing.
+    expect(document.body.textContent, "the page counts the picked-out row").toContain("remove selected (1)");
+  });
+
+  it("ticks every row on the page with one control, folded rows included", async () => {
+    const testCase = fixtures.cases.find(
+      (c) => c.name === "a-collectives-contributions-read-a-started-session-under-its-starter",
+    )!;
+    const requests = await renderCollectiveDetail(testCase.rows);
+    await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
+
+    const group = testCase.expectedGroups[0];
+    const { chip, toggle } = disclosureFor(group.parent);
+    await expandDisclosure(toggle, chip);
+
+    const selectAll = screen.getByRole("checkbox", {
+      name: "select all",
+    });
+    await act(async () => {
+      await userEvent.click(selectAll);
+    });
+    await flush();
+
+    // "Select everything" means everything the page holds. A folded row that
+    // stayed unpicked here would be silently left behind by a remove the owner
+    // believed covered the page -- which is the regression this asserts.
+    for (const row of testCase.rows) {
+      expect(
+        selectionBoxFor(row).checked,
+        `${row.name} is picked out by the select-everything control`,
+      ).toBe(true);
+    }
+    expect(document.body.textContent, "the page counts every row on it").toContain(
+      `remove selected (${testCase.rows.length})`,
+    );
+    await userEvent.click(screen.getByRole("button", { name: `remove selected (${testCase.rows.length})` }));
+    await waitFor(() => expect(requests.filter((request) => request.method === "DELETE").map((request) => new URL(request.url).pathname)).toEqual(testCase.rows.map((row) => `/api/v1/groups/${GROUP_ID}/transcripts/${row.name}`)));
+  });
+});
+
+// ── the same contributions, read by repository ───────────────────────────────
+
+/** Switches the collective's browse panel to its repository view. */
+async function showRepositories(): Promise<void> {
+  await act(async () => {
+    await userEvent.click(screen.getByRole("button", { name: "repos" }));
+  });
+  await flush();
+}
+
+describe("a repository's rows read a started session under the session that started it", () => {
+  for (const testCase of casesFor("collective-repos")) {
+    it(testCase.name, async () => {
+      await renderCollectiveDetail(testCase.rows);
+      await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
+      await showRepositories();
+
+      await assertDisclosures(testCase, library(), testCase.expectedRootRows, linkedIDs);
+    });
+  }
+
+  it("states the model, the branch and the date under a repository", async () => {
+    const testCase = fixtures.cases.find(
+      (c) => c.name === "a-collectives-contributions-read-a-started-session-under-its-starter",
+    )!;
+    await renderCollectiveDetail(testCase.rows);
+    await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
+    await showRepositories();
+
+    const group = testCase.expectedGroups[0];
+    const { chip, toggle } = disclosureFor(group.parent);
+    await expandDisclosure(toggle, chip);
+
+    for (const [index, row] of testCase.rows.entries()) {
+      const text = browseRowFor(row).textContent ?? "";
+      const where = `${row.name}: the row under its repository`;
+      expect(text, `${where} states its title`).toContain(ROW_TITLE(row));
+      expect(text, `${where} states which model ran`).toContain(EXPECTED_MODEL);
+      expect(text, `${where} states the branch`).toContain(ROW_BRANCH);
+      expect(text, `${where} states the date`).toContain(expectedDate(index));
+    }
+  });
+});
+
+// ── a member's own contributions to a collective ─────────────────────────────
+
+describe("your contributions read a started contribution under the one that started it", () => {
+  for (const testCase of casesFor("my-contributions")) {
+    it(testCase.name, async () => {
+      await renderCollectiveDetail([], {
+        role: "member",
+        transcripts: [],
+        myShares: testCase.rows.map(myShare),
+      });
+      await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
+
+      // Nothing else on this page links a transcript for this fixture: the
+      // collective holds no browsable contributions here, so the whole document
+      // is this list's root.
+      await assertDisclosures(testCase, library(), testCase.expectedRootRows, linkedIDs);
+    });
+  }
+
+  it("keeps the unshare action on a revealed contribution", async () => {
+    const testCase = fixtures.cases.find(
+      (c) => c.name === "your-contributions-read-a-started-contribution-under-its-starter",
+    )!;
+    const requests = await renderCollectiveDetail([], {
+      role: "member",
+      transcripts: [],
+      myShares: testCase.rows.map(myShare),
+    });
+    await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
+
+    const group = testCase.expectedGroups[0];
+    const { chip, toggle } = disclosureFor(group.parent);
+    const revealed = await expandDisclosure(toggle, chip);
+
+    expect(linkedIDs(revealed), "the revealed contribution").toEqual(group.children);
+    expect(
+      within(revealed).getAllByTitle("withdraw contribution"),
+      "a revealed contribution can still be taken back",
+    ).toHaveLength(group.children.length);
+    await userEvent.click(within(revealed).getAllByTitle("withdraw contribution")[0]);
+    await waitFor(() => expect(requests.filter((request) => request.method === "DELETE").map((request) => new URL(request.url).pathname)).toEqual([`/api/v1/transcripts/${group.children[0]}/share/${GROUP_ID}`]));
+    await waitFor(() => expect(linkedIDs(library())).not.toContain(group.children[0]));
+  });
+});
 
 // ── the contribute selection tree ────────────────────────────────────────────
 

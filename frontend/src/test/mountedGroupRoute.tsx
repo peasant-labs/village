@@ -6,8 +6,11 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { parse } from "yaml";
 import { AuthProvider } from "@/providers/AuthProvider";
+import GroupDetailPage from "@/app/groups/[id]/page";
+import type { VillageSessionListItem, VillageSessionListPayload } from "@peasant-labs/schema";
+import type { PendingShare } from "@/lib/review/types";
 import GroupContributePage from "@/app/groups/[id]/contribute/page";
-import type { Group, GroupMember, User } from "@/lib/types";
+import type { Group, GroupMember, GroupTranscript, UserGroupShare, User } from "@/lib/types";
 import type { ContributableTranscript } from "@/lib/contribute/types";
 
 /**
@@ -101,6 +104,30 @@ export function loadGroupsContributeNavFixtures(): ContributeNavFixtures {
 
 // ── Route fixture ────────────────────────────────────────────────────────
 
+/**
+ * One pending submission as `GET /groups/{id}/pending` answers it.
+ *
+ * This is the WIRE type, not a second copy of it, so a fixture row cannot
+ * drift from what the route actually serves. The three identity columns are
+ * what the review queue folds on: a queue holds rows from several publishers,
+ * and a session id is unique per owner rather than globally, so the owner is
+ * part of the match. The project and branch columns are what the review page
+ * groups by.
+ */
+export type PendingShareFixtureRow = PendingShare;
+
+/**
+ * One page of the saved helper members a group's own opaque scope answers with,
+ * as `GET /transcript-groups/{groupId}/members` serves it. The page and limit
+ * are echoed from the request, so a mount that asked for a different page or
+ * size cannot silently receive this one.
+ */
+export interface HelperMemberPageFixture {
+  members: VillageSessionListItem[];
+  limit: number;
+  total: number;
+}
+
 export interface GroupRouteFixture {
   /** Signed-in viewer's GitHub username, or `null` for an anonymous one (`/auth/me` answers 401). */
   viewer: string | null;
@@ -108,6 +135,25 @@ export interface GroupRouteFixture {
   groupName: string;
   /** `your_role` the `/groups/{id}` payload reports, or `null` for a non-member. */
   role: "contributor" | "member" | "owner" | null;
+  /** How the collective accepts contributions. `curated` is what opens the
+   *  owner's review queue; the default keeps every existing case's `open`
+   *  collective unchanged. */
+  acceptanceMode?: "open" | "verified_only" | "curated";
+  /** The collective's contributions, served on `/groups/{id}` and read by both
+   *  the browse list and the repository view. */
+  transcripts?: GroupTranscript[];
+  /** `GET /groups/{id}/pending`, the owner's review queue of a curated
+   *  collective. */
+  pendingShares?: PendingShareFixtureRow[];
+  /** `GET /groups/{id}/my-shares`, this person's own contributions. */
+  myShares?: UserGroupShare[];
+  /** `GET /groups/{id}/my-shares?view=grouped`, the same contributions with the
+   *  saved helper groups the server grouped under each owner row. The panel
+   *  reads it as a supplement; omitting it serves one empty grouped page. */
+  groupedMyShares?: (page: number) => VillageSessionListPayload;
+  /** `GET /transcript-groups/{groupId}/members?scope=...`, the saved helper
+   *  members one expanded group serves, keyed by that group's opaque scope. */
+  helperMembers?: Record<string, HelperMemberPageFixture>;
   /** `GET /groups/{id}/contributable`, what the contribute tree offers. */
   contributable?: ContributableTranscript[];
 }
@@ -138,7 +184,7 @@ function makeGroup(fixture: GroupRouteFixture): Group {
     created_by: "user-owner",
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
-    acceptance_mode: "open",
+    acceptance_mode: fixture.acceptanceMode ?? "open",
     data_access: "members_only",
     role: fixture.role ?? "",
     member_since: fixture.role ? "2026-01-02T00:00:00Z" : null,
@@ -165,34 +211,124 @@ const json = (body: unknown, status = 200) =>
   });
 
 /**
- * Stubs `fetch` for one group-route fixture: `/auth/me`, `/groups/{id}` and
- * `/groups/{id}/contributable` (what the contribute page reads). Any other
- * request throws, so a route that starts reading something new fails loudly
- * instead of being answered by a stub written for another page.
+ * An empty grouped my-shares page at the page size the panel requests. A
+ * fixture that names no grouped contributions serves this, so the panel reads a
+ * well-formed empty page rather than a flat array it cannot decode.
  */
-export function installGroupRouteREST(fixture: GroupRouteFixture): void {
+const EMPTY_GROUPED_MY_SHARES: VillageSessionListPayload = {
+  items: [],
+  page: 1,
+  limit: 100,
+  totalItems: 0,
+  ordinarySessionTotal: 0,
+  helperThreadTotal: 0,
+};
+
+/** One request the mounted route made, with its parsed body, so a test asserts
+ *  WHAT was sent rather than only that something was. */
+export interface RecordedGroupRequest {
+  method: string;
+  url: string;
+  body: unknown;
+}
+
+/**
+ * Stubs `fetch` for one group-route fixture: `/auth/me`, `/groups/{id}`,
+ * `/groups/{id}/my-shares` (fired unconditionally for a signed-in viewer by
+ * `useMyGroupShares`), `/groups/{id}/pending` (the owner's review queue of a
+ * curated collective), `/groups/{id}/repositories`, `/groups/{id}/contributable`,
+ * the `PATCH /groups/{id}/shares/{transcriptId}` a moderator's decision sends,
+ * and `/transcripts?owner=...` (fired by the contribute page's `useTranscripts`
+ * for a member).
+ *
+ * Answers with the array it RECORDS every request into, so a test can assert
+ * the decision a moderator's click actually sent, and for which submission.
+ */
+export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroupRequest[] {
   const group = makeGroup(fixture);
   const members = [makeMember(fixture)];
+  const requests: RecordedGroupRequest[] = [];
 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = (init?.method ?? "GET").toUpperCase();
+    requests.push({
+      method,
+      url,
+      body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
+    });
+    if (method === "DELETE" && /\/transcripts\/[^/]+\/share\/[^/]+$/.test(new URL(url).pathname)) {
+      const transcriptID = new URL(url).pathname.split("/").at(-3);
+      fixture.myShares = (fixture.myShares ?? []).filter((share) => share.id !== transcriptID);
+      return json({ status: "removed" });
+    }
+    if (method === "DELETE" && /\/groups\/[^/]+\/transcripts\/[^/]+$/.test(new URL(url).pathname)) {
+      const transcriptID = new URL(url).pathname.split("/").at(-1);
+      fixture.transcripts = (fixture.transcripts ?? []).filter((row) => row.id !== transcriptID);
+      return json({ status: "removed" });
+    }
+    if (method === "PATCH" && /\/shares\/[^/]+$/.test(url)) {
+      return json({ ok: true });
+    }
 
     if (url.endsWith("/auth/me")) {
       if (fixture.viewer == null) return json({ error: "unauthenticated" }, 401);
       return json(makeUser(fixture.viewer));
     }
+    if (url.includes("/my-shares")) {
+      // The panel reads the grouped variant as a supplement to the flat one;
+      // only the `view=grouped` opt-in gets the grouped page.
+      const params = new URL(url, "https://village.test").searchParams;
+      if (params.get("view") === "grouped") {
+        const page = Number(params.get("page") ?? 1);
+        return json(fixture.groupedMyShares?.(page) ?? { ...EMPTY_GROUPED_MY_SHARES, page });
+      }
+      return json(fixture.myShares ?? []);
+    }
+    if (url.includes("/transcript-groups/")) {
+      const params = new URL(url, "https://village.test").searchParams;
+      const spec = fixture.helperMembers?.[params.get("scope") ?? ""];
+      // No declared page for this scope is the fail-closed 409 the host states.
+      if (spec == null) return json({ error: "unknown scope" }, 409);
+      return json({
+        members: spec.members,
+        page: Number(params.get("page") ?? 1),
+        limit: spec.limit,
+        total: spec.total,
+      });
+    }
+    if (url.includes("/pending")) {
+      return json(fixture.pendingShares ?? []);
+    }
+    if (url.includes("/repositories")) {
+      // The repository-link feature is optional server-side and answers 501
+      // when it is not configured, which the panel renders as its own notice.
+      return json({ error: "not configured" }, 501);
+    }
+    if (url.includes("/transcripts?")) {
+      return json({ transcripts: [], total: 0, agent_total: 0, page: 1, limit: 100 });
+    }
+    // Fired by the tree-based contribute page's `useContributable`
+    // (village#66). Empty by default: the panel's own empty state ("all
+    // your transcripts are already shared...") covers this fixture's
+    // member-view assertion the same way the interim single-panel shell did.
     if (url.includes("/contributable")) {
       return json({ group_id: fixture.groupId, transcripts: fixture.contributable ?? [] });
     }
+    // The detail payload, with or without the paging query the "browse all"
+    // control adds; both answer from the same list, which is what the real
+    // endpoint does.
     if (new RegExp(`/groups/${fixture.groupId}(\\?|$)`).test(url)) {
+      const params = new URL(url, "https://village.test").searchParams;
+      if (params.get("view") === "grouped") return json({ groupId: fixture.groupId, transcriptList: { ...EMPTY_GROUPED_MY_SHARES, page: Number(params.get("page") ?? 1) } });
+      const groupTranscripts = fixture.transcripts ?? [];
       return json({
         group,
         members,
-        transcripts: [],
+        transcripts: groupTranscripts,
         stats: {
-          total_transcripts: 0,
-          contributor_count: 0,
+          total_transcripts: groupTranscripts.length,
+          contributor_count: new Set(groupTranscripts.map((t) => t.owner_id)).size,
           total_turns: 0,
           total_duration_ms: 0,
           total_tokens: 0,
@@ -207,10 +343,11 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): void {
     throw new Error(`group-route fixture received an unexpected ${method} request to ${url}`);
   });
   vi.stubGlobal("fetch", fetchMock);
+  return requests;
 }
 
-function Providers({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
+function Providers({ children, queryClient }: { children: ReactNode; queryClient?: QueryClient }) {
+  const client = queryClient ?? new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return (
@@ -220,6 +357,19 @@ function Providers({ children }: { children: ReactNode }) {
       </AuthProvider>
     </QueryClientProvider>
   );
+}
+
+/** Renders the real `/groups/{id}` route. */
+export async function renderGroupDetailRoute(id: string): Promise<QueryClient> {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  await act(async () => {
+    render(
+      <Providers queryClient={queryClient}>
+        <GroupDetailPage params={Promise.resolve({ id })} />
+      </Providers>,
+    );
+  });
+  return queryClient;
 }
 
 /** Renders the real `/groups/{id}/contribute` route. */

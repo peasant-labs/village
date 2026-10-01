@@ -14,8 +14,16 @@
  * request, and leaves every other route (including a search that matches none
  * of these collectives) to the handlers after it.
  */
+import { readFileSync } from 'node:fs'
+import { parse } from 'yaml'
 import { FROZEN_EPOCH_MS } from './determinism-constants.mjs'
 
+export const RETAINED_CONTRIBUTIONS = parse(readFileSync(new URL('../testdata/collective-retained-flows.yaml', import.meta.url), 'utf8'), { strict: true }).contributions
+if (!Array.isArray(RETAINED_CONTRIBUTIONS) || JSON.stringify(RETAINED_CONTRIBUTIONS.map((row) => row.name).sort()) !== JSON.stringify(['approved-private-child', 'pending-private-parent'])) throw new Error('retained collective contribution fixtures are missing or duplicated')
+for (const row of RETAINED_CONTRIBUTIONS) {
+  if (Object.keys(row).sort().join(',') !== ['name', 'id', 'localID', 'parentSessionID', 'title', 'status'].sort().join(',') || !['pending', 'approved'].includes(row.status) || !row.id || !row.localID || !row.title || !(row.parentSessionID === null || typeof row.parentSessionID === 'string')) throw new Error('invalid retained collective contribution fixture')
+}
+const emptyGrouped = (url) => ({ items: [], page: Number(url.searchParams.get('page') || 1), limit: Number(url.searchParams.get('limit') || 100), totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 })
 const VIEWER_ID = 'user-demo'
 const ago = (minutes) => new Date(FROZEN_EPOCH_MS - minutes * 60_000).toISOString()
 
@@ -62,6 +70,14 @@ const transcript = (id, title, provider, turns, author, prs, minutes) => ({
   owner_avatar_url: null,
   owner_is_discoverable: true,
   pull_requests: prs,
+  local_id: id,
+  parent_session_id: id === "c41a9f20-0000-4000-8000-000000000002" ? "3f9c0a17-0000-4000-8000-000000000001" : null,
+  project_hash: "a".repeat(64),
+  project_display_name: prs.recent[0]?.name ?? "worker",
+  project_name_source: "remote",
+  git_remote: prs.recent[0] ? `https://github.com/${prs.recent[0].owner}/${prs.recent[0].name}` : null,
+  git_branch: "main",
+  model_name: null,
   published_at: ago(minutes),
   session_start: ago(minutes + 40),
   token_count: turns * 12000,
@@ -141,7 +157,8 @@ function freshWorld() {
         group: group(owner.id, owner.name, 'Transcripts behind the ingest and web services.', { linked_github_org: 'acme' }),
         role: 'owner',
         members: PLATFORM_MEMBERS,
-        transcripts: PLATFORM_TRANSCRIPTS,
+        transcripts: [...PLATFORM_TRANSCRIPTS],
+        myShares: RETAINED_CONTRIBUTIONS.map((row) => ({ id: row.id, title: row.title, model_provider: "claude-code", owner_id: VIEWER_ID, local_id: row.localID, parent_session_id: row.parentSessionID, visibility: "private", status: row.status, shared_at: ago(30) })),
         stats: { total_transcripts: 248, contributor_count: 9, total_turns: 9120, total_duration_ms: 3_600_000 * 41, total_tokens: 124_000_000, pull_request_count: 31 },
         linked: ['ingest-api', 'web'],
         memberSince: ago(60 * 24 * 150),
@@ -260,6 +277,14 @@ export function handleCollectiveRequest(req, res) {
     return true
   }
 
+  const withdrawal = path.match(/^\/transcripts\/([^/]+)\/share\/([^/]+)$/)
+  if (withdrawal && req.method === 'DELETE') {
+    const entry = world.collectives[withdrawal[2]]
+    if (!entry) return false
+    entry.myShares = (entry.myShares || []).filter((row) => row.id !== withdrawal[1])
+    send(res, 200, { status: 'removed' })
+    return true
+  }
   const match = path.match(/^\/groups\/([^/]+)(\/.*)?$/)
   if (!match) return false
   const entry = world.collectives[match[1]]
@@ -267,7 +292,7 @@ export function handleCollectiveRequest(req, res) {
   const rest = match[2] || ''
 
   if (rest === '' && req.method === 'GET') {
-    send(res, 200, detail(entry, url))
+    send(res, 200, url.searchParams.get("view") === "grouped" ? { groupId: entry.group.id, transcriptList: emptyGrouped(url) } : detail(entry, url))
     return true
   }
   if (rest === '' && req.method === 'PATCH') {
@@ -282,7 +307,13 @@ export function handleCollectiveRequest(req, res) {
     return true
   }
   if (rest === '/my-shares' && req.method === 'GET') {
-    send(res, 200, [])
+    send(res, 200, url.searchParams.get("view") === "grouped" ? emptyGrouped(url) : (entry.myShares || []))
+    return true
+  }
+  const removedTranscript = rest.match(/^\/transcripts\/([^/]+)$/)
+  if (removedTranscript && req.method === 'DELETE') {
+    entry.transcripts = entry.transcripts.filter((row) => row.id !== removedTranscript[1])
+    send(res, 200, { status: 'removed' })
     return true
   }
   if (rest === '/repositories' && req.method === 'GET') {

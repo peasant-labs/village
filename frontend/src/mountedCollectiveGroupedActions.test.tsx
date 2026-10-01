@@ -2,16 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import GroupContributePage from "@/app/groups/[id]/contribute/page";
+import GroupDetailPage from "@/app/groups/[id]/page";
 import GroupReviewPage from "@/app/groups/[id]/review/page";
 import { AuthProvider } from "@/providers/AuthProvider";
 import type { Group, User } from "@/lib/types";
 import {
+  flatBrowseRows,
   flatContributeRows,
   flatPendingRows,
+  groupedDetailPayload,
   groupedItems,
   loadCollectiveGroupedActionFixtures,
   memberPage,
-  type ActionSurface,
   type CollectiveActionCase,
 } from "@/test/collectiveGroupedActionFixtures";
 import { memberUUID } from "@/test/groupedHelperMountFixtures";
@@ -86,7 +88,7 @@ interface Calls {
   mutations: MutationCall[];
 }
 
-function installREST(surface: ActionSurface, testCase: CollectiveActionCase): Calls {
+function installREST(surface: "browse" | "contribute" | "review", testCase: CollectiveActionCase): Calls {
   const calls: Calls = { grouped: [], members: [], mutations: [] };
   const items = groupedItems(fixtures, testCase);
   vi.stubGlobal(
@@ -101,12 +103,13 @@ function installREST(surface: ActionSurface, testCase: CollectiveActionCase): Ca
       if (path.endsWith("/auth/orgs")) return json([]);
       if (path === `/api/v1/groups/${GROUP_ID}`) {
         if (grouped) {
-          throw new Error("the collective detail read is never requested as a grouped page");
+          calls.grouped.push(url.search);
+          return json(groupedDetailPayload(fixtures, testCase));
         }
         return json({
           group: groupFixture(surface === "review" ? "owner" : "member"),
           members: [],
-          transcripts: [],
+          transcripts: surface === "browse" ? flatBrowseRows(fixtures) : [],
           stats: {},
           models: [],
           contributors: [],
@@ -146,6 +149,8 @@ function installREST(surface: ActionSurface, testCase: CollectiveActionCase): Ca
         }
         return json(flatPendingRows(fixtures));
       }
+      if (path.endsWith("/repositories")) return json({ error: "not configured" }, 501);
+      if (path.endsWith("/my-shares")) return json(grouped ? { items: [], page: Number(url.searchParams.get("page") ?? 1), limit: 100, totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 } : []);
       if (path.includes("/transcript-groups/")) {
         calls.members.push(url.search);
         const scope = url.searchParams.get("scope");
@@ -175,7 +180,7 @@ function installREST(surface: ActionSurface, testCase: CollectiveActionCase): Ca
   return calls;
 }
 
-function renderRoute(surface: ActionSurface) {
+function renderRoute(surface: "browse" | "contribute" | "review") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -184,8 +189,10 @@ function renderRoute(surface: ActionSurface) {
       <AuthProvider>
         {surface === "contribute" ? (
           <GroupContributePage params={Promise.resolve({ id: GROUP_ID })} />
-        ) : (
+        ) : surface === "review" ? (
           <GroupReviewPage params={Promise.resolve({ id: GROUP_ID })} />
+        ) : (
+          <GroupDetailPage params={Promise.resolve({ id: GROUP_ID })} />
         )}
       </AuthProvider>
     </QueryClientProvider>,
@@ -237,6 +244,41 @@ for (const testCase of fixtures.cases) {
     await act(async () => {
       renderRoute(testCase.surface);
     });
+    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
+
+    if (testCase.surface === "browse") {
+      // The collective's browse list is still its own list; the grouped read
+      // attaches the server's saved helper group under the owner row it was
+      // grouped with, in exactly one place.
+      await waitFor(() => expect(calls.grouped).toHaveLength(1));
+      const roots = await waitFor(() => {
+        const found = document.querySelectorAll(
+          `.helper-group[data-group-id="${fixtures.groups.owner.groupId}"]`,
+        );
+        expect(found).toHaveLength(1);
+        return found;
+      });
+      const slot = document.querySelector('[data-testid="owner-helper-groups"]');
+      expect(slot, "the group hangs off the owner row the grouped read named").not.toBeNull();
+      expect(slot!.contains(roots[0])).toBe(true);
+
+      const trigger = roots[0].querySelector<HTMLButtonElement>("button.sgd-trigger");
+      expect(trigger).not.toBeNull();
+      act(() => {
+        fireEvent.click(trigger!);
+      });
+      const member = fixtures.members.owner[0];
+      await waitFor(() => expect(calls.members).toHaveLength(1));
+      const link = await waitFor(() => {
+        const found = document.querySelector<HTMLAnchorElement>("a.helper-thread-open");
+        expect(found).not.toBeNull();
+        return found!;
+      });
+      expect(link.getAttribute("href")).toBe(`/transcripts/${memberUUID(member.name)}`);
+      // The browse list is read-only here: no per-member selection box appears.
+      expect(document.querySelector('input[aria-label^="select "]')).toBeNull();
+      return;
+    }
 
     // The flat tree row is still the row on screen; the grouped read only
     // supplements it.
@@ -321,6 +363,7 @@ for (const testCase of fixtures.overlapCases) {
     await act(async () => {
       renderRoute(testCase.surface);
     });
+    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
 
     // The identity is drawn by the flat list ...
     await waitFor(() =>
@@ -406,6 +449,7 @@ for (const testCase of fixtures.connectorCases) {
     await act(async () => {
       renderRoute(testCase.surface);
     });
+    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
 
     await waitFor(() =>
       expect(screen.getByTestId(`contribute-session-row-${row.id}`)).toBeInTheDocument(),

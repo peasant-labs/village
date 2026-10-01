@@ -646,3 +646,116 @@ cases:
     expectedRootRows: [list-the-endpoints, probe-the-timeouts]
     expectedHomeRows: []
     expectedGroups: []
+
+  - name: a-collectives-contributions-read-a-started-session-under-its-starter
+    surfaces: [collective-browse, collective-repos]
+    absentParentCause: none
+    rows:
+      - name: ship-the-parser
+        ownerID: owner-ada
+        localID: sess-parser
+        parentSessionID: null
+      - name: widen-the-lexer
+        ownerID: owner-ada
+        localID: sess-lexer
+        parentSessionID: sess-parser
+      - name: add-a-golden-file
+        ownerID: owner-ada
+        localID: sess-golden
+        parentSessionID: sess-parser
+      - name: tune-the-cache
+        ownerID: owner-bo
+        localID: sess-cache
+        parentSessionID: null
+    agentSessions: []
+    serverTotal: 4
+    expectedVisibleCount: 2
+    expectedRootRows: [ship-the-parser, tune-the-cache]
+    expectedHomeRows: []
+    expectedGroups:
+      - parent: ship-the-parser
+        label: "2 child sessions"
+        children: [widen-the-lexer, add-a-golden-file]
+
+  # A collective's browse list is paged and filtered, so the session that
+  # started a contribution is often simply not on the page a reader is looking
+  # at. The contribution keeps its ordinary row; removing it would take a
+  # transcript the reader can open out of the collective they are browsing.
+  - name: a-collective-row-naming-a-session-this-page-omits-keeps-its-row
+    surfaces: [collective-browse, collective-repos]
+    absentParentCause: another-page
+    rows:
+      - name: audit-the-indexes
+        ownerID: owner-ada
+        localID: sess-indexes
+        parentSessionID: null
+      - name: rerun-the-import
+        ownerID: owner-bo
+        localID: sess-import
+        parentSessionID: sess-on-an-earlier-page
+    agentSessions: []
+    serverTotal: 2
+    expectedVisibleCount: 2
+    expectedRootRows: [audit-the-indexes, rerun-the-import]
+    expectedHomeRows: []
+    expectedGroups: []
+
+  # ── the review queue of a curated collective ──────────────────────────────
+  # The rows carry everything a fold needs -- this submission was started by
+  # that one -- and the queue still lists all three side by side. That is the
+  # deliberate outcome, not a gap in the corpus: see the surface note at the top
+  # of this file. A moderator can still reach and decide every submission, which
+  # is the property this surface must never lose.
+  - name: your-contributions-read-a-started-contribution-under-its-starter
+    surfaces: [my-contributions]
+    absentParentCause: none
+    rows:
+      - name: draft-the-schema
+        ownerID: owner-ada
+        localID: sess-schema
+        parentSessionID: null
+      - name: generate-the-types
+        ownerID: owner-ada
+        localID: sess-types
+        parentSessionID: sess-schema
+      - name: write-the-adapter
+        ownerID: owner-ada
+        localID: sess-adapter
+        parentSessionID: null
+    agentSessions: []
+    serverTotal: 3
+    expectedVisibleCount: 2
+    expectedRootRows: [draft-the-schema, write-the-adapter]
+    expectedHomeRows: []
+    expectedGroups:
+      - parent: draft-the-schema
+        label: "1 child session"
+        children: [generate-the-types]
+
+  # A contribution whose starter was never offered to THIS collective. The list
+  # holds only what this person gave this collective, so the starter is filtered
+  # out of it by definition, and the contribution keeps its ordinary row.
+  - name: a-contribution-whose-starter-is-not-in-this-collective-keeps-its-row
+    surfaces: [my-contributions]
+    absentParentCause: filtered-out
+    rows:
+      - name: trim-the-payload
+        ownerID: owner-ada
+        localID: sess-payload
+        parentSessionID: null
+      - name: retry-the-upload
+        ownerID: owner-ada
+        localID: sess-upload
+        parentSessionID: sess-never-contributed
+    agentSessions: []
+    serverTotal: 2
+    expectedVisibleCount: 2
+    expectedRootRows: [trim-the-payload, retry-the-upload]
+    expectedHomeRows: []
+    expectedGroups: []
+
+  # ── the contribute selection tree ─────────────────────────────────────────
+  # Choosing what to contribute is where the fold matters most: a person picks a
+  # session, and the sessions it started come with it. The tree used to run its
+  # own private fold; it runs the shared one now, so the count on the control is
+  # the number of rows the control reveals.

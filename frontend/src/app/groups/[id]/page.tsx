@@ -40,6 +40,7 @@ import {
 } from "@/lib/adapters/collective";
 import { applyRepoLinks, repoLinkMessage, repoLinkSteps, splitRepo } from "@/lib/repoLinks";
 import LeaveCollectiveDialog from "@/components/group/LeaveCollectiveDialog";
+import CollectiveTranscriptLibrary from "@/components/group/CollectiveTranscriptLibrary";
 import JoinConsentDialog from "@/components/group/JoinConsentDialog";
 
 /** How many transcripts the table shows first, and how many more each `show more` adds. */
@@ -295,6 +296,8 @@ export default function GroupDetailPage({
           }}
         />
       </div>
+
+      <CollectiveTranscriptLibrary groupID={id} transcripts={readable} canRead={canRead} isOwner={isOwner} />
 
       {user && canLeave && (
         <LeaveCollectiveDialog
