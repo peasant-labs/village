@@ -713,6 +713,7 @@ export function groupedDetailPage(
       total_turns: 0,
       total_duration_ms: 0,
       total_tokens: 0,
+      pull_request_count: 0,
     },
     models: [],
     contributors: [],

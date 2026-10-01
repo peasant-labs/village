@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +34,10 @@ const attachmentRedactionLevel = string(redact.Standard)
 // attachmentHookTimeout bounds the post-publish completion work, which runs
 // inside the publish request but must not be tied to the client's connection.
 const attachmentHookTimeout = 30 * time.Second
+
+func attachmentWorkContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), attachmentHookTimeout)
+}
 
 // Sentinel failures the attachment lifecycle reports so a caller can map them to
 // the right status: a collective that no longer exists or a repository that is
@@ -190,54 +196,79 @@ func (h *Handler) loadAttachmentCandidates(ctx context.Context, authorID pgtype.
 	return candidates, nil
 }
 
-// buildAttachmentDigest projects an accepted match into the reviewer-facing
-// digest. It reads each accepted transcript's turns through Village's single
+// attachmentDigests is one accepted set of transcripts, projected for the pull
+// request's page and for its comment and check.
+type attachmentDigests struct {
+	// complete covers every transcript. It is what the attachment stores, and
+	// the pull request page narrows it to what its viewer can open before
+	// serving it. Its header links the pull request's page on village.
+	complete schema.PromptDigest
+	// rows say, for each transcript, what the comment and the check may show
+	// besides its prompts: its title (only when anyone can read it), its
+	// author, and whether it is listed (listedOnPullRequest).
+	rows []digest.Row
+	// commitSet is the pull request's commits, in the order GitHub listed them.
+	commitSet []string
+	// readableBeyondAuthor says whether anyone besides the author can read at
+	// least one of the transcripts, which is what the check's conclusion asks.
+	readableBeyondAuthor bool
+	// visibility is each transcript's visibility as these digests read it, so a
+	// caller can tell whether it changed before the digests were posted.
+	visibility map[schema.TranscriptID]string
+	// readable remembers actual grants, including changes that leave visibility unchanged.
+	readable map[schema.TranscriptID]bool
+}
+
+// forPullRequest is what the comment and the check render.
+func (d attachmentDigests) forPullRequest() digest.PullRequest {
+	return digest.PullRequest{Digest: d.complete, Rows: d.rows, CommitSet: d.commitSet}
+}
+
+// pullRequestPageURL is the pull request's page on village: where the check's
+// details link, the digest header, and every "read on village" link go.
+func (h *Handler) pullRequestPageURL(attachment sqlc.PullRequestAttachment) string {
+	return strings.TrimRight(h.cfg.FrontendURL, "/") + "/pulls/" + url.PathEscape(attachment.RepoOwner) + "/" +
+		url.PathEscape(attachment.RepoName) + "/" + strconv.Itoa(int(attachment.Number))
+}
+
+// buildAttachmentDigests projects an accepted match into the reviewer-facing
+// digest. It reads each transcript's turns once, through Village's single
 // decrypting read path, and takes its anchor time and change counts from the
-// transcript's own recorded commit, never from the pull request side.
-// requiredVisibility, when set, drops every transcript whose current visibility
-// is narrower than it, and counts the rows it dropped. It is set only on the
-// refresh path: an attach or a preview builds the digest it is about to widen
-// for, so filtering there would empty it.
-func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []schema.TranscriptID, commitSet []string, match matcher.Result, requiredVisibility string) (schema.PromptDigest, int, error) {
-	sessions := make([]digest.Session, 0, len(transcriptIDs))
-	dropped := 0
-	var commits []digest.CommitMatch
+// transcript's own recorded commit, never from the pull request side. It also
+// reads what the comment and the check say about each transcript besides its
+// prompts: the title and visibility it already read, and its owner's handle.
+func (h *Handler) buildAttachmentDigests(ctx context.Context, attachment sqlc.PullRequestAttachment, transcriptIDs []schema.TranscriptID, commitSet []string, match matcher.Result) (attachmentDigests, error) {
+	var complete digest.Input
+	result := attachmentDigests{visibility: make(map[schema.TranscriptID]string, len(transcriptIDs)), readable: make(map[schema.TranscriptID]bool, len(transcriptIDs))}
 
 	anchorsByTranscript := map[schema.TranscriptID][]matcher.Anchor{}
 	for _, accepted := range match.Accepted {
 		anchorsByTranscript[accepted.TranscriptID] = accepted.Anchors
 	}
+	handles := map[[16]byte]string{}
 
 	for _, accepted := range transcriptIDs {
 		transcriptID, err := uuid.Parse(string(accepted))
 		if err != nil {
-			return schema.PromptDigest{}, 0, fmt.Errorf("an accepted transcript id was not a uuid: %w", err)
+			return attachmentDigests{}, fmt.Errorf("an accepted transcript id was not a uuid: %w", err)
 		}
 		row, err := h.queries.GetTranscriptByID(ctx, pgtype.UUID{Bytes: transcriptID, Valid: true})
 		if err != nil {
-			return schema.PromptDigest{}, 0, fmt.Errorf("could not read an accepted transcript for the digest: %w", err)
-		}
-		if requiredVisibility != "" && disclosureRank(row.Visibility) < disclosureRank(requiredVisibility) {
-			// The owner has made this transcript less visible than the repository
-			// the attachment belongs to requires, so the pull request must stop
-			// advertising it. The binding stays: detach still restores the value
-			// it recorded.
-			dropped++
-			continue
+			return attachmentDigests{}, fmt.Errorf("could not read an accepted transcript for the digest: %w", err)
 		}
 
 		read, err := h.readEncryptedTranscript(ctx, row, "", func(candidate sqlc.Transcript) bool {
 			return candidate.ID == row.ID
 		})
 		if err != nil {
-			return schema.PromptDigest{}, 0, fmt.Errorf("could not read an accepted transcript's turns for the digest: %w", err)
+			return attachmentDigests{}, fmt.Errorf("could not read an accepted transcript's turns for the digest: %w", err)
 		}
 		detail, err := decodePublicationDetail(read.Plaintext)
 		if err != nil {
-			return schema.PromptDigest{}, 0, fmt.Errorf("could not decode an accepted transcript's turns for the digest: %w", err)
+			return attachmentDigests{}, fmt.Errorf("could not decode an accepted transcript's turns for the digest: %w", err)
 		}
 		if detail == nil {
-			return schema.PromptDigest{}, 0, errors.New("an accepted transcript's stored content was not a decodable publication, so no digest could be built")
+			return attachmentDigests{}, errors.New("an accepted transcript's stored content was not a decodable publication, so no digest could be built")
 		}
 
 		turns := make([]digest.Turn, 0, len(detail.Turns))
@@ -250,16 +281,15 @@ func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []sch
 				Command:   turn.Command,
 			})
 		}
-		sessions = append(sessions, digest.Session{
+		complete.Sessions = append(complete.Sessions, digest.Session{
 			TranscriptID:   accepted,
 			Harness:        schema.Harness(row.ModelProvider),
 			RedactionLevel: attachmentRedactionLevel,
 			SessionStart:   row.SessionStart.Time,
 			Turns:          turns,
 		})
-
 		for _, anchor := range anchorsByTranscript[accepted] {
-			commits = append(commits, digest.CommitMatch{
+			complete.Commits = append(complete.Commits, digest.CommitMatch{
 				TranscriptID: accepted,
 				CommitSHA:    anchor.CommitSHA,
 				AuthoredAt:   anchor.AuthoredAt,
@@ -268,18 +298,42 @@ func (h *Handler) buildAttachmentDigest(ctx context.Context, transcriptIDs []sch
 				FilesChanged: anchor.FilesChanged,
 			})
 		}
+
+		result.visibility[accepted] = row.Visibility
+		author, known := handles[row.OwnerID.Bytes]
+		if !known {
+			owner, err := h.queries.GetUserByID(ctx, row.OwnerID)
+			if err != nil {
+				return attachmentDigests{}, fmt.Errorf("could not read an accepted transcript's author for the digest: %w", err)
+			}
+			author = owner.GithubUsername
+			handles[row.OwnerID.Bytes] = author
+		}
+		listed := listedOnPullRequest(row.Visibility)
+		entry := digest.Row{TranscriptID: accepted, Author: author, Listed: listed}
+		if listed {
+			// A title is only ever read into a row anyone may read.
+			entry.Title = row.Title.String
+			entry.URL = transcriptFrontendURL(h.cfg.FrontendURL, accepted)
+		}
+		result.rows = append(result.rows, entry)
+		readable, err := h.readableBeyondItsAuthor(ctx, row)
+		if err != nil {
+			return attachmentDigests{}, err
+		}
+		result.readable[accepted] = readable
+		result.readableBeyondAuthor = result.readableBeyondAuthor || readable
 	}
 
-	value, err := digest.Build(digest.Input{
-		VillageURL: strings.TrimRight(h.cfg.FrontendURL, "/"),
-		CommitSet:  commitSet,
-		Sessions:   sessions,
-		Commits:    commits,
-	})
-	if err != nil {
-		return schema.PromptDigest{}, 0, err
+	complete.VillageURL = h.pullRequestPageURL(attachment)
+	complete.CommitSet = commitSet
+	result.commitSet = commitSet
+
+	var err error
+	if result.complete, err = digest.Build(complete); err != nil {
+		return attachmentDigests{}, err
 	}
-	return value, dropped, nil
+	return result, nil
 }
 
 // intPointerFromPg converts a nullable integer column to the optional count the

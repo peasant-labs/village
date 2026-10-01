@@ -1,0 +1,210 @@
+# GET /api/v1/transcripts/{id}/pulls against real PostgreSQL.
+#
+# One world, read by several viewers. The author publishes three transcripts:
+# a public one bound to pull requests in every state and several repositories,
+# one shared only with the team, and a private one. Each case names who reads
+# which transcript and the exact list they must get back, newest first.
+#
+# What the database decides, and so what this file proves:
+#   - attached and detached attachments are listed, newest first by the later of
+#     when each was attached and detached; requested, waiting, and preview
+#     attachments are never listed;
+#   - an attachment whose repository the collective no longer links is omitted,
+#     because its visibility cannot be checked;
+#   - membership comes from group_members, and a pending join request is not
+#     membership;
+#   - a caller who may not read the transcript gets 404, never 403. The check
+#     is the transcript's own: a reader GitHub admits to the repository a
+#     transcript is attached to is not let in through that repository here.
+# The rule applied to each row (author, member) is pinned one attachment at a
+# time by pull-request-visibility.yaml. `reader` can read acme/app on GitHub but
+# is not in the collective, and is shown only what any stranger is: Village does
+# not grant access through a repository's readers, and never asks GitHub.
+#
+# `expect` lists refs as owner/name#number, in order. A pull request GitHub
+# does not describe (acme/site#17 here) is listed with a null title and head
+# branch. `github_fails: [pulls]` makes GitHub answer 500 for pull request
+# reads.
+world:
+  people: [author, member, pending, reader, stranger]
+  collectives:
+    - name: team
+      created_by: author
+      members: {member: member, pending: pending}
+      repositories:
+        - {repo: acme/app, private: true}
+        - {repo: acme/site, private: false}
+        - {repo: acme/gone, private: false}
+    # Links acme/app as PUBLIC. The team's attachments on acme/app are still
+    # private: an attachment's repository is the one ITS collective links.
+    - name: elsewhere
+      created_by: author
+      repositories:
+        - {repo: acme/app, private: false}
+    - name: review-team
+      created_by: stranger
+      members: {member: member}
+  transcripts:
+    - {name: open-session, owner: author, visibility: public}
+    - {name: team-session, owner: author, visibility: shared, shares: {team: approved}}
+    - {name: private-session, owner: author, visibility: private}
+    - {name: pending-session, owner: author, visibility: shared, shares: {team: pending}}
+    - {name: rejected-session, owner: author, visibility: shared, shares: {team: rejected}}
+    - {name: pending-review-session, owner: author, visibility: shared, shares: {review-team: pending}}
+  attachments:
+    # Attached first, detached last (the world detaches after every attach), so
+    # newest-first by the later of the two puts them ahead of #17, #12 and #11.
+    - {collective: team, repo: acme/app, number: 18, author: author, state: detached, transcripts: [open-session]}
+    - {collective: team, repo: acme/site, number: 19, author: author, state: detached, transcripts: [open-session]}
+    - {collective: team, repo: acme/app, number: 11, author: author, state: attached, transcripts: [open-session]}
+    - {collective: team, repo: acme/site, number: 12, author: author, state: attached, transcripts: [open-session]}
+    - {collective: team, repo: acme/app, number: 13, author: author, state: requested, transcripts: [open-session]}
+    - {collective: team, repo: acme/app, number: 14, author: author, state: waiting, transcripts: [open-session]}
+    - {collective: team, repo: acme/site, number: 15, author: author, state: preview, transcripts: [open-session]}
+    - {collective: team, repo: acme/gone, number: 16, author: author, state: attached, transcripts: [open-session], unlinked: true}
+    - {collective: team, repo: acme/site, number: 17, author: author, state: attached, transcripts: [open-session]}
+    - {collective: team, repo: acme/app, number: 21, author: author, state: attached, transcripts: [team-session]}
+    - {collective: team, repo: acme/site, number: 31, author: author, state: attached, transcripts: [private-session]}
+  github:
+    pull_requests:
+      - {ref: acme/app#11, title: Tighten the ingest retry, head_ref: fix/ingest-retry}
+      - {ref: acme/site#12, title: Document the site build, head_ref: docs/site-build}
+      - {ref: acme/app#18, title: Retry the flaky upload, head_ref: fix/upload-retry}
+      - {ref: acme/site#19, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/app#21, title: Share the team dashboard, head_ref: feat/team-dashboard}
+      - {ref: acme/site#31, title: Keep drafts private, head_ref: fix/private-drafts}
+    readers:
+      reader: {acme/app: read}
+
+cases:
+  - name: owner-sees-every-listed-pull-request
+    viewer: author
+    transcript: open-session
+    status: 200
+    expect:
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/app#18, state: detached, title: Retry the flaky upload, head_ref: fix/upload-retry}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
+      - {ref: acme/app#11, state: attached, title: Tighten the ingest retry, head_ref: fix/ingest-retry}
+
+  - name: collective-member-sees-private-repository-pull-requests
+    viewer: member
+    transcript: open-session
+    status: 200
+    expect:
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/app#18, state: detached, title: Retry the flaky upload, head_ref: fix/upload-retry}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
+      - {ref: acme/app#11, state: attached, title: Tighten the ingest retry, head_ref: fix/ingest-retry}
+
+  - name: anonymous-reader-sees-public-repository-pull-requests
+    viewer: ""
+    transcript: open-session
+    status: 200
+    expect:
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
+
+  - name: signed-in-stranger-sees-public-repository-pull-requests
+    viewer: stranger
+    transcript: open-session
+    status: 200
+    expect:
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
+
+  - name: pending-join-request-is-not-membership
+    viewer: pending
+    transcript: open-session
+    status: 200
+    expect:
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
+
+  - name: repository-reader-outside-the-collective-sees-public-repository-pull-requests
+    viewer: reader
+    transcript: open-session
+    status: 200
+    expect:
+      - {ref: acme/site#19, state: detached, title: Drop the old landing page, head_ref: chore/landing}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: Document the site build, head_ref: docs/site-build}
+
+  - name: titles-are-unknown-when-github-cannot-describe-them
+    viewer: author
+    transcript: open-session
+    github_fails: [pulls]
+    status: 200
+    expect:
+      - {ref: acme/site#19, state: detached, title: null, head_ref: null}
+      - {ref: acme/app#18, state: detached, title: null, head_ref: null}
+      - {ref: acme/site#17, state: attached, title: null, head_ref: null}
+      - {ref: acme/site#12, state: attached, title: null, head_ref: null}
+      - {ref: acme/app#11, state: attached, title: null, head_ref: null}
+
+  - name: member-reads-a-transcript-shared-with-the-team
+    viewer: member
+    transcript: team-session
+    status: 200
+    expect:
+      - {ref: acme/app#21, state: attached, title: Share the team dashboard, head_ref: feat/team-dashboard}
+
+  - name: owner-reads-a-private-transcript
+    viewer: author
+    transcript: private-session
+    status: 200
+    expect:
+      - {ref: acme/site#31, state: attached, title: Keep drafts private, head_ref: fix/private-drafts}
+
+  - name: non-reader-of-a-private-transcript-gets-404
+    viewer: stranger
+    transcript: private-session
+    status: 404
+    expect: []
+
+  - name: repository-reader-outside-the-collective-gets-404-on-a-transcript-shared-only-with-the-team
+    viewer: reader
+    transcript: team-session
+    status: 404
+    expect: []
+
+  - name: anonymous-non-reader-of-a-shared-transcript-gets-404
+    viewer: ""
+    transcript: team-session
+    status: 404
+    expect: []
+
+  - name: pending-submission-does-not-grant-member-access
+    viewer: member
+    transcript: pending-session
+    status: 404
+    expect: []
+
+  - name: rejected-submission-does-not-grant-member-access
+    viewer: member
+    transcript: rejected-session
+    status: 404
+    expect: []
+
+  - name: pending-membership-does-not-grant-approved-submission-access
+    viewer: pending
+    transcript: team-session
+    status: 404
+    expect: []
+
+  - name: transcript-owner-reads-pending-submission
+    viewer: author
+    transcript: pending-session
+    status: 200
+    expect: []
+
+  - name: collective-owner-keeps-pending-review-preview
+    viewer: stranger
+    transcript: pending-review-session
+    status: 200
+    expect: []

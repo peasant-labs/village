@@ -22,6 +22,7 @@ type Querier interface {
 	UpsertUser(ctx context.Context, arg sqlc.UpsertUserParams) (sqlc.User, error)
 	UpsertUserByProvider(ctx context.Context, arg sqlc.UpsertUserByProviderParams) (sqlc.User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (sqlc.User, error)
+	ListUsersByIDs(ctx context.Context, ids []pgtype.UUID) ([]sqlc.User, error)
 	GetUserByUsername(ctx context.Context, githubUsername string) (sqlc.User, error)
 	SetUsername(ctx context.Context, arg sqlc.SetUsernameParams) (sqlc.User, error)
 	ConfirmOwnHandle(ctx context.Context, arg sqlc.ConfirmOwnHandleParams) (sqlc.User, error)
@@ -38,6 +39,7 @@ type Querier interface {
 	// Transcript methods
 	CreateTranscript(ctx context.Context, arg sqlc.CreateTranscriptParams) (sqlc.Transcript, error)
 	GetTranscriptByID(ctx context.Context, id pgtype.UUID) (sqlc.Transcript, error)
+	GetOwnerTranscriptTotals(ctx context.Context, ownerID pgtype.UUID) (sqlc.GetOwnerTranscriptTotalsRow, error)
 	GetTranscriptGovernanceForUpdate(ctx context.Context, id pgtype.UUID) (sqlc.GetTranscriptGovernanceForUpdateRow, error)
 	GetTranscriptIDByOwnerAndLocalID(ctx context.Context, arg sqlc.GetTranscriptIDByOwnerAndLocalIDParams) (pgtype.UUID, error)
 	UpdateTranscriptByOwnerAndLocalID(ctx context.Context, arg sqlc.UpdateTranscriptByOwnerAndLocalIDParams) (sqlc.Transcript, error)
@@ -83,6 +85,7 @@ type Querier interface {
 	// Tag methods
 	GetOrCreateTag(ctx context.Context, name string) (sqlc.Tag, error)
 	GetTranscriptTags(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.Tag, error)
+	ListTagsByTranscriptIDs(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListTagsByTranscriptIDsRow, error)
 	LinkTranscriptTag(ctx context.Context, arg sqlc.LinkTranscriptTagParams) error
 	UnlinkTranscriptTags(ctx context.Context, transcriptID pgtype.UUID) error
 	ListTags(ctx context.Context) ([]sqlc.ListTagsRow, error)
@@ -182,22 +185,34 @@ type Querier interface {
 	GetUserByProviderIdentity(ctx context.Context, arg sqlc.GetUserByProviderIdentityParams) (sqlc.User, error)
 	CreatePullRequestAttachment(ctx context.Context, arg sqlc.CreatePullRequestAttachmentParams) (sqlc.PullRequestAttachment, error)
 	GetPullRequestAttachment(ctx context.Context, id pgtype.UUID) (sqlc.PullRequestAttachment, error)
+	LockPullRequestAttachmentArtifacts(ctx context.Context, id pgtype.UUID) (sqlc.PullRequestAttachment, error)
+	ListLiveOwnedDigestTranscripts(ctx context.Context, arg sqlc.ListLiveOwnedDigestTranscriptsParams) ([]pgtype.UUID, error)
 	GetPullRequestAttachmentForPull(ctx context.Context, arg sqlc.GetPullRequestAttachmentForPullParams) (sqlc.PullRequestAttachment, error)
 	UpdatePullRequestAttachmentState(ctx context.Context, arg sqlc.UpdatePullRequestAttachmentStateParams) (sqlc.PullRequestAttachment, error)
 	AttachPullRequestTranscript(ctx context.Context, arg sqlc.AttachPullRequestTranscriptParams) error
 	ListPullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.PullRequestAttachmentTranscript, error)
 	ListAttachmentsBindingTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
+	ListAttachmentsForCollectiveGrants(ctx context.Context, groupID pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
+	ListAttachmentsContainingTranscript(ctx context.Context, arg sqlc.ListAttachmentsContainingTranscriptParams) ([]sqlc.PullRequestAttachment, error)
 	GetPullRequestAttachmentTranscript(ctx context.Context, arg sqlc.GetPullRequestAttachmentTranscriptParams) (sqlc.PullRequestAttachmentTranscript, error)
 	DeletePullRequestAttachmentTranscript(ctx context.Context, arg sqlc.DeletePullRequestAttachmentTranscriptParams) error
+	ReleasePullRequestAttachmentTranscript(ctx context.Context, arg sqlc.ReleasePullRequestAttachmentTranscriptParams) error
 	ListPullRequestAttachmentTranscriptSummaries(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.ListPullRequestAttachmentTranscriptSummariesRow, error)
 	DeletePullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) error
-	SetPullRequestAttachmentDigest(ctx context.Context, arg sqlc.SetPullRequestAttachmentDigestParams) error
 	SetPullRequestAttachmentArtifacts(ctx context.Context, arg sqlc.SetPullRequestAttachmentArtifactsParams) error
 	ListAuthorWaitingPromptRequests(ctx context.Context, authorID pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
 	ListAuthorAttachmentsForRepo(ctx context.Context, arg sqlc.ListAuthorAttachmentsForRepoParams) ([]sqlc.PullRequestAttachment, error)
 	SetPullRequestAttachmentRequester(ctx context.Context, arg sqlc.SetPullRequestAttachmentRequesterParams) (sqlc.PullRequestAttachment, error)
-	SetUserPreviewBeforeAttach(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error)
+	UpdateUserAttachSettings(ctx context.Context, arg sqlc.UpdateUserAttachSettingsParams) (sqlc.User, error)
 	GetCollectiveRepositoryByRepo(ctx context.Context, arg sqlc.GetCollectiveRepositoryByRepoParams) (sqlc.CollectiveRepository, error)
+
+	// Pull request reads for the transcript, home, and collective pages: one
+	// candidate read per page or scope, filtered by pullRequestReadable, and the
+	// shared remotes behind the repository picker's publisher count.
+	ListPullRequestCandidatesByTranscripts(ctx context.Context, arg sqlc.ListPullRequestCandidatesByTranscriptsParams) ([]sqlc.ListPullRequestCandidatesByTranscriptsRow, error)
+	ListAttachedPullRequestCandidatesByOwner(ctx context.Context, arg sqlc.ListAttachedPullRequestCandidatesByOwnerParams) ([]sqlc.ListAttachedPullRequestCandidatesByOwnerRow, error)
+	ListAttachedPullRequestCandidatesByGroup(ctx context.Context, arg sqlc.ListAttachedPullRequestCandidatesByGroupParams) ([]sqlc.ListAttachedPullRequestCandidatesByGroupRow, error)
+	ListCollectiveSharedRemotes(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListCollectiveSharedRemotesRow, error)
 }
 
 // Compile-time assertion: *sqlc.Queries must satisfy Querier.

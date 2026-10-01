@@ -195,6 +195,46 @@ func (q *Queries) ListCollectiveRepositories(ctx context.Context, groupID pgtype
 	return items, nil
 }
 
+const listCollectiveSharedRemotes = `-- name: ListCollectiveSharedRemotes :many
+SELECT DISTINCT t.owner_id, t.git_remote
+FROM transcript_shares ts
+JOIN transcripts t ON t.id = ts.transcript_id
+WHERE ts.group_id = $1
+  AND ts.status = 'approved'
+  AND t.git_remote IS NOT NULL
+  AND t.git_remote <> ''
+`
+
+type ListCollectiveSharedRemotesRow struct {
+	OwnerID   pgtype.UUID `db:"owner_id" json:"owner_id"`
+	GitRemote pgtype.Text `db:"git_remote" json:"git_remote"`
+}
+
+// The git remotes of the transcripts already shared with one collective (an
+// approved share, not a submission awaiting review), with each transcript's
+// owner, for the repository picker's publisher count. A remote is reduced to its
+// repository in Go by schema.RemoteLabel, the contract's rule for naming a
+// remote's repository (githubRepositoryKey), so no SQL here parses one.
+func (q *Queries) ListCollectiveSharedRemotes(ctx context.Context, groupID pgtype.UUID) ([]ListCollectiveSharedRemotesRow, error) {
+	rows, err := q.db.Query(ctx, listCollectiveSharedRemotes, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCollectiveSharedRemotesRow{}
+	for rows.Next() {
+		var i ListCollectiveSharedRemotesRow
+		if err := rows.Scan(&i.OwnerID, &i.GitRemote); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRepositoryCommits = `-- name: ListRepositoryCommits :many
 SELECT id, owner, name, sha, message, author_name, author_email, authored_at, committed_at, fetched_at FROM repository_commits
 WHERE lower(owner) = lower($1) AND lower(name) = lower($2)

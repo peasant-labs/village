@@ -27,8 +27,10 @@
 #                       itself refused, so the transcript stays private and the
 #                       answer says so.
 #   hangup_during_narrowing  the client hangs up while the narrowing statement
-#                       is running: it is detached too, so the republish goes
-#                       on and restores.
+#                       is running: it is detached, so it commits, and the
+#                       object write that follows fails on the cancelled
+#                       request, so the compensating restore puts the
+#                       audience back and no content is replaced.
 #   narrowing_unconfirmed  PostgreSQL does not confirm the narrowing's commit,
 #                       so the republish stops before writing anything and the
 #                       answer hedges that the transcript may now be private.
@@ -287,17 +289,21 @@
 - name: shared_hangup_during_narrowing_still_restores_the_collective
   why: >
     a hang-up in the middle of the narrowing statement would otherwise close the connection that holds the publish
-    lock before anything was written; the narrowing runs detached, so the republish completes and restores
+    lock before anything was written; the narrowing runs detached, so it commits, the object write on the cancelled
+    request then fails, and the compensating restore on the connection that still holds the lock puts the
+    collective back
   pre_image: shared
   outcome: hangup_during_narrowing
-  want_status: 200
+  want_status: 500
   want_visibility: shared
   want_events:
     - {type: visibility_changed, visibility: private}
     - {type: visibility_changed, visibility: shared}
   want_live_shares: 1
   want_member_reads: true
-  content_replaced: true
+  content_replaced: false
+  want_body_contains: ["Encrypted transcript write failed"]
+  want_body_omits: ["may now be private"]
 
 - name: shared_unconfirmed_narrowing_says_so
   why: >

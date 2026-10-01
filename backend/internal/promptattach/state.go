@@ -27,19 +27,22 @@ const (
 	// yet. The request completes on a later matching publish, with no second click.
 	Waiting State = "waiting"
 
-	// Preview: the digest is computed, but nothing is posted and no visibility
-	// changed. Every author action lands here; a confirm on Village moves it to
-	// Attached, and only a publish may complete a waiting request without one.
+	// Preview: the digest is computed and nothing is bound. The pull request
+	// carries only a comment counting the author's matching transcripts, naming
+	// none of them. Every author click lands here; a confirm on Village moves it
+	// to Attached. Only the author's own publish, or their choice to link
+	// automatically when a pull request opens, completes a request without one.
 	Preview State = "preview"
 
-	// Attached: the comment is posted, the check is green, and the transcripts
-	// are shared. A new push or a new accepted matching publish keeps it
-	// Attached with the digest recomputed.
+	// Attached: the transcripts are bound, the comment is posted, and the check
+	// reports. Attaching changes no transcript's audience. A new push or a new
+	// accepted matching publish keeps it Attached with the digest recomputed.
 	Attached State = "attached"
 
-	// Detached: the comment is deleted, the check is reset, and each attached
-	// transcript's recorded previous visibility is restored. The row survives
-	// so a later author click can re-enter the machine.
+	// Detached: the comment is deleted and the check is reset. A binding an older
+	// attach widened is released (its share withdrawn, its recorded visibility
+	// restored); every binding is kept, and the row survives so a later author
+	// click can re-enter the machine.
 	Detached State = "detached"
 )
 

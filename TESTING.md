@@ -25,6 +25,7 @@ suite under the race detector.
 | Route drift gate (mounted routes ⊆ served contract ∪ manifest) | none | no | unit | `backend/internal/router/contract_drift_test.go`; manifest `testdata/undocumented_routes.yaml` |
 | Contract request-body enforcement (collectives and user-settings mutations) | none | no | unit | `backend/internal/handler/contract_body_test.go`; fixture `testdata/contract_body_operations.yaml` |
 | Declared-but-unimplemented routes answer 501 (pull request attachment stubs) | none | no | unit | `backend/internal/router/attachment_stubs_test.go`; fixture `testdata/attachment_stub_routes.yaml` |
+| Pull request reads: visibility rule, transcript list, summaries, counts, no-N+1 guard | mixed | the database families do | both | [Pull request reads](#pull-request-reads-one-rule-four-surfaces) below |
 | Governance rules (fail-closed fixtures, append-only teardown, drift guards, convergence) | mixed | mostly yes | both | [Governance testing](#governance-testing-migration-026) below |
 | Test performance (measured levers, template cache) | - | - | - | [Test performance](#test-performance-measured) below |
 
@@ -289,12 +290,62 @@ in the answer that are authored in the corpus; the unconfirmed shared case then
 shares again and requires the member's access back without a new attempt. The
 restore rule under the row lock, including the rows no mounted path can reach,
 is `testdata/republish-visibility-restore.yaml`. The pull request side of the
-same rule, a digest that keeps, drops or regains the row, is
+same rule, a listing that keeps, drops or regains the row, is
 `attachment_visibility_drift_integration_test.go`, and a whole-project
 contribution that waited through a republish is
 `a_visibility_restored_while_waiting_is_not_overwritten` in
 `groups-batch-share.yaml`, with its mirror
 `a_transcript_made_private_while_waiting_needs_consent`.
+
+### Attaching keeps the audience: four readers, three surfaces
+
+`internal/handler/attach_audience_integration_test.go` +
+`testdata/attach-audience.yaml` attach one transcript per row through the
+author's preview and confirm, on a public or a private repository, at each
+visibility, and then ask four readers (the owner, a member of the linking
+collective, a signed-in non-member whom GitHub admits to a private repository,
+and nobody signed in) what they can read: the transcript route's status, and
+whether the pull request page shows them its title and prompts. Each row also
+pins whether the posted comment and check list the prompt, the check's
+conclusion, that attaching and then detaching append no governance event and
+move no share, and that the detached pull request keeps its binding. Two rows
+change the visibility between attach and detach, through the owner's PATCH, and
+require the detach to keep it.
+
+Bindings an older attach widened are built directly in the state that attach
+left, marked `attach_widened`, by
+`attachment_legacy_detach_integration_test.go` + `testdata/legacy-detach.yaml`;
+each row detaches through the mounted route and pins the restored visibility,
+both collectives' live shares, the owner-attributed event when the detach
+narrowed, and the cleared mark. The same file proves the release waits for the
+transcript's publish lock (the share stays approved while the lock is held) and
+that a narrowing release reposts another pull request that listed the
+transcript. The database-level half, that a binding keeps its recorded value
+and kind through the detach transition and a re-bind, is
+`internal/promptattach/testdata/visibility_restore.yaml`.
+
+`internal/digest/testdata/restrict.yaml` pins `digest.Restrict`, the per-viewer
+narrowing the page applies: no item or text of a removed transcript, prompts
+renumbered from one, and, except for a commit two transcripts recorded, the
+same chain a fresh build over the kept transcripts produces.
+
+`attachment_auto_attach_integration_test.go` +
+`testdata/github_webhook/auto-attach.yaml` dispatch a `pull_request` `opened`
+event through the production dispatcher for each case of the author's
+`auto_attach_pull_requests` choice: opted in, opted out, no Village account, an
+unlinked repository, an author outside the linking collective, a fork, a
+redelivery that must not post a second comment, and a pull request that waits
+until a later publish completes it. The setting itself is written by
+`PATCH /users/me/settings`, pinned field by field in
+`testdata/user-settings-patch.yaml` and read back through PostgreSQL by
+`TestUserSettingsRoundTrip`.
+
+Three single-scenario races sit beside the fixtures: an owner narrowing a
+transcript while its attach is posting (`TestAnAttachReconcilesANarrowingDuringItsPost_RealPostgres`,
+through a fake GitHub hook that runs mid-post), a webhook request cancelled
+mid-post (`TestAutoAttachSurvivesTheWebhookGivingUp_RealPostgres`), and a page
+binding two transcripts with different audiences
+(`TestThePageShowsEachReaderOnlyWhatTheyCanRead_RealPostgres`).
 
 ### Contributing a whole project: refusals are asserted on the LEDGER
 
@@ -761,6 +812,78 @@ the Go test computes itself. It carries `//go:build integration` and runs
 under `make backend-encrypted-test` alongside the rest of this file's real-Postgres
 suites.
 
+### Pull request reads: one rule, four surfaces
+
+`GET /transcripts/{id}/pulls`, the `pull_requests` summary on list rows,
+`stats.pull_request_count` on the collective reads, and `GET /users/me/stats`
+all start from one candidate read per page or scope
+(`ListPullRequestCandidatesByTranscripts` and its owner and collective twins in
+`queries/pull_request_attachments.sql`) and filter it with one Go function,
+`pullRequestReadable`. The rule has one copy on purpose, and the tests are split
+along the same line:
+
+- `internal/handler/testdata/pull-request-visibility.yaml` +
+  `pull_request_reads_test.go` pin the rule one attachment at a time through the
+  production route with the candidate read mocked: public repository to anyone,
+  private repository to its author and the linking collective's members, and
+  nobody else - including a signed-in reader GitHub would admit to the
+  repository. Every case also asserts GitHub was never asked a permission
+  question.
+- `transcript-pulls.yaml`, `personal-stats.yaml`, and
+  `pull-request-summaries.yaml` run against real PostgreSQL through a declared
+  world (`pull_request_reads_world_integration_test.go`) that writes shares
+  through the attempt ledger and attachment states through
+  `promptattach.Transition`, detaching last so a pull request can be attached
+  early and detached late. Between them they prove, for the transcript
+  statement and the collective statement alike, what only the database
+  decides: the state filter, the repository link join scoped to the
+  attachment's own collective (an unlinked repository's attachment is omitted,
+  and another collective linking the same repository as public changes
+  nothing), membership from `group_members` (a pending join request is not
+  membership), approved shares only in the collective count, zero for a viewer
+  the collective does not let read its transcripts, 404 for a caller who cannot
+  read the transcript (byte-identical to a transcript that does not exist),
+  distinct counts, and newest first by the later of attached and detached. Each
+  summary case lists every row its surface returns, so a row that appears or
+  vanishes fails. The helper-member expansion's summaries are asserted in
+  `collective_grouped_integration_test.go`.
+- `pull-request-read-failures.yaml` makes exactly one read fail on each of the
+  list, flat and grouped collective, transcript, stats, and picker surfaces (the rest are real)
+  and requires a 500 naming it, so no surface serves a failed read as zero pull
+  requests; the helper-member expansion's failure case is in
+  `collective_grouped_integration_test.go`.
+- The list summaries cases require `[]` tags on untagged rows.
+- The title and head branch reads have their own unit tests in
+  `pull_request_reads_test.go`: views of one pull request share one read, a
+  read and a list each stop at the deadline, a list starts no read after it or
+  after its caller leaves (counted from the cache's own tables against a
+  GitHub that holds reads, with explicit failure bounds), a
+  read one caller started still answers the next caller, each outcome is
+  remembered for its window at explicit instants, the table stays bounded, and
+  the shipped bounds themselves are pinned.
+- `router/transcript_pulls_route_integration_test.go` drives the production
+  router: a signed-in owner reads their private transcript's pull requests (200)
+  and a caller with no session gets 404, which the anonymous rows in
+  `router/testdata/attachment_route_auth.yaml` cannot tell from a route that
+  ignores the session. The anonymous response is byte-identical to a missing
+  transcript's response.
+- `repo-publishers.yaml` pins `publisher_count`: distinct owners of transcripts
+  with an APPROVED share to the collective whose remote `schema.RemoteLabel`
+  reads as that github.com repository. An unshared transcript, a submission
+  awaiting review, a share to another collective, and a remote on another host
+  all count nothing.
+- `pull-request-list-queries.yaml` is the no-N+1 guard. It counts every
+  statement at the pool (a pgx tracer) while the flat transcript list, the flat
+  collective read, and the grouped collective read answer a page of one row and
+  a page of fifty, and fails when the two differ. Every row must carry a summary
+  of two, its own owner and its own tag, and the collective count twice the page
+  size, so the guard cannot pass on empty or misplaced reads. (The helper-member
+  expansion fills its page through the same function as the grouped read.)
+
+Titles and head branches come from GitHub through the pull request fake in
+`pull_request_reads_github_fake_test.go`; a pull request it does not describe is
+served with both null.
+
 ### Pull, skip-gate, publish-idempotency, and explicit-backfill families
 
 Newer real-Postgres families worth knowing when touching those paths:
@@ -1012,8 +1135,9 @@ transaction control. A
 `schema_migrations(version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ)` table
 tracks what has run; each migration is checked before exec, so `RunMigrations`
 is idempotent. Files are paired `NNN_name.up.sql` / `NNN_name.down.sql`. The
-latest registered version is **032** (`032_authoritative_publication_receipts`);
-the next new migration is **033**. Versions 19 and 25 are intentionally absent
+latest registered version is the one `wantLatestMigration` in
+`migrations_registry_test.go` pins; read it there rather than from this file,
+and number the next migration one above it. Versions 19 and 25 are intentionally absent
 from the registry and must not be reused. See `docs/database-invariants.md` §1.
 
 **Registry-wide invariants live in ONE central test** -
@@ -1322,8 +1446,11 @@ escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
-The served/enforced contract expectation is Village API 0.22.0, including retained
-unknown evidence and the preceding head-remote prompt-request contract. Consumer
+The served/enforced contract expectation is Village API 0.24.0, including the
+pull request reads (a transcript's pull requests as the narrow
+`VillageTranscriptPullRequest` row, the caller's totals, list-row summaries, and
+the collective and repository counts), retained unknown evidence, and the
+preceding head-remote prompt-request contract. Consumer
 release still requires a published Schema tag and the corresponding module pin.
 For a pre-release contract prototype only, the encrypted aggregate accepts an
 explicit absolute `GOWORK` pointing outside the repository; its default remains
@@ -1534,3 +1661,28 @@ these systems:
   fixture entries (`internal/handler/testfixtures/`, the contract corpora); the
   loaders and generic tests pick them up without new assertion helpers. Don't
   inline literals across test files.
+
+### Attachment grants and deletion
+
+`attachment-grants.yaml` drives mounted collective approval, batch approval,
+rejection, removal, member-departure and accepted membership routes against real PostgreSQL, asserting
+both the actual posted check and unchanged visibility. It also revokes a shared
+read grant during the real GitHub post and observes reconciliation.
+
+`attachment-deletion.yaml` drives the mounted transcript deletion route from
+preview, attached, detached and posting states. It checks durable digest bytes,
+owner-page privacy, empty remote reposts, a late artifact write, historical
+preview reads and failed remote edits. Production row locks serialize derived
+copies with deletion; fixtures execute that boundary rather than copying it.
+Tests purge their captured deletion-surviving governance audit rows explicitly.
+
+`attachment-legacy-operations.yaml` protects release-under-publish-lock, a stale
+already-released binding and the older marked binding cleared by a reattach,
+including the second pull request's actual repost. `attachment-actor-lookup.yaml`
+separates missing accounts from retryable database errors at the lookup boundary.
+All corpora use strict decoding and required-name manifests.
+
+`attachment-refresh-budget.yaml` observes the real batch helper's query contexts
+and exact shared deadline, including a canceled caller and a failing first read.
+It needs no real-time sleep or external service: the invariant is the completion
+budget, not database lock timing.

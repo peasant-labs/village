@@ -32,9 +32,14 @@
 
 - {name: ListApprovedTranscriptShareGroups, file: shares_pull.sql, kind: read}
 
+- {name: ListAttachedPullRequestCandidatesByGroup, file: pull_request_attachments.sql, kind: read}
+- {name: ListCollectiveSharedRemotes, file: collective_repositories.sql, kind: read}
+
 - {name: ListPullableTranscripts, file: transcripts_pull.sql, kind: read}
 - {name: CountPullableTranscripts, file: transcripts_pull.sql, kind: read}
 - {name: ListPullableTranscriptsByIDs, file: transcripts_pull.sql, kind: read}
 
 - {name: ListProjectTranscriptsForViewer, file: transcripts.sql, kind: read}
 - {name: ListGroupedTranscriptCandidates, file: grouped_transcripts.sql, kind: read}
+
+- {name: ListAttachmentsForCollectiveGrants, file: pull_request_attachments.sql, kind: read}

@@ -37,6 +37,22 @@ func decodeFixtureRows[T any](data []byte) ([]T, error) {
 	return rows, nil
 }
 
+// decodeFixtureDocument strictly decodes a fixture file whose single document
+// is a mapping rather than a list of rows.
+func decodeFixtureDocument[T any](data []byte) (T, error) {
+	var document T
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&document); err != nil {
+		return document, err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return document, fmt.Errorf("fixture must contain exactly one YAML document")
+	}
+	return document, nil
+}
+
 type fixtureLoaderProbe struct {
 	Name string `yaml:"name"`
 }

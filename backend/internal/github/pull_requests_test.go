@@ -28,6 +28,7 @@ type pullRequestCase struct {
 	Response string `yaml:"response"`
 	Expect   struct {
 		Number           int    `yaml:"number"`
+		Title            string `yaml:"title"`
 		RepoID           int64  `yaml:"repo_id"`
 		HeadSHA          string `yaml:"head_sha"`
 		HeadRef          string `yaml:"head_ref"`
@@ -112,7 +113,7 @@ func TestGetPullRequestDecodesTheDocumentedShape(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetPullRequest: %v", err)
 			}
-			if pr.Number != tc.Expect.Number || pr.RepoID != tc.Expect.RepoID || pr.HeadSHA != tc.Expect.HeadSHA ||
+			if pr.Number != tc.Expect.Number || pr.Title != tc.Expect.Title || pr.RepoID != tc.Expect.RepoID || pr.HeadSHA != tc.Expect.HeadSHA ||
 				pr.HeadRef != tc.Expect.HeadRef || pr.HeadRepo != tc.Expect.HeadRepo ||
 				pr.HeadRepoFullName != tc.Expect.HeadRepoFullName || pr.BaseRepo != tc.Expect.BaseRepo ||
 				pr.AuthorID != tc.Expect.AuthorID || pr.IsFork != tc.Expect.IsFork || pr.State != tc.Expect.State {

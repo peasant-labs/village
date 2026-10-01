@@ -13,6 +13,10 @@
  *   empty       - the browse list answers with no rows (empty-state journeys)
  *   signed-out  - `/auth/me` refuses, so the app treats the visitor as signed
  *                 out (the sign-in journey) whatever cookie the browser holds
+ *   default              - the composed fixtures as-is
+ *   empty                - the browse list answers with no rows (empty-state journeys)
+ *   pull-request-reader  - the pull request page is served to a reviewer once
+ *                          attached, rather than to its author as a preview
  *
  * The transcript half is proxied rather than imported because its contract
  * fixtures are large and stateful; proxying keeps it byte-for-byte the mock the
@@ -24,6 +28,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
 import { handleProjectRequest } from './lib/project-fixtures.mjs'
+import { handlePullRequestRequest } from './lib/pull-request-fixtures.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)
@@ -123,6 +128,10 @@ const server = createServer(async (req, res) => {
   if (scenario === 'empty' && req.method === 'GET' && path === '/transcripts') {
     return send(res, 200, { transcripts: [], total: 0, agent_total: 0, page: 1, limit: 24 })
   }
+
+  // The pull request fixture owns its pull request and the reads of its own
+  // transcripts, which are not `ct-*` ids, so it answers before the proxy.
+  if (handlePullRequestRequest(req, res, scenario)) return
 
   // Transcript detail and its subroutes go to the transcript mock; the list
   // (`/transcripts`, exact) stays with the explore half.

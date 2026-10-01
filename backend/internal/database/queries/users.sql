@@ -6,6 +6,11 @@
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
 
+-- name: ListUsersByIDs :many
+-- Several users in one statement, for list surfaces that would otherwise read
+-- GetUserByID once per row.
+SELECT * FROM users WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetUserByUsername :one
 -- Canonical handle lookup. github_username is globally unique (case-insensitive),
 -- so this resolves to exactly one user.
@@ -81,10 +86,16 @@ UPDATE users SET
 WHERE id = $1
 RETURNING *;
 
--- name: SetUserPreviewBeforeAttach :one
--- Sets whether this user's own pull request attachments stop at a preview the
--- user confirms, instead of attaching immediately.
+-- name: UpdateUserAttachSettings :one
+-- Sets the attach choices one settings PATCH carries: whether this user's own
+-- pull request attachments stop at a preview the user confirms, and whether
+-- their transcripts are linked automatically when a pull request opens in a
+-- repository one of their collectives links. A NULL leaves that choice as it
+-- is, so a PATCH that carries one field changes that one only, in one
+-- statement.
 UPDATE users
-SET preview_before_attach = $2, updated_at = now()
-WHERE id = $1
+SET preview_before_attach     = COALESCE(sqlc.narg(preview_before_attach), preview_before_attach),
+    auto_attach_pull_requests = COALESCE(sqlc.narg(auto_attach_pull_requests), auto_attach_pull_requests),
+    updated_at                = now()
+WHERE id = sqlc.arg(id)
 RETURNING *;

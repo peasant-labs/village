@@ -9,9 +9,9 @@ import (
 // whether one GitHub account may read one repository.
 //
 // It stores nothing durable, and it remembers only REFUSALS. An admission is
-// asked live on every read, because an owner narrowing a transcript or
-// retracting its share must take effect at once rather than up to a minute
-// later, and the cache exists for the case that is both abusive and
+// asked live on every read, because a reader who loses repository access must
+// lose the pull request page at once rather than up to a minute later, and the
+// cache exists for the case that is both abusive and
 // staleness-free: a stranger probing a pull request URL they cannot read. What
 // the asymmetry costs is that a reader newly granted access waits at most the
 // TTL, which is the safe direction — a refusal that clears itself, never access

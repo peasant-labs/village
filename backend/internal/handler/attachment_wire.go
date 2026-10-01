@@ -5,41 +5,62 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/digest"
 	"github.com/peasant-labs/village/backend/internal/promptattach"
 )
 
-// attachmentResponseOf assembles the wire response for one attachment: its row,
-// the digest it stored, its transcripts, and whether the caller is its author.
-// Transcripts is always a non-nil slice because the contract declares it
-// non-nullable, so an attachment with none still serialises as [].
-func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.PullRequestAttachment, isPrivate bool, viewer pgtype.UUID, viewerKnown bool) (schema.VillagePullRequestAttachmentResponse, error) {
-	mapped, err := mapVillageAttachment(attachment, isPrivate)
+// attachmentResponseOf assembles the wire response for one attachment: its row
+// with the pull request's title and head branch, the digest it stored, its
+// transcripts, and whether the caller is its author. Transcripts is always a
+// non-nil slice because the contract declares it non-nullable, so an attachment
+// with none still serialises as [].
+//
+// Being admitted to the attachment is not being admitted to its transcripts.
+// Attaching never changes who can read a transcript, so the response carries a
+// transcript's title and prompts only to a viewer who can open that transcript
+// on its own terms (canViewTranscript). Every other bound transcript is listed
+// without its title or start time, and the digest is narrowed to the
+// transcripts the viewer can open (digest.Restrict).
+func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, viewer *AuthUser) (schema.VillagePullRequestAttachmentResponse, error) {
+	mapped, err := mapVillageAttachment(attachment, repo.isPrivate)
 	if err != nil {
 		return schema.VillagePullRequestAttachmentResponse{}, err
 	}
+	detail := h.pullRequestDetail(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, int(attachment.Number))
+	mapped.Title, mapped.HeadRef = detail.title, detail.headRef
 
 	summaries, err := h.queries.ListPullRequestAttachmentTranscriptSummaries(ctx, attachment.ID)
 	if err != nil {
 		return schema.VillagePullRequestAttachmentResponse{}, fmt.Errorf("could not read the attachment's transcripts: %w", err)
 	}
 	transcripts := make([]schema.VillagePullRequestAttachedTranscript, 0, len(summaries))
+	readable := make(map[schema.TranscriptID]bool, len(summaries))
 	for _, row := range summaries {
 		wire, err := mapVillageAttachedTranscript(row)
 		if err != nil {
 			return schema.VillagePullRequestAttachmentResponse{}, err
+		}
+		transcript := sqlc.Transcript{ID: row.TranscriptID, OwnerID: row.OwnerID, Visibility: row.Visibility}
+		if h.canViewTranscript(ctx, viewer, transcript) {
+			readable[wire.TranscriptID] = true
+		} else {
+			wire.Title = nil
+			wire.SessionStart = nil
 		}
 		transcripts = append(transcripts, wire)
 	}
 
 	// The digest is prompt text. It is only served to the author, or once the
 	// attachment is attached: a preview digest is the author's own review step,
-	// and a detached one describes prompts that are no longer shared.
-	viewerIsAuthor := viewerKnown && viewer.Valid && viewer == attachment.AuthorID
+	// and a detached one describes prompts that are no longer attached.
+	viewerIsAuthor := viewer != nil && viewer.PgID() == attachment.AuthorID
 	includeDigest := viewerIsAuthor || attachment.State == string(promptattach.Attached)
 
 	var digestValue *schema.PromptDigest
@@ -48,7 +69,34 @@ func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.Pull
 		if err := json.Unmarshal(attachment.Digest, &parsed); err != nil {
 			return schema.VillagePullRequestAttachmentResponse{}, fmt.Errorf("the digest stored for this attachment is not readable, so it cannot be served: %w", err)
 		}
-		digestValue = &parsed
+		// A preview's digest can name a transcript that is not bound yet; it is
+		// only ever served to the author, who can open their own.
+		previewReadable := map[schema.TranscriptID]bool{}
+		previewChecked := map[schema.TranscriptID]bool{}
+		restricted, err := digest.Restrict(parsed, func(id schema.TranscriptID) bool {
+			if readable[id] {
+				return true
+			}
+			if !viewerIsAuthor || attachment.State != string(promptattach.Preview) {
+				return false
+			}
+			if previewChecked[id] {
+				return previewReadable[id]
+			}
+			previewChecked[id] = true
+			// An unbound preview still requires a live transcript the author owns.
+			parsedID, err := uuid.Parse(string(id))
+			if err != nil {
+				return false
+			}
+			transcript, err := h.queries.GetTranscriptByID(ctx, pgtype.UUID{Bytes: parsedID, Valid: true})
+			previewReadable[id] = err == nil && transcript.OwnerID == viewer.PgID()
+			return previewReadable[id]
+		})
+		if err != nil {
+			return schema.VillagePullRequestAttachmentResponse{}, fmt.Errorf("the digest stored for this attachment could not be narrowed to what the viewer may read: %w", err)
+		}
+		digestValue = &restricted
 	}
 
 	return schema.VillagePullRequestAttachmentResponse{
@@ -61,7 +109,8 @@ func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.Pull
 
 // mapVillageAttachment maps a stored attachment to the wire type. It fails
 // closed on a state outside the menu rather than serving a value no reader can
-// interpret.
+// interpret. Title and HeadRef are left null: Village stores neither, and the
+// caller that can ask GitHub fills them in.
 func mapVillageAttachment(attachment sqlc.PullRequestAttachment, isPrivate bool) (schema.VillagePullRequestAttachment, error) {
 	if _, err := promptattach.Parse(attachment.State); err != nil {
 		return schema.VillagePullRequestAttachment{}, fmt.Errorf("the attachment's stored state %q is not one of the lifecycle menu: %w", attachment.State, err)
@@ -168,5 +217,17 @@ func (h *Handler) isCollectiveMember(ctx context.Context, userID, groupID pgtype
 
 // mapVillageUserSettings maps the stored user settings to the wire type.
 func mapVillageUserSettings(user sqlc.User) schema.VillageUserSettings {
-	return schema.VillageUserSettings{PreviewBeforeAttach: user.PreviewBeforeAttach}
+	return schema.VillageUserSettings{
+		PreviewBeforeAttach:    user.PreviewBeforeAttach,
+		AutoAttachPullRequests: user.AutoAttachPullRequests,
+	}
+}
+
+// optionalBool is a PATCH field's nullable column form: an omitted field is
+// NULL, which the settings update reads as "leave it as it is".
+func optionalBool(value *bool) pgtype.Bool {
+	if value == nil {
+		return pgtype.Bool{}
+	}
+	return pgtype.Bool{Bool: *value, Valid: true}
 }

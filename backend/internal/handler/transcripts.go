@@ -22,6 +22,7 @@ import (
 
 	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/digest"
 	"github.com/peasant-labs/village/backend/internal/reponame"
 	"github.com/peasant-labs/village/backend/internal/scanner"
 	"github.com/peasant-labs/village/backend/internal/sessionorigin"
@@ -770,8 +771,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	// it was briefly private has already dropped it from the digest.
 	//
 	// This runs at return, so a waiting attachment is completed first and the
-	// refresh sees the state completion left behind. (Completion may widen the
-	// transcript back: a pending request is completed by the publish.)
+	// refresh sees the state completion left behind.
 	if narrowedFrom != "" {
 		defer func() {
 			if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), narrowedID); refreshErr != nil {
@@ -989,12 +989,7 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := GetUser(r.Context())
-	allowed, throttled := h.canReadTranscript(r.Context(), user, transcript)
-	if throttled {
-		writeError(w, http.StatusTooManyRequests, repositoryAccessThrottledMessage)
-		return
-	}
-	if !allowed {
+	if !h.canViewTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}
@@ -1045,19 +1040,13 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := GetUser(r.Context())
-	allowed, throttled := h.canReadTranscript(r.Context(), user, transcript)
-	if throttled {
-		writeError(w, http.StatusTooManyRequests, repositoryAccessThrottledMessage)
-		return
-	}
-	if !allowed {
+	if !h.canViewTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}
 
 	readResult, err := h.readEncryptedTranscript(r.Context(), transcript, "", func(fresh sqlc.Transcript) bool {
-		allowed, _ := h.canReadTranscript(r.Context(), user, fresh)
-		return allowed
+		return h.canViewTranscript(r.Context(), user, fresh)
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -1366,7 +1355,33 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "Encrypted transcript deletion is unavailable because the blob store was not composed in handler.DeleteTranscript before row removal; no database state changed; configure key custody and object storage, then restart and retry")
 		return
 	}
+	var affected []sqlc.PullRequestAttachment
 	result := h.inEncryptedTx(r.Context(), user.PgID(), func(q Querier) error {
+		var err error
+		affected, err = q.ListAttachmentsContainingTranscript(r.Context(), sqlc.ListAttachmentsContainingTranscriptParams{OwnerID: user.PgID(), TranscriptID: id.String()})
+		if err != nil {
+			return err
+		}
+		for _, attachment := range affected {
+			if len(attachment.Digest) == 0 {
+				continue
+			}
+			var stored schema.PromptDigest
+			if err := json.Unmarshal(attachment.Digest, &stored); err != nil {
+				return err
+			}
+			pruned, err := digest.Restrict(stored, func(itemID schema.TranscriptID) bool { return string(itemID) != id.String() })
+			if err != nil {
+				return err
+			}
+			encoded, err := encodeDigest(pruned)
+			if err != nil {
+				return err
+			}
+			if err := q.SetPullRequestAttachmentArtifacts(r.Context(), sqlc.SetPullRequestAttachmentArtifactsParams{ID: attachment.ID, HeadSha: attachment.HeadSha, CommentID: attachment.CommentID, CheckRunID: attachment.CheckRunID, Digest: encoded}); err != nil {
+				return err
+			}
+		}
 		_, deleteErr := q.DeleteTranscriptReturningDescriptor(r.Context(), pgID)
 		return deleteErr
 	})
@@ -1377,6 +1392,15 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 		}
 		writeError(w, http.StatusInternalServerError, "Failed to delete transcript")
 		return
+	}
+	// Derived copies were pruned in the same transaction as the transcript.
+	// Repost from the captured rows because their bindings have now cascaded away.
+	if h.gh != nil && len(affected) > 0 {
+		ctx, cancel := attachmentWorkContext(r.Context())
+		defer cancel()
+		if err := h.refreshKnownAttachments(ctx, affected); err != nil {
+			log.Printf("pull request attachment refresh after transcript deletion failed: %v", err)
+		}
 	}
 	if err := h.deleteBlobForCleanup(r.Context(), cleanupDeleteTarget, transcript.ID, descriptor, result.Completion); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -1622,10 +1646,11 @@ func (h *Handler) UnshareTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A pull request's digest lists a bound transcript by its visibility, so the
-	// narrowing is what changes what the pull request may advertise. The repost
-	// runs after the publish locks are released, because it may take them
-	// itself, and it never fails the unshare the owner asked for.
+	// A pull request's check says whether anyone besides the author can read
+	// what is attached, so the narrowing is what changes what the pull request
+	// may claim. The repost runs after the publish locks are released, because
+	// it may take them itself, and it never fails the unshare the owner asked
+	// for.
 	if narrowed {
 		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(r.Context(), pgID); refreshErr != nil {
 			log.Printf("pull request attachment refresh after an unshare failed: %v", refreshErr)
@@ -1848,6 +1873,47 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Every per-row field below is read for the whole page at once, so a page
+	// of fifty rows costs the same number of queries as a page of one.
+	var transcriptIDs []pgtype.UUID
+	ownerIDSet := map[pgtype.UUID]bool{}
+	var ownerIDs []pgtype.UUID
+	for _, t := range listed {
+		transcriptIDs = append(transcriptIDs, t.ID)
+		if !ownerIDSet[t.OwnerID] {
+			ownerIDSet[t.OwnerID] = true
+			ownerIDs = append(ownerIDs, t.OwnerID)
+		}
+	}
+
+	// Batch tags by transcript. A transcript with none serialises as [], as the
+	// per-row read it replaces did. A failed read fails the page: one failure
+	// would otherwise blank the tags and owner of every row on it.
+	tagsByTranscript := map[pgtype.UUID][]sqlc.Tag{}
+	if len(transcriptIDs) > 0 {
+		allTags, err := h.queries.ListTagsByTranscriptIDs(r.Context(), transcriptIDs)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the tags of the listed transcripts could not be read, so no transcript page was returned; retry the request")
+			return
+		}
+		for _, tag := range allTags {
+			tagsByTranscript[tag.TranscriptID] = append(tagsByTranscript[tag.TranscriptID], sqlc.Tag{ID: tag.ID, Name: tag.Name})
+		}
+	}
+
+	// Batch owners by id.
+	ownersByID := map[pgtype.UUID]sqlc.User{}
+	if len(ownerIDs) > 0 {
+		owners, err := h.queries.ListUsersByIDs(r.Context(), ownerIDs)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the owners of the listed transcripts could not be read, so no transcript page was returned; retry the request")
+			return
+		}
+		for _, owner := range owners {
+			ownersByID[owner.ID] = owner
+		}
+	}
+
 	type parsedTranscript struct {
 		t     sqlc.Transcript
 		tags  []sqlc.Tag
@@ -1855,21 +1921,19 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	}
 	var parsed []parsedTranscript
 	for _, t := range listed {
-		tags, _ := h.queries.GetTranscriptTags(r.Context(), t.ID)
-		owner, _ := h.queries.GetUserByID(r.Context(), t.OwnerID)
-		parsed = append(parsed, parsedTranscript{t: t, tags: tags, owner: owner})
+		tags := tagsByTranscript[t.ID]
+		if tags == nil {
+			tags = []sqlc.Tag{}
+		}
+		parsed = append(parsed, parsedTranscript{t: t, tags: tags, owner: ownersByID[t.OwnerID]})
 	}
 
-	// Batch-fetch signalling data for all transcripts
-	var transcriptIDs []pgtype.UUID
-	ownerIDSet := map[pgtype.UUID]bool{}
-	var ownerIDs []pgtype.UUID
-	for _, p := range parsed {
-		transcriptIDs = append(transcriptIDs, p.t.ID)
-		if !ownerIDSet[p.t.OwnerID] {
-			ownerIDSet[p.t.OwnerID] = true
-			ownerIDs = append(ownerIDs, p.t.OwnerID)
-		}
+	// The pull requests each row is attached to, as the caller may read them. A
+	// summary that could not be read is refused rather than served as none.
+	pullRequests, err := h.pullRequestSummaries(r.Context(), user, transcriptIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the pull requests of the listed transcripts could not be read, so no transcript page was returned; retry the request")
+		return
 	}
 
 	// Batch org badges by owner
@@ -1910,12 +1974,13 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	transcripts := []map[string]any{}
 	for _, p := range parsed {
 		transcripts = append(transcripts, map[string]any{
-			"transcript":   listTranscriptResponse(p.t, resolvedProjects[projectIdentityKey{OwnerID: p.t.OwnerID, ProjectHash: p.t.ProjectHash}]),
-			"tags":         p.tags,
-			"owner":        p.owner,
-			"owner_orgs":   orgsByOwner[p.t.OwnerID],
-			"shares":       sharesByTranscript[p.t.ID],
-			"attestations": attestsByTranscript[p.t.ID],
+			"transcript":    listTranscriptResponse(p.t, resolvedProjects[projectIdentityKey{OwnerID: p.t.OwnerID, ProjectHash: p.t.ProjectHash}]),
+			"tags":          p.tags,
+			"owner":         p.owner,
+			"owner_orgs":    orgsByOwner[p.t.OwnerID],
+			"shares":        sharesByTranscript[p.t.ID],
+			"attestations":  attestsByTranscript[p.t.ID],
+			"pull_requests": pullRequests[p.t.ID],
 		})
 	}
 
@@ -2050,16 +2115,16 @@ func (h *Handler) canViewTranscript(ctx context.Context, user *AuthUser, t sqlc.
 		return true
 	}
 	if t.Visibility == "shared" {
-		shares, err := h.queries.ListTranscriptShares(ctx, t.ID)
+		shares, err := h.queries.ListApprovedTranscriptShareGroups(ctx, t.ID)
 		if err != nil {
 			return false
 		}
-		for _, share := range shares {
-			_, err := h.queries.GetGroupMember(ctx, sqlc.GetGroupMemberParams{
-				GroupID: share.GroupID,
+		for _, groupID := range shares {
+			member, err := h.queries.GetGroupMember(ctx, sqlc.GetGroupMemberParams{
+				GroupID: groupID,
 				UserID:  user.PgID(),
 			})
-			if err == nil {
+			if err == nil && canReadData(member.Role, "contributors") {
 				return true
 			}
 		}
@@ -2076,26 +2141,6 @@ func (h *Handler) canViewTranscript(ctx context.Context, user *AuthUser, t sqlc.
 		}
 	}
 	return false
-}
-
-// canReadTranscript is canViewTranscript plus the one grant Village cannot make
-// on its own: a reader GitHub admits to the private repository the prompts are
-// attached to. Reads use this. Writes do not, so repository access opens the
-// prompts and never lets a non-member label somebody else's transcript.
-func (h *Handler) canReadTranscript(ctx context.Context, user *AuthUser, t sqlc.Transcript) (allowed bool, throttled bool) {
-	if h.canViewTranscript(ctx, user, t) {
-		return true, false
-	}
-	// A viewer who has spent their burst is told so for ANY refused read, before
-	// anything looks at the transcript. Were the answer a repository's refusal for
-	// one transcript and a throttle for another, a throttled caller could tell
-	// which transcripts the repository path covers — the existence the 404s are
-	// there to hide. Asked this way it depends only on their own budget, and
-	// nothing is spent answering it.
-	if user != nil && h.repoAccessLimiter.overBudget(user.PgID(), time.Now()) {
-		return false, true
-	}
-	return h.canReadThroughAttachedRepository(ctx, user, t)
 }
 
 // persistCommits replaces a transcript's stored git commits with the payload's

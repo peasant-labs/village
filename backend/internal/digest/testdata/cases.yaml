@@ -1,9 +1,18 @@
 # Named digest cases. Each case is accepted input (the matcher owns acceptance)
 # plus the header the builder must produce. Rendered output is pinned separately
-# under testdata/golden/.
+# under testdata/golden/, one file per case and tier (regenerate with -update,
+# never by hand).
+#
+# villageUrl is the pull request's page on village, which the renderer links as
+# "view on village" and from every row it does not list. Each session also
+# carries what the pull request says about its transcript besides its prompts:
+# title, author (a village handle), and listed, which is true only for a
+# transcript anyone can read. Only a listed transcript's title and prompts may
+# appear in a render; absent lists the text that must appear in no render at
+# any tier, and present lists text that must appear in every render.
 cases:
   - name: short_session
-    villageUrl: https://village.example/transcripts
+    villageUrl: https://village.example/pulls/acme/widgets/7
     commitSet:
       - a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
       - "1111111111111111111111111111111111111111"
@@ -13,6 +22,9 @@ cases:
         harness: claude-code
         redactionLevel: standard
         sessionStart: "2026-09-06T14:00:00Z"
+        title: Fix flaky ingest test
+        author: alice-dev
+        listed: true
         turns:
           - {index: 0, role: user, content: "first ask", timestamp: "2026-09-06T14:02:00Z"}
           - {index: 1, role: user, content: "run the plan", timestamp: "2026-09-06T14:02:30Z", command: {name: "/superpowers:brainstorming", args: the header story}}
@@ -30,15 +42,20 @@ cases:
       redactionLevel: standard
       skills:
         - {name: "/superpowers:brainstorming", invocationCount: 1}
+      present: ["Fix flaky ingest test", "first ask"]
+      absent: ["redaction", "standard"]
 
   - name: long_session
-    villageUrl: https://village.example/transcripts
+    villageUrl: https://village.example/pulls/acme/widgets/7
     commitSet: []
     sessions:
       - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
         harness: claude-code
         redactionLevel: standard
         sessionStart: "2026-09-06T14:00:00Z"
+        title: A long session
+        author: alice-dev
+        listed: true
         turns:
           - {index: 0, role: user, content: "prompt 1", timestamp: "2026-09-06T14:01:00Z"}
           - {index: 1, role: user, content: "prompt 2", timestamp: "2026-09-06T14:02:00Z"}
@@ -64,9 +81,11 @@ cases:
       harness: claude-code
       redactionLevel: standard
       skills: []
+      present: ["prompt 1", "prompt 10"]
+      absent: ["redaction"]
 
   - name: fork_pull_request
-    villageUrl: https://village.example/transcripts
+    villageUrl: https://village.example/pulls/acme/widgets/7
     commitSet:
       - a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
     sessions:
@@ -74,12 +93,18 @@ cases:
         harness: claude-code
         redactionLevel: standard
         sessionStart: "2026-09-06T14:00:00Z"
+        title: Base repository work
+        author: alice-dev
+        listed: true
         turns:
           - {index: 0, role: user, content: "base repo ask", timestamp: "2026-09-06T14:02:00Z"}
       - transcriptId: 8c2f5e3b-0d4a-4f9c-b2e7-3a6d9f0b1c24
         harness: opencode
         redactionLevel: minimal
         sessionStart: "2026-09-06T15:00:00Z"
+        title: Fork work
+        author: alice-dev
+        listed: true
         turns:
           - {index: 0, role: user, content: "fork ask", timestamp: "2026-09-06T15:01:00Z"}
     commits:
@@ -92,3 +117,259 @@ cases:
       harness: claude-code
       redactionLevel: standard
       skills: []
+      present: ["Base repository work", "Fork work", "fork ask"]
+      absent: ["redaction", "minimal"]
+
+  # One transcript anyone can read and one only a collective can. The collective
+  # one is a row with its author, the commit it traced, and a link to read it on
+  # village; its title and its prompts appear nowhere, and the prompts are
+  # numbered over the listed transcript alone.
+  - name: mixed_audience
+    villageUrl: https://village.example/pulls/acme/widgets/7
+    commitSet:
+      - 9f3c2ab41d7e08c5a6b2f9e0d3c7a1b4e5f60718
+      - c41a9f2e7b3d05c8a61f9e2d4b7c0a3e5f8d1b62
+      - a07c3e1f5b9d2c4e6a8b0d1f3e5c7a9b2d4f6e80
+    sessions:
+      - transcriptId: 3f9c0a17-2b64-4e1d-9a53-8c0e21a4b7d2
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-28T10:00:00Z"
+        title: Collective only plan
+        author: alice-dev
+        listed: false
+        turns:
+          - {index: 0, role: user, content: "collective-only ask", timestamp: "2026-09-28T10:00:10Z"}
+          - {index: 1, role: user, content: "collective-only plan", timestamp: "2026-09-28T10:00:20Z", command: {name: "/toolkit:write-plan", args: "collective-only argument"}}
+      - transcriptId: c41a9f20-6d3e-4b18-8f07-5e2a91c3d460
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-28T12:00:00Z"
+        title: Guard empty turns in the digest
+        author: alice-dev
+        listed: true
+        turns:
+          - {index: 0, role: user, content: "the ingest test flakes on CI about 1 in 5 runs", timestamp: "2026-09-28T12:00:10Z"}
+          - {index: 1, role: user, content: "check the retry backoff", timestamp: "2026-09-28T12:06:00Z"}
+    commits:
+      - {transcriptId: 3f9c0a17-2b64-4e1d-9a53-8c0e21a4b7d2, commitSha: 9f3c2ab41d7e08c5a6b2f9e0d3c7a1b4e5f60718, authoredAt: "2026-09-28T10:40:00Z"}
+      - {transcriptId: c41a9f20-6d3e-4b18-8f07-5e2a91c3d460, commitSha: c41a9f2e7b3d05c8a61f9e2d4b7c0a3e5f8d1b62, authoredAt: "2026-09-28T12:40:00Z"}
+    expected:
+      sessionCount: 2
+      promptCount: 3
+      commitsCovered: 2
+      commitsTotal: 3
+      harness: claude-code
+      redactionLevel: standard
+      skills:
+        - {name: "/toolkit:write-plan", invocationCount: 1}
+      present: ["Guard empty turns in the digest", "check the retry backoff", "[read on village][pr]", "9f3c2ab", "a07c3e1 has no transcript"]
+      absent: ["Collective only plan", "collective-only", "write-plan", "3f9c0a17"]
+
+  # User text that is Markdown, HTML, a mention, a reference, math, or a list
+  # marker. Every piece renders as its own text: no pipe ends a cell, no
+  # backtick opens code, no bracket opens a link, no angle opens a tag, and no
+  # account is mentioned.
+  - name: hostile_text
+    villageUrl: https://village.example/pulls/acme/widgets/7
+    commitSet:
+      - a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
+    sessions:
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        harness: claude-code
+        redactionLevel: standard
+        sessionStart: "2026-09-06T14:00:00Z"
+        title: "Fix | the `table` <script>alert(1)</script> [click](https://evil.example) @mallory #12"
+        author: "eve|`<b>`"
+        listed: true
+        turns:
+          - {index: 0, role: user, content: "- a list? _under_score_\n# a heading\n1. an ordinal | a pipe `code` <img src=x onerror=alert(1)> [x](https://evil.example) ![i](https://evil.example/i.png) @mallory owner/repo#34 $x^2$ **bold** ~~gone~~ &amp; \\escaped", timestamp: "2026-09-06T14:02:00Z"}
+          - {index: 1, role: user, content: "plan", timestamp: "2026-09-06T14:03:00Z", command: {name: "/review_[<b>]|", args: "| cell `tick` <i>tag</i> [l](u) @mallory"}}
+          - {index: 2, role: user, content: "+ a leading plus", timestamp: "2026-09-06T14:04:00Z"}
+          - {index: 3, role: user, content: "2) an ordered item", timestamp: "2026-09-06T14:05:00Z"}
+          - {index: 4, role: user, content: "1. an ordered dot", timestamp: "2026-09-06T14:06:00Z"}
+    commits:
+      - {transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13, commitSha: a1b2c3d, authoredAt: "2026-09-06T14:04:00Z"}
+    expected:
+      sessionCount: 1
+      promptCount: 4
+      commitsCovered: 1
+      commitsTotal: 1
+      harness: claude-code
+      redactionLevel: standard
+      skills:
+        - {name: "/review_[<b>]|", invocationCount: 1}
+      present: ["\\|", "\\`table\\`", "\\<script\\>", "\\[click\\]", "@<!-- -->mallory", "\\#<!-- -->12", "\\$x^2\\$", "\\&amp;", "\\- a list?", "\\_under\\_score\\_", "\\+ a leading plus", "2\\) an ordered item", "1\\. an ordered dot", "/review\\_\\[\\<b\\>\\]\\|"]
+      absent: ["<script>", "<img src=x onerror=alert(1)>", "<i>", "<b>", "[click](", "[x](", "![i]", "@mallory", "#12", "#34", "**bold**", "~~gone~~", "_under_score_", "/review_[<b>]|", "1. an ordered dot", "2) an ordered item", "\n2. + a leading plus"]
+
+  - name: clipped_text_and_commit_tails
+    villageUrl: https://village.example/pulls/acme/widgets/7
+    commitSet:
+      - "0000001000000000000000000000000000000000"
+      - "0000002000000000000000000000000000000000"
+      - "0000003000000000000000000000000000000000"
+      - "0000004000000000000000000000000000000000"
+      - "0000005000000000000000000000000000000000"
+      - "0000006000000000000000000000000000000000"
+      - "0000007000000000000000000000000000000000"
+      - "0000008000000000000000000000000000000000"
+      - "0000009000000000000000000000000000000000"
+      - 000000a000000000000000000000000000000000
+      - 000000b000000000000000000000000000000000
+      - 000000c000000000000000000000000000000000
+      - 000000d000000000000000000000000000000000
+      - <invalid-sha>
+    sessions:
+      - harness: claude-code
+        redactionLevel: standard
+        sessionStart: 2026-09-06T14:00:00Z
+        listed: true
+        transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        title: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        author: alice
+        turns:
+          - index: 0
+            role: user
+            content: inspect
+            timestamp: 2026-09-06T14:01:00Z
+            command:
+              name: /inspect
+              args: before prompts
+          - index: 1
+            role: user
+            content: plan
+            timestamp: 2026-09-06T14:01:30Z
+            command:
+              name: /plan
+              args: also before prompts
+          - index: 2
+            role: user
+            content: QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
+            timestamp: 2026-09-06T14:02:00Z
+      - harness: claude-code
+        redactionLevel: standard
+        sessionStart: 2026-09-06T14:00:00Z
+        listed: true
+        transcriptId: 8c2f5e3b-0d4a-4f9c-b2e7-3a6d9f0b1c24
+        title: ""
+        author: ""
+        turns: []
+    commits:
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000001000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:03:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000002000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:04:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000003000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:05:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000004000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:06:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000005000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:07:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000006000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:08:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000007000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:09:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000008000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:10:00Z
+    expected:
+      sessionCount: 2
+      promptCount: 1
+      commitsCovered: 8
+      commitsTotal: 13
+      harness: claude-code
+      redactionLevel: standard
+      skills:
+        - name: /inspect
+          invocationCount: 1
+        - name: /plan
+          invocationCount: 1
+      present:
+        - AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA…
+        - QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ…
+        - and 3 more
+        - and 2 more
+        - untitled transcript
+        - unknown
+        - "- /inspect before prompts"
+        - "- /plan also before prompts"
+      absent:
+        - AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        - QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
+        - <invalid-sha>
+
+  - name: skills_only
+    villageUrl: https://village.example/pulls/acme/widgets/7
+    commitSet: []
+    sessions:
+      - harness: claude-code
+        redactionLevel: standard
+        sessionStart: 2026-09-06T14:00:00Z
+        listed: true
+        transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        title: Inspect the setup
+        author: alice
+        turns:
+          - index: 0
+            role: user
+            content: inspect
+            timestamp: 2026-09-06T14:01:00Z
+            command:
+              name: /inspect
+              args: the setup
+    commits: []
+    expected:
+      sessionCount: 1
+      promptCount: 0
+      commitsCovered: 0
+      commitsTotal: 0
+      harness: claude-code
+      redactionLevel: standard
+      skills:
+        - name: /inspect
+          invocationCount: 1
+      present:
+        - <summary>skills</summary>
+        - "- /inspect the setup"
+      absent:
+        - "1. "
+        - 0 prompts
+
+budgets:
+  - name: table_rows_stop_at_the_byte_budget
+    case: clipped_text_and_commit_tails
+    maxBytes: 350
+    present:
+      - 2 more transcripts on village
+    absent:
+      - AAAAAAAAAA
+    expectedError: false
+  - name: prompt_blocks_stop_at_the_byte_budget
+    case: long_session
+    maxBytes: 450
+    present:
+      - more on village
+    absent:
+      - 15. prompt 15
+    expectedError: false
+  - name: a_prompt_frame_that_cannot_fit_is_omitted
+    case: short_session
+    maxBytes: 300
+    present:
+      - on village
+    absent:
+      - <details>
+    expectedError: false
+  - name: a_table_that_cannot_fit_is_refused
+    case: short_session
+    maxBytes: 20
+    present: []
+    absent: []
+    expectedError: true

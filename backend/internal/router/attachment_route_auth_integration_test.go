@@ -24,9 +24,12 @@ var attachmentRouteAuthYAML []byte
 // requiredAttachmentRouteAuthNames is the name manifest for the fixture: every
 // route exists to pin one policy decision, so losing a row must name itself.
 var requiredAttachmentRouteAuthNames = []string{
+	"a transcript's pull requests are reachable anonymously",
+	"a transcript's pull requests route is mounted",
 	"confirm requires a session",
 	"detach requires a session",
 	"get pull request attachment is reachable anonymously",
+	"personal totals require a session",
 	"prompt requests require a session",
 	"reading settings requires a session",
 	"updating settings requires a session",

@@ -69,7 +69,73 @@ export interface PullRequestFixture {
   transcripts: VillagePullRequestAttachmentResponse["transcripts"];
   /** Status a confirm answers; 200 (or unset) returns the attached response. */
   confirmStatus?: number;
+  detachStatus?: number;
+  detachMessage?: string;
   confirmMessage?: string;
+  /** Status the attachment read answers; unset (or 200) serves the attachment. */
+  attachmentStatus?: number;
+  /**
+   * What `GET /transcripts/{id}` and `GET /transcripts/{id}/collectives` answer
+   * for each transcript the author's page reads. A read with a `status` of 400
+   * or more answers that status instead, so a failed read can be staged.
+   */
+  transcriptReads?: TranscriptReadFixture[];
+}
+
+/** One transcript's own reads, as the author's pull request page fetches them. */
+export interface TranscriptReadFixture {
+  id: string;
+  title: string | null;
+  visibility: "public" | "private" | "shared";
+  collectives: string[];
+  status?: number;
+}
+
+/** A complete transcript-read answer with only the fields the page reads varied. */
+function transcriptReadResponse(read: TranscriptReadFixture) {
+  return {
+    transcript: {
+      id: read.id,
+      owner_id: "11111111-1111-1111-1111-111111111111",
+      local_id: `local-${read.id}`,
+      title: read.title,
+      description: null,
+      visibility: read.visibility,
+      model_provider: "claude-code",
+      model_name: null,
+      harness_version: null,
+      session_start: "2026-01-01T00:00:00Z",
+      session_end: null,
+      turn_count: 2,
+    },
+    tags: [],
+    shares: [],
+    enriched_shares: [],
+    owner: {
+      id: "11111111-1111-1111-1111-111111111111",
+      github_id: 1,
+      github_username: "alice-dev",
+      display_name: null,
+      avatar_url: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      is_discoverable: true,
+      username_chosen: true,
+      provider_username: "alice-dev",
+    },
+  };
+}
+
+function transcriptCollectivesResponse(read: TranscriptReadFixture) {
+  return {
+    collectives: read.collectives.map((name, index) => ({
+      id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      name,
+      description: null,
+      linked_github_org: null,
+      shared_at: "2026-01-01T00:00:00Z",
+    })),
+  };
 }
 
 /**
@@ -79,6 +145,7 @@ export interface PullRequestFixture {
  */
 export function makeDigest(
   transcriptIds: string[] = ["11111111-1111-1111-1111-111111111111"],
+  commits: { covered: number; total: number } = { covered: 1, total: 2 },
 ): PromptDigest {
   const timestamp = "2026-01-01T00:00:00Z";
   const items: PromptDigest["items"] = [];
@@ -110,8 +177,8 @@ export function makeDigest(
     header: {
       sessionCount: transcriptIds.length,
       promptCount: 2,
-      commitsCovered: 1,
-      commitsTotal: 2,
+      commitsCovered: commits.covered,
+      commitsTotal: commits.total,
       harness: "claude-code",
       redactionLevel: "standard",
       villageUrl: "https://village.test",
@@ -154,16 +221,34 @@ export function installPullRequestREST(fixture: PullRequestFixture): RecordedReq
       return json(makeAttachmentResponse({ ...fixture, attachment }));
     }
     if (method === "DELETE") {
+      if (fixture.detachStatus && fixture.detachStatus >= 400) return json({ error: fixture.detachMessage ?? "refused" }, fixture.detachStatus);
       attachment = { ...attachment, state: "detached" };
       return json(makeAttachmentResponse({ ...fixture, attachment }));
     }
-    return json(makeAttachmentResponse({ ...fixture, attachment }));
+    const transcriptRead = url.match(/\/transcripts\/([^/?]+)(\/collectives)?$/);
+    if (method === "GET" && transcriptRead) {
+      const read = fixture.transcriptReads?.find((row) => row.id === decodeURIComponent(transcriptRead[1]));
+      if (!read) {
+        throw new Error(`pull request fixture has no read for ${url}`);
+      }
+      if (read.status && read.status >= 400) {
+        return json({ error: "refused" }, read.status);
+      }
+      return json(transcriptRead[2] ? transcriptCollectivesResponse(read) : transcriptReadResponse(read));
+    }
+    if (method === "GET" && url.includes(`/pulls/`)) {
+      if (fixture.attachmentStatus && fixture.attachmentStatus >= 400) {
+        return json({ error: "No attachment exists for this pull request" }, fixture.attachmentStatus);
+      }
+      return json(makeAttachmentResponse({ ...fixture, attachment }));
+    }
+    throw new Error(`pull request fixture received an unexpected ${method} request to ${url}`);
   });
   vi.stubGlobal("fetch", fetchMock);
   return requests;
 }
 
-export async function renderPullRequestRoute(owner: string, name: string, number: number): Promise<void> {
+export async function renderPullRequestRoute(owner: string, name: string, number: number | string): Promise<void> {
   await act(async () => {
     render(
       <QueryOnly>

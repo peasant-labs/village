@@ -1,6 +1,13 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { loadPullRequestPageFixtures } from "@/test/pullRequestPageFixtures";
+import {
+  PULL_REQUEST_CONTROLS,
+  loadPullRequestPageFixtures,
+  loadForbiddenAttachmentClaims,
+  loadPullRequestItemLinks,
+  pullRequestPageCase,
+  type PullRequestPageCase,
+} from "@/test/pullRequestPageFixtures";
 import {
   installAttachmentSurfacesTeardown,
   installPullRequestREST,
@@ -16,9 +23,8 @@ const NAME = "widgets";
 const NUMBER = 7;
 
 /** One fixture row, as the page's route would receive it. */
-function fixtureFor(
-  row: ReturnType<typeof loadPullRequestPageFixtures>[number],
-): PullRequestFixture {
+function fixtureFor(row: PullRequestPageCase): PullRequestFixture {
+  const commits = { covered: row.commits_covered, total: row.commits_total };
   return {
     owner: OWNER,
     name: NAME,
@@ -29,6 +35,8 @@ function fixtureFor(
       owner: OWNER,
       name: NAME,
       number: NUMBER,
+      title: row.pull_title,
+      head_ref: row.head_ref,
       head_sha: "0123456789abcdef0123456789abcdef01234567",
       is_private_repository: row.is_private_repository,
       state: row.state,
@@ -43,153 +51,305 @@ function fixtureFor(
     },
     digest:
       row.digest === "present"
-        ? makeDigest(row.digest_transcript_ids)
+        ? makeDigest(row.digest_transcripts, commits)
         : row.digest === "empty"
-          ? makeDigest([])
+          ? makeDigest([], commits)
           : null,
-    transcripts: row.transcript_ids.map((transcriptId, index) => ({
-      transcript_id: transcriptId,
+    transcripts: row.bound_transcripts.map((bound, index) => ({
+      transcript_id: bound.id,
       position: index,
       previous_visibility: "private",
-      title: index === 0 ? "picker work" : `session ${index + 1}`,
+      title: bound.title,
       session_start: "2026-01-01T00:00:00Z",
     })),
     confirmStatus: row.confirm_status ?? undefined,
+    detachStatus: row.detach_status ?? undefined,
+    detachMessage: row.expect_error ?? undefined,
+    attachmentStatus: row.attachment_status ?? undefined,
     confirmMessage: "This pull request is not in a state that allows that action",
+    transcriptReads: row.transcript_reads.map((read) => ({
+      id: read.id,
+      title: read.title,
+      visibility: read.visibility,
+      collectives: read.collectives,
+      status: read.status ?? undefined,
+    })),
   };
+}
+
+/** Text as a reader sees it: runs of whitespace are one space. */
+function spoken(node: Element | null): string {
+  return (node?.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Mount one case and wait until the page has said everything it will say: the
+ * title is up and, for the author, every transcript read has answered, so the
+ * audience line is in its final form rather than its loading fallback.
+ */
+async function mountSettled(row: PullRequestPageCase) {
+  const requests = installPullRequestREST(fixtureFor(row));
+  await renderPullRequestRoute(OWNER, NAME, NUMBER);
+  await screen.findByTestId("pull-request-title");
+  await waitFor(() => {
+    const lines = screen.queryAllByTestId("transcript-audience").map((node) => spoken(node));
+    expect(lines).toEqual(row.expect_audience_lines);
+    const pending = screen.queryByTestId("audience-pending") !== null;
+    expect(pending).toBe(row.expect_audience_form === "fallback");
+  });
+  if (row.expect_audience_form === "fallback") {
+    // The fallback is only a verdict once every read has answered, so wait for
+    // the failed read to have been asked rather than catching the page mid-load.
+    await waitFor(() => {
+      for (const read of row.transcript_reads) {
+        expect(requests.some((r) => r.method === "GET" && r.url.endsWith(`/transcripts/${read.id}`))).toBe(true);
+      }
+    });
+  }
+  return requests;
+}
+
+function splitLabels(): string[] {
+  return [...document.querySelectorAll('[role="option"] .pd-split-option-label')].map((node) =>
+    spoken(node),
+  );
 }
 
 describe("the pull request page", () => {
   for (const row of loadPullRequestPageFixtures()) {
     it(`renders ${row.name}`, async () => {
-      const fixture = fixtureFor(row);
-      installPullRequestREST(fixture);
-      await renderPullRequestRoute(OWNER, NAME, NUMBER);
+      if (row.expect_route_error) {
+        const requests = installPullRequestREST(fixtureFor(row));
+        await renderPullRequestRoute(OWNER, NAME, row.route_number);
+        await screen.findByText(row.expect_route_error);
+        expect(document.querySelector('.pd')).toBeNull();
+        if (row.route_number === "wrong") expect(requests).toHaveLength(0);
+        return;
+      }
+      await mountSettled(row);
 
-      // The header names the pull request whatever the state is. It is the first
-      // thing that appears once the attachment has loaded, so awaiting it also
-      // settles the query the rest of the assertions read.
-      const title = await screen.findByTestId("pull-request-title");
-      expect(title.textContent).toBe(`${OWNER}/${NAME} #${NUMBER}`);
+      expect(spoken(screen.getByTestId("pull-request-title"))).toBe(row.expect_title);
+      expect(spoken(screen.queryByTestId("pull-request-sub")) || null).toBe(row.expect_sub);
 
-      // The digest is the design system's component, so assert its content
-      // rather than its markup: the prompt text it renders, and that it mounted.
-      if (row.digest === "present") {
-        expect(await screen.findByText("please add the picker")).toBeTruthy();
-        await waitFor(() => expect(document.querySelector(".pd")).toBeTruthy());
-      } else if (row.digest === "empty") {
-        expect(document.querySelector(".pd")).toBeNull();
-        expect(screen.getByTestId("digest-empty").textContent).toContain(
-          "No prompts are available for this pull request.",
-        );
+      // The author's plain state line, and nothing of the kind for anyone else.
+      const stateLine = screen.queryByTestId("attachment-state-line");
+      expect(stateLine === null ? null : spoken(stateLine)).toBe(row.expect_state_line);
+
+      // Exactly the controls the state and the viewer allow.
+      const present = PULL_REQUEST_CONTROLS.filter((id) => screen.queryByTestId(id) !== null);
+      expect([...present].sort()).toEqual([...row.expect_controls].sort());
+      const confirm = screen.queryByTestId("confirm-attachment");
+      expect(confirm === null ? null : spoken(confirm)).toBe(row.expect_confirm_label);
+
+      // Who can read the transcripts: one sentence when every transcript has
+      // the same audience, one line per transcript when they differ, and no
+      // description at all while a read has not answered.
+      const audienceText = spoken(screen.queryByTestId("pull-request-actions"));
+      if (row.expect_audience_form === "sentence") {
+        expect(audienceText).toContain(row.expect_audience_sentence);
+      } else if (row.expect_audience_form === "list") {
+        expect(audienceText).toContain("who can read them (attaching does not change that):");
+        const listed = row.transcript_reads.map((read, index) => `${read.title?.trim() ? read.title : `session ${index + 1}`}: ${row.expect_audience_lines[index]}`);
+        for (const line of listed) expect(audienceText).toContain(line);
+      } else if (row.expect_audience_form === "fallback") {
+        expect(audienceText).toContain("attaching does not change who can read them.");
       } else {
-        expect(document.querySelector(".pd")).toBeNull();
-        // The sentence naming who the digest is shown to must match the
-        // repository: a private repository's digest never goes to just anyone.
-        const sentence = screen.getByText(/shown to the pull request's author/);
-        expect(sentence.textContent).toContain(
-          row.is_private_repository ? "members of this collective" : "anyone",
-        );
-        if (row.is_private_repository) {
-          expect(sentence.textContent).toContain("this repository's collaborators");
-        }
+        expect(audienceText).not.toContain("who can read");
+        expect(audienceText).not.toContain("attaching does not change");
       }
 
-      // A bound transcript the digest no longer advertises is marked, and only
-      // that one: the reader is told something is missing without being told
-      // which transcript or why.
-      expect(screen.queryAllByText("not available").length).toBe(
-        row.expect_unavailable_marks,
-      );
+      expect(spoken(screen.queryByTestId("pull-request-coverage")) || null).toBe(row.expect_coverage);
 
-      // Confirm and detach appear only where the state and the viewer allow.
-      expect(screen.queryByTestId("confirm-attachment") !== null).toBe(row.expect_confirm);
-      expect(screen.queryByTestId("detach-attachment") !== null).toBe(row.expect_detach);
-
-      // Where the author is asked to confirm, they are told the audience the
-      // attach makes the transcripts readable by, and only that one: a public
-      // repository must not be described in a private one's terms or the other
-      // way around. Everywhere else there is no statement to read.
-      const audience = screen.queryByTestId("attachment-audience");
-      if (row.expect_audience === "none") {
-        expect(audience).toBeNull();
-      } else if (row.expect_audience === "anyone") {
-        expect(audience?.textContent).toContain("readable by anyone");
-        expect(audience?.textContent ?? "").not.toContain("members of this collective");
-        expect(audience?.textContent ?? "").not.toContain("collaborators");
+      if (row.expect_digest_block === "split") {
+        await waitFor(() => expect(document.querySelector(".pd.pd-layout-split")).toBeTruthy());
+        expect(splitLabels()).toEqual(row.expect_split_labels);
+        // The first transcript is selected, and its prompts are what the pane shows.
+        const options = screen.getAllByRole("option");
+        expect(options[0].getAttribute("aria-selected")).toBe("true");
+        expect(screen.getByText("please add the picker")).toBeTruthy();
       } else {
-        // A private repository's audience is the collective AND the repository's
-        // own collaborators, and both are named: a reader deciding whether to
-        // attach is entitled to the whole audience, not the reassuring half.
-        expect(audience?.textContent).toContain("readable by members of this collective");
-        expect(audience?.textContent).toContain("by this repository's collaborators");
-        expect(audience?.textContent ?? "").not.toContain("readable by anyone");
+        expect(document.querySelector(".pd")).toBeNull();
+        expect(screen.queryByTestId("digest-empty") !== null).toBe(row.expect_digest_block === "empty");
+        expect(screen.queryByTestId("digest-absent") !== null).toBe(row.expect_digest_block === "absent");
+        expect(spoken(screen.getByTestId(`digest-${row.expect_digest_block}`))).toBe(row.expect_digest_text);
       }
+
+      if (row.action) {
+        fireEvent.click(screen.getByTestId(row.action));
+        await waitFor(() => expect(spoken(screen.getByTestId("attachment-action-error"))).toBe(row.expect_error));
+        expect(screen.getByTestId("attachment-state-line").getAttribute("data-state")).toBe(row.state);
+        expect(screen.getByTestId(row.action)).toBeTruthy();
+      }
+
+      // The attach-state list and its per-row marks are gone: the split list
+      // is the one list of transcripts on this page.
+      expect(screen.queryByLabelText("attached transcripts")).toBeNull();
+      expect(document.body.textContent ?? "").not.toContain("visibility before attach");
+      expect(document.body.textContent ?? "").not.toContain("not available");
     });
   }
 
-  it("shows the server's message when a confirm is refused with a conflict", async () => {
-    const row = loadPullRequestPageFixtures().find(
-      (c) => c.name === "confirm refused with a conflict",
-    );
-    if (!row) throw new Error("the conflict case is missing from the fixture");
-    installPullRequestREST(fixtureFor(row));
+  it("never says attaching widens who can read a transcript", async () => {
+    // A transcript's own audience ("anyone" for a public one) is stated inside
+    // its audience line; that is the only place such words may appear. Every
+    // other word on the page is scanned for a claim that attaching opens,
+    // shares or widens access.
+    const forbidden = loadForbiddenAttachmentClaims();
+    let statedAudiences = 0;
+    let saidAttachingChangesNothing = 0;
+    for (const row of loadPullRequestPageFixtures().filter(row => !row.expect_route_error)) {
+      await mountSettled(row);
+      const page = document.body.cloneNode(true) as HTMLElement;
+      for (const line of page.querySelectorAll('[data-testid="transcript-audience"]')) {
+        if (/\banyone\b/.test(line.textContent ?? "")) statedAudiences++;
+        line.remove();
+      }
+      const text = spoken(page);
+      if (text.includes("attaching does not change")) saidAttachingChangesNothing++;
+      for (const pattern of forbidden) {
+        expect(text, `${row.name} says ${pattern}`).not.toMatch(pattern);
+      }
+      cleanup();
+    }
+    // Non-vacuous: the scan ran over a page that states a public transcript's
+    // audience (so removing audience lines mattered) and over pages that make
+    // the no-change statement.
+    expect(statedAudiences).toBeGreaterThan(0);
+    expect(saidAttachingChangesNothing).toBeGreaterThan(0);
+  });
+
+  it("links back to the collectives route when there is no attachment here", async () => {
+    const row = pullRequestPageCase("reader of an attached digest");
+    installPullRequestREST({ ...fixtureFor(row), attachmentStatus: 404 });
     await renderPullRequestRoute(OWNER, NAME, NUMBER);
 
-    const confirm = await screen.findByTestId("confirm-attachment");
-    fireEvent.click(confirm);
+    await screen.findByTestId("pull-request-page-not-found");
+    const back = screen.getByTestId("pull-request-back-link");
+    expect(back.getAttribute("href")).toBe("/groups");
+    expect(spoken(back)).toBe("back to collectives");
+  });
+
+  it("shows the server's message when a confirm is refused with a conflict", async () => {
+    await mountSettled(pullRequestPageCase("confirm refused with a conflict"));
+
+    fireEvent.click(screen.getByTestId("confirm-attachment"));
 
     await waitFor(() => {
-      const message = screen.getByTestId("attachment-action-error");
-      expect(message.textContent).toContain(
+      expect(spoken(screen.getByTestId("attachment-action-error"))).toContain(
         "This pull request is not in a state that allows that action",
       );
     });
   });
 
-  it("replaces the cached attachment with the server's answer on detach", async () => {
-    const row = loadPullRequestPageFixtures().find(
-      (c) => c.name === "author viewing an attached digest",
-    );
-    if (!row) throw new Error("the attached case is missing from the fixture");
-    const requests = installPullRequestREST(fixtureFor(row));
-    await renderPullRequestRoute(OWNER, NAME, NUMBER);
+  it("attaches the matching transcripts with the attach button", async () => {
+    const requests = await mountSettled(pullRequestPageCase("author previewing two transcripts with one audience"));
 
-    fireEvent.click(await screen.findByTestId("detach-attachment"));
+    fireEvent.click(screen.getByTestId("confirm-attachment"));
 
     await waitFor(() => {
-      expect(requests.some((r) => r.method === "DELETE")).toBe(true);
+      expect(requests.some((r) => r.method === "POST" && r.url.endsWith(`/pulls/${OWNER}/${NAME}/${NUMBER}/confirm`))).toBe(true);
+    });
+    await waitFor(() => {
+      expect(spoken(screen.getByTestId("attachment-state-line"))).toBe(
+        "2 of your transcripts are attached to this pull request.",
+      );
+    });
+    expect(screen.getByTestId("detach-attachment")).toBeTruthy();
+  });
+
+  it("declines a preview with not now through the detach route", async () => {
+    const requests = await mountSettled(pullRequestPageCase("author previewing two transcripts with one audience"));
+
+    fireEvent.click(screen.getByTestId("not-now-attachment"));
+
+    await waitFor(() => {
+      expect(requests.some((r) => r.method === "DELETE" && r.url.endsWith(`/pulls/${OWNER}/${NAME}/${NUMBER}`))).toBe(true);
     });
     // The response the server returned is what the page now shows, so the state
     // it renders can never be one the server has moved past.
     await waitFor(() => {
-      expect(screen.getByText("detached")).toBeTruthy();
+      expect(screen.getByTestId("attachment-state-line").getAttribute("data-state")).toBe("detached");
     });
+    expect(spoken(screen.getByTestId("attachment-state-line"))).toContain(
+      "you detached your transcripts from this pull request.",
+    );
+    expect(screen.queryByTestId("confirm-attachment")).toBeNull();
+    expect(screen.queryByTestId("not-now-attachment")).toBeNull();
   });
 
-  it("renders the chain and links each item where it belongs", async () => {
-    const row = loadPullRequestPageFixtures().find(
-      (c) => c.name === "author viewing an attached digest",
-    );
-    if (!row) throw new Error("the attached case is missing from the fixture");
-    installPullRequestREST(fixtureFor(row));
-    await renderPullRequestRoute(OWNER, NAME, NUMBER);
-    await screen.findByTestId("pull-request-title");
+  it("replaces the cached attachment with the server's answer on detach", async () => {
+    const requests = await mountSettled(pullRequestPageCase("author viewing an attached digest"));
+
+    fireEvent.click(screen.getByTestId("detach-attachment"));
+
+    await waitFor(() => {
+      expect(requests.some((r) => r.method === "DELETE")).toBe(true);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("attachment-state-line").getAttribute("data-state")).toBe("detached");
+    });
+    expect(screen.queryByTestId("detach-attachment")).toBeNull();
+  });
+
+  it("moves through the transcripts with j and k", async () => {
+    await mountSettled(pullRequestPageCase("reader moving through two transcripts"));
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(2));
+
+    const selectedLabel = () =>
+      spoken(document.querySelector('[role="option"][aria-selected="true"] .pd-split-option-label'));
+    const paneTitle = () => spoken(document.querySelector(".pd-split-pane-title"));
+
+    expect(selectedLabel()).toBe("Fix flaky ingest test");
+    expect(paneTitle()).toBe("Fix flaky ingest test");
+
+    fireEvent.keyDown(window, { key: "j" });
+    await waitFor(() => expect(selectedLabel()).toBe("Guard empty turns in the digest"));
+    expect(paneTitle()).toBe("Guard empty turns in the digest");
+    expect(screen.getByText("prompt for 22222222-2222-2222-2222-222222222222")).toBeTruthy();
+
+    // The list stops at its end rather than wrapping.
+    fireEvent.keyDown(window, { key: "j" });
+    await waitFor(() => expect(selectedLabel()).toBe("Guard empty turns in the digest"));
+
+    fireEvent.keyDown(window, { key: "k" });
+    await waitFor(() => expect(selectedLabel()).toBe("Fix flaky ingest test"));
+    expect(screen.getByText("please add the picker")).toBeTruthy();
+  });
+
+  for (const row of loadPullRequestItemLinks()) {
+    it(row.name, async () => {
+      const fixture = fixtureFor(pullRequestPageCase("reader of an attached digest"));
+      const item = fixture.digest!.items.find(item => item.kind === row.kind)!;
+      if (row.turnIndex !== null) item.turnIndex = row.turnIndex;
+      if (row.commitSha !== null) item.commitSha = row.commitSha;
+      installPullRequestREST(fixture);
+      await renderPullRequestRoute(OWNER, NAME, NUMBER);
+      await screen.findByTestId("pull-request-title");
+      await waitFor(() => expect(document.querySelector(`.pd a[href="${row.expected}"]`)).toBeTruthy());
+    });
+  }
+
+  it("links each chain item where it belongs", async () => {
+    await mountSettled(pullRequestPageCase("reader of an attached digest"));
     await waitFor(() => expect(document.querySelector(".pd")).toBeTruthy());
 
-    // The commit anchor is the only link that leaves Village, and it resolves
-    // through the attachment's repository rather than a caller-supplied string.
-    const commit = document.querySelector('.pd a[href*="/commit/"]');
-    expect(commit?.getAttribute("href")).toBe(
-      `https://github.com/${OWNER}/${NAME}/commit/abc1234000000000000000000000000000000001`,
-    );
-    // A prompt and a skill both open the exact turn.
+    // The pane opens the whole transcript on village.
+    const open = [...document.querySelectorAll(".pd a")].find((a) => spoken(a) === "open the transcript");
+    expect(open?.getAttribute("href")).toBe("/transcripts/11111111-1111-1111-1111-111111111111");
+    // A prompt opens its exact turn.
     const turnLinks = [...document.querySelectorAll('.pd a[href*="?turn="]')].map((a) =>
       a.getAttribute("href"),
     );
     expect(turnLinks).toContain("/transcripts/11111111-1111-1111-1111-111111111111?turn=0");
-    expect(document.querySelector(".pd")?.textContent).toContain("/commit");
-    // The attached-transcripts list is this page's own, not the digest's.
-    expect(screen.getByText("picker work")).toBeTruthy();
+    expect(turnLinks).toContain("/transcripts/11111111-1111-1111-1111-111111111111?turn=1");
+    // The commit anchor is the only chain link that leaves village, and it
+    // resolves through the attachment's repository.
+    const commit = document.querySelector('.pd a[href*="/commit/"]');
+    expect(commit?.getAttribute("href")).toBe(
+      `https://github.com/${OWNER}/${NAME}/commit/abc1234000000000000000000000000000000001`,
+    );
+    // The pull request itself opens on GitHub.
+    const github = [...document.querySelectorAll("a")].find((a) => spoken(a) === "view on github");
+    expect(github?.getAttribute("href")).toBe(`https://github.com/${OWNER}/${NAME}/pull/${NUMBER}`);
   });
 });

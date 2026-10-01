@@ -1,0 +1,78 @@
+# Detaching a binding that an older attach widened.
+#
+# Before migration 044 attaching widened: a private repository opened an approved
+# share to the linking collective and raised the transcript to shared, and a
+# public repository raised it to public, each recording the visibility it had
+# before (previous). Every binding that existed when 044 ran is marked
+# attach_widened, and detach still undoes what that attach did. Each row builds
+# the state the older attach left: the transcript at previous, any share the
+# owner already had with another collective (other_share_before), the widening
+# (widened_to, and opened_share for the linking collective), and the marked
+# binding on an attached pull request. owner_then is what the owner did while it
+# was attached: narrow_to_private through the PATCH route, or share_with_other
+# (an approved share to another collective).
+#
+# The author then detaches through the mounted route. The linking collective's
+# share is withdrawn and the recorded visibility restored when it is narrower
+# than the visibility now, except that a restore to private stays shared while
+# another collective holds a live submission, so detaching never takes away a
+# grant the owner made. narrowed says whether the detach itself moved the
+# visibility (one owner-attributed governance event) or left it (none).
+- name: private_repository_private_is_restored
+  repository: private
+  previous: private
+  widened_to: shared
+  opened_share: true
+  expect: {visibility: private, linking_share_live: false, other_share_live: false, narrowed: true}
+
+- name: private_repository_shared_stays_shared
+  repository: private
+  previous: shared
+  other_share_before: true
+  widened_to: shared
+  opened_share: true
+  expect: {visibility: shared, linking_share_live: false, other_share_live: true, narrowed: false}
+
+- name: private_repository_public_stays_public
+  repository: private
+  previous: public
+  widened_to: public
+  opened_share: true
+  expect: {visibility: public, linking_share_live: false, other_share_live: false, narrowed: false}
+
+- name: public_repository_private_is_restored
+  repository: public
+  previous: private
+  widened_to: public
+  expect: {visibility: private, linking_share_live: false, other_share_live: false, narrowed: true}
+
+- name: public_repository_shared_is_restored
+  repository: public
+  previous: shared
+  other_share_before: true
+  widened_to: public
+  expect: {visibility: shared, linking_share_live: false, other_share_live: true, narrowed: true}
+
+- name: an_owner_narrowing_is_kept
+  repository: private
+  previous: shared
+  other_share_before: true
+  widened_to: shared
+  opened_share: true
+  owner_then: narrow_to_private
+  expect: {visibility: private, linking_share_live: false, other_share_live: true, narrowed: false}
+
+- name: an_owner_share_made_since_is_kept
+  repository: private
+  previous: private
+  widened_to: shared
+  opened_share: true
+  owner_then: share_with_other
+  expect: {visibility: shared, linking_share_live: false, other_share_live: true, narrowed: false}
+
+- name: an_owner_share_made_since_is_kept_on_a_public_repository
+  repository: public
+  previous: private
+  widened_to: public
+  owner_then: share_with_other
+  expect: {visibility: shared, linking_share_live: false, other_share_live: true, narrowed: true}

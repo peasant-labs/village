@@ -33,3 +33,20 @@ routes:
     method: PATCH
     path: /api/v1/users/me/settings
     anonymous: 401
+
+  - name: a transcript's pull requests are reachable anonymously
+    method: GET
+    path: /api/v1/transcripts/00000000-0000-4000-8000-000000000257/pulls
+    anonymous: 404
+
+  # A 404 alone would also be what an unmounted route answers. The handler's own
+  # 400 for an identifier that is not one proves the route is mounted.
+  - name: a transcript's pull requests route is mounted
+    method: GET
+    path: /api/v1/transcripts/not-a-transcript-id/pulls
+    anonymous: 400
+
+  - name: personal totals require a session
+    method: GET
+    path: /api/v1/users/me/stats
+    anonymous: 401

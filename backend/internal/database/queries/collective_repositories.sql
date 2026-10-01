@@ -87,3 +87,17 @@ SELECT * FROM collective_repositories
 WHERE lower(owner) = lower(@owner) AND lower(name) = lower(@name)
 ORDER BY created_at ASC NULLS LAST, id ASC
 LIMIT 1;
+
+-- name: ListCollectiveSharedRemotes :many
+-- The git remotes of the transcripts already shared with one collective (an
+-- approved share, not a submission awaiting review), with each transcript's
+-- owner, for the repository picker's publisher count. A remote is reduced to its
+-- repository in Go by schema.RemoteLabel, the contract's rule for naming a
+-- remote's repository (githubRepositoryKey), so no SQL here parses one.
+SELECT DISTINCT t.owner_id, t.git_remote
+FROM transcript_shares ts
+JOIN transcripts t ON t.id = ts.transcript_id
+WHERE ts.group_id = $1
+  AND ts.status = 'approved'
+  AND t.git_remote IS NOT NULL
+  AND t.git_remote <> '';

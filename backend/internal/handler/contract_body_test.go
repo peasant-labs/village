@@ -460,3 +460,30 @@ func TestContractBody_NilValidatorFailsClosed(t *testing.T) {
 		t.Fatalf("status = %d, want 503 (body: %s)", rec.Code, rec.Body.String())
 	}
 }
+
+// TestCreateGroupAcceptsANullOrganization drives the production create handler
+// with the null organization the contract now allows on create, as on update:
+// the served document must accept the body and the handler must create a
+// collective linked to no organization.
+func TestCreateGroupAcceptsANullOrganization(t *testing.T) {
+	var created sqlc.CreateGroupParams
+	q := &mockQuerier{
+		createGroup: func(_ context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error) {
+			created = arg
+			return sqlc.Group{ID: pgtype.UUID{Bytes: [16]byte{1}, Valid: true}, Name: arg.Name}, nil
+		},
+		addGroupMember: func(context.Context, sqlc.AddGroupMemberParams) error { return nil },
+	}
+	h := newTestHandler(q, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/groups", strings.NewReader(`{"name":"Night Shift","linked_github_org":null}`))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserID(req.Context(), contractBodyTestUser))
+	rec := httptest.NewRecorder()
+	h.CreateGroup(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create with a null organization = %d (%s), want 201", rec.Code, rec.Body.String())
+	}
+	if created.Name != "Night Shift" || created.LinkedGithubOrg.Valid {
+		t.Fatalf("created %+v, want the named collective linked to no organization", created)
+	}
+}
