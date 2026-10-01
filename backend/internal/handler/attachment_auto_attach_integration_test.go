@@ -14,8 +14,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/github"
+	"github.com/peasant-labs/village/backend/internal/promptattach"
 )
 
 //go:embed testdata/github_webhook/auto-attach.yaml
@@ -30,9 +33,11 @@ type autoAttachCase struct {
 	TranscriptMatches   bool   `yaml:"transcript_matches"`
 	Deliveries          int    `yaml:"deliveries"`
 	ThenPublishesAMatch bool   `yaml:"then_publishes_a_match"`
+	StartsAs            string `yaml:"starts_as"`
 	Expect              struct {
 		State          string `yaml:"state"`
 		CommentsPosted int    `yaml:"comments_posted"`
+		CommentEdits   int    `yaml:"comment_edits"`
 	} `yaml:"expect"`
 }
 
@@ -49,6 +54,8 @@ var requiredAutoAttachCases = []string{
 	"redelivery_posts_no_second_comment",
 	"nothing_matching_yet_waits_for_a_publish",
 	"a_waiting_pull_request_is_completed_by_a_later_publish",
+	"a_pull_request_the_author_previewed_is_left_alone",
+	"a_pull_request_the_author_detached_is_left_alone",
 }
 
 func loadAutoAttachCases(t *testing.T) []autoAttachCase {
@@ -66,8 +73,11 @@ func loadAutoAttachCases(t *testing.T) []autoAttachCase {
 		if !containsString([]string{"opted_in", "opted_out", "unknown"}, c.Author) {
 			t.Fatalf("row %q: author %q is not opted_in, opted_out, or unknown", c.Name, c.Author)
 		}
-		if !containsString([]string{"attached", "waiting", "none"}, c.Expect.State) {
-			t.Fatalf("row %q: state %q is not attached, waiting, or none", c.Name, c.Expect.State)
+		if !containsString([]string{"attached", "waiting", "preview", "detached", "none"}, c.Expect.State) {
+			t.Fatalf("row %q: state %q is not attached, waiting, preview, detached, or none", c.Name, c.Expect.State)
+		}
+		if c.StartsAs != "" && c.StartsAs != "preview" && c.StartsAs != "detached" {
+			t.Fatalf("row %q: starts_as %q is neither preview nor detached", c.Name, c.StartsAs)
 		}
 		if c.Deliveries < 1 {
 			t.Fatalf("row %q: deliveries %d, want at least one", c.Name, c.Deliveries)
@@ -116,8 +126,9 @@ func TestOpenedPullRequestFollowsTheAuthorsAutoAttachChoice_RealPostgres(t *test
 
 			repoName := "auto-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
 			sha := fmt.Sprintf("d%039d", authorGitHubID)
+			var groupID pgtype.UUID
 			if c.Linked {
-				groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+				groupID = attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
 				if c.Member {
 					if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')`, groupID, owner); err != nil {
 						t.Fatalf("make the author a member of the linking collective: %v", err)
@@ -145,6 +156,15 @@ func TestOpenedPullRequestFollowsTheAuthorsAutoAttachChoice_RealPostgres(t *test
 			}
 			transcriptID := attachmentSeedTranscript(t, ctx, pool, blobs, owner, remote, recorded, "private", "feat/x", time.Now().Add(-time.Hour))
 			fake.setPullCommits(sha)
+			switch c.StartsAs {
+			case "preview":
+				attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 7)
+			case "detached":
+				created := attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 7)
+				if _, err := promptattach.Transition(ctx, h.queries, created.ID, promptattach.Detached); err != nil {
+					t.Fatalf("detach the attachment the author made: %v", err)
+				}
+			}
 
 			for delivery := 0; delivery < c.Deliveries; delivery++ {
 				if err := dispatchEvent(t, h, "pull_request", openedPullRequestEvent(repoName, 7, prAuthor, sha, c.Fork)); err != nil {
@@ -169,10 +189,10 @@ func TestOpenedPullRequestFollowsTheAuthorsAutoAttachChoice_RealPostgres(t *test
 				t.Fatalf("attachment state = %q, want %q", state, c.Expect.State)
 			}
 			fake.mu.Lock()
-			comments := fake.commentCreates
+			comments, edits := fake.commentCreates, fake.commentEdits
 			fake.mu.Unlock()
-			if comments != c.Expect.CommentsPosted {
-				t.Fatalf("sticky comments created = %d, want %d", comments, c.Expect.CommentsPosted)
+			if comments != c.Expect.CommentsPosted || edits != c.Expect.CommentEdits {
+				t.Fatalf("sticky comments created = %d and edited = %d, want %d and %d", comments, edits, c.Expect.CommentsPosted, c.Expect.CommentEdits)
 			}
 
 			if visibility := readTranscriptVisibility(t, ctx, pool, transcriptID); visibility != "private" {
@@ -200,5 +220,60 @@ func TestOpenedPullRequestFollowsTheAuthorsAutoAttachChoice_RealPostgres(t *test
 				}
 			}
 		})
+	}
+}
+
+// TestAutoAttachSurvivesTheWebhookGivingUp_RealPostgres covers a delivery whose
+// request is cancelled while the comment is being posted, which is what GitHub
+// giving up on a slow delivery does. The attach must still record what it
+// posted, and the redelivery that follows must not post a second comment.
+func TestAutoAttachSurvivesTheWebhookGivingUp_RealPostgres(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	h.githubDispatcher = promptCommandDispatcher{h: h}
+	ctx := context.Background()
+	authorGitHubID := int64(996491)
+	owner := attachmentInsertOwner(t, ctx, pool, authorGitHubID)
+	defer cleanupOwners(t, ctx, pool, owner)
+
+	repoName := "auto-cancel-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	sha := fmt.Sprintf("d%039d", authorGitHubID)
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
+	if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')`, groupID, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE users SET auto_attach_pull_requests = true WHERE id = $1`, owner); err != nil {
+		t.Fatal(err)
+	}
+	attachmentSeedTranscript(t, ctx, pool, blobs, owner, "git@github.com:acme/"+repoName+".git", sha, "private", "feat/x", time.Now().Add(-time.Hour))
+	fake.setPullCommits(sha)
+
+	requestCtx, giveUp := context.WithCancel(ctx)
+	defer giveUp()
+	fake.mu.Lock()
+	fake.beforeCommentWrite = giveUp
+	fake.mu.Unlock()
+	payload := openedPullRequestEvent(repoName, 7, authorGitHubID, sha, false)
+	if err := github.Dispatch(requestCtx, h.githubDispatcher, github.Event{Type: "pull_request", DeliveryID: uuid.NewString(), Payload: []byte(payload)}); err != nil {
+		t.Fatalf("the delivery whose request was cancelled mid-post: %v", err)
+	}
+	if requestCtx.Err() == nil {
+		t.Fatal("the request was never cancelled, so the case this test describes never happened")
+	}
+
+	attachment, err := h.queries.GetPullRequestAttachmentForPull(ctx, sqlc.GetPullRequestAttachmentForPullParams{Lower: "acme", Lower_2: strings.ToLower(repoName), Number: 7})
+	if err != nil {
+		t.Fatalf("read the attachment: %v", err)
+	}
+	if attachment.State != "attached" || !attachment.CommentID.Valid {
+		t.Fatalf("attachment = %s with comment recorded %t, want attached with its comment recorded", attachment.State, attachment.CommentID.Valid)
+	}
+	if err := dispatchEvent(t, h, "pull_request", payload); err != nil {
+		t.Fatalf("redeliver: %v", err)
+	}
+	fake.mu.Lock()
+	creates := fake.commentCreates
+	fake.mu.Unlock()
+	if creates != 1 {
+		t.Fatalf("sticky comments created = %d after the redelivery, want 1", creates)
 	}
 }

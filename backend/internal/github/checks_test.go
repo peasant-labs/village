@@ -53,11 +53,11 @@ var requiredValidationCaseNames = []string{
 }
 
 type conclusionCase struct {
-	Name       string `yaml:"name"`
-	Mode       string `yaml:"mode"`
-	Attached   bool   `yaml:"attached"`
-	HasPrompts bool   `yaml:"has_prompts"`
-	Conclusion string `yaml:"conclusion"`
+	Name                 string `yaml:"name"`
+	Mode                 string `yaml:"mode"`
+	Attached             bool   `yaml:"attached"`
+	ReadableBeyondAuthor bool   `yaml:"readable_beyond_author"`
+	Conclusion           string `yaml:"conclusion"`
 }
 
 type conclusionFixture struct {
@@ -201,9 +201,9 @@ func toCheckRunRequest(f checkRunRequestFixture) CheckRunRequest {
 func TestPromptCheckConclusion(t *testing.T) {
 	for _, tc := range loadConclusionCases(t) {
 		t.Run(tc.Name, func(t *testing.T) {
-			got := PromptCheckConclusion(promptattach.CheckMode(tc.Mode), tc.Attached, tc.HasPrompts)
+			got := PromptCheckConclusion(promptattach.CheckMode(tc.Mode), tc.Attached, tc.ReadableBeyondAuthor)
 			if got != tc.Conclusion {
-				t.Errorf("PromptCheckConclusion(%q, attached=%v, hasPrompts=%v) = %q, want %q", tc.Mode, tc.Attached, tc.HasPrompts, got, tc.Conclusion)
+				t.Errorf("PromptCheckConclusion(%q, attached=%v, readableBeyondAuthor=%v) = %q, want %q", tc.Mode, tc.Attached, tc.ReadableBeyondAuthor, got, tc.Conclusion)
 			}
 		})
 	}

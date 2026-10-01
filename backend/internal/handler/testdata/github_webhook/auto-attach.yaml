@@ -13,9 +13,12 @@
 # again. then_publishes_a_match publishes, after the event, a session that
 # records a commit the pull request carries, through the real publish route.
 #
+# starts_as, when present, is an attachment the pull request already has before
+# the event: one the author previewed or detached is theirs to decide.
+#
 # expect.state is the attachment the pull request has afterwards (none when it
-# has no attachment row), and comments_posted how many sticky comments were
-# created. Every row also requires that the transcript keeps its visibility and
+# has no attachment row), comments_posted how many sticky comments were created,
+# and comment_edits how many were edited. Every row also requires that the transcript keeps its visibility and
 # that no share is opened: linking never changes who can read a transcript.
 - name: opted_in_author_is_attached_without_a_preview
   author: opted_in
@@ -23,7 +26,7 @@
   linked: true
   transcript_matches: true
   deliveries: 1
-  expect: {state: attached, comments_posted: 1}
+  expect: {state: attached, comments_posted: 1, comment_edits: 0}
 
 - name: opted_out_author_gets_no_attachment
   author: opted_out
@@ -31,7 +34,7 @@
   linked: true
   transcript_matches: true
   deliveries: 1
-  expect: {state: none, comments_posted: 0}
+  expect: {state: none, comments_posted: 0, comment_edits: 0}
 
 - name: unknown_author_gets_no_attachment
   author: unknown
@@ -39,7 +42,7 @@
   linked: true
   transcript_matches: true
   deliveries: 1
-  expect: {state: none, comments_posted: 0}
+  expect: {state: none, comments_posted: 0, comment_edits: 0}
 
 - name: unlinked_repository_gets_no_attachment
   author: opted_in
@@ -47,7 +50,7 @@
   linked: false
   transcript_matches: true
   deliveries: 1
-  expect: {state: none, comments_posted: 0}
+  expect: {state: none, comments_posted: 0, comment_edits: 0}
 
 - name: author_outside_the_linking_collective_gets_no_attachment
   author: opted_in
@@ -55,7 +58,7 @@
   linked: true
   transcript_matches: true
   deliveries: 1
-  expect: {state: none, comments_posted: 0}
+  expect: {state: none, comments_posted: 0, comment_edits: 0}
 
 - name: fork_pull_request_is_attached_from_its_head_repository
   author: opted_in
@@ -64,7 +67,7 @@
   fork: true
   transcript_matches: true
   deliveries: 1
-  expect: {state: attached, comments_posted: 1}
+  expect: {state: attached, comments_posted: 1, comment_edits: 0}
 
 - name: redelivery_posts_no_second_comment
   author: opted_in
@@ -72,7 +75,7 @@
   linked: true
   transcript_matches: true
   deliveries: 2
-  expect: {state: attached, comments_posted: 1}
+  expect: {state: attached, comments_posted: 1, comment_edits: 0}
 
 - name: nothing_matching_yet_waits_for_a_publish
   author: opted_in
@@ -80,7 +83,7 @@
   linked: true
   transcript_matches: false
   deliveries: 1
-  expect: {state: waiting, comments_posted: 0}
+  expect: {state: waiting, comments_posted: 0, comment_edits: 0}
 
 - name: a_waiting_pull_request_is_completed_by_a_later_publish
   author: opted_in
@@ -89,4 +92,22 @@
   transcript_matches: false
   deliveries: 1
   then_publishes_a_match: true
-  expect: {state: attached, comments_posted: 1}
+  expect: {state: attached, comments_posted: 1, comment_edits: 0}
+
+- name: a_pull_request_the_author_previewed_is_left_alone
+  author: opted_in
+  member: true
+  linked: true
+  transcript_matches: true
+  deliveries: 1
+  starts_as: preview
+  expect: {state: preview, comments_posted: 0, comment_edits: 0}
+
+- name: a_pull_request_the_author_detached_is_left_alone
+  author: opted_in
+  member: true
+  linked: true
+  transcript_matches: true
+  deliveries: 1
+  starts_as: detached
+  expect: {state: detached, comments_posted: 0, comment_edits: 0}

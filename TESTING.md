@@ -340,6 +340,13 @@ until a later publish completes it. The setting itself is written by
 `testdata/user-settings-patch.yaml` and read back through PostgreSQL by
 `TestUserSettingsRoundTrip`.
 
+Three single-scenario races sit beside the fixtures: an owner narrowing a
+transcript while its attach is posting (`TestAnAttachReconcilesANarrowingDuringItsPost_RealPostgres`,
+through a fake GitHub hook that runs mid-post), a webhook request cancelled
+mid-post (`TestAutoAttachSurvivesTheWebhookGivingUp_RealPostgres`), and a page
+binding two transcripts with different audiences
+(`TestThePageShowsEachReaderOnlyWhatTheyCanRead_RealPostgres`).
+
 ### Contributing a whole project: refusals are asserted on the LEDGER
 
 `internal/handler/testdata/groups-batch-share.yaml` +
@@ -1128,8 +1135,9 @@ transaction control. A
 `schema_migrations(version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ)` table
 tracks what has run; each migration is checked before exec, so `RunMigrations`
 is idempotent. Files are paired `NNN_name.up.sql` / `NNN_name.down.sql`. The
-latest registered version is **044** (`044_attach_widened_and_auto_attach`);
-the next new migration is **045**. Versions 19 and 25 are intentionally absent
+latest registered version is the one `wantLatestMigration` in
+`migrations_registry_test.go` pins; read it there rather than from this file,
+and number the next migration one above it. Versions 19 and 25 are intentionally absent
 from the registry and must not be reused. See `docs/database-invariants.md` §1.
 
 **Registry-wide invariants live in ONE central test** -

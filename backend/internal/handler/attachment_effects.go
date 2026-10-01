@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -35,8 +36,9 @@ const attachmentCheckTitle = "peasant / prompts"
 //
 // Ordering is the contract. GitHub is called before the state moves, so a
 // failure answers 502 and leaves the attachment in its state for a retry; the
-// bindings this attempt made are removed, so the retry starts from the state the
-// caller saw.
+// bindings this attempt made are removed, so the retry binds afresh. Bindings
+// an earlier, detached cycle left are cleared before this one binds, and a
+// failure does not bring them back.
 func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.PullRequestAttachment) (sqlc.PullRequestAttachment, error) {
 	repo, err := h.resolveAttachmentRepository(ctx, h.queries, attachment)
 	if err != nil {
@@ -57,17 +59,21 @@ func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.Pul
 		return attachment, err
 	}
 
-	if err := h.clearEarlierBindings(ctx, attachment, repo); err != nil {
+	narrowed, err := h.clearEarlierBindings(ctx, attachment, repo)
+	if err != nil {
 		return attachment, err
 	}
+	// A cleared binding an older attach widened may have narrowed its
+	// transcript; any other pull request listing it is reposted now, while this
+	// attachment is not attached and so never among the ones the repost locks.
+	h.repostAfterNarrowing(ctx, narrowed)
 	if err := h.bindAcceptedTranscripts(ctx, attachment, match.Accepted, 0); err != nil {
 		return attachment, err
 	}
 	commentID, checkRunID, err := h.postAttachment(ctx, attachment, repo, digests, false)
 	if err != nil {
 		// Posting failed, so the attachment never attached: remove what this
-		// attempt bound, and the retry starts from exactly the state the caller
-		// saw.
+		// attempt bound, so the retry binds afresh.
 		if unbindErr := h.unbindTranscripts(ctx, attachment.ID, acceptedIDs); unbindErr != nil {
 			return attachment, fmt.Errorf("%w: and the bindings could not be removed, so a retry will bind again: %v", err, unbindErr)
 		}
@@ -92,7 +98,51 @@ func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.Pul
 	if err != nil {
 		return attachment, err
 	}
+
+	// An owner who changed a transcript's visibility while this attach was
+	// posting found no attached attachment to repost, so the listing is checked
+	// here, still under the attachment lock the caller holds, and reposted when
+	// it no longer matches. It never fails the attach, which has committed.
+	if h.audienceMovedSince(ctx, digests) {
+		if err := h.refreshAttachedAttachment(ctx, updated, repo, updated.HeadSha, true); err != nil {
+			log.Printf("pull request attachment repost after a visibility change during attach failed: %v", err)
+		}
+	}
 	return updated, nil
+}
+
+// audienceMovedSince reports whether any transcript the digests were built from
+// now lists differently on the pull request, or changes whether anyone besides
+// its author can read it. A read that fails counts as moved, so the repost
+// recomputes rather than trusting a listing it could not check.
+func (h *Handler) audienceMovedSince(ctx context.Context, digests attachmentDigests) bool {
+	for id, before := range digests.visibility {
+		parsed, err := uuid.Parse(string(id))
+		if err != nil {
+			return true
+		}
+		row, err := h.queries.GetTranscriptByID(ctx, pgtype.UUID{Bytes: parsed, Valid: true})
+		if err != nil {
+			return true
+		}
+		if listedOnPullRequest(row.Visibility) != listedOnPullRequest(before) ||
+			readableBeyondItsAuthor(row.Visibility) != readableBeyondItsAuthor(before) {
+			return true
+		}
+	}
+	return false
+}
+
+// repostAfterNarrowing reposts every attached pull request that binds a
+// transcript a release just narrowed, so none keeps listing it. Each attachment
+// is taken under its own lock; failures are logged, never returned, because the
+// change that narrowed the transcript has already committed.
+func (h *Handler) repostAfterNarrowing(ctx context.Context, narrowed []pgtype.UUID) {
+	for _, transcriptID := range narrowed {
+		if err := h.refreshAttachmentsForTranscriptVisibility(ctx, transcriptID); err != nil {
+			log.Printf("pull request attachment refresh after a release narrowed a transcript failed: %v", err)
+		}
+	}
 }
 
 // errAttachmentNothingAccepted is returned when the acceptance policy accepts
@@ -239,27 +289,44 @@ func (h *Handler) unbindTranscripts(ctx context.Context, attachmentID pgtype.UUI
 // attach binds. Detach keeps its bindings so a detached pull request still lists
 // what it held; a new attach starts afresh, so each binding records the
 // visibility that is true when it is made. A binding an older attach widened is
-// released first, exactly as a detach would release it.
-func (h *Handler) clearEarlierBindings(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository) error {
+// released first, exactly as a detach releases it, and the transcripts that
+// release narrowed are returned for the caller to repost.
+func (h *Handler) clearEarlierBindings(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository) ([]pgtype.UUID, error) {
 	bindings, err := h.queries.ListPullRequestAttachmentTranscripts(ctx, attachment.ID)
 	if err != nil {
-		return fmt.Errorf("could not read the bindings an earlier attach left: %w", err)
+		return nil, fmt.Errorf("could not read the bindings an earlier attach left: %w", err)
 	}
 	if len(bindings) == 0 {
-		return nil
+		return nil, nil
 	}
+	narrowed, err := h.releaseWidenedBindings(ctx, bindings, repo.groupID)
+	if err != nil {
+		return narrowed, err
+	}
+	if err := h.queries.DeletePullRequestAttachmentTranscripts(ctx, attachment.ID); err != nil {
+		return narrowed, fmt.Errorf("could not clear the bindings an earlier attach left: %w", err)
+	}
+	return narrowed, nil
+}
+
+// releaseWidenedBindings releases every binding an older attach widened, and
+// returns the transcripts a release narrowed. Bindings made since are skipped:
+// attaching them changed nothing, so neither does letting them go.
+func (h *Handler) releaseWidenedBindings(ctx context.Context, bindings []sqlc.PullRequestAttachmentTranscript, groupID pgtype.UUID) ([]pgtype.UUID, error) {
+	var narrowed []pgtype.UUID
 	for _, binding := range bindings {
 		if !binding.AttachWidened {
 			continue
 		}
-		if _, err := h.releaseWidenedBinding(ctx, binding, repo.groupID); err != nil {
-			return err
+		changed, err := h.releaseWidenedBinding(ctx, binding, groupID)
+		if err != nil {
+			return narrowed, err
+		}
+		if changed {
+			narrowed = append(narrowed, binding.TranscriptID)
 		}
 	}
-	if err := h.queries.DeletePullRequestAttachmentTranscripts(ctx, attachment.ID); err != nil {
-		return fmt.Errorf("could not clear the bindings an earlier attach left: %w", err)
-	}
-	return nil
+	return narrowed, nil
 }
 
 // postAttachment posts the check (when the collective asked for one) and the one
@@ -383,18 +450,9 @@ func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequ
 	if err != nil {
 		return attachment, fmt.Errorf("could not read the attachment's transcripts before releasing them: %w", err)
 	}
-	var narrowed []pgtype.UUID
-	for _, binding := range bindings {
-		if !binding.AttachWidened {
-			continue
-		}
-		changed, err := h.releaseWidenedBinding(ctx, binding, repo.groupID)
-		if err != nil {
-			return attachment, err
-		}
-		if changed {
-			narrowed = append(narrowed, binding.TranscriptID)
-		}
+	narrowed, err := h.releaseWidenedBindings(ctx, bindings, repo.groupID)
+	if err != nil {
+		return attachment, err
 	}
 
 	// The posted objects are gone or reset; keep the digest but drop the ids so
@@ -417,11 +475,7 @@ func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequ
 	// A released binding narrowed its transcript, so any other pull request that
 	// lists it must stop. This attachment is detached by now, so the refresh
 	// never takes its lock, and it never fails the detach the author asked for.
-	for _, transcriptID := range narrowed {
-		if refreshErr := h.refreshAttachmentsForTranscriptVisibility(ctx, transcriptID); refreshErr != nil {
-			log.Printf("pull request attachment refresh after a detach narrowed a transcript failed: %v", refreshErr)
-		}
-	}
+	h.repostAfterNarrowing(ctx, narrowed)
 	return updated, nil
 }
 
@@ -450,6 +504,22 @@ func (h *Handler) releaseWidenedBinding(ctx context.Context, binding sqlc.PullRe
 	err = h.withPublishLocks(ctx, transcript.OwnerID, transcript.LocalID, nil, func(conn *pgxpool.Conn) error {
 		return h.inTxAsOnConn(ctx, conn, transcript.OwnerID, func(q Querier) error {
 			narrowed = false
+			// The binding is re-read under the lock: a concurrent detach or attach
+			// may have released or cleared it since the caller listed it, and a
+			// released binding is never restored a second time.
+			current, err := q.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{
+				AttachmentID: binding.AttachmentID,
+				TranscriptID: binding.TranscriptID,
+			})
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+			if err != nil {
+				return fmt.Errorf("could not re-read a bound transcript before releasing it: %w", err)
+			}
+			if !current.AttachWidened {
+				return nil
+			}
 			if groupID.Valid {
 				if _, err := withdrawLiveShare(ctx, q, binding.TranscriptID, groupID); err != nil {
 					return fmt.Errorf("could not retract the collective's share: %w", err)
@@ -459,7 +529,7 @@ func (h *Handler) releaseWidenedBinding(ctx context.Context, binding sqlc.PullRe
 			if err != nil {
 				return fmt.Errorf("could not lock a bound transcript before restoring it: %w", err)
 			}
-			target := narrowestVisibility(pre.Visibility, binding.PreviousVisibility)
+			target := narrowestVisibility(pre.Visibility, current.PreviousVisibility)
 			if target == dbVisibilityPrivate && pre.Visibility != dbVisibilityPrivate {
 				live, err := q.TranscriptHasLiveShareAttempt(ctx, binding.TranscriptID)
 				if err != nil {

@@ -3,6 +3,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -185,8 +186,17 @@ func newAttachAudienceWorld(t *testing.T, c attachAudienceCase, githubBase int64
 		}
 	}
 
-	attachmentCreatePreview(t, ctx, h, w.groupID, owner, "acme", w.repoName, sha, w.number)
+	preview := attachmentCreatePreview(t, ctx, h, w.groupID, owner, "acme", w.repoName, sha, w.number)
 	fake.setPullCommits(sha)
+	// The author's click computes and stores the preview digest, as production
+	// does, so the preview page has something to show its author.
+	repo, err := h.resolveAttachmentRepository(ctx, h.queries, preview)
+	if err != nil {
+		t.Fatalf("resolve the attachment's repository: %v", err)
+	}
+	if err := h.authorAttachOrPreview(ctx, preview, repo, sha, false); err != nil {
+		t.Fatalf("compute the preview: %v", err)
+	}
 	return w
 }
 
@@ -210,7 +220,7 @@ func (w *attachAudienceWorld) pageOutcome(t *testing.T, viewer *AuthUser) string
 	if hasPrompt != hasTitle {
 		t.Fatalf("the page shows the prompt (%t) and the title (%t) to the same viewer differently; both follow who can read the transcript: %s", hasPrompt, hasTitle, body)
 	}
-	if len(response.Transcripts) != 1 {
+	if response.Attachment.State == schema.VillagePullRequestAttachmentState("attached") && len(response.Transcripts) != 1 {
 		t.Fatalf("the page lists %d transcripts, want the one bound, readable or not", len(response.Transcripts))
 	}
 	if hasPrompt {
@@ -229,6 +239,17 @@ func TestAttachingNeverChangesWhoCanRead_RealPostgres(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			ctx := context.Background()
 			w := newAttachAudienceWorld(t, c, 996100+int64(i)*10)
+
+			// The preview is the author's own review step: they see their prompts,
+			// and nobody else's page carries them.
+			if rec := pageAs(t, w.h, w.owner, "acme", w.repoName, w.number); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "please attach my prompts") {
+				t.Fatalf("the author's own preview: status %d, want 200 with their prompt: %s", rec.Code, rec.Body.String())
+			}
+			for _, viewer := range []*AuthUser{w.member, w.reader, nil} {
+				if rec := pageAs(t, w.h, viewer, "acme", w.repoName, w.number); strings.Contains(rec.Body.String(), "please attach my prompts") {
+					t.Fatalf("a preview's prompts reached a viewer who is not its author: %s", rec.Body.String())
+				}
+			}
 
 			eventsBefore := governanceEventCount(t, ctx, w.pool, w.transcriptID)
 			shareBefore := latestShareStatus(t, ctx, w.pool, w.transcriptID, w.groupID)
@@ -324,6 +345,13 @@ func TestAttachingNeverChangesWhoCanRead_RealPostgres(t *testing.T) {
 			if kept.AttachWidened {
 				t.Error("a detached new binding reads as widened")
 			}
+			// A detached digest describes prompts that are no longer attached, so
+			// only its author is still served it.
+			for _, viewer := range []*AuthUser{w.member, w.reader, nil} {
+				if rec := pageAs(t, w.h, viewer, "acme", w.repoName, w.number); strings.Contains(rec.Body.String(), "please attach my prompts") {
+					t.Errorf("a detached pull request served its prompts to a viewer who is not its author: %s", rec.Body.String())
+				}
+			}
 		})
 	}
 }
@@ -337,4 +365,63 @@ func (w *attachAudienceWorld) attachmentID(t *testing.T) pgtype.UUID {
 		t.Fatalf("read the attachment: %v", err)
 	}
 	return attachment.ID
+}
+
+// TestThePageShowsEachReaderOnlyWhatTheyCanRead_RealPostgres binds two
+// transcripts with different audiences to one pull request, so a reader who can
+// open one of them must not be handed the other's title or prompts through it.
+func TestThePageShowsEachReaderOnlyWhatTheyCanRead_RealPostgres(t *testing.T) {
+	h, pool, blobs, fake := attachmentTestHandler(t)
+	ctx := context.Background()
+	owner := attachmentInsertOwner(t, ctx, pool, 996191)
+	defer cleanupOwners(t, ctx, pool, owner)
+	ownerAuth := &AuthUser{ID: uuid.UUID(owner.Bytes), Username: "mixed-owner"}
+
+	repoName := "mixed-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, false, "informational")
+	sha := "abc1234000000000000000000000000000000191"
+	remote := "git@github.com:acme/" + repoName + ".git"
+	seed := func(visibility, prompt, title string, startedAgo time.Duration) {
+		t.Helper()
+		content := bytes.Replace(attachmentPublicationContent(), []byte("please attach my prompts"), []byte(prompt), 1)
+		id := attachmentSeedTranscriptWith(t, ctx, pool, blobs, owner, remote, sha, visibility, "", time.Now().Add(-startedAgo), content)
+		if _, err := pool.Exec(ctx, `UPDATE transcripts SET title = $2 WHERE id = $1`, id, title); err != nil {
+			t.Fatalf("title a transcript: %v", err)
+		}
+	}
+	seed("public", "the public prompt", "the public title", 2*time.Hour)
+	seed("private", "the private prompt", "the private title", time.Hour)
+	attachmentCreatePreview(t, ctx, h, groupID, owner, "acme", repoName, sha, 7)
+	fake.setPullCommits(sha)
+	attachmentConfirm(t, h, owner, "acme", repoName, 7)
+
+	for _, view := range []struct {
+		who            string
+		viewer         *AuthUser
+		seesPrivateRow bool
+	}{
+		{"anonymous", nil, false},
+		{"owner", ownerAuth, true},
+	} {
+		rec := pageAs(t, h, view.viewer, "acme", repoName, 7)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s page status = %d, want 200", view.who, rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "the public prompt") || !strings.Contains(body, "the public title") {
+			t.Errorf("%s does not see the public transcript's prompt and title: %s", view.who, body)
+		}
+		for _, needle := range []string{"the private prompt", "the private title"} {
+			if got := strings.Contains(body, needle); got != view.seesPrivateRow {
+				t.Errorf("%s sees %q = %t, want %t: %s", view.who, needle, got, view.seesPrivateRow, body)
+			}
+		}
+		var response schema.VillagePullRequestAttachmentResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		if len(response.Transcripts) != 2 {
+			t.Errorf("%s sees %d bound transcripts, want both, readable or not", view.who, len(response.Transcripts))
+		}
+	}
 }

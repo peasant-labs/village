@@ -71,6 +71,10 @@ type attachmentGitHubFake struct {
 	lastCheckText       string
 	lastCheckConclusion string
 	lastCommentBody     string
+	// beforeCommentWrite, when set, runs once as the next comment create or edit
+	// arrives, before the fake answers it, so a test can act in the middle of a
+	// post.
+	beforeCommentWrite func()
 }
 
 func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
@@ -189,6 +193,15 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 		case strings.Contains(r.URL.Path, "/issues/") && strings.Contains(r.URL.Path, "/comments"):
 			if writeFailure() {
 				return
+			}
+			if r.Method != http.MethodDelete {
+				fake.mu.Lock()
+				hook := fake.beforeCommentWrite
+				fake.beforeCommentWrite = nil
+				fake.mu.Unlock()
+				if hook != nil {
+					hook()
+				}
 			}
 			if raw, err := io.ReadAll(r.Body); err == nil && len(raw) > 0 {
 				var payload struct {
@@ -362,7 +375,13 @@ func attachmentLinkCollective(t *testing.T, ctx context.Context, pool *pgxpool.P
 // store and returns its id.
 func attachmentSeedTranscript(t *testing.T, ctx context.Context, pool *pgxpool.Pool, blobs *recordingTranscriptBlobStore, owner pgtype.UUID, remote, sha, visibility, branch string, sessionStart time.Time) pgtype.UUID {
 	t.Helper()
-	contents := attachmentPublicationContent()
+	return attachmentSeedTranscriptWith(t, ctx, pool, blobs, owner, remote, sha, visibility, branch, sessionStart, attachmentPublicationContent())
+}
+
+// attachmentSeedTranscriptWith is attachmentSeedTranscript with chosen stored
+// content, so one test can tell two transcripts' prompts apart.
+func attachmentSeedTranscriptWith(t *testing.T, ctx context.Context, pool *pgxpool.Pool, blobs *recordingTranscriptBlobStore, owner pgtype.UUID, remote, sha, visibility, branch string, sessionStart time.Time, contents []byte) pgtype.UUID {
+	t.Helper()
 	descriptor, identity, err := blobs.Write(ctx, uuid.New(), contents)
 	if err != nil {
 		t.Fatalf("write transcript blob: %v", err)

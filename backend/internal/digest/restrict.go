@@ -20,8 +20,9 @@ import (
 //     goes with it, even if a kept transcript recorded the same commit, so the
 //     restricted chain can cover fewer commits than a fresh build would.
 //   - The header's harness and redaction level stay those of the first session
-//     of the whole chain. They name a harness and a level, never content, and
-//     the chain does not say which harness a later session used.
+//     of the whole chain, even when no session is kept: the contract requires
+//     both, they name a harness and a level, never content, and the chain does
+//     not say which harness a later session used.
 //
 // A keep that accepts every transcript returns the digest unchanged.
 func Restrict(d schema.PromptDigest, keep func(schema.TranscriptID) bool) (schema.PromptDigest, error) {
@@ -62,10 +63,6 @@ func Restrict(d schema.PromptDigest, keep func(schema.TranscriptID) bool) (schem
 	header.SessionCount = sessions
 	header.PromptCount = prompts
 	header.CommitsCovered = commits
-	if sessions == 0 {
-		header.Harness = ""
-		header.RedactionLevel = ""
-	}
 
 	restricted := schema.PromptDigest{Header: header, Skills: skills, Items: items}
 	if err := restricted.Validate(); err != nil {

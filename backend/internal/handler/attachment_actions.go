@@ -453,6 +453,14 @@ func (h *Handler) completeAttachmentsForPublishedTranscript(ctx context.Context,
 // nothing changed. Attaching never changes who can read a transcript, so no
 // click is needed to consent to that.
 func (h *Handler) autoAttachOpenedPullRequest(ctx context.Context, link sqlc.CollectiveRepository, pull attachmentPull) (bool, error) {
+	// The webhook's own request is cancelled if GitHub stops waiting, and an
+	// attach that stops after posting its comment but before recording it would
+	// post a second one on the next delivery. So the work runs detached and
+	// bounded, like the publish hook it shares a path with.
+	hookCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), attachmentHookTimeout)
+	defer cancel()
+	ctx = hookCtx
+
 	authorID, known := h.resolveGitHubActor(ctx, pull.authorID)
 	if !known {
 		return false, nil

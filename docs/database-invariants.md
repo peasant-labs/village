@@ -239,7 +239,9 @@ boundary are documented in
   (`UpdateUserAttachSettings`). Because the binding
   column has no default, code older than 044 cannot bind once the migration
   has run: during a rolling deploy its attach fails loudly and a retry after the
-  rollout succeeds.
+  rollout succeeds. Its detach still works and treats every binding as widened,
+  so older instances are drained before the migration runs (or detaches held
+  during the roll); the same holds after a down migration.
 
 ## 2. Licensing data model
 
@@ -747,10 +749,11 @@ authenticating. Both are custom Postgres parameters read via
 - **Attaching never changes who can read a transcript.** Attaching a transcript
   to a pull request, by the author's click, a publish that completes a waiting
   request, or the author's `auto_attach_pull_requests` choice, binds it and
-  writes nothing to `transcripts` or the share ledger. No read of a transcript
-  consults an attachment or a repository: `canViewTranscript` (owner, `public`,
-  a live share's collective, the collective owners who review it) is the one
-  read check for the transcript routes. Asking GitHub whether a viewer can read
+  writes nothing to `transcripts` or the share ledger. No access decision for a
+  transcript consults an attachment or a repository: `canViewTranscript` (the
+  owner, anyone for `public`, members of a collective the transcript is shared
+  with, and the owners of a collective it was submitted to) is the one read
+  check for the transcript routes. Asking GitHub whether a viewer can read
   a private repository admits them only to that repository's pull request page,
   which shows a bound transcript's title and prompts only to a viewer who can
   open that transcript (the stored digest is narrowed per viewer by

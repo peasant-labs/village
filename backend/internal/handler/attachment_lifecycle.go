@@ -205,6 +205,9 @@ type attachmentDigests struct {
 	// readableBeyondAuthor says whether anyone besides the author can read at
 	// least one of the transcripts, which is what the check's conclusion asks.
 	readableBeyondAuthor bool
+	// visibility is each transcript's visibility as these digests read it, so a
+	// caller can tell whether it changed before the digests were posted.
+	visibility map[schema.TranscriptID]string
 }
 
 // buildAttachmentDigests projects an accepted match into the reviewer-facing
@@ -215,7 +218,7 @@ type attachmentDigests struct {
 // so its counts and numbering describe only what it shows.
 func (h *Handler) buildAttachmentDigests(ctx context.Context, transcriptIDs []schema.TranscriptID, commitSet []string, match matcher.Result) (attachmentDigests, error) {
 	var complete, listed digest.Input
-	var result attachmentDigests
+	result := attachmentDigests{visibility: make(map[schema.TranscriptID]string, len(transcriptIDs))}
 
 	anchorsByTranscript := map[schema.TranscriptID][]matcher.Anchor{}
 	for _, accepted := range match.Accepted {
@@ -275,6 +278,7 @@ func (h *Handler) buildAttachmentDigests(ctx context.Context, transcriptIDs []sc
 			})
 		}
 
+		result.visibility[accepted] = row.Visibility
 		complete.Sessions = append(complete.Sessions, session)
 		complete.Commits = append(complete.Commits, commits...)
 		if listedOnPullRequest(row.Visibility) {

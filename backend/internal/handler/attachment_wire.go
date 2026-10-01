@@ -24,8 +24,8 @@ import (
 // Attaching never changes who can read a transcript, so the response carries a
 // transcript's title and prompts only to a viewer who can open that transcript
 // on its own terms (canViewTranscript). Every other bound transcript is listed
-// without its title, and the digest is narrowed to the transcripts the viewer
-// can open (digest.Restrict).
+// without its title or start time, and the digest is narrowed to the
+// transcripts the viewer can open (digest.Restrict).
 func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, viewer *AuthUser) (schema.VillagePullRequestAttachmentResponse, error) {
 	mapped, err := mapVillageAttachment(attachment, repo.isPrivate)
 	if err != nil {
@@ -53,6 +53,7 @@ func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.Pull
 			readable[wire.TranscriptID] = true
 		} else {
 			wire.Title = nil
+			wire.SessionStart = nil
 		}
 		transcripts = append(transcripts, wire)
 	}
