@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FolderOpen, Search } from "lucide-react";
 import { useTranscriptPages } from "@/lib/queries/transcripts";
-import { useGroupedTranscripts } from "@/lib/queries/helperGroups";
+import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
+import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
 import { useGroups } from "@/lib/queries/groups";
 import { useMyCollectiveContributions } from "@/lib/queries/collectives";
 import { useMyStats } from "@/lib/queries/account";
@@ -167,9 +168,11 @@ function HomeBody({ username }: { username: string }) {
   // paged list above still owns the rows, the ordinary child chip and the
   // paging, and the helper groups ride on whichever of those rows the server
   // placed them on. A grouped read that fails contributes no helper groups; the
-  // rows render exactly as they would without it.
-  const grouped = useGroupedTranscripts({ owner: username, limit: "100" });
-  const groupedItems = grouped.data?.items ?? [];
+  // rows render exactly as they would without it. Explicit grouped continuation
+  // reaches owners and helper-only contexts beyond the first 100 grouped units;
+  // it does not change the flat rows or automatically expand returned groups.
+  const grouped = useGroupedTranscriptsPaged({ owner: username, limit: "100" });
+  const groupedItems = grouped.items;
   const helperGroups = helperGroupsByTranscript(groupedItems);
   const refreshGrouped = grouped.refreshOrigin;
 
@@ -366,6 +369,11 @@ function HomeBody({ username }: { username: string }) {
             )}
           />
           <ScopedContextContainerList items={groupedItems} onRefreshOrigin={refreshGrouped} />
+          <ScopedGroupedContinuation
+            remaining={grouped.remainingItems}
+            busy={grouped.isFetchingNextPage}
+            onLoadMore={() => void grouped.fetchNextPage()}
+          />
         </div>
         <div className="iu-page-foot">
           <span className="iu-page-count" data-testid="home-count">

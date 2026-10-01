@@ -26,22 +26,22 @@ export const HOME_STARTED_SESSION_FACTS: readonly TranscriptRowFact[] = [
  * A list row carries the collectives that have APPROVED it, so a submission a
  * curated collective has not reviewed yet is not named here; the rail's
  * waiting section says those exist. With no collective, the transcript's own
- * visibility answers: `public`, or `only you`.
+ * visibility states the public-link audience. No approved collective does not
+ * imply author-only access: collective owners may still review submissions.
  */
 function sharedWith(item: TranscriptListItem): ReactNode {
   const names = [...new Set((item.shares ?? []).map((share) => share.group_name))];
-  if (names.length > 0) {
+  const audience = item.transcript.visibility === "public"
+    ? ["anyone with the link", ...names]
+    : names;
+  if (audience.length > 0) {
     return (
       <span className="cmg-shared">
-        {names.map((name) => (
-          <span key={name}>{name}</span>
-        ))}
+        {audience.map((name) => <span key={name}>{name}</span>)}
       </span>
     );
   }
-  return (
-    <span className="cmg-none">{item.transcript.visibility === "public" ? "public" : "only you"}</span>
-  );
+  return <span className="cmg-none">not shared with collective members</span>;
 }
 
 interface HomeTranscriptTableProps {

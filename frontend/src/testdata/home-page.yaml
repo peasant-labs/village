@@ -137,9 +137,36 @@ homeCases:
       - title: publish wizard rebuild
         text: [Acme Platform, Acme Company]
       - title: license menu
-        text: [public]
+        text: [anyone with the link]
       - title: first steps
-        text: [only you]
+        text: [not shared with collective members]
+
+  - name: public-link-access-is-named-alongside-approved-collectives
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: public-approved, title: Public approved session, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T10:00:00Z", visibility: public, sharedWith: [Acme Platform] }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles: [Public approved session]
+    expectProjectLinks: []
+    expectSharedWithCells:
+      - { title: Public approved session, text: [anyone with the link, Acme Platform] }
+
+  - name: pending-private-submission-does-not-claim-author-only-access
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: private-pending, title: Private pending session, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T10:00:00Z", visibility: private }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles: [Private pending session]
+    expectProjectLinks: []
+    contributions:
+      - { id: 33333333-3333-4333-8333-333333333333, name: ML Reading Group, pending: 1 }
+    expectWaiting: [ML Reading Group]
+    expectSharedWithCells:
+      - { title: Private pending session, text: [not shared with collective members] }
 
   - name: more-sessions-than-the-recent-list-shows-are-capped
     # More rows than one page: the table lists the first page, says how many it
