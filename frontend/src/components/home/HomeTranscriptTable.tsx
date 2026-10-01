@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { DataTable } from "@/lib/ft-ui";
+import { DataTable, ProviderIcon } from "@/lib/ft-ui";
+import { isHarness } from "@/lib/harness";
 import ChildSessionDisclosure from "@/components/transcript/ChildSessionDisclosure";
 import type { TranscriptRowFact } from "@/components/transcript/TranscriptList";
 import PullRequestCell from "@/components/home/PullRequestCell";
@@ -99,18 +100,21 @@ export default function HomeTranscriptTable({
         );
         return (
           <div className="cmg-cell-stack" data-testid="home-transcript-row" data-transcript-id={t.id}>
-            <span className="iu-session-text">
-              <Link href={`/transcripts/${t.id}`} className="iu-session-title focus-mono">
-                {t.title || "untitled"}
-              </Link>
-              <span className="iu-session-sub">
-                {project}
-                {branch !== "" && (
-                  <>
-                    {" · "}
-                    <span className="whitespace-nowrap">{branch}</span>
-                  </>
-                )}
+            <span className="iu-session">
+              {isHarness(t.model_provider) && <ProviderIcon harness={t.model_provider} accent label />}
+              <span className="iu-session-text">
+                <Link href={`/transcripts/${t.id}`} className="iu-session-title focus-mono">
+                  {t.title || "untitled"}
+                </Link>
+                <span className="iu-session-sub">
+                  {project}
+                  {branch !== "" && (
+                    <>
+                      {" · "}
+                      <span className="whitespace-nowrap">{branch}</span>
+                    </>
+                  )}
+                </span>
               </span>
             </span>
             {helperGroupSlot(item)}

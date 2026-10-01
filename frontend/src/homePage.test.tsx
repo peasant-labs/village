@@ -99,7 +99,7 @@ function tableRows(): HTMLTableRowElement[] {
 /** The title a table row leads with. */
 function rowTitle(tr: Element): string {
   return (
-    tr.querySelector('[data-testid="home-transcript-row"] > .iu-session-text > a.iu-session-title')
+    tr.querySelector('[data-testid="home-transcript-row"] .iu-session-text > a.iu-session-title')
       ?.textContent ?? ""
   );
 }
@@ -413,7 +413,7 @@ describe("mounted home route: your transcripts, their totals and your collective
 
       for (const link of c.expectProjectLinks) {
         const sub = rowTitled(link.title).querySelector(
-          '[data-testid="home-transcript-row"] > .iu-session-text > .iu-session-sub',
+          '[data-testid="home-transcript-row"] .iu-session-text > .iu-session-sub',
         );
         expect(sub, `${link.title} names its project`).not.toBeNull();
         expect(sub!.querySelector("a")?.getAttribute("href") ?? null).toBe(link.href);
@@ -423,6 +423,16 @@ describe("mounted home route: your transcripts, their totals and your collective
         const td = rowTitled(cell.title).querySelectorAll("td")[1];
         const named = [...td.querySelectorAll(".cmg-shared > span")].map(text);
         expect(named.length > 0 ? named : [text(td)]).toEqual(cell.text);
+      }
+      for (const mark of c.expectProviderMarks ?? []) {
+        const row = rowTitled(mark.title);
+        const icons = [...row.querySelectorAll<SVGElement>('[data-testid="home-transcript-row"] svg[data-brand]')];
+        expect(icons.map((icon) => icon.dataset.brand)).toEqual(mark.brand === null ? [] : [mark.brand]);
+        if (mark.label !== null) {
+          expect(icons[0]).toHaveAttribute("role", "img");
+          expect(icons[0]).toHaveAttribute("aria-label", mark.label);
+          expect(row.querySelector(".iu-session-sub")).not.toHaveTextContent(mark.label);
+        }
       }
 
       for (const cell of c.expectPullRequestCells ?? []) {

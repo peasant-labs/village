@@ -56,6 +56,7 @@ export type HomeTranscriptCase = {
   sharedWith?: string[];
   /** The row's own visibility. Absent means private. */
   visibility?: "private" | "shared" | "public";
+  modelProvider?: string;
 };
 
 /** How the owner-scoped list request behaves for a case. */
@@ -124,6 +125,7 @@ export type HomeCase = {
   loadMore?: { expectRowTitles: string[] };
   expectPullRequestCells?: HomePullRequestCellCase[];
   expectSharedWithCells?: { title: string; text: string[] }[];
+  expectProviderMarks?: { title: string; brand: string | null; label: string | null }[];
 };
 
 /**
@@ -239,6 +241,7 @@ const accountMenuCaseKeys = ["name", "item", "effect", "target"];
 const accountMenuEffects: readonly AccountMenuEffect[] = ["navigate", "sign-out"];
 
 const requiredHomeCaseNames = [
+  "canonical-provider-marks-use-received-harness-without-provider-facts",
   "recent-sessions-lead-and-projects-follow",
   "public-link-access-is-named-alongside-approved-collectives",
   "pending-private-submission-does-not-claim-author-only-access",
@@ -262,7 +265,7 @@ const requiredHomeCaseNames = [
 
 const routeCaseKeys = ["name", "path", "viewerUsername", "expectSurface"];
 const transcriptKeys = ["id", "title", "projectHash", "projectDisplayName", "publishedAt"];
-const optionalTranscriptKeys = ["pullRequests", "sharedWith", "visibility"];
+const optionalTranscriptKeys = ["pullRequests", "sharedWith", "visibility", "modelProvider"];
 const homeCaseKeys = [
   "name",
   "viewerUsername",
@@ -284,6 +287,7 @@ const optionalHomeCaseKeys = [
   "loadMore",
   "expectPullRequestCells",
   "expectSharedWithCells",
+  "expectProviderMarks",
 ];
 
 /** Like {@link assertExactKeys}, for a row whose optional fields may be absent:
@@ -508,6 +512,9 @@ export function loadHomePageFixtures(): HomePageFixtures {
     assertKeysWithin(c, homeCaseKeys, optionalHomeCaseKeys, `home case ${c.name}`);
     for (const t of c.transcripts) {
       assertKeysWithin(t, transcriptKeys, optionalTranscriptKeys, `home case ${c.name} transcript ${t.id}`);
+      if (t.modelProvider !== undefined && (typeof t.modelProvider !== "string" || t.modelProvider.trim() === "")) {
+        throw new Error(`home case ${c.name}: modelProvider must be a nonempty received value`);
+      }
       // An EMPTY hash is the malformed row this corpus deliberately models: the
       // wire contract guarantees the column, so a row without it is a server
       // contract violation the page must report rather than drop. Any other
@@ -549,6 +556,17 @@ export function loadHomePageFixtures(): HomePageFixtures {
       throw new Error(`home case ${c.name}: transcript ids must be unique`);
     }
     const titles = c.transcripts.map((t) => t.title);
+    if (c.expectProviderMarks !== undefined) {
+      assertNamesMatch(c.expectProviderMarks.map((m) => m.title), titles, `home case ${c.name} provider marks`);
+      for (const mark of c.expectProviderMarks) {
+        assertExactKeys(mark, ["title", "brand", "label"], `home case ${c.name} provider mark`);
+        if (!c.transcripts.find((t) => t.title === mark.title)?.modelProvider ||
+            (mark.brand === null) !== (mark.label === null) ||
+            (mark.brand !== null && (typeof mark.brand !== "string" || !mark.brand || typeof mark.label !== "string" || !mark.label))) {
+          throw new Error(`home case ${c.name}: each provider mark must state a received input and complete expected identity`);
+        }
+      }
+    }
     if (new Set(titles).size !== titles.length) {
       throw new Error(
         `home case ${c.name}: transcript titles must be unique, or an assertion on the rendered ` +

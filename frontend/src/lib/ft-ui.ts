@@ -104,6 +104,7 @@ export {
   Chip,
   DataTable,
   Pagination,
+  ProviderIcon,
   ProviderName,
   ProviderTag,
   SessionGroupDisclosure,

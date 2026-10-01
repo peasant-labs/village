@@ -74,6 +74,7 @@ function listItem(t: HomeTranscriptCase, owner: User): TranscriptListItem {
       parent_session_id: t.parentSessionID ?? null,
       owner_id: owner.id,
       title: t.title,
+      model_provider: t.modelProvider ?? "claude-code",
       project_name: t.projectDisplayName,
       project_hash: t.projectHash,
       project_display_name: t.projectDisplayName,

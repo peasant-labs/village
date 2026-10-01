@@ -150,6 +150,21 @@ accountMenuCases:
 #   expectPullRequestCells         the pull requests column for named rows.
 #   expectSharedWithCells          the shared with column for named rows.
 homeCases:
+  - name: canonical-provider-marks-use-received-harness-without-provider-facts
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: mark-claude, title: Claude recorded work, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T12:00:00Z", modelProvider: claude-code }
+      - { id: mark-codex, title: Codex recorded work, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T11:00:00Z", modelProvider: codex }
+      - { id: mark-unknown, title: Earlier recorded work, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T10:00:00Z", modelProvider: earlier-agent }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles: [Claude recorded work, Codex recorded work, Earlier recorded work]
+    expectProjectLinks: []
+    expectProviderMarks:
+      - { title: Claude recorded work, brand: claude, label: Claude Code }
+      - { title: Codex recorded work, brand: openai, label: Codex }
+      - { title: Earlier recorded work, brand: null, label: null }
   - name: recent-sessions-lead-and-projects-follow
     # Newest first, whatever order the rows arrive in, and each row's project
     # name leads to that project's page.

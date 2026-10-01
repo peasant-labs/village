@@ -31,8 +31,10 @@ with collective members”, rather than claiming author-only access: a collectiv
 owner may still read a pending submission for review. Pending counts stay in
 the separate waiting rail.
 
-The home page has no pull request action queue or provider icons, following the
-owner's review decisions. Pull request references are a many-valued list. User
+The home page has no pull request action queue or provider fact line, following
+issue #259. Known received harnesses lead with Fairtrade's informative provider
+mark; an unknown legacy value never borrows another provider's identity.
+Pull request references are a many-valued list. User
 handles and transcript text preserve their case.
 
 ## Account settings
