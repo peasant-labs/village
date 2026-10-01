@@ -36,7 +36,7 @@ test.describe('account settings', () => {
     await page.goto('/')
     await expect(page.getByTestId('home-page')).toBeVisible()
     await page.getByRole('button', { name: /account menu/ }).click()
-    await page.getByRole('link', { name: 'settings' }).click()
+    await page.getByRole('menuitem', { name: 'settings', exact: true }).click()
     await expect(page).toHaveURL(/\/settings$/)
 
     const settings = page.getByTestId('settings-page')
