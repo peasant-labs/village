@@ -40,6 +40,11 @@ async function recordEvidence(page, testInfo, name) {
 }
 
 async function still(page, testInfo, name) {
+  // Assertions may scroll an option into view. Review evidence includes the
+  // mounted header and page heading as well as the selected transcript.
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }))
+  await expect(page.locator('header').first()).toBeInViewport()
+  await expect(page.getByRole('heading', { level: 1, name: JOURNEY_PULL.title })).toBeInViewport()
   await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true })
   await testInfo.attach(`${name}.png`, {
     path: testInfo.outputPath(`${name}.png`),
