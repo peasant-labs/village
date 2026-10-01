@@ -112,8 +112,8 @@ func TestTranscriptPullRequestsRouteReadsTheSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mint the owner's session: %v", err)
 	}
-	get := func(bearer string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/transcripts/"+transcript.String()+"/pulls", nil)
+	get := func(id uuid.UUID, bearer string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/transcripts/"+id.String()+"/pulls", nil)
 		if bearer != "" {
 			req.Header.Set("Authorization", "Bearer "+bearer)
 		}
@@ -121,10 +121,12 @@ func TestTranscriptPullRequestsRouteReadsTheSession(t *testing.T) {
 		routes.ServeHTTP(rec, req)
 		return rec
 	}
-	if owned := get(token); owned.Code != http.StatusOK || strings.TrimSpace(owned.Body.String()) != `{"pull_requests":[]}` {
+	if owned := get(transcript, token); owned.Code != http.StatusOK || strings.TrimSpace(owned.Body.String()) != `{"pull_requests":[]}` {
 		t.Fatalf("the owner's read of their private transcript's pull requests = %d %s, want 200 with an empty list", owned.Code, owned.Body.String())
 	}
-	if anonymous := get(""); anonymous.Code != http.StatusNotFound {
-		t.Fatalf("an anonymous read of a private transcript's pull requests = %d, want 404", anonymous.Code)
+	anonymous := get(transcript, "")
+	missing := get(uuid.New(), "")
+	if anonymous.Code != http.StatusNotFound || missing.Code != http.StatusNotFound || anonymous.Body.String() != missing.Body.String() {
+		t.Fatalf("anonymous private/missing reads = %d %s / %d %s, want indistinguishable 404 responses", anonymous.Code, anonymous.Body.String(), missing.Code, missing.Body.String())
 	}
 }

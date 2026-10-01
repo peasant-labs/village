@@ -76,11 +76,11 @@ func (h *Handler) pullRequestDetailsFor(ctx context.Context, candidates []pullRe
 		// No read starts once the response has stopped waiting: the pull requests
 		// not reached by then are served as unknown, the list never has more than
 		// its few reads in flight, and it starts none once its caller has gone.
-		// A slot opens when a read settles or when the list's context ends, so
+		// A worker releases its slot when its wait for the read ends, so
 		// both the context and the clock are checked after taking one. The clock
 		// check is what holds when a read times out on schedule: its timer can
 		// fire, and free its slot, a moment before the list's own timer does.
-		// Removing it lets a list start more reads than it has slots.
+		// Removing it lets a list start a read after its response deadline.
 		select {
 		case slots <- struct{}{}:
 		case <-ctx.Done():

@@ -739,11 +739,12 @@ along the same line:
   and requires a 500 naming it, so no surface serves a failed read as zero pull
   requests; the helper-member expansion's failure case is in
   `collective_grouped_integration_test.go`.
+- The list summaries cases require `[]` tags on untagged rows.
 - The title and head branch reads have their own unit tests in
   `pull_request_reads_test.go`: views of one pull request share one read, a
   read and a list each stop at the deadline, a list starts no read after it or
   after its caller leaves (counted from the cache's own tables against a
-  GitHub that holds every read, so no assertion depends on machine speed), a
+  GitHub that holds reads, with explicit failure bounds), a
   read one caller started still answers the next caller, each outcome is
   remembered for its window at explicit instants, the table stays bounded, and
   the shipped bounds themselves are pinned.
@@ -751,8 +752,8 @@ along the same line:
   router: a signed-in owner reads their private transcript's pull requests (200)
   and a caller with no session gets 404, which the anonymous rows in
   `router/testdata/attachment_route_auth.yaml` cannot tell from a route that
-  ignores the session. The list summaries cases also require `[]` tags on
-  untagged rows.
+  ignores the session. The anonymous response is byte-identical to a missing
+  transcript's response.
 - `repo-publishers.yaml` pins `publisher_count`: distinct owners of transcripts
   with an APPROVED share to the collective whose remote `schema.RemoteLabel`
   reads as that github.com repository. An unshared transcript, a submission
