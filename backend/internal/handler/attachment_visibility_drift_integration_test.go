@@ -462,7 +462,9 @@ func TestCheckFollowsWhetherAnyReviewerCanRead_RealPostgres(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
 	author := attachmentInsertOwner(t, ctx, pool, 995011)
-	defer cleanupOwners(t, ctx, pool, author)
+	t.Cleanup(func() { cleanupOwners(t, ctx, pool, author) })
+	reader := attachmentInsertOwner(t, ctx, pool, 995012)
+	t.Cleanup(func() { cleanupOwners(t, ctx, pool, reader) })
 	authorAuth := &AuthUser{ID: uuid.UUID(author.Bytes), Username: "attachment-author"}
 
 	repoName := "all-unlisted-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
@@ -472,6 +474,21 @@ func TestCheckFollowsWhetherAnyReviewerCanRead_RealPostgres(t *testing.T) {
 		"git@github.com:acme/"+repoName+".git", sha, "shared", "", time.Now().Add(-2*time.Hour))
 	second := attachmentSeedTranscript(t, ctx, pool, blobs, author,
 		"git@github.com:acme/"+repoName+".git", sha, "shared", "", time.Now().Add(-time.Hour))
+	// A shared label by itself grants nothing. Give a different accepted member
+	// an approved share to each transcript, then prove the canonical read sees it.
+	if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, groupID, reader); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status) VALUES ($1, $3, 1, 'approved'), ($2, $3, 1, 'approved')`, first, second, groupID); err != nil {
+		t.Fatal(err)
+	}
+	readerAuth := &AuthUser{ID: uuid.UUID(reader.Bytes)}
+	for _, id := range []pgtype.UUID{first, second} {
+		row, err := h.queries.GetTranscriptByID(ctx, id)
+		if err != nil || !h.canViewTranscript(ctx, readerAuth, row) {
+			t.Fatalf("the non-author accepted member cannot read a seeded shared transcript: %v", err)
+		}
+	}
 	attachmentCreatePreview(t, ctx, h, groupID, author, "acme", repoName, sha, 7)
 	fake.setPullCommits(sha)
 	attachmentConfirm(t, h, author, "acme", repoName, 7)

@@ -40,6 +40,11 @@ async function recordEvidence(page, testInfo, name) {
 }
 
 async function still(page, testInfo, name) {
+  // Assertions may scroll an option into view. Review evidence includes the
+  // mounted header and page heading as well as the selected transcript.
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }))
+  await expect(page.locator('header').first()).toBeInViewport()
+  await expect(page.getByRole('heading', { level: 1, name: JOURNEY_PULL.title })).toBeInViewport()
   await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true })
   await testInfo.attach(`${name}.png`, {
     path: testInfo.outputPath(`${name}.png`),
@@ -67,6 +72,13 @@ test.describe('pull request page', () => {
       'who can read them: members of Acme Platform and Acme Company. attaching does not change that.',
     )
     await expect(page.getByTestId('pull-request-coverage')).toHaveText('3 of 4 commits traced')
+
+    // The canonical in-use callout puts consent actions after its explanation.
+    const audienceBox = await page.getByTestId('transcript-audience').boundingBox()
+    const attachBox = await page.getByTestId('confirm-attachment').boundingBox()
+    expect(audienceBox).not.toBeNull()
+    expect(attachBox).not.toBeNull()
+    expect(attachBox.y).toBeGreaterThan(audienceBox.y + audienceBox.height)
 
     // The split list names each transcript by its title, the first selected.
     const options = page.getByRole('option')

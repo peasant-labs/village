@@ -23,6 +23,7 @@ const REQUIRED_CASE_NAMES = [
 
   "author previewing two transcripts with one audience",
   "author previewing two transcripts with different audiences",
+  "author previewing a private transcript with retained approved share metadata",
   "author previewing one public transcript on a public repository",
   "author previewing while a transcript read fails",
   "confirm refused with a conflict",

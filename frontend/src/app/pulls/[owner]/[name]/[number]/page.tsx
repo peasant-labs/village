@@ -3,7 +3,7 @@
 import { use, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useQueries } from "@tanstack/react-query";
-import { ExternalLink, GitPullRequest, Layers, Lock } from "lucide-react";
+import { ExternalLink, GitPullRequest, Layers } from "lucide-react";
 import { Button, EmptyState, LinkButton, PromptDigest } from "@/lib/ft-ui";
 import { isApiErrorStatus } from "@/lib/api";
 import {
@@ -81,8 +81,12 @@ function joinNames(names: string[]): string {
  */
 function audienceOf(visibility: string, collectiveNames: string[]): string {
   if (visibility === "public") return "anyone";
+  // Approval metadata can remain after a transcript becomes private. It does
+  // not grant ordinary members access, and an empty list cannot rule out the
+  // collective owners' review access to pending submissions.
+  if (visibility === "private") return "not shared with collective members";
   if (collectiveNames.length > 0) return `members of ${joinNames(collectiveNames)}`;
-  return "only you";
+  return "not shared with collective members";
 }
 
 function transcriptsNoun(count: number): string {
@@ -490,11 +494,11 @@ function AuthorPanel({
 
   return (
     <section
-      className="flex flex-wrap items-center justify-between gap-[var(--sp-3)_var(--sp-6)] border border-rule-strong bg-[color:var(--surface-2)] p-[var(--sp-4)]"
+      className="flex flex-col items-stretch gap-[var(--sp-2)] border border-rule-strong bg-[color:var(--surface-2)] p-[var(--sp-4)]"
       aria-label="your transcripts on this pull request"
       data-testid="pull-request-actions"
     >
-      <div className="flex min-w-0 flex-[1_1_28rem] flex-col gap-[var(--sp-2)]">
+      <div className="flex min-w-0 flex-col gap-[var(--sp-2)]">
         <p
           className="m-0 text-ink leading-[var(--lh-body)]"
           data-testid="attachment-state-line"
@@ -503,8 +507,7 @@ function AuthorPanel({
           {line}
         </p>
         {showsAudience && (
-          <div className="flex items-start gap-[var(--sp-2)] text-ink-2 leading-[var(--lh-body)]">
-            <Lock className="mt-[5px] size-3.5 shrink-0" aria-hidden="true" />
+          <div className="text-ink-2 leading-[var(--lh-body)]">
             {audiences === null ? (
               <p className="m-0" data-testid="audience-pending">
                 attaching does not change who can read them.
