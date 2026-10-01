@@ -329,6 +329,9 @@ func TestPullRequestDetailsForAListStopWhenTheirCallerLeaves(t *testing.T) {
 	if arrivalsErr != nil {
 		t.Fatal(arrivalsErr)
 	}
+	if len(details) != len(candidates) {
+		t.Fatalf("the list returned %d detail rows for %d candidates", len(details), len(candidates))
+	}
 	assertHeldListAnswers(t, details, remembered)
 	if started := readsStartedBy(h, rememberedCount); started != pullRequestDetailFetchers {
 		t.Fatalf("the list started %d GitHub reads, want exactly its %d slots", started, pullRequestDetailFetchers)
@@ -355,6 +358,9 @@ func TestPullRequestDetailsForAListStopAtItsDeadline(t *testing.T) {
 	case details = <-answers:
 	case <-time.After(5 * time.Second):
 		t.Fatal("the list did not return after its response deadline")
+	}
+	if len(details) != len(candidates) {
+		t.Fatalf("the list returned %d detail rows for %d candidates", len(details), len(candidates))
 	}
 	assertHeldListAnswers(t, details, remembered)
 	if started := readsStartedBy(h, rememberedCount); started > pullRequestDetailFetchers {
