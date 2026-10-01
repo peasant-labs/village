@@ -47,8 +47,8 @@ test.describe('account settings', () => {
     await expect(page.getByTestId('settings-handle')).toContainText('alice-dev')
     await expect(page.getByRole('switch', { name: 'discoverable profile' })).toHaveAttribute('aria-checked', 'true')
     const autoLink = page.getByRole('switch', { name: 'link my transcripts to my pull requests automatically' })
-    await expect(autoLink).toBeDisabled()
-    await expect(page.getByTestId('settings-auto-link')).toContainText('not available yet')
+    await expect(autoLink).toBeEnabled()
+    await expect(autoLink).toHaveAttribute('aria-checked', 'false')
     await expect(page.getByTestId('settings-sign-in-account')).toContainText('alice-dev')
     // Two working sign-ins; the revoked one is not counted.
     await expect(page.getByTestId('settings-peasant')).toContainText('peasant on 2 computers')

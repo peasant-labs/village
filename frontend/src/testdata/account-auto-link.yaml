@@ -1,0 +1,25 @@
+cases:
+  - name: automatic-linking-can-be-turned-on
+    initial: false
+    read: ok
+    write: ok
+    action: toggle
+    expected: true
+  - name: automatic-linking-can-be-turned-off
+    initial: true
+    read: ok
+    write: ok
+    action: toggle
+    expected: false
+  - name: a-failed-write-restores-the-saved-automatic-choice
+    initial: false
+    read: ok
+    write: failed
+    action: toggle
+    expected: false
+  - name: a-failed-settings-read-blocks-writes-and-can-be-retried
+    initial: true
+    read: failed
+    write: ok
+    action: retry
+    expected: true

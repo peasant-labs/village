@@ -46,14 +46,17 @@ function userFor(handle: string, discoverable: boolean): User {
 export interface MountedSettingsBackend {
   /** Every non-GET request, as `METHOD path` plus its JSON body when it has one. */
   writes: string[];
+  promptReads: number;
 }
 
-export function installSettingsRouteREST(c: SettingsCase): MountedSettingsBackend {
+export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: boolean; read: "ok" | "failed"; write: "ok" | "failed" }): MountedSettingsBackend {
   const writes: string[] = [];
   let handle = SETTINGS_VIEWER;
   let discoverable = c.discoverable;
   const revoked = new Set(c.keys.filter((key) => key.revoked).map((key) => key.id));
   let revocations = 0;
+  let automatic = prompt?.initial ?? false;
+  const backend: MountedSettingsBackend = { writes, promptReads: 0 };
 
   vi.stubGlobal(
     "fetch",
@@ -68,7 +71,14 @@ export function installSettingsRouteREST(c: SettingsCase): MountedSettingsBacken
 
       if (method === "GET" && path === "/auth/me") return json(userFor(handle, discoverable));
       if (method === "GET" && path === "/users/me/settings") {
-        return json({ auto_attach_pull_requests: false, preview_before_attach: false });
+        backend.promptReads += 1;
+        if (prompt?.read === "failed" && backend.promptReads === 1) return json({ error: "the settings service is unavailable" }, 500);
+        return json({ auto_attach_pull_requests: automatic, preview_before_attach: false });
+      }
+      if (method === "PATCH" && path === "/users/me/settings") {
+        if (prompt?.write === "failed") return json({ error: "the settings service is unavailable" }, 500);
+        automatic = JSON.parse(String(init?.body)).auto_attach_pull_requests;
+        return json({ auto_attach_pull_requests: automatic, preview_before_attach: false });
       }
       if (method === "GET" && path === "/auth/api-keys") {
         return json(
@@ -106,7 +116,7 @@ export function installSettingsRouteREST(c: SettingsCase): MountedSettingsBacken
       throw new Error(`mounted settings route fixture received an unexpected ${method} ${url}`);
     }),
   );
-  return { writes };
+  return backend;
 }
 
 /**
