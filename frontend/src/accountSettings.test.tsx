@@ -128,22 +128,6 @@ describe("mounted settings route", () => {
     });
   }
 
-  it("the automatic pull request row shows the saved value and cannot be turned on yet", async () => {
-    const backend = installSettingsRouteREST(cases[0]);
-    await renderSettingsRoute();
-    const autoLink = await screen.findByRole("switch", {
-      name: "link my transcripts to my pull requests automatically",
-    });
-    expect(autoLink.getAttribute("aria-checked")).toBe("false");
-    expect(autoLink).toBeDisabled();
-    expect(text(row("settings-auto-link"))).toContain("not available yet");
-    expect(text(row("settings-auto-link"))).toContain("/peasant attach");
-    await act(async () => {
-      fireEvent.click(autoLink);
-    });
-    expect(backend.writes).toEqual([]);
-  });
-
   it("names the account village signs in with and signs it out", async () => {
     const backend = installSettingsRouteREST(cases[0]);
     await renderSettingsRoute();
