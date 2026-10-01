@@ -205,7 +205,7 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
     }) {
         return <div role="alert" className="text-[var(--fs-body)] text-danger px-5 py-3"><p>could not read saved transcript groups: {query.error?.message}</p><button type="button" className="btn btn-secondary btn-sm" disabled={query.isFetching} onClick={() => void query.refetch()}>try again</button></div>;
     }
-    return <div className="mx-auto w-full max-w-[1152px] flex flex-col gap-4" data-testid="collective-transcript-library">
+    return <div className="iu-page"><div className="iu-page-summary flex flex-col gap-4" data-testid="collective-transcript-library">
     {canRead && (transcripts.length > 0 || fallback.length > 0 || grouped.remainingItems > 0 || grouped.isError) && <div className="border border-rule bg-surface">
       <SessionGroupDisclosure label="transcript groups" collapsedLabel="transcript groups" expanded={expanded} onToggle={() => setExpanded((open) => !open)} rowsID={`collective-library-${groupID}`} testID="collective-library-disclosure" bare>
         <div id={`collective-library-${groupID}`}>
@@ -238,5 +238,5 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
       {groupedMine.isError && retry(groupedMine)}
       {(myFallback.length > 0 || groupedMine.remainingItems > 0) && <div data-testid="grouped-helper-fallback" className="border-t border-rule"><ScopedUnownedHelperGroups items={groupedMine.items} representedOwnerIds={representedMine} onRefreshOrigin={groupedMine.refreshOrigin}/><ScopedGroupedContinuation remaining={groupedMine.remainingItems} busy={groupedMine.isFetchingNextPage} onLoadMore={() => void groupedMine.fetchNextPage()}/></div>}
     </div>}
-  </div>;
+  </div></div>;
 }

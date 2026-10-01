@@ -284,9 +284,9 @@ export default function GroupSettingsPage({
         />
       </div>
 
-      <div className="mx-auto w-full max-w-[1152px] border border-rule bg-surface px-5 py-3">
+      <div className="iu-page"><div className="iu-page-summary border border-rule bg-surface px-5 py-3">
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setInviteHandle(""); addMember.reset(); setInviteOpen(true); }}>find a github user to invite</button>
-      </div>
+      </div></div>
       <Dialog open={inviteOpen} onClose={() => setInviteOpen(false)} title="invite a github user" dismissible={!addMember.isPending} footer={<button type="button" className="btn btn-secondary btn-sm" disabled={!inviteHandle.trim() || addMember.isPending} onClick={() => handleInvite(inviteHandle)}>{addMember.isPending ? "inviting" : "invite"}</button>}>
         <p className="text-[var(--fs-body)] text-ink-2">find their github handle, then invite them to this collective.</p>
         <GitHubUserSearch value={inviteHandle} onChange={setInviteHandle} onSelect={setInviteHandle}/>
