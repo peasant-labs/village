@@ -184,11 +184,15 @@ type Querier interface {
 	GetUserByProviderIdentity(ctx context.Context, arg sqlc.GetUserByProviderIdentityParams) (sqlc.User, error)
 	CreatePullRequestAttachment(ctx context.Context, arg sqlc.CreatePullRequestAttachmentParams) (sqlc.PullRequestAttachment, error)
 	GetPullRequestAttachment(ctx context.Context, id pgtype.UUID) (sqlc.PullRequestAttachment, error)
+	LockPullRequestAttachmentArtifacts(ctx context.Context, id pgtype.UUID) (sqlc.PullRequestAttachment, error)
+	ListLiveOwnedDigestTranscripts(ctx context.Context, arg sqlc.ListLiveOwnedDigestTranscriptsParams) ([]pgtype.UUID, error)
 	GetPullRequestAttachmentForPull(ctx context.Context, arg sqlc.GetPullRequestAttachmentForPullParams) (sqlc.PullRequestAttachment, error)
 	UpdatePullRequestAttachmentState(ctx context.Context, arg sqlc.UpdatePullRequestAttachmentStateParams) (sqlc.PullRequestAttachment, error)
 	AttachPullRequestTranscript(ctx context.Context, arg sqlc.AttachPullRequestTranscriptParams) error
 	ListPullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.PullRequestAttachmentTranscript, error)
 	ListAttachmentsBindingTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
+	ListAttachmentsForCollectiveGrants(ctx context.Context, groupID pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
+	ListAttachmentsContainingTranscript(ctx context.Context, arg sqlc.ListAttachmentsContainingTranscriptParams) ([]sqlc.PullRequestAttachment, error)
 	GetPullRequestAttachmentTranscript(ctx context.Context, arg sqlc.GetPullRequestAttachmentTranscriptParams) (sqlc.PullRequestAttachmentTranscript, error)
 	DeletePullRequestAttachmentTranscript(ctx context.Context, arg sqlc.DeletePullRequestAttachmentTranscriptParams) error
 	ReleasePullRequestAttachmentTranscript(ctx context.Context, arg sqlc.ReleasePullRequestAttachmentTranscriptParams) error

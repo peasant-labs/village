@@ -122,7 +122,10 @@ func (h *Handler) applyPromptCommand(ctx context.Context, command matcher.Comman
 		return err
 	}
 
-	_, resolved := h.resolveGitHubActor(ctx, senderID)
+	_, resolved, err := h.resolveGitHubActor(ctx, senderID)
+	if err != nil {
+		return err
+	}
 	action := matcher.Authorize(matcher.Actor{
 		SenderResolved:            resolved,
 		SenderGitHubID:            senderID,
@@ -298,9 +301,7 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 			ordered = append(ordered, accepted.TranscriptID)
 		}
 	}
-	if len(ordered) == 0 {
-		// Nothing is bound and nothing was accepted: leave the attachment as it
-		// is rather than posting an empty digest.
+	if len(ordered) == 0 && !forceRepost {
 		return nil
 	}
 
@@ -326,7 +327,7 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 	if err != nil {
 		return err
 	}
-	if err := h.queries.SetPullRequestAttachmentArtifacts(ctx, sqlc.SetPullRequestAttachmentArtifactsParams{
+	if err := h.storeAttachmentArtifacts(ctx, sqlc.SetPullRequestAttachmentArtifactsParams{
 		ID:         attachment.ID,
 		HeadSha:    headSHA,
 		CommentID:  optionalInt8(commentID),
@@ -352,7 +353,7 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 func (h *Handler) refreshAttachmentsForTranscriptVisibility(ctx context.Context, transcriptID pgtype.UUID) error {
 	// Detached before the first read, not after it: a caller whose client hung
 	// up still owes the pull request its repost.
-	hookCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), attachmentHookTimeout)
+	hookCtx, cancel := attachmentWorkContext(ctx)
 	defer cancel()
 	ctx = hookCtx
 
@@ -364,8 +365,17 @@ func (h *Handler) refreshAttachmentsForTranscriptVisibility(ctx context.Context,
 		return nil
 	}
 
+	return h.refreshKnownAttachments(ctx, attachments)
+}
+
+// refreshKnownAttachments takes an attachment snapshot from before a grant or
+// binding disappeared, then re-reads each row under its lock before posting.
+func (h *Handler) refreshKnownAttachments(ctx context.Context, attachments []sqlc.PullRequestAttachment) error {
 	var failures []error
 	for _, attachment := range attachments {
+		if attachment.State != string(promptattach.Attached) {
+			continue
+		}
 		repo, err := h.resolveAttachmentRepository(ctx, h.queries, attachment)
 		if err != nil {
 			// Unbound or unlinked: nothing is advertising anything.
@@ -411,7 +421,7 @@ func (h *Handler) completeAttachmentsForPublishedTranscript(ctx context.Context,
 	// a client disconnect cancels, and it must be bounded so an unreachable
 	// GitHub cannot hold the publish open. One attachment failing must not stop
 	// the others.
-	hookCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), attachmentHookTimeout)
+	hookCtx, cancel := attachmentWorkContext(ctx)
 	defer cancel()
 	ctx = hookCtx
 
@@ -457,11 +467,14 @@ func (h *Handler) autoAttachOpenedPullRequest(ctx context.Context, link sqlc.Col
 	// attach that stops after posting its comment but before recording it would
 	// post a second one on the next delivery. So the work runs detached and
 	// bounded, like the publish hook it shares a path with.
-	hookCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), attachmentHookTimeout)
+	hookCtx, cancel := attachmentWorkContext(ctx)
 	defer cancel()
 	ctx = hookCtx
 
-	authorID, known := h.resolveGitHubActor(ctx, pull.authorID)
+	authorID, known, err := h.resolveGitHubActor(ctx, pull.authorID)
+	if err != nil {
+		return false, err
+	}
 	if !known {
 		return false, nil
 	}
@@ -543,7 +556,10 @@ func (h *Handler) refreshAttachmentForCommand(ctx context.Context, owner, name s
 	if promptattach.State(attachment.State) != promptattach.Attached {
 		return nil
 	}
-	sender, resolved := h.resolveGitHubActor(ctx, senderID)
+	sender, resolved, err := h.resolveGitHubActor(ctx, senderID)
+	if err != nil {
+		return err
+	}
 	if !resolved || sender != attachment.AuthorID {
 		return nil
 	}
@@ -582,28 +598,29 @@ func (h *Handler) ensureRequestRecorded(ctx context.Context, attachment sqlc.Pul
 
 // resolveGitHubActor resolves a numeric GitHub id to a Village user, returning
 // false when nobody signed in with it.
-func (h *Handler) resolveGitHubActor(ctx context.Context, githubID int64) (pgtype.UUID, bool) {
+func (h *Handler) resolveGitHubActor(ctx context.Context, githubID int64) (pgtype.UUID, bool, error) {
 	row, err := h.queries.GetUserByProviderIdentity(ctx, sqlc.GetUserByProviderIdentityParams{
 		Provider:       "github",
 		ProviderUserID: strconv.FormatInt(githubID, 10),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// Nobody signed in with this GitHub id: an unresolved sender, not a
-			// failure. Any other error is a real one and is reported by the
-			// caller's own read, which fails closed the same way.
-			return pgtype.UUID{}, false
+			// Nobody signed in with this GitHub id: an unresolved sender.
+			return pgtype.UUID{}, false, nil
 		}
-		return pgtype.UUID{}, false
+		return pgtype.UUID{}, false, fmt.Errorf("could not resolve the GitHub actor's Village account: %w", err)
 	}
-	return row.ID, true
+	return row.ID, true, nil
 }
 
 // userByGitHubID resolves the pull request author to the user the attachment
 // belongs to. A pull request whose author never signed in cannot own an
 // attachment, so this fails closed.
 func (h *Handler) userByGitHubID(ctx context.Context, githubID int64) (pgtype.UUID, error) {
-	id, ok := h.resolveGitHubActor(ctx, githubID)
+	id, ok, err := h.resolveGitHubActor(ctx, githubID)
+	if err != nil {
+		return pgtype.UUID{}, err
+	}
 	if !ok {
 		return pgtype.UUID{}, errors.New("the pull request's author has no Village account, so no attachment can be created for them")
 	}

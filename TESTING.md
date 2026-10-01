@@ -1598,3 +1598,23 @@ these systems:
   fixture entries (`internal/handler/testfixtures/`, the contract corpora); the
   loaders and generic tests pick them up without new assertion helpers. Don't
   inline literals across test files.
+
+### Attachment grants and deletion
+
+`attachment-grants.yaml` drives mounted collective approval, batch approval,
+rejection, removal and member-departure routes against real PostgreSQL, asserting
+both the actual posted check and unchanged visibility. It also revokes a shared
+read grant during the real GitHub post and observes reconciliation.
+
+`attachment-deletion.yaml` drives the mounted transcript deletion route from
+preview, attached, detached and posting states. It checks durable digest bytes,
+owner-page privacy, empty remote reposts, a late artifact write, historical
+preview reads and failed remote edits. Production row locks serialize derived
+copies with deletion; fixtures execute that boundary rather than copying it.
+Tests purge their captured deletion-surviving governance audit rows explicitly.
+
+`attachment-legacy-operations.yaml` protects release-under-publish-lock, a stale
+already-released binding and the older marked binding cleared by a reattach,
+including the second pull request's actual repost. `attachment-actor-lookup.yaml`
+separates missing accounts from retryable database errors at the lookup boundary.
+All corpora use strict decoding and required-name manifests.

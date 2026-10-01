@@ -223,6 +223,11 @@ func (w *attachAudienceWorld) pageOutcome(t *testing.T, viewer *AuthUser) string
 	if response.Attachment.State == schema.VillagePullRequestAttachmentState("attached") && len(response.Transcripts) != 1 {
 		t.Fatalf("the page lists %d transcripts, want the one bound, readable or not", len(response.Transcripts))
 	}
+	for _, transcript := range response.Transcripts {
+		if (transcript.SessionStart != nil) != hasPrompt {
+			t.Fatalf("session start admission differs from prompt admission: %s", body)
+		}
+	}
 	if hasPrompt {
 		return "prompts"
 	}

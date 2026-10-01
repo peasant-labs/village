@@ -254,7 +254,7 @@ func TestDetachReleasesWhatAnOlderAttachWidened_RealPostgres(t *testing.T) {
 // ledger ordinal: while the lock is held the detach waits, and it withdraws
 // nothing until it gets the lock.
 func TestLegacyDetachWithdrawsUnderThePublishLock_RealPostgres(t *testing.T) {
-	c := legacyDetachCase{Name: "lock", Repository: "private", Previous: dbVisibilityPrivate, WidenedTo: dbVisibilityShared, OpenedShare: true}
+	c := legacyOperationFixture(t, "withdrawal_waits_for_the_publish_lock")
 	w := newLegacyDetachWorld(t, c, 996351)
 	ctx := context.Background()
 
@@ -312,7 +312,7 @@ func TestLegacyDetachWithdrawsUnderThePublishLock_RealPostgres(t *testing.T) {
 // listed it while it was public must stop listing it, without waiting for an
 // unrelated refresh.
 func TestLegacyDetachRepostsAnotherPullRequestThatListedIt_RealPostgres(t *testing.T) {
-	c := legacyDetachCase{Name: "repost", Repository: "public", Previous: dbVisibilityPrivate, WidenedTo: dbVisibilityPublic}
+	c := legacyOperationFixture(t, "withdrawal_reposts_another_pull_request")
 	w := newLegacyDetachWorld(t, c, 996352)
 	ctx := context.Background()
 	owner := pgtype.UUID{Bytes: w.owner.ID, Valid: true}
@@ -345,5 +345,92 @@ func TestLegacyDetachRepostsAnotherPullRequestThatListedIt_RealPostgres(t *testi
 	}
 	if !strings.Contains(w.fake.lastCommentBody, "1 attached transcript is not listed here.") {
 		t.Errorf("the other pull request must say a transcript is not listed: %s", w.fake.lastCommentBody)
+	}
+}
+
+//go:embed testdata/attachment-legacy-operations.yaml
+var legacyOperationsYAML []byte
+
+func legacyOperationFixture(t *testing.T, name string) legacyDetachCase {
+	t.Helper()
+	rows, err := decodeFixtureRows[legacyDetachCase](legacyOperationsYAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	present := map[string]struct{}{}
+	var chosen legacyDetachCase
+	for _, row := range rows {
+		if _, ok := present[row.Name]; ok || row.Name == "" {
+			t.Fatalf("invalid legacy operation name %q", row.Name)
+		}
+		present[row.Name] = struct{}{}
+		if !containsString([]string{"public", "private"}, row.Repository) || !containsString(shareAttemptVisibilities, row.Previous) || !containsString(shareAttemptVisibilities, row.WidenedTo) {
+			t.Fatalf("invalid legacy operation %s", row.Name)
+		}
+		if row.Name == name {
+			chosen = row
+		}
+	}
+	assertExactTitleFixtureNames(t, "attachment-legacy-operations", present, []string{"withdrawal_waits_for_the_publish_lock", "withdrawal_reposts_another_pull_request", "an_already_released_binding_is_not_restored_again", "reattaching_releases_older_marked_bindings_and_reposts"})
+	if chosen.Name == "" {
+		t.Fatalf("missing legacy operation %s", name)
+	}
+	return chosen
+}
+
+func TestLegacyReleaseRereadsTheBindingBeforeRestoringIt_RealPostgres(t *testing.T) {
+	w := newLegacyDetachWorld(t, legacyOperationFixture(t, "an_already_released_binding_is_not_restored_again"), 996353)
+	ctx := context.Background()
+	stale, err := w.h.queries.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{AttachmentID: w.attachment.ID, TranscriptID: w.transcriptID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stale.AttachWidened {
+		t.Fatal("the fixture never captured an unreleased binding")
+	}
+	if err := w.h.queries.ReleasePullRequestAttachmentTranscript(ctx, sqlc.ReleasePullRequestAttachmentTranscriptParams{AttachmentID: w.attachment.ID, TranscriptID: w.transcriptID}); err != nil {
+		t.Fatal(err)
+	}
+	narrowed, err := w.h.releaseWidenedBinding(ctx, stale, w.groupID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if narrowed || readTranscriptVisibility(t, ctx, w.pool, w.transcriptID) != dbVisibilityShared || latestShareStatus(t, ctx, w.pool, w.transcriptID, w.groupID) != "approved" {
+		t.Fatal("a stale unreleased binding restored an already released audience")
+	}
+}
+
+func TestReattachingReleasesEarlierMarkedBindingsAndReposts_RealPostgres(t *testing.T) {
+	w := newLegacyDetachWorld(t, legacyOperationFixture(t, "reattaching_releases_older_marked_bindings_and_reposts"), 996354)
+	ctx := context.Background()
+	owner := w.owner.PgID()
+	attachmentCreatePreview(t, ctx, w.h, w.groupID, owner, "acme", w.repoName, w.sha, 8)
+	attachmentConfirm(t, w.h, owner, "acme", w.repoName, 8)
+	before := postedNow(w.fake)
+	if !strings.Contains(before.comment, "please attach my prompts") {
+		t.Fatal("the other pull request never listed the widened transcript")
+	}
+	// Seed the older-cycle state a partial detach left, preserving its marked
+	// binding. Re-enter through the canonical lifecycle transition table.
+	if _, err := promptattach.Transition(ctx, w.h.queries, w.attachment.ID, promptattach.Detached); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := promptattach.Transition(ctx, w.h.queries, w.attachment.ID, promptattach.Preview); err != nil {
+		t.Fatal(err)
+	}
+	attachmentConfirm(t, w.h, owner, "acme", w.repoName, 7)
+	if visibility := readTranscriptVisibility(t, ctx, w.pool, w.transcriptID); visibility != dbVisibilityPrivate {
+		t.Fatalf("reattach kept older widening %q", visibility)
+	}
+	fresh, err := w.h.queries.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{AttachmentID: w.attachment.ID, TranscriptID: w.transcriptID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.AttachWidened || fresh.PreviousVisibility != dbVisibilityPrivate {
+		t.Fatalf("fresh binding reused old widening: %+v", fresh)
+	}
+	after := postedNow(w.fake)
+	if after.edits <= before.edits || strings.Contains(after.comment, "please attach my prompts") {
+		t.Fatal("the older binding's release never withdrew the other posted copy")
 	}
 }

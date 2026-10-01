@@ -878,3 +878,27 @@ authenticating. Both are custom Postgres parameters read via
   so the outer transaction survives; a fail-closed UPDATE test must actually
   MOVE a governance axis (a same-value update is WHEN-false and passes for the
   wrong reason).
+
+### Prompt attachment grants and derived copies
+
+- The prompts check succeeds only when another person can actually read a bound
+  transcript: public visibility, an existing collective owner review grant, or
+  an approved contribution with an accepted collective member. A shared label
+  alone and a pending membership are insufficient. Grant-query failures stop
+  posting rather than producing optimistic success.
+- Approval, batch approval, rejection, contribution removal and member departure
+  refresh affected attached checks even when transcript visibility is unchanged.
+  Each refresh re-reads lifecycle state under the attachment lock.
+- An author's unbound preview still requires a live owned transcript. Bound
+  titles, start times and prompt text follow the canonical transcript read grant.
+- Transcript deletion locks affected attachment rows and prunes their derived
+  digests in the same transaction as row deletion. Every digest writer takes the
+  same row lock and restricts its input to live owned transcript IDs, so a late
+  GitHub response cannot restore deleted prompt copies in storage. No new state
+  or migration is involved. Reposting the captured attached rows also withdraws
+  the public text; an empty attachment posts an explicit explanation.
+- A failed GitHub edit cannot undo a committed access change or deletion. Local
+  reads remain restricted and stored deletion copies remain pruned; an external
+  comment can remain stale until GitHub accepts a refresh. The explicit refresh
+  action retries that remote work. This is an external service limit, not a
+  grant or transaction rollback.

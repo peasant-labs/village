@@ -84,7 +84,7 @@ func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.Pul
 	if err != nil {
 		return attachment, err
 	}
-	if err := h.queries.SetPullRequestAttachmentArtifacts(ctx, sqlc.SetPullRequestAttachmentArtifactsParams{
+	if err := h.storeAttachmentArtifacts(ctx, sqlc.SetPullRequestAttachmentArtifactsParams{
 		ID:         attachment.ID,
 		HeadSha:    attachment.HeadSha,
 		CommentID:  optionalInt8(commentID),
@@ -125,8 +125,9 @@ func (h *Handler) audienceMovedSince(ctx context.Context, digests attachmentDige
 		if err != nil {
 			return true
 		}
-		if listedOnPullRequest(row.Visibility) != listedOnPullRequest(before) ||
-			readableBeyondItsAuthor(row.Visibility) != readableBeyondItsAuthor(before) {
+		readable, err := h.readableBeyondItsAuthor(ctx, row)
+		if err != nil || listedOnPullRequest(row.Visibility) != listedOnPullRequest(before) ||
+			readable != digests.readable[id] {
 			return true
 		}
 	}
@@ -211,11 +212,41 @@ func listedOnPullRequest(visibility string) bool {
 	return visibility == dbVisibilityPublic
 }
 
-// readableBeyondItsAuthor reports whether anyone besides the transcript's owner
-// can read it. It decides the check's conclusion: prompts only their author can
-// open are not prompts the pull request's reviewers have.
-func readableBeyondItsAuthor(visibility string) bool {
-	return visibility != dbVisibilityPrivate
+// readableBeyondItsAuthor asks the same grant sources as canViewTranscript.
+// A shared label alone grants nothing: an accepted member or a collective owner
+// with review access must actually exist besides the transcript's owner.
+func (h *Handler) readableBeyondItsAuthor(ctx context.Context, transcript sqlc.Transcript) (bool, error) {
+	if transcript.Visibility == dbVisibilityPublic {
+		return true, nil
+	}
+	owners, err := h.queries.ListGroupOwnersForTranscript(ctx, transcript.ID)
+	if err != nil {
+		return false, fmt.Errorf("could not read collective review grants for a prompt check: %w", err)
+	}
+	for _, owner := range owners {
+		if owner != transcript.OwnerID {
+			return true, nil
+		}
+	}
+	if transcript.Visibility != dbVisibilityShared {
+		return false, nil
+	}
+	groups, err := h.queries.ListApprovedTranscriptShareGroups(ctx, transcript.ID)
+	if err != nil {
+		return false, fmt.Errorf("could not read accepted grants for a prompt check: %w", err)
+	}
+	for _, group := range groups {
+		members, err := h.queries.ListGroupMembers(ctx, sqlc.ListGroupMembersParams{GroupID: group, ViewerIsOwner: true})
+		if err != nil {
+			return false, fmt.Errorf("could not read accepted members for a prompt check: %w", err)
+		}
+		for _, member := range members {
+			if member.ID != transcript.OwnerID && canReadData(member.Role, "contributors") {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // attachmentUnlistedNote is the line a digest carries when attached transcripts
@@ -347,6 +378,10 @@ func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullReques
 	if err != nil {
 		return 0, 0, fmt.Errorf("could not render the digest for the check: %w", err)
 	}
+	if len(digests.complete.Items) == 0 {
+		comment = "No transcripts remain attached to this pull request."
+		summary = comment
+	}
 	if digests.unlisted > 0 {
 		// The reader is told attached transcripts are not listed rather than left
 		// to notice, without being told which or why. The note is added after
@@ -457,7 +492,7 @@ func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequ
 
 	// The posted objects are gone or reset; keep the digest but drop the ids so
 	// a later attach creates rather than edits a deleted comment.
-	if err := h.queries.SetPullRequestAttachmentArtifacts(ctx, sqlc.SetPullRequestAttachmentArtifactsParams{
+	if err := h.storeAttachmentArtifacts(ctx, sqlc.SetPullRequestAttachmentArtifactsParams{
 		ID:         attachment.ID,
 		HeadSha:    attachment.HeadSha,
 		CommentID:  pgtype.Int8{},
