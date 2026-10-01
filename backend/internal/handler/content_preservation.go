@@ -117,15 +117,14 @@ func originalContentEnvelope(raw []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var envelope map[string]json.RawMessage
-	if err := json.Unmarshal(base, &envelope); err != nil {
-		return nil, err
-	}
-	envelope["sessionDetail"] = json.RawMessage(raw)
-	encoded, err := marshalUnescapedContent(envelope)
-	if err != nil {
-		return nil, err
-	}
+	// RawMessage also passes through encoding/json's string escaping. Append
+	// the authenticated JSON directly so this fallback preserves its original
+	// spelling, including literal Unicode separators, within the read budget.
+	encoded := make([]byte, 0, len(base)+len(raw)+17)
+	encoded = append(encoded, base[:len(base)-1]...)
+	encoded = append(encoded, `,"sessionDetail":`...)
+	encoded = append(encoded, raw...)
+	encoded = append(encoded, '}')
 	if _, err := schema.DecodeTranscriptContentRaw(encoded); err != nil {
 		return nil, fmt.Errorf("original detail could not fit a valid read envelope; no replacement was written; republish a bounded transcript: %w", err)
 	}
