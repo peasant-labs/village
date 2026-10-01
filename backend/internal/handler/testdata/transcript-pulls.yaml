@@ -41,10 +41,16 @@ world:
       created_by: author
       repositories:
         - {repo: acme/app, private: false}
+    - name: review-team
+      created_by: stranger
+      members: {member: member}
   transcripts:
     - {name: open-session, owner: author, visibility: public}
     - {name: team-session, owner: author, visibility: shared, shares: {team: approved}}
     - {name: private-session, owner: author, visibility: private}
+    - {name: pending-session, owner: author, visibility: shared, shares: {team: pending}}
+    - {name: rejected-session, owner: author, visibility: shared, shares: {team: rejected}}
+    - {name: pending-review-session, owner: author, visibility: shared, shares: {review-team: pending}}
   attachments:
     # Attached first, detached last (the world detaches after every attach), so
     # newest-first by the later of the two puts them ahead of #17, #12 and #11.
@@ -171,4 +177,34 @@ cases:
     viewer: ""
     transcript: team-session
     status: 404
+    expect: []
+
+  - name: pending-submission-does-not-grant-member-access
+    viewer: member
+    transcript: pending-session
+    status: 404
+    expect: []
+
+  - name: rejected-submission-does-not-grant-member-access
+    viewer: member
+    transcript: rejected-session
+    status: 404
+    expect: []
+
+  - name: pending-membership-does-not-grant-approved-submission-access
+    viewer: pending
+    transcript: team-session
+    status: 404
+    expect: []
+
+  - name: transcript-owner-reads-pending-submission
+    viewer: author
+    transcript: pending-session
+    status: 200
+    expect: []
+
+  - name: collective-owner-keeps-pending-review-preview
+    viewer: stranger
+    transcript: pending-review-session
+    status: 200
     expect: []

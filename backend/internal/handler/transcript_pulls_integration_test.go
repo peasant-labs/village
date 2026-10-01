@@ -20,6 +20,11 @@ var transcriptPullsYAML []byte
 // requiredTranscriptPullsCases is the name manifest for
 // testdata/transcript-pulls.yaml. Exact membership, never a count.
 var requiredTranscriptPullsCases = []string{
+	"pending-submission-does-not-grant-member-access",
+	"rejected-submission-does-not-grant-member-access",
+	"pending-membership-does-not-grant-approved-submission-access",
+	"transcript-owner-reads-pending-submission",
+	"collective-owner-keeps-pending-review-preview",
 	"owner-sees-every-listed-pull-request",
 	"collective-member-sees-private-repository-pull-requests",
 	"anonymous-reader-sees-public-repository-pull-requests",

@@ -2090,16 +2090,16 @@ func (h *Handler) canViewTranscript(ctx context.Context, user *AuthUser, t sqlc.
 		return true
 	}
 	if t.Visibility == "shared" {
-		shares, err := h.queries.ListTranscriptShares(ctx, t.ID)
+		shares, err := h.queries.ListApprovedTranscriptShareGroups(ctx, t.ID)
 		if err != nil {
 			return false
 		}
-		for _, share := range shares {
-			_, err := h.queries.GetGroupMember(ctx, sqlc.GetGroupMemberParams{
-				GroupID: share.GroupID,
+		for _, groupID := range shares {
+			member, err := h.queries.GetGroupMember(ctx, sqlc.GetGroupMemberParams{
+				GroupID: groupID,
 				UserID:  user.PgID(),
 			})
-			if err == nil {
+			if err == nil && canReadData(member.Role, "contributors") {
 				return true
 			}
 		}

@@ -151,7 +151,7 @@ func (w prWorld) validate(t *testing.T, fixture string) {
 			t.Fatalf("%s: transcript %q has visibility %q", fixture, tr.Name, tr.Visibility)
 		}
 		for collective, status := range tr.Shares {
-			if collectives[collective] == nil || (status != "approved" && status != "pending") {
+			if collectives[collective] == nil || (status != "approved" && status != "pending" && status != "rejected") {
 				t.Fatalf("%s: transcript %q shares with %q as %q", fixture, tr.Name, collective, status)
 			}
 		}
