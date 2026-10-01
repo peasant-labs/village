@@ -97,7 +97,7 @@ test.describe('transcript page, as its owner', () => {
   test('the more menu, open', async ({ page }, testInfo) => {
     await page.getByRole('button', { name: 'more', exact: true }).click()
     const menu = page.getByRole('menu')
-    await expect(menu.getByRole('menuitem')).toHaveText(['manage access', 'edit title', 'download markdown'])
+    await expect(menu.getByRole('menuitem')).toHaveText(['manage access', 'edit title', 'download markdown', 'download json', 'download jsonl'])
     // Who can read it, with the collective names in their own case: the menu
     // sets its chrome in lowercase, and the names are user content.
     const caption = page.getByTestId('transcript-access-caption')
@@ -112,6 +112,7 @@ test.describe('transcript page, as its owner', () => {
     await page.getByRole('menuitem', { name: 'manage access' }).click()
     const dialog = page.getByRole('dialog', { name: 'manage access' })
     await expect(dialog).toBeVisible()
+    await expect.poll(() => dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true)
     const readers = dialog.getByRole('list', { name: 'who can read it' })
     await expect(readers.getByRole('listitem')).toHaveCount(2)
     await expect(readers).toContainText('Acme Platform')
