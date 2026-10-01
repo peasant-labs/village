@@ -507,7 +507,7 @@ if (SURFACE === 'discovery') {
     { borderRadius: isSquare },
     'the member-load failure notice',
   )
-  await capture('village-home-member-load-failed', '[data-testid="home-recent-sessions"]', 'member-failure')
+  await capture('village-home-member-load-failed', '[data-testid="home-transcripts"]', 'member-failure')
   console.log('member-failure provenance:', JSON.stringify(shape))
   console.log('computed failure-notice style:', JSON.stringify(style))
 } else if (SURFACE === 'collective-browse-empty-flat' || SURFACE === 'collective-contribute-empty-flat') {

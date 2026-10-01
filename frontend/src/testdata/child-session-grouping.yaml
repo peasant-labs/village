@@ -11,35 +11,16 @@
 #                       browse card names no parent, so a count hanging off one
 #                       card would ask a visitor to guess which card it belonged
 #                       to.
-#   home                `/` for a signed-in visitor. Its own recent sessions,
-#                       where a started session hangs off its parent's row in an
-#                       expandable chip.
+#   home                `/` for a signed-in visitor. The table of their own
+#                       transcripts, where a started session hangs off its
+#                       parent's row in an expandable chip.
 #   project             /users/{username}/projects/{projectHash}, the same chip.
 #   profile             /users/{username}, a person's library. Folded WITHIN each
 #                       project group, which is the only place a starter and what
 #                       it started can both be.
-#   collective-browse   /groups/{id}, the collective's contributions. Rows carry
-#                       a title, a contributor handle, a provider, turns, tokens
-#                       and a date, and an owner picks rows out to remove them.
-#   collective-repos    /groups/{id}, the same rows read by repository. Folded
-#                       WITHIN each repository.
-#   pending-queue       /groups/{id} for the owner of a curated collective. The
-#                       ONE surface here that does NOT fold: every submission
-#                       keeps its own queue row. The queue component offers no
-#                       way to nest a row, and forcing one made the queue worse
-#                       to work in -- a revealed submission truncated its own
-#                       title, and a row's approve and reject drifted away from
-#                       the title they decide. On a surface where each row is an
-#                       irreversible decision, that is worse than a flat list.
-#                       The cases below assert the rows stay UNGROUPED, so the
-#                       omission is a state this fixture states out loud rather
-#                       than a silence, and a fold arriving here has to be a
-#                       deliberate edit to these cases.
-#   my-contributions    /groups/{id}, a member's own contributions to it.
 #   contribute          /groups/{id}/contribute, the project > branch > session
 #                       selection tree.
-# explore, collective-browse, collective-repos and pending-queue can each carry
-# rows from several publishers. home, project, profile, my-contributions and
+# explore can carry rows from several publishers. home, project, profile and
 # contribute read ONE person's own sessions, so a case asserted on any of those
 # carries rows from one owner and no agent sessions.
 #
@@ -91,12 +72,12 @@
 # page renders them as their own collapsed group beside these ones, so a case
 # with both proves the two groups coexist.
 #
-# `expectedHomeRows` is the ordered list of rows the HOME list shows, and is
-# written only on a `home` case (every other case carries `[]`). Home caps its
-# list, so what it shows is not always every row that kept its place: it is the
-# first N groups, ranked by the newest row in each group. That ranking is why
-# the field states an ORDER -- a group holding the person's newest session must
-# not be cut off the page while that session is only reachable from inside it.
+# `expectedHomeRows` is the ordered list of rows the HOME table lists, and is
+# written only on a `home` case (every other case carries `[]`). Home lists every
+# row that kept its place, ranked by the newest row in each group. That ranking
+# is why the field states an ORDER -- a group holding the person's newest
+# session must not sit below rows older than that session, which is only
+# reachable from inside the group.
 #
 # `label` is the literal text of a chip's collapsed control, written out
 # rather than derived, so a change to the wording the code produces fails here
@@ -557,18 +538,14 @@ cases:
     expectedHomeRows: [fix-the-flaky-test, bisect-the-failure]
     expectedGroups: []
 
-  # More rows than home shows, with the person's NEWEST session inside a chip.
+  # The person's NEWEST session inside a chip.
   #
   # Rows arrive most-recent first, so `wire-the-retry` is the newest thing this
   # person did and `harden-the-client` -- the session that started it -- is the
   # OLDEST row here. Ranked by their own timestamps the parent would sit last,
-  # fall outside the cap, and take the newest session off the page with it,
-  # reachable from nowhere. Ranked by the newest row in each group the parent
-  # leads the list, and the row that drops off the end is the genuinely oldest
-  # group instead.
-  #
-  # This is also the only case where slicing the list BEFORE the fold and after
-  # it give different answers, so it is what holds that order in place.
+  # with the newest session buried inside it at the bottom of the table. Ranked
+  # by the newest row in each group the parent leads the table, and the
+  # genuinely oldest group sits last instead.
   - name: home-shows-the-group-holding-the-newest-session
     surfaces: [home]
     absentParentCause: none
@@ -609,174 +586,11 @@ cases:
        draft-the-runbook, check-the-metrics-panel, harden-the-client]
     expectedHomeRows:
       [harden-the-client, read-the-timeout-defaults, measure-the-backoff,
-       name-the-error-cases, draft-the-runbook]
+       name-the-error-cases, draft-the-runbook, check-the-metrics-panel]
     expectedGroups:
       - parent: harden-the-client
         label: "1 child session"
         children: [wire-the-retry]
-
-  # ── a collective's contributions, read as a list and by repository ─────────
-  # The same rows answer both views of /groups/{id}, because they are the same
-  # response: the list draws them in server order and the repository view draws
-  # them under the repository they share. Two publishers, because a collective
-  # holds everybody's contributions and one publisher's session id must never
-  # capture another publisher's row.
-  - name: a-collectives-contributions-read-a-started-session-under-its-starter
-    surfaces: [collective-browse, collective-repos]
-    absentParentCause: none
-    rows:
-      - name: ship-the-parser
-        ownerID: owner-ada
-        localID: sess-parser
-        parentSessionID: null
-      - name: widen-the-lexer
-        ownerID: owner-ada
-        localID: sess-lexer
-        parentSessionID: sess-parser
-      - name: add-a-golden-file
-        ownerID: owner-ada
-        localID: sess-golden
-        parentSessionID: sess-parser
-      - name: tune-the-cache
-        ownerID: owner-bo
-        localID: sess-cache
-        parentSessionID: null
-    agentSessions: []
-    serverTotal: 4
-    expectedVisibleCount: 2
-    expectedRootRows: [ship-the-parser, tune-the-cache]
-    expectedHomeRows: []
-    expectedGroups:
-      - parent: ship-the-parser
-        label: "2 child sessions"
-        children: [widen-the-lexer, add-a-golden-file]
-
-  # A collective's browse list is paged and filtered, so the session that
-  # started a contribution is often simply not on the page a reader is looking
-  # at. The contribution keeps its ordinary row; removing it would take a
-  # transcript the reader can open out of the collective they are browsing.
-  - name: a-collective-row-naming-a-session-this-page-omits-keeps-its-row
-    surfaces: [collective-browse, collective-repos]
-    absentParentCause: another-page
-    rows:
-      - name: audit-the-indexes
-        ownerID: owner-ada
-        localID: sess-indexes
-        parentSessionID: null
-      - name: rerun-the-import
-        ownerID: owner-bo
-        localID: sess-import
-        parentSessionID: sess-on-an-earlier-page
-    agentSessions: []
-    serverTotal: 2
-    expectedVisibleCount: 2
-    expectedRootRows: [audit-the-indexes, rerun-the-import]
-    expectedHomeRows: []
-    expectedGroups: []
-
-  # ── the review queue of a curated collective ──────────────────────────────
-  # The rows carry everything a fold needs -- this submission was started by
-  # that one -- and the queue still lists all three side by side. That is the
-  # deliberate outcome, not a gap in the corpus: see the surface note at the top
-  # of this file. A moderator can still reach and decide every submission, which
-  # is the property this surface must never lose.
-  - name: a-review-queue-lists-a-started-submission-beside-its-starter
-    surfaces: [pending-queue]
-    absentParentCause: none
-    rows:
-      - name: offer-the-refactor
-        ownerID: owner-ada
-        localID: sess-refactor
-        parentSessionID: null
-      - name: offer-the-follow-up
-        ownerID: owner-ada
-        localID: sess-follow-up
-        parentSessionID: sess-refactor
-      - name: offer-a-second-opinion
-        ownerID: owner-bo
-        localID: sess-opinion
-        parentSessionID: null
-    agentSessions: []
-    serverTotal: 3
-    expectedVisibleCount: 3
-    expectedRootRows: [offer-the-refactor, offer-the-follow-up, offer-a-second-opinion]
-    expectedHomeRows: []
-    expectedGroups: []
-
-  # A person offered one session to this collective and kept the session that
-  # started it to themselves. The moderator may not read the starter at all, so
-  # the offered submission keeps its own queue row: a submission a moderator
-  # cannot see is a submission they cannot decide, and the queue never clears.
-  - name: a-submission-whose-starter-was-not-offered-keeps-its-queue-row
-    surfaces: [pending-queue]
-    absentParentCause: not-visible
-    rows:
-      - name: offer-the-migration
-        ownerID: owner-ada
-        localID: sess-migration-offer
-        parentSessionID: null
-      - name: offer-the-cleanup
-        ownerID: owner-bo
-        localID: sess-cleanup
-        parentSessionID: sess-kept-out-of-this-collective
-    agentSessions: []
-    serverTotal: 2
-    expectedVisibleCount: 2
-    expectedRootRows: [offer-the-migration, offer-the-cleanup]
-    expectedHomeRows: []
-    expectedGroups: []
-
-  # ── a member's own contributions to a collective ──────────────────────────
-  # This list answers "what did I give this collective", so a contribution
-  # another contribution started reads under the one that started it, with the
-  # unshare action still on every row.
-  - name: your-contributions-read-a-started-contribution-under-its-starter
-    surfaces: [my-contributions]
-    absentParentCause: none
-    rows:
-      - name: draft-the-schema
-        ownerID: owner-ada
-        localID: sess-schema
-        parentSessionID: null
-      - name: generate-the-types
-        ownerID: owner-ada
-        localID: sess-types
-        parentSessionID: sess-schema
-      - name: write-the-adapter
-        ownerID: owner-ada
-        localID: sess-adapter
-        parentSessionID: null
-    agentSessions: []
-    serverTotal: 3
-    expectedVisibleCount: 2
-    expectedRootRows: [draft-the-schema, write-the-adapter]
-    expectedHomeRows: []
-    expectedGroups:
-      - parent: draft-the-schema
-        label: "1 child session"
-        children: [generate-the-types]
-
-  # A contribution whose starter was never offered to THIS collective. The list
-  # holds only what this person gave this collective, so the starter is filtered
-  # out of it by definition, and the contribution keeps its ordinary row.
-  - name: a-contribution-whose-starter-is-not-in-this-collective-keeps-its-row
-    surfaces: [my-contributions]
-    absentParentCause: filtered-out
-    rows:
-      - name: trim-the-payload
-        ownerID: owner-ada
-        localID: sess-payload
-        parentSessionID: null
-      - name: retry-the-upload
-        ownerID: owner-ada
-        localID: sess-upload
-        parentSessionID: sess-never-contributed
-    agentSessions: []
-    serverTotal: 2
-    expectedVisibleCount: 2
-    expectedRootRows: [trim-the-payload, retry-the-upload]
-    expectedHomeRows: []
-    expectedGroups: []
 
   # ── the contribute selection tree ─────────────────────────────────────────
   # Choosing what to contribute is where the fold matters most: a person picks a

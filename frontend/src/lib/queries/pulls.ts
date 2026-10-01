@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   VillagePullRequestAttachmentResponse,
+  VillageTranscriptPullRequest,
+  VillageTranscriptPullRequestsResponse,
   VillageUserSettings,
 } from "@peasant-labs/schema";
 import { api } from "../api";
@@ -18,7 +20,7 @@ export function pullRequestAttachmentKey(owner: string, name: string, number: nu
   return ["pull-request-attachment", owner.toLowerCase(), name.toLowerCase(), number] as const;
 }
 
-function pullPath(owner: string, name: string, number: number): string {
+export function pullPath(owner: string, name: string, number: number): string {
   return `/pulls/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${number}`;
 }
 
@@ -28,6 +30,29 @@ export function usePullRequestAttachment(owner: string, name: string, number: nu
     queryFn: () => api<VillagePullRequestAttachmentResponse>(pullPath(owner, name, number)),
     retry: false,
     enabled: !!owner && !!name && Number.isInteger(number) && number > 0,
+  });
+}
+
+export function transcriptPullRequestsKey(transcriptId: string) {
+  return ["transcript-pull-requests", transcriptId] as const;
+}
+
+/**
+ * The pull requests one transcript is bound to, attached or detached, that THIS
+ * viewer may read (`GET /transcripts/{id}/pulls`). The server applies the
+ * transcript's own read check and each pull request's reader rule, so the list
+ * is already narrowed to the viewer; the page renders it as served.
+ */
+export function useTranscriptPullRequests(transcriptId: string, enabled = true) {
+  return useQuery({
+    queryKey: transcriptPullRequestsKey(transcriptId),
+    queryFn: async (): Promise<VillageTranscriptPullRequest[]> => {
+      const res = await api<VillageTranscriptPullRequestsResponse>(
+        `/transcripts/${encodeURIComponent(transcriptId)}/pulls`,
+      );
+      return res.pull_requests ?? [];
+    },
+    enabled: enabled && !!transcriptId,
   });
 }
 
@@ -88,6 +113,25 @@ export function useUpdateUserPromptSettings(username: string) {
       api<VillageUserSettings>("/users/me/settings", {
         method: "PATCH",
         body: JSON.stringify({ preview_before_attach: previewBeforeAttach }),
+      }),
+    onSuccess: (updated) => {
+      qc.setQueryData(userPromptSettingsKey(username), updated);
+    },
+  });
+}
+
+/**
+ * Turns automatic pull request linking on or off for the signed-in person
+ * (`auto_attach_pull_requests` on `PATCH /users/me/settings`). Only this one
+ * field is sent, so the other setting on the route is left as it is.
+ */
+export function useUpdateAutoAttachPullRequests(username: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (autoAttach: boolean) =>
+      api<VillageUserSettings>("/users/me/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ auto_attach_pull_requests: autoAttach }),
       }),
     onSuccess: (updated) => {
       qc.setQueryData(userPromptSettingsKey(username), updated);

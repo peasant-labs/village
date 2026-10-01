@@ -1,8 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { VillageCreateGroupRequest, VillageGroup } from "@peasant-labs/schema";
+import type { VillageCreateGroupRequest, VillageGroup, VillageUpdateGroupRequest } from "@peasant-labs/schema";
 import { api } from "../api";
 import type { Group, VisibleGroup, GroupMember, GroupContributor, GroupTranscript, GroupTranscriptStats, GroupModelBreakdown, CollectiveSearchResponse, UserGroupShare } from "../types";
-import { updateGroupRequest, type UpdateGroupForm } from "./groupRequests";
 
 /**
  * The collectives the caller BELONGS to (`GET /groups`).
@@ -89,13 +88,18 @@ export function useCreateGroup() {
   });
 }
 
+/**
+ * One settings change: `body` names the fields it writes and the server keeps
+ * every field it leaves out. Build it with `settingPatch`, which proves it with
+ * the contract's parser before anything is sent.
+ */
 export function useUpdateGroup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...form }: { id: string } & UpdateGroupForm) =>
+    mutationFn: ({ id, body }: { id: string; body: VillageUpdateGroupRequest }) =>
       api<VillageGroup>(`/groups/${id}`, {
         method: "PATCH",
-        body: JSON.stringify(updateGroupRequest(form)),
+        body: JSON.stringify(body),
       }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["group", vars.id] });

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/AuthProvider";
 import { useSetUsername } from "@/lib/queries/auth";
 import { HandleClaim } from "@/lib/ft-ui";
+import { handleTakenMessage } from "@/lib/handle";
 
 // Mirror the backend handle rules: 3–30 chars, lowercase alphanumeric with
 // single internal hyphens, starting/ending alphanumeric.
@@ -58,7 +59,7 @@ export default function WelcomePage() {
       if (takenHandle && normal === takenHandle.toLowerCase()) {
         return {
           state: "taken" as const,
-          hint: `@${handle} is already claimed. Try another.`,
+          hint: handleTakenMessage(handle),
         };
       }
       return { state: "available" as const };

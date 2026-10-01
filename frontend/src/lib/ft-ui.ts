@@ -21,18 +21,23 @@ import type {
   CSSProperties,
   InputHTMLAttributes,
   ReactNode,
+  RefObject,
   TextareaHTMLAttributes,
 } from "react";
 import {
   Button as FtButton,
   Checkbox as FtCheckbox,
+  Dialog as FtDialog,
   Input as FtInput,
   PromptDigest as FtPromptDigest,
   Radio as FtRadio,
   RadioGroup as FtRadioGroup,
   RailSection as FtRailSection,
   RailShell as FtRailShell,
+  OverflowList as FtOverflowList,
   Select as FtSelect,
+  SettingGroup as FtSettingGroup,
+  SettingRow as FtSettingRow,
   Switch as FtSwitch,
   TeachingEmptyState as FtTeachingEmptyState,
   Textarea as FtTextarea,
@@ -91,6 +96,8 @@ export const Select = FtSelect as ComponentType<
  *  - `VisibilityEye` — transcript visibility glyph + tooltip.
  *  - `SessionGroupDisclosure` — the collapsed count control for a session
  *    list (0.0.21+); replaces the former local copy.
+ *  - `Toast` — the one-line result of an action on the collective pages
+ *    (saved, or what went wrong), with its own status or alert role.
  */
 export {
   Card,
@@ -101,6 +108,7 @@ export {
   ProviderTag,
   SessionGroupDisclosure,
   Tag,
+  Toast,
   Tooltip,
   VisibilityEye,
 } from "@peasant-labs/fairtrade/ui";
@@ -372,3 +380,71 @@ export { RoleRoster, ConfirmInline, DangerZone } from "@peasant-labs/fairtrade/u
  *   overlap + an optional "+N" overflow tile.
  */
 export { GraphSectionNav, Avatar, AvatarGroup } from "@peasant-labs/fairtrade/ui";
+
+// ── Summary lines, short lists and per-field settings ────────────────────────
+
+/**
+ * StatsStrip   — one quiet line of value/label pairs above a list ("38
+ *   transcripts  9 pull requests"). The host formats every value; a bare number
+ *   is grouped. No boxes and no big numerals, unlike StatTile.
+ * OverflowList — a short inline list that shows its first items and folds the
+ *   rest behind a `+N` button that reveals them in place ("#42, #45 +2").
+ *   Nothing is fetched: it can only reveal the items it was given. Widened
+ *   because the published type omits the `data-*` attributes it forwards.
+ */
+export { StatsStrip } from "@peasant-labs/fairtrade/ui";
+
+export const OverflowList = FtOverflowList as ComponentType<
+  ComponentProps<typeof FtOverflowList> & { "data-testid"?: string }
+>;
+
+/**
+ * SettingRow   — one setting that saves on its own: a switch applies the
+ *   moment it changes; a text value stays read-only until `edit`, then saves on
+ *   `save` or Enter. The host passes `onCommit(next)`, the one write; a rejected
+ *   promise restores the previous value and shows the error's message beside
+ *   the control. Widened because the published type omits the `data-*` and
+ *   `id` attributes it forwards onto its root.
+ * SettingGroup — a native <details> of setting rows whose summary names the
+ *   group and counts its rows (`count={null}` for a group of actions). Widened
+ *   the same way.
+ */
+export const SettingRow = FtSettingRow as ComponentType<
+  ComponentProps<typeof FtSettingRow> & { id?: string; "data-testid"?: string }
+>;
+
+export const SettingGroup = FtSettingGroup as ComponentType<
+  ComponentProps<typeof FtSettingGroup> & { id?: string; "data-testid"?: string }
+>;
+// ── Transcript page: link, access, dialog ────────────────────────────────────
+
+/**
+ * CopyIconButton — an icon-only copy control for the link beside it. Its name
+ *   says what it copies ("copy link"); after a copy the icon becomes a check and
+ *   a polite live region says "copied". It renders nothing without a clipboard
+ *   (an insecure context), so the link beside it stays the way to copy by hand.
+ * AccessList — who can read a transcript: one row per collective with a named
+ *   remove button. A row can be marked pending ("adding · waits for approval").
+ * CollectivePicker — search plus suggestions for adding a collective. The host
+ *   searches and passes the results; the picker reports the query and the choice.
+ */
+export { CopyIconButton, AccessList, CollectivePicker } from "@peasant-labs/fairtrade/ui";
+
+/**
+ * fairtrade Dialog — a real modal: role=dialog, focus trapped, Escape and the
+ * scrim close it, focus returns to the opener. Widened because the published
+ * `.d.ts` types every prop as a required `any`, although `footer`,
+ * `returnFocusRef`, `size` and `dismissible` are optional at runtime.
+ */
+export const Dialog = FtDialog as ComponentType<{
+  open: boolean;
+  onClose: () => void;
+  title: ReactNode;
+  labelId?: string;
+  children: ReactNode;
+  footer?: ReactNode;
+  returnFocusRef?: RefObject<HTMLElement | null>;
+  size?: "default" | "wide";
+  className?: string;
+  dismissible?: boolean;
+}>;

@@ -37,7 +37,9 @@ export function useMyCollectiveContributions(enabled: boolean) {
  * owner's contributor opt-in inside the query, and answers with an empty list
  * rather than a refusal when either withholds everything. An empty result is
  * therefore indistinguishable from "this transcript is in no collective", by
- * design, and callers must keep it that way.
+ * design. The transcript header requests it only for its owner; the manage
+ * access popup also reads owner-only submissions to show pending and departed
+ * memberships without mistaking this visibility-filtered list for all grants.
  */
 export function useTranscriptCollectives(transcriptId: string) {
   return useQuery(transcriptCollectivesQueryOptions(transcriptId));

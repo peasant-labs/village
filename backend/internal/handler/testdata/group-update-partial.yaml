@@ -1,0 +1,109 @@
+# Cases for TestUpdateGroupKeepsEveryOmittedField (group_update_partial_test.go).
+#
+# The collective settings page saves one field per change, so PATCH
+# /groups/{id} receives a body that names one field. Every field the body
+# leaves out must keep the value the collective already stores; only the field
+# the body names may change. Each case sends `body` against the `stored`
+# collective and states the whole row the update writes.
+#
+# Deletion protection is the required-name manifest in the test.
+
+stored:
+  name: Acme Platform
+  description: Transcripts behind the ingest and web services.
+  data_access: members_only
+  acceptance_mode: open
+  linked_github_org: acme
+  display_members: true
+  transcript_deletion_policy: user_choice
+  post_prompts_check: true
+  prompts_check_mode: required
+
+cases:
+  - name: the-pull-request-switch-alone-keeps-the-name-and-description
+    why: >-
+      the switch saves `{"post_prompts_check": false}` on its own. Before the
+      fix this wrote an empty name and cleared the description.
+    body: '{"post_prompts_check": false}'
+    want:
+      name: Acme Platform
+      description: Transcripts behind the ingest and web services.
+      data_access: members_only
+      acceptance_mode: open
+      linked_github_org: acme
+      display_members: true
+      transcript_deletion_policy: user_choice
+      post_prompts_check: false
+      prompts_check_mode: required
+
+  - name: a-new-name-alone-keeps-the-description
+    why: the name row saves only the name.
+    body: '{"name": "Acme Platform Team"}'
+    want:
+      name: Acme Platform Team
+      description: Transcripts behind the ingest and web services.
+      data_access: members_only
+      acceptance_mode: open
+      linked_github_org: acme
+      display_members: true
+      transcript_deletion_policy: user_choice
+      post_prompts_check: true
+      prompts_check_mode: required
+
+  - name: a-new-description-alone-keeps-the-name
+    why: the purpose row saves only the description.
+    body: '{"description": "Everything behind the ingest service."}'
+    want:
+      name: Acme Platform
+      description: Everything behind the ingest service.
+      data_access: members_only
+      acceptance_mode: open
+      linked_github_org: acme
+      display_members: true
+      transcript_deletion_policy: user_choice
+      post_prompts_check: true
+      prompts_check_mode: required
+
+  - name: an-empty-description-clears-it
+    why: >-
+      a sent description is written as it is, so emptying the purpose row
+      clears the stored description rather than keeping it.
+    body: '{"description": ""}'
+    want:
+      name: Acme Platform
+      description: null
+      data_access: members_only
+      acceptance_mode: open
+      linked_github_org: acme
+      display_members: true
+      transcript_deletion_policy: user_choice
+      post_prompts_check: true
+      prompts_check_mode: required
+
+  - name: a-read-policy-alone-keeps-everything-else
+    why: the who-can-read select saves only data_access.
+    body: '{"data_access": "contributors"}'
+    want:
+      name: Acme Platform
+      description: Transcripts behind the ingest and web services.
+      data_access: contributors
+      acceptance_mode: open
+      linked_github_org: acme
+      display_members: true
+      transcript_deletion_policy: user_choice
+      post_prompts_check: true
+      prompts_check_mode: required
+
+  - name: a-leave-policy-alone-keeps-everything-else
+    why: the when-a-member-leaves select saves only transcript_deletion_policy.
+    body: '{"transcript_deletion_policy": "mandatory"}'
+    want:
+      name: Acme Platform
+      description: Transcripts behind the ingest and web services.
+      data_access: members_only
+      acceptance_mode: open
+      linked_github_org: acme
+      display_members: true
+      transcript_deletion_policy: mandatory
+      post_prompts_check: true
+      prompts_check_mode: required

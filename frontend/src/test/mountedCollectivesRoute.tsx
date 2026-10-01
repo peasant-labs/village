@@ -361,6 +361,11 @@ export function collectiveRow(row: CollectiveBadgeRow): HTMLTableRowElement {
   return found[0];
 }
 
+/** How many collectives the table lists. */
+export function listedCollectiveCount(): number {
+  return document.querySelectorAll("tbody tr .cmg-table-link").length;
+}
+
 /**
  * What one row claims about the caller: the first line of its "your role"
  * cell.

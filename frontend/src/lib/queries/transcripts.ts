@@ -1,5 +1,12 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { ApiError, api, API_URL_BASE, getAuthHeaders } from "../api";
+import type { VillageTranscriptShare } from "@peasant-labs/schema";
 import type {
   ResolvedProject,
   TranscriptDetailResponse,
@@ -114,6 +121,58 @@ export function useTranscripts(
       return response;
     },
     placeholderData: (previousData) => previousData,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+/**
+ * The transcript list read a page at a time, for a list with a `load more`
+ * control rather than a pager: every page asked for so far stays on screen, and
+ * the next one is appended.
+ *
+ * Every page is asked for with an explicit `page` and `limit`, and each answer
+ * is held to them by the same pagination guard as {@link useTranscripts}, so a
+ * server that answered a different page cannot be appended as if it were the
+ * next one. There is a next page while fewer rows are loaded than the server's
+ * `total` and the last page was not empty.
+ *
+ * The query key starts with `transcripts`, so every mutation that invalidates
+ * the transcript lists refreshes this one too; a refresh re-reads every page
+ * already loaded.
+ *
+ * While a new filter (a search, say) is loading, the rows of the previous one
+ * stay on screen, but only for the same `owner`: another person's rows must
+ * never stand in for somebody else's list while theirs loads.
+ */
+export function useTranscriptPages(
+  params: Record<string, string>,
+  pageSize: number,
+  options?: { enabled?: boolean },
+) {
+  const limit = String(pageSize);
+  return useInfiniteQuery({
+    queryKey: ["transcripts", "pages", params, limit],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam, signal }) => {
+      const pageParams = { ...params, page: String(pageParam), limit };
+      const response = await api<TranscriptListResponse>(
+        `/transcripts?${new URLSearchParams(pageParams)}`,
+        { signal },
+      );
+      assertTranscriptListResponseMatchesRequest(pageParams, response);
+      return response;
+    },
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((n, page) => n + page.transcripts.length, 0);
+      return last.transcripts.length > 0 && loaded < last.total ? last.page + 1 : undefined;
+    },
+    placeholderData: (
+      previous: InfiniteData<TranscriptListResponse, number> | undefined,
+      previousQuery,
+    ) => {
+      const previousParams = previousQuery?.queryKey[2] as Record<string, string> | undefined;
+      return previousParams?.owner === params.owner ? previous : undefined;
+    },
     enabled: options?.enabled ?? true,
   });
 }
@@ -309,37 +368,67 @@ export function useClearProjectDisplayName() {
   });
 }
 
+/**
+ * The query keys a change to one transcript's audience moves: the transcript's
+ * own metadata (its visibility flips between private and shared, and its
+ * title and visibility stay current), the collectives read, the
+ * lists that show it, and the collective's own pages.
+ *
+ * The returned promise resolves once the reads on screen have been fetched
+ * again. A mutation that returns it from `onSettled` stays pending until then,
+ * so a caller reading the lists after the mutation settles reads the server's
+ * answer, never the state from before the request.
+ */
+function invalidateTranscriptAudience(
+  qc: ReturnType<typeof useQueryClient>,
+  transcriptId: string,
+  groupId: string,
+): Promise<unknown> {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ["transcripts"] }),
+    qc.invalidateQueries({ queryKey: ["transcript", transcriptId] }),
+    qc.invalidateQueries({ queryKey: ["transcript-collectives", transcriptId] }),
+    qc.invalidateQueries({ queryKey: ["group", groupId] }),
+    qc.invalidateQueries({ queryKey: ["group-my-shares", groupId] }),
+    qc.invalidateQueries({ queryKey: ["my-collective-contributions"] }),
+  ]);
+}
+
+/**
+ * Withdraw one owned transcript from one collective. The reads refresh when the
+ * request settles, not only when it succeeds: after a failure the lists show
+ * what the server holds, never what the page hoped it would hold.
+ */
 export function useUnshareTranscript() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ transcriptId, groupId }: { transcriptId: string; groupId: string }) =>
-      api(`/transcripts/${transcriptId}/share/${groupId}`, { method: "DELETE" }),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["transcripts"] });
-      qc.invalidateQueries({ queryKey: ["group", vars.groupId] });
-      qc.invalidateQueries({ queryKey: ["group-my-shares", vars.groupId] });
-    },
+      api(
+        `/transcripts/${encodeURIComponent(transcriptId)}/share/${encodeURIComponent(groupId)}`,
+        { method: "DELETE" },
+      ),
+    onSettled: (_data, _error, vars) => invalidateTranscriptAudience(qc, vars.transcriptId, vars.groupId),
   });
 }
 
-export function useBulkShareTranscripts() {
+/**
+ * Offer one owned transcript to one collective (`POST /transcripts/{id}/share`).
+ * A refused request rejects, so the caller can say it failed. The server skips a
+ * collective that does not take this owner's submission and still answers 200,
+ * so the caller compares the returned group IDs to learn whether it was recorded.
+ */
+export function useShareTranscript() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ transcriptIds, groupId }: { transcriptIds: string[]; groupId: string }) => {
-      const results = await Promise.allSettled(
-        transcriptIds.map((tid) =>
-          api(`/transcripts/${tid}/share`, {
-            method: "POST",
-            body: JSON.stringify({ group_ids: [groupId] }),
-          })
-        )
-      );
-      return results;
-    },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["transcripts"] });
-      qc.invalidateQueries({ queryKey: ["group", vars.groupId] });
-      qc.invalidateQueries({ queryKey: ["groups-public"] });
-    },
+    mutationFn: ({ transcriptId, groupId }: { transcriptId: string; groupId: string }) =>
+      api<VillageTranscriptShare[]>(`/transcripts/${encodeURIComponent(transcriptId)}/share`, {
+        method: "POST",
+        body: JSON.stringify({ group_ids: [groupId] }),
+      }),
+    onSettled: (_data, _error, vars) =>
+      Promise.all([
+        invalidateTranscriptAudience(qc, vars.transcriptId, vars.groupId),
+        qc.invalidateQueries({ queryKey: ["groups-public"] }),
+      ]),
   });
 }

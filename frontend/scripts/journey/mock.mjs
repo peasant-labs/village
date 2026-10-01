@@ -2,21 +2,21 @@
  *
  * Composes the explore browse fixtures (in-process, imported from
  * scripts/visual/mock-rest-explore.mjs) with the project-page fixtures
- * (in-process, from scripts/journey/lib/project-fixtures.mjs) and the
+ * (in-process, from scripts/journey/lib/project-fixtures.mjs), the home and
+ * settings fixtures (in-process, from scripts/journey/lib/home-fixtures.mjs) and the
  * transcript-detail fixtures (spawned from scripts/visual/mock-rest.mjs behind
  * an internal port). Journeys therefore need no per-area mock selection and no
  * port matrix; `pnpm journey` is the whole interface.
  *
  * Scenario control: POST /__mock/scenario {"name":"..."} lets a journey declare
  * the world it needs without an env var or a restart. Today:
- *   default     - the composed fixtures as-is, signed in as alice-dev
- *   empty       - the browse list answers with no rows (empty-state journeys)
- *   signed-out  - `/auth/me` refuses, so the app treats the visitor as signed
- *                 out (the sign-in journey) whatever cookie the browser holds
- *   default              - the composed fixtures as-is
- *   empty                - the browse list answers with no rows (empty-state journeys)
- *   pull-request-reader  - the pull request page is served to a reviewer once
- *                          attached, rather than to its author as a preview
+ *   default             - the composed fixtures as-is, signed in as alice-dev
+ *   empty               - browse and home lists answer with no rows
+ *   signed-out          - auth/me refuses, for the sign-in journey
+ *   no-keys             - no peasant sign-ins on the account settings page
+ *   transcript-owner    - the owner's collectives are offered by manage access
+ *   pull-request-reader - the attached pull request is served to a reviewer
+ * Each scenario restores the collective world and owned transcript audience.
  *
  * The transcript half is proxied rather than imported because its contract
  * fixtures are large and stateful; proxying keeps it byte-for-byte the mock the
@@ -29,6 +29,13 @@ import { fileURLToPath } from 'node:url'
 import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
 import { handleProjectRequest } from './lib/project-fixtures.mjs'
 import { handlePullRequestRequest } from './lib/pull-request-fixtures.mjs'
+import { handleCollectiveRequest, resetCollectiveWorld } from './lib/collective-fixtures.mjs'
+import { handleHomeRequest } from './lib/home-fixtures.mjs' 
+import {
+  OWNED_TRANSCRIPT,
+  handleOwnedTranscriptRequest,
+  resetOwnedTranscript,
+} from './lib/transcript-fixtures.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)
@@ -41,7 +48,7 @@ const send = (res, code, body) => {
     'content-type': 'application/json',
     'access-control-allow-origin': '*',
     'access-control-allow-headers': '*',
-    'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS',
+    'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
   })
   res.end(body == null ? '' : JSON.stringify(body))
 }
@@ -53,12 +60,12 @@ const readBody = (req) =>
     req.on('end', () => resolve(data))
   })
 
-const proxyToTranscript = (req, res) => {
+const proxyToTranscript = (req, res, path = req.url) => {
   const upstream = httpRequest(
     {
       hostname: '127.0.0.1',
       port: TRANSCRIPT_PORT,
-      path: req.url,
+      path,
       method: req.method,
       headers: req.headers,
     },
@@ -114,9 +121,13 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req)
       try {
         scenario = JSON.parse(body || '{}').name || scenario
+        resetOwnedTranscript()
       } catch {
         return send(res, 400, { error: 'invalid JSON body' })
       }
+      // Setting a scenario starts the collectives over, so one journey's
+      // links and settings writes never reach the next.
+      resetCollectiveWorld()
       return send(res, 200, { scenario })
     }
   }
@@ -124,6 +135,9 @@ const server = createServer(async (req, res) => {
   if (scenario === 'signed-out' && req.method === 'GET' && path === '/auth/me') {
     return send(res, 401, { error: 'not signed in' })
   }
+  // The signed-in person's own home and settings reads, including the
+  // owner-scoped list, which answers its own `empty` scenario.
+  if (await handleHomeRequest(req, res, scenario)) return
 
   if (scenario === 'empty' && req.method === 'GET' && path === '/transcripts') {
     return send(res, 200, { transcripts: [], total: 0, agent_total: 0, page: 1, limit: 24 })
@@ -132,6 +146,12 @@ const server = createServer(async (req, res) => {
   // The pull request fixture owns its pull request and the reads of its own
   // transcripts, which are not `ct-*` ids, so it answers before the proxy.
   if (handlePullRequestRequest(req, res, scenario)) return
+  // The owned transcript: its turns are the transcript mock's own content, and
+  // the fixture serves its metadata, audience, pull requests and share routes.
+  if (req.method === 'GET' && path === `/transcripts/${OWNED_TRANSCRIPT.id}/content`) {
+    return proxyToTranscript(req, res, OWNED_TRANSCRIPT.contentPath)
+  }
+  if (handleOwnedTranscriptRequest(req, res, { ownerGroups: scenario === 'transcript-owner' })) return
 
   // Transcript detail and its subroutes go to the transcript mock; the list
   // (`/transcripts`, exact) stays with the explore half.
@@ -140,6 +160,10 @@ const server = createServer(async (req, res) => {
   // The project fixture owns the project route and its own project-scoped
   // grouped helper read; it declines the plain browse list.
   if (handleProjectRequest(req, res)) return
+
+  // The collectives list, a collective, its settings and its repositories. A
+  // search that matches none of them falls through to the explore half.
+  if (handleCollectiveRequest(req, res)) return
 
   if (handleExploreRequest(req, res)) return
   return send(res, 404, { error: `no mock route for ${req.method} ${url.pathname}` })

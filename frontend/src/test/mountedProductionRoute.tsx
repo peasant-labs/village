@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
-import type { Harness } from "@peasant-labs/schema";
+import type { Harness, VillageTranscriptPullRequest } from "@peasant-labs/schema";
 import type { NameSource } from "@/lib/types";
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 import TranscriptDetailPage from "@/app/transcripts/[id]/page";
@@ -61,6 +61,9 @@ export interface MountedRouteTranscriptMetadata {
    *  everything — which is also what a transcript in no collective gets, by
    *  design. Callers that do not exercise the memberships omit it. */
   viewer_collectives?: Array<{ id: string; name: string }>;
+  /** The pull requests `GET /transcripts/{id}/pulls` serves to this viewer.
+   *  Defaults to none; callers that do not exercise the list omit it. */
+  pull_requests?: VillageTranscriptPullRequest[];
   /** The viewer-authorized relationship navigation the metadata read serves.
    *  Omitted when the fixture exercises no source/starter links. */
   relationshipNavigation?: unknown[];
@@ -101,6 +104,15 @@ export interface MountedRouteViewer {
   orgs: Array<{ org_login: string; org_id: number; avatar_url: string | null; visible: boolean }>;
 }
 
+/** A test's own routes, asked first: it answers a request by returning a
+ *  `Response`, or declines it with `undefined` so the fixture's reads answer.
+ *  Mutations (a share, a withdrawal) and stateful reads live here, next to the
+ *  test that drives them. */
+export type MountedRouteHandler = (
+  url: string,
+  init: RequestInit | undefined,
+) => Response | undefined | Promise<Response | undefined>;
+
 /** Stubs `fetch` to serve exactly the four REST calls `TranscriptDetailPage` makes for one
  *  transcript id: metadata, content, annotations, and the caller's groups — plus, with a
  *  `viewer`, the session and org reads a signed-in viewer's page makes. `fixtureLabel` names
@@ -111,10 +123,13 @@ export function installRESTFixture(
   detail: unknown,
   fixtureLabel: string,
   viewer?: MountedRouteViewer,
+  routes?: MountedRouteHandler,
 ): ReturnType<typeof vi.fn> {
   const resolvedMetadata = withProjectIdentityDefaults(metadata);
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    const answered = await routes?.(url, init);
+    if (answered) return answered;
     if (viewer != null && url.endsWith("/auth/me")) {
       return new Response(
         JSON.stringify({
@@ -155,6 +170,12 @@ export function installRESTFixture(
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
+    }
+    if (url.endsWith(`/transcripts/${transcriptID}/pulls`)) {
+      return new Response(JSON.stringify({ pull_requests: resolvedMetadata.pull_requests ?? [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
     }
     if (url.endsWith(`/transcripts/${transcriptID}/annotations`)) {
       return new Response(JSON.stringify({ annotations: [] }), { status: 200, headers: { "content-type": "application/json" } });

@@ -35,10 +35,6 @@ export type ChildSessionSurface =
   | "home"
   | "project"
   | "profile"
-  | "collective-browse"
-  | "collective-repos"
-  | "pending-queue"
-  | "my-contributions"
   | "contribute";
 
 const CHILD_SESSION_SURFACES: readonly ChildSessionSurface[] = [
@@ -46,47 +42,22 @@ const CHILD_SESSION_SURFACES: readonly ChildSessionSurface[] = [
   "home",
   "project",
   "profile",
-  "collective-browse",
-  "collective-repos",
-  "pending-queue",
-  "my-contributions",
   "contribute",
 ];
-
-/**
- * The surfaces that deliberately do NOT read a started session under the
- * session that started it.
- *
- * A closed set with one member, stated here rather than left as an absence in
- * the corpus. The review queue's component offers no way to nest a row, and
- * forcing one made the queue worse to work in: a revealed submission truncated
- * its own title, and a row's approve and reject drifted away from the title
- * they decide. Each row there is an irreversible decision, so a flat list is
- * the better answer until the component can nest a row
- * (peasant-labs/fairtrade-design-system#75). The review page that replaces this
- * queue folds natively.
- *
- * Being on this list INVERTS the corpus guard below: such a surface must have
- * no case declaring a group, so a fold arriving there fails here until someone
- * deliberately removes the surface from this set.
- */
-const UNFOLDED_SURFACES: readonly ChildSessionSurface[] = ["pending-queue"];
 
 /**
  * The surfaces whose list is scoped to one person, and so cannot carry rows
  * from two owners or the discovery-only agent scope.
  *
- * A person's library, their own contributions to a collective and the
- * contribute listing all answer with the caller's OWN transcripts. The
- * collective browse list, the repository view and the review queue hold
- * everybody's, which is exactly where a session id from one publisher must be
- * proven unable to capture another publisher's row.
+ * A person's library, their home list and the contribute listing all answer
+ * with the caller's OWN transcripts. Discovery holds everybody's, which is
+ * exactly where a session id from one publisher must be proven unable to
+ * capture another publisher's row.
  */
 const OWNER_SCOPED_SURFACES: readonly ChildSessionSurface[] = [
   "home",
   "project",
   "profile",
-  "my-contributions",
   "contribute",
 ];
 
@@ -123,11 +94,11 @@ export type ChildSessionGroupingCase = {
   /** The number the list header must show above the grid. */
   expectedVisibleCount: number;
   expectedRootRows: string[];
-  /** The ordered rows the HOME list shows, on a `home` case; `[]` elsewhere.
-   *  Home caps its list, so what it shows is not always every row that kept its
-   *  place, and the ORDER is part of the answer: groups are ranked by the
-   *  newest row in each, so a group holding the person's newest session cannot
-   *  be cut off the page while that session is only reachable from inside it. */
+  /** The ordered rows the HOME table lists, on a `home` case; `[]` elsewhere.
+   *  Home lists every row the fold left in place, and the ORDER is the answer:
+   *  groups are ranked by the newest row in each, so a group holding the
+   *  person's newest session is not buried below rows older than that session,
+   *  which is only reachable from inside the group. */
   expectedHomeRows: string[];
   expectedGroups: ChildSessionExpectedGroup[];
 };
@@ -158,12 +129,6 @@ const requiredCaseNames = [
   "a-started-session-is-listed-inside-its-parents-chip",
   "a-row-whose-parent-is-not-in-the-list-keeps-its-place",
   "home-shows-the-group-holding-the-newest-session",
-  "a-collectives-contributions-read-a-started-session-under-its-starter",
-  "a-collective-row-naming-a-session-this-page-omits-keeps-its-row",
-  "a-review-queue-lists-a-started-submission-beside-its-starter",
-  "a-submission-whose-starter-was-not-offered-keeps-its-queue-row",
-  "your-contributions-read-a-started-contribution-under-its-starter",
-  "a-contribution-whose-starter-is-not-in-this-collective-keeps-its-row",
   "the-contribute-tree-nests-a-started-session-under-its-starter",
   "a-contributable-row-naming-an-unlisted-parent-keeps-its-own-place",
 ] as const;
@@ -213,7 +178,6 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
   let sawFoldCorrectingTheCount = false;
   let sawLongerResultKeepingTheServerCount = false;
   let sawBothGroupsTogether = false;
-  let sawHomeCappingItsList = false;
   let sawHomeLedByAGroupsNewestRow = false;
 
   for (const c of fixtures.cases) {
@@ -371,8 +335,8 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
       sawLongerResultKeepingTheServerCount = true;
     }
 
-    // What home SHOWS is its own expectation, because home caps its list and
-    // ranks groups by the newest row in each. Only a `home` case may state it.
+    // What home LISTS is its own expectation, because home ranks groups by the
+    // newest row in each. Only a `home` case may state it.
     const onHome = c.surfaces.includes("home");
     if (!onHome && c.expectedHomeRows.length > 0) {
       throw new Error(
@@ -396,7 +360,15 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
           } not among the rows that kept their place; home can only show a row the fold left in the list`,
         );
       }
-      if (c.expectedHomeRows.length < c.expectedRootRows.length) sawHomeCappingItsList = true;
+      // Home lists a page of rows and offers the rest by `load more`; within
+      // what it has loaded it drops none. So its rows are exactly the rows the
+      // fold left in place, only ranked differently.
+      if (c.expectedHomeRows.length !== c.expectedRootRows.length) {
+        throw new Error(
+          `case ${c.name}: expectedHomeRows lists ${c.expectedHomeRows.length} rows but the fold leaves ` +
+            `${c.expectedRootRows.length} in place; home lists every one of them`,
+        );
+      }
       if (c.expectedHomeRows[0] !== c.expectedRootRows[0]) sawHomeLedByAGroupsNewestRow = true;
     }
 
@@ -422,18 +394,7 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
           `question differently, so each needs its own evidence`,
       );
     }
-    if (UNFOLDED_SURFACES.includes(surface)) {
-      // The inverse guard. This surface lists every row side by side on
-      // purpose, so a case that expects a group there is either a fold nobody
-      // meant to add or a decision nobody recorded.
-      if (surfacesShowingAGroup.has(surface)) {
-        throw new Error(
-          `child-session-grouping fixtures expect a group on ${surface}, which deliberately does not fold: every row ` +
-            `there keeps its own place because each one is an irreversible decision and the queue cannot nest a row. ` +
-            `If ${surface} should fold now, take it out of UNFOLDED_SURFACES and say why`,
-        );
-      }
-    } else if (!surfacesShowingAGroup.has(surface)) {
+    if (!surfacesShowingAGroup.has(surface)) {
       throw new Error(
         `child-session-grouping fixtures cover no case on ${surface} where a session started another: on discovery ` +
           `that is the fold itself, and on every other surface it is the control on the parent's row, so a corpus ` +
@@ -476,18 +437,12 @@ export function loadChildSessionGroupingFixtures(): ChildSessionGroupingFixtures
         "group render into the same column, and neither may take rows from the other",
     );
   }
-  if (!sawHomeCappingItsList) {
-    throw new Error(
-      "child-session-grouping fixtures cover no home case with more rows than home shows: the list is capped, so a " +
-        "corpus that never reaches the cap cannot tell a correct cut from one that drops the wrong rows",
-    );
-  }
   if (!sawHomeLedByAGroupsNewestRow) {
     throw new Error(
       "child-session-grouping fixtures cover no home case whose first shown row is not the first row the server " +
         "sent: home ranks a group by the NEWEST row in it, so without a case where that ranking moves a row, a " +
-        "build that ranked parents by their own timestamps alone would pass, and could cut the group holding the " +
-        "person's newest session off the page",
+        "build that ranked parents by their own timestamps alone would pass, and would bury the group holding the " +
+        "person's newest session below older rows",
     );
   }
   for (const cause of ABSENT_PARENT_CAUSES) {

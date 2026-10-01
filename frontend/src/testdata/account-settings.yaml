@@ -1,0 +1,264 @@
+# Case corpus for `src/accountSettings.test.tsx` — the account settings route
+# (`/settings`), mounted as the app mounts it with only HTTP stubbed.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/accountSettingsFixtures.ts`. A removed or renamed case fails the
+# loader because its name goes missing from the declared set.
+#
+# Every field is written on every case, never defaulted, so a case cannot be
+# read as the happy path because a field was forgotten.
+#
+#   discoverable     the account's discoverable setting when the page opens.
+#   keys             what GET /auth/api-keys answers. `label` is the key's
+#                    label (the CLI's sign-in writes `peasant-cli`); `revoked`
+#                    marks a key that no longer works; `lastUsed` is when the key
+#                    was last used, or null.
+#   action           the one thing the person does: none, change-handle,
+#                    toggle-discoverable, sign-out-everywhere or delete-account.
+#   handleTo         the handle typed, on change-handle; null otherwise.
+#   server           how the write answers: ok, conflict (409) or failure (500).
+#   failOnKey        on sign-out-everywhere, which revocation fails, counted from
+#                    1 in the order sent; null when none does.
+#   confirm          whether the person presses yes (true) or cancel (false) at
+#                    the inline confirm; true on actions that have none.
+#
+# And what the page must show and send afterwards:
+#
+#   expectHandle        the handle the profile group shows.
+#   expectDiscoverable  whether the discoverable switch is on.
+#   expectPeasant       the peasant connection's label.
+#   expectLastUsed      the "last used" words under it, or null when it shows
+#                       none. The tests freeze the clock at 2026-09-30T12:00:00Z.
+#   expectAlert         the error the page announces, or null for none.
+#   expectWrites        every write the page sent, in order, as METHOD path and
+#                       JSON body. What a page SENT is the observable half of a
+#                       write, so a case lists all of them, and an empty list
+#                       says nothing was written.
+cases:
+  - name: a-handle-change-saves-the-new-handle
+    why: the handle is edited in place and saved on save, with no second page.
+    discoverable: true
+    keys: []
+    action: change-handle
+    handleTo: alice-codes
+    server: ok
+    failOnKey: null
+    confirm: true
+    expectHandle: alice-codes
+    expectDiscoverable: true
+    expectPeasant: peasant is not signed in on any computer
+    expectLastUsed: null
+    expectAlert: null
+    expectWrites:
+      - 'PATCH /auth/me/username {"username":"alice-codes"}'
+
+  - name: a-taken-handle-says-so-as-welcome-does
+    why: >-
+      a handle somebody else holds is refused by the server with a 409; the page
+      says so in the words /welcome uses and keeps the handle the person has.
+    discoverable: true
+    keys: []
+    action: change-handle
+    handleTo: bob-dev
+    server: conflict
+    failOnKey: null
+    confirm: true
+    expectHandle: alice-dev
+    expectDiscoverable: true
+    expectPeasant: peasant is not signed in on any computer
+    expectLastUsed: null
+    expectAlert: "@bob-dev is already claimed. try another."
+    expectWrites:
+      - 'PATCH /auth/me/username {"username":"bob-dev"}'
+
+  - name: the-discoverable-switch-turns-off
+    why: a switch applies the moment it changes.
+    discoverable: true
+    keys: []
+    action: toggle-discoverable
+    handleTo: null
+    server: ok
+    failOnKey: null
+    confirm: true
+    expectHandle: alice-dev
+    expectDiscoverable: false
+    expectPeasant: peasant is not signed in on any computer
+    expectLastUsed: null
+    expectAlert: null
+    expectWrites:
+      - 'PATCH /auth/me/settings {"is_discoverable":false}'
+
+  - name: the-discoverable-switch-turns-on
+    why: the same switch, the other way, so a page that only ever wrote false fails.
+    discoverable: false
+    keys: []
+    action: toggle-discoverable
+    handleTo: null
+    server: ok
+    failOnKey: null
+    confirm: true
+    expectHandle: alice-dev
+    expectDiscoverable: true
+    expectPeasant: peasant is not signed in on any computer
+    expectLastUsed: null
+    expectAlert: null
+    expectWrites:
+      - 'PATCH /auth/me/settings {"is_discoverable":true}'
+
+  - name: a-failed-discoverable-write-restores-the-switch
+    why: >-
+      a write that fails puts the switch back where it was and says why, so the
+      page never shows a setting the server did not keep.
+    discoverable: true
+    keys: []
+    action: toggle-discoverable
+    handleTo: null
+    server: failure
+    failOnKey: null
+    confirm: true
+    expectHandle: alice-dev
+    expectDiscoverable: true
+    expectPeasant: peasant is not signed in on any computer
+    expectLastUsed: null
+    expectAlert: the settings service is unavailable
+    expectWrites:
+      - 'PATCH /auth/me/settings {"is_discoverable":false}'
+
+  - name: no-peasant-keys-says-peasant-is-not-signed-in
+    why: with no working CLI key there is nothing to sign out, so no button.
+    discoverable: true
+    keys:
+      - { id: k-dashboard, label: my laptop script, lastUsed: "2026-09-29T12:00:00Z", revoked: false }
+      - { id: k-old, label: peasant-cli, lastUsed: "2026-08-01T12:00:00Z", revoked: true }
+    action: none
+    handleTo: null
+    server: ok
+    failOnKey: null
+    confirm: true
+    expectHandle: alice-dev
+    expectDiscoverable: true
+    expectPeasant: peasant is not signed in on any computer
+    expectLastUsed: null
+    expectAlert: null
+    expectWrites: []
+
+  - name: one-peasant-key-is-one-computer
+    why: one CLI sign-in reads as one computer, with when it was last used.
+    discoverable: true
+    keys:
+      - { id: k-one, label: peasant-cli, lastUsed: "2026-09-27T12:00:00Z", revoked: false }
+    action: none
+    handleTo: null
+    server: ok
+    failOnKey: null
+    confirm: true
+    expectHandle: alice-dev
+    expectDiscoverable: true
+    expectPeasant: peasant on 1 computer
+    expectLastUsed: 3d ago
+    expectAlert: null
+    expectWrites: []
+
+  - name: several-peasant-keys-count-and-revoked-ones-do-not
+    why: >-
+      only working peasant-cli keys count, and the newest use among them is the
+      one stated; a revoked key and a key with another label count for nothing,
+      even when they were used more recently.
+    discoverable: true
+    keys:
+      - { id: k-a, label: peasant-cli, lastUsed: "2026-09-30T11:48:00Z", revoked: false }
+      - { id: k-b, label: peasant-cli, lastUsed: null, revoked: false }
+      - { id: k-c, label: peasant-cli, lastUsed: "2026-09-20T12:00:00Z", revoked: false }
+      - { id: k-revoked, label: peasant-cli, lastUsed: "2026-09-30T11:59:00Z", revoked: true }
+      - { id: k-other, label: ci deploy, lastUsed: "2026-09-30T11:59:30Z", revoked: false }
+    action: none
+    handleTo: null
+    server: ok
+    failOnKey: null
+    confirm: true
+    expectHandle: alice-dev
+    expectDiscoverable: true
+    expectPeasant: peasant on 3 computers
+    expectLastUsed: 12m ago
+    expectAlert: null
+    expectWrites: []
+
+  - name: sign-out-everywhere-revokes-every-active-key
+    why: >-
+      one DELETE per working peasant-cli key, after the inline confirm; keys that
+      are already revoked or carry another label are left alone.
+    discoverable: true
+    keys:
+      - { id: k-a, label: peasant-cli, lastUsed: "2026-09-29T12:00:00Z", revoked: false }
+      - { id: k-b, label: peasant-cli, lastUsed: null, revoked: false }
+      - { id: k-revoked, label: peasant-cli, lastUsed: null, revoked: true }
+      - { id: k-other, label: ci deploy, lastUsed: null, revoked: false }
+    action: sign-out-everywhere
+    handleTo: null
+    server: ok
+    failOnKey: null
+    confirm: true
+    expectHandle: alice-dev
+    expectDiscoverable: true
+    expectPeasant: peasant is not signed in on any computer
+    expectLastUsed: null
+    expectAlert: null
+    expectWrites:
+      - DELETE /auth/api-keys/k-a
+      - DELETE /auth/api-keys/k-b
+
+  - name: a-failure-on-the-second-key-stops-and-says-so
+    why: >-
+      the run stops at the first failure and says how far it got, and the page
+      counts what really still works rather than claiming everything is gone.
+    discoverable: true
+    keys:
+      - { id: k-a, label: peasant-cli, lastUsed: "2026-09-29T12:00:00Z", revoked: false }
+      - { id: k-b, label: peasant-cli, lastUsed: "2026-09-28T12:00:00Z", revoked: false }
+      - { id: k-c, label: peasant-cli, lastUsed: "2026-09-27T12:00:00Z", revoked: false }
+    action: sign-out-everywhere
+    handleTo: null
+    server: ok
+    failOnKey: 2
+    confirm: true
+    expectHandle: alice-dev
+    expectDiscoverable: true
+    expectPeasant: peasant on 2 computers
+    expectLastUsed: 2d ago
+    expectAlert: "peasant was signed out on 1 of 3, and the next one failed: the key service is unavailable"
+    expectWrites:
+      - DELETE /auth/api-keys/k-a
+      - DELETE /auth/api-keys/k-b
+
+  - name: delete-account-confirmed-deletes-it
+    why: pressing yes at the inline confirm sends the one delete.
+    discoverable: true
+    keys: []
+    action: delete-account
+    handleTo: null
+    server: ok
+    failOnKey: null
+    confirm: true
+    expectHandle: alice-dev
+    expectDiscoverable: true
+    expectPeasant: peasant is not signed in on any computer
+    expectLastUsed: null
+    expectAlert: null
+    expectWrites:
+      - DELETE /auth/me
+
+  - name: delete-account-cancelled-deletes-nothing
+    why: cancel at the inline confirm sends nothing and puts the button back.
+    discoverable: true
+    keys: []
+    action: delete-account
+    handleTo: null
+    server: ok
+    failOnKey: null
+    confirm: false
+    expectHandle: alice-dev
+    expectDiscoverable: true
+    expectPeasant: peasant is not signed in on any computer
+    expectLastUsed: null
+    expectAlert: null
+    expectWrites: []

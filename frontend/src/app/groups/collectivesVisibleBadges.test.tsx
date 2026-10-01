@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import {
   collectiveNameFor,
-  collectiveRows,
   installCollectivesRouteREST,
   installCollectivesRouteTeardown,
+  listedCollectiveCount,
   loadCollectiveBadgeFixtures,
   renderCollectivesRoute,
   standingTextFor,
@@ -50,7 +50,7 @@ describe("the mounted collectives route", () => {
     // The page shows ONE list. A split into "yours" and "others" would still
     // pass the per-row checks above, so the row count is asserted against the
     // fixture the page was served, not against a fixed number.
-    expect(collectiveRows()).toHaveLength(rows.length);
+    expect(listedCollectiveCount()).toBe(rows.length);
 
     // Non-membership is the whole point of the change: at least one listed row
     // must be a collective the caller does not belong to, or this test could

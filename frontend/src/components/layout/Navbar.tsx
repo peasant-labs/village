@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, LogOut, Moon, Sun, UserRound } from "lucide-react";
+import { ChevronLeft, LogOut, Moon, Sun, Settings, UserRound } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLogout } from "@/lib/queries/auth";
 import { useTheme } from "@/hooks/useTheme";
@@ -45,6 +45,7 @@ function AccountMenu({ user }: { user: { github_username: string; avatar_url: st
           icon: UserRound,
           onSelect: () => router.push(`/users/${encodeURIComponent(handle)}`),
         },
+        { label: "settings", icon: Settings, onSelect: () => router.push("/settings") },
         { label: "", separator: true },
         { label: "sign out", icon: LogOut, onSelect: () => logout.mutate() },
       ]}

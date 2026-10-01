@@ -1,0 +1,278 @@
+# Case corpus for `src/collectivePage.test.tsx`: the collective page and the
+# collectives list, each mounted through its real route with REST stubbed at
+# `fetch`, rendered by fairtrade's `CollectiveDetailView` and `CollectivesView`.
+#
+# Each overflow item names the route it opens; `{id}` is the collective's id.
+#
+# The three boxes restate what the server decided (`data_access`,
+# `acceptance_mode`, `your_role`, `can_read`); they decide nothing. A case
+# states the server's answer and the words the page must show for it.
+#
+# Deletion protection is the required-name manifest in
+# `src/test/collectivePageFixtures.ts`.
+
+# The world every page case starts from. A case overrides the group fields,
+# the viewer's role and what the server lets them read.
+collective:
+  id: 5b0c9a1e-0000-4000-8000-00000000c011
+  name: Acme Platform
+  description: Transcripts behind the ingest and web services.
+
+viewer:
+  id: 5b0c9a1e-0000-4000-8000-0000000000a1
+  username: alice-dev
+
+members:
+  - { id: 5b0c9a1e-0000-4000-8000-0000000000a1, username: alice-dev, name: Alice Developer, role: owner }
+  - { id: 5b0c9a1e-0000-4000-8000-0000000000b2, username: bob-ai, name: Bob Ainsley, role: member }
+  - { id: 5b0c9a1e-0000-4000-8000-0000000000c3, username: carol-ml, name: Carol Mendes, role: member }
+  - { id: 5b0c9a1e-0000-4000-8000-0000000000d4, username: dan-ops, name: Dan Okafor, role: contributor }
+  - { id: 5b0c9a1e-0000-4000-8000-0000000000e5, username: erin-web, name: null, role: pending }
+
+transcripts:
+  - { id: 7a000000-0000-4000-8000-000000000001, title: Fix flaky ingest test, author: alice-dev, pullRequests: [acme/ingest-api#42, acme/ingest-api#45], pullRequestCount: 2 }
+  - { id: 7a000000-0000-4000-8000-000000000002, title: Migrate retry queue to worker, author: bob-ai, pullRequests: [], pullRequestCount: 0 }
+
+# What the GitHub App offers the owner, and how many members publish from each.
+available:
+  - { repo: acme/ingest-api, private: true, publishers: 2 }
+  - { repo: acme/web, private: false, publishers: 0 }
+  - { repo: acme/worker, private: false, publishers: 3 }
+  - { repo: acme/cli, private: false, publishers: 1 }
+
+cases:
+  - name: the-owner-sees-the-boxes-the-org-total-and-both-overflow-items
+    why: >-
+      the owner of a curated collective linked to acme: the boxes restate
+      members_only, curated and owner; the rail counts the linked repositories
+      against what the App offers; publish and review both move into more; the
+      members summary leaves out the pending request.
+    role: owner
+    canRead: true
+    group: { acceptance_mode: curated, data_access: members_only, linked_github_org: acme }
+    linked: [acme/ingest-api, acme/web]
+    expect:
+      whoCanRead: members of Acme Platform can read every transcript published here.
+      whoCanPublish: only people the owner invites can join. the owner approves each transcript before it appears.
+      yourRole: "owner: you manage settings and members."
+      orgLine: acme · 2 of 4 repos linked
+      manage: true
+      settings: true
+      overflow:
+        - { label: publish several transcripts, route: "/groups/{id}/contribute" }
+        - { label: review transcripts, route: "/groups/{id}/review" }
+      headerActions: []
+      transcriptRows: 2
+      memberBreakdown: 1 owner · 2 members · 1 contributor
+      memberCount: 4
+
+  - name: an-owner-without-an-org-is-offered-connect-github
+    why: >-
+      a collective with no linked org shows "nothing linked" and gives its
+      owner the install handshake instead of a manage link; an open collective
+      has no review item.
+    role: owner
+    canRead: true
+    group: { acceptance_mode: open, data_access: members_only, linked_github_org: null }
+    linked: []
+    expect:
+      whoCanRead: members of Acme Platform can read every transcript published here.
+      whoCanPublish: anyone can join and publish. transcripts are approved automatically.
+      yourRole: "owner: you manage settings and members."
+      orgLine: nothing linked
+      manage: false
+      settings: true
+      overflow:
+        - { label: publish several transcripts, route: "/groups/{id}/contribute" }
+      headerActions: [connect github]
+      transcriptRows: 2
+      memberBreakdown: 1 owner · 2 members · 1 contributor
+      memberCount: 4
+
+  - name: a-member-sees-the-org-without-the-total-and-can-leave
+    why: >-
+      only the owner may read what the App offers, so a member sees the org
+      without the "of M" total and no manage link; members and contributors
+      both read under data access contributors.
+    role: member
+    canRead: true
+    group: { acceptance_mode: verified_only, data_access: contributors, linked_github_org: acme }
+    linked: [acme/ingest-api, acme/web]
+    expect:
+      whoCanRead: members and contributors of Acme Platform can read every transcript published here.
+      whoCanPublish: only members of the acme github org can join and publish.
+      yourRole: "member: you read and publish here."
+      orgLine: acme
+      manage: false
+      settings: false
+      overflow:
+        - { label: publish several transcripts, route: "/groups/{id}/contribute" }
+      headerActions: [leave]
+      transcriptRows: 2
+      memberBreakdown: 1 owner · 2 members · 1 contributor
+      memberCount: 4
+
+  - name: a-contributor-who-cannot-read-is-told-so
+    why: >-
+      under members_only a contributor publishes but does not read; the box
+      restates the server's can_read, and the table holds no rows.
+    role: contributor
+    canRead: false
+    group: { acceptance_mode: open, data_access: members_only, linked_github_org: acme }
+    linked: [acme/ingest-api]
+    expect:
+      whoCanRead: members of Acme Platform can read every transcript published here.
+      whoCanPublish: anyone can join and publish. transcripts are approved automatically.
+      yourRole: "contributor: you publish here. only members read the transcripts."
+      orgLine: acme
+      manage: false
+      settings: false
+      overflow:
+        - { label: publish several transcripts, route: "/groups/{id}/contribute" }
+      headerActions: [leave]
+      transcriptRows: 0
+      memberBreakdown: 1 owner · 2 members · 1 contributor
+      memberCount: 4
+
+  - name: a-non-member-of-an-open-collective-can-join
+    why: >-
+      someone who has not joined sees the policy boxes, no overflow and no
+      settings, and the one action open to them is join.
+    role: ""
+    canRead: false
+    group: { acceptance_mode: open, data_access: members_only, linked_github_org: acme }
+    linked: []
+    expect:
+      whoCanRead: members of Acme Platform can read every transcript published here.
+      whoCanPublish: anyone can join and publish. transcripts are approved automatically.
+      yourRole: "not a member: join to publish here."
+      orgLine: acme
+      manage: false
+      settings: false
+      overflow: []
+      headerActions: [join]
+      transcriptRows: 0
+      memberBreakdown: 1 owner · 2 members · 1 contributor
+      memberCount: 4
+
+  - name: a-non-member-of-a-curated-collective-is-offered-no-join
+    why: >-
+      a curated collective is joined by invitation only (the join route refuses
+      everyone else), so no join button is drawn.
+    role: ""
+    canRead: false
+    group: { acceptance_mode: curated, data_access: members_only, linked_github_org: null }
+    linked: []
+    expect:
+      whoCanRead: members of Acme Platform can read every transcript published here.
+      whoCanPublish: only people the owner invites can join. the owner approves each transcript before it appears.
+      yourRole: "not a member: the owner invites people to join."
+      orgLine: nothing linked
+      manage: false
+      settings: false
+      overflow: []
+      headerActions: []
+      transcriptRows: 0
+      memberBreakdown: 1 owner · 2 members · 1 contributor
+      memberCount: 4
+
+# The collectives list: a table of every collective the caller may see, and a
+# search that swaps the rows for the server's matches.
+listCases:
+  - name: the-table-lists-every-visible-collective-with-its-org-and-joining
+    why: >-
+      one row per collective the caller may see, member or not, with the role
+      they hold, the linked github org (or nothing linked) and how it is joined.
+    query: ""
+    expectCaption: collectives 3
+    expectRows:
+      - { name: Acme Platform, role: owner, org: acme, joining: open }
+      - { name: Acme Company, role: member, org: acme, joining: verified only }
+      - { name: ML Reading Group, role: "", org: nothing linked, joining: curated }
+
+  - name: a-search-shows-only-the-server-matches
+    why: >-
+      a submitted search asks GET /groups/search and shows only what it
+      answered; a match the list already holds keeps its role and joining.
+    query: acme
+    expectCaption: search results 2
+    expectRows:
+      - { name: Acme Platform, role: owner, org: acme, joining: open }
+      - { name: Acme Company, role: member, org: acme, joining: verified only }
+
+  - name: a-match-the-list-does-not-hold-claims-no-role
+    why: >-
+      a search can answer a collective the list does not carry; its row states
+      only what the search said, so it claims no role and no way of joining.
+    query: night
+    expectCaption: search results 1
+    expectRows:
+      - { name: Night Shift, role: "", org: nothing linked, joining: "" }
+
+# The list world: what GET /groups/visible and GET /groups/search answer.
+visible:
+  - { id: 1c000000-0000-4000-8000-000000000001, name: Acme Platform, role: owner, org: acme, mode: open }
+  - { id: 1c000000-0000-4000-8000-000000000002, name: Acme Company, role: member, org: acme, mode: verified_only }
+  - { id: 1c000000-0000-4000-8000-000000000003, name: ML Reading Group, role: null, org: null, mode: curated }
+
+searchable:
+  - { id: 1c000000-0000-4000-8000-000000000001, name: Acme Platform, org: acme }
+  - { id: 1c000000-0000-4000-8000-000000000002, name: Acme Company, org: acme }
+  - { id: 1c000000-0000-4000-8000-000000000009, name: Night Shift, org: null }
+
+# The pull request cells of the transcripts table (a pure function). Each row
+# lists its pull requests as owner/name#number, most recent first, with the
+# total count the server reported.
+pullRequestCases:
+  - name: one-repository-reads-as-numbers-under-the-repository
+    why: a transcript whose pull requests share one repository reads "#42, #45" with the repository beneath.
+    rows:
+      - { id: t1, pullRequests: [acme/api#42, acme/api#45], count: 2 }
+    expect:
+      - { id: t1, labels: ["#42", "#45"], repo: acme/api }
+    hrefs:
+      "#42": /pulls/acme/api/42
+      "#45": /pulls/acme/api/45
+
+  - name: two-repositories-in-one-row-carry-their-repository
+    why: a row that spans two repositories names each pull request with its repository, and no repository line.
+    rows:
+      - { id: t1, pullRequests: [acme/api#42, acme/web#7], count: 2 }
+    expect:
+      - { id: t1, labels: [acme/api#42, acme/web#7], repo: null }
+    hrefs:
+      acme/api#42: /pulls/acme/api/42
+      acme/web#7: /pulls/acme/web/7
+
+  - name: one-number-in-two-repositories-on-a-page-is-never-short
+    why: >-
+      two rows use #31 for different repositories; a short "#31" could lead to
+      only one of them, so both rows carry their repository.
+    rows:
+      - { id: t1, pullRequests: [acme/api#31], count: 1 }
+      - { id: t2, pullRequests: [acme/web#31], count: 1 }
+    expect:
+      - { id: t1, labels: [acme/api#31], repo: null }
+      - { id: t2, labels: [acme/web#31], repo: null }
+    hrefs:
+      acme/api#31: /pulls/acme/api/31
+      acme/web#31: /pulls/acme/web/31
+
+  - name: more-pull-requests-than-the-row-names-are-counted
+    why: the server names three pull requests per row; the repository line says how many there are in all.
+    rows:
+      - { id: t1, pullRequests: [acme/api#60, acme/api#51, acme/api#45], count: 5 }
+    expect:
+      - { id: t1, labels: ["#60", "#51", "#45"], repo: acme/api · 5 pull requests }
+    hrefs:
+      "#60": /pulls/acme/api/60
+      "#51": /pulls/acme/api/51
+      "#45": /pulls/acme/api/45
+
+  - name: no-pull-requests-reads-as-not-linked
+    why: a transcript attached to no pull request has no labels, which the view draws as "not linked".
+    rows:
+      - { id: t1, pullRequests: [], count: 0 }
+    expect:
+      - { id: t1, labels: [], repo: null }
+    hrefs: {}

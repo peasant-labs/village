@@ -30,16 +30,23 @@ import { detectPhases } from '@/lib/insights';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/hooks/useTheme';
 import {
-  useUpdateTranscript,
   useTranscriptAnnotations,
   useCreateTranscriptAnnotation,
 } from '@/lib/queries/transcripts';
 import { buildSavedLabelsByEntry } from '@/lib/annotations';
 import { isAgentSession, type SessionOrigin } from '@/lib/sessionOrigin';
 import TranscriptEditDialog from '@/components/transcript/TranscriptEditDialog';
-import ContributePicker from '@/components/transcript/ContributePicker';
 import TurnLabelPopover from '@/components/transcript/TurnLabelPopover';
-import TranscriptCollectives from '@/components/transcript/TranscriptCollectives';
+import TranscriptHeaderActions from '@/components/transcript/TranscriptHeaderActions';
+import TranscriptPullRequests from '@/components/transcript/TranscriptPullRequests';
+import ManageAccessDialog from '@/components/transcript/ManageAccessDialog';
+import { useTranscriptCollectives } from '@/lib/queries/collectives';
+import { useTranscriptPullRequests } from '@/lib/queries/pulls';
+import {
+  saveTranscriptFile,
+  transcriptFile,
+  type TranscriptExportFormat,
+} from '@/lib/transcriptExport';
 import { buildProjectHref, buildTranscriptBreadcrumb, overlayStoredTitle } from './transcriptChrome';
 
 /** A transcript's stored visibility. `shared` is set server-side when the
@@ -102,9 +109,10 @@ interface SessionDetailV2Props {
 /**
  * Thin adapter around fairtrade's `<TranscriptViewer>` composite, the same
  * surface the design-system demo renders. Village owns the *app glue*: the
- * REST data layer (React Query `useTranscriptContent`), auth/ownership, and
- * the edit / contribute mutations + dialogs, and feeds the composite via
- * props/callbacks; the composite owns all rendering + view state. The
+ * REST data layer (React Query `useTranscriptContent`), auth/ownership, the
+ * header's link, copy and `more` actions with their dialogs, the pull request
+ * list, and the downloads, and feeds the composite via props/callbacks; the
+ * composite owns all rendering + view state. The
  * trajectory-graph engine is fairtrade's own `/graph` entry, mounted through
  * `graphSlot`.
  */
@@ -131,7 +139,6 @@ export function SessionDetailV2({
   const isPreview = variant === "preview";
   const isOwner = !isPreview && !!user && !!transcriptOwnerId && user.id === transcriptOwnerId;
 
-  const updateTranscript = useUpdateTranscript();
   const router = useRouter();
   // Read the persisted per-transcript read state once; the state initializers
   // below seed from it, so Back after following a source link restores the
@@ -158,9 +165,21 @@ export function SessionDetailV2({
   const annotationsQuery = useTranscriptAnnotations(transcriptId ?? '', !!transcriptId);
   const createAnnotation = useCreateTranscriptAnnotation();
 
-  // Host-owned action dialogs, triggered by the viewer's callbacks.
+  // Host-owned action dialogs, opened from the header's `more` menu.
   const [editOpen, setEditOpen] = useState(false);
-  const [contributeOpen, setContributeOpen] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
+
+  // Who can read it, for the owner's `manage access` row and popup. Nobody
+  // else asks: the header shows the collectives to no one but the owner.
+  const ownerCollectives = useTranscriptCollectives(isOwner ? transcriptId : '');
+  const accessNames = useMemo(
+    () => ownerCollectives.data?.map((c) => c.name),
+    [ownerCollectives.data],
+  );
+
+  // The pull requests this transcript is bound to that this viewer may read.
+  // The preview column shows none.
+  const pullRequestsQuery = useTranscriptPullRequests(transcriptId, !isPreview);
 
   // Host-derived inputs for the GRAPH engine (the composite derives its own).
   const turns = useMemo(() => detail?.turns ?? [], [detail]);
@@ -290,6 +309,23 @@ export function SessionDetailV2({
     if (href) router.push(href);
   }
 
+  // The transcript's own village link: the header shows it, the copy button
+  // copies it, and the markdown download names it. The header renders only
+  // once the content has loaded in the browser, so the origin is known there.
+  const transcriptUrl =
+    typeof window === 'undefined'
+      ? `/transcripts/${transcriptId}`
+      : `${window.location.origin}/transcripts/${transcriptId}`;
+
+  // Every download, from the header's `download markdown` row and from the
+  // raw json/jsonl rows, is one file written from what the page shows.
+  function handleExport(format: TranscriptExportFormat) {
+    if (!vm || !detail) return;
+    saveTranscriptFile(
+      transcriptFile(format, { viewModel: vm, detail, url: transcriptUrl, transcriptId }),
+    );
+  }
+
   // Existing saved labels → chips rendered in the host's per-turn actions.
   const savedLabelsByEntry = useMemo(
     () => buildSavedLabelsByEntry(annotationsQuery.data?.annotations ?? []),
@@ -381,61 +417,63 @@ export function SessionDetailV2({
         <TranscriptViewer
           viewModel={vm!}
           theme={theme}
-          // The hero action row, through the composite's headerActions seam.
-          // The attestation control that used to lead it is hidden: it is not
-          // mounted, and its component and routes stay for a later decision.
-          // The collectives holding this transcript sit here. They are
-          // shown to ANY viewer the server chose to show them to (the
-          // endpoint is auth-optional and answers an empty list when the
-          // visibility rule or the owner's contributor opt-in withholds
-          // them), so the action row renders whenever there is a transcript
-          // id, not only for a signed-in viewer. The preview variant hides
-          // this whole row — the collectives are owner-facing and do not
-          // belong in a read-only preview column.
+          // The header row is the host's own, as in the fairtrade in-use demo:
+          // the link, an icon-only copy button and a `more` menu. The
+          // composite's share/more tail is off, and so is the outcome chip.
+          // The owner's `more` menu adds `manage access` (who can read it,
+          // which used to sit in this row as chips) and `edit title`; every
+          // reader can download the markdown. The preview column shows none
+          // of it.
           headerActions={
-            !isPreview && (transcriptId || isAgentSession(sessionOrigin)) ? (
+            isPreview ? undefined : (
               <span className="inline-flex items-center gap-2">
                 {isAgentSession(sessionOrigin) && (
                   <span className="chip" data-testid="agent-session-chip">
                     agent session
                   </span>
                 )}
-                {transcriptId && <TranscriptCollectives transcriptId={transcriptId} />}
+                {transcriptId && (
+                  <TranscriptHeaderActions
+                    url={transcriptUrl}
+                    owner={
+                      isOwner
+                        ? {
+                            accessNames,
+                            visibility,
+                            onManageAccess: () => setAccessOpen(true),
+                            onEditTitle: () => setEditOpen(true),
+                          }
+                        : undefined
+                    }
+                    onDownloadMarkdown={() => handleExport('markdown')}
+                    onDownloadJSON={() => handleExport('json')}
+                    onDownloadJSONL={() => handleExport('jsonl')}
+                  />
+                )}
               </span>
+            )
+          }
+          showTail={false}
+          showOutcome={false}
+          pullRequests={
+            !isPreview && (pullRequestsQuery.isError || (pullRequestsQuery.data?.length ?? 0) > 0) ? (
+              <TranscriptPullRequests
+                pullRequests={pullRequestsQuery.data ?? []}
+                failed={pullRequestsQuery.isError}
+                onRetry={() => void pullRequestsQuery.refetch()}
+              />
             ) : undefined
           }
-          // Capabilities gated by village auth/ownership; the composite's
-          // canExport covers the download serializers (the old canDownload).
-          // The preview variant forces every capability off: a viewer
-          // previewing someone else's session in the contribute column must
-          // never see or reach an owner-only action from inside the preview.
+          // The composite tail is hidden. Header menus own downloads and
+          // editing; the viewer retains only its mounted per-turn labels.
           capabilities={{
             canLabel,
-            canEdit: !isPreview && isOwner && !!transcriptId,
-            canChangeVisibility: !isPreview && isOwner && !!transcriptId,
-            canContribute: !isPreview && !!user && !!transcriptId,
-            canExport: !isPreview,
+            canEdit: false,
+            canChangeVisibility: false,
+            canContribute: false,
+            canExport: false,
           }}
           callbacks={{
-            onEdit: isPreview ? undefined : () => setEditOpen(true),
-            onContribute: isPreview ? undefined : () => setContributeOpen(true),
-            // The composite's visibility control just fires; the host flips
-            // the stored value through village's update mutation.
-            onChangeVisibility: isPreview
-              ? undefined
-              : () => {
-                  if (!transcriptId) return;
-                  updateTranscript.mutate({
-                    id: transcriptId,
-                    visibility: visibility === 'public' ? 'private' : 'public',
-                  });
-                },
-            onCopyLink: () => {
-              const url = transcriptId
-                ? `${window.location.origin}/transcripts/${transcriptId}`
-                : window.location.href;
-              void navigator.clipboard?.writeText(url);
-            },
             // Village owns the route to the current source/starter target and
             // the read-state restoration on Back. The adapter only reports a
             // target the viewer is authorized to open.
@@ -453,6 +491,7 @@ export function SessionDetailV2({
           breadcrumb={buildTranscriptBreadcrumb({
             project,
             projectHref,
+            isLoggedIn: !!user,
             storedTitle: transcriptTitle,
             transcriptId,
           })}
@@ -534,13 +573,11 @@ export function SessionDetailV2({
         />
       )}
 
-      {!isPreview && transcriptId && (
-        <ContributePicker
-          open={contributeOpen}
-          onClose={() => setContributeOpen(false)}
+      {!isPreview && transcriptId && isOwner && accessOpen && (
+        <ManageAccessDialog
+          open={accessOpen}
+          onClose={() => setAccessOpen(false)}
           transcriptId={transcriptId}
-          transcriptTitle={transcriptTitle ?? null}
-          transcriptVisibility={visibility}
         />
       )}
     </div>

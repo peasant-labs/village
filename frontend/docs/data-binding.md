@@ -113,28 +113,29 @@ composite ever mounts.
 ```mermaid
 flowchart TD
   subgraph forms["village forms / dialogs / package callbacks"]
-    edit["TranscriptEditDialog (title/visibility)"]
-    vis["TranscriptViewer onVisibilityChange callback"]
-    contrib["ContributePicker → ConfirmContributeDialog"]
+    edit["TranscriptEditDialog (title/visibility), from the header's more menu"]
+    access["ManageAccessDialog (who can read it), from the header's more menu"]
     label["TurnLabelPopover (per-turn) via renderTurnActions"]
     invite["GitHubUserSearch → invite form"]
   end
 
   subgraph muts["useMutation hooks (src/lib/queries/*)"]
     up["useUpdateTranscript → PATCH /transcripts/{id}"]
-    bulk["useBulkShareTranscripts → POST /transcripts/{id}/share (per id)"]
+    share["useShareTranscript → POST /transcripts/{id}/share (one collective)"]
+    unshare["useUnshareTranscript → DELETE /transcripts/{id}/share/{groupID}"]
     ann["useCreateTranscriptAnnotation → POST /transcripts/{id}/annotations"]
     add["useAddGroupMember → POST /groups/{id}/members"]
   end
 
   edit --> up
-  vis --> up
-  contrib --> bulk
+  access --> share
+  access --> unshare
   label --> ann
   invite --> add
 
   up -- onSuccess --> inv1["invalidate ['transcript', id] + ['transcripts']"]
-  bulk -- onSuccess --> inv2["invalidate ['transcripts'] + ['group', gid] + ['groups-public']"]
+  share -- onSettled --> inv2["refetch ['transcript', id] + ['transcript-collectives', id] + ['transcripts'] + ['group', gid] + ['group-my-shares', gid] + ['my-collective-contributions']; the mutation stays pending until they land"]
+  unshare -- onSettled --> inv2
   ann -- onSuccess --> inv3["invalidate ['transcript-annotations', id]"]
   ann -. "returns AnnotationSummary → summaryToTurnLabel → TurnLabel" .-> chip["package renders new chip immediately"]
   add -- onSuccess --> inv4["invalidate ['group', gid]"]
@@ -206,10 +207,15 @@ keep them straight:
     (`:84`), `annotations = annotateTranscript(detail.turns)` (`:85-88`),
     `savedLabelsByEntry = buildSavedLabelsByEntry(annotationsQuery.data)`
     (`:91-94`);
-  - `capabilities` gated by **village auth/ownership** (`isOwner`, `canLabel`,
-    `canContribute`) — the package never reads auth (`:178-185`);
-  - `callbacks` (`onEdit`, `onContribute`, `onVisibilityChange`, `onLabelSave`)
-    that open village dialogs or fire village mutations (`:186-201`);
+  - per-turn labeling gated by village auth; the hidden tail's edit,
+    contribution, visibility and export capabilities are false;
+  - relationship navigation callbacks and mounted per-turn label actions;
+  - the header row through `headerActions` with the composite's own tail off
+    (`showTail={false}`, `showOutcome={false}`): the link, a copy button and a
+    `more` menu (`manage access` and `edit title` for the owner, `download
+    markdown`, `download json`, and `download jsonl` for every reader), and
+    the `pullRequests` slot fed by
+    `GET /transcripts/{id}/pulls`;
   - `linkBuilder` / `sessionLinkBuilder` for village's URL shape
     (`/transcripts/{id}?turn=N`) (`:146-155`);
   - `renderTurnActions` mounting village's `TurnLabelPopover` (`:162-171`).
@@ -305,12 +311,15 @@ reads no auth, no router, no env.
 **Where mutation wiring lives.** All mutations are `useMutation` hooks colocated
 by resource in `src/lib/queries/*` (not in components). Components/dialogs only
 *call* them and pass `onSuccess` for local UX (close dialog, toast). The hooks
-own invalidation. Visibility flips travel **two** ways into the same
-`useUpdateTranscript`: the rich `TranscriptEditDialog` form, and the package's
-direct `onVisibilityChange` toggle wired in `SessionDetailV2.tsx:192-198` — both
-land on `PATCH /transcripts/{id}`, and `'shared'` is treated as a server-managed
-state that the client only ever overrides to `public`/`private`
-(`TranscriptEditDialog.tsx:56-60`, `:124-129`).
+own invalidation. Visibility edits use `TranscriptEditDialog` and
+`useUpdateTranscript` on `PATCH /transcripts/{id}`. `shared` is server-managed:
+adding a private transcript requires `ConfirmContributeDialog` before the share
+route changes it to shared. The access popup reads recorded statuses through
+`GET /users/me/collectives/contributions` and `GET /groups/{id}/my-shares`,
+including pending submissions and collectives the owner left. It compares the
+transcript ID and displays the server's status; it implements no acceptance or
+visibility rule. A POST response omitting a group states that it was skipped.
+Read failures offer retries and never turn a recorded add into a skip.
 
 **Read transport: REST + React Query (pull/cache/invalidate), no WebSocket.**
 This is the clearest village-vs-peasant difference. The *same*
@@ -387,7 +396,8 @@ specifically to enable this branching (`api.ts:3-9`).
 - `src/app/auth/callback/page.tsx` — OAuth token → `peasant_token` cookie.
 
 **React Query hooks (keys + invalidation)**
-- `src/lib/queries/transcripts.ts` — `useTranscript`, `useTranscriptContent`, `useTranscriptAnnotations`, `useUpdateTranscript`, `useCreateTranscriptAnnotation`, `useBulkShareTranscripts`, `useUnshareTranscript`.
+- `src/lib/queries/transcripts.ts` — `useTranscript`, `useTranscriptContent`, `useTranscriptAnnotations`, `useUpdateTranscript`, `useCreateTranscriptAnnotation`, `useShareTranscript`, `useUnshareTranscript`.
+- `src/lib/queries/pulls.ts` — `useTranscriptPullRequests` (`GET /transcripts/{id}/pulls`) and the pull request attachment routes.
 - `src/lib/queries/auth.ts` — `useMe`, `useSetUsername` / `useUpdateMySettings` (`setQueryData`), `useLogout`/`useDeleteAccount`.
 - `src/lib/queries/groups.ts` — collectives, members, shares.
 - `src/lib/queries/repositories.ts` — linked repos, commits, `isNotConfigured` (501).
@@ -397,7 +407,9 @@ specifically to enable this branching (`api.ts:3-9`).
 - `src/components/session-detail/v2/SessionDetailV2.tsx` — host-glue adapter (props/callbacks/capabilities).
 - `src/lib/annotations.ts` — `AnnotationSummary` ↔ `TurnLabel`, `buildSavedLabelsByEntry`.
 - `src/types/messages.ts` — re-exports `SessionDetailPayload` / `Provider` from the shared package.
-- `src/components/transcript/{TranscriptEditDialog,ContributePicker,ConfirmContributeDialog,TurnLabelPopover}.tsx` — write-path dialogs.
+- `src/components/transcript/{TranscriptEditDialog,ManageAccessDialog,TurnLabelPopover}.tsx` — write-path dialogs; `ConfirmContributeDialog.tsx` serves the collective contribute page.
+- `src/components/transcript/{TranscriptHeaderActions,TranscriptPullRequests}.tsx` — the header row and the pull request list.
+- `src/lib/transcriptExport.ts` — the markdown, JSON and JSONL downloads.
 
 **Shared viewer (the cohesive view-model lives here)**
 - `@peasant-labs/fairtrade/ui`: `TranscriptViewer` composite, `adaptTranscript`,

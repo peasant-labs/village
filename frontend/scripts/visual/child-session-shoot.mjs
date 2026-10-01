@@ -7,8 +7,8 @@
               the parent card alone. NO control reveals it here: a browse card
               names no parent, so a count hanging off one would ask a visitor to
               guess whose it was. Captures: cex-explore-child-folded.
-     home     `/` signed in. The recent-sessions list hangs an expandable chip
-              off the row that started them.
+     home     `/` signed in. The transcripts table hangs an expandable chip
+              inside the title cell of the row that started them.
               Captures: village-home-child-{collapsed,expanded}.
      project  /users/{username}/projects/{projectHash}. The same chip.
               Captures: village-project-child-{collapsed,expanded}.
@@ -91,7 +91,7 @@ const SURFACES = {
     path: '/',
     // The home mock's row naming a session it does not carry.
     unmatched: 'a8',
-    listSelector: '[data-testid="home-recent-sessions"]',
+    listSelector: '[data-testid="home-transcripts"]',
     prefix: 'village-home-child',
   },
   project: {
@@ -912,7 +912,10 @@ const RHYTHM = {
   detailToLabelGap: { min: 20, max: 23 },
   chipIndent: 20,
 }
-const rhythm = await page.evaluate((el) => {
+// The rhythm is a transcript LIST's: a row that carries a chip closes up above
+// it. The home table has no such row; its chip sits inside the title cell, so
+// the readings below do not apply there and are not taken.
+const rhythm = surface === 'home' ? null : await page.evaluate((el) => {
   const unit = el.parentElement
   const row = unit.firstElementChild
   const label = el.querySelector('[data-testid="child-session-disclosure-label"]')
@@ -931,16 +934,20 @@ const rhythm = await page.evaluate((el) => {
   }
 }, chip)
 const rhythmFaults = []
-if (rhythm.tightRowPaddingTop !== RHYTHM.tightRowPaddingTop) {
+if (rhythm === null) {
+  // home: nothing to read, see above.
+} else if (rhythm.tightRowPaddingTop !== RHYTHM.tightRowPaddingTop) {
   rhythmFaults.push(
     `the row carrying the chip opens ${rhythm.tightRowPaddingTop}px above itself, not ${RHYTHM.tightRowPaddingTop}px, ` +
       'so the step came off the wrong side and the row has closed up against the row above it')
 }
-if (rhythm.tightRowPaddingBottom !== RHYTHM.tightRowPaddingBottom) {
+if (rhythm !== null && rhythm.tightRowPaddingBottom !== RHYTHM.tightRowPaddingBottom) {
   rhythmFaults.push(
     `the row carrying the chip leaves ${rhythm.tightRowPaddingBottom}px under itself, not ${RHYTHM.tightRowPaddingBottom}px`)
 }
-if (rhythm.ordinaryRowPaddingBottom === null) {
+if (rhythm === null) {
+  // home: see above.
+} else if (rhythm.ordinaryRowPaddingBottom === null) {
   rhythmFaults.push('no ordinary row was found in the list to compare against')
 } else if (rhythm.ordinaryRowPaddingBottom !== RHYTHM.ordinaryRowPaddingBottom) {
   rhythmFaults.push(
@@ -948,14 +955,14 @@ if (rhythm.ordinaryRowPaddingBottom === null) {
       'so the tightening leaked out of the rows that carry a chip')
 }
 if (
-  rhythm.detailToLabelGap < RHYTHM.detailToLabelGap.min ||
-  rhythm.detailToLabelGap > RHYTHM.detailToLabelGap.max
+  rhythm !== null && (rhythm.detailToLabelGap < RHYTHM.detailToLabelGap.min ||
+  rhythm.detailToLabelGap > RHYTHM.detailToLabelGap.max)
 ) {
   rhythmFaults.push(
     `${rhythm.detailToLabelGap}px sits between the row's detail line and the chip's label, outside the ` +
       `${RHYTHM.detailToLabelGap.min}px to ${RHYTHM.detailToLabelGap.max}px this surface is held to`)
 }
-if (rhythm.chipIndent !== RHYTHM.chipIndent) {
+if (rhythm !== null && rhythm.chipIndent !== RHYTHM.chipIndent) {
   rhythmFaults.push(`the chip is indented ${rhythm.chipIndent}px, not the ${RHYTHM.chipIndent}px it has always been`)
 }
 if (rhythmFaults.length > 0) {

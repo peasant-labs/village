@@ -36,12 +36,6 @@ rows:
   - {name: P1, id: 40000000-0000-4000-8000-000000000001, local_id: sess_p1, title: "the first owned session"}
   - {name: P2, id: 40000000-0000-4000-8000-000000000002, local_id: sess_p2, title: "the second owned session"}
 cases:
-  - name: browse-renders-the-group-under-its-owner-row
-    surface: browse
-    why: The collective's browse list draws the server's saved helper group under the owner row it was grouped with.
-    row: P1
-    group: owner
-    expected_ids: []
   - name: contribute-selects-one-helper-only
     surface: contribute
     why: A contributor ticks one helper member and the batch names exactly that transcript id.
@@ -97,27 +91,6 @@ overlapCases:
 # is the owner it hangs under (declared even for a context container, which has
 # no owner row of its own).
 fallbackCases:
-  - name: browse-empty-flat-mounts-helper-only-context
-    surface: browse
-    why: The flat browse result is empty, so the helper-only context container must mount without a flat row.
-    flat: empty
-    grouped: context
-    row: P1
-    group: context
-  - name: browse-grouped-owner-absent-from-flat-mounts-its-group
-    surface: browse
-    why: The grouped page names an owner the flat result omits, and its saved helper group must still mount under that owner row.
-    flat: empty
-    grouped: owner
-    row: P1
-    group: owner
-  - name: browse-grouped-owner-in-flat-mounts-its-group-once
-    surface: browse
-    why: The flat result carries the owner row, so its group mounts under it once and the grouped fallback draws no second owner row.
-    flat: rendered
-    grouped: owner
-    row: P1
-    group: owner
   - name: contribute-empty-flat-mounts-helper-only-context
     surface: contribute
     why: The flat contributable tree is empty, so the helper-only context container must mount without a tree row.
@@ -165,15 +138,6 @@ fallbackCases:
 # continuation reads it; the same `pageSize` the route requests is stated here so
 # a case cannot declare a page the grouped endpoint could not serve.
 continuationCases:
-  - name: browse-continuation-reaches-later-owner-group
-    surface: browse
-    why: A grouped owner on page two is unreachable until the continuation reads page two, and must mount once when it does.
-    pageSize: 100
-    firstPageItems: 100
-    totalItems: 101
-    laterRow: P2
-    laterGroup: other
-    laterMember: H1
   - name: contribute-continuation-reaches-later-owner-group
     surface: contribute
     why: A grouped owner on page two is unreachable until the continuation reads page two, and must mount once when it does.
