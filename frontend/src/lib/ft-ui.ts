@@ -410,17 +410,3 @@ export const SettingRow = FtSettingRow as ComponentType<
 export const SettingGroup = FtSettingGroup as ComponentType<
   ComponentProps<typeof FtSettingGroup> & { id?: string; "data-testid"?: string }
 >;
-
-/** Canonical modal; the published type marks optional runtime props required. */
-export const Dialog = FtDialog as ComponentType<{
-  open: boolean;
-  onClose: () => void;
-  title: ReactNode;
-  labelId?: string;
-  children: ReactNode;
-  footer?: ReactNode;
-  returnFocusRef?: RefObject<HTMLElement | null>;
-  size?: "default" | "wide";
-  className?: string;
-  dismissible?: boolean;
-}>;
