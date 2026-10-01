@@ -5,10 +5,13 @@
 | [Fix \| the \`table\` \<script\>alert(1)\</script\> \[click\](https://evil.example) @<!-- -->mallory \#<!-- -->12][1] | @<!-- -->eve\|\`\<b\>\` | a1b2c3d |
 
 <details>
-<summary>1 prompt</summary>
+<summary>4 prompts</summary>
 
-1. \- a list? \# a heading 1. an ordinal \| a pipe \`code\` \<img src=x onerror=alert(1)\> \[x\](https://evil.example) !\[i\](https://evil.example/i.png) @<!-- -->mallory owner/repo\#<!-- -->34 \$x^2\$ \*\*bold\*\* \~\~gone\~\~ \&amp; \\escaped
-   - /review \| cell \`tick\` \<i\>tag\</i\> \[l\](u) @<!-- -->mallory
+1. \- a list? \_under\_score\_ \# a heading 1. an ordinal \| a pipe \`code\` \<img src=x onerror=alert(1)\> \[x\](https://evil.example) !\[i\](https://evil.example/i.png) @<!-- -->mallory owner/repo\#<!-- -->34 \$x^2\$ \*\*bold\*\* \~\~gone\~\~ \&amp; \\escaped
+   - /review\_\[\<b\>\]\| \| cell \`tick\` \<i\>tag\</i\> \[l\](u) @<!-- -->mallory
+2. \+ a leading plus
+3. 2\) an ordered item
+4. 1\. an ordered dot
 
 </details>
 

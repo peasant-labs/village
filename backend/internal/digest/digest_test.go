@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"flag"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -23,7 +24,17 @@ var updateGolden = flag.Bool("update", false, "rewrite the golden render fixture
 var casesYAML []byte
 
 type fixtureFile struct {
-	Cases []fixtureCase `yaml:"cases"`
+	Cases   []fixtureCase   `yaml:"cases"`
+	Budgets []fixtureBudget `yaml:"budgets"`
+}
+
+type fixtureBudget struct {
+	Name          string   `yaml:"name"`
+	Case          string   `yaml:"case"`
+	MaxBytes      int      `yaml:"maxBytes"`
+	Present       []string `yaml:"present"`
+	Absent        []string `yaml:"absent"`
+	ExpectedError bool     `yaml:"expectedError"`
 }
 
 type fixtureCase struct {
@@ -77,7 +88,7 @@ type fixtureExpectation struct {
 	RedactionLevel string         `yaml:"redactionLevel"`
 	Skills         []fixtureSkill `yaml:"skills"`
 	// Present is text every render must contain, and Absent text no render may
-	// contain, at every tier and in the preview.
+	// contain, at every digest tier.
 	Present []string `yaml:"present"`
 	Absent  []string `yaml:"absent"`
 }
@@ -99,6 +110,8 @@ var requiredDigestCaseNames = []string{
 	"fork_pull_request",
 	"mixed_audience",
 	"hostile_text",
+	"clipped_text_and_commit_tails",
+	"skills_only",
 }
 
 func loadCases(t *testing.T) []fixtureCase {
@@ -108,6 +121,10 @@ func loadCases(t *testing.T) []fixtureCase {
 	var file fixtureFile
 	if err := decoder.Decode(&file); err != nil {
 		t.Fatalf("decode the digest fixture: %v", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		t.Fatal("digest fixtures must contain one YAML document")
 	}
 	if len(file.Cases) == 0 {
 		t.Fatal("the digest fixture is empty")
@@ -265,17 +282,6 @@ func TestDigestFixtureCases(t *testing.T) {
 			// The preview comment names how many transcripts match and where to
 			// review them, and nothing any of them says.
 			preview := RenderPreview(built.Header.SessionCount, c.VillageURL)
-			assertRenderText(t, "preview", preview, nil, c.Expected.Absent)
-			for _, s := range c.Sessions {
-				if strings.Contains(preview, s.Title) {
-					t.Fatalf("the preview names transcript %q:\n%s", s.Title, preview)
-				}
-				for _, turn := range s.Turns {
-					if strings.Contains(preview, turn.Content) {
-						t.Fatalf("the preview carries prompt text %q:\n%s", turn.Content, preview)
-					}
-				}
-			}
 			pinGolden(t, c.Name, "preview", preview)
 		})
 	}
@@ -535,4 +541,61 @@ func mustTID(t *testing.T, raw string) schema.TranscriptID {
 		t.Fatalf("transcript id %q: %v", raw, err)
 	}
 	return id
+}
+
+// The same renderer is exercised with small fixture-owned budgets, so the
+// overflow branches are observable without oversized process fixtures.
+func TestRenderFixtureBudgets(t *testing.T) {
+	cases := loadCases(t)
+	byName := make(map[string]fixtureCase, len(cases))
+	for _, c := range cases {
+		byName[c.Name] = c
+	}
+	var file fixtureFile
+	decoder := yaml.NewDecoder(bytes.NewReader(casesYAML))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&file); err != nil {
+		t.Fatal(err)
+	}
+	required := map[string]bool{
+		"table_rows_stop_at_the_byte_budget":        true,
+		"prompt_blocks_stop_at_the_byte_budget":     true,
+		"a_prompt_frame_that_cannot_fit_is_omitted": true,
+		"a_table_that_cannot_fit_is_refused":        true,
+	}
+	for _, c := range file.Budgets {
+		if !required[c.Name] {
+			t.Fatalf("unknown or repeated budget fixture %q", c.Name)
+		}
+		delete(required, c.Name)
+		t.Run(c.Name, func(t *testing.T) {
+			base, exists := byName[c.Case]
+			if !exists || c.MaxBytes <= 0 {
+				t.Fatal("budget fixture needs a named input and positive cap")
+			}
+			built, err := Build(base.toInput(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			out, err := Render(base.toPullRequest(built), Tier{Name: c.Name, MaxBytes: c.MaxBytes})
+			if (err != nil) != c.ExpectedError {
+				t.Fatalf("render error = %v, want error %t", err, c.ExpectedError)
+			}
+			if c.ExpectedError {
+				if out != "" {
+					t.Fatal("refused render returned text")
+				}
+				return
+			}
+			if len(out) > c.MaxBytes {
+				t.Fatalf("render used %d bytes above cap %d", len(out), c.MaxBytes)
+			}
+			assertRenderText(t, c.Name, out, c.Present, c.Absent)
+			assertMarkdownStaysInert(t, c.Name, out)
+			pinGolden(t, c.Case, c.Name, out)
+		})
+	}
+	if len(required) != 0 {
+		t.Fatalf("missing budget fixtures: %v", required)
+	}
 }

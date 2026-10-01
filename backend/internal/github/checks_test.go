@@ -41,6 +41,10 @@ var requiredValidationCaseNames = []string{
 	"a-complete-create-request-is-accepted",
 	"a-details-url-on-the-pull-request-page-is-accepted",
 	"a-details-url-must-be-absolute",
+	"ftp-details-url-is-refused",
+	"details-url-without-a-host-is-refused",
+	"http-details-url-is-accepted",
+	"protocol-relative-details-url-is-refused",
 	"action-description-is-required",
 	"action-description-must-fit-the-limit",
 	"action-identifier-must-fit-the-limit",
@@ -325,6 +329,7 @@ func TestUpdateCheckRun_PatchesTheRecordedID(t *testing.T) {
 		ExternalID: "peasant-village",
 		Conclusion: CheckConclusionFailure,
 		Title:      "No prompts attached yet",
+		DetailsURL: "https://village.example/pulls/acme/repo/7",
 		Actions:    PromptCheckActions(),
 	}); err != nil {
 		t.Fatalf("UpdateCheckRun: %v", err)
@@ -343,6 +348,9 @@ func TestUpdateCheckRun_PatchesTheRecordedID(t *testing.T) {
 	}
 	// GitHub's update endpoint accepts external_id, so an update keeps it
 	// current rather than only the create setting it.
+	if payload["details_url"] != "https://village.example/pulls/acme/repo/7" {
+		t.Errorf("updated details_url = %v, want the pull request's page on village", payload["details_url"])
+	}
 	if payload["external_id"] != "peasant-village" {
 		t.Errorf("external_id = %v, want it carried on update too", payload["external_id"])
 	}

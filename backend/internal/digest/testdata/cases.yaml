@@ -183,18 +183,193 @@ cases:
         author: "eve|`<b>`"
         listed: true
         turns:
-          - {index: 0, role: user, content: "- a list?\n# a heading\n1. an ordinal | a pipe `code` <img src=x onerror=alert(1)> [x](https://evil.example) ![i](https://evil.example/i.png) @mallory owner/repo#34 $x^2$ **bold** ~~gone~~ &amp; \\escaped", timestamp: "2026-09-06T14:02:00Z"}
-          - {index: 1, role: user, content: "plan", timestamp: "2026-09-06T14:03:00Z", command: {name: "/review", args: "| cell `tick` <i>tag</i> [l](u) @mallory"}}
+          - {index: 0, role: user, content: "- a list? _under_score_\n# a heading\n1. an ordinal | a pipe `code` <img src=x onerror=alert(1)> [x](https://evil.example) ![i](https://evil.example/i.png) @mallory owner/repo#34 $x^2$ **bold** ~~gone~~ &amp; \\escaped", timestamp: "2026-09-06T14:02:00Z"}
+          - {index: 1, role: user, content: "plan", timestamp: "2026-09-06T14:03:00Z", command: {name: "/review_[<b>]|", args: "| cell `tick` <i>tag</i> [l](u) @mallory"}}
+          - {index: 2, role: user, content: "+ a leading plus", timestamp: "2026-09-06T14:04:00Z"}
+          - {index: 3, role: user, content: "2) an ordered item", timestamp: "2026-09-06T14:05:00Z"}
+          - {index: 4, role: user, content: "1. an ordered dot", timestamp: "2026-09-06T14:06:00Z"}
     commits:
       - {transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13, commitSha: a1b2c3d, authoredAt: "2026-09-06T14:04:00Z"}
     expected:
       sessionCount: 1
-      promptCount: 1
+      promptCount: 4
       commitsCovered: 1
       commitsTotal: 1
       harness: claude-code
       redactionLevel: standard
       skills:
-        - {name: "/review", invocationCount: 1}
-      present: ["\\|", "\\`table\\`", "\\<script\\>", "\\[click\\]", "@<!-- -->mallory", "\\#<!-- -->12", "\\$x^2\\$", "\\&amp;", "\\- a list?"]
-      absent: ["<script>", "<img src=x onerror=alert(1)>", "<i>", "<b>", "[click](", "[x](", "![i]", "@mallory", "#12", "#34", "**bold**", "~~gone~~"]
+        - {name: "/review_[<b>]|", invocationCount: 1}
+      present: ["\\|", "\\`table\\`", "\\<script\\>", "\\[click\\]", "@<!-- -->mallory", "\\#<!-- -->12", "\\$x^2\\$", "\\&amp;", "\\- a list?", "\\_under\\_score\\_", "\\+ a leading plus", "2\\) an ordered item", "1\\. an ordered dot", "/review\\_\\[\\<b\\>\\]\\|"]
+      absent: ["<script>", "<img src=x onerror=alert(1)>", "<i>", "<b>", "[click](", "[x](", "![i]", "@mallory", "#12", "#34", "**bold**", "~~gone~~", "_under_score_", "/review_[<b>]|", "1. an ordered dot", "2) an ordered item", "\n2. + a leading plus"]
+
+  - name: clipped_text_and_commit_tails
+    villageUrl: https://village.example/pulls/acme/widgets/7
+    commitSet:
+      - "0000001000000000000000000000000000000000"
+      - "0000002000000000000000000000000000000000"
+      - "0000003000000000000000000000000000000000"
+      - "0000004000000000000000000000000000000000"
+      - "0000005000000000000000000000000000000000"
+      - "0000006000000000000000000000000000000000"
+      - "0000007000000000000000000000000000000000"
+      - "0000008000000000000000000000000000000000"
+      - "0000009000000000000000000000000000000000"
+      - 000000a000000000000000000000000000000000
+      - 000000b000000000000000000000000000000000
+      - 000000c000000000000000000000000000000000
+      - 000000d000000000000000000000000000000000
+      - <invalid-sha>
+    sessions:
+      - harness: claude-code
+        redactionLevel: standard
+        sessionStart: 2026-09-06T14:00:00Z
+        listed: true
+        transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        title: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        author: alice
+        turns:
+          - index: 0
+            role: user
+            content: inspect
+            timestamp: 2026-09-06T14:01:00Z
+            command:
+              name: /inspect
+              args: before prompts
+          - index: 1
+            role: user
+            content: plan
+            timestamp: 2026-09-06T14:01:30Z
+            command:
+              name: /plan
+              args: also before prompts
+          - index: 2
+            role: user
+            content: QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
+            timestamp: 2026-09-06T14:02:00Z
+      - harness: claude-code
+        redactionLevel: standard
+        sessionStart: 2026-09-06T14:00:00Z
+        listed: true
+        transcriptId: 8c2f5e3b-0d4a-4f9c-b2e7-3a6d9f0b1c24
+        title: ""
+        author: ""
+        turns: []
+    commits:
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000001000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:03:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000002000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:04:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000003000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:05:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000004000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:06:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000005000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:07:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000006000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:08:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000007000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:09:00Z
+      - transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        commitSha: "0000008000000000000000000000000000000000"
+        authoredAt: 2026-09-06T14:10:00Z
+    expected:
+      sessionCount: 2
+      promptCount: 1
+      commitsCovered: 8
+      commitsTotal: 13
+      harness: claude-code
+      redactionLevel: standard
+      skills:
+        - name: /inspect
+          invocationCount: 1
+        - name: /plan
+          invocationCount: 1
+      present:
+        - AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA…
+        - QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ…
+        - and 3 more
+        - and 2 more
+        - untitled transcript
+        - unknown
+        - "- /inspect before prompts"
+        - "- /plan also before prompts"
+      absent:
+        - AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        - QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
+        - <invalid-sha>
+
+  - name: skills_only
+    villageUrl: https://village.example/pulls/acme/widgets/7
+    commitSet: []
+    sessions:
+      - harness: claude-code
+        redactionLevel: standard
+        sessionStart: 2026-09-06T14:00:00Z
+        listed: true
+        transcriptId: 7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+        title: Inspect the setup
+        author: alice
+        turns:
+          - index: 0
+            role: user
+            content: inspect
+            timestamp: 2026-09-06T14:01:00Z
+            command:
+              name: /inspect
+              args: the setup
+    commits: []
+    expected:
+      sessionCount: 1
+      promptCount: 0
+      commitsCovered: 0
+      commitsTotal: 0
+      harness: claude-code
+      redactionLevel: standard
+      skills:
+        - name: /inspect
+          invocationCount: 1
+      present:
+        - <summary>skills</summary>
+        - "- /inspect the setup"
+      absent:
+        - "1. "
+        - 0 prompts
+
+budgets:
+  - name: table_rows_stop_at_the_byte_budget
+    case: clipped_text_and_commit_tails
+    maxBytes: 350
+    present:
+      - 2 more transcripts on village
+    absent:
+      - AAAAAAAAAA
+    expectedError: false
+  - name: prompt_blocks_stop_at_the_byte_budget
+    case: long_session
+    maxBytes: 450
+    present:
+      - more on village
+    absent:
+      - 15. prompt 15
+    expectedError: false
+  - name: a_prompt_frame_that_cannot_fit_is_omitted
+    case: short_session
+    maxBytes: 300
+    present:
+      - on village
+    absent:
+      - <details>
+    expectedError: false
+  - name: a_table_that_cannot_fit_is_refused
+    case: short_session
+    maxBytes: 20
+    present: []
+    absent: []
+    expectedError: true

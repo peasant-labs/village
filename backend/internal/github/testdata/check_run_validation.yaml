@@ -176,3 +176,39 @@ cases:
       title: "peasant / prompts"
       details_url: "/pulls/acme/widgets/7"
     expect_error: true
+
+  - name: ftp-details-url-is-refused
+    creating: true
+    request:
+      head_sha: abc1234
+      conclusion: success
+      title: peasant / prompts
+      details_url: "ftp://village.example/x"
+    expect_error: true
+
+  - name: details-url-without-a-host-is-refused
+    creating: true
+    request:
+      head_sha: abc1234
+      conclusion: success
+      title: peasant / prompts
+      details_url: "https:///pulls/x"
+    expect_error: true
+
+  - name: http-details-url-is-accepted
+    creating: true
+    request:
+      head_sha: abc1234
+      conclusion: success
+      title: peasant / prompts
+      details_url: "http://village.example/x"
+    expect_error: false
+
+  - name: protocol-relative-details-url-is-refused
+    creating: true
+    request:
+      head_sha: abc1234
+      conclusion: success
+      title: peasant / prompts
+      details_url: "//village.example/x"
+    expect_error: true
