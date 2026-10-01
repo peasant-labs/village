@@ -66,7 +66,8 @@ test.describe('collective settings', () => {
     const saved = page.waitForResponse((r) => r.request().method() === 'PATCH' && r.ok())
     await page.getByRole('button', { name: 'save', exact: true }).click()
     expect((await saved).request().postDataJSON()).toEqual({ name: 'Acme Platform Team' })
-    // The name the server now stores reaches the heading as well as the row.
+    // The row settles, and the name the server now stores reaches the heading.
+    await expect(page.locator('.srow[data-status="settled"]', { hasText: 'Acme Platform Team' })).toContainText('saved')
     await expect(page.getByRole('heading', { name: 'Acme Platform Team · settings' })).toBeVisible()
   })
 
@@ -80,12 +81,9 @@ test.describe('collective settings', () => {
     expect((await saved).request().postDataJSON()).toEqual({ post_prompts_check: false })
     await expect(toggle).toHaveAttribute('aria-checked', 'false')
 
-    // The row's own "saved" mark is not asserted here: under the dev server's
-    // React strict mode, fairtrade 0.0.22's SettingRow never leaves "saving"
-    // (its unmount guard is not reset when strict mode remounts it). A reload
-    // shows the setting as the server now stores it.
-    await page.reload()
-    await expect(page.getByRole('switch', { name: 'show transcripts on pull requests' })).toHaveAttribute('aria-checked', 'false')
+    const row = page.locator('.srow', { has: toggle })
+    await expect(row).toHaveAttribute('data-status', 'settled')
+    await expect(row).toContainText('saved')
     await still(page, testInfo, 'settings-switch-settled', page.locator('details', { hasText: 'pull requests' }).first())
   })
 
