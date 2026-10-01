@@ -18,7 +18,7 @@ const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core'))
 
 const CHROME = process.env.CHROME_PATH
 const ORIGIN = (process.env.VILLAGE_REAL_ORIGIN || 'http://localhost:3000').replace(/\/$/, '')
-const URL = process.env.VILLAGE_REAL_URL || `${ORIGIN}/`
+const URL = process.env.VILLAGE_REAL_URL || `${ORIGIN}/explore`
 const theme = process.argv[2] || 'dark'
 
 if (!CHROME) {

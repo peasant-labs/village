@@ -247,6 +247,17 @@ export const TeachingEmptyState = FtTeachingEmptyState as ComponentType<
  */
 export { SignInProviders, HandleClaim, OnboardingCard } from "@peasant-labs/fairtrade/ui";
 
+// ── Menus ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Menu — a dropdown menu owned by one trigger button (`.menu-trigger`), with a
+ *   role="menu" popout of role="menuitem" rows (icon, label, optional kbd hint,
+ *   danger and separator rows). Keyboard behaviour is the design system's: arrow
+ *   keys move, Home/End jump, Esc/Tab/outside-click close, Esc returns focus to
+ *   the trigger. Rows fire `onSelect`; they are not links.
+ */
+export { Menu } from "@peasant-labs/fairtrade/ui";
+
 // ── CLI onboarding ────────────────────────────────────────────────────────────
 
 /**

@@ -11,6 +11,45 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const confirmOwnHandle = `-- name: ConfirmOwnHandle :one
+UPDATE users SET
+    username_chosen = true,
+    updated_at = now()
+WHERE id = $1 AND github_username = $2 AND NOT username_chosen
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach
+`
+
+type ConfirmOwnHandleParams struct {
+	ID             pgtype.UUID `db:"id" json:"id"`
+	GithubUsername string      `db:"github_username" json:"github_username"`
+}
+
+// Marks the handle chosen at sign-in, when the handle the account holds is its
+// own login. It writes only the flag, never the handle. The guard confirms
+// exactly the handle the caller read and approved, and only while the row is
+// still unchosen; no row means the account changed since it was read (renamed,
+// or chosen by the person on the handle step), and the caller re-reads it.
+func (q *Queries) ConfirmOwnHandle(ctx context.Context, arg ConfirmOwnHandleParams) (User, error) {
+	row := q.db.QueryRow(ctx, confirmOwnHandle, arg.ID, arg.GithubUsername)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.GithubID,
+		&i.GithubUsername,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDiscoverable,
+		&i.Provider,
+		&i.ProviderUserID,
+		&i.UsernameChosen,
+		&i.ProviderUsername,
+		&i.PreviewBeforeAttach,
+	)
+	return i, err
+}
+
 const deleteUser = `-- name: DeleteUser :exec
 DELETE FROM users WHERE id = $1
 `

@@ -24,6 +24,7 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id pgtype.UUID) (sqlc.User, error)
 	GetUserByUsername(ctx context.Context, githubUsername string) (sqlc.User, error)
 	SetUsername(ctx context.Context, arg sqlc.SetUsernameParams) (sqlc.User, error)
+	ConfirmOwnHandle(ctx context.Context, arg sqlc.ConfirmOwnHandleParams) (sqlc.User, error)
 	DeleteUser(ctx context.Context, id pgtype.UUID) error
 	UpdateUserDiscoverable(ctx context.Context, arg sqlc.UpdateUserDiscoverableParams) (sqlc.User, error)
 

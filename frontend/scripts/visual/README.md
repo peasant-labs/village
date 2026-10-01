@@ -235,7 +235,8 @@ The Explore gate is a separate browse-focused harness for the shared `Explore` s
   the matching source checkout's `scripts/shootdemo.mjs`.
 - **Subject (right):** the village explore route capture `cex-explore.png` from
   `frontend/scripts/visual/explore-shoot.mjs` (point `VILLAGE_URL` at `/explore`;
-  the root route serves discovery only to a signed-out visitor).
+  the root route serves home to a signed-in visitor and the sign-in page to
+  everybody else, so discovery is only at its own address).
 - **Boot arm:** `frontend/scripts/visual/boot-explore.mjs` against
   `frontend/scripts/visual/mock-rest-explore.mjs`.
 
@@ -905,7 +906,7 @@ needs a backend that answers `GET /auth/me`:
   ships unstyled must not produce a plausible-looking capture.
 - **Backend:** `frontend/scripts/visual/mock-rest-home.mjs`. Set
   `MOCK_SIGNED_OUT=1` for the signed-out arm, where the same root route must
-  serve discovery instead, and `MOCK_OWNER_LIST_FAILS=1` for the failure arm,
+  serve the sign-in page instead, and `MOCK_OWNER_LIST_FAILS=1` for the failure arm,
   where only the owner-scoped list request fails.
 - **Blank-handle arm:** `HOME_SHOOT_MODE=no-handle` with `MOCK_BLANK_HANDLE=1`
   captures the terminal surface an account gets when it records a chosen handle

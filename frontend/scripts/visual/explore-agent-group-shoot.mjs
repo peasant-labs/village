@@ -9,7 +9,7 @@
    from another worktree cannot pass this gate silently.
 
    env:
-     VILLAGE_URL     app URL (default http://localhost:3000/)
+     VILLAGE_URL     app URL (default http://localhost:3000/explore)
      CHROME_PATH     Chrome/Chromium binary (required)
      PUPPETEER_CORE  explicit module path to puppeteer-core (optional)
    usage: VILLAGE_URL=... CHROME_PATH=... node explore-agent-group-shoot.mjs <theme> <outdir>
@@ -20,7 +20,7 @@ import { applyDeterminism } from './determinism.mjs'
 const puppeteer = (await import(process.env.PUPPETEER_CORE || 'puppeteer-core')).default
 
 const CHROME = process.env.CHROME_PATH
-const URL = process.env.VILLAGE_URL || 'http://localhost:3000/'
+const URL = process.env.VILLAGE_URL || 'http://localhost:3000/explore'
 const theme = process.argv[2] || 'dark'
 const out = process.argv[3] || `/tmp/explore-agent-${theme}`
 mkdirSync(out, { recursive: true })

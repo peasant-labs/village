@@ -184,6 +184,8 @@ export interface GroupSettingsFixture {
   promptsCheckMode: "informational" | "required";
   // The org the collective already records, as the install handshake leaves it.
   linkedGithubOrg?: string | null;
+  // Who may browse the collective's data, as saved. Defaults to members only.
+  dataAccess?: "members_only" | "contributors" | "public";
 }
 
 export function installGroupSettingsREST(fixture: GroupSettingsFixture): RecordedRequest[] {
@@ -201,7 +203,7 @@ export function installGroupSettingsREST(fixture: GroupSettingsFixture): Recorde
     name: "fixture-collective",
     description: "",
     acceptance_mode: "open",
-    data_access: "members_only",
+    data_access: fixture.dataAccess ?? "members_only",
     linked_github_org: fixture.linkedGithubOrg ?? null,
     display_members: true,
     transcript_deletion_policy: "user_choice",

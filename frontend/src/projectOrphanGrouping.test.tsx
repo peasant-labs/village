@@ -94,9 +94,9 @@ describe("the mounted project route groups unresolved ancestry", () => {
     for (const id of testCase.expectedOrphans) {
       expect(rows.querySelector(`a[href="/transcripts/${id}"]`)).not.toBeNull();
     }
-    expect(rows.querySelectorAll('button[aria-label="Edit transcript"]')).toHaveLength(testCase.expectedOrphans.length);
-    expect(rows.querySelectorAll('button[aria-label="Delete transcript"]')).toHaveLength(testCase.expectedOrphans.length);
-    await userEvent.click(rows.querySelector<HTMLButtonElement>('button[aria-label="Edit transcript"]')!);
+    expect(rows.querySelectorAll('button[aria-label="edit transcript"]')).toHaveLength(testCase.expectedOrphans.length);
+    expect(rows.querySelectorAll('button[aria-label="delete transcript"]')).toHaveLength(testCase.expectedOrphans.length);
+    await userEvent.click(rows.querySelector<HTMLButtonElement>('button[aria-label="edit transcript"]')!);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByTestId("project-transcript-count").textContent?.trim()).toBe(String(testCase.rows.length));
   });

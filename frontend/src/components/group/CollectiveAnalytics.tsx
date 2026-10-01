@@ -65,8 +65,8 @@ export default function CollectiveAnalytics({
   return (
     <ProjectOverview
       payload={payload}
-      title="Collective analytics"
-      subtitle="Activity and contributor trends across shared transcripts."
+      title="collective analytics"
+      subtitle="activity and contributor trends across shared transcripts."
     />
   );
 }

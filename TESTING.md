@@ -367,13 +367,14 @@ column) layout and that connector are proven by
 ### The home page and the explore route: one frontend fixture for both
 
 `frontend/src/testdata/home-page.yaml` +
-`frontend/src/test/homePageFixtures.ts` hold every case for the two routes the
-root of the app resolves to: the signed-in person's home page at `/`, and the
-public discovery list, which now also has its own address at `/explore`. The
-file carries four groups. `routeCases` pin WHICH surface each (path, visitor)
-pair lands on, and are consumed by `frontend/src/homePage.test.tsx`, which
-mounts the REAL routes inside the real `AuthProvider` with `fetch` stubbed, so
-the session decides the answer rather than a stubbed hook. `homeCases` pin what
+`frontend/src/test/homePageFixtures.ts` hold every case for the root of the
+app and the route beside it: `/` is the signed-in person's home page and the
+GitHub sign-in page for everybody else, and the public discovery list keeps
+its own address at `/explore` for both. The file carries five groups.
+`routeCases` pin WHICH surface each (path, visitor) pair lands on, and are
+consumed by `frontend/src/homePage.test.tsx`, which mounts the REAL routes
+inside the real `AuthProvider` with `fetch` stubbed, so the session decides the
+answer rather than a stubbed hook. `homeCases` pin what
 the home surface renders for a given owner-scoped transcript list - the recent
 sessions in order, the project rows, their session counts and their hash-keyed
 links - and are consumed by the same file. `sortCases` pin the exported
@@ -386,8 +387,70 @@ clear condition cannot fire. Only the owner-keyed read stops the previous
 person's failure being shown over a request that has not failed - and when the
 new handle's own request fails with the same words, that failure is its own and
 must still be announced. `navCases` pin which
-top-nav entry is offered and which one is marked active, and are consumed by
-`frontend/src/lib/nav/sections.test.ts`.
+top-nav entries are offered (`home` and `collectives`, to somebody signed in
+only), which one is marked active (or none, on a page under neither), and where
+the header's back link leads (or that it shows none, as for a signed-out reader
+of a transcript link), and are consumed by `frontend/src/navbar.test.tsx`, which
+mounts the REAL header at each pathname and reads the rendered links, their
+`aria-current` and the back link's `href`. `accountMenuCases` are the account
+menu's whole item set, each with the effect choosing it must have (`navigate`
+to a pushed route, or `sign-out`, a `POST /auth/logout`); the same test clicks
+each item and asserts the effect, because the menu is the only way to one's own
+profile and the only way to sign out.
+
+### The front door: sign-in, hidden surfaces, and lowercase chrome
+
+Three frontend fixtures hold what the village front door offers, each with a
+required-NAME loader in `frontend/src/test/` and a mounted test in
+`frontend/src/`:
+
+- `sign-in-page.yaml` (`signInPage.test.tsx`): which providers each screen's
+  sign-in buttons lead to, by the provider id each button hands `startSignIn`
+  (the one boundary stubbed, because it navigates the document away). The
+  corpus's `offeredProviders` is the closed set, asserted as exact membership
+  against `SIGN_IN_PROVIDERS`; a signed-out `/` offers one GitHub button and the
+  header adds none beside it.
+- `hidden-surfaces.yaml` (`hiddenSurfaces.test.tsx`): controls hidden while
+  publishing is for collectives only, on the real routes that drew them. The
+  `public` data-access option is listed only for a collective that is already
+  public, and saving keeps the saved value; the transcript page draws no
+  `attest` control for a signed-in viewer with a visible org, and does not read
+  the orgs at all.
+- `lowercase-chrome.yaml` (`lowercaseChrome.test.tsx`): cases per surface and
+  state (the loader requires every surface in its closed set, and each state
+  is a named case). The test reads each element's own text plus its `title`,
+  `placeholder` and `aria-label`; text under an `uppercase` class is read as it
+  renders. It sets aside, each by exact match, the case's user content, the
+  initials drawn from that content and fairtrade `Avatar` tiles' initials,
+  fairtrade's brand-case provider names, and formatted dates, and requires no
+  capital to remain, while the user content (a mixed-case collective name
+  among it) must still be on screen verbatim.
+
+The backend decision behind the handle step is
+`backend/internal/handler/testdata/sign-in-handle.yaml`
+(`sign_in_handle_test.go`). Every case drives the REAL, mounted
+`GitHubCallback` with GitHub replaced by a fake transport passed through the
+request context (`oauth2.HTTPClient`, where both the token exchange and the
+authenticated client take their transport from), over a mocked user table.
+`flow` picks the callback's branch: `web` follows the session token in the
+frontend redirect, `cli` follows the loopback redirect into the REAL CLI
+exchange. Both read the account back through the REAL `Me` handler, whose
+`username_chosen` is all the frontend's handle gate acts on.
+`sign_in_handle_integration_test.go` runs the same cases through the same
+callback against migrated PostgreSQL and reads the real rows: a returning
+account's upsert keeps its handle and chosen flag, and a free login's confirm
+lands on the real row. The two unit-only cases (a failed confirm, and a handle
+chosen in another tab between the upsert and the confirm) are left out of that
+run rather than skipped, because the integration gate rejects skips. A
+sign-in can reach a row the confirm's guard refuses when it races the handle
+step, or when overlapping sign-ins both try to confirm the same unchosen
+account. The unit corpus stages the handle-step interleaving, so the
+guard is pinned on its own: `testdata/confirm-own-handle.yaml` runs the real
+`ConfirmOwnHandle` on real rows and expects it to confirm only this account's
+own approved handle, only while unchosen, and to leave every refused row
+exactly as it was, including another account that now holds the approved
+handle. The statement writes only `username_chosen` (and `updated_at`), never
+the handle.
 
 The loader guards deletion with required-NAME lists, never a row count, and it
 derives every consistency rule from the fixture's OWN data rather than from the

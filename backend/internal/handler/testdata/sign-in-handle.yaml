@@ -1,0 +1,204 @@
+# Which handle a GitHub sign-in gives an account, and whether the web app's
+# handle step (`/welcome`) still opens for it.
+#
+# Every case drives the REAL, mounted `GET /auth/github/callback`
+# (handler.GitHubCallback) with GitHub itself replaced by a fake transport, over
+# a mocked user table (dependency mocks only). `flow` decides which branch of
+# the callback runs: `web` must redirect to the frontend with a session token,
+# `cli` must redirect to the CLI's loopback server, after which the REAL
+# `POST /auth/cli/exchange` runs. Either way the account is read back through
+# the REAL `Me` handler, because `username_chosen` on `/auth/me` is the one fact
+# the frontend's handle gate acts on. `sign_in_handle_integration_test.go` runs
+# the same cases, except the unit-only ones, against migrated PostgreSQL.
+#
+#   flow             `web` or `cli`.
+#   login            the GitHub login the sign-in carries, verbatim.
+#   taken_by_others  handles other accounts already hold.
+#   returning        this GitHub account's existing row, or null for a first
+#                    sign-in. A returning row keeps its handle and chosen flag
+#                    unless the handle is its own login and still unconfirmed.
+#   expect_handle    the handle the account has after sign-in.
+#   expect_chosen    whether `/auth/me` then reports the handle as chosen. False
+#                    is the only answer that opens `/welcome`.
+#
+# Two optional knobs make a case unit-only, because they inject a failure or
+# an interleaving the real-database run does not stage (the confirm's guard
+# itself is pinned against PostgreSQL by `confirm-own-handle.yaml`):
+#   confirm_fails           the statement that marks the handle chosen errors.
+#   renamed_before_confirm  the person picks this handle on the handle step in
+#                           another tab between the upsert and the confirm.
+#
+# Deletion protection is the required-name manifest below: every case is named
+# there, and a case missing from either side fails the load.
+required_names:
+  - a-free-login-keeps-its-handle-and-skips-welcome
+  - a-mixed-case-login-folds-to-its-handle-and-skips-welcome
+  - a-taken-login-gets-a-suffix-and-opens-welcome
+  - a-returning-account-unconfirmed-on-its-own-login-skips-welcome
+  - a-returning-account-on-a-suffixed-handle-still-opens-welcome
+  - a-returning-account-that-chose-another-handle-keeps-it
+  - a-returning-account-confirmed-on-its-own-login-is-not-rewritten
+  - a-failed-confirm-still-signs-in-and-leaves-the-handle-step-open
+  - a-handle-chosen-in-another-tab-is-the-handle-the-session-names
+  - a-login-too-short-for-a-handle-opens-welcome
+  - a-login-too-long-for-a-handle-opens-welcome
+  - the-cli-exchange-returns-the-handle-when-the-login-was-taken
+  - the-cli-exchange-returns-the-handle-not-the-login-case
+cases:
+  - name: a-free-login-keeps-its-handle-and-skips-welcome
+    why: >
+      The ordinary first sign-in. No one holds the login, so the handle is the
+      login and there is nothing to choose.
+    flow: web
+    login: alice-dev
+    taken_by_others: []
+    returning: null
+    expect_handle: alice-dev
+    expect_chosen: true
+
+  - name: a-mixed-case-login-folds-to-its-handle-and-skips-welcome
+    why: >
+      GitHub logins keep their case and handles are lowercase. Folding the case
+      is not a collision, so it must not open the handle step.
+    flow: web
+    login: Alice-Dev
+    taken_by_others: []
+    returning: null
+    expect_handle: alice-dev
+    expect_chosen: true
+
+  - name: a-taken-login-gets-a-suffix-and-opens-welcome
+    why: >
+      The collision. Another account holds the login, so the new account is
+      parked on a suffixed handle and asked to choose one.
+    flow: web
+    login: alice
+    taken_by_others: [alice]
+    returning: null
+    expect_handle: alice-2
+    expect_chosen: false
+
+  - name: a-returning-account-unconfirmed-on-its-own-login-skips-welcome
+    why: >
+      An account that signed in before this rule holds its own login but was
+      never confirmed. Its next sign-in confirms it instead of stopping it at
+      the handle step again.
+    flow: web
+    login: bob
+    taken_by_others: []
+    returning:
+      handle: bob
+      chosen: false
+    expect_handle: bob
+    expect_chosen: true
+
+  - name: a-returning-account-on-a-suffixed-handle-still-opens-welcome
+    why: >
+      An account parked on a suffix is still a collision on every later sign-in
+      until it chooses a handle itself.
+    flow: web
+    login: alice
+    taken_by_others: [alice]
+    returning:
+      handle: alice-2
+      chosen: false
+    expect_handle: alice-2
+    expect_chosen: false
+
+  - name: a-returning-account-that-chose-another-handle-keeps-it
+    why: >
+      A chosen handle belongs to the person. Signing in again must neither
+      rename it back to the login nor write it a second time.
+    flow: web
+    login: alice
+    taken_by_others: []
+    returning:
+      handle: ally
+      chosen: true
+    expect_handle: ally
+    expect_chosen: true
+
+  - name: a-returning-account-confirmed-on-its-own-login-is-not-rewritten
+    why: >
+      The most common returning sign-in. The handle is the login and already
+      chosen, so there is nothing to write.
+    flow: web
+    login: bob
+    taken_by_others: []
+    returning:
+      handle: bob
+      chosen: true
+    expect_handle: bob
+    expect_chosen: true
+
+  - name: a-failed-confirm-still-signs-in-and-leaves-the-handle-step-open
+    why: >
+      Marking the handle chosen is a second statement. If it fails, sign-in
+      must still succeed; the handle step then asks, as it did before the rule.
+    flow: web
+    login: alice-dev
+    taken_by_others: []
+    returning: null
+    confirm_fails: true
+    expect_handle: alice-dev
+    expect_chosen: false
+
+  - name: a-handle-chosen-in-another-tab-is-the-handle-the-session-names
+    why: >
+      An unconfirmed account on its own login signs in while it picks another
+      handle on the handle step in a second tab. The confirm finds the row
+      changed, so sign-in re-reads it: the account keeps the handle the person
+      just chose, and the session names that handle rather than the login.
+    flow: web
+    login: carol
+    taken_by_others: []
+    returning:
+      handle: carol
+      chosen: false
+    renamed_before_confirm: carol-codes
+    expect_handle: carol-codes
+    expect_chosen: true
+
+  - name: a-login-too-short-for-a-handle-opens-welcome
+    why: >
+      A two-character login is free but is not a valid handle, so the account
+      must choose one.
+    flow: web
+    login: ab
+    taken_by_others: []
+    returning: null
+    expect_handle: ab
+    expect_chosen: false
+
+  - name: a-login-too-long-for-a-handle-opens-welcome
+    why: >
+      GitHub allows 39 characters and a handle holds 30. The truncated handle
+      is not the login, so the account must choose one.
+    flow: web
+    login: abcdefghijklmnopqrstuvwxyz0123456789
+    taken_by_others: []
+    returning: null
+    expect_handle: abcdefghijklmnopqrstuvwxyz0123
+    expect_chosen: false
+
+  - name: the-cli-exchange-returns-the-handle-when-the-login-was-taken
+    why: >
+      The CLI names the account by the handle village knows it by. When the
+      login was taken the two differ, and the CLI must get the handle.
+    flow: cli
+    login: alice
+    taken_by_others: [alice]
+    returning: null
+    expect_handle: alice-2
+    expect_chosen: false
+
+  - name: the-cli-exchange-returns-the-handle-not-the-login-case
+    why: >
+      A free login in mixed case. The handle is the folded login, and the CLI
+      must get that rather than the login GitHub sent.
+    flow: cli
+    login: Alice-Dev
+    taken_by_others: []
+    returning: null
+    expect_handle: alice-dev
+    expect_chosen: true

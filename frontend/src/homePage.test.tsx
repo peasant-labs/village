@@ -11,8 +11,9 @@ import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { TranscriptListItem } from "@/lib/types";
 
 // Mounts the REAL production routes: the root route (`/`), which serves the
-// signed-in person's home page or the public discovery list depending on who
-// is asking, and the explore route (`/explore`). Every assertion is on what
+// signed-in person's home page or the GitHub sign-in page depending on who is
+// asking, and the explore route (`/explore`), under the REAL header for the nav
+// cases. Every assertion is on what
 // lands in the DOM and on the requests the routes actually issue, so a
 // regression cannot hide behind a prop snapshot.
 
@@ -30,6 +31,10 @@ function homeSurface(): Element | null {
 
 function exploreSurface(): Element | null {
   return document.querySelector('[data-testid="session-list-results"]');
+}
+
+function signInSurface(): Element | null {
+  return document.querySelector('[data-testid="sign-in-page"]');
 }
 
 function homeErrorSurface(): Element | null {
@@ -62,7 +67,11 @@ async function settled(): Promise<void> {
   );
   await waitFor(() =>
     expect(
-      homeSurface() ?? exploreSurface() ?? homeErrorSurface() ?? noHandleSurface(),
+      homeSurface() ??
+        exploreSurface() ??
+        signInSurface() ??
+        homeErrorSurface() ??
+        noHandleSurface(),
     ).not.toBeNull(),
   );
 }
@@ -75,6 +84,7 @@ describe("mounted routes: which surface each visitor lands on", () => {
       await settled();
 
       expect(homeSurface() !== null).toBe(c.expectSurface === "home");
+      expect(signInSurface() !== null).toBe(c.expectSurface === "sign-in");
       expect(exploreSurface() !== null).toBe(c.expectSurface === "explore");
     });
   }
@@ -244,7 +254,7 @@ describe("mounted home route: recent sessions, then projects", () => {
         expect(document.querySelector('[data-testid="home-empty-state"]')).toBeNull();
         const stillListed = [
           ...document.querySelectorAll('[data-testid="home-recent-sessions"] a[aria-label]'),
-        ].map((a) => (a.getAttribute("aria-label") ?? "").replace(/^Open transcript /, ""));
+        ].map((a) => (a.getAttribute("aria-label") ?? "").replace(/^open transcript /, ""));
         expect(stillListed).toEqual(c.expectRecentTitles);
 
         // The notice's OWN retry is a second control, and the only way back
@@ -358,7 +368,7 @@ describe("mounted home route: recent sessions, then projects", () => {
       }
 
       const recentTitles = [...recentSection!.querySelectorAll("a[aria-label]")].map((a) =>
-        (a.getAttribute("aria-label") ?? "").replace(/^Open transcript /, ""),
+        (a.getAttribute("aria-label") ?? "").replace(/^open transcript /, ""),
       );
       expect(recentTitles).toEqual(c.expectRecentTitles);
 

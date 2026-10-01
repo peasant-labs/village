@@ -1,0 +1,32 @@
+# Case corpus for `src/hiddenSurfaces.test.tsx` — the controls hidden from the
+# village chrome while publishing is for collectives only.
+#
+# Hidden, not deleted: the component and its server routes stay, and data that
+# already holds a hidden value keeps it. Explore and the publish dashboard
+# leaving the nav are held by `home-page.yaml`'s nav cases.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/hiddenSurfacesFixtures.ts`.
+
+# The collective settings page's data-access control, mounted through the real
+# route. `public` is offered only to a collective that is already public, so it
+# keeps showing its own value and label; saving leaves the value as it was.
+dataAccessCases:
+  - name: a-members-only-collective-is-not-offered-public
+    savedDataAccess: members_only
+    expectOptions: [members_only, contributors]
+  - name: a-contributors-collective-is-not-offered-public
+    savedDataAccess: contributors
+    expectOptions: [members_only, contributors]
+  - name: an-already-public-collective-keeps-its-value-and-label
+    savedDataAccess: public
+    expectOptions: [members_only, contributors, public]
+
+# The transcript page, mounted through the real route for a signed-in viewer
+# who has a visible GitHub org: the one viewer the attestation control would
+# have been drawn for. It must not be.
+attestCases:
+  - name: the-owner-is-offered-no-attestation
+    viewerIsOwner: true
+  - name: a-signed-in-reader-is-offered-no-attestation
+    viewerIsOwner: false

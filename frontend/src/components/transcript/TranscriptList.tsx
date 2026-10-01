@@ -298,7 +298,7 @@ function Row({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const del = useDeleteTranscript();
 
-  const displayTitle = t.title || "Untitled";
+  const displayTitle = t.title || "untitled";
   // Only the facts this row can actually state, paired with the fact that
   // produced each, so the separators fall between the ones that survive rather
   // than before each one.
@@ -377,7 +377,7 @@ function Row({
       <Link
         href={`/transcripts/${t.id}`}
         className="absolute inset-0 focus-mono cursor-pointer"
-        aria-label={`Open transcript ${displayTitle}`}
+        aria-label={`open transcript ${displayTitle}`}
       />
 
       {/* In front of the row-wide link, so picking a row out does not open it.
@@ -393,7 +393,7 @@ function Row({
             type="checkbox"
             checked={selected}
             onChange={() => selection?.onToggle(t.id)}
-            aria-label={`Select transcript ${displayTitle}`}
+            aria-label={`select transcript ${displayTitle}`}
             className="size-3.5 cursor-pointer accent-[var(--mark)] focus-mono"
           />
         </label>
@@ -450,7 +450,7 @@ function Row({
         >
           {confirmingDelete ? (
             <>
-              <span className="font-mono text-[11px] text-ink-3">Delete?</span>
+              <span className="font-mono text-[11px] text-ink-3">delete?</span>
               <button
                 type="button"
                 disabled={del.isPending}
@@ -462,7 +462,7 @@ function Row({
                   "disabled:opacity-50 disabled:cursor-not-allowed",
                 )}
               >
-                {del.isPending ? "Removing…" : "Yes"}
+                {del.isPending ? "removing…" : "yes"}
               </button>
               <button
                 type="button"
@@ -476,15 +476,15 @@ function Row({
                   "hover:bg-surface-hover focus-mono transition-colors cursor-pointer",
                 )}
               >
-                Cancel
+                cancel
               </button>
             </>
           ) : (
             <>
               <button
                 type="button"
-                title="Edit"
-                aria-label="Edit transcript"
+                title="edit"
+                aria-label="edit transcript"
                 onClick={(e) => {
                   e.preventDefault();
                   setEditOpen(true);
@@ -499,8 +499,8 @@ function Row({
               </button>
               <button
                 type="button"
-                title="Delete"
-                aria-label="Delete transcript"
+                title="delete"
+                aria-label="delete transcript"
                 onClick={(e) => {
                   e.preventDefault();
                   setConfirmingDelete(true);

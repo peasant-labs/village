@@ -19,7 +19,7 @@ function PrivacyNoticeLine() {
   // row, and a fragment would hand it three items to wrap independently.
   return (
     <span>
-      Publishing grants a license. Read the{" "}
+      publishing grants a license. read the{" "}
       <Link
         href="/privacy"
         className="text-ink underline decoration-ink-4 underline-offset-2 hover:decoration-ink focus-mono"
@@ -34,12 +34,12 @@ function PrivacyNoticeLine() {
 const PUBLISH_STEPS = [
   {
     title: "run the setup wizard",
-    body: "Interactive wizard that connects your GitHub account, discovers your coding agent transcripts, configures providers (Claude Code, OpenCode), and sets your redaction level.",
+    body: "interactive wizard that connects your github account, discovers your coding agent transcripts, configures providers (claude code, opencode), and sets your redaction level.",
     command: "peasant kickstart",
   },
   {
     title: "push transcripts",
-    body: "Pushes unpublished transcripts to the village with automatic redaction. Use --dry-run to preview what will be pushed, or --visibility public to override the default visibility.",
+    body: "pushes unpublished transcripts to the village with automatic redaction. use --dry-run to preview what will be pushed, or --visibility public to override the default visibility.",
     command: "peasant village push",
   },
 ];
@@ -63,7 +63,7 @@ export default function PublishPage() {
           emptyState={
             <TeachingEmptyState
               title="sign in to publish"
-              body="Connect your GitHub account to push transcripts to the village."
+              body="connect your github account to push transcripts to the village."
               privacy={<PrivacyNoticeLine />}
             />
           }
@@ -75,24 +75,24 @@ export default function PublishPage() {
   return (
     <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
       {/* Breadcrumb trail */}
-      <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs">
+      <nav aria-label="breadcrumb" className="flex items-center gap-1 text-xs">
         <Link
           href="/"
           className="text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
         >
-          Village
+          village
         </Link>
         <ChevronRight className="size-3 shrink-0 text-ink-4" />
-        <span className="font-medium text-ink">Publish</span>
+        <span className="font-medium text-ink">publish</span>
       </nav>
 
       {/* Page title block */}
       <div className="flex flex-col gap-1">
         <h1 className="font-[family-name:var(--font-display)] text-2xl tracking-tight text-ink">
-          Publishing Dashboard
+          publishing dashboard
         </h1>
         <p className="text-sm text-ink-3">
-          Push transcripts from the Peasant CLI to the village.
+          push transcripts from the peasant cli to the village.
         </p>
         <p className="text-sm text-ink-3">
           <PrivacyNoticeLine />
@@ -109,7 +109,7 @@ export default function PublishPage() {
       {/* Recent Publishes */}
       <TranscriptList
         items={recentData?.transcripts ?? []}
-        title="Recent Publishes"
+        title="recent publishes"
         showOwnerActions
         hideOwner
         headerAside={
@@ -123,7 +123,7 @@ export default function PublishPage() {
             )}
           >
             <Upload className="size-3.5" />
-            Import
+            import
           </button>
         }
         emptyState={
@@ -133,7 +133,7 @@ export default function PublishPage() {
             emptyState={
               <TeachingEmptyState
                 title="no transcripts published yet"
-                body="Run the setup wizard and push command above to get your first transcript into the village."
+                body="run the setup wizard and push command above to get your first transcript into the village."
                 command="peasant village push"
               />
             }

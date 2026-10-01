@@ -59,6 +59,18 @@ UPDATE users SET
 WHERE id = $1
 RETURNING *;
 
+-- name: ConfirmOwnHandle :one
+-- Marks the handle chosen at sign-in, when the handle the account holds is its
+-- own login. It writes only the flag, never the handle. The guard confirms
+-- exactly the handle the caller read and approved, and only while the row is
+-- still unchosen; no row means the account changed since it was read (renamed,
+-- or chosen by the person on the handle step), and the caller re-reads it.
+UPDATE users SET
+    username_chosen = true,
+    updated_at = now()
+WHERE id = $1 AND github_username = $2 AND NOT username_chosen
+RETURNING *;
+
 -- name: DeleteUser :exec
 DELETE FROM users WHERE id = $1;
 

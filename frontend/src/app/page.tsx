@@ -1,21 +1,20 @@
 "use client";
 
 import { useAuth } from "@/providers/AuthProvider";
-import ExplorePage from "./explore/ExplorePage";
 import HomePage from "./HomePage";
+import SignInPage from "./SignInPage";
 
 /**
  * The root route decides WHOSE page `/` is.
  *
  * A signed-in visitor lands on their own home: their recent sessions and the
- * projects those sessions belong to. A signed-out visitor still lands on the
- * public discovery list, exactly as before — that page now also has its own
- * durable address at `/explore`, which a signed-in visitor uses to browse the
- * commons.
+ * projects those sessions belong to. A signed-out visitor lands on the GitHub
+ * sign-in page. The public discovery list is no longer offered here or in the
+ * nav; it keeps its own address at `/explore` for anyone who has the link.
  *
- * Neither branch renders until the session is known. Rendering discovery while
- * `GET /auth/me` is still in flight would show a signed-in person the wrong
- * page and then swap it out under them.
+ * Neither branch renders until the session is known. Rendering the sign-in page
+ * while `GET /auth/me` is still in flight would show a signed-in person the
+ * front door and then swap it out under them.
  */
 export default function RootPage() {
   const { isLoading, isLoggedIn } = useAuth();
@@ -32,5 +31,5 @@ export default function RootPage() {
     );
   }
 
-  return isLoggedIn ? <HomePage /> : <ExplorePage />;
+  return isLoggedIn ? <HomePage /> : <SignInPage />;
 }
