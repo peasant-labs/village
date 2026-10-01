@@ -14,7 +14,7 @@ import { memberItem, memberUUID, type MemberSpec } from "@/test/groupedHelperMou
  *
  * The corpus states what each mounted surface must serve and must show: the
  * helper-only context discovery has to render exactly once, and the grouped
- * page composition that carries the profile/project read past its first server
+ * page composition that carries the home/profile/project read past its first server
  * page. The loader refuses a corpus that loses a required NAME, repeats one,
  * states an unknown field, or declares a page composition the grouped endpoint
  * could not serve — a case cannot silently disappear and an inert expectation
@@ -33,13 +33,13 @@ export interface ExploreSurfaceCase {
   member: MemberSpec;
 }
 
-export type ContinuationRoute = "profile" | "project";
+export type ContinuationRoute = "home" | "profile" | "project";
 
 export interface ContinuationCase {
   name: string;
   route: ContinuationRoute;
   owner: string;
-  /** The project hash for the project arm; null for the profile arm. */
+  /** The project hash for the project arm; null for the home/profile arms. */
   projectHash: string | null;
   /** Flat rows the route's own list serves, so its panel is not empty. */
   flatTranscripts: number;
@@ -60,6 +60,7 @@ export interface GroupedHelperSurfaceFixtures {
 }
 
 const REQUIRED_CONTINUATION_CASES = [
+  "home-continuation-reaches-later-context",
   "profile-continuation-reaches-later-context",
   "project-continuation-reaches-later-context",
 ];
@@ -149,7 +150,7 @@ export function loadGroupedHelperSurfaceFixtures(): GroupedHelperSurfaceFixtures
   const continuationCases = rawCases.map((value): ContinuationCase => {
     const name = value.name;
     checkFields(value, CONTINUATION_FIELDS, name);
-    if (value.route !== "profile" && value.route !== "project") {
+    if (value.route !== "home" && value.route !== "profile" && value.route !== "project") {
       fail(name, `stated an unknown route "${String(value.route)}"`);
     }
     if (!value.owner) fail(name, "is missing its owner");
@@ -158,7 +159,7 @@ export function loadGroupedHelperSurfaceFixtures(): GroupedHelperSurfaceFixtures
         fail(name, "states a project route without a 64-character hexadecimal project hash");
       }
     } else if (value.projectHash !== null) {
-      fail(name, "states the profile route with a project hash");
+      fail(name, "states a non-project route with a project hash");
     }
     for (const field of ["flatTranscripts", "pageSize", "firstPageOrdinary", "totalItems"] as const) {
       if (!Number.isInteger(value[field]) || value[field] < 1) {
