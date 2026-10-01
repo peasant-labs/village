@@ -14,12 +14,15 @@
 dataAccessCases:
   - name: a-members-only-collective-is-not-offered-public
     savedDataAccess: members_only
+    expectLabel: members only
     expectOptions: [members_only, contributors]
   - name: a-contributors-collective-is-not-offered-public
     savedDataAccess: contributors
+    expectLabel: members and contributors
     expectOptions: [members_only, contributors]
   - name: an-already-public-collective-keeps-its-value-and-label
     savedDataAccess: public
+    expectLabel: anyone (public)
     expectOptions: [members_only, contributors, public]
 
 # The transcript page, mounted through the real route for a signed-in viewer

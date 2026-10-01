@@ -2,6 +2,8 @@ import { Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
+import { AuthProvider } from "@/providers/AuthProvider";
+import GroupSettingsPage from "@/app/groups/[id]/settings/page";
 import PullRequestPage from "@/app/pulls/[owner]/[name]/[number]/page";
 import type { PromptDigest, VillagePullRequestAttachmentResponse } from "@peasant-labs/schema";
 
@@ -37,6 +39,10 @@ function QueryOnly({ children }: { children: ReactNode }) {
       <Suspense fallback={<div>loading</div>}>{children}</Suspense>
     </QueryClientProvider>
   );
+}
+
+function WithAuth({ children }: { children: ReactNode }) {
+  return <QueryOnly><AuthProvider>{children}</AuthProvider></QueryOnly>;
 }
 
 // ---------------------------------------------------------------------------
@@ -267,7 +273,7 @@ export function installGroupSettingsREST(fixture: GroupSettingsFixture): Recorde
     is_discoverable: true,
     created_at: "2026-01-01T00:00:00Z",
   };
-  const group = {
+  let group = {
     id: fixture.id,
     name: "fixture-collective",
     description: "",
@@ -299,7 +305,8 @@ export function installGroupSettingsREST(fixture: GroupSettingsFixture): Recorde
       return json([]);
     }
     if (method === "PATCH" && /\/groups\/[^/]+$/.test(url)) {
-      return json({ ...group, ...(body as object) });
+      group = { ...group, ...(body as object) };
+      return json(group);
     }
     if (url.includes("/groups/")) {
       return json({

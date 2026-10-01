@@ -36,24 +36,22 @@ describe("collective settings: the public data-access option", () => {
       });
       await renderGroupSettingsRoute(GROUP_ID);
 
-      const select = (await screen.findByLabelText("data access")) as HTMLSelectElement;
+      const select = (await screen.findByRole("combobox", { name: "who can read" })) as HTMLSelectElement;
       expect(Array.from(select.options).map((o) => o.value)).toEqual(c.expectOptions);
       // The collective's own value is shown, with its own label: a select with
       // no option for its value would silently display another one.
       expect(select.value).toBe(c.savedDataAccess);
       expect(select.selectedOptions[0]?.value).toBe(c.savedDataAccess);
-      expect(select.selectedOptions[0]?.textContent?.startsWith(c.savedDataAccess.replace("_", " "))).toBe(
-        true,
-      );
+      expect(select.selectedOptions[0]?.textContent).toBe(c.expectLabel);
 
-      // Saving without touching the control keeps the value it had.
-      fireEvent.click(screen.getByRole("button", { name: "Save" }));
-      await waitFor(() => {
-        expect(requests.some((r) => r.method === "PATCH")).toBe(true);
-      });
-      expect(requests.find((r) => r.method === "PATCH")?.body).toMatchObject({
-        data_access: c.savedDataAccess,
-      });
+      // Canonical settings commit one field at a time. An unrelated real write
+      // preserves the saved read policy, including a retained public value.
+      fireEvent.click(screen.getByRole("switch", { name: "show transcripts on pull requests" }));
+      await waitFor(() => expect(requests.some((r) => r.method === "PATCH")).toBe(true));
+      expect(requests.find((r) => r.method === "PATCH")?.body).toEqual({ post_prompts_check: false });
+      await waitFor(() => expect(screen.getByRole("switch", { name: "show transcripts on pull requests" })).toHaveAttribute("aria-checked", "false"));
+      expect(select.value).toBe(c.savedDataAccess);
+      expect(select.selectedOptions[0]?.textContent).toBe(c.expectLabel);
     });
   }
 });
@@ -112,7 +110,7 @@ describe("transcript page: the attestation control", () => {
 
       // The header action row has drawn for a signed-in viewer: the collectives
       // holding the transcript are listed in it, which is where the control sat.
-      await screen.findByText("Acme Platform");
+      await screen.findByTestId("transcript-header-actions");
       await waitFor(() => {
         expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith("/auth/me"))).toBe(true);
       });

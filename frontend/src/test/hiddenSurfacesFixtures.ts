@@ -14,6 +14,7 @@ export type DataAccess = "members_only" | "contributors" | "public";
 export type DataAccessCase = {
   name: string;
   savedDataAccess: DataAccess;
+  expectLabel: string;
   expectOptions: DataAccess[];
 };
 
@@ -55,7 +56,8 @@ export function loadHiddenSurfacesFixtures(): HiddenSurfacesFixtures {
     "hidden-surfaces dataAccessCases",
   );
   for (const c of fixtures.dataAccessCases) {
-    assertExactKeys(c, ["name", "savedDataAccess", "expectOptions"], `data access case ${c.name}`);
+    assertExactKeys(c, ["name", "savedDataAccess", "expectLabel", "expectOptions"], `data access case ${c.name}`);
+    if (typeof c.expectLabel !== "string" || !c.expectLabel.trim()) throw new Error(`data access case ${c.name}: expected label required`);
     for (const v of [c.savedDataAccess, ...c.expectOptions]) {
       if (!dataAccessValues.includes(v)) {
         throw new Error(`data access case ${c.name}: ${v} is not a data-access value`);
