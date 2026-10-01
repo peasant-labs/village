@@ -43,9 +43,14 @@ export function useDeleteAccount() {
   });
 }
 
+// Both routes return a whole profile. Serialize their writes so an older
+// response cannot replace a newer value saved by the other profile control.
+const PROFILE_WRITE_SCOPE = { id: "account-profile" };
+
 export function useSetUsername() {
   const qc = useQueryClient();
   return useMutation({
+    scope: PROFILE_WRITE_SCOPE,
     mutationFn: (username: string) =>
       api<User>("/auth/me/username", {
         method: "PATCH",
@@ -60,6 +65,7 @@ export function useSetUsername() {
 export function useUpdateMySettings() {
   const qc = useQueryClient();
   return useMutation({
+    scope: PROFILE_WRITE_SCOPE,
     mutationFn: (body: { is_discoverable: boolean }) =>
       api<User>("/auth/me/settings", {
         method: "PATCH",
