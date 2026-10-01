@@ -101,9 +101,9 @@ export default function CollectiveRepos({
       <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
         <div className="flex items-center gap-2">
           <FolderGit2 className="size-3.5 text-ink-3" />
-          <span className="text-sm font-medium text-ink">repositories</span>
+          <span className="text-[var(--fs-body)] font-medium text-ink">repositories</span>
         </div>
-        <span className="text-xs font-mono text-ink-3 tabular-nums">
+        <span className="text-sm font-mono text-ink-3 tabular-nums">
           {repoGroups.length}
         </span>
       </div>
