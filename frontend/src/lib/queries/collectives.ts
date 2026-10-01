@@ -40,8 +40,18 @@ export function useMyCollectiveContributions(enabled: boolean) {
  * design, and callers must keep it that way.
  */
 export function useTranscriptCollectives(transcriptId: string) {
-  return useQuery({
-    queryKey: ["transcript-collectives", transcriptId],
+  return useQuery(transcriptCollectivesQueryOptions(transcriptId));
+}
+
+/**
+ * The one definition of the transcript-collectives read, shared by
+ * {@link useTranscriptCollectives} and by a page that reads several
+ * transcripts' collectives at once (`useQueries`), so both hit the same cache
+ * entry and keep the same empty-list semantics.
+ */
+export function transcriptCollectivesQueryOptions(transcriptId: string) {
+  return {
+    queryKey: ["transcript-collectives", transcriptId] as const,
     queryFn: async () => {
       const res = await api<{ collectives: TranscriptCollective[] }>(
         `/transcripts/${encodeURIComponent(transcriptId)}/collectives`,
@@ -49,7 +59,7 @@ export function useTranscriptCollectives(transcriptId: string) {
       return res.collectives ?? [];
     },
     enabled: !!transcriptId,
-  });
+  };
 }
 
 /**
