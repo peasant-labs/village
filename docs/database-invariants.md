@@ -886,9 +886,11 @@ authenticating. Both are custom Postgres parameters read via
   an approved contribution with an accepted collective member. A shared label
   alone and a pending membership are insufficient. Grant-query failures stop
   posting rather than producing optimistic success.
-- Approval, batch approval, rejection, contribution removal and member departure
+- Approval, batch approval, rejection, contribution removal, member departure,
+  accepted member addition, open joining and pending-member acceptance
   refresh affected attached checks even when transcript visibility is unchanged.
-  Each refresh re-reads lifecycle state under the attachment lock.
+  Each refresh re-reads lifecycle state under the attachment lock. A batch uses
+  one detached completion deadline and deduplicates affected attachments.
 - An author's unbound preview still requires a live owned transcript. Bound
   titles, start times and prompt text follow the canonical transcript read grant.
 - Transcript deletion locks affected attachment rows and prunes their derived

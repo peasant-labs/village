@@ -351,21 +351,34 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 // owner's update must not fail because GitHub was unreachable; the next refresh
 // retries, exactly as the publish path assumes.
 func (h *Handler) refreshAttachmentsForTranscriptVisibility(ctx context.Context, transcriptID pgtype.UUID) error {
-	// Detached before the first read, not after it: a caller whose client hung
-	// up still owes the pull request its repost.
-	hookCtx, cancel := attachmentWorkContext(ctx)
+	return h.refreshAttachmentsForTranscripts(ctx, []pgtype.UUID{transcriptID})
+}
+
+// One completion budget covers the whole batch, including its database reads.
+// An attachment binding several affected transcripts is refreshed just once.
+func (h *Handler) refreshAttachmentsForTranscripts(ctx context.Context, transcriptIDs []pgtype.UUID) error {
+	ctx, cancel := attachmentWorkContext(ctx)
 	defer cancel()
-	ctx = hookCtx
-
-	attachments, err := h.queries.ListAttachmentsBindingTranscript(ctx, transcriptID)
-	if err != nil {
-		return fmt.Errorf("could not read the attachments binding a transcript whose visibility changed: %w", err)
+	var attachments []sqlc.PullRequestAttachment
+	var failures []error
+	seen := map[pgtype.UUID]bool{}
+	for _, id := range transcriptIDs {
+		rows, err := h.queries.ListAttachmentsBindingTranscript(ctx, id)
+		if err != nil {
+			failures = append(failures, fmt.Errorf("could not read affected prompt attachments: %w", err))
+			continue
+		}
+		for _, row := range rows {
+			if !seen[row.ID] {
+				seen[row.ID] = true
+				attachments = append(attachments, row)
+			}
+		}
 	}
-	if len(attachments) == 0 {
-		return nil
+	if err := h.refreshKnownAttachments(ctx, attachments); err != nil {
+		failures = append(failures, err)
 	}
-
-	return h.refreshKnownAttachments(ctx, attachments)
+	return errors.Join(failures...)
 }
 
 // refreshKnownAttachments takes an attachment snapshot from before a grant or
