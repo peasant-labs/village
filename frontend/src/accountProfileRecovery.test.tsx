@@ -1,5 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { loadAccountSettingsFixtures } from "@/test/accountSettingsFixtures";
 import { loadAccountProfileRecoveryFixtures } from "@/test/accountProfileRecoveryFixtures";
 import { installSettingsRouteREST, installSettingsRouteTeardown, renderSettingsRoute, renderHeader } from "@/test/mountedSettingsRoute";
@@ -112,5 +112,25 @@ it(fixtures.headerPending.name, async () => {
     backend.releaseLogout();
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(fixtures.headerLogout.error);
     expect(within(dialog).getByRole("button", { name: "try again" })).toBeInTheDocument();
+  } finally { backend.releaseLogout(); }
+});
+
+it(fixtures.headerRapid.name, async () => {
+  const backend = installSettingsRouteREST(base, undefined, { failLogout: true, deferLogout: true });
+  const frames: FrameRequestCallback[] = [];
+  try {
+    await renderHeader();
+    const account = await screen.findByRole("button", { name: "account menu for @alice-dev" });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });
+    fireEvent.click(account);
+    fireEvent.click(screen.getByRole("menuitem", { name: "sign out" }));
+    fireEvent.click(account);
+    const repeated = screen.getByRole("menuitem", { name: "sign out" });
+    expect(repeated).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(repeated);
+    await act(async () => { while (frames.length) frames.shift()!(0); });
+    await waitFor(() => expect(backend.writes).toEqual(["POST /auth/logout"]));
+    backend.releaseLogout();
+    expect(await screen.findByRole("alert")).toHaveTextContent(fixtures.headerLogout.error);
   } finally { backend.releaseLogout(); }
 });

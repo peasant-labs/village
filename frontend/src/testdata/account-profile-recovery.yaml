@@ -48,3 +48,5 @@ accountSwitchCases:
     nextDiscoverable: true
 headerPending:
   name: the-header-sign-out-prevents-repeat-writes-while-the-request-is-pending
+headerRapid:
+  name: rapid-header-sign-out-reselection-sends-one-request

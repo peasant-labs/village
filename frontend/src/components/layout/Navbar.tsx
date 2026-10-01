@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, LogOut, Moon, Sun, Settings, UserRound } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
@@ -21,13 +21,20 @@ function AccountMenu({ user }: { user: { github_username: string; avatar_url: st
   const router = useRouter();
   const logout = useLogout();
   const handle = user.github_username;
+  const logoutAdmission = useRef(false);
+  const [logoutQueued, setLogoutQueued] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   function beginLogout() {
+    if (logoutAdmission.current || logout.isPending) return;
+    logoutAdmission.current = true;
+    setLogoutQueued(true);
     // The menu returns focus when it closes. Open the modal after that frame
     // so its canonical focus trap remains the active interaction.
     requestAnimationFrame(() => requestAnimationFrame(() => {
       setLogoutOpen(true);
       logout.mutate();
+      setLogoutQueued(false);
+      logoutAdmission.current = false;
     }));
   }
 
@@ -58,7 +65,7 @@ function AccountMenu({ user }: { user: { github_username: string; avatar_url: st
         },
         { label: "settings", icon: Settings, onSelect: () => router.push("/settings") },
         { label: "", separator: true },
-        { label: "sign out", icon: LogOut, disabled: logout.isPending, onSelect: beginLogout },
+        { label: "sign out", icon: LogOut, disabled: logoutQueued || logout.isPending, onSelect: beginLogout },
       ]}
     />
     <Dialog
