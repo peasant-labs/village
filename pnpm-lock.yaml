@@ -11,8 +11,8 @@ importers:
   frontend:
     dependencies:
       '@peasant-labs/fairtrade':
-        specifier: 0.0.22
-        version: 0.0.22(@types/react@19.2.17)(@xyflow/react@12.11.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(immer@11.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@18.3.1)(react@19.2.3)(redux@5.0.1)(supports-color@7.2.0)
+        specifier: 0.0.23
+        version: 0.0.23(@types/react@19.2.17)(@xyflow/react@12.11.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(immer@11.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@18.3.1)(react@19.2.3)(redux@5.0.1)(supports-color@7.2.0)
       '@peasant-labs/schema':
         specifier: 0.25.0
         version: 0.25.0
@@ -597,8 +597,8 @@ packages:
   '@oxc-project/types@0.142.0':
     resolution: {integrity: sha512-7W+2q5AKQVU36fkaryontrHn3YDt1RyUYXatw9i5H8ocYe2sPKSFB6eS8WNPeRKiN1qAWWZUPm7gwFzJGrccqQ==}
 
-  '@peasant-labs/fairtrade@0.0.22':
-    resolution: {integrity: sha512-t0PuL6yZsDhvDLflD9CY4H4GusWMyNAf5Vks8l6VJuTkU8PVjoWpM4SlyE7vCiHnZJfhjpvdTT6zev/VYR8xFA==}
+  '@peasant-labs/fairtrade@0.0.23':
+    resolution: {integrity: sha512-EcAM91bPlz0OxubRJeWXIeIcAPnTsVTB524yX7WCm4ybdujKp8bhIXKAjIQVYyW1JONQ+VeErXLmAoUxJTLxNw==}
     engines: {node: '>=26'}
     peerDependencies:
       '@xyflow/react': ^12.0.0
@@ -3902,7 +3902,7 @@ snapshots:
 
   '@oxc-project/types@0.142.0': {}
 
-  '@peasant-labs/fairtrade@0.0.22(@types/react@19.2.17)(@xyflow/react@12.11.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(immer@11.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@18.3.1)(react@19.2.3)(redux@5.0.1)(supports-color@7.2.0)':
+  '@peasant-labs/fairtrade@0.0.23(@types/react@19.2.17)(@xyflow/react@12.11.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(immer@11.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@18.3.1)(react@19.2.3)(redux@5.0.1)(supports-color@7.2.0)':
     dependencies:
       '@peasant-labs/schema': 0.20.0
       '@tanstack/react-table': 8.21.3(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
