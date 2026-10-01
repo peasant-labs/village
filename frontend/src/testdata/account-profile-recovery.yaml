@@ -10,3 +10,41 @@ cases:
 logout:
   name: a-failed-sign-out-announces-the-error-and-offers-another-attempt
   error: the account service is unavailable
+headerLogout:
+  name: the-header-sign-out-announces-a-failed-request-and-can-retry
+  error: the account service is unavailable
+accountSwitchCases:
+  - name: a-queued-discoverability-save-cannot-write-under-a-new-account
+    first: handle
+    handle: alice-new
+    discoverable: false
+    nextAccountID: user-bob
+    changeCredential: true
+    nextHandle: bob-next
+    nextDiscoverable: true
+  - name: a-queued-handle-save-cannot-write-under-a-new-account
+    first: discoverable
+    handle: alice-new
+    discoverable: false
+    nextAccountID: user-bob
+    changeCredential: true
+    nextHandle: bob-next
+    nextDiscoverable: true
+  - name: a-changed-credential-blocks-a-queued-save-before-account-refresh
+    first: handle
+    handle: alice-new
+    discoverable: false
+    nextAccountID: user-alice
+    changeCredential: true
+    nextHandle: alice-current
+    nextDiscoverable: true
+  - name: a-changed-account-blocks-a-queued-save-with-the-same-credential
+    first: discoverable
+    handle: alice-new
+    discoverable: false
+    nextAccountID: user-bob
+    changeCredential: false
+    nextHandle: bob-next
+    nextDiscoverable: true
+headerPending:
+  name: the-header-sign-out-prevents-repeat-writes-while-the-request-is-pending
