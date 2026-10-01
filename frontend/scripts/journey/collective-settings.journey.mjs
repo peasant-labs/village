@@ -113,6 +113,13 @@ test.describe('collective settings', () => {
     const choice = dialog.getByRole('menuitem', { name: entry.handle })
     await expect(choice).toBeVisible()
     expect(searches).toEqual([entry.query])
+    const renderedHandle = await choice.locator('.menu-text').evaluate((element) => {
+      const style = getComputedStyle(element)
+      return { size: parseFloat(style.fontSize), transform: style.textTransform, text: element.textContent }
+    })
+    expect(renderedHandle.size).toBeGreaterThanOrEqual(14)
+    expect(renderedHandle.transform).toBe('none')
+    expect(renderedHandle.text).toBe(entry.handle)
     await page.evaluate(() => window.scrollTo(0, 0))
     await still(page, testInfo, 'settings-github-user-search')
     const axe = await scanAxe(page)
