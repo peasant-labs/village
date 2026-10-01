@@ -80,8 +80,10 @@ test.describe('collectives', () => {
 
     await page.getByRole('button', { name: 'more', exact: true }).click()
     await expect(page.getByRole('menuitem')).toHaveText(['publish several transcripts'])
+    await expect(page.getByRole('menuitem')).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('menu')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'more', exact: true })).toBeFocused()
 
     await still(page, testInfo, 'collective-owner')
     await record(page, testInfo, page.getByRole('main'), 'collective-owner')
@@ -110,6 +112,25 @@ test.describe('collectives', () => {
     await expect(library.getByRole('alert')).toHaveCount(0)
     await library.getByRole('button', { name: 'repos', exact: true }).click()
     await expect(library).toContainText('repositories')
+    const rowStyles = await library.locator('.group.relative').evaluateAll((rows) => rows.map((row) => {
+      const title = row.querySelector('span.font-medium')
+      const facts = title?.nextElementSibling
+      const handle = [...row.querySelectorAll('span')].find((span) => span.textContent === 'alice-dev' || span.textContent === 'bob-ai' || span.textContent === 'carol-ml')
+      const probe = (element) => element ? { text: element.textContent, fontSize: getComputedStyle(element).fontSize, fontFamily: getComputedStyle(element).fontFamily } : null
+      return { title: probe(title), facts: probe(facts), handle: probe(handle) }
+    }))
+    expect(rowStyles.length).toBeGreaterThan(0)
+    for (const row of rowStyles) {
+      expect(parseFloat(row.title.fontSize)).toBeGreaterThanOrEqual(16)
+      expect(parseFloat(row.facts.fontSize)).toBeGreaterThanOrEqual(14)
+      expect(row.facts.fontFamily.toLowerCase()).toContain('mono')
+      if (row.handle) {
+        expect(parseFloat(row.handle.fontSize)).toBeGreaterThanOrEqual(14)
+        expect(row.handle.fontFamily.toLowerCase()).toContain('mono')
+      }
+    }
+    writeFileSync(testInfo.outputPath('retained-row-computed-styles.json'), JSON.stringify(rowStyles, null, 2))
+    await testInfo.attach('retained-row-computed-styles.json', { path: testInfo.outputPath('retained-row-computed-styles.json'), contentType: 'application/json' })
     const repositoryLinks = library.getByRole('link', { name: 'open repository', exact: true })
     await expect(repositoryLinks).toHaveCount(2)
     expect(await repositoryLinks.evaluateAll((links) => links.every((link) => !link.closest('button, [role="button"]')))).toBe(true)
