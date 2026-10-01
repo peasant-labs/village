@@ -360,6 +360,15 @@ func TestPullRequestDetailCacheWindows(t *testing.T) {
 	if !remembered("refused", t0.Add(pullRequestDetailFailureTTL-time.Second)) || remembered("refused", t0.Add(pullRequestDetailFailureTTL)) {
 		t.Fatalf("a refusal must be remembered for exactly %s", pullRequestDetailFailureTTL)
 	}
+	// peek, which a list answers remembered pull requests with, honours the
+	// same window: an expired answer is not served, so a list asks again.
+	settle("peeked", pullRequestDetailEntry{title: "t"}, pullRequestDetailTTL)
+	if _, ok := cache.peek("peeked", t0.Add(pullRequestDetailTTL-time.Second)); !ok {
+		t.Fatal("peek missed an answer still inside its window")
+	}
+	if _, ok := cache.peek("peeked", t0.Add(pullRequestDetailTTL)); ok {
+		t.Fatalf("peek served an answer at the end of its %s window", pullRequestDetailTTL)
+	}
 
 	var full pullRequestDetailCache
 	for i := 0; i < pullRequestDetailMaxEntries; i++ {

@@ -798,7 +798,7 @@ along the same line:
   vanishes fails. The helper-member expansion's summaries are asserted in
   `collective_grouped_integration_test.go`.
 - `pull-request-read-failures.yaml` makes exactly one read fail on each of the
-  list, collective, transcript, stats, and picker surfaces (the rest are real)
+  list, flat and grouped collective, transcript, stats, and picker surfaces (the rest are real)
   and requires a 500 naming it, so no surface serves a failed read as zero pull
   requests; the helper-member expansion's failure case is in
   `collective_grouped_integration_test.go`.
@@ -808,6 +808,12 @@ along the same line:
   a read one caller started still answers the next caller, each outcome is
   remembered for its window at explicit instants, the table stays bounded, and
   the shipped bounds themselves are pinned.
+- `router/transcript_pulls_route_integration_test.go` drives the production
+  router: a signed-in owner reads their private transcript's pull requests (200)
+  and a caller with no session gets 404, which the anonymous rows in
+  `router/testdata/attachment_route_auth.yaml` cannot tell from a route that
+  ignores the session. The list summaries cases also require `[]` tags on
+  untagged rows.
 - `repo-publishers.yaml` pins `publisher_count`: distinct owners of transcripts
   with an APPROVED share to the collective whose remote `schema.RemoteLabel`
   reads as that github.com repository. An unshared transcript, a submission
