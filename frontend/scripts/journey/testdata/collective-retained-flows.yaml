@@ -11,3 +11,12 @@ contributions:
     parentSessionID: review-parent
     title: Follow up on the private review
     status: approved
+
+grouped:
+  pageSize: 100
+  totalItems: 101
+  groupID: hg_retained_later_helpers
+  memberScope: scope-retained-later-helpers
+  purpose: helper_review
+  memberID: 6aeefaaa-0000-4000-8000-000000000003
+  title: Saved helper on the later page

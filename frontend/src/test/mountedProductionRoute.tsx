@@ -200,12 +200,12 @@ export function installRESTFixture(
 export async function renderProductionRoute(
   transcriptID: string,
   search = "",
-  options: { signedIn?: boolean } = {},
-): Promise<void> {
+  options: { signedIn?: boolean; client?: QueryClient } = {},
+): Promise<QueryClient> {
   if (typeof window !== "undefined") {
     window.history.replaceState({}, "", `/transcripts/${transcriptID}${search}`);
   }
-  const client = new QueryClient({
+  const client = options.client ?? new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const route = (
@@ -222,6 +222,7 @@ export async function renderProductionRoute(
       </QueryClientProvider>,
     );
   });
+  return client;
 }
 
 /** Registers the shared teardown (call once at module scope in each mounted-route test file):

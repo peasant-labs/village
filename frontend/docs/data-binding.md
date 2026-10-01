@@ -453,3 +453,21 @@ canonical dialog and offers another attempt. Its pending dialog and immediate
 admission guard prevent repeated requests, including reselecting the menu
 before the focus handoff frames finish. Named mounted fixtures cover failure,
 pending feedback, and rapid reselection through the production header.
+
+## Account changes while managing transcript access
+
+The owner's mounted access dialog scopes membership, contribution-summary and
+own-share reads by the current account and an ephemeral credential generation.
+It reuses the collective read boundary's immutable account/credential checks
+before dispatch and after decoding. Raw credentials are never query keys.
+Existing mutation prefixes still invalidate these scoped reads.
+
+The named `manage-access-account.yaml` fixtures keep the real QueryClient while
+moving from one actual transcript route to another, then hold the current
+account's HTTP reads. Neither changing the account nor replacing its credentials
+may expose the earlier private collective through suggestions or pending rows.
+Removing the scopes fails both cases at the user-visible collective name. A pure
+unit cannot observe React Query's cached-data reuse in the mounted owner dialog;
+this adds no service, process or screenshot scan. Each fixture releases its held
+response, unmounts the route and clears its test cookie and fetch stub. This test
+can be simplified if authenticated reads acquire a shared enforced cache scope.

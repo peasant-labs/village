@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import type { VillageUserGroupShare } from "@peasant-labs/schema";
-import { api } from "@/lib/api";
 import ConfirmContributeDialog from "./ConfirmContributeDialog";
 import { AccessList, CollectivePicker, Dialog } from "@/lib/ft-ui";
-import { useMyCollectiveContributions, useTranscriptCollectives } from "@/lib/queries/collectives";
-import { useGroups } from "@/lib/queries/groups";
+import { useTranscriptCollectives } from "@/lib/queries/collectives";
+import { useCollectiveReadBinding } from "@/lib/queries/groups";
+import type { ContributedCollective, Group } from "@/lib/types";
 import { useShareTranscript, useTranscript, useUnshareTranscript } from "@/lib/queries/transcripts";
 
 type AccessItem = ComponentProps<typeof AccessList>["items"][number];
@@ -44,14 +44,23 @@ interface ManageAccessDialogProps {
 export default function ManageAccessDialog({ open, onClose, transcriptId }: ManageAccessDialogProps) {
   const collectives = useTranscriptCollectives(transcriptId);
   const transcript = useTranscript(transcriptId);
-  const groups = useGroups();
-  const contributions = useMyCollectiveContributions(open);
+  const { viewer, version, isLoading, read } = useCollectiveReadBinding();
+  const groups = useQuery({
+    queryKey: ["groups", "manage-access", viewer, version],
+    queryFn: ({ signal }) => read<Group[]>("/groups", signal),
+    enabled: open && !isLoading,
+  });
+  const contributions = useQuery({
+    queryKey: ["my-collective-contributions", "manage-access", viewer, version],
+    queryFn: async ({ signal }) => (await read<{ collectives: ContributedCollective[] }>("/users/me/collectives/contributions", signal)).collectives ?? [],
+    enabled: open && !isLoading,
+  });
   const liveGroups = (contributions.data ?? []).filter((g) => g.approved_count > 0 || g.pending_count > 0);
   const submissions = useQueries({
     queries: liveGroups.map((group) => ({
-      queryKey: ["group-my-shares", group.id],
-      queryFn: () => api<VillageUserGroupShare[]>(`/groups/${encodeURIComponent(group.id)}/my-shares`),
-      enabled: open,
+      queryKey: ["group-my-shares", group.id, "manage-access", viewer, version],
+      queryFn: ({ signal }: { signal: AbortSignal }) => read<VillageUserGroupShare[]>(`/groups/${encodeURIComponent(group.id)}/my-shares`, signal),
+      enabled: open && !isLoading,
     })),
   });
   const share = useShareTranscript();

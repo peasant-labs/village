@@ -30,7 +30,7 @@ import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
 import { handleProjectRequest } from './lib/project-fixtures.mjs'
 import { handlePullRequestRequest } from './lib/pull-request-fixtures.mjs'
 import { handleCollectiveRequest, resetCollectiveWorld } from './lib/collective-fixtures.mjs'
-import { handleHomeRequest } from './lib/home-fixtures.mjs' 
+import { handleHomeRequest } from './lib/home-fixtures.mjs'
 import {
   OWNED_TRANSCRIPT,
   handleOwnedTranscriptRequest,
@@ -153,6 +153,10 @@ const server = createServer(async (req, res) => {
   }
   if (handleOwnedTranscriptRequest(req, res, { ownerGroups: scenario === 'transcript-owner' })) return
 
+  // Retained contribution withdrawals belong to the collective fixture,
+  // before the generic transcript proxy claims that route.
+  if (handleCollectiveRequest(req, res)) return
+
   // Transcript detail and its subroutes go to the transcript mock; the list
   // (`/transcripts`, exact) stays with the explore half.
   if (path.startsWith('/transcripts/')) return proxyToTranscript(req, res)
@@ -160,10 +164,6 @@ const server = createServer(async (req, res) => {
   // The project fixture owns the project route and its own project-scoped
   // grouped helper read; it declines the plain browse list.
   if (handleProjectRequest(req, res)) return
-
-  // The collectives list, a collective, its settings and its repositories. A
-  // search that matches none of them falls through to the explore half.
-  if (handleCollectiveRequest(req, res)) return
 
   if (handleExploreRequest(req, res)) return
   return send(res, 404, { error: `no mock route for ${req.method} ${url.pathname}` })
