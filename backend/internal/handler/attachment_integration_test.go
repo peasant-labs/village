@@ -70,6 +70,7 @@ type attachmentGitHubFake struct {
 	commentDeletes      int
 	lastCheckText       string
 	lastCheckConclusion string
+	lastCheckDetailsURL string
 	lastCommentBody     string
 	// beforeCommentWrite, when set, runs once as the next comment create or edit
 	// arrives, before the fake answers it, so a test can act in the middle of a
@@ -135,6 +136,7 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			var payload struct {
 				HeadSHA    string `json:"head_sha"`
 				Conclusion string `json:"conclusion"`
+				DetailsURL string `json:"details_url"`
 				Output     struct {
 					Summary string `json:"summary"`
 				} `json:"output"`
@@ -152,6 +154,9 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			}
 			if payload.Conclusion != "" {
 				fake.lastCheckConclusion = payload.Conclusion
+			}
+			if payload.DetailsURL != "" {
+				fake.lastCheckDetailsURL = payload.DetailsURL
 			}
 			fake.mu.Unlock()
 			w.WriteHeader(http.StatusOK)
@@ -570,8 +575,8 @@ func TestConfirmBindsWithoutChangingTheAudience_RealPostgres(t *testing.T) {
 	if strings.Contains(body, "please attach my prompts") {
 		t.Errorf("the comment carries a private transcript's prompt: %s", body)
 	}
-	if !strings.Contains(body, "1 attached transcript is not listed here.") {
-		t.Errorf("the comment must say an attached transcript is not listed: %s", body)
+	if !strings.Contains(body, unlistedRow) {
+		t.Errorf("the comment must send readers to village for a transcript it does not list: %s", body)
 	}
 	if conclusion != "neutral" {
 		t.Errorf("conclusion = %q, want neutral: nobody besides its author can read what is attached", conclusion)

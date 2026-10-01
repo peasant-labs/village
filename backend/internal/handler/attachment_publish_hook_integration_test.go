@@ -205,6 +205,9 @@ func TestPublishedAcceptedSessionRefreshesAnAttachedAttachment(t *testing.T) {
 		t.Fatalf("state = %q before the publish, want attached", attached.State)
 	}
 	before := attached.Digest
+	fake.mu.Lock()
+	editsBefore := fake.commentEdits
+	fake.mu.Unlock()
 
 	// A later publish on the same repository whose commit IS in the pull request
 	// is accepted and extends the digest.
@@ -245,10 +248,10 @@ func TestPublishedAcceptedSessionRefreshesAnAttachedAttachment(t *testing.T) {
 		t.Fatalf("bindings = %d, want the two seeded transcripts and the published one", bindings)
 	}
 	fake.mu.Lock()
-	edits := fake.commentEdits
+	edits, creates := fake.commentEdits-editsBefore, fake.commentCreates
 	fake.mu.Unlock()
-	if edits != 1 {
-		t.Fatalf("comment edits = %d, want 1 (edited in place, not reposted)", edits)
+	if edits != 1 || creates != 1 {
+		t.Fatalf("the publish made %d comment edits over %d comments, want 1 edit of the one comment (edited in place, not reposted)", edits, creates)
 	}
 }
 
@@ -444,6 +447,13 @@ func TestPublishedTranscriptDoesNotAnswerForAPendingPreview(t *testing.T) {
 	if before.State != "preview" {
 		t.Fatalf("state = %q after the click, want preview", before.State)
 	}
+	// The click posted the preview comment, and only that.
+	fake.mu.Lock()
+	previewCreates, previewEdits, previewBody := fake.commentCreates, fake.commentEdits, fake.lastCommentBody
+	fake.mu.Unlock()
+	if previewCreates != 1 || previewEdits != 0 {
+		t.Fatalf("the click made %d comments and %d edits, want the one preview comment", previewCreates, previewEdits)
+	}
 
 	code, body := attachmentPublish(t, h, owner, "attachment-owner", "git@github.com:acme/"+repoName+".git", sha)
 	if code != http.StatusCreated {
@@ -458,9 +468,9 @@ func TestPublishedTranscriptDoesNotAnswerForAPendingPreview(t *testing.T) {
 		t.Fatalf("state = %q after a publish, want preview: the author has been asked and has not answered, so a publish must not answer for them", after.State)
 	}
 	fake.mu.Lock()
-	comments := fake.commentCreates
+	comments, edits, checks, last := fake.commentCreates, fake.commentEdits, fake.checkCreates, fake.lastCommentBody
 	fake.mu.Unlock()
-	if comments != 0 {
-		t.Fatalf("comment creates = %d after a publish over a pending preview, want 0: nothing is posted before the author confirms", comments)
+	if comments != previewCreates || edits != previewEdits || checks != 0 || last != previewBody {
+		t.Fatalf("a publish over a pending preview made comments %d->%d, edits %d->%d, checks %d, want nothing new: nothing but the preview is posted before the author confirms", previewCreates, comments, previewEdits, edits, checks)
 	}
 }

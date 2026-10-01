@@ -343,8 +343,8 @@ func TestLegacyDetachRepostsAnotherPullRequestThatListedIt_RealPostgres(t *testi
 	if strings.Contains(w.fake.lastCommentBody, "please attach my prompts") {
 		t.Errorf("the other pull request still lists a transcript the detach made private: %s", w.fake.lastCommentBody)
 	}
-	if !strings.Contains(w.fake.lastCommentBody, "1 attached transcript is not listed here.") {
-		t.Errorf("the other pull request must say a transcript is not listed: %s", w.fake.lastCommentBody)
+	if !strings.Contains(w.fake.lastCommentBody, unlistedRow) {
+		t.Errorf("the other pull request must send readers to village for a transcript it no longer lists: %s", w.fake.lastCommentBody)
 	}
 }
 

@@ -74,7 +74,8 @@ func pullRequestEvent(repoName string, number int, authorID int64, headSHA strin
 
 // TestIssueCommentFromAuthorPreviews_RealPostgres is the command path end to
 // end: the author comments `/peasant attach` and the accepted transcript is
-// previewed — nothing bound, nothing posted — until the author confirms.
+// previewed — nothing bound, no check, and one comment that counts the matching
+// transcripts and names none — until the author confirms.
 func TestIssueCommentFromAuthorPreviews_RealPostgres(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
@@ -112,10 +113,20 @@ func TestIssueCommentFromAuthorPreviews_RealPostgres(t *testing.T) {
 		t.Fatalf("visibility = %q before the author confirmed, want private: a preview changes nothing about who can read it", visibility)
 	}
 	fake.mu.Lock()
-	comments, checks := fake.commentCreates, fake.checkCreates
+	comments, checks, body := fake.commentCreates, fake.checkCreates, fake.lastCommentBody
 	fake.mu.Unlock()
-	if comments != 0 || checks != 0 {
-		t.Fatalf("comment creates = %d and check creates = %d before the author confirmed, want none: nothing is posted until they do", comments, checks)
+	if comments != 1 || checks != 0 {
+		t.Fatalf("comment creates = %d and check creates = %d before the author confirmed, want the one preview comment and no check", comments, checks)
+	}
+	want := "1 of your transcripts matches this pull request: [review and attach them on village](https://village.example/pulls/acme/" + repoName + "/21)."
+	if !strings.Contains(body, want) {
+		t.Fatalf("the preview comment = %q, want it to count the match and link the pull request's page: %q", body, want)
+	}
+	if strings.Contains(body, "please attach my prompts") || strings.Contains(body, "transcripts/") {
+		t.Fatalf("the preview comment names a transcript or carries a prompt: %s", body)
+	}
+	if !attachment.CommentID.Valid {
+		t.Fatal("the preview comment's id was not recorded, so the attach could not edit it in place")
 	}
 }
 
@@ -285,10 +296,13 @@ func TestPullRequestPushRefreshesAnAttachedAttachment(t *testing.T) {
 	}
 	fake.mu.Lock()
 	edits, updates, creates := fake.commentEdits, fake.checkUpdates, fake.checkCreates
+	commentCreates := fake.commentCreates
 	createdSHAs := append([]string(nil), fake.checkCreateSHAs...)
 	fake.mu.Unlock()
-	if edits != 1 {
-		t.Fatalf("comment edits = %d, want the one sticky comment edited in place", edits)
+	// One comment, posted by the preview and edited in place by the confirm and
+	// again by the push.
+	if commentCreates != 1 || edits != 2 {
+		t.Fatalf("comment creates = %d and edits = %d, want the one sticky comment edited in place", commentCreates, edits)
 	}
 	// A check run's head SHA is fixed at creation, so the new head needs a NEW
 	// run: an update would leave the new commit with no check at all.

@@ -39,6 +39,8 @@ var requiredActionCaseNames = []string{"detach", "refresh"}
 
 var requiredValidationCaseNames = []string{
 	"a-complete-create-request-is-accepted",
+	"a-details-url-on-the-pull-request-page-is-accepted",
+	"a-details-url-must-be-absolute",
 	"action-description-is-required",
 	"action-description-must-fit-the-limit",
 	"action-identifier-must-fit-the-limit",
@@ -269,6 +271,7 @@ func TestCreateCheckRun_PostsTheCompletedRun(t *testing.T) {
 		Conclusion: CheckConclusionSuccess,
 		Title:      "3 prompts attached",
 		Summary:    "3 sessions, 5 commits.",
+		DetailsURL: "https://village.example/pulls/acme/repo/7",
 		Actions:    PromptCheckActions(),
 	})
 	if err != nil {
@@ -291,6 +294,10 @@ func TestCreateCheckRun_PostsTheCompletedRun(t *testing.T) {
 	}
 	if payload["head_sha"] != "abc1234" || payload["status"] != "completed" || payload["conclusion"] != CheckConclusionSuccess {
 		t.Errorf("run payload = %v, want the head sha, completed status, and success conclusion", payload)
+	}
+	// GitHub's "details" link opens the pull request's page on village.
+	if payload["details_url"] != "https://village.example/pulls/acme/repo/7" {
+		t.Errorf("details_url = %v, want the pull request's page on village", payload["details_url"])
 	}
 	actions, ok := payload["actions"].([]any)
 	// The menu an attachment posts carries no attach action: a check run exists

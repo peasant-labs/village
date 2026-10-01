@@ -27,10 +27,11 @@ const (
 	// yet. The request completes on a later matching publish, with no second click.
 	Waiting State = "waiting"
 
-	// Preview: the digest is computed, but nothing is bound or posted. Every
-	// author click lands here; a confirm on Village moves it to Attached. Only
-	// the author's own publish, or their choice to link automatically when a pull
-	// request opens, completes a request without one.
+	// Preview: the digest is computed and nothing is bound. The pull request
+	// carries only a comment counting the author's matching transcripts, naming
+	// none of them. Every author click lands here; a confirm on Village moves it
+	// to Attached. Only the author's own publish, or their choice to link
+	// automatically when a pull request opens, completes a request without one.
 	Preview State = "preview"
 
 	// Attached: the transcripts are bound, the comment is posted, and the check

@@ -39,7 +39,10 @@ func attachmentDigestOf(t *testing.T, ctx context.Context, h *Handler, attachmen
 
 const (
 	attachedPrompt = "please attach my prompts"
-	unlistedNote   = "1 attached transcript is not listed here."
+	// unlistedRow is the table cell the comment and the check show for a
+	// transcript they do not list: it links the pull request's page on village,
+	// where the transcript's own readers can open it.
+	unlistedRow = "[read on village][pr]"
 )
 
 // postedState is what the fake GitHub last received.
@@ -62,11 +65,14 @@ func (p postedState) assertListed(t *testing.T, listed bool, conclusion string) 
 		if got := strings.Contains(text, attachedPrompt); got != listed {
 			t.Errorf("the %s carries the prompt = %t, want %t: %s", surface, got, listed, text)
 		}
-		if got := strings.Contains(text, unlistedNote); got == listed {
-			t.Errorf("the %s says a transcript is not listed = %t, want %t: %s", surface, got, !listed, text)
+		if got := strings.Contains(text, unlistedRow); got == listed {
+			t.Errorf("the %s sends readers to village for the transcript = %t, want %t: %s", surface, got, !listed, text)
 		}
-		if strings.Contains(text, "author") {
-			t.Errorf("the %s attributes the change to someone: %s", surface, text)
+		// The rows say whose transcript it is, never what changed about it.
+		for _, word := range []string{"visibility", "private", "narrow", "changed"} {
+			if strings.Contains(text, word) {
+				t.Errorf("the %s describes the change (%q): %s", surface, word, text)
+			}
 		}
 	}
 	if p.conclusion != conclusion {
@@ -461,8 +467,8 @@ func TestCheckFollowsWhetherAnyReviewerCanRead_RealPostgres(t *testing.T) {
 	if posted.conclusion != "success" {
 		t.Fatalf("conclusion = %q with shared prompts attached, want success", posted.conclusion)
 	}
-	if !strings.Contains(posted.check, "2 attached transcripts are not listed here.") {
-		t.Errorf("the check must count the attached transcripts it does not list; summary=%s", posted.check)
+	if rows := strings.Count(posted.check, unlistedRow); rows != 2 {
+		t.Errorf("the check has %d rows sending readers to village, want one for each attached transcript it does not list; summary=%s", rows, posted.check)
 	}
 
 	if rec := transcriptVisibilityPatch(t, h, authorAuth, first, "private"); rec.Code != http.StatusOK {
@@ -480,11 +486,11 @@ func TestCheckFollowsWhetherAnyReviewerCanRead_RealPostgres(t *testing.T) {
 		t.Fatalf("conclusion = %q with only the author able to read what is attached, want neutral: a required check reporting success tells a reviewer the opposite of what they can read", posted.conclusion)
 	}
 	for surface, text := range map[string]string{"comment": posted.comment, "check": posted.check} {
-		if !strings.Contains(text, "2 attached transcripts are not listed here.") {
-			t.Errorf("the %s must count the attached transcripts it does not list; %s", surface, text)
+		if rows := strings.Count(text, unlistedRow); rows != 2 {
+			t.Errorf("the %s has %d rows sending readers to village, want one for each attached transcript it does not list; %s", surface, rows, text)
 		}
-		if strings.Contains(text, "0 sessions") {
-			t.Errorf("the %s rendered a header with no rows under it, which reads as a rendering fault rather than a state; %s", surface, text)
+		if !strings.Contains(text, "**peasant / prompts · 2 transcripts trace 1 of 1 commits**") {
+			t.Errorf("the %s must still count both attached transcripts and the commit they trace; %s", surface, text)
 		}
 	}
 }
