@@ -140,4 +140,39 @@ test.describe('sign-in', () => {
     await page.keyboard.press('ArrowDown')
     await expect(menu.getByRole('menuitem').first()).toBeFocused()
   })
+  test('header sign-out announces pending and failed requests with retry', async ({ page, theme }, testInfo) => {
+    let posts = 0
+    let pendingRoute
+    await page.route(/\/api\/v1\/auth\/logout$/, async (route) => {
+      posts += 1
+      pendingRoute = route
+    })
+    await page.goto('/')
+    await expectTheme(page, theme)
+    await page.getByRole('button', { name: 'account menu for @alice-dev' }).click()
+    await page.getByRole('menuitem', { name: 'sign out' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText('waiting for the sign-out request.')).toBeVisible()
+    await expect.poll(() => posts).toBe(1)
+    await expect(dialog.getByRole('button', { name: 'close dialog' })).toBeDisabled()
+    await page.evaluate(() => window.scrollTo(0, 0))
+    const pending = testInfo.outputPath(`header-sign-out-pending-${theme}.png`)
+    await page.screenshot({ path: pending, fullPage: false })
+    await testInfo.attach('header-sign-out-pending', { path: pending, contentType: 'image/png' })
+    await pendingRoute.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'sign-out service unavailable' }) })
+    await expect(dialog.getByRole('alert')).toContainText('sign-out service unavailable')
+    await expect(dialog.getByRole('button', { name: 'try again' })).toBeEnabled()
+    const failed = testInfo.outputPath(`header-sign-out-failed-${theme}.png`)
+    await page.screenshot({ path: failed, fullPage: false })
+    await testInfo.attach('header-sign-out-failed', { path: failed, contentType: 'image/png' })
+    await expect(page.getByRole('button', { name: 'account menu for @alice-dev', includeHidden: true })).toBeVisible()
+    const axe = await scanAxe(page)
+    await attachJSON(testInfo, 'header-sign-out-axe.json', axe)
+    expect(seriousViolations(axe)).toEqual([])
+    await dialog.getByRole('button', { name: 'try again' }).click()
+    await expect.poll(() => posts).toBe(2)
+    await pendingRoute.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'sign-out service unavailable' }) })
+    await expect(dialog.getByRole('alert')).toContainText('sign-out service unavailable')
+  })
+
 })
