@@ -82,3 +82,10 @@ The dispatch case changes credentials synchronously after confirmation, proving
 the mutation function rechecks the binding even when React Query defers it.
 The existing in-memory route harness supplies these observations without new
 processes or lifetime resources.
+
+The three flat collective reads also bind the viewer and credential before
+dispatch and before accepting the response. A monotonic in-memory credential
+generation sits below the viewer in their cache keys, so returning credentials
+start a fresh scope. Two mounted refetch fixtures observe rejected dispatch and
+discarded late data, including recovery back to the original credential. Both
+guard-removal mutations fail at their named HTTP/cache assertions.

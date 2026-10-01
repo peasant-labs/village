@@ -1,0 +1,7 @@
+cases:
+  - name: collective-refetch-refuses-changed-credentials-before-dispatch
+    why: An existing viewer query must not dispatch with a replacement credential and cache its private response under the earlier viewer.
+    timing: before-dispatch
+  - name: collective-refetch-discards-a-response-after-credentials-change
+    why: An old response must not replace the earlier credential's cache after its request loses its binding.
+    timing: after-dispatch

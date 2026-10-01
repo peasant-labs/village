@@ -4,6 +4,30 @@ import { api, getAuthHeaders } from "../api";
 import { useAuth } from "@/providers/AuthProvider";
 import type { Group, VisibleGroup, GroupMember, GroupContributor, GroupTranscript, GroupTranscriptStats, GroupModelBreakdown, CollectiveSearchResponse, UserGroupShare, User } from "../types";
 
+// Credential changes get a new ephemeral cache scope. Raw credentials remain
+// in memory only and never become a query key or persisted cache entry.
+let observedAuthorization: string | undefined;
+let credentialVersion = 0;
+function useCollectiveReadBinding() {
+  const { user, isLoading } = useAuth();
+  const client = useQueryClient();
+  const authorization: string | undefined = getAuthHeaders().Authorization;
+  if (authorization !== observedAuthorization) {
+    observedAuthorization = authorization;
+    credentialVersion += 1;
+  }
+  const version = credentialVersion;
+  const viewer = user?.id ?? "anonymous";
+  const current = () => (client.getQueryData<User>(["me"])?.id ?? "anonymous") === viewer && getAuthHeaders().Authorization === authorization;
+  async function read<T>(path: string, signal?: AbortSignal): Promise<T> {
+    if (!current()) throw new Error("the signed-in account changed before reading the collective; try again");
+    const result = await api<T>(path, { signal });
+    if (!current()) throw new Error("the signed-in account changed while reading the collective; try again");
+    return result;
+  }
+  return { viewer, version, isLoading, read };
+}
+
 /**
  * The collectives the caller BELONGS to (`GET /groups`).
  *
@@ -33,11 +57,11 @@ export function useVisibleGroups() {
 }
 
 export function useGroup(id: string) {
-  const { user, isLoading } = useAuth();
+  const { viewer, version, isLoading, read } = useCollectiveReadBinding();
   return useQuery({
-    queryKey: ["group", id, "flat", user?.id ?? "anonymous"],
-    queryFn: () =>
-      api<{
+    queryKey: ["group", id, "flat", viewer, version],
+    queryFn: ({ signal }) =>
+      read<{
         group: Group;
         members: GroupMember[];
         transcripts: GroupTranscript[];
@@ -47,23 +71,23 @@ export function useGroup(id: string) {
         can_read: boolean;
         your_role: string;
         pending_members?: GroupMember[];
-      }>(`/groups/${id}`),
+      }>(`/groups/${id}`, signal),
     enabled: !isLoading && !!id,
   });
 }
 
 export function useGroupTranscripts(groupId: string, page: number, pageSize: number, enabled: boolean) {
-  const { user, isLoading } = useAuth();
+  const { viewer, version, isLoading, read } = useCollectiveReadBinding();
   return useQuery({
-    queryKey: ["group-transcripts", groupId, user?.id ?? "anonymous", page, pageSize],
-    queryFn: async () => {
-      const res = await api<{
+    queryKey: ["group-transcripts", groupId, viewer, version, page, pageSize],
+    queryFn: async ({ signal }) => {
+      const res = await read<{
         transcripts: GroupTranscript[];
-      }>(`/groups/${groupId}?limit=${pageSize}&offset=${page * pageSize}`);
+      }>(`/groups/${groupId}?limit=${pageSize}&offset=${page * pageSize}`, signal);
       return res.transcripts ?? [];
     },
     enabled: !isLoading && enabled && !!groupId,
-    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[2] === (user?.id ?? "anonymous") ? previous : undefined,
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[2] === viewer && previousQuery.queryKey[3] === version ? previous : undefined,
   });
 }
 
@@ -119,10 +143,10 @@ export function useUpdateGroup() {
 }
 
 export function useMyGroupShares(groupId: string, enabled = true) {
-  const { user, isLoading } = useAuth();
+  const { viewer, version, isLoading, read } = useCollectiveReadBinding();
   return useQuery({
-    queryKey: ["group-my-shares", groupId, "flat", user?.id ?? "anonymous"],
-    queryFn: () => api<UserGroupShare[]>(`/groups/${groupId}/my-shares`),
+    queryKey: ["group-my-shares", groupId, "flat", viewer, version],
+    queryFn: ({ signal }) => read<UserGroupShare[]>(`/groups/${groupId}/my-shares`, signal),
     enabled: !isLoading && enabled && !!groupId,
   });
 }
