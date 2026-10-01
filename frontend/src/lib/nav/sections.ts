@@ -22,7 +22,6 @@ export interface NavSection {
   label: string;
   /** Extra pathname prefixes that keep this section active. */
   activePrefixes: string[];
-  title?: string;
 }
 
 /** The public discovery list's label and address. It is not offered in the
@@ -44,7 +43,6 @@ export const HOME_SECTION: NavSection = {
   href: "/",
   label: "home",
   activePrefixes: ["/transcripts", "/pulls"],
-  title: "your recent sessions and the projects they belong to.",
 };
 
 /** The collectives the signed-in person belongs to, and each one's page. */
@@ -53,7 +51,6 @@ export const COLLECTIVES_SECTION: NavSection = {
   href: "/groups",
   label: "collectives",
   activePrefixes: ["/groups"],
-  title: "the collectives you belong to and their settings.",
 };
 
 export function navSections(opts: { isLoggedIn: boolean }): NavSection[] {

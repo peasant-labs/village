@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -155,6 +156,10 @@ func loadConfirmOwnHandleFixtures(t *testing.T) confirmOwnHandleCorpus {
 	if err := d.Decode(&corpus); err != nil {
 		t.Fatal(err)
 	}
+	var trailing any
+	if err := d.Decode(&trailing); err != io.EOF {
+		t.Fatal("confirm-own-handle fixtures must contain one YAML document")
+	}
 	names := map[string]bool{}
 	var sawConfirmed, sawRefused bool
 	for _, c := range corpus.Cases {
@@ -162,6 +167,9 @@ func loadConfirmOwnHandleFixtures(t *testing.T) confirmOwnHandleCorpus {
 			t.Fatalf("confirm-own-handle case %q is unnamed, duplicated or has no why", c.Name)
 		}
 		names[c.Name] = true
+		if c.OthersHold != "" && c.OthersHold != c.ConfirmWith {
+			t.Fatalf("confirm-own-handle case %q must stage the other account at the handle being confirmed", c.Name)
+		}
 		// The guard's rule, derived from the case's own data: confirmed only
 		// on this row's own approved handle and only while unchosen; another
 		// account holding the handle never makes a case confirmable.
@@ -202,10 +210,10 @@ func TestConfirmOwnHandleGuardAgainstPostgres(t *testing.T) {
 			prefix := fmt.Sprintf("g%d-", randomGitHubID(t)%1_000_000)
 			id := insertSignInAccount(t, ctx, pool, randomGitHubID(t), prefix+c.StoredHandle, c.StoredChosen)
 			accounts := []pgtype.UUID{id}
+			t.Cleanup(func() { cleanupOwners(t, ctx, pool, accounts...) })
 			if c.OthersHold != "" {
 				accounts = append(accounts, insertSignInAccount(t, ctx, pool, randomGitHubID(t), prefix+c.OthersHold, false))
 			}
-			t.Cleanup(func() { cleanupOwners(t, ctx, pool, accounts...) })
 
 			read := func() map[pgtype.UUID]sqlc.User {
 				rows := map[pgtype.UUID]sqlc.User{}

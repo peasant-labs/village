@@ -7,7 +7,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useLogout } from "@/lib/queries/auth";
 import { useTheme } from "@/hooks/useTheme";
 import { Avatar, GraphSectionNav, Menu, SignInProviders } from "@/lib/ft-ui";
-import { navSections, isSectionActive, backTarget } from "@/lib/nav/sections";
+import { HOME_SECTION, navSections, isSectionActive, backTarget } from "@/lib/nav/sections";
 import { SIGN_IN_PROVIDERS, startSignIn } from "@/lib/signIn";
 
 /**
@@ -71,7 +71,7 @@ export default function Navbar() {
   const back = backTarget(pathname, isLoggedIn);
   // A signed-out `/` IS the sign-in page, and its one button is the page's own.
   // A second one up here would make two front doors on one screen.
-  const offerHeaderSignIn = pathname !== "/";
+  const offerHeaderSignIn = pathname !== HOME_SECTION.href;
 
   return (
     // Background: bg-surface, matching the demo's .iu-bar (fairtrade src/index.css:2096

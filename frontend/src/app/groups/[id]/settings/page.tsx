@@ -279,7 +279,7 @@ export default function GroupSettingsPage({
                   than a select with no option for its own value. The server
                   still accepts all three. */}
               <Select
-                label="Data access"
+                label="data access"
                 id="group-access"
                 value={dataAccess}
                 onChange={(e: ChangeEvent) => setDataAccess(e.target.value)}
@@ -449,7 +449,7 @@ export default function GroupSettingsPage({
                   {updateGroup.isPending ? "Saving…" : "Save"}
                 </Button>
                 {saved && (
-                  <span className="text-[13px] font-mono text-success">Saved</span>
+                  <span className="text-[var(--fs-label)] font-mono text-success">saved</span>
                 )}
                 {updateGroup.isError && (
                   <span className="text-[13px] text-danger">

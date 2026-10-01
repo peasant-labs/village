@@ -397,8 +397,9 @@ account's upsert keeps its handle and chosen flag, and a free login's confirm
 lands on the real row. The two unit-only cases (a failed confirm, and a handle
 chosen in another tab between the upsert and the confirm) are left out of that
 run rather than skipped, because the integration gate rejects skips. A
-sign-in reaches a row the confirm's guard refuses only when it races the
-handle step, and that interleaving is staged in the unit corpus alone, so the
+sign-in can reach a row the confirm's guard refuses when it races the handle
+step, or when overlapping sign-ins both try to confirm the same unchosen
+account. The unit corpus stages the handle-step interleaving, so the
 guard is pinned on its own: `testdata/confirm-own-handle.yaml` runs the real
 `ConfirmOwnHandle` on real rows and expects it to confirm only this account's
 own approved handle, only while unchosen, and to leave every refused row
