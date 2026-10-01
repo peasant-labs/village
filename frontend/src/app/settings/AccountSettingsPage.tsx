@@ -24,17 +24,6 @@ import RetryButton from "@/components/RetryButton";
 import type { User } from "@/lib/types";
 
 /**
- * Whether village links a person's transcripts to their pull requests on its
- * own when they opt in.
- *
- * The setting is part of the contract, and `GET /users/me/settings` already
- * serves it, but this server does not act on it yet and refuses to turn it on.
- * So the row shows the saved value and cannot be changed. Flip this when the
- * server links pull requests automatically; nothing else on the page changes.
- */
-export const AUTO_LINK_PULL_REQUESTS_AVAILABLE = false;
-
-/**
  * `/settings`: the signed-in person's own account, one saved field at a time.
  *
  * Every control saves on its own through fairtrade's `SettingRow`: a switch
@@ -130,20 +119,23 @@ function Settings({ user }: { user: User }) {
         <SettingGroup label="pull requests" defaultOpen data-testid="settings-pull-requests">
           <SettingRow
             label="link my transcripts to my pull requests automatically"
-            help={
-              AUTO_LINK_PULL_REQUESTS_AVAILABLE
-                ? "off: comment /peasant attach on a pull request. on: when you open a pull request in a repo that one of your collectives links, your transcripts that trace its commits are linked. who can read them does not change."
-                : "village does not link pull requests on its own yet, so this stays off. until it does, comment /peasant attach on a pull request to link your transcripts to it."
-            }
+            help="off: comment /peasant attach on a pull request. on: when you open a pull request in a repo that one of your collectives links, your transcripts that trace its commits are linked. who can read them does not change."
             control="switch"
             value={settings.data?.auto_attach_pull_requests ?? false}
-            disabled={!AUTO_LINK_PULL_REQUESTS_AVAILABLE}
-            tag={AUTO_LINK_PULL_REQUESTS_AVAILABLE ? undefined : "not available yet"}
+            disabled={settings.data == null || settings.isFetching}
             onCommit={async (next) => {
               await updateAutoAttach.mutateAsync(Boolean(next));
             }}
             data-testid="settings-auto-link"
           />
+          {settings.isError && (
+            <div className="srow" data-testid="settings-auto-link-read-error">
+              <p role="alert" style={{ fontSize: "var(--fs-body)", color: "var(--error)" }}>
+                your automatic pull request setting could not be read: {errorMessage(settings.error)}
+              </p>
+              <RetryButton label={settings.isFetching ? "retrying" : "retry"} busy={settings.isFetching} onRetry={() => settings.refetch()} testId="settings-auto-link-retry" />
+            </div>
+          )}
         </SettingGroup>
 
         <SettingGroup
