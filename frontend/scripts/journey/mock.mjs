@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url'
 import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
 import { handleProjectRequest } from './lib/project-fixtures.mjs'
 import { handleCollectiveRequest, resetCollectiveWorld } from './lib/collective-fixtures.mjs'
-import { handleHomeRequest } from './lib/home-fixtures.mjs' 
+import { handleHomeRequest } from './lib/home-fixtures.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)

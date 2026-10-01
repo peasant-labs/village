@@ -1,0 +1,12 @@
+cases:
+  - name: a-delayed-handle-response-cannot-restore-old-discoverability
+    first: handle
+    handle: alice-new
+    discoverable: false
+  - name: a-delayed-discoverable-response-cannot-restore-the-old-handle
+    first: discoverable
+    handle: alice-new
+    discoverable: false
+logout:
+  name: a-failed-sign-out-announces-the-error-and-offers-another-attempt
+  error: the account service is unavailable

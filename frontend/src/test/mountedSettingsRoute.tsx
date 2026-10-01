@@ -47,16 +47,28 @@ export interface MountedSettingsBackend {
   /** Every non-GET request, as `METHOD path` plus its JSON body when it has one. */
   writes: string[];
   promptReads: number;
+  releaseProfile(): void;
 }
 
-export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: boolean; read: "ok" | "failed"; write: "ok" | "failed" }): MountedSettingsBackend {
+export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: boolean; read: "ok" | "failed"; write: "ok" | "failed" }, controls?: { deferProfile?: "handle" | "discoverable"; failLogout?: boolean }): MountedSettingsBackend {
   const writes: string[] = [];
   let handle = SETTINGS_VIEWER;
   let discoverable = c.discoverable;
   const revoked = new Set(c.keys.filter((key) => key.revoked).map((key) => key.id));
   let revocations = 0;
   let automatic = prompt?.initial ?? false;
-  const backend: MountedSettingsBackend = { writes, promptReads: 0 };
+  let releaseProfile = () => {};
+  const pendingProfile = controls?.deferProfile ? new Promise<void>((resolve) => { releaseProfile = resolve; }) : null;
+  const backend: MountedSettingsBackend = { writes, promptReads: 0, releaseProfile };
+  let deferred = false;
+  async function profileAnswer(kind: "handle" | "discoverable") {
+    const answer = userFor(handle, discoverable);
+    if (!deferred && controls?.deferProfile === kind) {
+      deferred = true;
+      await pendingProfile;
+    }
+    return json(answer);
+  }
 
   vi.stubGlobal(
     "fetch",
@@ -96,12 +108,12 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
         if (c.server === "conflict") return json({ error: "That username is already taken" }, 409);
         if (c.server === "failure") return json({ error: "the account service is unavailable" }, 500);
         handle = JSON.parse(String(init?.body)).username;
-        return json(userFor(handle, discoverable));
+        return profileAnswer("handle");
       }
       if (method === "PATCH" && path === "/auth/me/settings") {
         if (c.server === "failure") return json({ error: "the settings service is unavailable" }, 500);
         discoverable = JSON.parse(String(init?.body)).is_discoverable;
-        return json(userFor(handle, discoverable));
+        return profileAnswer("discoverable");
       }
       if (method === "DELETE" && path.startsWith("/auth/api-keys/")) {
         revocations += 1;
@@ -112,7 +124,8 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
         return json({ status: "revoked" });
       }
       if (method === "DELETE" && path === "/auth/me") return json({ status: "deleted" });
-      if (method === "POST" && path === "/auth/logout") return json({ status: "logged out" });
+      if (method === "POST" && path === "/auth/logout") return controls?.failLogout
+        ? json({ error: "the account service is unavailable" }, 500) : json({ status: "logged out" });
       throw new Error(`mounted settings route fixture received an unexpected ${method} ${url}`);
     }),
   );

@@ -255,6 +255,8 @@ export const TeachingEmptyState = FtTeachingEmptyState as ComponentType<
  */
 export { SignInProviders, HandleClaim, OnboardingCard } from "@peasant-labs/fairtrade/ui";
 
+export { Menu } from "@peasant-labs/fairtrade/ui";
+
 // ── CLI onboarding ────────────────────────────────────────────────────────────
 
 /**
