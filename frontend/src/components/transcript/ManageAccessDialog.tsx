@@ -1,8 +1,12 @@
 "use client";
 
-import { useMemo, useState, type ComponentProps } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { useQueries } from "@tanstack/react-query";
+import type { VillageUserGroupShare } from "@peasant-labs/schema";
+import { api } from "@/lib/api";
+import ConfirmContributeDialog from "./ConfirmContributeDialog";
 import { AccessList, CollectivePicker, Dialog } from "@/lib/ft-ui";
-import { useTranscriptCollectives } from "@/lib/queries/collectives";
+import { useMyCollectiveContributions, useTranscriptCollectives } from "@/lib/queries/collectives";
 import { useGroups } from "@/lib/queries/groups";
 import { useShareTranscript, useTranscript, useUnshareTranscript } from "@/lib/queries/transcripts";
 
@@ -12,7 +16,7 @@ type Suggestion = ComponentProps<typeof CollectivePicker>["suggestions"][number]
 /** A note on a suggested collective that takes submissions differently from
  *  an open one, so the owner knows what `add` will do before pressing it. */
 const ACCEPTANCE_NOTE: Record<string, string | undefined> = {
-  curated: "curated · waits for the owner’s approval",
+  curated: "curated · waits for the collective owner’s approval",
   verified_only: "verified members only",
 };
 
@@ -31,9 +35,9 @@ interface ManageAccessDialogProps {
  * the server once the request settles, so it only ever shows what village
  * holds.
  *
- * - who can read it: `GET /transcripts/{id}/collectives` (accepted
- *   memberships), plus the pending submissions a curated collective has not
- *   decided yet, read from the transcript's own `enriched_shares`.
+ * - who can read it: `GET /transcripts/{id}/collectives` (approved
+ *   submissions). Owner-only contribution reads supply recorded pending and
+ *   accepted submissions, including collectives the owner has left.
  * - add: `POST /transcripts/{id}/share` with one collective.
  * - remove: `DELETE /transcripts/{id}/share/{groupID}`; its members lose access.
  */
@@ -41,38 +45,70 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
   const collectives = useTranscriptCollectives(transcriptId);
   const transcript = useTranscript(transcriptId);
   const groups = useGroups();
+  const contributions = useMyCollectiveContributions(open);
+  const liveGroups = (contributions.data ?? []).filter((g) => g.approved_count > 0 || g.pending_count > 0);
+  const submissions = useQueries({
+    queries: liveGroups.map((group) => ({
+      queryKey: ["group-my-shares", group.id],
+      queryFn: () => api<VillageUserGroupShare[]>(`/groups/${encodeURIComponent(group.id)}/my-shares`),
+      enabled: open,
+    })),
+  });
   const share = useShareTranscript();
   const unshare = useUnshareTranscript();
+  const doneRef = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
   const [change, setChange] = useState<Change | null>(null);
   const [failed, setFailed] = useState<Change | null>(null);
+  const [consent, setConsent] = useState<Change | null>(null);
+  const [recorded, setRecorded] = useState<boolean | null>(null);
+
+  // Replacing one modal with the other runs its focus-return frame. Move focus
+  // after that frame, and only when it ended outside the current modal.
+  useEffect(() => {
+    if (!open) return;
+    let followup: number | undefined;
+    const frame = requestAnimationFrame(() => {
+      followup = requestAnimationFrame(() => {
+        const label = consent ? "cns-contribute" : "manage-access-title";
+        const dialog = document.getElementById(label)?.closest<HTMLElement>('[role="dialog"]');
+        if (dialog && !dialog.contains(document.activeElement)) {
+          (dialog.querySelector<HTMLElement>('button:not([disabled]), input:not([disabled])') ?? dialog).focus();
+        }
+      });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      if (followup !== undefined) cancelAnimationFrame(followup);
+    };
+  }, [open, consent]);
 
   const memberCounts = useMemo(
     () => new Map((groups.data ?? []).map((g) => [g.id, g.member_count])),
     [groups.data],
   );
 
-  const items = useMemo<AccessItem[]>(() => {
-    const accepted = (collectives.data ?? []).map<AccessItem>((c) => ({
-      id: c.id,
-      name: c.name,
-      members: memberCounts.get(c.id) ?? undefined,
-    }));
-    const acceptedIds = new Set(accepted.map((item) => item.id));
-    const waiting = new Map<string, AccessItem>();
-    for (const s of transcript.data?.enriched_shares ?? []) {
-      if (s.status !== "pending" || acceptedIds.has(s.group_id)) continue;
-      waiting.set(s.group_id, {
-        id: s.group_id,
-        name: s.group_name,
-        members: memberCounts.get(s.group_id) ?? undefined,
-        pending: "approval",
-      });
-    }
-    return [...accepted, ...waiting.values()];
-  }, [collectives.data, transcript.data, memberCounts]);
+  const items: AccessItem[] = (collectives.data ?? []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    members: memberCounts.get(c.id),
+  }));
+  for (let index = 0; index < liveGroups.length; index++) {
+    const group = liveGroups[index];
+    const row = submissions[index].data?.find((s) => s.id === transcriptId);
+    if (!row || (row.status !== "approved" && row.status !== "pending")) continue;
+    const at = items.findIndex((item) => item.id === group.id);
+    const item: AccessItem = {
+      id: group.id,
+      name: group.name,
+      members: memberCounts.get(group.id),
+      ...(row.status === "pending" ? { pending: "approval" as const } : {}),
+    };
+    if (at < 0) items.push(item);
+    else items[at] = item;
+  }
 
-  const suggestions = useMemo<Suggestion[]>(() => {
+  const suggestions: Suggestion[] = (() => {
     const present = new Set(items.map((item) => item.id));
     const needle = query.trim().toLowerCase();
     return (groups.data ?? [])
@@ -84,18 +120,28 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
         members: g.member_count ?? undefined,
         note: ACCEPTANCE_NOTE[g.acceptance_mode],
       }));
-  }, [groups.data, items, query]);
+  })();
 
   const busy = share.isPending || unshare.isPending;
+
+  function submit(next: Change) {
+    setConsent(null);
+    setChange(next);
+    setFailed(null);
+    setRecorded(null);
+    setQuery("");
+    share.mutate({ transcriptId, groupId: next.id }, {
+      onSuccess: (shares) => setRecorded(shares.some((s) => s.group_id === next.id)),
+      onError: () => setFailed(next),
+    });
+  }
 
   function add(id: string) {
     if (busy) return;
     const name = groups.data?.find((g) => g.id === id)?.name ?? "that collective";
     const next: Change = { kind: "add", id, name };
-    setChange(next);
-    setFailed(null);
-    setQuery("");
-    share.mutate({ transcriptId, groupId: id }, { onError: () => setFailed(next) });
+    if (transcript.data?.transcript.visibility === "private") setConsent(next);
+    else submit(next);
   }
 
   function remove(id: string) {
@@ -104,32 +150,46 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
     const next: Change = { kind: "remove", id, name };
     setChange(next);
     setFailed(null);
-    unshare.mutate({ transcriptId, groupId: id }, { onError: () => setFailed(next) });
+    unshare.mutate({ transcriptId, groupId: id }, {
+      onSuccess: () => doneRef.current?.focus(),
+      onError: () => setFailed(next),
+    });
   }
 
-  // What the last change did, read from the lists the server re-served after
-  // it settled. A collective that does not take this owner's submission is
-  // skipped by the server without an error, so an add that left no row behind
-  // is said out loud instead of looking like nothing happened.
+  // The POST response names recorded submissions; an omitted collective was
+  // skipped by the server. Read failures never decide this outcome.
   let status: string | null = null;
   if (change && busy) {
     status = change.kind === "add" ? `adding ${change.name}…` : `removing ${change.name}…`;
-  } else if (change && !failed && change.kind === "add" && !items.some((item) => item.id === change.id)) {
-    status = `${change.name} did not take it, so nothing changed.`;
+  } else if (change && !failed) {
+    status = change.kind === "remove"
+      ? `removed ${change.name}.`
+      : recorded === false
+        ? `${change.name} did not record a submission.`
+        : recorded === true ? `submitted to ${change.name}.` : null;
   }
 
   const visibility = transcript.data?.transcript.visibility;
-  const readFailed = collectives.isError;
+  const readFailed = collectives.isError || contributions.isError || transcript.isError || submissions.some((q) => q.isError);
+  const loading = collectives.isLoading || contributions.isLoading || transcript.isLoading || submissions.some((q) => q.isLoading);
+  const ready = !readFailed && !loading;
+  function retryReads() {
+    void collectives.refetch();
+    void contributions.refetch();
+    void transcript.refetch();
+    for (const read of submissions) void read.refetch();
+  }
 
   return (
+    <>
     <Dialog
-      open={open}
+      open={open && !consent}
       onClose={onClose}
       title="manage access"
       labelId="manage-access-title"
       className="pub-dialog"
       footer={
-        <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
+        <button type="button" className="btn btn-primary btn-sm" ref={doneRef} onClick={onClose}>
           done
         </button>
       }
@@ -142,11 +202,11 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
         {readFailed ? (
           <p className="pub-line pub-line-alert" role="alert">
             the collectives could not load.{" "}
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void collectives.refetch()}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={retryReads}>
               retry
             </button>
           </p>
-        ) : collectives.isLoading ? (
+        ) : loading ? (
           <p className="pub-line" role="status">
             loading who can read it…
           </p>
@@ -157,13 +217,20 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
             empty={visibility === "public" ? "no collective holds it." : "only you can read it."}
           />
         )}
-        <CollectivePicker
+        {groups.isError ? (
+          <p className="pub-line pub-line-alert" role="alert">
+            your collectives could not load.{" "}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void groups.refetch()}>retry</button>
+          </p>
+        ) : groups.isLoading ? (
+          <p className="pub-line" role="status">loading your collectives…</p>
+        ) : ready && !busy ? <CollectivePicker
           suggestions={suggestions}
           query={query}
           onQueryChange={setQuery}
           onAdd={add}
           empty="none of your collectives matches that name."
-        />
+        /> : null}
         <p className="pub-hint">removing a collective takes the transcript back from it: its members lose access.</p>
         {/* Always mounted, so a screen reader hears each change as it lands. */}
         <p className={status ? "pub-line" : "sr-only"} role="status" aria-live="polite">
@@ -172,11 +239,20 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
         {failed && (
           <p className="pub-line pub-line-alert" role="alert">
             {failed.kind === "add"
-              ? `could not add ${failed.name}. nothing changed; try again.`
-              : `could not remove ${failed.name}. it can still read it; try again.`}
+              ? `could not add ${failed.name}. review the list and try again.`
+              : `could not remove ${failed.name}. review the list and try again.`}
           </p>
         )}
       </section>
     </Dialog>
+    <ConfirmContributeDialog
+      open={open && consent !== null}
+      onClose={() => setConsent(null)}
+      onConfirm={() => { if (consent) submit(consent); }}
+      transcripts={[{ id: transcriptId, title: transcript.data?.transcript.title ?? "untitled transcript" }]}
+      collectives={consent ? [{ id: consent.id, name: consent.name, memberCount: memberCounts.get(consent.id) }] : []}
+      isSubmitting={busy}
+    />
+    </>
   );
 }
