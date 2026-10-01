@@ -75,3 +75,13 @@ navigation into settings. Captures must use a production build from the reviewed
 source head, verify its served chunks, and inspect the full shell in both themes.
 The consolidated integration build also includes the backend attachment and
 transcript-page dependencies; branch screenshots remain separate from its proof.
+
+Profile writes capture the existing signed-in account ID and credential when the
+person saves. Both are compared again before a queued request starts and after
+its response. Changing sign-in cancels the old queued decision and prevents the
+old whole-profile response from replacing the current account cache. No new wire
+fields or persisted state are introduced.
+
+The persistent header account menu also announces failed sign-out requests in
+the canonical dialog and offers another attempt. While a request is pending,
+the dialog prevents repeated sign-out writes without changing header geometry.
