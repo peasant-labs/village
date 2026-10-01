@@ -78,17 +78,11 @@ SELECT * FROM pull_request_attachment_transcripts
 WHERE attachment_id = $1
 ORDER BY position ASC, transcript_id ASC;
 
--- name: SetPullRequestAttachmentDigest :exec
--- Stores the digest a preview computed without changing the state: a preview
--- exposes the digest on the pull request page but shares and posts nothing.
-UPDATE pull_request_attachments
-SET digest = @digest, updated_at = now()
-WHERE id = @id;
-
 -- name: SetPullRequestAttachmentArtifacts :exec
--- Records what an attach posted and against which commit. head_sha moves when a
--- new head is attached or refreshed; comment_id and check_run_id are the GitHub
--- objects a later refresh edits and a detach deletes or resets.
+-- Records what a preview or an attach posted and against which commit, with the
+-- digest it computed. head_sha moves when a new head is attached or refreshed;
+-- comment_id and check_run_id are the GitHub objects a later preview, attach, or
+-- refresh edits and a detach deletes or resets.
 UPDATE pull_request_attachments
 SET head_sha     = @head_sha,
     comment_id   = @comment_id,

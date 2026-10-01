@@ -315,11 +315,14 @@ func TestAttachingNeverChangesWhoCanRead_RealPostgres(t *testing.T) {
 				if listed := strings.Contains(text, "please attach my prompts"); listed != c.Expect.ListedOnPullRequest {
 					t.Errorf("the pull request's %s carries the prompt = %t, want %t: %s", surface, listed, c.Expect.ListedOnPullRequest, text)
 				}
-				if strings.Contains(text, w.title) {
-					t.Errorf("the pull request's %s carries the transcript's title: %s", surface, text)
+				// The title goes with the prompts: shown only for a transcript anyone
+				// can read. Any other transcript is a row that sends its readers to
+				// village.
+				if titled := strings.Contains(text, w.title); titled != c.Expect.ListedOnPullRequest {
+					t.Errorf("the pull request's %s carries the transcript's title = %t, want %t: %s", surface, titled, c.Expect.ListedOnPullRequest, text)
 				}
-				if unlisted := strings.Contains(text, "1 attached transcript is not listed here."); unlisted == c.Expect.ListedOnPullRequest {
-					t.Errorf("the pull request's %s says a transcript is not listed = %t, want %t: %s", surface, unlisted, !c.Expect.ListedOnPullRequest, text)
+				if unlisted := strings.Contains(text, unlistedRow); unlisted == c.Expect.ListedOnPullRequest {
+					t.Errorf("the pull request's %s sends readers to village for the transcript = %t, want %t: %s", surface, unlisted, !c.Expect.ListedOnPullRequest, text)
 				}
 			}
 			if conclusion != c.Expect.Check {

@@ -1,0 +1,85 @@
+# The collective's post_prompts_check toggle, crossed with what the author does
+# on the pull request. The toggle gates the preview comment, the attached
+# comment, and the check alike: off, nothing is posted, edited, or deleted on
+# GitHub, while the attachment itself still moves (the pull request page works
+# either way).
+#
+# steps run in order through the production paths: click is the author's
+# `/peasant attach` comment (it previews, since one private transcript of theirs
+# matches), confirm is the author's confirm on village, and not_now is the
+# author's detach while the preview is open.
+#
+# expect.comment is the start of the last comment body posted ("" when none
+# is), and details_url says the check's details link opens the pull request's
+# page on village.
+- name: on_preview_posts_the_preview_comment
+  toggle: true
+  steps: [click]
+  expect:
+    state: preview
+    comment_creates: 1
+    comment_edits: 0
+    comment_deletes: 0
+    check_creates: 0
+    comment: "1 of your transcripts matches this pull request: [review and attach them on village]"
+    details_url: false
+
+- name: on_attached_edits_the_preview_comment_and_posts_the_check
+  toggle: true
+  steps: [click, confirm]
+  expect:
+    state: attached
+    comment_creates: 1
+    comment_edits: 1
+    comment_deletes: 0
+    check_creates: 1
+    comment: "**peasant / prompts · 1 transcript traces 1 of 1 commits**"
+    details_url: true
+
+- name: on_not_now_deletes_the_preview_comment
+  toggle: true
+  steps: [click, not_now]
+  expect:
+    state: detached
+    comment_creates: 1
+    comment_edits: 0
+    comment_deletes: 1
+    check_creates: 0
+    comment: "1 of your transcripts matches this pull request: [review and attach them on village]"
+    details_url: false
+
+- name: off_preview_posts_nothing
+  toggle: false
+  steps: [click]
+  expect:
+    state: preview
+    comment_creates: 0
+    comment_edits: 0
+    comment_deletes: 0
+    check_creates: 0
+    comment: ""
+    details_url: false
+
+- name: off_attached_posts_nothing
+  toggle: false
+  steps: [click, confirm]
+  expect:
+    state: attached
+    comment_creates: 0
+    comment_edits: 0
+    comment_deletes: 0
+    check_creates: 0
+    comment: ""
+    details_url: false
+
+- name: off_not_now_posts_nothing
+  toggle: false
+  steps: [click, not_now]
+  expect:
+    state: detached
+    comment_creates: 0
+    comment_edits: 0
+    comment_deletes: 0
+    check_creates: 0
+    comment: ""
+    details_url: false

@@ -757,9 +757,13 @@ authenticating. Both are custom Postgres parameters read via
   a private repository admits them only to that repository's pull request page,
   which shows a bound transcript's title and prompts only to a viewer who can
   open that transcript (the stored digest is narrowed per viewer by
-  `digest.Restrict`). The pull request's comment and check list only
-  transcripts anyone can read and count the rest, because Village cannot know
-  who reads a private repository's pull request.
+  `digest.Restrict`). The pull request's comment and check show a transcript's
+  title and prompts only when anyone can read it; every other attached
+  transcript is a row with its author, the commits it traced, and a link to read
+  it on village, because Village cannot know who reads a private repository's
+  pull request. A preview posts one comment that counts the author's matching
+  transcripts and names none of them. The collective's `post_prompts_check`
+  gates that comment, the attached comment, and the check alike.
 - **Content replacement uses immutable, content-addressed objects.** Publish
   uploads to an owner/transcript/content-hash key, then swaps `blob_key` in the
   same database transaction as the authoritative receipt. A database failure

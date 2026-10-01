@@ -154,3 +154,25 @@ cases:
           description: "Recompute prompts and digest"
           identifier: refresh
     expect_error: false
+
+  # The "details" link GitHub shows on the check opens the pull request's page
+  # on village, an absolute URL on the frontend host.
+  - name: a-details-url-on-the-pull-request-page-is-accepted
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "peasant / prompts"
+      details_url: "https://village.example/pulls/acme/widgets/7"
+    expect_error: false
+
+  # GitHub rejects a details_url that is not a full URL, so a relative path is
+  # refused locally instead of failing every post.
+  - name: a-details-url-must-be-absolute
+    creating: true
+    request:
+      head_sha: "abc1234"
+      conclusion: success
+      title: "peasant / prompts"
+      details_url: "/pulls/acme/widgets/7"
+    expect_error: true

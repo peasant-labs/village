@@ -40,6 +40,9 @@ type fixtureSession struct {
 	Harness        string        `yaml:"harness"`
 	RedactionLevel string        `yaml:"redactionLevel"`
 	SessionStart   string        `yaml:"sessionStart"`
+	Title          string        `yaml:"title"`
+	Author         string        `yaml:"author"`
+	Listed         bool          `yaml:"listed"`
 	Turns          []fixtureTurn `yaml:"turns"`
 }
 
@@ -73,6 +76,10 @@ type fixtureExpectation struct {
 	Harness        string         `yaml:"harness"`
 	RedactionLevel string         `yaml:"redactionLevel"`
 	Skills         []fixtureSkill `yaml:"skills"`
+	// Present is text every render must contain, and Absent text no render may
+	// contain, at every tier and in the preview.
+	Present []string `yaml:"present"`
+	Absent  []string `yaml:"absent"`
 }
 
 type fixtureSkill struct {
@@ -81,14 +88,17 @@ type fixtureSkill struct {
 }
 
 // requiredDigestCaseNames is the name manifest for testdata/cases.yaml: the
-// short single-session case, the long multi-prompt case, and the fork case with
-// two sessions and a commit anchor. Exact membership, never a count, so a
-// deleted or renamed case fails by name instead of silently shrinking the
-// corpus its golden renders pin.
+// short single-session case, the long multi-prompt case, the fork case with two
+// sessions and a commit anchor, the mixed-audience case with a transcript only a
+// collective can read, and the hostile-text case. Exact membership, never a
+// count, so a deleted or renamed case fails by name instead of silently
+// shrinking the corpus its golden renders pin.
 var requiredDigestCaseNames = []string{
 	"short_session",
 	"long_session",
 	"fork_pull_request",
+	"mixed_audience",
+	"hostile_text",
 }
 
 func loadCases(t *testing.T) []fixtureCase {
@@ -180,6 +190,22 @@ func (c fixtureCase) toInput(t *testing.T) Input {
 	return in
 }
 
+// toPullRequest is what the handler hands the renderer for one case: the built
+// digest, the per-transcript rows the fixture declares, and the commit set.
+func (c fixtureCase) toPullRequest(built schema.PromptDigest) PullRequest {
+	pull := PullRequest{Digest: built, CommitSet: c.CommitSet}
+	for _, s := range c.Sessions {
+		pull.Rows = append(pull.Rows, Row{
+			TranscriptID: schema.TranscriptID(s.TranscriptID),
+			Title:        s.Title,
+			Author:       s.Author,
+			Listed:       s.Listed,
+			URL:          "https://village.example/transcripts/" + s.TranscriptID,
+		})
+	}
+	return pull
+}
+
 func parseTime(t *testing.T, caseName, value string) time.Time {
 	t.Helper()
 	ts, err := time.Parse(time.RFC3339, value)
@@ -224,24 +250,40 @@ func TestDigestFixtureCases(t *testing.T) {
 			}
 
 			for _, tier := range []Tier{CommentTier, CheckRunTier, VillageTier} {
-				out, err := Render(built, tier)
+				out, err := Render(c.toPullRequest(built), tier)
 				if err != nil {
 					t.Fatalf("Render(%s): %v", tier.Name, err)
 				}
 				if tier.MaxBytes > 0 && len(out) > tier.MaxBytes {
 					t.Fatalf("Render(%s) produced %d bytes, over the %d cap", tier.Name, len(out), tier.MaxBytes)
 				}
-				if strings.Contains(out, "redaction") {
-					t.Fatalf("Render(%s) exposed the session redaction level:\n%s", tier.Name, out)
-				}
+				assertRenderText(t, tier.Name, out, c.Expected.Present, c.Expected.Absent)
+				assertMarkdownStaysInert(t, tier.Name, out)
 				pinGolden(t, c.Name, tier.Name, out)
 			}
+
+			// The preview comment names how many transcripts match and where to
+			// review them, and nothing any of them says.
+			preview := RenderPreview(built.Header.SessionCount, c.VillageURL)
+			assertRenderText(t, "preview", preview, nil, c.Expected.Absent)
+			for _, s := range c.Sessions {
+				if strings.Contains(preview, s.Title) {
+					t.Fatalf("the preview names transcript %q:\n%s", s.Title, preview)
+				}
+				for _, turn := range s.Turns {
+					if strings.Contains(preview, turn.Content) {
+						t.Fatalf("the preview carries prompt text %q:\n%s", turn.Content, preview)
+					}
+				}
+			}
+			pinGolden(t, c.Name, "preview", preview)
 		})
 	}
 }
 
 // TestDigestRedactionPlaceholderSurvives proves a redaction placeholder in a
-// prompt is carried verbatim into the complete-tier render.
+// prompt is carried into the complete-tier render, escaped so GitHub shows it as
+// the text it is rather than dropping it as an unknown tag.
 func TestDigestRedactionPlaceholderSurvives(t *testing.T) {
 	for _, c := range loadCases(t) {
 		if c.Name != "short_session" {
@@ -251,11 +293,11 @@ func TestDigestRedactionPlaceholderSurvives(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		out, err := Render(built, VillageTier)
+		out, err := Render(c.toPullRequest(built), VillageTier)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(out, "second ask with <REDACTED>") {
+		if !strings.Contains(out, `second ask with \<REDACTED\>`) {
 			t.Fatalf("the redaction placeholder did not survive rendering:\n%s", out)
 		}
 		return
@@ -287,7 +329,7 @@ func TestDigestSkillArgsAreCarriedAndRendered(t *testing.T) {
 		if !found {
 			t.Fatal("no skill item was built")
 		}
-		out, err := Render(built, VillageTier)
+		out, err := Render(c.toPullRequest(built), VillageTier)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -352,7 +394,7 @@ func TestBuildRejectsAnOutOfSetCommitAnchor(t *testing.T) {
 }
 
 func TestRenderRefusesAnInvalidDigest(t *testing.T) {
-	var base schema.PromptDigest
+	var base PullRequest
 	for _, c := range loadCases(t) {
 		if c.Name != "short_session" {
 			continue
@@ -361,24 +403,106 @@ func TestRenderRefusesAnInvalidDigest(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		base = built
+		base = c.toPullRequest(built)
 	}
-	if base.Header.SessionCount == 0 {
+	if base.Digest.Header.SessionCount == 0 {
 		t.Fatal("the short_session fixture is missing")
+	}
+	if _, err := Render(base, VillageTier); err != nil {
+		t.Fatalf("the unmodified case must render before its mutations are refused: %v", err)
 	}
 
 	missingHeaderSkill := base
-	missingHeaderSkill.Skills = nil
+	missingHeaderSkill.Digest.Skills = nil
 	if _, err := Render(missingHeaderSkill, VillageTier); err == nil {
 		t.Fatal("rendering a digest whose skill item is missing from the header must fail")
 	}
 
 	outOfOrder := base
-	outOfOrder.Items = append([]schema.PromptDigestItem(nil), base.Items...)
-	outOfOrder.Items[0], outOfOrder.Items[len(outOfOrder.Items)-1] = outOfOrder.Items[len(outOfOrder.Items)-1], outOfOrder.Items[0]
+	outOfOrder.Digest.Items = append([]schema.PromptDigestItem(nil), base.Digest.Items...)
+	last := len(outOfOrder.Digest.Items) - 1
+	outOfOrder.Digest.Items[0], outOfOrder.Digest.Items[last] = outOfOrder.Digest.Items[last], outOfOrder.Digest.Items[0]
 	if _, err := Render(outOfOrder, VillageTier); err == nil {
 		t.Fatal("rendering an out-of-chronological-order digest must fail")
 	}
+
+	// A transcript with no row has no stated audience, so nothing is guessed:
+	// the render is refused rather than defaulting to listed or unlisted.
+	noRows := base
+	noRows.Rows = nil
+	if _, err := Render(noRows, CommentTier); err == nil {
+		t.Fatal("rendering a digest session that has no row must fail")
+	}
+
+	// Every row links the pull request's page, so a digest that names none
+	// cannot be rendered into links that go nowhere.
+	noPage := base
+	noPage.Digest.Header.VillageURL = ""
+	if _, err := Render(noPage, CommentTier); err == nil {
+		t.Fatal("rendering a digest with no village page must fail")
+	}
+}
+
+// assertRenderText checks one render against a case's present and absent text.
+func assertRenderText(t *testing.T, surface, out string, present, absent []string) {
+	t.Helper()
+	for _, want := range present {
+		if !strings.Contains(out, want) {
+			t.Fatalf("the %s render is missing %q:\n%s", surface, want, out)
+		}
+	}
+	for _, unwanted := range absent {
+		if strings.Contains(out, unwanted) {
+			t.Fatalf("the %s render carries %q, which it must not:\n%s", surface, unwanted, out)
+		}
+	}
+}
+
+// renderMarkup is the HTML the renderer writes itself. Every other angle bracket
+// in a render is user text and must be escaped.
+var renderMarkup = []string{"<details>", "</details>", "<summary>", "</summary>", "<!-- -->"}
+
+// assertMarkdownStaysInert checks the structure user text must never change:
+// each table row has exactly its four cell borders, no backtick opens code, and
+// no angle bracket opens a tag other than the renderer's own.
+func assertMarkdownStaysInert(t *testing.T, surface, out string) {
+	t.Helper()
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "| ") {
+			if pipes := unescapedCount(line, '|'); pipes != 4 {
+				t.Fatalf("the %s table row has %d cell borders, want 4: %q", surface, pipes, line)
+			}
+		}
+	}
+	if ticks := unescapedCount(out, '`'); ticks != 0 {
+		t.Fatalf("the %s render has %d unescaped backticks, want none:\n%s", surface, ticks, out)
+	}
+	stripped := out
+	for _, markup := range renderMarkup {
+		stripped = strings.ReplaceAll(stripped, markup, "")
+	}
+	if angles := unescapedCount(stripped, '<'); angles != 0 {
+		t.Fatalf("the %s render has %d unescaped angle brackets outside its own markup, want none:\n%s", surface, angles, out)
+	}
+}
+
+// unescapedCount counts the occurrences of c not preceded by an odd run of
+// backslashes.
+func unescapedCount(text string, c byte) int {
+	n := 0
+	for i := 0; i < len(text); i++ {
+		if text[i] != c {
+			continue
+		}
+		slashes := 0
+		for j := i - 1; j >= 0 && text[j] == '\\'; j-- {
+			slashes++
+		}
+		if slashes%2 == 0 {
+			n++
+		}
+	}
+	return n
 }
 
 func TestBuildAndRenderNeverLogPromptText(t *testing.T) {
@@ -392,7 +516,7 @@ func TestBuildAndRenderNeverLogPromptText(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := Render(built, VillageTier); err != nil {
+		if _, err := Render(c.toPullRequest(built), VillageTier); err != nil {
 			t.Fatal(err)
 		}
 	}

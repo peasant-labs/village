@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"unicode/utf8"
 
 	"github.com/peasant-labs/village/backend/internal/promptattach"
@@ -105,7 +106,9 @@ func PromptCheckConclusion(mode promptattach.CheckMode, attached, readableBeyond
 
 // CheckRunRequest is the content of a check run, apart from the pull request it
 // belongs to. HeadSHA is required when creating and ignored when updating;
-// Conclusion and Title are required either way.
+// Conclusion and Title are required either way. DetailsURL, when set, is the
+// absolute page GitHub's "details" link opens: the pull request's page on
+// village.
 type CheckRunRequest struct {
 	HeadSHA    string
 	ExternalID string
@@ -219,6 +222,14 @@ func validateCheckRunRequest(req CheckRunRequest, creating bool) error {
 	}
 	if req.Title == "" {
 		return fmt.Errorf("github: check run: title is required")
+	}
+	if req.DetailsURL != "" {
+		// GitHub rejects a details_url that is not a full URL, so a relative
+		// path or a bare host fails here rather than as a 422 on every post.
+		parsed, err := url.Parse(req.DetailsURL)
+		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+			return fmt.Errorf("github: check run: details url %q must be an absolute http or https URL", req.DetailsURL)
+		}
 	}
 	if len(req.Actions) > maxCheckActions {
 		return fmt.Errorf("github: check run: at most %d actions, got %d", maxCheckActions, len(req.Actions))

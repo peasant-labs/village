@@ -198,7 +198,6 @@ type Querier interface {
 	ReleasePullRequestAttachmentTranscript(ctx context.Context, arg sqlc.ReleasePullRequestAttachmentTranscriptParams) error
 	ListPullRequestAttachmentTranscriptSummaries(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.ListPullRequestAttachmentTranscriptSummariesRow, error)
 	DeletePullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) error
-	SetPullRequestAttachmentDigest(ctx context.Context, arg sqlc.SetPullRequestAttachmentDigestParams) error
 	SetPullRequestAttachmentArtifacts(ctx context.Context, arg sqlc.SetPullRequestAttachmentArtifactsParams) error
 	ListAuthorWaitingPromptRequests(ctx context.Context, authorID pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
 	ListAuthorAttachmentsForRepo(ctx context.Context, arg sqlc.ListAuthorAttachmentsForRepoParams) ([]sqlc.PullRequestAttachment, error)
