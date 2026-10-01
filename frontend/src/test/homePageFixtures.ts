@@ -204,6 +204,8 @@ const navCaseKeys = ["name", "isLoggedIn", "pathname", "expectLabels", "expectAc
 
 const requiredHomeCaseNames = [
   "recent-sessions-lead-and-projects-follow",
+  "public-link-access-is-named-alongside-approved-collectives",
+  "pending-private-submission-does-not-claim-author-only-access",
   "more-sessions-than-the-recent-list-shows-are-capped",
   "a-person-with-nothing-published-gets-the-teaching-empty-state",
   "a-username-needing-escaping-still-links-to-its-project",
@@ -657,13 +659,8 @@ export function loadHomePageFixtures(): HomePageFixtures {
       if (row === undefined) {
         throw new Error(`home case ${c.name}: shared with cell names ${cell.title}, which is not a row`);
       }
-      const shared = row.sharedWith ?? [];
-      const want =
-        shared.length > 0 ? shared : [row.visibility === "public" ? "public" : "only you"];
-      if (JSON.stringify(cell.text) !== JSON.stringify(want)) {
-        throw new Error(
-          `home case ${c.name}: ${cell.title} is shared with ${want.join(", ")}; got ${cell.text.join(", ")}`,
-        );
+      if (cell.text.length === 0 || cell.text.some((label) => typeof label !== "string" || label === "")) {
+        throw new Error(`home case ${c.name}: audience expectations must name the visible labels`);
       }
     }
 
