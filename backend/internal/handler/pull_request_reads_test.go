@@ -258,10 +258,9 @@ func TestPullRequestDetailReadsAreBoundedByTheirDeadline(t *testing.T) {
 	}
 }
 
-// heldListWorld is forty uncached pull requests on a GitHub that holds every
-// pull request read until the test ends, with the last one's answer already
-// remembered behind all the others.
-func heldListWorld(t *testing.T, fake *pullReadsGitHub, h *Handler) (candidates []pullRequestCandidate, remembered int) {
+// heldListWorld is forty pull requests on a GitHub that holds every
+// uncached read until the test ends. The last answer is already remembered.
+func heldListWorld(t *testing.T, fake *pullReadsGitHub, h *Handler) (candidates []pullRequestCandidate, remembered, rememberedCount int) {
 	t.Helper()
 	candidates = make([]pullRequestCandidate, 40)
 	for i := range candidates {
@@ -272,7 +271,7 @@ func heldListWorld(t *testing.T, fake *pullReadsGitHub, h *Handler) (candidates 
 	key := pullRequestKeyOf("acme", "app", remembered+1)
 	_, read, _ := h.pullDetails.claim(key, time.Now())
 	h.pullDetails.settle(key, read, pullRequestDetailEntry{title: "Remembered title", headRef: "fix/remembered"}, time.Now(), time.Hour)
-	return candidates, remembered
+	return candidates, remembered, 1
 }
 
 // readsStartedBy counts the GitHub reads a list started, from the cache's own
@@ -313,17 +312,25 @@ func TestPullRequestDetailsForAListStopWhenTheirCallerLeaves(t *testing.T) {
 	h := newTestHandler(&mockQuerier{}, nil)
 	h.gh = fake.client(t)
 	h.pullDetailDeadline = time.Minute
-	candidates, remembered := heldListWorld(t, fake, h)
+	candidates, remembered, rememberedCount := heldListWorld(t, fake, h)
 
-	ctx, leave := context.WithCancel(context.Background())
+	ctx, leave := context.WithTimeout(context.Background(), 5*time.Second)
 	defer leave()
-	go func() {
-		fake.awaitPullReads(t, pullRequestDetailFetchers)
-		leave()
-	}()
-	details := h.pullRequestDetailsFor(ctx, candidates)
+	answers := make(chan []pullRequestDetail, 1)
+	go func() { answers <- h.pullRequestDetailsFor(ctx, candidates) }()
+	arrivalsErr := fake.awaitPullReads(ctx, pullRequestDetailFetchers)
+	leave()
+	var details []pullRequestDetail
+	select {
+	case details = <-answers:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the list did not return after its caller left")
+	}
+	if arrivalsErr != nil {
+		t.Fatal(arrivalsErr)
+	}
 	assertHeldListAnswers(t, details, remembered)
-	if started := readsStartedBy(h, 1); started != pullRequestDetailFetchers {
+	if started := readsStartedBy(h, rememberedCount); started != pullRequestDetailFetchers {
 		t.Fatalf("the list started %d GitHub reads, want exactly its %d slots", started, pullRequestDetailFetchers)
 	}
 }
@@ -339,11 +346,18 @@ func TestPullRequestDetailsForAListStopAtItsDeadline(t *testing.T) {
 	h := newTestHandler(&mockQuerier{}, nil)
 	h.gh = fake.client(t)
 	h.pullDetailDeadline = 100 * time.Millisecond
-	candidates, remembered := heldListWorld(t, fake, h)
+	candidates, remembered, rememberedCount := heldListWorld(t, fake, h)
 
-	details := h.pullRequestDetailsFor(context.Background(), candidates)
+	answers := make(chan []pullRequestDetail, 1)
+	go func() { answers <- h.pullRequestDetailsFor(context.Background(), candidates) }()
+	var details []pullRequestDetail
+	select {
+	case details = <-answers:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the list did not return after its response deadline")
+	}
 	assertHeldListAnswers(t, details, remembered)
-	if started := readsStartedBy(h, 1); started > pullRequestDetailFetchers {
+	if started := readsStartedBy(h, rememberedCount); started > pullRequestDetailFetchers {
 		t.Fatalf("the list started %d GitHub reads, want at most its %d slots", started, pullRequestDetailFetchers)
 	}
 }

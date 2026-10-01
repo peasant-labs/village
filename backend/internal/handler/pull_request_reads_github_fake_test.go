@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -98,18 +99,18 @@ func (f *pullReadsGitHub) holdPullReads(t *testing.T) {
 // awaitPullReads waits until n held pull request reads have reached the fake.
 // It is a failure bound, not a timing assumption: the reads it waits for are
 // already started, and only a broken list would leave it waiting.
-func (f *pullReadsGitHub) awaitPullReads(t *testing.T, n int) {
+func (f *pullReadsGitHub) awaitPullReads(ctx context.Context, n int) error {
 	f.mu.Lock()
 	arrivals := f.arrivals
 	f.mu.Unlock()
 	for i := 0; i < n; i++ {
 		select {
 		case <-arrivals:
-		case <-time.After(time.Minute):
-			t.Errorf("only %d of %d pull request reads reached GitHub within a minute", i, n)
-			return
+		case <-ctx.Done():
+			return fmt.Errorf("only %d of %d pull request reads reached GitHub: %w", i, n, ctx.Err())
 		}
 	}
+	return nil
 }
 
 func (f *pullReadsGitHub) counts() (pullReads, permissionAsks int) {
