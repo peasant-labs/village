@@ -251,8 +251,8 @@ type GetPullRequestAttachmentTranscriptParams struct {
 	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
 }
 
-// One binding, for a compensation that must undo exactly the transcripts one
-// attempt bound rather than every binding the attachment holds.
+// One binding, re-read under the transcript publish lock before releasing
+// a visibility change made by an older attach.
 func (q *Queries) GetPullRequestAttachmentTranscript(ctx context.Context, arg GetPullRequestAttachmentTranscriptParams) (PullRequestAttachmentTranscript, error) {
 	row := q.db.QueryRow(ctx, getPullRequestAttachmentTranscript, arg.AttachmentID, arg.TranscriptID)
 	var i PullRequestAttachmentTranscript
@@ -465,6 +465,118 @@ func (q *Queries) ListAttachmentsBindingTranscript(ctx context.Context, transcri
 	return items, nil
 }
 
+const listAttachmentsContainingTranscript = `-- name: ListAttachmentsContainingTranscript :many
+SELECT a.id, a.repo_owner, a.repo_name, a.github_repo_id, a.number, a.head_sha, a.base_remote, a.head_remote, a.author_id, a.requester_github_id, a.state, a.comment_id, a.check_run_id, a.digest, a.requested_at, a.waiting_at, a.preview_at, a.attached_at, a.detached_at, a.created_at, a.updated_at, a.group_id FROM pull_request_attachments a
+WHERE a.author_id = $1
+  AND (a.digest->'items' @> jsonb_build_array(jsonb_build_object('transcriptId', $2::text))
+    OR EXISTS (SELECT 1 FROM pull_request_attachment_transcripts pt
+      WHERE pt.attachment_id = a.id AND pt.transcript_id = $2::uuid))
+ORDER BY a.id FOR UPDATE
+`
+
+type ListAttachmentsContainingTranscriptParams struct {
+	OwnerID      pgtype.UUID `db:"owner_id" json:"owner_id"`
+	TranscriptID string      `db:"transcript_id" json:"transcript_id"`
+}
+
+// Deletion must prune derived prompt copies, including unbound previews and
+// detached digests. Lock rows so pruning and row removal commit together.
+func (q *Queries) ListAttachmentsContainingTranscript(ctx context.Context, arg ListAttachmentsContainingTranscriptParams) ([]PullRequestAttachment, error) {
+	rows, err := q.db.Query(ctx, listAttachmentsContainingTranscript, arg.OwnerID, arg.TranscriptID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PullRequestAttachment{}
+	for rows.Next() {
+		var i PullRequestAttachment
+		if err := rows.Scan(
+			&i.ID,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.GithubRepoID,
+			&i.Number,
+			&i.HeadSha,
+			&i.BaseRemote,
+			&i.HeadRemote,
+			&i.AuthorID,
+			&i.RequesterGithubID,
+			&i.State,
+			&i.CommentID,
+			&i.CheckRunID,
+			&i.Digest,
+			&i.RequestedAt,
+			&i.WaitingAt,
+			&i.PreviewAt,
+			&i.AttachedAt,
+			&i.DetachedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GroupID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAttachmentsForCollectiveGrants = `-- name: ListAttachmentsForCollectiveGrants :many
+SELECT DISTINCT a.id, a.repo_owner, a.repo_name, a.github_repo_id, a.number, a.head_sha, a.base_remote, a.head_remote, a.author_id, a.requester_github_id, a.state, a.comment_id, a.check_run_id, a.digest, a.requested_at, a.waiting_at, a.preview_at, a.attached_at, a.detached_at, a.created_at, a.updated_at, a.group_id FROM pull_request_attachments a
+JOIN pull_request_attachment_transcripts pt ON pt.attachment_id = a.id
+JOIN transcript_shares ts ON ts.transcript_id = pt.transcript_id
+WHERE ts.group_id = $1 AND a.state = 'attached'
+ORDER BY a.id
+`
+
+// Membership changes can alter a bound transcript's readers without changing
+// its visibility. Read affected attachments before removing any share rows.
+func (q *Queries) ListAttachmentsForCollectiveGrants(ctx context.Context, groupID pgtype.UUID) ([]PullRequestAttachment, error) {
+	rows, err := q.db.Query(ctx, listAttachmentsForCollectiveGrants, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PullRequestAttachment{}
+	for rows.Next() {
+		var i PullRequestAttachment
+		if err := rows.Scan(
+			&i.ID,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.GithubRepoID,
+			&i.Number,
+			&i.HeadSha,
+			&i.BaseRemote,
+			&i.HeadRemote,
+			&i.AuthorID,
+			&i.RequesterGithubID,
+			&i.State,
+			&i.CommentID,
+			&i.CheckRunID,
+			&i.Digest,
+			&i.RequestedAt,
+			&i.WaitingAt,
+			&i.PreviewAt,
+			&i.AttachedAt,
+			&i.DetachedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GroupID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAuthorAttachmentsForRepo = `-- name: ListAuthorAttachmentsForRepo :many
 SELECT id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at, group_id FROM pull_request_attachments
 WHERE author_id = $1
@@ -584,8 +696,37 @@ func (q *Queries) ListAuthorWaitingPromptRequests(ctx context.Context, authorID 
 	return items, nil
 }
 
+const listLiveOwnedDigestTranscripts = `-- name: ListLiveOwnedDigestTranscripts :many
+SELECT id FROM transcripts WHERE owner_id = $1 AND id = ANY($2::uuid[])
+`
+
+type ListLiveOwnedDigestTranscriptsParams struct {
+	OwnerID       pgtype.UUID   `db:"owner_id" json:"owner_id"`
+	TranscriptIds []pgtype.UUID `db:"transcript_ids" json:"transcript_ids"`
+}
+
+func (q *Queries) ListLiveOwnedDigestTranscripts(ctx context.Context, arg ListLiveOwnedDigestTranscriptsParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listLiveOwnedDigestTranscripts, arg.OwnerID, arg.TranscriptIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPullRequestAttachmentTranscriptSummaries = `-- name: ListPullRequestAttachmentTranscriptSummaries :many
-SELECT pt.transcript_id, pt.position, pt.previous_visibility, t.title, t.session_start
+SELECT pt.transcript_id, pt.position, pt.previous_visibility, t.title, t.session_start, t.owner_id, t.visibility
 FROM pull_request_attachment_transcripts pt
 JOIN transcripts t ON t.id = pt.transcript_id
 WHERE pt.attachment_id = $1
@@ -598,6 +739,8 @@ type ListPullRequestAttachmentTranscriptSummariesRow struct {
 	PreviousVisibility string             `db:"previous_visibility" json:"previous_visibility"`
 	Title              pgtype.Text        `db:"title" json:"title"`
 	SessionStart       pgtype.Timestamptz `db:"session_start" json:"session_start"`
+	OwnerID            pgtype.UUID        `db:"owner_id" json:"owner_id"`
+	Visibility         string             `db:"visibility" json:"visibility"`
 }
 
 // The transcripts one attachment holds, with the fields the response shows, in
@@ -618,6 +761,8 @@ func (q *Queries) ListPullRequestAttachmentTranscriptSummaries(ctx context.Conte
 			&i.PreviousVisibility,
 			&i.Title,
 			&i.SessionStart,
+			&i.OwnerID,
+			&i.Visibility,
 		); err != nil {
 			return nil, err
 		}
@@ -758,6 +903,41 @@ func (q *Queries) ListPullRequestCandidatesByTranscripts(ctx context.Context, ar
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockPullRequestAttachmentArtifacts = `-- name: LockPullRequestAttachmentArtifacts :one
+SELECT id, repo_owner, repo_name, github_repo_id, number, head_sha, base_remote, head_remote, author_id, requester_github_id, state, comment_id, check_run_id, digest, requested_at, waiting_at, preview_at, attached_at, detached_at, created_at, updated_at, group_id FROM pull_request_attachments WHERE id = $1 FOR UPDATE
+`
+
+// Serializes stored prompt copies with transcript deletion's pruning transaction.
+func (q *Queries) LockPullRequestAttachmentArtifacts(ctx context.Context, id pgtype.UUID) (PullRequestAttachment, error) {
+	row := q.db.QueryRow(ctx, lockPullRequestAttachmentArtifacts, id)
+	var i PullRequestAttachment
+	err := row.Scan(
+		&i.ID,
+		&i.RepoOwner,
+		&i.RepoName,
+		&i.GithubRepoID,
+		&i.Number,
+		&i.HeadSha,
+		&i.BaseRemote,
+		&i.HeadRemote,
+		&i.AuthorID,
+		&i.RequesterGithubID,
+		&i.State,
+		&i.CommentID,
+		&i.CheckRunID,
+		&i.Digest,
+		&i.RequestedAt,
+		&i.WaitingAt,
+		&i.PreviewAt,
+		&i.AttachedAt,
+		&i.DetachedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GroupID,
+	)
+	return i, err
 }
 
 const releasePullRequestAttachmentTranscript = `-- name: ReleasePullRequestAttachmentTranscript :exec

@@ -22,6 +22,7 @@ import (
 
 	"github.com/peasant-labs/village/backend/internal/database"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	"github.com/peasant-labs/village/backend/internal/digest"
 	"github.com/peasant-labs/village/backend/internal/reponame"
 	"github.com/peasant-labs/village/backend/internal/scanner"
 	"github.com/peasant-labs/village/backend/internal/sessionorigin"
@@ -1354,7 +1355,33 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "Encrypted transcript deletion is unavailable because the blob store was not composed in handler.DeleteTranscript before row removal; no database state changed; configure key custody and object storage, then restart and retry")
 		return
 	}
+	var affected []sqlc.PullRequestAttachment
 	result := h.inEncryptedTx(r.Context(), user.PgID(), func(q Querier) error {
+		var err error
+		affected, err = q.ListAttachmentsContainingTranscript(r.Context(), sqlc.ListAttachmentsContainingTranscriptParams{OwnerID: user.PgID(), TranscriptID: id.String()})
+		if err != nil {
+			return err
+		}
+		for _, attachment := range affected {
+			if len(attachment.Digest) == 0 {
+				continue
+			}
+			var stored schema.PromptDigest
+			if err := json.Unmarshal(attachment.Digest, &stored); err != nil {
+				return err
+			}
+			pruned, err := digest.Restrict(stored, func(itemID schema.TranscriptID) bool { return string(itemID) != id.String() })
+			if err != nil {
+				return err
+			}
+			encoded, err := encodeDigest(pruned)
+			if err != nil {
+				return err
+			}
+			if err := q.SetPullRequestAttachmentArtifacts(r.Context(), sqlc.SetPullRequestAttachmentArtifactsParams{ID: attachment.ID, HeadSha: attachment.HeadSha, CommentID: attachment.CommentID, CheckRunID: attachment.CheckRunID, Digest: encoded}); err != nil {
+				return err
+			}
+		}
 		_, deleteErr := q.DeleteTranscriptReturningDescriptor(r.Context(), pgID)
 		return deleteErr
 	})
@@ -1365,6 +1392,15 @@ func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
 		}
 		writeError(w, http.StatusInternalServerError, "Failed to delete transcript")
 		return
+	}
+	// Derived copies were pruned in the same transaction as the transcript.
+	// Repost from the captured rows because their bindings have now cascaded away.
+	if h.gh != nil && len(affected) > 0 {
+		ctx, cancel := attachmentWorkContext(r.Context())
+		defer cancel()
+		if err := h.refreshKnownAttachments(ctx, affected); err != nil {
+			log.Printf("pull request attachment refresh after transcript deletion failed: %v", err)
+		}
 	}
 	if err := h.deleteBlobForCleanup(r.Context(), cleanupDeleteTarget, transcript.ID, descriptor, result.Completion); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

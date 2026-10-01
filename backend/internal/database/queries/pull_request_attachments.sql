@@ -109,7 +109,7 @@ ORDER BY requested_at ASC NULLS LAST, updated_at ASC, id ASC;
 -- The transcripts one attachment holds, with the fields the response shows, in
 -- attachment order. Reads the binding and the transcript together so the caller
 -- does not stitch two queries per row.
-SELECT pt.transcript_id, pt.position, pt.previous_visibility, t.title, t.session_start
+SELECT pt.transcript_id, pt.position, pt.previous_visibility, t.title, t.session_start, t.owner_id, t.visibility
 FROM pull_request_attachment_transcripts pt
 JOIN transcripts t ON t.id = pt.transcript_id
 WHERE pt.attachment_id = @attachment_id
@@ -124,8 +124,8 @@ ORDER BY pt.position ASC, pt.transcript_id ASC;
 DELETE FROM pull_request_attachment_transcripts WHERE attachment_id = $1;
 
 -- name: GetPullRequestAttachmentTranscript :one
--- One binding, for a compensation that must undo exactly the transcripts one
--- attempt bound rather than every binding the attachment holds.
+-- One binding, re-read under the transcript publish lock before releasing
+-- a visibility change made by an older attach.
 SELECT * FROM pull_request_attachment_transcripts
 WHERE attachment_id = $1 AND transcript_id = $2;
 
@@ -276,3 +276,29 @@ WHERE ts.group_id = @group_id
   AND ts.status = 'approved'
   AND a.state = 'attached'
 ORDER BY a.id, pt.transcript_id;
+
+-- name: ListAttachmentsForCollectiveGrants :many
+-- Membership changes can alter a bound transcript's readers without changing
+-- its visibility. Read affected attachments before removing any share rows.
+SELECT DISTINCT a.* FROM pull_request_attachments a
+JOIN pull_request_attachment_transcripts pt ON pt.attachment_id = a.id
+JOIN transcript_shares ts ON ts.transcript_id = pt.transcript_id
+WHERE ts.group_id = @group_id AND a.state = 'attached'
+ORDER BY a.id;
+
+-- name: ListAttachmentsContainingTranscript :many
+-- Deletion must prune derived prompt copies, including unbound previews and
+-- detached digests. Lock rows so pruning and row removal commit together.
+SELECT a.* FROM pull_request_attachments a
+WHERE a.author_id = @owner_id
+  AND (a.digest->'items' @> jsonb_build_array(jsonb_build_object('transcriptId', @transcript_id::text))
+    OR EXISTS (SELECT 1 FROM pull_request_attachment_transcripts pt
+      WHERE pt.attachment_id = a.id AND pt.transcript_id = @transcript_id::uuid))
+ORDER BY a.id FOR UPDATE;
+
+-- name: LockPullRequestAttachmentArtifacts :one
+-- Serializes stored prompt copies with transcript deletion's pruning transaction.
+SELECT * FROM pull_request_attachments WHERE id = $1 FOR UPDATE;
+
+-- name: ListLiveOwnedDigestTranscripts :many
+SELECT id FROM transcripts WHERE owner_id = @owner_id AND id = ANY(@transcript_ids::uuid[]);

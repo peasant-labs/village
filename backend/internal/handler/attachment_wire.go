@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/schema"
@@ -45,10 +47,7 @@ func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.Pull
 		if err != nil {
 			return schema.VillagePullRequestAttachmentResponse{}, err
 		}
-		transcript, err := h.queries.GetTranscriptByID(ctx, row.TranscriptID)
-		if err != nil {
-			return schema.VillagePullRequestAttachmentResponse{}, fmt.Errorf("could not read a bound transcript to decide who may read it: %w", err)
-		}
+		transcript := sqlc.Transcript{ID: row.TranscriptID, OwnerID: row.OwnerID, Visibility: row.Visibility}
 		if h.canViewTranscript(ctx, viewer, transcript) {
 			readable[wire.TranscriptID] = true
 		} else {
@@ -72,11 +71,27 @@ func (h *Handler) attachmentResponseOf(ctx context.Context, attachment sqlc.Pull
 		}
 		// A preview's digest can name a transcript that is not bound yet; it is
 		// only ever served to the author, who can open their own.
+		previewReadable := map[schema.TranscriptID]bool{}
+		previewChecked := map[schema.TranscriptID]bool{}
 		restricted, err := digest.Restrict(parsed, func(id schema.TranscriptID) bool {
 			if readable[id] {
 				return true
 			}
-			return viewerIsAuthor
+			if !viewerIsAuthor || attachment.State != string(promptattach.Preview) {
+				return false
+			}
+			if previewChecked[id] {
+				return previewReadable[id]
+			}
+			previewChecked[id] = true
+			// An unbound preview still requires a live transcript the author owns.
+			parsedID, err := uuid.Parse(string(id))
+			if err != nil {
+				return false
+			}
+			transcript, err := h.queries.GetTranscriptByID(ctx, pgtype.UUID{Bytes: parsedID, Valid: true})
+			previewReadable[id] = err == nil && transcript.OwnerID == viewer.PgID()
+			return previewReadable[id]
 		})
 		if err != nil {
 			return schema.VillagePullRequestAttachmentResponse{}, fmt.Errorf("the digest stored for this attachment could not be narrowed to what the viewer may read: %w", err)

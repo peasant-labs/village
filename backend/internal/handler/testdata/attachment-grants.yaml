@@ -1,0 +1,17 @@
+- {name: shared_without_an_accepted_grant_is_neutral, visibility: shared, share: '', member: member, action: none, before: neutral, after: neutral}
+- {name: a_pending_member_cannot_satisfy_the_check, visibility: shared, share: approved, member: pending, action: none, before: neutral, after: neutral}
+- {name: an_accepted_member_satisfies_the_check, visibility: shared, share: approved, member: member, action: none, before: success, after: success}
+- {name: a_review_owner_can_read_a_private_submission, visibility: private, share: pending, member: owner, action: none, before: success, after: success}
+- {name: approval_refreshes_the_check_without_a_visibility_change, visibility: shared, share: pending, member: member, action: approve, before: neutral, after: success}
+- {name: batch_approval_refreshes_the_check_without_a_visibility_change, visibility: shared, share: pending, member: member, action: batch-approve, before: neutral, after: success}
+- {name: rejection_refreshes_the_unaccepted_check, visibility: shared, share: pending, member: member, action: reject, before: neutral, after: neutral}
+- {name: removing_the_contribution_revokes_the_check, visibility: shared, share: approved, member: member, action: remove-transcript, before: success, after: neutral}
+- {name: the_last_member_leaving_revokes_the_check, visibility: shared, share: approved, member: member, action: remove-member, before: success, after: neutral}
+- name: shared_to_private_during_post_revokes_check_success
+  visibility: shared
+  share: approved
+  member: member
+  action: none
+  before: neutral
+  after: neutral
+  during_post: private

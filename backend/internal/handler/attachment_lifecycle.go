@@ -33,6 +33,10 @@ const attachmentRedactionLevel = string(redact.Standard)
 // inside the publish request but must not be tied to the client's connection.
 const attachmentHookTimeout = 30 * time.Second
 
+func attachmentWorkContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), attachmentHookTimeout)
+}
+
 // Sentinel failures the attachment lifecycle reports so a caller can map them to
 // the right status: a collective that no longer exists or a repository that is
 // no longer linked cannot be acted on (the attachment is unbound), and a GitHub
@@ -208,6 +212,8 @@ type attachmentDigests struct {
 	// visibility is each transcript's visibility as these digests read it, so a
 	// caller can tell whether it changed before the digests were posted.
 	visibility map[schema.TranscriptID]string
+	// readable remembers actual grants, including changes that leave visibility unchanged.
+	readable map[schema.TranscriptID]bool
 }
 
 // buildAttachmentDigests projects an accepted match into the reviewer-facing
@@ -218,7 +224,7 @@ type attachmentDigests struct {
 // so its counts and numbering describe only what it shows.
 func (h *Handler) buildAttachmentDigests(ctx context.Context, transcriptIDs []schema.TranscriptID, commitSet []string, match matcher.Result) (attachmentDigests, error) {
 	var complete, listed digest.Input
-	result := attachmentDigests{visibility: make(map[schema.TranscriptID]string, len(transcriptIDs))}
+	result := attachmentDigests{visibility: make(map[schema.TranscriptID]string, len(transcriptIDs)), readable: make(map[schema.TranscriptID]bool, len(transcriptIDs))}
 
 	anchorsByTranscript := map[schema.TranscriptID][]matcher.Anchor{}
 	for _, accepted := range match.Accepted {
@@ -287,9 +293,12 @@ func (h *Handler) buildAttachmentDigests(ctx context.Context, transcriptIDs []sc
 		} else {
 			result.unlisted++
 		}
-		if readableBeyondItsAuthor(row.Visibility) {
-			result.readableBeyondAuthor = true
+		readable, err := h.readableBeyondItsAuthor(ctx, row)
+		if err != nil {
+			return attachmentDigests{}, err
 		}
+		result.readable[accepted] = readable
+		result.readableBeyondAuthor = result.readableBeyondAuthor || readable
 	}
 
 	villageURL := strings.TrimRight(h.cfg.FrontendURL, "/")
