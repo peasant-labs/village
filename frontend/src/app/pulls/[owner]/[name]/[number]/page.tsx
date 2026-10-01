@@ -81,8 +81,12 @@ function joinNames(names: string[]): string {
  */
 function audienceOf(visibility: string, collectiveNames: string[]): string {
   if (visibility === "public") return "anyone";
+  // Approval metadata can remain after a transcript becomes private. It does
+  // not grant ordinary members access, and an empty list cannot rule out the
+  // collective owners' review access to pending submissions.
+  if (visibility === "private") return "not shared with collective members";
   if (collectiveNames.length > 0) return `members of ${joinNames(collectiveNames)}`;
-  return "only you";
+  return "not shared with collective members";
 }
 
 function transcriptsNoun(count: number): string {
