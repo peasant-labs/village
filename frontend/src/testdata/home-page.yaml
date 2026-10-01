@@ -101,6 +101,10 @@ accountMenuCases:
     item: profile
     effect: navigate
     target: "/users/alice-dev"
+  - name: settings-opens-the-signed-in-persons-settings
+    item: settings
+    effect: navigate
+    target: "/settings"
   - name: sign-out-ends-the-session
     item: sign out
     effect: sign-out

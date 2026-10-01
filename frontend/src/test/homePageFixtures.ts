@@ -231,6 +231,7 @@ const navCaseKeys = [
 
 const requiredAccountMenuCaseNames = [
   "profile-opens-the-signed-in-persons-profile",
+  "settings-opens-the-signed-in-persons-settings",
   "sign-out-ends-the-session",
 ] as const;
 

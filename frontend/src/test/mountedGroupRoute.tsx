@@ -320,7 +320,7 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
     // endpoint does.
     if (new RegExp(`/groups/${fixture.groupId}(\\?|$)`).test(url)) {
       const params = new URL(url, "https://village.test").searchParams;
-      if (params.get("view") === "grouped") return json({ groupId: fixture.groupId, transcriptList: { ...EMPTY_GROUPED_MY_SHARES, page: Number(params.get("page") ?? 1) } });
+      if (params.get("view") === "grouped") return json({ group: { ...group, id: "22222222-2222-4222-8222-222222222222", created_by: "11111111-1111-4111-8111-111111111111" }, members: members.map((member) => ({ ...member, id: "11111111-1111-4111-8111-111111111111" })), stats: { total_transcripts: fixture.transcripts?.length ?? 0, contributor_count: 0, total_turns: 0, total_duration_ms: 0, total_tokens: 0, pull_request_count: 0 }, models: [], contributors: [], can_read: fixture.role != null, your_role: fixture.role ?? "", pending_members: [], transcriptList: { ...EMPTY_GROUPED_MY_SHARES, page: Number(params.get("page") ?? 1) } });
       const groupTranscripts = fixture.transcripts ?? [];
       return json({
         group,

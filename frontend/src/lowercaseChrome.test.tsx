@@ -1,12 +1,15 @@
 import { type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { providerDisplayName } from "@peasant-labs/fairtrade/ui";
 import PublishPage from "@/app/publish/page";
 import LinkedRepositories from "@/components/group/LinkedRepositories";
-import ContributePicker from "@/components/transcript/ContributePicker";
+import { installRESTFixture, renderProductionRoute, type MountedRouteTranscriptMetadata } from "@/test/mountedProductionRoute";
+import { installCollectiveREST, makeGroup, renderCollectiveSettings } from "@/test/mountedCollectivePages";
+import { pushedRoutes } from "@/test/nextNavigationMock";
+import type { SessionDetailPayload } from "@peasant-labs/schema";
 import PendingApprovalBar from "@/components/transcript/PendingApprovalBar";
 import {
   installHomeRouteREST,
@@ -147,6 +150,7 @@ function groupTranscript(): GroupTranscript {
     owner_username: content.viewer,
     owner_avatar_url: null,
     owner_is_discoverable: true,
+    pull_requests: { count: 0, recent: [] },
   };
 }
 
@@ -242,7 +246,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
           }),
         );
         await renderGroupDetailRoute(GROUP_ID);
-        await screen.findByText(/collective not found/i);
+        await screen.findByText(/could not read the collective/i);
         return document.body;
       }
 
@@ -296,25 +300,37 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
       await renderGroupDetailRoute(GROUP_ID);
       await waitFor(() => expect(document.body.textContent).toContain(content.collective));
       if (!owner) {
-        await screen.findAllByText(/data access restricted/i);
+        await screen.findAllByText(content.collective);
+        expect(screen.queryByTestId("my-contributions-panel")).toBeNull();
         return document.body;
       }
       await screen.findByTestId("my-contributions-panel");
-      await screen.findAllByText(/connection isn.t set up/i);
       await screen.findByText("pending");
       if (c.state === "confirm-remove") {
-        fireEvent.click(screen.getByRole("checkbox", { name: "select every transcript on this page" }));
-        fireEvent.click(await screen.findByRole("button", { name: /remove from collective/ }));
+        fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
+        fireEvent.click(screen.getByRole("checkbox", { name: "select all" }));
+        fireEvent.click(await screen.findByRole("button", { name: "remove selected (1)" }));
         await screen.findByText("remove from collective?");
       }
       if (c.state === "invite-search") {
-        // The rail is drawn twice (beside the page, and in the phone sheet);
-        // the first field is the one beside the page.
-        fireEvent.change(screen.getAllByPlaceholderText("github username")[0], {
-          target: { value: "octo" },
-        });
-        await screen.findAllByRole("menu", { name: "github user results" }, { timeout: 3000 });
-        await screen.findAllByText(content.githubUser);
+        fireEvent.click(screen.getByRole("button", { name: "settings" }));
+        expect(pushedRoutes).toContain(`/groups/${GROUP_ID}/settings`);
+        // Follow the real settings exit; its retained search opens the
+        // canonical Dialog without replacing the canonical invite form.
+        const world = { viewer: { id: `user-${content.viewer}`, username: content.viewer }, group: makeGroup({ id: GROUP_ID, name: content.collective }), role: "owner", canRead: true, members: [], transcripts: [], linked: [], available: [] };
+        installCollectiveREST(world);
+        const route = globalThis.fetch;
+        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (String(input).startsWith("https://api.github.com/search/users")) return json({ items: [{ login: content.githubUser, avatar_url: "" }] });
+          return route(input, init);
+        }));
+        await renderCollectiveSettings(world);
+        fireEvent.click(screen.getByRole("button", { name: "find a github user to invite" }));
+        const dialog = await screen.findByRole("dialog", { name: "invite a github user" });
+        fireEvent.change(within(dialog).getByRole("combobox", { name: "github username" }), { target: { value: "octo" } });
+        await within(dialog).findByRole("menu", { name: "github user results" }, { timeout: 3000 });
+        await within(dialog).findByText(content.githubUser);
+        return document.body;
       }
       return document.body;
     }
@@ -377,61 +393,38 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
 
     case "contribute-picker": {
       const shared: string[] = [];
-      vi.stubGlobal(
-        "fetch",
-        vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-          const url = String(input);
-          if (url.endsWith("/groups")) {
-            return json(
-              c.state === "no-collectives"
-                ? []
-                : [
-                    {
-                      id: GROUP_ID,
-                      name: content.collective,
-                      description: null,
-                      linked_github_org: null,
-                      display_members: true,
-                      transcript_deletion_policy: "user_choice",
-                      created_by: "user-owner",
-                      created_at: WHEN,
-                      updated_at: WHEN,
-                      acceptance_mode: "open",
-                      data_access: "members_only",
-                      role: "member",
-                      member_since: WHEN,
-                    },
-                  ],
-            );
-          }
-          if (url.endsWith(`/transcripts/${TRANSCRIPT_ID}/share`) && init?.method === "POST") {
-            shared.push(String(init.body));
-            return json({ ok: true });
-          }
-          throw new Error(`contribute-picker fixture received an unexpected request to ${url}`);
-        }),
-      );
-      await mount(
-        <ContributePicker
-          open
-          onClose={() => {}}
-          transcriptId={TRANSCRIPT_ID}
-          transcriptTitle={content.transcript}
-          transcriptVisibility="shared"
-        />,
-      );
+      const ownerID = `user-${content.viewer}`;
+      const served: MountedRouteTranscriptMetadata = { transcript: { id: TRANSCRIPT_ID, local_id: "local-picker", visibility: "shared", title: content.transcript, description: null, project_name: "village" }, owner: { id: ownerID, github_username: content.viewer }, enriched_shares: [], viewer_collectives: [] };
+      const detail: SessionDetailPayload = { id: "local-picker", harness: HARNESS, startTime: WHEN, endTime: WHEN, durationMins: 0, totalTokens: 0, tokensIn: 0, tokensOut: 0, turnCount: 0, toolCallCount: 0, project: "village", model: "anthropic/claude-fable-5", turns: [] };
+      installRESTFixture(TRANSCRIPT_ID, served, detail, "lowercase manage access", { id: ownerID, github_username: content.viewer, orgs: [] }, (url, init) => {
+        const path = new URL(url).pathname.replace(/^\/api\/v1/, "");
+        const method = init?.method ?? "GET";
+        if (path === "/groups") return json(c.state === "no-collectives" ? [] : [{ ...makeGroup({ id: GROUP_ID, name: content.collective }), role: "member", member_since: WHEN }]);
+        if (path === "/users/me/collectives/contributions") return json({ collectives: shared.length ? [{ id: GROUP_ID, name: content.collective, approved_count: 1, pending_count: 0, rejected_attempt_count: 0, withdrawn_attempt_count: 0 }] : [] });
+        if (path === `/groups/${GROUP_ID}/my-shares`) return json(shared.length ? [{ id: TRANSCRIPT_ID, status: "approved" }] : []);
+        if (path === `/transcripts/${TRANSCRIPT_ID}/share` && method === "POST") {
+          shared.push(String(init?.body));
+          served.viewer_collectives!.push({ id: GROUP_ID, name: content.collective });
+          return json([{ group_id: GROUP_ID, group_name: content.collective, shared_at: WHEN }]);
+        }
+        return undefined;
+      });
+      await renderProductionRoute(TRANSCRIPT_ID, "", { signedIn: true });
+      fireEvent.click(await screen.findByRole("button", { name: "more" }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "manage access" }));
+      const dialog = await screen.findByRole("dialog", { name: "manage access" });
       if (c.state === "no-collectives") {
-        await screen.findByText(/joined any collectives yet/);
-        return document.body;
+        fireEvent.change(await within(dialog).findByPlaceholderText("collective or github org"), { target: { value: "unmatched" } });
+        await within(dialog).findByText("none of your collectives matches that name.");
+        return dialog;
       }
-      await screen.findByText(content.collective);
+      await within(dialog).findByText(content.collective);
       if (c.state === "contributed") {
-        fireEvent.click(screen.getByRole("button", { name: new RegExp(content.collective) }));
-        fireEvent.click(screen.getByRole("button", { name: "contribute" }));
-        await screen.findByText(`contributed to ${content.collective}.`);
+        fireEvent.click(within(dialog).getByRole("button", { name: `add ${content.collective}` }));
+        await within(dialog).findByText(`submitted to ${content.collective}.`);
         expect(shared).toEqual([JSON.stringify({ group_ids: [GROUP_ID] })]);
       }
-      return document.body;
+      return dialog;
     }
 
     case "pending-approval-bar": {
