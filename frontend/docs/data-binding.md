@@ -413,3 +413,9 @@ specifically to enable this branching (`api.ts:3-9`).
 - `src/components/group/CommitTimeline.tsx` — `useQueries` fan-out → `DataTable`.
 - `src/components/ui/GitHubUserSearch.tsx` — direct GitHub API typeahead.
 - `src/components/transcript/RedactionDiffView.tsx` — single-panel redaction reviewer (defined, currently unmounted).
+
+The actual persistent account menu announces failed sign-out requests in the
+canonical dialog and offers another attempt. Its pending dialog and immediate
+admission guard prevent repeated requests, including reselecting the menu
+before the focus handoff frames finish. Named mounted fixtures cover failure,
+pending feedback, and rapid reselection through the production header.
