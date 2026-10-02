@@ -1,0 +1,127 @@
+{
+  "sourceHead": "ff8fae4a9a1287b70701f69cff763a8453b46161",
+  "buildHead": "ff8fae4a9a1287b70701f69cff763a8453b46161",
+  "referenceHead": "708c858face29261b41faa0a91f0e9167b30dc45",
+  "canonicalServedProofSha256": "108bd9b6213ef90813199418fd306b1c2178bf97e78d94a68b83fa5c412b2c0a",
+  "appServedProofSha256": "7c30c448788cb3ff8441ef3f448578659663a9b828a4120d8f37f4e4eee382f2",
+  "runtimeEquivalent": true,
+  "recordedDifferences": [
+    "Real fixture data and persistent application header differ from demo framing.",
+    "The app preserves JSON/JSONL export exits beyond the demo menu.",
+    "The live canonical transcript demo has no functional manage-access modal; that app dialog is reviewed in separate both-theme mounted captures, not mislabeled as a matching canonical stage."
+  ],
+  "pairs": [
+    {
+      "id": "home",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-home-dark.png",
+        "sha256": "d9d9a8a8f74c8311d38b0763f8ea74afb8714350baff89949ab70f5e679a1f02",
+        "observed": {
+          "text": "your transcriptssessions you published from peasant. only the collectives you picked can read each one.38 transcripts3 collectives9 pull requests19.1M tokens31h recordedsearch your transcriptsallAcme PlatformAcme CompanyML Reading Grouptranscripts you publishedtitleshared withpull requestswhenFix flaky ingest testclaude code · ingest-api · fix/flaky-ingestAcme PlatformAcme Company#42#45+212m agoGuard empty turns in the digestclaude code · ingest-api · fix/flaky-ingestAcme PlatformAcme Company#422h agoPaginate the collectives listcodex · web · feat/paginateAcme Platform#31#33yesterdayMigrate retry queue to workeropencode · worker · developAcme Platformnone2d agoReproduce the tokenizer benchmarkclaude code · ml-notes · mainML Reading Group · waitingnone3d agoRefactoring database queriesgemini cli · ingest-api · developAcme Platform#36#38+1last week6 of 38 transcriptsshow 20 moreyour collectivesview allAcme Platformowner · 12 membersAcme Companymember · 87 membersML Reading Groupcontributor · 21 memberswaiting for approvalReproduce the tokenizer benchmarkthe owner of ML Reading Group approves each transcript before members can read it. 3d ago",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "dark",
+          "url": "http://localhost:6132/?app=commons&commons=home&theme=dark#inuse"
+        }
+      },
+      "theme": "dark",
+      "subject": "/tmp/village-276-ff8fae4a-production-captures/results/home.journey.mjs-home-list-a3ee0-totals-and-your-collectives-dark/home-rows.png",
+      "output": "/tmp/village-276-ff8fae4a-production-captures/canonical-sxs/compare-home-dark.png",
+      "subjectSha256": "7dad3d9dcdc3a808e90f5d32f49ad2ec852609a3cfd95ab3f4d249ee3554b1ae",
+      "comparisonSha256": "06f53e3e4811c329e223db62d64b610e7baf0906586f03ea6dcbb99cefd6142a",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "id": "home",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-home-light.png",
+        "sha256": "618de07c3e391b056fc0f2cc4455fc7c3dd901b998ad75663fcc852c40c8d603",
+        "observed": {
+          "text": "your transcriptssessions you published from peasant. only the collectives you picked can read each one.38 transcripts3 collectives9 pull requests19.1M tokens31h recordedsearch your transcriptsallAcme PlatformAcme CompanyML Reading Grouptranscripts you publishedtitleshared withpull requestswhenFix flaky ingest testclaude code · ingest-api · fix/flaky-ingestAcme PlatformAcme Company#42#45+212m agoGuard empty turns in the digestclaude code · ingest-api · fix/flaky-ingestAcme PlatformAcme Company#422h agoPaginate the collectives listcodex · web · feat/paginateAcme Platform#31#33yesterdayMigrate retry queue to workeropencode · worker · developAcme Platformnone2d agoReproduce the tokenizer benchmarkclaude code · ml-notes · mainML Reading Group · waitingnone3d agoRefactoring database queriesgemini cli · ingest-api · developAcme Platform#36#38+1last week6 of 38 transcriptsshow 20 moreyour collectivesview allAcme Platformowner · 12 membersAcme Companymember · 87 membersML Reading Groupcontributor · 21 memberswaiting for approvalReproduce the tokenizer benchmarkthe owner of ML Reading Group approves each transcript before members can read it. 3d ago",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "light",
+          "url": "http://localhost:6132/?app=commons&commons=home&theme=light#inuse"
+        }
+      },
+      "theme": "light",
+      "subject": "/tmp/village-276-ff8fae4a-production-captures/results/home.journey.mjs-home-list-a3ee0-totals-and-your-collectives-light/home-rows.png",
+      "output": "/tmp/village-276-ff8fae4a-production-captures/canonical-sxs/compare-home-light.png",
+      "subjectSha256": "1445f47c776e26999dca7ff8b3f007a203a191592991ddab65d686007b95465e",
+      "comparisonSha256": "5e7389875bc7c7a0ba801dc4e6fe73e038625063e72a5b6d319f2ac642358e4a",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "id": "account",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-account-dark.png",
+        "sha256": "ec41012f0f587c8668e9f13cc3fd81075826b948cfe8c6f82f4a2cd8a3c0720c",
+        "observed": {
+          "text": "your settingsswitches apply right away. text changes when you press edit.profile 2 settingshandle@alice-dev editdiscoverable profileon: your handle shows on your transcripts and in member lists. off: you show as anon. onpull requests 1 settinglink my transcripts to my pull requests automaticallyoff: comment /peasant attach on a pull request. on: when you open a pull request in a repo that one of your collectives links, your transcripts that trace its commits are linked. who can read them does not change. offconnections 2 connectionsgithub · alice-devyou sign in to village with this account.sign outpeasant on 1 computerit can publish as you. last used 12m ago.sign out everywheredanger zone delete your village account. this cannot be undone.delete account",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "dark",
+          "url": "http://localhost:6132/?app=commons&commons=account&theme=dark#inuse"
+        }
+      },
+      "theme": "dark",
+      "subject": "/tmp/village-276-ff8fae4a-production-captures/results/account-settings.journey.m-492fc-nt-menu-and-shows-every-row-dark/settings-keys.png",
+      "output": "/tmp/village-276-ff8fae4a-production-captures/canonical-sxs/compare-account-dark.png",
+      "subjectSha256": "8a6cf38648eb03b7a764b31c56f78827b4097f9daa90a696e70ac1c7de1e107e",
+      "comparisonSha256": "7c8a502e2815f409c3719f3ee3a69104e1c03b72df6cc47f00163e1ac9af207d",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "id": "account",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-account-light.png",
+        "sha256": "7a3b1fc91aeecea5d4dd736fdaa0b27a47605f00c968715bb81ffaf86d358426",
+        "observed": {
+          "text": "your settingsswitches apply right away. text changes when you press edit.profile 2 settingshandle@alice-dev editdiscoverable profileon: your handle shows on your transcripts and in member lists. off: you show as anon. onpull requests 1 settinglink my transcripts to my pull requests automaticallyoff: comment /peasant attach on a pull request. on: when you open a pull request in a repo that one of your collectives links, your transcripts that trace its commits are linked. who can read them does not change. offconnections 2 connectionsgithub · alice-devyou sign in to village with this account.sign outpeasant on 1 computerit can publish as you. last used 12m ago.sign out everywheredanger zone delete your village account. this cannot be undone.delete account",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "light",
+          "url": "http://localhost:6132/?app=commons&commons=account&theme=light#inuse"
+        }
+      },
+      "theme": "light",
+      "subject": "/tmp/village-276-ff8fae4a-production-captures/results/account-settings.journey.m-492fc-nt-menu-and-shows-every-row-light/settings-keys.png",
+      "output": "/tmp/village-276-ff8fae4a-production-captures/canonical-sxs/compare-account-light.png",
+      "subjectSha256": "e19a1c7f1fe5d16c1b0167308f47b94f20634167e29fe4619440a58450a2c927",
+      "comparisonSha256": "de5e8cccd4518341a2bc3543e183ea8e1dbd633d42e06b9cdd34ff0095900f87",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    }
+  ]
+}
