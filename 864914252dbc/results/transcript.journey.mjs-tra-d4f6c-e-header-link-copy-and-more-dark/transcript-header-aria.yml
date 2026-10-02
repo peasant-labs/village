@@ -1,0 +1,29 @@
+- navigation "breadcrumb":
+  - link "home":
+    - /url: /
+  - link "ingest-api":
+    - /url: /users/alice-dev/projects/5555555555555555555555555555555555555555555555555555555555555555
+  - text: Fix flaky ingest test
+- link "localhost:3019/transcripts/3f9c…e21a":
+  - /url: http://localhost:3019/transcripts/3f9c0a17-5b2e-4c1d-9a8f-2d6e7b40e21a
+- button "copy link"
+- status
+- button "more"
+- heading "Fix flaky ingest test" [level=2]
+- text: claude code anthropic/claude-fable-5 5m 5 turns unknown prompts 0 tools 500 tokens
+- region "pull requests 5":
+  - paragraph: pull requests 5
+  - list:
+    - listitem:
+      - 'link "acme/ingest-api #42"':
+        - /url: /pulls/acme/ingest-api/42
+      - text: attached · Fix flaky ingest test
+    - listitem:
+      - 'link "acme/ingest-api #45"':
+        - /url: /pulls/acme/ingest-api/45
+      - text: attached · Retry with the injected clock
+    - listitem:
+      - 'link "acme/web #31"':
+        - /url: /pulls/acme/web/31
+      - text: detached
+  - button "show all 5"
