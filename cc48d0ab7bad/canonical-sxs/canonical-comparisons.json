@@ -1,0 +1,239 @@
+{
+  "sourceHead": "cc48d0ab7bad5d06b8728e4a53cdaa52cf04ddbd",
+  "buildHead": "cc48d0ab7bad5d06b8728e4a53cdaa52cf04ddbd",
+  "referenceHead": "708c858face29261b41faa0a91f0e9167b30dc45",
+  "canonicalServedProofSha256": "108bd9b6213ef90813199418fd306b1c2178bf97e78d94a68b83fa5c412b2c0a",
+  "appServedProofSha256": "686a5aa8cbee1a820523b38bbc26c4e6ef51e90cc58b32a19b08969d4679adf4",
+  "runtimeEquivalent": true,
+  "recordedDifferences": [
+    "Real fixture data and persistent application header differ from demo framing.",
+    "The app preserves JSON/JSONL export exits beyond the demo menu.",
+    "The live canonical transcript demo has no functional manage-access modal; that app dialog is reviewed in separate both-theme mounted captures, not mislabeled as a matching canonical stage."
+  ],
+  "pairs": [
+    {
+      "id": "owner",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-owner-dark.png",
+        "sha256": "edeed2312ca70bd9178b33cb89b2bcf04e32854ae679fa2276155e5000971b5f",
+        "observed": {
+          "text": "homeFix flaky ingest testvillage.peasantlabs.org/transcripts/3f9c0a17manage access: Acme Platform, Acme Companyedit titledownload markdownFix flaky ingest test claude codeanthropic/claude-fable-5 Dev 8m 8 turns 2 prompts 5 tools 18.4k tokens 1 commit 7 files+312 −24pull requests 5acme/ingest-api #42attached · 2 of 4 commits tracedacme/ingest-api #45attached · 1 of 2 commits tracedacme/web #31detachedshow all 5highlights 5full trace 9diffs 1files 7annotations 3 user turns8m·2 taskscollapse all#1Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.3 tools5m#2Looks right. Run a typecheck across the workspace before you start moving files.typecheck failed3 tools3m9 turns list graph explorationturns 0–2user turn 15m · 3 tools · 5 filesuser#18m ago 280Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.assistantanthropic/claude-fable-5#1a8m ago 2.8kLet me look at the current renderer before extracting it. I will read TurnRow.tsx and find where rendererFor is wired so the move preserves the per-tool dispatch.\nThe shared renderer keeps this structured handoff intact.\n\nRead the existing component\nPreserve tool dispatch\n\nSurfaceStatusMarkdownReadyTranscript viewerReviewed\nconst renderer = rendererFor(tool.kind)\nreturn renderer(tool)\nthinking33wReadweb/src/components/session-detail/v2/canvas/TurnRow.tsxassistantanthropic/claude-fable-5#1b8m ago 2.7kNow locate every call site of rendererFor so the dispatch table comes across intact.GreprendererFor · web/src · 4 matches debuggingturns 3–4 · 1 erroruser turn 23m · 3 tools · 2 files · +316 −25user#26m ago 90Looks right. Run a typecheck across the workspace before you start moving files.model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8assistantanthropic/claude-opus-4-8#2a6m ago error 3.6kRunning the workspace typecheck first. It surfaces a strict-mode error in the tasks helper.Bashpnpm -r typecheck4.1s exit 2 implementationturns 5–8assistantanthropic/claude-opus-4-8#2b5m ago 3.9kThe index access is unguarded under strict mode. Adding a null-guard so the empty-task case falls through cleanly.thinking24wEditpackages/browser/src/lib/tasks.tsassistantanthropic/claude-opus-4-8#2c4m ago 2.9kVerifying the fix: the workspace typechecks clean now, so I will commit the canvas port.Bashpnpm -r typecheck5.6s9f3c1adfeat(canvas): port TurnRow + tool renderers+312 −24 · 7 files docs-writer subagentsubagentanthropic/claude-opus-4-8depth 1#2d3m ago 2.8kSpawned a subagent to document the props/callback/capability contract for the extracted package.Taskdocs-writer · document the props/callback contract returned to claudeassistantanthropic/claude-opus-4-8#2ejust now 1.7kAll packages typecheck and build. The canvas now lives in packages/browser and web consumes it through the shared export.Bashpnpm -r build && pnpm -r typecheck12.0s filterscategoriesprompts2responses7thinking2tool calls 7 file edits1 bash3 read1 search1 fetch0 tasks1 other0semantic tags errors retries re-editcheckpointsall checkpoints (1)view optionsshow hidden indicatorsonexpand all tool callsoffcompact modeoffjump to start latest1 of 9⌘f search · j/k step turns",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "dark",
+          "url": "http://localhost:6132/?app=commons&commons=transcript-detail&theme=dark#inuse"
+        }
+      },
+      "theme": "dark",
+      "subject": "/tmp/village-271-cc48d0ab-production-captures/results/transcript.journey.mjs-tra-d4f6c-e-header-link-copy-and-more-dark/test-finished-1.png",
+      "output": "/tmp/village-271-cc48d0ab-production-captures/canonical-sxs/compare-owner-dark.png",
+      "subjectSha256": "24895f07de0f32598e68e2a2c25eafe9b43bccffa63e0658f62d1d684f55fee1",
+      "comparisonSha256": "7a1981ee8c02cb1329b9ae0f10282eaac2c0f10345e3941df3aeb9828029500e",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "id": "owner",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-owner-light.png",
+        "sha256": "5abc0e556004170931a16f5724705698f8d5eaaf63fe595962a4f2030f8168c6",
+        "observed": {
+          "text": "homeFix flaky ingest testvillage.peasantlabs.org/transcripts/3f9c0a17manage access: Acme Platform, Acme Companyedit titledownload markdownFix flaky ingest test claude codeanthropic/claude-fable-5 Dev 8m 8 turns 2 prompts 5 tools 18.4k tokens 1 commit 7 files+312 −24pull requests 5acme/ingest-api #42attached · 2 of 4 commits tracedacme/ingest-api #45attached · 1 of 2 commits tracedacme/web #31detachedshow all 5highlights 5full trace 9diffs 1files 7annotations 3 user turns8m·2 taskscollapse all#1Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.3 tools5m#2Looks right. Run a typecheck across the workspace before you start moving files.typecheck failed3 tools3m9 turns list graph explorationturns 0–2user turn 15m · 3 tools · 5 filesuser#18m ago 280Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.assistantanthropic/claude-fable-5#1a8m ago 2.8kLet me look at the current renderer before extracting it. I will read TurnRow.tsx and find where rendererFor is wired so the move preserves the per-tool dispatch.\nThe shared renderer keeps this structured handoff intact.\n\nRead the existing component\nPreserve tool dispatch\n\nSurfaceStatusMarkdownReadyTranscript viewerReviewed\nconst renderer = rendererFor(tool.kind)\nreturn renderer(tool)\nthinking33wReadweb/src/components/session-detail/v2/canvas/TurnRow.tsxassistantanthropic/claude-fable-5#1b8m ago 2.7kNow locate every call site of rendererFor so the dispatch table comes across intact.GreprendererFor · web/src · 4 matches debuggingturns 3–4 · 1 erroruser turn 23m · 3 tools · 2 files · +316 −25user#26m ago 90Looks right. Run a typecheck across the workspace before you start moving files.model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8assistantanthropic/claude-opus-4-8#2a6m ago error 3.6kRunning the workspace typecheck first. It surfaces a strict-mode error in the tasks helper.Bashpnpm -r typecheck4.1s exit 2 implementationturns 5–8assistantanthropic/claude-opus-4-8#2b5m ago 3.9kThe index access is unguarded under strict mode. Adding a null-guard so the empty-task case falls through cleanly.thinking24wEditpackages/browser/src/lib/tasks.tsassistantanthropic/claude-opus-4-8#2c4m ago 2.9kVerifying the fix: the workspace typechecks clean now, so I will commit the canvas port.Bashpnpm -r typecheck5.6s9f3c1adfeat(canvas): port TurnRow + tool renderers+312 −24 · 7 files docs-writer subagentsubagentanthropic/claude-opus-4-8depth 1#2d3m ago 2.8kSpawned a subagent to document the props/callback/capability contract for the extracted package.Taskdocs-writer · document the props/callback contract returned to claudeassistantanthropic/claude-opus-4-8#2ejust now 1.7kAll packages typecheck and build. The canvas now lives in packages/browser and web consumes it through the shared export.Bashpnpm -r build && pnpm -r typecheck12.0s filterscategoriesprompts2responses7thinking2tool calls 7 file edits1 bash3 read1 search1 fetch0 tasks1 other0semantic tags errors retries re-editcheckpointsall checkpoints (1)view optionsshow hidden indicatorsonexpand all tool callsoffcompact modeoffjump to start latest1 of 9⌘f search · j/k step turns",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "light",
+          "url": "http://localhost:6132/?app=commons&commons=transcript-detail&theme=light#inuse"
+        }
+      },
+      "theme": "light",
+      "subject": "/tmp/village-271-cc48d0ab-production-captures/results/transcript.journey.mjs-tra-d4f6c-e-header-link-copy-and-more-light/test-finished-1.png",
+      "output": "/tmp/village-271-cc48d0ab-production-captures/canonical-sxs/compare-owner-light.png",
+      "subjectSha256": "6bdd9bab1e989c11ae7933a086700b4685c8c5646515fedb3a10cfb6e06e683a",
+      "comparisonSha256": "e62b2c54374449ad09be2ba5e7f1c748f27b247cc3fda4d4d9750fce0e8775e0",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "id": "menu",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-menu-dark.png",
+        "sha256": "c24316f75b6f14316e3c836f605be0580f1f88a4d813a6d6d9637f5ad09bcead",
+        "observed": {
+          "text": "homeFix flaky ingest testvillage.peasantlabs.org/transcripts/3f9c0a17manage access: Acme Platform, Acme Companyedit titledownload markdownFix flaky ingest test claude codeanthropic/claude-fable-5 Dev 8m 8 turns 2 prompts 5 tools 18.4k tokens 1 commit 7 files+312 −24pull requests 5acme/ingest-api #42attached · 2 of 4 commits tracedacme/ingest-api #45attached · 1 of 2 commits tracedacme/web #31detachedshow all 5highlights 5full trace 9diffs 1files 7annotations 3 user turns8m·2 taskscollapse all#1Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.3 tools5m#2Looks right. Run a typecheck across the workspace before you start moving files.typecheck failed3 tools3m9 turns list graph explorationturns 0–2user turn 15m · 3 tools · 5 filesuser#18m ago 280Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.assistantanthropic/claude-fable-5#1a8m ago 2.8kLet me look at the current renderer before extracting it. I will read TurnRow.tsx and find where rendererFor is wired so the move preserves the per-tool dispatch.\nThe shared renderer keeps this structured handoff intact.\n\nRead the existing component\nPreserve tool dispatch\n\nSurfaceStatusMarkdownReadyTranscript viewerReviewed\nconst renderer = rendererFor(tool.kind)\nreturn renderer(tool)\nthinking33wReadweb/src/components/session-detail/v2/canvas/TurnRow.tsxassistantanthropic/claude-fable-5#1b8m ago 2.7kNow locate every call site of rendererFor so the dispatch table comes across intact.GreprendererFor · web/src · 4 matches debuggingturns 3–4 · 1 erroruser turn 23m · 3 tools · 2 files · +316 −25user#26m ago 90Looks right. Run a typecheck across the workspace before you start moving files.model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8assistantanthropic/claude-opus-4-8#2a6m ago error 3.6kRunning the workspace typecheck first. It surfaces a strict-mode error in the tasks helper.Bashpnpm -r typecheck4.1s exit 2 implementationturns 5–8assistantanthropic/claude-opus-4-8#2b5m ago 3.9kThe index access is unguarded under strict mode. Adding a null-guard so the empty-task case falls through cleanly.thinking24wEditpackages/browser/src/lib/tasks.tsassistantanthropic/claude-opus-4-8#2c4m ago 2.9kVerifying the fix: the workspace typechecks clean now, so I will commit the canvas port.Bashpnpm -r typecheck5.6s9f3c1adfeat(canvas): port TurnRow + tool renderers+312 −24 · 7 files docs-writer subagentsubagentanthropic/claude-opus-4-8depth 1#2d3m ago 2.8kSpawned a subagent to document the props/callback/capability contract for the extracted package.Taskdocs-writer · document the props/callback contract returned to claudeassistantanthropic/claude-opus-4-8#2ejust now 1.7kAll packages typecheck and build. The canvas now lives in packages/browser and web consumes it through the shared export.Bashpnpm -r build && pnpm -r typecheck12.0s filterscategoriesprompts2responses7thinking2tool calls 7 file edits1 bash3 read1 search1 fetch0 tasks1 other0semantic tags errors retries re-editcheckpointsall checkpoints (1)view optionsshow hidden indicatorsonexpand all tool callsoffcompact modeoffjump to start latest1 of 9⌘f search · j/k step turns",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "dark",
+          "url": "http://localhost:6132/?app=commons&commons=transcript-detail&theme=dark#inuse"
+        }
+      },
+      "theme": "dark",
+      "subject": "/tmp/village-271-cc48d0ab-production-captures/results/transcript.journey.mjs-tra-bf332-ts-owner-the-more-menu-open-dark/test-finished-1.png",
+      "output": "/tmp/village-271-cc48d0ab-production-captures/canonical-sxs/compare-menu-dark.png",
+      "subjectSha256": "4d5b71082f0d9549669a7a4ed89053f12989eccfbc9c54caf9cc157431110847",
+      "comparisonSha256": "57f56d35a3bb08c493020e0a11cd1bfa4edbbb85b3eba3a01a7187528a55351d",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "id": "menu",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-menu-light.png",
+        "sha256": "cfcbbdc7ff2396d77b9cd47d9d986723175d7a827ed21128c3eda06efecdc922",
+        "observed": {
+          "text": "homeFix flaky ingest testvillage.peasantlabs.org/transcripts/3f9c0a17manage access: Acme Platform, Acme Companyedit titledownload markdownFix flaky ingest test claude codeanthropic/claude-fable-5 Dev 8m 8 turns 2 prompts 5 tools 18.4k tokens 1 commit 7 files+312 −24pull requests 5acme/ingest-api #42attached · 2 of 4 commits tracedacme/ingest-api #45attached · 1 of 2 commits tracedacme/web #31detachedshow all 5highlights 5full trace 9diffs 1files 7annotations 3 user turns8m·2 taskscollapse all#1Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.3 tools5m#2Looks right. Run a typecheck across the workspace before you start moving files.typecheck failed3 tools3m9 turns list graph explorationturns 0–2user turn 15m · 3 tools · 5 filesuser#18m ago 280Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.assistantanthropic/claude-fable-5#1a8m ago 2.8kLet me look at the current renderer before extracting it. I will read TurnRow.tsx and find where rendererFor is wired so the move preserves the per-tool dispatch.\nThe shared renderer keeps this structured handoff intact.\n\nRead the existing component\nPreserve tool dispatch\n\nSurfaceStatusMarkdownReadyTranscript viewerReviewed\nconst renderer = rendererFor(tool.kind)\nreturn renderer(tool)\nthinking33wReadweb/src/components/session-detail/v2/canvas/TurnRow.tsxassistantanthropic/claude-fable-5#1b8m ago 2.7kNow locate every call site of rendererFor so the dispatch table comes across intact.GreprendererFor · web/src · 4 matches debuggingturns 3–4 · 1 erroruser turn 23m · 3 tools · 2 files · +316 −25user#26m ago 90Looks right. Run a typecheck across the workspace before you start moving files.model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8assistantanthropic/claude-opus-4-8#2a6m ago error 3.6kRunning the workspace typecheck first. It surfaces a strict-mode error in the tasks helper.Bashpnpm -r typecheck4.1s exit 2 implementationturns 5–8assistantanthropic/claude-opus-4-8#2b5m ago 3.9kThe index access is unguarded under strict mode. Adding a null-guard so the empty-task case falls through cleanly.thinking24wEditpackages/browser/src/lib/tasks.tsassistantanthropic/claude-opus-4-8#2c4m ago 2.9kVerifying the fix: the workspace typechecks clean now, so I will commit the canvas port.Bashpnpm -r typecheck5.6s9f3c1adfeat(canvas): port TurnRow + tool renderers+312 −24 · 7 files docs-writer subagentsubagentanthropic/claude-opus-4-8depth 1#2d3m ago 2.8kSpawned a subagent to document the props/callback/capability contract for the extracted package.Taskdocs-writer · document the props/callback contract returned to claudeassistantanthropic/claude-opus-4-8#2ejust now 1.7kAll packages typecheck and build. The canvas now lives in packages/browser and web consumes it through the shared export.Bashpnpm -r build && pnpm -r typecheck12.0s filterscategoriesprompts2responses7thinking2tool calls 7 file edits1 bash3 read1 search1 fetch0 tasks1 other0semantic tags errors retries re-editcheckpointsall checkpoints (1)view optionsshow hidden indicatorsonexpand all tool callsoffcompact modeoffjump to start latest1 of 9⌘f search · j/k step turns",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "light",
+          "url": "http://localhost:6132/?app=commons&commons=transcript-detail&theme=light#inuse"
+        }
+      },
+      "theme": "light",
+      "subject": "/tmp/village-271-cc48d0ab-production-captures/results/transcript.journey.mjs-tra-bf332-ts-owner-the-more-menu-open-light/test-finished-1.png",
+      "output": "/tmp/village-271-cc48d0ab-production-captures/canonical-sxs/compare-menu-light.png",
+      "subjectSha256": "23ae5b6c63f69dcad37031b793a61b63cd2ad958b9d9e9b7768d5445cc628cf1",
+      "comparisonSha256": "303a49a17ddee6833625b28d265fe2e786dd25c7cf12537ae90dd40744249d24",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "id": "prs-collapsed",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-prs-collapsed-dark.png",
+        "sha256": "edeed2312ca70bd9178b33cb89b2bcf04e32854ae679fa2276155e5000971b5f",
+        "observed": {
+          "text": "homeFix flaky ingest testvillage.peasantlabs.org/transcripts/3f9c0a17manage access: Acme Platform, Acme Companyedit titledownload markdownFix flaky ingest test claude codeanthropic/claude-fable-5 Dev 8m 8 turns 2 prompts 5 tools 18.4k tokens 1 commit 7 files+312 −24pull requests 5acme/ingest-api #42attached · 2 of 4 commits tracedacme/ingest-api #45attached · 1 of 2 commits tracedacme/web #31detachedshow all 5highlights 5full trace 9diffs 1files 7annotations 3 user turns8m·2 taskscollapse all#1Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.3 tools5m#2Looks right. Run a typecheck across the workspace before you start moving files.typecheck failed3 tools3m9 turns list graph explorationturns 0–2user turn 15m · 3 tools · 5 filesuser#18m ago 280Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.assistantanthropic/claude-fable-5#1a8m ago 2.8kLet me look at the current renderer before extracting it. I will read TurnRow.tsx and find where rendererFor is wired so the move preserves the per-tool dispatch.\nThe shared renderer keeps this structured handoff intact.\n\nRead the existing component\nPreserve tool dispatch\n\nSurfaceStatusMarkdownReadyTranscript viewerReviewed\nconst renderer = rendererFor(tool.kind)\nreturn renderer(tool)\nthinking33wReadweb/src/components/session-detail/v2/canvas/TurnRow.tsxassistantanthropic/claude-fable-5#1b8m ago 2.7kNow locate every call site of rendererFor so the dispatch table comes across intact.GreprendererFor · web/src · 4 matches debuggingturns 3–4 · 1 erroruser turn 23m · 3 tools · 2 files · +316 −25user#26m ago 90Looks right. Run a typecheck across the workspace before you start moving files.model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8assistantanthropic/claude-opus-4-8#2a6m ago error 3.6kRunning the workspace typecheck first. It surfaces a strict-mode error in the tasks helper.Bashpnpm -r typecheck4.1s exit 2 implementationturns 5–8assistantanthropic/claude-opus-4-8#2b5m ago 3.9kThe index access is unguarded under strict mode. Adding a null-guard so the empty-task case falls through cleanly.thinking24wEditpackages/browser/src/lib/tasks.tsassistantanthropic/claude-opus-4-8#2c4m ago 2.9kVerifying the fix: the workspace typechecks clean now, so I will commit the canvas port.Bashpnpm -r typecheck5.6s9f3c1adfeat(canvas): port TurnRow + tool renderers+312 −24 · 7 files docs-writer subagentsubagentanthropic/claude-opus-4-8depth 1#2d3m ago 2.8kSpawned a subagent to document the props/callback/capability contract for the extracted package.Taskdocs-writer · document the props/callback contract returned to claudeassistantanthropic/claude-opus-4-8#2ejust now 1.7kAll packages typecheck and build. The canvas now lives in packages/browser and web consumes it through the shared export.Bashpnpm -r build && pnpm -r typecheck12.0s filterscategoriesprompts2responses7thinking2tool calls 7 file edits1 bash3 read1 search1 fetch0 tasks1 other0semantic tags errors retries re-editcheckpointsall checkpoints (1)view optionsshow hidden indicatorsonexpand all tool callsoffcompact modeoffjump to start latest1 of 9⌘f search · j/k step turns",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "dark",
+          "url": "http://localhost:6132/?app=commons&commons=transcript-detail&theme=dark#inuse"
+        }
+      },
+      "theme": "dark",
+      "subject": "/tmp/village-271-cc48d0ab-production-captures/results/transcript.journey.mjs-tra-a002c-ner-pull-requests-collapsed-dark/test-finished-1.png",
+      "output": "/tmp/village-271-cc48d0ab-production-captures/canonical-sxs/compare-prs-collapsed-dark.png",
+      "subjectSha256": "24895f07de0f32598e68e2a2c25eafe9b43bccffa63e0658f62d1d684f55fee1",
+      "comparisonSha256": "a5ad1fc97e5e41176612b81b8a9033781044bf0ef3227b372a427e36157d37c1",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "id": "prs-collapsed",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-prs-collapsed-light.png",
+        "sha256": "5abc0e556004170931a16f5724705698f8d5eaaf63fe595962a4f2030f8168c6",
+        "observed": {
+          "text": "homeFix flaky ingest testvillage.peasantlabs.org/transcripts/3f9c0a17manage access: Acme Platform, Acme Companyedit titledownload markdownFix flaky ingest test claude codeanthropic/claude-fable-5 Dev 8m 8 turns 2 prompts 5 tools 18.4k tokens 1 commit 7 files+312 −24pull requests 5acme/ingest-api #42attached · 2 of 4 commits tracedacme/ingest-api #45attached · 1 of 2 commits tracedacme/web #31detachedshow all 5highlights 5full trace 9diffs 1files 7annotations 3 user turns8m·2 taskscollapse all#1Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.3 tools5m#2Looks right. Run a typecheck across the workspace before you start moving files.typecheck failed3 tools3m9 turns list graph explorationturns 0–2user turn 15m · 3 tools · 5 filesuser#18m ago 280Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.assistantanthropic/claude-fable-5#1a8m ago 2.8kLet me look at the current renderer before extracting it. I will read TurnRow.tsx and find where rendererFor is wired so the move preserves the per-tool dispatch.\nThe shared renderer keeps this structured handoff intact.\n\nRead the existing component\nPreserve tool dispatch\n\nSurfaceStatusMarkdownReadyTranscript viewerReviewed\nconst renderer = rendererFor(tool.kind)\nreturn renderer(tool)\nthinking33wReadweb/src/components/session-detail/v2/canvas/TurnRow.tsxassistantanthropic/claude-fable-5#1b8m ago 2.7kNow locate every call site of rendererFor so the dispatch table comes across intact.GreprendererFor · web/src · 4 matches debuggingturns 3–4 · 1 erroruser turn 23m · 3 tools · 2 files · +316 −25user#26m ago 90Looks right. Run a typecheck across the workspace before you start moving files.model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8assistantanthropic/claude-opus-4-8#2a6m ago error 3.6kRunning the workspace typecheck first. It surfaces a strict-mode error in the tasks helper.Bashpnpm -r typecheck4.1s exit 2 implementationturns 5–8assistantanthropic/claude-opus-4-8#2b5m ago 3.9kThe index access is unguarded under strict mode. Adding a null-guard so the empty-task case falls through cleanly.thinking24wEditpackages/browser/src/lib/tasks.tsassistantanthropic/claude-opus-4-8#2c4m ago 2.9kVerifying the fix: the workspace typechecks clean now, so I will commit the canvas port.Bashpnpm -r typecheck5.6s9f3c1adfeat(canvas): port TurnRow + tool renderers+312 −24 · 7 files docs-writer subagentsubagentanthropic/claude-opus-4-8depth 1#2d3m ago 2.8kSpawned a subagent to document the props/callback/capability contract for the extracted package.Taskdocs-writer · document the props/callback contract returned to claudeassistantanthropic/claude-opus-4-8#2ejust now 1.7kAll packages typecheck and build. The canvas now lives in packages/browser and web consumes it through the shared export.Bashpnpm -r build && pnpm -r typecheck12.0s filterscategoriesprompts2responses7thinking2tool calls 7 file edits1 bash3 read1 search1 fetch0 tasks1 other0semantic tags errors retries re-editcheckpointsall checkpoints (1)view optionsshow hidden indicatorsonexpand all tool callsoffcompact modeoffjump to start latest1 of 9⌘f search · j/k step turns",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "light",
+          "url": "http://localhost:6132/?app=commons&commons=transcript-detail&theme=light#inuse"
+        }
+      },
+      "theme": "light",
+      "subject": "/tmp/village-271-cc48d0ab-production-captures/results/transcript.journey.mjs-tra-a002c-ner-pull-requests-collapsed-light/test-finished-1.png",
+      "output": "/tmp/village-271-cc48d0ab-production-captures/canonical-sxs/compare-prs-collapsed-light.png",
+      "subjectSha256": "237e6f2d8e65c5afac9394df1bed25c40a57a5d639c7fd7f3ea3d09e50e220f4",
+      "comparisonSha256": "1b3d45b7c22502133623863ad5b4616420c38d7f3eba8567b916a91af52754c5",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "id": "prs-expanded",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-prs-expanded-dark.png",
+        "sha256": "3c14c3a0d660ceed63af1ff644f18e5371915c3d282dd3ee25e8c25e7736a928",
+        "observed": {
+          "text": "homeFix flaky ingest testvillage.peasantlabs.org/transcripts/3f9c0a17manage access: Acme Platform, Acme Companyedit titledownload markdownFix flaky ingest test claude codeanthropic/claude-fable-5 Dev 8m 8 turns 2 prompts 5 tools 18.4k tokens 1 commit 7 files+312 −24pull requests 5acme/ingest-api #42attached · 2 of 4 commits tracedacme/ingest-api #45attached · 1 of 2 commits tracedacme/web #31detachedacme/ingest-api #51attached · 1 of 1 commits tracedacme/ingest-api #60attached · 3 of 5 commits tracedhighlights 5full trace 9diffs 1files 7annotations 3 user turns8m·2 taskscollapse all#1Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.3 tools5m#2Looks right. Run a typecheck across the workspace before you start moving files.typecheck failed3 tools3m9 turns list graph explorationturns 0–2user turn 15m · 3 tools · 5 filesuser#18m ago 280Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.assistantanthropic/claude-fable-5#1a8m ago 2.8kLet me look at the current renderer before extracting it. I will read TurnRow.tsx and find where rendererFor is wired so the move preserves the per-tool dispatch.\nThe shared renderer keeps this structured handoff intact.\n\nRead the existing component\nPreserve tool dispatch\n\nSurfaceStatusMarkdownReadyTranscript viewerReviewed\nconst renderer = rendererFor(tool.kind)\nreturn renderer(tool)\nthinking33wReadweb/src/components/session-detail/v2/canvas/TurnRow.tsxassistantanthropic/claude-fable-5#1b8m ago 2.7kNow locate every call site of rendererFor so the dispatch table comes across intact.GreprendererFor · web/src · 4 matches debuggingturns 3–4 · 1 erroruser turn 23m · 3 tools · 2 files · +316 −25user#26m ago 90Looks right. Run a typecheck across the workspace before you start moving files.model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8assistantanthropic/claude-opus-4-8#2a6m ago error 3.6kRunning the workspace typecheck first. It surfaces a strict-mode error in the tasks helper.Bashpnpm -r typecheck4.1s exit 2 implementationturns 5–8assistantanthropic/claude-opus-4-8#2b5m ago 3.9kThe index access is unguarded under strict mode. Adding a null-guard so the empty-task case falls through cleanly.thinking24wEditpackages/browser/src/lib/tasks.tsassistantanthropic/claude-opus-4-8#2c4m ago 2.9kVerifying the fix: the workspace typechecks clean now, so I will commit the canvas port.Bashpnpm -r typecheck5.6s9f3c1adfeat(canvas): port TurnRow + tool renderers+312 −24 · 7 files docs-writer subagentsubagentanthropic/claude-opus-4-8depth 1#2d3m ago 2.8kSpawned a subagent to document the props/callback/capability contract for the extracted package.Taskdocs-writer · document the props/callback contract returned to claudeassistantanthropic/claude-opus-4-8#2ejust now 1.7kAll packages typecheck and build. The canvas now lives in packages/browser and web consumes it through the shared export.Bashpnpm -r build && pnpm -r typecheck12.0s filterscategoriesprompts2responses7thinking2tool calls 7 file edits1 bash3 read1 search1 fetch0 tasks1 other0semantic tags errors retries re-editcheckpointsall checkpoints (1)view optionsshow hidden indicatorsonexpand all tool callsoffcompact modeoffjump to start latest1 of 9⌘f search · j/k step turns",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "dark",
+          "url": "http://localhost:6132/?app=commons&commons=transcript-detail&theme=dark#inuse"
+        }
+      },
+      "theme": "dark",
+      "subject": "/tmp/village-271-cc48d0ab-production-captures/results/transcript.journey.mjs-tra-e18ad-wner-pull-requests-expanded-dark/test-finished-1.png",
+      "output": "/tmp/village-271-cc48d0ab-production-captures/canonical-sxs/compare-prs-expanded-dark.png",
+      "subjectSha256": "26df0c761f29ac52a6296bc01424a514b37e1357709e9c07868193cf0c5767dc",
+      "comparisonSha256": "78af59d1d46727f31548a4016c8f79f59ee49c1b0148b4b453b9d30c8c7649f6",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "id": "prs-expanded",
+      "reference": {
+        "path": "/tmp/village-a665-final-canonical-references/canonical-prs-expanded-light.png",
+        "sha256": "e1f974c0dd3a49d71c53a83df7d57e1370d3f8d6763d6b220be12a800ec7ef91",
+        "observed": {
+          "text": "homeFix flaky ingest testvillage.peasantlabs.org/transcripts/3f9c0a17manage access: Acme Platform, Acme Companyedit titledownload markdownFix flaky ingest test claude codeanthropic/claude-fable-5 Dev 8m 8 turns 2 prompts 5 tools 18.4k tokens 1 commit 7 files+312 −24pull requests 5acme/ingest-api #42attached · 2 of 4 commits tracedacme/ingest-api #45attached · 1 of 2 commits tracedacme/web #31detachedacme/ingest-api #51attached · 1 of 1 commits tracedacme/ingest-api #60attached · 3 of 5 commits tracedhighlights 5full trace 9diffs 1files 7annotations 3 user turns8m·2 taskscollapse all#1Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.3 tools5m#2Looks right. Run a typecheck across the workspace before you start moving files.typecheck failed3 tools3m9 turns list graph explorationturns 0–2user turn 15m · 3 tools · 5 filesuser#18m ago 280Port the transcript canvas into the shared package. Start by reading the existing renderer before extracting it.assistantanthropic/claude-fable-5#1a8m ago 2.8kLet me look at the current renderer before extracting it. I will read TurnRow.tsx and find where rendererFor is wired so the move preserves the per-tool dispatch.\nThe shared renderer keeps this structured handoff intact.\n\nRead the existing component\nPreserve tool dispatch\n\nSurfaceStatusMarkdownReadyTranscript viewerReviewed\nconst renderer = rendererFor(tool.kind)\nreturn renderer(tool)\nthinking33wReadweb/src/components/session-detail/v2/canvas/TurnRow.tsxassistantanthropic/claude-fable-5#1b8m ago 2.7kNow locate every call site of rendererFor so the dispatch table comes across intact.GreprendererFor · web/src · 4 matches debuggingturns 3–4 · 1 erroruser turn 23m · 3 tools · 2 files · +316 −25user#26m ago 90Looks right. Run a typecheck across the workspace before you start moving files.model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8assistantanthropic/claude-opus-4-8#2a6m ago error 3.6kRunning the workspace typecheck first. It surfaces a strict-mode error in the tasks helper.Bashpnpm -r typecheck4.1s exit 2 implementationturns 5–8assistantanthropic/claude-opus-4-8#2b5m ago 3.9kThe index access is unguarded under strict mode. Adding a null-guard so the empty-task case falls through cleanly.thinking24wEditpackages/browser/src/lib/tasks.tsassistantanthropic/claude-opus-4-8#2c4m ago 2.9kVerifying the fix: the workspace typechecks clean now, so I will commit the canvas port.Bashpnpm -r typecheck5.6s9f3c1adfeat(canvas): port TurnRow + tool renderers+312 −24 · 7 files docs-writer subagentsubagentanthropic/claude-opus-4-8depth 1#2d3m ago 2.8kSpawned a subagent to document the props/callback/capability contract for the extracted package.Taskdocs-writer · document the props/callback contract returned to claudeassistantanthropic/claude-opus-4-8#2ejust now 1.7kAll packages typecheck and build. The canvas now lives in packages/browser and web consumes it through the shared export.Bashpnpm -r build && pnpm -r typecheck12.0s filterscategoriesprompts2responses7thinking2tool calls 7 file edits1 bash3 read1 search1 fetch0 tasks1 other0semantic tags errors retries re-editcheckpointsall checkpoints (1)view optionsshow hidden indicatorsonexpand all tool callsoffcompact modeoffjump to start latest1 of 9⌘f search · j/k step turns",
+          "fontFamily": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif",
+          "theme": "light",
+          "url": "http://localhost:6132/?app=commons&commons=transcript-detail&theme=light#inuse"
+        }
+      },
+      "theme": "light",
+      "subject": "/tmp/village-271-cc48d0ab-production-captures/results/transcript.journey.mjs-tra-e18ad-wner-pull-requests-expanded-light/test-finished-1.png",
+      "output": "/tmp/village-271-cc48d0ab-production-captures/canonical-sxs/compare-prs-expanded-light.png",
+      "subjectSha256": "4ab5a2041ea0d50e3584fae77e17ead39b9755692bb89f169b87c054573b0b0d",
+      "comparisonSha256": "930ac761f20b0ae05c5dcf5da47723308a82b8ddbe8b9afb6baa06c18aac6c7f",
+      "dimensions": [
+        {
+          "width": 1440,
+          "height": 1080
+        },
+        {
+          "width": 1440,
+          "height": 1080
+        }
+      ]
+    }
+  ]
+}
