@@ -26,8 +26,8 @@ const owners = {
 }
 
 // The Explore capture is now taken signed-in (explore-shoot.mjs sets the same peasant_token
-// cookie manage-shoot.mjs uses) so the nav shows its full explore/collectives/publish/profile
-// set, matching the demo's unconditional full nav and matching manage's own capture state —
+// cookie manage-shoot.mjs uses) so the nav shows the signed-in home | collectives set,
+// matching manage's own capture state —
 // the "cex-explore navbar wrong: missing collectives/publish/profile" finding was this mock server
 // never serving /auth/me at all (every route fell through to 404, so useAuth() always resolved
 // signed-out regardless of the cookie).

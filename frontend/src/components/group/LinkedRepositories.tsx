@@ -69,11 +69,11 @@ function NotConfiguredNotice() {
       <PlugZap className="size-4 shrink-0 text-ink-3 mt-0.5" />
       <div className="flex flex-col gap-0.5">
         <p className="text-[13px] font-medium text-ink">
-          GitHub connection isn&apos;t set up
+          github connection isn&apos;t set up
         </p>
         <p className="text-[12px] text-ink-3">
-          An admin must register the GitHub App on this server before
-          repositories can be linked. Nothing is broken — this feature is just
+          an admin must register the github app on this server before
+          repositories can be linked. nothing is broken — this feature is just
           turned off here.
         </p>
       </div>
@@ -108,7 +108,7 @@ function RepositoryCommits({
     return (
       <div className="flex items-center gap-2 px-4 py-3 text-[12px] text-ink-3">
         <Loader2 className="size-3.5 animate-spin" />
-        Loading commits…
+        loading commits…
       </div>
     );
   }
@@ -117,7 +117,7 @@ function RepositoryCommits({
     if (isNotConfigured(commits.error)) return <NotConfiguredNotice />;
     return (
       <div className="px-4 py-3 text-[12px] text-danger">
-        Couldn&apos;t load commits: {commits.error.message}
+        couldn&apos;t load commits: {commits.error.message}
       </div>
     );
   }
@@ -128,7 +128,7 @@ function RepositoryCommits({
     <div className="flex flex-col gap-2 px-4 py-3 bg-canvas/40">
       <div className="flex items-center justify-between">
         <span className="v2-eyebrow">
-          Cached commits
+          cached commits
           {commits.data ? ` (${commits.data.commit_count})` : ""}
         </span>
         {isOwner && (
@@ -145,17 +145,17 @@ function RepositoryCommits({
               else commits.refetch();
             }}
           >
-            Refresh
+            refresh
           </Button>
         )}
       </div>
 
       {rows.length === 0 ? (
         <p className="text-[12px] text-ink-3 py-2">
-          No commits cached yet.
+          no commits cached yet.
           {isOwner
-            ? " Use Refresh to pull them from GitHub."
-            : " An owner can refresh to pull them from GitHub."}
+            ? " use refresh to pull them from github."
+            : " an owner can refresh to pull them from github."}
         </p>
       ) : (
         // The commit-timeline overlay renders the commit list itself and joins
@@ -186,7 +186,7 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
 
     const parsed = parseRepoInput(selected);
     if (!parsed) {
-      setValidationError("Select a repository to link.");
+      setValidationError("select a repository to link.");
       return;
     }
 
@@ -206,7 +206,7 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
       className="flex flex-col gap-2 border-b border-rule px-4 py-3"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="v2-eyebrow">Link a repository</span>
+        <span className="v2-eyebrow">link a repository</span>
         <Button
           type="button"
           size="sm"
@@ -220,17 +220,17 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
       {available.isLoading ? (
         <div className="flex items-center gap-2 text-[13px] text-ink-3">
           <Loader2 className="size-4 animate-spin" />
-          Loading repositories…
+          loading repositories…
         </div>
       ) : available.isError ? (
         <p className="text-[12px] text-danger">
           {isNotConfigured(available.error)
-            ? "GitHub isn't set up on this server."
+            ? "github isn't set up on this server."
             : available.error.message}
         </p>
       ) : repos.length === 0 ? (
         <p className="text-[12px] text-ink-3">
-          No repositories available. Connect the GitHub App to this collective&apos;s
+          no repositories available. connect the github app to this collective&apos;s
           organization above to choose one.
         </p>
       ) : (
@@ -239,9 +239,9 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
             <Select
               value={selected}
               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelected(e.target.value)}
-              aria-label="Repository"
+              aria-label="repository"
             >
-              <option value="">Select a repository…</option>
+              <option value="">select a repository…</option>
               {repos.map((repo) => {
                 const value = `${repo.owner}/${repo.name}`;
                 return (
@@ -261,7 +261,7 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
             loading={link.isPending}
             disabled={link.isPending || selected === ""}
           >
-            Link
+            link
           </Button>
         </div>
       )}
@@ -271,7 +271,7 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
       {link.isError && !validationError && (
         <p className="text-[12px] text-danger">
           {isNotConfigured(link.error)
-            ? "GitHub connection isn't set up on this server."
+            ? "github connection isn't set up on this server."
             : link.error.message}
         </p>
       )}
@@ -338,7 +338,7 @@ export default function LinkedRepositories({
             {repos.isLoading ? (
               <div className="flex items-center gap-2 px-5 py-6 text-[13px] text-ink-3">
                 <Loader2 className="size-4 animate-spin" />
-                Loading repositories…
+                loading repositories…
               </div>
             ) : repos.isError ? (
               <div className="px-5 py-6 text-[13px] text-danger">
@@ -348,10 +348,10 @@ export default function LinkedRepositories({
               <div className="px-5 py-8 text-center">
                 <FolderGit2 className="size-6 text-ink-4 mx-auto mb-2" />
                 <p className="text-[13px] text-ink-3">
-                  No repositories linked yet.
+                  no repositories linked yet.
                   {isOwner
-                    ? " Link one above to cache its commit history."
-                    : " An owner can link repositories to this collective."}
+                    ? " link one above to cache its commit history."
+                    : " an owner can link repositories to this collective."}
                 </p>
               </div>
             ) : (
@@ -374,7 +374,7 @@ export default function LinkedRepositories({
                         </div>
                         {repo.is_private && (
                           <Tag icon={Lock} className="shrink-0">
-                            Private
+                            private
                           </Tag>
                         )}
                         <Button
@@ -386,14 +386,14 @@ export default function LinkedRepositories({
                             setExpanded(isExpanded ? null : key)
                           }
                         >
-                          {isExpanded ? "Hide" : "Commits"}
+                          {isExpanded ? "hide" : "commits"}
                         </Button>
 
                         {isOwner &&
                           (isConfirming ? (
                             <div className="flex items-center gap-1.5 shrink-0">
                               <span className="text-[11px] font-mono text-ink-3">
-                                Unlink?
+                                unlink?
                               </span>
                               <Button
                                 size="sm"
@@ -414,14 +414,14 @@ export default function LinkedRepositories({
                                   )
                                 }
                               >
-                                Yes
+                                yes
                               </Button>
                               <Button
                                 size="sm"
                                 variant="secondary"
                                 onClick={() => setConfirmingUnlink(null)}
                               >
-                                Cancel
+                                cancel
                               </Button>
                             </div>
                           ) : (
@@ -429,8 +429,8 @@ export default function LinkedRepositories({
                               size="sm"
                               variant="secondary"
                               icon={Trash2}
-                              aria-label={`Unlink ${key}`}
-                              title="Unlink repository"
+                              aria-label={`unlink ${key}`}
+                              title="unlink repository"
                               className="shrink-0"
                               onClick={() => setConfirmingUnlink(key)}
                             />

@@ -104,10 +104,10 @@ function MyContributionRow({
         href={`/transcripts/${share.id}`}
         className="text-sm text-ink truncate min-w-0 flex-1 hover:underline focus-mono cursor-pointer"
       >
-        {share.title || "Untitled"}
+        {share.title || "untitled"}
       </Link>
       {share.status === "pending" && (
-        <span className="text-[10px] font-mono text-ink-3 uppercase tracking-wider shrink-0">
+        <span className="text-[10px] font-mono text-ink-3 tracking-wider shrink-0">
           pending
         </span>
       )}
@@ -121,7 +121,7 @@ function MyContributionRow({
         type="button"
         onClick={() => onUnshare({ transcriptId: share.id, groupId: groupID })}
         disabled={unsharing}
-        title="Unshare from this collective"
+        title="unshare from this collective"
         className="inline-flex size-7 items-center justify-center border border-rule bg-surface text-ink-3 hover:bg-danger-soft hover:text-danger focus-mono transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
       >
         <Trash2 className="size-3.5" />
@@ -346,12 +346,12 @@ export default function GroupDetailPage({
       <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
         <div className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center">
           <Users size={28} className="text-ink-4" />
-          <p className="text-sm font-medium text-ink">Collective not found</p>
+          <p className="text-sm font-medium text-ink">collective not found</p>
           <Link
             href="/groups"
             className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
           >
-            Back to collectives
+            back to collectives
           </Link>
         </div>
       </div>
@@ -626,7 +626,7 @@ export default function GroupDetailPage({
           onSubmit={handleInvite}
           className="px-5 py-4 border-t border-rule flex flex-col gap-2"
         >
-          <label className="v2-eyebrow">Invite member</label>
+          <label className="v2-eyebrow">invite member</label>
           <div className="flex gap-2">
             <GitHubUserSearch
               value={inviteUsername}
@@ -635,11 +635,11 @@ export default function GroupDetailPage({
               className="flex-1"
             />
             <Button type="submit" size="md" disabled={addMember.isPending}>
-              Invite
+              invite
             </Button>
           </div>
           {addMember.isError && (
-            <p className="text-[11px] text-danger">{addMember.error?.message ?? "Unable to invite member."}</p>
+            <p className="text-[11px] text-danger">{addMember.error?.message ?? "unable to invite member."}</p>
           )}
         </form>
       )}
@@ -715,7 +715,7 @@ export default function GroupDetailPage({
       <RailSection title="about">
         <div className="px-5 py-4">
           <div className="flex items-center justify-between">
-            <span className="text-[13px] text-ink-3">Created</span>
+            <span className="text-[13px] text-ink-3">created</span>
             <span className="text-xs font-mono text-ink tabular-nums">
               {new Date(group.created_at).toLocaleDateString("en-US", {
                 month: "short",
@@ -837,8 +837,8 @@ export default function GroupDetailPage({
                   className="text-xs font-mono text-ink-3 hover:text-ink transition-colors cursor-pointer focus-mono"
                 >
                   {showDataBrowser
-                    ? "Show less"
-                    : `Browse all ${totalTranscripts.toLocaleString()}`}
+                    ? "show less"
+                    : `browse all ${totalTranscripts.toLocaleString()}`}
                 </button>
               )}
             </div>
@@ -846,7 +846,7 @@ export default function GroupDetailPage({
 
           {transcripts && transcripts.length === 0 && !hasGroupedExit ? (
             <div className="px-5 py-8 text-center">
-              <p className="text-[13px] text-ink-3">No transcripts shared yet.</p>
+              <p className="text-[13px] text-ink-3">no transcripts shared yet.</p>
             </div>
           ) : browseView === "repos" ? (
             <div className="p-5">
@@ -874,7 +874,7 @@ export default function GroupDetailPage({
                             }
                           }}
                           onChange={() => toggleAllRows(browserTranscripts)}
-                          aria-label="Select every transcript on this page"
+                          aria-label="select every transcript on this page"
                           className="size-3.5 cursor-pointer accent-[var(--mark)] focus-mono"
                         />
                         all
@@ -882,7 +882,7 @@ export default function GroupDetailPage({
                     )}
                     <select
                       id="contributor-filter"
-                      aria-label="Filter by contributor"
+                      aria-label="filter by contributor"
                       value={contributorFilter}
                       onChange={(e) => {
                         setContributorFilter(e.target.value);
@@ -906,7 +906,7 @@ export default function GroupDetailPage({
                       {confirmingBulkRemove ? (
                         <>
                           <span className="font-mono text-[11px] text-ink-3">
-                            Remove from collective?
+                            remove from collective?
                           </span>
                           <button
                             type="button"
@@ -914,14 +914,14 @@ export default function GroupDetailPage({
                             onClick={handleBulkRemove}
                             className="inline-flex items-center gap-1 h-7 px-2 text-[11.5px] font-medium border border-danger/40 bg-danger-soft text-danger hover:bg-danger hover:text-danger-fg focus-mono transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {removeGroupTranscript.isPending ? "Removing…" : "Yes"}
+                            {removeGroupTranscript.isPending ? "removing…" : "yes"}
                           </button>
                           <button
                             type="button"
                             onClick={() => setConfirmingBulkRemove(false)}
                             className="inline-flex items-center gap-1 h-7 px-2 text-[11.5px] font-medium border border-rule bg-surface text-ink-2 hover:bg-surface-hover focus-mono transition-colors cursor-pointer"
                           >
-                            Cancel
+                            cancel
                           </button>
                         </>
                       ) : (
@@ -931,7 +931,7 @@ export default function GroupDetailPage({
                           className="inline-flex items-center gap-1.5 h-7 px-2 text-[11.5px] font-medium border border-rule bg-surface text-ink-2 hover:bg-danger-soft hover:text-danger focus-mono transition-colors cursor-pointer"
                         >
                           <Trash2 size={11} strokeWidth={1.75} />
-                          Remove from collective
+                          remove from collective
                         </button>
                       )}
                     </div>
@@ -966,7 +966,7 @@ export default function GroupDetailPage({
                 <div className="flex items-center justify-between px-5 py-3 border-t border-rule">
                   <span className="text-[11px] font-mono text-ink-3 tabular-nums">
                     {isFetchingPage && (
-                      <span className="mr-2 text-ink-4">Loading…</span>
+                      <span className="mr-2 text-ink-4">loading…</span>
                     )}
                     {dataPage * DATA_PAGE_SIZE + 1}
                     {"–"}
@@ -979,7 +979,7 @@ export default function GroupDetailPage({
                       disabled={dataPage === 0}
                       className="border border-rule px-2.5 py-1 text-xs font-mono text-ink-2 hover:bg-surface-hover hover:text-ink disabled:opacity-50 disabled:pointer-events-none transition-colors cursor-pointer focus-mono"
                     >
-                      Prev
+                      prev
                     </button>
                     <span className="text-[11px] font-mono text-ink-3 px-2 tabular-nums">
                       {dataPage + 1} / {totalPages}
@@ -989,7 +989,7 @@ export default function GroupDetailPage({
                       disabled={dataPage >= totalPages - 1}
                       className="border border-rule px-2.5 py-1 text-xs font-mono text-ink-2 hover:bg-surface-hover hover:text-ink disabled:opacity-50 disabled:pointer-events-none transition-colors cursor-pointer focus-mono"
                     >
-                      Next
+                      next
                     </button>
                   </div>
                 </div>
@@ -1022,11 +1022,11 @@ export default function GroupDetailPage({
       ) : (
         <div className="border border-rule bg-surface px-5 py-10 flex flex-col items-center gap-3 text-center">
           <Lock size={28} className="text-ink-4" />
-          <p className="text-sm font-medium text-ink">Data access restricted</p>
+          <p className="text-sm font-medium text-ink">data access restricted</p>
           <p className="text-[13px] text-ink-3 max-w-sm">
             {group.data_access === "members_only"
-              ? "Only full members can browse this collective's data."
-              : "Only contributors and members can browse this collective's data."}
+              ? "only full members can browse this collective's data."
+              : "only contributors and members can browse this collective's data."}
           </p>
           {!isMember && user && group.acceptance_mode === "open" && (
             // size="sm" -- every other action button on this surface (<Manage>'s join/leave/
@@ -1040,7 +1040,7 @@ export default function GroupDetailPage({
               disabled={joinGroup.isPending}
               onClick={handleJoinClick}
             >
-              {joinGroup.isPending ? "Joining…" : "Join as Contributor"}
+              {joinGroup.isPending ? "joining…" : "join as contributor"}
             </Button>
           )}
         </div>
@@ -1086,7 +1086,7 @@ export default function GroupDetailPage({
               items={pendingSharesList.map((ps) => ({
                 id: ps.transcript_id,
                 kind: "share" as const,
-                who: ps.title || "Untitled",
+                who: ps.title || "untitled",
                 detail: (
                   <span className="inline-flex items-center gap-1.5">
                     by @
@@ -1100,7 +1100,7 @@ export default function GroupDetailPage({
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-0.5 text-ink-4 hover:text-ink transition-colors focus-mono"
                       onClick={(e) => e.stopPropagation()}
-                      title="Preview transcript"
+                      title="preview transcript"
                     >
                       preview <ExternalLink size={10} className="inline-block" />
                     </Link>
@@ -1128,7 +1128,7 @@ export default function GroupDetailPage({
       {isMember && user && (mySharesList.length > 0 || hasMyShareGroupedExit) && (
         <div className="border border-rule bg-surface" data-testid="my-contributions-panel">
           <div className="flex items-center justify-between gap-2 px-5 py-3 border-b border-rule">
-            <span className="text-sm font-medium text-ink">Your contributions</span>
+            <span className="text-sm font-medium text-ink">your contributions</span>
             <span className="text-xs font-mono text-ink-3 tabular-nums">
               {mySharesList.length}
             </span>

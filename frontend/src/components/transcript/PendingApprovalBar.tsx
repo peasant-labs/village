@@ -46,7 +46,7 @@ export default function PendingApprovalBar({
             <div className="flex items-center gap-2 min-w-0">
               <Clock className="size-3.5 text-warning shrink-0" />
               <span className="text-[13px] text-ink truncate">
-                Pending review in{" "}
+                pending review in{" "}
                 <span className="font-mono text-warning">{r.groupName}</span>
               </span>
             </div>
@@ -58,7 +58,7 @@ export default function PendingApprovalBar({
                 onClick={() => review.mutate({ groupId: r.groupId, status: "approved" })}
                 disabled={review.isPending}
               >
-                Approve
+                approve
               </Button>
               <Button
                 variant="ghost"
@@ -67,7 +67,7 @@ export default function PendingApprovalBar({
                 onClick={() => review.mutate({ groupId: r.groupId, status: "rejected" })}
                 disabled={review.isPending}
               >
-                Reject
+                reject
               </Button>
             </div>
           </div>

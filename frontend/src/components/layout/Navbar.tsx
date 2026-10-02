@@ -1,68 +1,88 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Moon, Sun } from "lucide-react";
+import { useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { ChevronLeft, LogOut, Moon, Sun, UserRound } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useLogout } from "@/lib/queries/auth";
 import { useTheme } from "@/hooks/useTheme";
-import { API_URL_BASE } from "@/lib/api";
-import { ChevronLeft } from "lucide-react";
-import { Avatar, GraphSectionNav, SignInProviders } from "@/lib/ft-ui";
-import { navSections, isSectionActive, backTarget } from "@/lib/nav/sections";
+import { Avatar, GraphSectionNav, Menu, Dialog, SignInProviders } from "@/lib/ft-ui";
+import { HOME_SECTION, navSections, isSectionActive, backTarget } from "@/lib/nav/sections";
+import { SIGN_IN_PROVIDERS, startSignIn } from "@/lib/signIn";
 
-function UserMenu({ user }: { user: { github_username: string; avatar_url: string | null } }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+/**
+ * The account menu: the signed-in person's handle, and the actions they take
+ * with their account from the chrome. The design system's `Menu` owns the
+ * trigger, the popout and the keyboard behaviour; the trigger reads as the
+ * person (their avatar and handle) rather than as a generic "account" button.
+ */
+function AccountMenu({ user }: { user: { github_username: string; avatar_url: string | null } }) {
+  const router = useRouter();
   const logout = useLogout();
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [open]);
+  const handle = user.github_username;
+  const logoutAdmission = useRef(false);
+  const [logoutQueued, setLogoutQueued] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  function beginLogout() {
+    if (logoutAdmission.current || logout.isPending) return;
+    logoutAdmission.current = true;
+    setLogoutQueued(true);
+    // The menu returns focus when it closes. Open the modal after that frame
+    // so its canonical focus trap remains the active interaction.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      setLogoutOpen(true);
+      logout.mutate();
+      setLogoutQueued(false);
+      logoutAdmission.current = false;
+    }));
+  }
 
   return (
-    <div className="relative" ref={menuRef}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex focus-mono cursor-pointer"
-        aria-label={`${user.github_username}'s account menu`}
-      >
-        {/* DS Avatar (src/ui/Avatar.jsx): photo when avatar_url is set, else its own
-            styled initials fallback — replaces the bare bg-mark/text-mark-fg white
-            box, whose token pair renders near-white in dark theme. */}
-        <Avatar name={user.github_username} src={user.avatar_url ?? undefined} size="sm" />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 mt-2 w-48 border border-rule bg-surface py-1 z-50">
-          <Link
-            href={`/users/${user.github_username}`}
-            onClick={() => setOpen(false)}
-            className="block px-4 py-2 text-sm text-ink transition-colors hover:bg-surface-hover focus-mono cursor-pointer"
-          >
-            Profile
-          </Link>
-          <div className="my-1 border-t border-rule" />
-          <button
-            type="button"
-            onClick={() => logout.mutate()}
-            className="w-full px-4 py-2 text-left text-sm text-danger transition-colors hover:bg-danger-soft focus-mono cursor-pointer"
-          >
-            Sign out
-          </button>
-        </div>
-      )}
-    </div>
+    <>
+    <Menu
+      align="end"
+      label={
+        <span className="inline-flex items-center gap-2" data-testid="account-menu-trigger">
+          {/* DS Avatar (src/ui/Avatar.jsx): photo when avatar_url is set, else its own
+              styled initials. Hidden from assistive technology: the handle beside it
+              already names the person, and the avatar would say it twice. */}
+          <Avatar name={handle} src={user.avatar_url ?? undefined} size="sm" aria-hidden="true" />
+          {/* The space is its own text node: a flex container drops it from the
+              layout, and the accessible name keeps it between the two words. */}
+          <span className="sr-only">account menu for</span>{" "}
+          {/* On a phone the handle is heard, not shown, so the trigger is only
+              as wide as the avatar. (The signed-in header as a whole still
+              overflows a phone; that needs a responsive header of its own.) */}
+          <span className="sr-only font-mono sm:not-sr-only">@{handle}</span>
+        </span>
+      }
+      items={[
+        {
+          label: "profile",
+          icon: UserRound,
+          onSelect: () => router.push(`/users/${encodeURIComponent(handle)}`),
+        },
+        { label: "", separator: true },
+        { label: "sign out", icon: LogOut, disabled: logoutQueued || logout.isPending, onSelect: beginLogout },
+      ]}
+    />
+    <Dialog
+      open={logoutOpen}
+      onClose={() => setLogoutOpen(false)}
+      title={logout.isError ? "could not sign out" : "signing out"}
+      dismissible={logout.isError}
+      footer={logout.isError ? (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => logout.mutate()}>try again</button>
+      ) : undefined}
+    >
+      <p role={logout.isError ? "alert" : "status"} style={{ fontSize: "var(--fs-body)" }}>
+        {logout.isError
+          ? `the sign-out request failed: ${logout.error instanceof Error ? logout.error.message : "an unknown error"}. try again.`
+          : "waiting for the sign-out request."}
+      </p>
+    </Dialog>
+    </>
   );
 }
 
@@ -71,18 +91,21 @@ export default function Navbar() {
   const { user, isLoading, isLoggedIn } = useAuth();
   const { theme, toggle } = useTheme();
 
-  // The fairtrade demo's CommonsApp shell subnav (explore | collectives |
-  // publish | profile, lowercase, amber-pill active state) via the lifted
-  // GraphSectionNav primitive — same primitive + itemClassName/activeItemClassName
-  // pattern peasant's own TopNavbar.tsx uses for its GraphSectionNav, matching the
-  // demo's `.iu-subnav-item.active` (filled amber pill) rather than an underline
-  // marker.
-  const sections = navSections({ isLoggedIn, githubUsername: user?.github_username });
+  // The fairtrade demo's CommonsApp shell subnav (lowercase, amber-pill active
+  // state) via the lifted GraphSectionNav primitive — same primitive +
+  // itemClassName/activeItemClassName pattern peasant's own TopNavbar.tsx uses,
+  // matching the demo's `.iu-subnav-item.active` (filled amber pill) rather than
+  // an underline marker. Village offers `home | collectives`, and only to
+  // somebody who is signed in.
+  const sections = navSections({ isLoggedIn });
   const activeSection = sections.find((s) => isSectionActive(s, pathname));
   // The demo's subnav shows a "< back" affordance on detail sub-views (CommonsApp.jsx's
   // BACK_TO) — mapped onto village's real routes in backTarget(). Rendered before the
   // section pills, matching the demo's ordering.
-  const back = backTarget(pathname);
+  const back = backTarget(pathname, isLoggedIn);
+  // A signed-out `/` IS the sign-in page, and its one button is the page's own.
+  // A second one up here would make two front doors on one screen.
+  const offerHeaderSignIn = pathname !== HOME_SECTION.href;
 
   return (
     // Background: bg-surface, matching the demo's .iu-bar (fairtrade src/index.css:2096
@@ -94,7 +117,7 @@ export default function Navbar() {
     <header className="fixed top-0 left-0 right-0 z-50 h-[var(--app-header-height)] border-b border-rule bg-surface">
       <div className="flex h-full items-center justify-between px-8">
         <div className="flex items-center gap-6">
-          <Link href="/" className="focus-mono cursor-pointer" aria-label="Village home">
+          <Link href="/" className="focus-mono cursor-pointer" aria-label="village home">
             <span className="font-[family-name:var(--font-display)] text-xl font-semibold text-ink">
               village
             </span>
@@ -107,20 +130,21 @@ export default function Navbar() {
             </Link>
           )}
 
-          <GraphSectionNav
-            sections={sections}
-            activeId={activeSection?.id}
-            hrefFor={(s: (typeof sections)[number]) => s.href}
-            LinkComponent={Link}
-            className="flex items-center gap-0.5"
-            // font-mono: matches the demo's .iu-subnav-item exactly (fairtrade
-            // src/index.css:2159 `font-family: var(--font-mono)`) -- chrome, not user
-            // content. Missing here previously; every nav item (not just explore's)
-            // rendered in the body font instead of mono.
-            itemClassName="border border-transparent px-3 py-1.5 text-sm font-mono font-medium transition-colors duration-150 focus-mono cursor-pointer text-ink-3 hover:text-ink hover:bg-surface-hover"
-            activeItemClassName="bg-amber text-on-amber border-amber"
-            ariaLabel="Main navigation"
-          />
+          {sections.length > 0 && (
+            <GraphSectionNav
+              sections={sections}
+              activeId={activeSection?.id}
+              hrefFor={(s: (typeof sections)[number]) => s.href}
+              LinkComponent={Link}
+              className="flex items-center gap-0.5"
+              // font-mono: matches the demo's .iu-subnav-item exactly (fairtrade
+              // src/index.css:2159 `font-family: var(--font-mono)`) -- chrome, not user
+              // content.
+              itemClassName="border border-transparent px-3 py-1.5 text-sm font-mono font-medium transition-colors duration-150 focus-mono cursor-pointer text-ink-3 hover:text-ink hover:bg-surface-hover"
+              activeItemClassName="bg-amber text-on-amber border-amber"
+              ariaLabel="main navigation"
+            />
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -138,7 +162,7 @@ export default function Navbar() {
           <button
             onClick={toggle}
             className="flex h-8 w-8 items-center justify-center text-ink-3 transition-colors duration-150 hover:text-ink hover:bg-surface-hover focus-mono cursor-pointer"
-            aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+            aria-label={`switch to ${theme === "light" ? "dark" : "light"} mode`}
           >
             {theme === "light" ? (
               <Moon size={15} aria-hidden />
@@ -150,14 +174,12 @@ export default function Navbar() {
           {isLoading ? (
             <div className="h-8 w-8 animate-shimmer" />
           ) : isLoggedIn && user ? (
-            <UserMenu user={user} />
-          ) : (
-            // DS SignInProviders (src/ui/SignIn.jsx): amber-filled split button ("continue
-            // with github" + a chevron menu for the rest) — replaces village's former
-            // dormant hand-rolled duplicate (components/auth/SignInProviders.tsx),
-            // which used an off-system token pair that renders white in dark theme.
-            <SignInProviders onSignIn={(id) => { window.location.href = `${API_URL_BASE}/auth/${id}`; }} />
-          )}
+            <AccountMenu user={user} />
+          ) : offerHeaderSignIn ? (
+            // DS SignInProviders (src/ui/SignIn.jsx), GitHub only: one amber button,
+            // no chevron, because there is nothing behind it.
+            <SignInProviders providers={SIGN_IN_PROVIDERS} onSignIn={startSignIn} />
+          ) : null}
         </div>
       </div>
     </header>

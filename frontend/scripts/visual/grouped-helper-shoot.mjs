@@ -681,7 +681,7 @@ if (SURFACE === 'discovery') {
         panelMemberRows: panelEl?.querySelectorAll(`${sel} .helper-thread-row`).length ?? -1,
         contributionLink: panelEl?.querySelector(`a[href="/transcripts/${transcriptID}"]`) != null,
         statesPending: (panelEl?.textContent ?? '').includes('pending'),
-        unshareControls: panelEl?.querySelectorAll('button[title="Unshare from this collective"]').length ?? -1,
+        unshareControls: panelEl?.querySelectorAll('button[title="unshare from this collective"]').length ?? -1,
       }
     },
     panelSel,

@@ -20,10 +20,12 @@ import type {
   CSSProperties,
   InputHTMLAttributes,
   ReactNode,
+  RefObject,
   TextareaHTMLAttributes,
 } from "react";
 import {
   Button as FtButton,
+  Dialog as FtDialog,
   Checkbox as FtCheckbox,
   Input as FtInput,
   PromptDigest as FtPromptDigest,
@@ -247,6 +249,17 @@ export const TeachingEmptyState = FtTeachingEmptyState as ComponentType<
  */
 export { SignInProviders, HandleClaim, OnboardingCard } from "@peasant-labs/fairtrade/ui";
 
+// ── Menus ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Menu — a dropdown menu owned by one trigger button (`.menu-trigger`), with a
+ *   role="menu" popout of role="menuitem" rows (icon, label, optional kbd hint,
+ *   danger and separator rows). Keyboard behaviour is the design system's: arrow
+ *   keys move, Home/End jump, Esc/Tab/outside-click close, Esc returns focus to
+ *   the trigger. Rows fire `onSelect`; they are not links.
+ */
+export { Menu } from "@peasant-labs/fairtrade/ui";
+
 // ── CLI onboarding ────────────────────────────────────────────────────────────
 
 /**
@@ -351,3 +364,17 @@ export { RoleRoster, ConfirmInline, DangerZone } from "@peasant-labs/fairtrade/u
  *   overlap + an optional "+N" overflow tile.
  */
 export { GraphSectionNav, Avatar, AvatarGroup } from "@peasant-labs/fairtrade/ui";
+
+/** Canonical modal; the published type marks optional runtime props required. */
+export const Dialog = FtDialog as ComponentType<{
+  open: boolean;
+  onClose: () => void;
+  title: ReactNode;
+  labelId?: string;
+  children: ReactNode;
+  footer?: ReactNode;
+  returnFocusRef?: RefObject<HTMLElement | null>;
+  size?: "default" | "wide";
+  className?: string;
+  dismissible?: boolean;
+}>;

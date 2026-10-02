@@ -1,0 +1,108 @@
+# Case corpus for `src/lowercaseChrome.test.tsx` — UI chrome is lowercase, and
+# user content keeps its case.
+#
+# Every case mounts one REAL surface in one state and reads everything a person
+# can see or hear as chrome there: each element's own text, and its `title`,
+# `placeholder` and `aria-label`. After the case's user content is set aside,
+# no capital letter may remain. The user content itself must still be on
+# screen exactly as written, so a surface that "passes" by lowercasing a
+# collective's name fails instead.
+#
+# Three more things are not village chrome and are set aside too, each by an
+# exact match and never by a pattern: a person's initial on an avatar tile
+# (the first letter of a user-content name below, capitalized the way
+# fairtrade's Avatar draws it), a provider's display name in the brand case
+# fairtrade owns ("Claude Code", from `providerDisplayName`), and a formatted
+# date such as "Jan 2, 2026", data in the form the design system formats it.
+#
+# Text inside an element with the `uppercase` class is read as it renders,
+# capitalized, so chrome styled into capitals fails like chrome typed in them.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/lowercaseChromeFixtures.ts`, which also requires one case per
+# surface.
+
+# The user content every surface is mounted with, written with capitals on
+# purpose so that lowercasing it would be caught.
+content:
+  collective: Acme Platform
+  transcript: Fix Flaky Ingest Test
+  repository: Acme-Labs/Platform-API
+  viewer: alice-dev
+  githubUser: Octo-Cat
+
+cases:
+  - name: the-header-with-the-account-menu-open
+    surface: navbar
+    state: account-menu-open
+    expectContent: [viewer]
+
+  - name: the-header-for-a-signed-out-visitor
+    surface: navbar
+    state: signed-out
+    expectContent: []
+
+  - name: linked-repositories-for-an-owner
+    surface: linked-repositories
+    state: owner-with-repositories
+    expectContent: [repository]
+
+  - name: linked-repositories-when-github-is-not-set-up
+    surface: linked-repositories
+    state: not-configured
+    expectContent: []
+
+  - name: a-collective-page-for-its-owner
+    surface: group-page
+    state: owner
+    expectContent: [collective, transcript]
+
+  - name: a-collective-page-for-a-signed-in-visitor
+    surface: group-page
+    state: visitor
+    expectContent: [collective]
+
+  - name: a-collective-that-does-not-exist
+    surface: group-page
+    state: not-found
+    expectContent: []
+
+  - name: a-collective-page-confirming-a-removal
+    surface: group-page
+    state: confirm-remove
+    expectContent: [collective, transcript]
+
+  - name: a-collective-page-searching-for-someone-to-invite
+    surface: group-page
+    state: invite-search
+    expectContent: [collective, githubUser]
+
+  - name: the-publish-dashboard-with-a-transcript
+    surface: publish-page
+    state: with-transcripts
+    expectContent: [transcript]
+
+  - name: the-publish-dashboard-with-the-import-dialog-open
+    surface: publish-page
+    state: import-dialog-open
+    expectContent: [transcript]
+
+  - name: the-contribute-picker-open
+    surface: contribute-picker
+    state: open
+    expectContent: [collective]
+
+  - name: the-contribute-picker-with-no-collectives
+    surface: contribute-picker
+    state: no-collectives
+    expectContent: []
+
+  - name: the-contribute-picker-after-contributing
+    surface: contribute-picker
+    state: contributed
+    expectContent: [collective]
+
+  - name: the-pending-approval-bar
+    surface: pending-approval-bar
+    state: pending
+    expectContent: [collective]

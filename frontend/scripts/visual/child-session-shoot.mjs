@@ -125,7 +125,7 @@ const SURFACES = {
   'collective-data': {
     path: `/groups/${GROUP_ID}`,
     prefix: 'village-collective-data-child',
-    mountSelector: '[aria-label="Select every transcript on this page"]',
+    mountSelector: '[aria-label="select every transcript on this page"]',
     parentID: 'gt-parent',
     revealed: ['Read the collapsed-group control', 'Draw the selection box on a folded row'],
     unmatchedText: 'A contribution whose starter this collective does not hold',
@@ -135,7 +135,7 @@ const SURFACES = {
   'collective-repos': {
     path: `/groups/${GROUP_ID}`,
     prefix: 'village-collective-repos-child',
-    mountSelector: '[aria-label="Select every transcript on this page"]',
+    mountSelector: '[aria-label="select every transcript on this page"]',
     // The repository view is a choice on the same panel, so the capture makes
     // it before asserting anything about what the panel then shows.
     openView: 'repos',
@@ -655,7 +655,7 @@ if (config.parentID) {
   // ── What is true of this surface alone ────────────────────────────────────
 
   const readBrowsePanel = () => page.evaluate(() => {
-    const box = document.querySelector('[aria-label="Select every transcript on this page"]')
+    const box = document.querySelector('[aria-label="select every transcript on this page"]')
     const panel = box && box.closest('div.border')
     if (!panel) return null
     const chipEl = panel.querySelector('[data-parent-transcript-id="gt-parent"]')
@@ -684,7 +684,7 @@ if (config.parentID) {
     if (!rows) return null
     return {
       rows: rows.children.length,
-      removeActions: rows.querySelectorAll('button[title="Unshare from this collective"]').length,
+      removeActions: rows.querySelectorAll('button[title="unshare from this collective"]').length,
     }
   }, rowsSelector)
 

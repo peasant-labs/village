@@ -272,8 +272,14 @@ export default function GroupSettingsPage({
                   },
                 ]}
               />
+              {/* `public` is hidden: publishing is for collectives, so a
+                  collective is not offered the public commons. It is still
+                  listed for a collective that is ALREADY public, so the control
+                  keeps showing the value and label that collective has, rather
+                  than a select with no option for its own value. The server
+                  still accepts all three. */}
               <Select
-                label="Data access"
+                label="data access"
                 id="group-access"
                 value={dataAccess}
                 onChange={(e: ChangeEvent) => setDataAccess(e.target.value)}
@@ -286,10 +292,9 @@ export default function GroupSettingsPage({
                     value: "contributors",
                     label: "contributors - anyone who contributes can browse",
                   },
-                  {
-                    value: "public",
-                    label: "public - anyone can browse the dataset",
-                  },
+                  ...(group.data_access === "public"
+                    ? [{ value: "public", label: "public - anyone can browse the dataset" }]
+                    : []),
                 ]}
               />
 
@@ -444,7 +449,7 @@ export default function GroupSettingsPage({
                   {updateGroup.isPending ? "Saving…" : "Save"}
                 </Button>
                 {saved && (
-                  <span className="text-[13px] font-mono text-success">Saved</span>
+                  <span className="text-[var(--fs-label)] font-mono text-success">saved</span>
                 )}
                 {updateGroup.isError && (
                   <span className="text-[13px] text-danger">

@@ -17,7 +17,7 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
  * move with the code it is supposed to hold still.
  */
 
-export type HomeRouteSurface = "home" | "explore";
+export type HomeRouteSurface = "home" | "sign-in" | "explore";
 
 export type HomeRouteCase = {
   name: string;
@@ -113,13 +113,28 @@ export type HomeNavCase = {
   isLoggedIn: boolean;
   pathname: string;
   expectLabels: string[];
-  expectActiveLabel: string;
+  /** The one entry marked active, or null when the page is under none. */
+  expectActiveLabel: string | null;
+  /** Where the header's back link leads, or null when it shows none. */
+  expectBackHref: string | null;
+};
+
+/** What choosing an account-menu item must do. A closed set. */
+export type AccountMenuEffect = "navigate" | "sign-out";
+
+export type AccountMenuCase = {
+  name: string;
+  item: string;
+  effect: AccountMenuEffect;
+  /** The route `navigate` pushes; null for any other effect. */
+  target: string | null;
 };
 
 /** The parsed file, before the loader derives anything. */
 type ParsedHomePageFixtures = {
   routeCases: HomeRouteCase[];
   navCases: HomeNavCase[];
+  accountMenuCases: AccountMenuCase[];
   homeCases: HomeCase[];
   sortCases: HomeSortCase[];
   viewerChangeCases: HomeViewerChangeCase[];
@@ -128,13 +143,14 @@ type ParsedHomePageFixtures = {
 export type HomePageFixtures = {
   routeCases: HomeRouteCase[];
   navCases: HomeNavCase[];
+  accountMenuCases: AccountMenuCase[];
   homeCases: LoadedHomeCase[];
   sortCases: HomeSortCase[];
   viewerChangeCases: HomeViewerChangeCase[];
 };
 
 const requiredRouteCaseNames = [
-  "signed-out-visitor-at-the-root-still-gets-explore",
+  "signed-out-visitor-at-the-root-lands-on-sign-in",
   "signed-in-visitor-at-the-root-gets-their-own-home",
   "signed-in-visitor-at-explore-gets-explore",
   "signed-out-visitor-at-explore-gets-explore",
@@ -142,13 +158,32 @@ const requiredRouteCaseNames = [
 
 const requiredNavCaseNames = [
   "signed-in-visitor-at-the-root-highlights-home",
-  "signed-in-visitor-at-explore-highlights-explore",
-  "signed-out-visitor-at-the-root-highlights-explore",
-  "signed-out-visitor-has-no-home-entry-at-explore",
-  "a-transcript-page-still-highlights-explore",
+  "signed-in-visitor-at-a-collective-highlights-collectives",
+  "a-transcript-page-highlights-home",
+  "a-pull-request-page-highlights-home",
+  "signed-in-visitor-at-explore-highlights-nothing",
+  "signed-in-visitor-at-publish-highlights-nothing",
+  "signed-out-visitor-at-the-root-is-offered-no-entries",
+  "signed-out-visitor-at-explore-is-offered-no-entries",
+  "a-signed-out-transcript-reader-gets-no-back-link",
 ] as const;
 
-const navCaseKeys = ["name", "isLoggedIn", "pathname", "expectLabels", "expectActiveLabel"];
+const navCaseKeys = [
+  "name",
+  "isLoggedIn",
+  "pathname",
+  "expectLabels",
+  "expectActiveLabel",
+  "expectBackHref",
+];
+
+const requiredAccountMenuCaseNames = [
+  "profile-opens-the-signed-in-persons-profile",
+  "sign-out-ends-the-session",
+] as const;
+
+const accountMenuCaseKeys = ["name", "item", "effect", "target"];
+const accountMenuEffects: readonly AccountMenuEffect[] = ["navigate", "sign-out"];
 
 const requiredHomeCaseNames = [
   "recent-sessions-lead-and-projects-follow",
@@ -208,7 +243,7 @@ function surfaceFor(c: HomeCase): HomeSurface {
   return c.transcripts.length === 0 ? "empty" : "rows";
 }
 
-const surfaces: readonly HomeRouteSurface[] = ["home", "explore"];
+const surfaces: readonly HomeRouteSurface[] = ["home", "sign-in", "explore"];
 
 const requiredSortCaseNames = [
   "newest-first-among-parseable-timestamps",
@@ -233,7 +268,7 @@ export function loadHomePageFixtures(): HomePageFixtures {
   }
   assertExactKeys(
     parsed,
-    ["routeCases", "navCases", "homeCases", "sortCases", "viewerChangeCases"],
+    ["routeCases", "navCases", "accountMenuCases", "homeCases", "sortCases", "viewerChangeCases"],
     "fixture root",
   );
   const fixtures = parsed as ParsedHomePageFixtures;
@@ -251,27 +286,34 @@ export function loadHomePageFixtures(): HomePageFixtures {
           `${surfaces.join(", ")}.`,
       );
     }
-    // The rule the routes exist to express: home is the answer at `/`, and only
-    // for somebody who is signed in. A case claiming otherwise would invert the
-    // boundary rather than test it.
-    const wantHome = c.path === "/" && c.viewerUsername !== null;
-    if ((c.expectSurface === "home") !== wantHome) {
+    // The rule the routes exist to express: `/` is home for somebody signed in
+    // and the sign-in page for everybody else, and `/explore` is discovery for
+    // both. A case claiming otherwise would invert the boundary rather than
+    // test it.
+    const want: HomeRouteSurface =
+      c.path === "/" ? (c.viewerUsername !== null ? "home" : "sign-in") : "explore";
+    if (c.expectSurface !== want) {
       throw new Error(
         `route case ${c.name}: expectSurface is ${c.expectSurface} for path ${c.path} viewed by ` +
-          `${c.viewerUsername ?? "an anonymous visitor"}. Home is served at "/" and only to a ` +
-          `signed-in visitor; fix the expectation rather than the rule.`,
+          `${c.viewerUsername ?? "an anonymous visitor"}. "/" is home to a signed-in visitor and ` +
+          `the sign-in page to anybody else, and "/explore" is discovery to both; fix the ` +
+          `expectation rather than the rule.`,
       );
     }
   }
   // Both answers at `/` must be present, or the corpus proves only one branch
-  // and a page that ignored the session entirely would still pass.
-  const rootCases = fixtures.routeCases.filter((c) => c.path === "/");
-  if (!rootCases.some((c) => c.viewerUsername === null) || !rootCases.some((c) => c.viewerUsername !== null)) {
-    throw new Error(
-      `home-page routeCases: "/" must be exercised BOTH signed in and signed out. A corpus that ` +
-        `visits it one way cannot tell a session-aware root route from one that always renders ` +
-        `the same surface.`,
-    );
+  // and a page that ignored the session entirely would still pass. `/explore`
+  // must be visited both ways too: its address is the only way left to reach
+  // discovery, for either viewer.
+  for (const path of ["/", "/explore"]) {
+    const atPath = fixtures.routeCases.filter((c) => c.path === path);
+    if (!atPath.some((c) => c.viewerUsername === null) || !atPath.some((c) => c.viewerUsername !== null)) {
+      throw new Error(
+        `home-page routeCases: "${path}" must be exercised BOTH signed in and signed out. A ` +
+          `corpus that visits it one way cannot tell a session-aware route from one that always ` +
+          `renders the same surface.`,
+      );
+    }
   }
 
   assertNamesMatch(
@@ -281,28 +323,66 @@ export function loadHomePageFixtures(): HomePageFixtures {
   );
   for (const c of fixtures.navCases) {
     assertExactKeys(c, navCaseKeys, `nav case ${c.name}`);
-    if (!c.expectLabels.includes(c.expectActiveLabel)) {
+    if (c.expectActiveLabel !== null && !c.expectLabels.includes(c.expectActiveLabel)) {
       throw new Error(
         `nav case ${c.name}: the active entry ${c.expectActiveLabel} is not among the entries the ` +
           `case expects (${c.expectLabels.join(", ")})`,
       );
     }
-    // Home belongs to somebody who is signed in. A signed-out case listing it
-    // would assert the opposite of the rule the entry exists to express.
-    if (!c.isLoggedIn && c.expectLabels.includes("home")) {
+    // Every entry belongs to somebody who is signed in; a signed-out visitor's
+    // `/` is the sign-in page. A signed-out case listing an entry would assert
+    // the opposite of the rule the nav exists to express.
+    if (!c.isLoggedIn && c.expectLabels.length > 0) {
       throw new Error(
-        `nav case ${c.name}: a signed-out visitor has no home of their own, so the nav cannot ` +
-          `offer a home entry`,
+        `nav case ${c.name}: a signed-out visitor is offered no nav entries, got ` +
+          `${c.expectLabels.join(", ")}`,
       );
     }
+    // Hidden surfaces stay hidden: they keep their routes, never an entry.
+    for (const hidden of ["explore", "publish", "profile"]) {
+      if (c.expectLabels.includes(hidden)) {
+        throw new Error(
+          `nav case ${c.name}: ${hidden} is not a nav entry; it is reached by its address ` +
+            `(or, for profile, from the account menu)`,
+        );
+      }
+    }
   }
-  // Exactly one entry may be active, and both answers at "/" must be present,
-  // or the corpus could not tell a session-aware nav from a fixed one.
+  // Both answers at "/" must be present, or the corpus could not tell a
+  // session-aware nav from a fixed one.
   const rootNavCases = fixtures.navCases.filter((c) => c.pathname === "/");
   if (!rootNavCases.some((c) => c.isLoggedIn) || !rootNavCases.some((c) => !c.isLoggedIn)) {
     throw new Error(
       `home-page navCases: "/" must be exercised BOTH signed in and signed out`,
     );
+  }
+  // A back link and its absence must both be exercised, or a header that
+  // always (or never) drew one would pass.
+  if (
+    !fixtures.navCases.some((c) => c.expectBackHref !== null) ||
+    !fixtures.navCases.some((c) => c.expectBackHref === null)
+  ) {
+    throw new Error("home-page navCases must hold a case with a back link and one without");
+  }
+
+  assertNamesMatch(
+    fixtures.accountMenuCases.map((c) => c.name),
+    requiredAccountMenuCaseNames,
+    "home-page accountMenuCases",
+  );
+  for (const c of fixtures.accountMenuCases) {
+    assertExactKeys(c, accountMenuCaseKeys, `account menu case ${c.name}`);
+    if (!accountMenuEffects.includes(c.effect)) {
+      throw new Error(
+        `account menu case ${c.name}: ${c.effect} is not an effect (${accountMenuEffects.join(", ")})`,
+      );
+    }
+    if ((c.effect === "navigate") !== (c.target !== null)) {
+      throw new Error(`account menu case ${c.name}: a target belongs to a navigate effect only`);
+    }
+  }
+  if (new Set(fixtures.accountMenuCases.map((c) => c.item)).size !== fixtures.accountMenuCases.length) {
+    throw new Error("home-page accountMenuCases name each menu item once");
   }
 
   assertNamesMatch(

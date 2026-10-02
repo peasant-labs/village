@@ -68,10 +68,13 @@ callback from `BASE_URL` and bounces back to `FRONTEND_URL` after login.
 
 ## Smoke test
 
-At `https://localhost:8443/` → sign-in chevron dropdown → **Sign in with
-SourceHut** (accept the self-signed cert). A correct flow ends at
-`/auth/callback?token=...`. On first sign-in you're sent to **`/welcome`** to
-choose a username, then into the app.
+The web sign-in offers GitHub only; the other providers are hidden from the
+page, not removed, so start the flow from its route directly: open
+`https://localhost:8443/api/v1/auth/sourcehut` (accept the self-signed
+cert). A correct flow ends at `/auth/callback?token=...`. A non-GitHub account
+is then sent to **`/welcome`** to choose a username, then into the app. (A
+GitHub account skips `/welcome` unless its login is taken or does not fit the
+handle rule.)
 
 ## Known gaps for sr.ht
 
