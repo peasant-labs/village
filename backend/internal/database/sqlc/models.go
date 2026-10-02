@@ -178,7 +178,6 @@ type PullRequestAttachmentTranscript struct {
 	TranscriptID       pgtype.UUID `db:"transcript_id" json:"transcript_id"`
 	Position           int32       `db:"position" json:"position"`
 	PreviousVisibility string      `db:"previous_visibility" json:"previous_visibility"`
-	AttachWidened      bool        `db:"attach_widened" json:"attach_widened"`
 }
 
 type RepositoryCommit struct {

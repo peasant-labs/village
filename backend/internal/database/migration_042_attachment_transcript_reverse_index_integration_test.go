@@ -88,10 +88,9 @@ func TestMigration042ReverseIndexServesTheLookup(t *testing.T) {
 	}
 	bind := func(attachmentID, transcriptID pgtype.UUID, position int) {
 		t.Helper()
-		// attach_widened (migration 044) has no default, so every binding states it.
 		if _, err := pool.Exec(ctx, `
-			INSERT INTO pull_request_attachment_transcripts (attachment_id, transcript_id, position, previous_visibility, attach_widened)
-			VALUES ($1, $2, $3, 'private', false)
+			INSERT INTO pull_request_attachment_transcripts (attachment_id, transcript_id, position, previous_visibility)
+			VALUES ($1, $2, $3, 'private')
 		`, attachmentID, transcriptID, position); err != nil {
 			t.Fatalf("bind transcript: %v", err)
 		}

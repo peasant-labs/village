@@ -58,17 +58,12 @@ RETURNING *;
 -- name: AttachPullRequestTranscript :exec
 -- Binds a transcript to an attachment at a position, recording the visibility the
 -- transcript holds when the binding is made. Attaching binds only and never
--- changes who can read a transcript, so this, the only application writer of a
--- binding, states attach_widened = false as a literal: no caller can create a
--- binding that detach would narrow. The true rows are the ones an older attach
--- widened (migration 044). Idempotent on the (attachment, transcript) key:
--- re-binding updates the position and preserves previous_visibility and
--- attach_widened, so a retry can never turn a widened binding into one detach
--- leaves alone.
+-- changes who can read a transcript. Idempotent on the (attachment, transcript)
+-- key: re-binding updates the position and preserves previous_visibility.
 INSERT INTO pull_request_attachment_transcripts (
-    attachment_id, transcript_id, position, previous_visibility, attach_widened
+    attachment_id, transcript_id, position, previous_visibility
 ) VALUES (
-    $1, $2, $3, $4, false
+    $1, $2, $3, $4
 )
 ON CONFLICT (attachment_id, transcript_id) DO UPDATE SET
     position = EXCLUDED.position;
@@ -134,14 +129,6 @@ WHERE attachment_id = $1 AND transcript_id = $2;
 DELETE FROM pull_request_attachment_transcripts
 WHERE attachment_id = $1 AND transcript_id = $2;
 
--- name: ReleasePullRequestAttachmentTranscript :exec
--- Records that a detach has undone what an older attach widened for one
--- binding. It runs in the transaction that restores the transcript, under the
--- transcript's publish lock. The row stays, so the detached pull request still
--- lists it, and a later detach of the same binding restores nothing twice.
-UPDATE pull_request_attachment_transcripts
-SET attach_widened = false
-WHERE attachment_id = $1 AND transcript_id = $2;
 
 -- name: ListAuthorAttachmentsForRepo :many
 -- The author's attachments for one repository name in the states a publish can

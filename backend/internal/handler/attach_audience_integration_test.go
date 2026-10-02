@@ -272,8 +272,8 @@ func TestAttachingNeverChangesWhoCanRead_RealPostgres(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read the binding: %v", err)
 			}
-			if binding.AttachWidened || binding.PreviousVisibility != c.Transcript {
-				t.Fatalf("binding = widened %t at %q, want not widened at the transcript's own %q", binding.AttachWidened, binding.PreviousVisibility, c.Transcript)
+			if binding.PreviousVisibility != c.Transcript {
+				t.Fatalf("binding at %q, want the transcript's own %q", binding.PreviousVisibility, c.Transcript)
 			}
 
 			if c.OwnerThenSets != "" {
@@ -340,15 +340,6 @@ func TestAttachingNeverChangesWhoCanRead_RealPostgres(t *testing.T) {
 			}
 			if events := governanceEventCount(t, ctx, w.pool, w.transcriptID); events != eventsBefore {
 				t.Errorf("the detach appended %d governance events", events-eventsBefore)
-			}
-			kept, err := w.h.queries.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{
-				AttachmentID: w.attachmentID(t), TranscriptID: w.transcriptID,
-			})
-			if err != nil {
-				t.Fatalf("the detached pull request must keep its binding: %v", err)
-			}
-			if kept.AttachWidened {
-				t.Error("a detached new binding reads as widened")
 			}
 			// A detached digest describes prompts that are no longer attached, so
 			// only its author is still served it.

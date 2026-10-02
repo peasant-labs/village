@@ -13,9 +13,9 @@ import (
 
 const attachPullRequestTranscript = `-- name: AttachPullRequestTranscript :exec
 INSERT INTO pull_request_attachment_transcripts (
-    attachment_id, transcript_id, position, previous_visibility, attach_widened
+    attachment_id, transcript_id, position, previous_visibility
 ) VALUES (
-    $1, $2, $3, $4, false
+    $1, $2, $3, $4
 )
 ON CONFLICT (attachment_id, transcript_id) DO UPDATE SET
     position = EXCLUDED.position
@@ -30,13 +30,8 @@ type AttachPullRequestTranscriptParams struct {
 
 // Binds a transcript to an attachment at a position, recording the visibility the
 // transcript holds when the binding is made. Attaching binds only and never
-// changes who can read a transcript, so this, the only application writer of a
-// binding, states attach_widened = false as a literal: no caller can create a
-// binding that detach would narrow. The true rows are the ones an older attach
-// widened (migration 044). Idempotent on the (attachment, transcript) key:
-// re-binding updates the position and preserves previous_visibility and
-// attach_widened, so a retry can never turn a widened binding into one detach
-// leaves alone.
+// changes who can read a transcript. Idempotent on the (attachment, transcript)
+// key: re-binding updates the position and preserves previous_visibility.
 func (q *Queries) AttachPullRequestTranscript(ctx context.Context, arg AttachPullRequestTranscriptParams) error {
 	_, err := q.db.Exec(ctx, attachPullRequestTranscript,
 		arg.AttachmentID,
@@ -242,7 +237,7 @@ func (q *Queries) GetPullRequestAttachmentForPull(ctx context.Context, arg GetPu
 }
 
 const getPullRequestAttachmentTranscript = `-- name: GetPullRequestAttachmentTranscript :one
-SELECT attachment_id, transcript_id, position, previous_visibility, attach_widened FROM pull_request_attachment_transcripts
+SELECT attachment_id, transcript_id, position, previous_visibility FROM pull_request_attachment_transcripts
 WHERE attachment_id = $1 AND transcript_id = $2
 `
 
@@ -261,7 +256,6 @@ func (q *Queries) GetPullRequestAttachmentTranscript(ctx context.Context, arg Ge
 		&i.TranscriptID,
 		&i.Position,
 		&i.PreviousVisibility,
-		&i.AttachWidened,
 	)
 	return i, err
 }
@@ -775,7 +769,7 @@ func (q *Queries) ListPullRequestAttachmentTranscriptSummaries(ctx context.Conte
 }
 
 const listPullRequestAttachmentTranscripts = `-- name: ListPullRequestAttachmentTranscripts :many
-SELECT attachment_id, transcript_id, position, previous_visibility, attach_widened FROM pull_request_attachment_transcripts
+SELECT attachment_id, transcript_id, position, previous_visibility FROM pull_request_attachment_transcripts
 WHERE attachment_id = $1
 ORDER BY position ASC, transcript_id ASC
 `
@@ -794,7 +788,6 @@ func (q *Queries) ListPullRequestAttachmentTranscripts(ctx context.Context, atta
 			&i.TranscriptID,
 			&i.Position,
 			&i.PreviousVisibility,
-			&i.AttachWidened,
 		); err != nil {
 			return nil, err
 		}
@@ -938,26 +931,6 @@ func (q *Queries) LockPullRequestAttachmentArtifacts(ctx context.Context, id pgt
 		&i.GroupID,
 	)
 	return i, err
-}
-
-const releasePullRequestAttachmentTranscript = `-- name: ReleasePullRequestAttachmentTranscript :exec
-UPDATE pull_request_attachment_transcripts
-SET attach_widened = false
-WHERE attachment_id = $1 AND transcript_id = $2
-`
-
-type ReleasePullRequestAttachmentTranscriptParams struct {
-	AttachmentID pgtype.UUID `db:"attachment_id" json:"attachment_id"`
-	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
-}
-
-// Records that a detach has undone what an older attach widened for one
-// binding. It runs in the transaction that restores the transcript, under the
-// transcript's publish lock. The row stays, so the detached pull request still
-// lists it, and a later detach of the same binding restores nothing twice.
-func (q *Queries) ReleasePullRequestAttachmentTranscript(ctx context.Context, arg ReleasePullRequestAttachmentTranscriptParams) error {
-	_, err := q.db.Exec(ctx, releasePullRequestAttachmentTranscript, arg.AttachmentID, arg.TranscriptID)
-	return err
 }
 
 const setPullRequestAttachmentArtifacts = `-- name: SetPullRequestAttachmentArtifacts :exec

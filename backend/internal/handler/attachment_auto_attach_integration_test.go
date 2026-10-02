@@ -211,7 +211,7 @@ func TestOpenedPullRequestFollowsTheAuthorsAutoAttachChoice_RealPostgres(t *test
 					t.Fatal(err)
 				}
 				for _, binding := range bindings {
-					if binding.AttachWidened {
+					if false {
 						t.Errorf("an automatic link made a binding marked widened: %+v", binding)
 					}
 				}

@@ -7,7 +7,6 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -59,14 +58,9 @@ func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.Pul
 		return attachment, err
 	}
 
-	narrowed, err := h.clearEarlierBindings(ctx, attachment, repo)
-	if err != nil {
+	if err := h.clearEarlierBindings(ctx, attachment); err != nil {
 		return attachment, err
 	}
-	// A cleared binding an older attach widened may have narrowed its
-	// transcript; any other pull request listing it is reposted now, while this
-	// attachment is not attached and so never among the ones the repost locks.
-	h.repostAfterNarrowing(ctx, narrowed)
 	if err := h.bindAcceptedTranscripts(ctx, attachment, match.Accepted, 0); err != nil {
 		return attachment, err
 	}
@@ -132,16 +126,6 @@ func (h *Handler) audienceMovedSince(ctx context.Context, digests attachmentDige
 		}
 	}
 	return false
-}
-
-// repostAfterNarrowing reposts every attached pull request that binds a
-// transcript a release just narrowed, so none keeps listing it. Each attachment
-// is taken under its own lock; failures are logged, never returned, because the
-// change that narrowed the transcript has already committed.
-func (h *Handler) repostAfterNarrowing(ctx context.Context, narrowed []pgtype.UUID) {
-	if err := h.refreshAttachmentsForTranscripts(ctx, narrowed); err != nil {
-		log.Printf("pull request attachment refresh after a release narrowed transcripts failed: %v", err)
-	}
 }
 
 // errAttachmentNothingAccepted is returned when the acceptance policy accepts
@@ -317,45 +301,19 @@ func (h *Handler) unbindTranscripts(ctx context.Context, attachmentID pgtype.UUI
 // clearEarlierBindings removes the bindings an earlier cycle left before a new
 // attach binds. Detach keeps its bindings so a detached pull request still lists
 // what it held; a new attach starts afresh, so each binding records the
-// visibility that is true when it is made. A binding an older attach widened is
-// released first, exactly as a detach releases it, and the transcripts that
-// release narrowed are returned for the caller to repost.
-func (h *Handler) clearEarlierBindings(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository) ([]pgtype.UUID, error) {
+// visibility that is true when it is made.
+func (h *Handler) clearEarlierBindings(ctx context.Context, attachment sqlc.PullRequestAttachment) error {
 	bindings, err := h.queries.ListPullRequestAttachmentTranscripts(ctx, attachment.ID)
 	if err != nil {
-		return nil, fmt.Errorf("could not read the bindings an earlier attach left: %w", err)
+		return fmt.Errorf("could not read the bindings an earlier attach left: %w", err)
 	}
 	if len(bindings) == 0 {
-		return nil, nil
-	}
-	narrowed, err := h.releaseWidenedBindings(ctx, bindings, repo.groupID)
-	if err != nil {
-		return narrowed, err
+		return nil
 	}
 	if err := h.queries.DeletePullRequestAttachmentTranscripts(ctx, attachment.ID); err != nil {
-		return narrowed, fmt.Errorf("could not clear the bindings an earlier attach left: %w", err)
+		return fmt.Errorf("could not clear the bindings an earlier attach left: %w", err)
 	}
-	return narrowed, nil
-}
-
-// releaseWidenedBindings releases every binding an older attach widened, and
-// returns the transcripts a release narrowed. Bindings made since are skipped:
-// attaching them changed nothing, so neither does letting them go.
-func (h *Handler) releaseWidenedBindings(ctx context.Context, bindings []sqlc.PullRequestAttachmentTranscript, groupID pgtype.UUID) ([]pgtype.UUID, error) {
-	var narrowed []pgtype.UUID
-	for _, binding := range bindings {
-		if !binding.AttachWidened {
-			continue
-		}
-		changed, err := h.releaseWidenedBinding(ctx, binding, groupID)
-		if err != nil {
-			return narrowed, err
-		}
-		if changed {
-			narrowed = append(narrowed, binding.TranscriptID)
-		}
-	}
-	return narrowed, nil
+	return nil
 }
 
 // postAttachment posts the check (when the collective asked for one) and the one
@@ -479,15 +437,6 @@ func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequ
 		}
 	}
 
-	bindings, err := h.queries.ListPullRequestAttachmentTranscripts(ctx, attachment.ID)
-	if err != nil {
-		return attachment, fmt.Errorf("could not read the attachment's transcripts before releasing them: %w", err)
-	}
-	narrowed, err := h.releaseWidenedBindings(ctx, bindings, repo.groupID)
-	if err != nil {
-		return attachment, err
-	}
-
 	// The posted objects are gone or reset; keep the digest but drop the ids so
 	// a later attach creates rather than edits a deleted comment.
 	if err := h.storeAttachmentArtifacts(ctx, sqlc.SetPullRequestAttachmentArtifactsParams{
@@ -505,90 +454,5 @@ func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequ
 		return attachment, err
 	}
 
-	// A released binding narrowed its transcript, so any other pull request that
-	// lists it must stop. This attachment is detached by now, so the refresh
-	// never takes its lock, and it never fails the detach the author asked for.
-	h.repostAfterNarrowing(ctx, narrowed)
 	return updated, nil
-}
-
-// releaseWidenedBinding undoes what an older attach did to one transcript, and
-// reports whether its visibility narrowed. Attaching used to widen: it opened an
-// approved share to the linking collective and raised the transcript to the
-// tier the repository required, recording the tier it had before. Only a
-// binding marked attach_widened (every binding that existed when migration 044
-// ran) is released; nothing made since is.
-//
-// One transaction, under the publish lock every writer of the transcript's
-// audience holds, and attributed to the owner:
-//   - the share the attach opened is withdrawn, so a concurrent unshare of the
-//     same pair waits instead of racing it to the next ledger ordinal;
-//   - the recorded tier is restored when it is narrower than the tier now, so an
-//     owner who narrowed the transcript while it was attached keeps that. A
-//     restore to private becomes shared when a collective still holds a live
-//     submission the owner made, so detaching never takes away their own grant;
-//   - the binding is marked released, so a later detach restores nothing twice.
-func (h *Handler) releaseWidenedBinding(ctx context.Context, binding sqlc.PullRequestAttachmentTranscript, groupID pgtype.UUID) (bool, error) {
-	transcript, err := h.queries.GetTranscriptByID(ctx, binding.TranscriptID)
-	if err != nil {
-		return false, fmt.Errorf("could not read a bound transcript before releasing it: %w", err)
-	}
-	var narrowed bool
-	err = h.withPublishLocks(ctx, transcript.OwnerID, transcript.LocalID, nil, func(conn *pgxpool.Conn) error {
-		return h.inTxAsOnConn(ctx, conn, transcript.OwnerID, func(q Querier) error {
-			narrowed = false
-			// The binding is re-read under the lock: a concurrent detach or attach
-			// may have released or cleared it since the caller listed it, and a
-			// released binding is never restored a second time.
-			current, err := q.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{
-				AttachmentID: binding.AttachmentID,
-				TranscriptID: binding.TranscriptID,
-			})
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil
-			}
-			if err != nil {
-				return fmt.Errorf("could not re-read a bound transcript before releasing it: %w", err)
-			}
-			if !current.AttachWidened {
-				return nil
-			}
-			if groupID.Valid {
-				if _, err := withdrawLiveShare(ctx, q, binding.TranscriptID, groupID); err != nil {
-					return fmt.Errorf("could not retract the collective's share: %w", err)
-				}
-			}
-			pre, err := q.GetTranscriptGovernanceForUpdate(ctx, binding.TranscriptID)
-			if err != nil {
-				return fmt.Errorf("could not lock a bound transcript before restoring it: %w", err)
-			}
-			target := narrowestVisibility(pre.Visibility, current.PreviousVisibility)
-			if target == dbVisibilityPrivate && pre.Visibility != dbVisibilityPrivate {
-				live, err := q.TranscriptHasLiveShareAttempt(ctx, binding.TranscriptID)
-				if err != nil {
-					return fmt.Errorf("could not read the transcript's remaining submissions: %w", err)
-				}
-				if live {
-					target = dbVisibilityShared
-				}
-			}
-			if target != pre.Visibility {
-				if _, err := applyMetadataPatch(ctx, q, binding.TranscriptID, metadataPatch{Visibility: &target}); err != nil {
-					return fmt.Errorf("could not restore a transcript's recorded visibility: %w", err)
-				}
-				narrowed = true
-			}
-			if err := q.ReleasePullRequestAttachmentTranscript(ctx, sqlc.ReleasePullRequestAttachmentTranscriptParams{
-				AttachmentID: binding.AttachmentID,
-				TranscriptID: binding.TranscriptID,
-			}); err != nil {
-				return fmt.Errorf("could not record that a widened binding was released: %w", err)
-			}
-			return nil
-		})
-	})
-	if err != nil {
-		return false, err
-	}
-	return narrowed, nil
 }

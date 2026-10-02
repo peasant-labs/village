@@ -90,11 +90,9 @@ func TestMigration041AttachmentSurvivesCollectiveDeletion(t *testing.T) {
 		t.Fatalf("attachment group_id = %v, want the linking collective %v", attachment.GroupID, groupID)
 	}
 
-	// attach_widened (migration 044) has no default, so the binding states it:
-	// this snapshot is one an attach widened, which is what detach restores.
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO pull_request_attachment_transcripts (attachment_id, transcript_id, position, previous_visibility, attach_widened)
-		VALUES ($1, $2, 0, 'private', true)
+		INSERT INTO pull_request_attachment_transcripts (attachment_id, transcript_id, position, previous_visibility)
+		VALUES ($1, $2, 0, 'private')
 	`, attachment.ID, transcriptID); err != nil {
 		t.Fatalf("bind transcript: %v", err)
 	}

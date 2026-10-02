@@ -558,7 +558,7 @@ func TestReattachingBindsAfresh_RealPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(bindings) != 1 || bindings[0].PreviousVisibility != "public" || bindings[0].AttachWidened {
+	if len(bindings) != 1 || bindings[0].PreviousVisibility != "public" {
 		t.Fatalf("bindings = %+v after attaching again, want one binding recorded at public and not widened", bindings)
 	}
 	postedNow(fake).assertListed(t, true, "success")

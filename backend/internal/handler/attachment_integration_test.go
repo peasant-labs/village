@@ -557,8 +557,8 @@ func TestConfirmBindsWithoutChangingTheAudience_RealPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if binding.PreviousVisibility != "private" || binding.AttachWidened {
-		t.Fatalf("binding = %q widened %t, want private and not widened", binding.PreviousVisibility, binding.AttachWidened)
+	if binding.PreviousVisibility != "private" {
+		t.Fatalf("binding = %q, want private", binding.PreviousVisibility)
 	}
 
 	fake.mu.Lock()

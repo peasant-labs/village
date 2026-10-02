@@ -196,7 +196,6 @@ type Querier interface {
 	ListAttachmentsContainingTranscript(ctx context.Context, arg sqlc.ListAttachmentsContainingTranscriptParams) ([]sqlc.PullRequestAttachment, error)
 	GetPullRequestAttachmentTranscript(ctx context.Context, arg sqlc.GetPullRequestAttachmentTranscriptParams) (sqlc.PullRequestAttachmentTranscript, error)
 	DeletePullRequestAttachmentTranscript(ctx context.Context, arg sqlc.DeletePullRequestAttachmentTranscriptParams) error
-	ReleasePullRequestAttachmentTranscript(ctx context.Context, arg sqlc.ReleasePullRequestAttachmentTranscriptParams) error
 	ListPullRequestAttachmentTranscriptSummaries(ctx context.Context, attachmentID pgtype.UUID) ([]sqlc.ListPullRequestAttachmentTranscriptSummariesRow, error)
 	DeletePullRequestAttachmentTranscripts(ctx context.Context, attachmentID pgtype.UUID) error
 	SetPullRequestAttachmentDigest(ctx context.Context, arg sqlc.SetPullRequestAttachmentDigestParams) error

@@ -146,8 +146,6 @@ func TestTransitionEnforcesTheClosedTable(t *testing.T) {
 // binding; releasing a widened binding is the route's job.
 //
 // A bind_only row is written by the application's only binding writer, which
-// states attach_widened = false. A legacy row is written the way every binding
-// that existed when migration 044 ran reads: attach_widened = true.
 func TestTransitionDetachPreservesRecordedPreviousVisibility(t *testing.T) {
 	ctx := context.Background()
 	pool := newScratchPool(t)
@@ -174,9 +172,6 @@ func TestTransitionDetachPreservesRecordedPreviousVisibility(t *testing.T) {
 			if links[0].PreviousVisibility != c.Visibility {
 				t.Fatalf("recorded previous visibility after detach = %q, want %q exactly (not a default)", links[0].PreviousVisibility, c.Visibility)
 			}
-			if want := c.Kind == "legacy"; links[0].AttachWidened != want {
-				t.Fatalf("attach_widened after detach = %t, want %t for a %s binding", links[0].AttachWidened, want, c.Kind)
-			}
 
 			var stored string
 			if err := pool.QueryRow(ctx, `SELECT visibility FROM transcripts WHERE id=$1`, transcriptID).Scan(&stored); err != nil {
@@ -189,19 +184,9 @@ func TestTransitionDetachPreservesRecordedPreviousVisibility(t *testing.T) {
 	}
 }
 
-// bindAs writes one binding of the given kind: through the application's
-// binding writer for bind_only, or the way a binding an older attach widened
-// reads for legacy.
+// bindAs writes one binding through the application's only binding writer.
 func bindAs(t *testing.T, ctx context.Context, q *sqlc.Queries, pool *pgxpool.Pool, kind string, attachmentID, transcriptID pgtype.UUID, visibility string) {
 	t.Helper()
-	if kind == "legacy" {
-		if _, err := pool.Exec(ctx, `
-			INSERT INTO pull_request_attachment_transcripts (attachment_id, transcript_id, position, previous_visibility, attach_widened)
-			VALUES ($1, $2, 0, $3, true)`, attachmentID, transcriptID, visibility); err != nil {
-			t.Fatalf("record a widened binding at %q: %v", visibility, err)
-		}
-		return
-	}
 	if err := q.AttachPullRequestTranscript(ctx, sqlc.AttachPullRequestTranscriptParams{
 		AttachmentID:       attachmentID,
 		TranscriptID:       transcriptID,
@@ -213,10 +198,7 @@ func bindAs(t *testing.T, ctx context.Context, q *sqlc.Queries, pool *pgxpool.Po
 }
 
 // TestAttachTranscriptPreservesOriginalSnapshot proves a re-bind keeps what the
-// first binding recorded, for each kind: the recorded visibility, and a legacy
-// binding's widened marker. A re-bind can never turn a binding an older attach
-// widened into one detach leaves alone, and a new binding is never marked by
-// one.
+// first binding recorded: the visibility the transcript held when it was bound.
 func TestAttachTranscriptPreservesOriginalSnapshot(t *testing.T) {
 	ctx := context.Background()
 	pool := newScratchPool(t)
@@ -249,40 +231,7 @@ func TestAttachTranscriptPreservesOriginalSnapshot(t *testing.T) {
 			if links[0].PreviousVisibility != "private" {
 				t.Fatalf("re-bind overwrote the snapshot: previous_visibility = %q, want private", links[0].PreviousVisibility)
 			}
-			if want := kind == "legacy"; links[0].AttachWidened != want {
-				t.Fatalf("re-bind changed attach_widened to %t, want %t", links[0].AttachWidened, want)
-			}
 		})
-	}
-}
-
-// TestReleaseClearsOnlyTheWidenedMarker proves the release a detach records
-// after restoring a widened binding: the binding stays, with its recorded
-// visibility, and no longer reads as widened, so a later detach restores
-// nothing a second time.
-func TestReleaseClearsOnlyTheWidenedMarker(t *testing.T) {
-	ctx := context.Background()
-	pool := newScratchPool(t)
-	q := sqlc.New(pool)
-	owner := insertOwner(t, ctx, pool)
-
-	transcriptID := insertTranscript(t, ctx, pool, owner, "shared")
-	attachment := createAttachment(t, ctx, q, pool, owner, 600, Attached)
-	bindAs(t, ctx, q, pool, "legacy", attachment.ID, transcriptID, "private")
-
-	if err := q.ReleasePullRequestAttachmentTranscript(ctx, sqlc.ReleasePullRequestAttachmentTranscriptParams{
-		AttachmentID: attachment.ID, TranscriptID: transcriptID,
-	}); err != nil {
-		t.Fatalf("release the binding: %v", err)
-	}
-	binding, err := q.GetPullRequestAttachmentTranscript(ctx, sqlc.GetPullRequestAttachmentTranscriptParams{
-		AttachmentID: attachment.ID, TranscriptID: transcriptID,
-	})
-	if err != nil {
-		t.Fatalf("the released binding must stay: %v", err)
-	}
-	if binding.AttachWidened || binding.PreviousVisibility != "private" {
-		t.Fatalf("released binding = widened %t at %q, want not widened at the recorded private", binding.AttachWidened, binding.PreviousVisibility)
 	}
 }
 

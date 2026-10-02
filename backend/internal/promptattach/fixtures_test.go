@@ -37,9 +37,6 @@ var requiredVisibilityCaseNames = []string{
 	"bind_only_private_is_preserved_exactly",
 	"bind_only_shared_is_preserved_exactly",
 	"bind_only_public_is_preserved_exactly",
-	"legacy_private_is_preserved_exactly",
-	"legacy_shared_is_preserved_exactly",
-	"legacy_public_is_preserved_exactly",
 }
 
 // assertExactCaseNames holds a fixture to exact membership against its manifest.
