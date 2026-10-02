@@ -56,12 +56,18 @@ test.describe('home', () => {
     await expect(stats).toContainText('19.1M tokens')
     await expect(stats).toContainText('31h recorded')
 
-    // Two pull request numbers, then the true count of the rest; no provider
-    // icon anywhere in the table.
+    // Two pull request numbers, then the true count of the rest. Known
+    // received harnesses lead with their mark, without a provider fact line.
     const first = page.locator('tr.tbl-row').first()
     await expect(first.getByRole('list', { name: 'pull requests' })).toContainText('#45')
     await expect(first.getByRole('link', { name: '2 more pull requests on the transcript page' })).toHaveText('+2')
-    await expect(page.locator('[data-testid="home-transcripts"] .pv-icon')).toHaveCount(0)
+    for (const [i] of HOME_ROWS.entries()) {
+      const mark = rows.nth(i).locator('.iu-session > .pv-icon')
+      await expect(mark).toHaveAttribute('data-brand', 'claude')
+      await expect(mark).toHaveAttribute('role', 'img')
+      await expect(mark).toHaveAttribute('aria-label', 'Claude Code')
+      await expect(rows.nth(i).locator('.iu-session-sub')).not.toContainText('Claude Code')
+    }
 
     // The rail: the collectives this person belongs to, and what is waiting.
     await expect(page.getByTestId('home-rail-collective')).toHaveCount(3)
