@@ -1,0 +1,11 @@
+{
+  "accepted": true,
+  "reviewedBy": "root agent",
+  "sourceHead": "932f38f6bc0f98268b22ed6c98f8a33fe64b7614",
+  "scope": "Four freshly generated canonical comparisons were reviewed in both-theme contacts, with both owner full-size originals inspected. The exact normal build passed all 20 production journeys, computed styles and accessibility checks.",
+  "limitations": [
+    "The 162 result PNGs include duplicate and attachment frames; the inspection does not claim every duplicate image was individually reviewed.",
+    "Explore navigation-ending loading shells are not populated body evidence; separately inspected populated frames provide body evidence.",
+    "Canonical source 708c858 reference asset proof is retained and verified; the reference comparison images were freshly generated."
+  ]
+}

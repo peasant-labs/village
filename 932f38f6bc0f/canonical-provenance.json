@@ -1,0 +1,14 @@
+[
+  {
+    "theme": "dark",
+    "url": "http://localhost:6132/?app=commons&commons=collective-detail&theme=dark#inuse",
+    "heading": "Acme Platform",
+    "font": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif"
+  },
+  {
+    "theme": "light",
+    "url": "http://localhost:6132/?app=commons&commons=collective-detail&theme=light#inuse",
+    "heading": "Acme Platform",
+    "font": "\"Atkinson Hyperlegible\", ui-sans-serif, system-ui, -apple-system, sans-serif"
+  }
+]

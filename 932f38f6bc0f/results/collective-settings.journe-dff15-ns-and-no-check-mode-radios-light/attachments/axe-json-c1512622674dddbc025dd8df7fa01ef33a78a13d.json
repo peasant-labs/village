@@ -1,0 +1,11 @@
+{
+  "tags": [
+    "wcag2a",
+    "wcag2aa"
+  ],
+  "violations": [],
+  "incomplete": [
+    "aria-prohibited-attr"
+  ],
+  "passes": 26
+}
