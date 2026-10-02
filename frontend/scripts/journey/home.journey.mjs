@@ -62,7 +62,7 @@ test.describe('home', () => {
     await expect(first.getByRole('list', { name: 'pull requests' })).toContainText('#45')
     await expect(first.getByRole('link', { name: '2 more pull requests on the transcript page' })).toHaveText('+2')
     for (const [i] of HOME_ROWS.entries()) {
-      const mark = rows.nth(i).locator('.iu-session > .pv-icon')
+      const mark = rows.nth(i).locator('.iu-session > .pv-icon > svg[data-brand]')
       await expect(mark).toHaveAttribute('data-brand', 'claude')
       await expect(mark).toHaveAttribute('role', 'img')
       await expect(mark).toHaveAttribute('aria-label', 'Claude Code')
