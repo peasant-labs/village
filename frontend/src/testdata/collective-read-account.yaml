@@ -5,3 +5,9 @@ cases:
   - name: collective-refetch-discards-a-response-after-credentials-change
     why: An old response must not replace the earlier credential's cache after its request loses its binding.
     timing: after-dispatch
+  - name: collective-remount-cannot-borrow-the-same-viewers-old-credential-cache
+    why: A remounted production detail route must not render the previous credential's private cache while its replacement read is held.
+    timing: remount-changed
+  - name: collective-remount-starts-a-fresh-scope-with-the-same-credential
+    why: A shared QueryClient must not reuse a previous mount's private rows after a same-user same-credential reauthentication.
+    timing: remount-same

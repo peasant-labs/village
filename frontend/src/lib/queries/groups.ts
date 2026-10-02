@@ -1,23 +1,31 @@
+import { useId, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { VillageCreateGroupRequest, VillageGroup, VillageUpdateGroupRequest } from "@peasant-labs/schema";
 import { api, getAuthHeaders } from "../api";
 import { useAuth } from "@/providers/AuthProvider";
 import type { Group, VisibleGroup, GroupMember, GroupContributor, GroupTranscript, GroupTranscriptStats, GroupModelBreakdown, CollectiveSearchResponse, UserGroupShare, User } from "../types";
 
-// Credential changes get a new ephemeral cache scope. Raw credentials remain
-// in memory only and never become a query key or persisted cache entry.
-let observedAuthorization: string | undefined;
-let credentialVersion = 0;
+// Each mounted binding owns an opaque namespace and credential epoch. A render
+// derives a fresh scope immediately and updates only its own guarded state.
+// Credentials stay in memory closures, never query keys or persisted cache data.
 export function useCollectiveReadBinding() {
   const { user, isLoading } = useAuth();
   const client = useQueryClient();
+  const bindingId = useId();
   const authorization: string | undefined = getAuthHeaders().Authorization;
-  if (authorization !== observedAuthorization) {
-    observedAuthorization = authorization;
-    credentialVersion += 1;
-  }
-  const version = credentialVersion;
   const viewer = user?.id ?? "anonymous";
+  const [credential, setCredential] = useState(() => ({
+    matches: (candidateViewer: string, candidateAuthorization: string | undefined) => candidateViewer === viewer && candidateAuthorization === authorization,
+    epoch: 0,
+  }));
+  const epoch = credential.epoch + (credential.matches(viewer, authorization) ? 0 : 1);
+  if (!credential.matches(viewer, authorization)) {
+    setCredential({
+      matches: (candidateViewer: string, candidateAuthorization: string | undefined) => candidateViewer === viewer && candidateAuthorization === authorization,
+      epoch,
+    });
+  }
+  const version = `${bindingId}:${epoch}`;
   const current = () => (client.getQueryData<User>(["me"])?.id ?? "anonymous") === viewer && getAuthHeaders().Authorization === authorization;
   async function read<T>(path: string, signal?: AbortSignal): Promise<T> {
     if (!current()) throw new Error("the signed-in account changed before reading the collective; try again");

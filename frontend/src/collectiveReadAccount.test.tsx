@@ -33,6 +33,31 @@ for (const testCase of loadCollectiveReadAccountFixtures()) {
     const original = client.getQueryCache().findAll({ queryKey: ["group", world.groupId] }).find((query) => query.queryKey[2] === "flat" && query.state.status === "success")!;
     expect(original).toBeDefined();
     const priorReads = reads.length;
+    if (testCase.timing === "remount-changed" || testCase.timing === "remount-same") {
+      cleanup();
+      // A real warm mount starts with the existing /auth/me cache, so both
+      // compared mounts start at epoch zero rather than comparing hydration.
+      await renderGroupDetailRoute(world.groupId, client);
+      await screen.findByText("initial-private");
+      const cached = client.getQueryCache().findAll({ queryKey: ["group", world.groupId] }).find((query) => query.getObserversCount() > 0 && query.queryKey[2] === "flat")!;
+      expect(JSON.stringify(cached.state.data)).toContain("initial-private");
+      const warmReads = reads.length;
+      cleanup();
+      if (testCase.timing === "remount-changed") setAuthTokenCookie("replacement-credential");
+      row.title = "current-private-response";
+      hold = true;
+      const remountedClient = await renderGroupDetailRoute(world.groupId, client);
+      expect(remountedClient).toBe(client);
+      await waitFor(() => expect(reads.length).toBe(warmReads + 1));
+      expect(screen.queryByText("initial-private")).toBeNull();
+      expect(screen.queryByText("current-private-response")).toBeNull();
+      const replacement = client.getQueryCache().findAll({ queryKey: ["group", world.groupId] }).find((query) => query.getObserversCount() > 0 && query.queryKey[2] === "flat")!;
+      expect(replacement.queryKey.at(-1)).not.toBe(cached.queryKey.at(-1));
+      await act(async () => { release(); });
+      await screen.findByText("current-private-response");
+      expect(JSON.stringify(client.getQueryCache().getAll().map((query) => query.queryKey))).not.toContain("credential");
+      return;
+    }
     row.title = "late-private-response";
     hold = testCase.timing === "after-dispatch";
     if (testCase.timing === "before-dispatch") setAuthTokenCookie("replacement-credential");

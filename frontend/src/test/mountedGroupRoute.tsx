@@ -360,8 +360,8 @@ function Providers({ children, queryClient }: { children: ReactNode; queryClient
 }
 
 /** Renders the real `/groups/{id}` route. */
-export async function renderGroupDetailRoute(id: string): Promise<QueryClient> {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+export async function renderGroupDetailRoute(id: string, existingClient?: QueryClient): Promise<QueryClient> {
+  const queryClient = existingClient ?? new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   await act(async () => {
     render(
       <Providers queryClient={queryClient}>

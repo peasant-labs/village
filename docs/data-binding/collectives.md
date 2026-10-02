@@ -84,11 +84,22 @@ The existing in-memory route harness supplies these observations without new
 processes or lifetime resources.
 
 The three flat collective reads also bind the viewer and credential before
-dispatch and before accepting the response. A monotonic in-memory credential
-generation sits below the viewer in their cache keys, so returning credentials
-start a fresh scope. Two mounted refetch fixtures observe rejected dispatch and
-discarded late data, including recovery back to the original credential. Both
-guard-removal mutations fail at their named HTTP/cache assertions.
+dispatch and before accepting the response. Each mounted binding has an opaque
+React namespace and local numeric epoch below the viewer in its cache key.
+Render only compares a private equality closure and adjusts its own guarded
+state; it never writes module globals or waits for an effect to change the key.
+A changed viewer or credential derives a fresh key immediately. A remount has
+a new namespace, including the same-user, same-credential case. Credentials
+remain in memory closures, outside query keys and persisted cache data.
+
+This deliberately gives separate bindings separate cache entries rather than
+coalescing duplicate mounted consumers of the same endpoint. The actual detail
+mount keeps one flat binding, pagination retains its same-binding placeholder,
+and existing mutation invalidation prefixes still invalidate every scope.
+Four named mounted fixtures observe rejected dispatch, discarded late data,
+recovery back to the original credential, and held remount reads with the same
+QueryClient. Both guard-removal mutations still fail at their named HTTP/cache
+assertions; removing the mount namespace fails the remount cache assertions.
 
 The owner also retains GitHub handle search from the settings page. The
 canonical settings body stays intact; an additive search exit opens Fairtrade's
