@@ -1,0 +1,52 @@
+- paragraph: "acme/ingest-api #42"
+- heading "Fix flaky ingest test" [level=1]
+- link "view on github":
+  - /url: https://github.com/acme/ingest-api/pull/42
+- paragraph: fix/flaky-ingest · 4 commits
+- region "your transcripts on this pull request":
+  - paragraph:
+    - strong: 2 of your transcripts match this pull request.
+    - text: attach them so reviewers can read them next to the code.
+  - paragraph: "who can read them: members of Acme Platform and Acme Company. attaching does not change that."
+  - button "attach 2 transcripts"
+  - button "not now"
+- paragraph: 3 of 4 commits traced
+- region "prompts behind this pull request":
+  - term: sessions
+  - definition: "2"
+  - term: prompts
+  - definition: "6"
+  - term: commits
+  - definition: 3 of 4
+  - term: harness
+  - definition: claude-code
+  - link "view on village":
+    - /url: https://village.peasantlabs.org/pulls/acme/ingest-api/42
+  - group "skills and plugins":
+    - list:
+      - listitem: /toolkit:write-plan 1
+  - paragraph: 2 sessions, j and k move
+  - listbox "sessions":
+    - option "Fix flaky ingest test 4 prompts" [selected]
+    - option "Guard empty turns in the digest 2 prompts"
+  - region "Fix flaky ingest test":
+    - heading "Fix flaky ingest test" [level=3]
+    - link "open the transcript":
+      - /url: /transcripts/3f9c0a17-2b64-4e1d-9a53-8c0e21a4b7d2
+    - list:
+      - listitem:
+        - link "1 the ingest test flakes on CI about 1 in 5 runs":
+          - /url: /transcripts/3f9c0a17-2b64-4e1d-9a53-8c0e21a4b7d2?turn=1
+        - button "details for prompt 1"
+      - listitem:
+        - link "2 check the retry backoff":
+          - /url: /transcripts/3f9c0a17-2b64-4e1d-9a53-8c0e21a4b7d2?turn=4
+        - button "details for prompt 2"
+      - listitem:
+        - link "3 run it 50 times locally":
+          - /url: /transcripts/3f9c0a17-2b64-4e1d-9a53-8c0e21a4b7d2?turn=10
+        - button "details for prompt 3"
+      - listitem:
+        - link "4 ok commit it +27 −8":
+          - /url: /transcripts/3f9c0a17-2b64-4e1d-9a53-8c0e21a4b7d2?turn=33
+        - button "details for prompt 4"

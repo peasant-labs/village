@@ -1,0 +1,11 @@
+- region "the agent sessions behind your team's pull requests":
+  - paragraph: village
+  - heading "the agent sessions behind your team's pull requests" [level=1]
+  - paragraph: peasant records your ai coding sessions on your machine. village keeps the ones you publish, shared with your collectives, and links them to pull requests.
+  - button "continue with github"
+  - list:
+    - listitem: first time here? your handle is your github login. if someone already has it, or it does not fit a village handle, you choose another.
+    - listitem:
+      - text: using the cli?
+      - code: peasant village login
+      - text: uses the same github sign-in.

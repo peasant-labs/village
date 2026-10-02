@@ -1,0 +1,127 @@
+- main:
+  - navigation "breadcrumb":
+    - link "collectives":
+      - /url: /groups
+    - text: Acme Platform
+  - heading "Acme Platform" [level=2]
+  - button "settings"
+  - button "more"
+  - paragraph: Transcripts behind the ingest and web services.
+  - list "how this collective works":
+    - listitem:
+      - heading "who can read" [level=3]
+      - paragraph: members of Acme Platform can read every transcript published here.
+    - listitem:
+      - heading "who can publish" [level=3]
+      - paragraph: anyone can join and publish. transcripts are approved automatically.
+    - listitem:
+      - heading "your role" [level=3]
+      - paragraph: "owner: you manage settings and members."
+  - list "Acme Platform in numbers":
+    - listitem: 248 transcripts
+    - listitem: 8 members
+    - listitem: 124M tokens
+    - listitem: 31 pull requests linked
+  - table "transcripts 248":
+    - caption: transcripts 248
+    - rowgroup:
+      - row "title author pull requests when":
+        - columnheader "title"
+        - columnheader "author"
+        - columnheader "pull requests"
+        - columnheader "when"
+    - rowgroup:
+      - row "Fix flaky ingest test claude code · 37 turns @alice-dev pull requests show 1 more pull request acme/ingest-api · 4 pull requests 12m ago":
+        - cell "Fix flaky ingest test claude code · 37 turns":
+          - link "Fix flaky ingest test":
+            - /url: /transcripts/3f9c0a17-0000-4000-8000-000000000001
+          - text: claude code · 37 turns
+        - cell "@alice-dev"
+        - cell "pull requests show 1 more pull request acme/ingest-api · 4 pull requests":
+          - list "pull requests":
+            - listitem:
+              - link "#42":
+                - /url: /pulls/acme/ingest-api/42
+            - listitem:
+              - text: ","
+              - link "#45":
+                - /url: /pulls/acme/ingest-api/45
+          - button "show 1 more pull request": "+1"
+          - text: acme/ingest-api · 4 pull requests
+        - cell "12m ago"
+      - row "Guard empty turns in the digest claude code · 22 turns @alice-dev pull requests acme/ingest-api 2h ago":
+        - cell "Guard empty turns in the digest claude code · 22 turns":
+          - link "Guard empty turns in the digest":
+            - /url: /transcripts/c41a9f20-0000-4000-8000-000000000002
+          - text: claude code · 22 turns
+        - cell "@alice-dev"
+        - cell "pull requests acme/ingest-api":
+          - list "pull requests":
+            - listitem:
+              - link "#42":
+                - /url: /pulls/acme/ingest-api/42
+          - text: acme/ingest-api
+        - cell "2h ago"
+      - row "Paginate the collectives list codex · 51 turns @bob-ai pull requests acme/web yesterday":
+        - cell "Paginate the collectives list codex · 51 turns":
+          - link "Paginate the collectives list":
+            - /url: /transcripts/5d82a4b0-0000-4000-8000-000000000003
+          - text: codex · 51 turns
+        - cell "@bob-ai"
+        - cell "pull requests acme/web":
+          - list "pull requests":
+            - listitem:
+              - link "#31":
+                - /url: /pulls/acme/web/31
+            - listitem:
+              - text: ","
+              - link "#33":
+                - /url: /pulls/acme/web/33
+          - text: acme/web
+        - cell "yesterday"
+      - row "Migrate retry queue to worker opencode · 64 turns @bob-ai not linked 2d ago":
+        - cell "Migrate retry queue to worker opencode · 64 turns":
+          - link "Migrate retry queue to worker":
+            - /url: /transcripts/91be07c4-0000-4000-8000-000000000004
+          - text: opencode · 64 turns
+        - cell "@bob-ai"
+        - cell "not linked"
+        - cell "2d ago"
+      - row "Refactoring database queries gemini cli · 91 turns @carol-ml pull requests show 1 more pull request acme/ingest-api last week":
+        - cell "Refactoring database queries gemini cli · 91 turns":
+          - link "Refactoring database queries":
+            - /url: /transcripts/b4d9e310-0000-4000-8000-000000000005
+          - text: gemini cli · 91 turns
+        - cell "@carol-ml"
+        - cell "pull requests show 1 more pull request acme/ingest-api":
+          - list "pull requests":
+            - listitem:
+              - link "#36":
+                - /url: /pulls/acme/ingest-api/36
+            - listitem:
+              - text: ","
+              - link "#38":
+                - /url: /pulls/acme/ingest-api/38
+          - button "show 1 more pull request": "+1"
+          - text: acme/ingest-api
+        - cell "last week"
+  - text: showing 5 of 248
+  - button "show more"
+  - complementary "github orgs and members":
+    - heading "github orgs" [level=3]
+    - paragraph:
+      - text: acme · 2 of 14 repos linked
+      - button "manage"
+    - paragraph: a collective links one github org today.
+    - heading "members 8" [level=3]
+    - paragraph: 1 owner · 5 members · 2 contributors
+    - text: "@alice-dev, @bob-ai and 6 others"
+  - button "transcript groups show"
+  - text: your contributions 2 claude-code
+  - link "Investigate the private review":
+    - /url: /transcripts/6aeefaaa-0000-4000-8000-000000000001
+  - text: pending Jan 1
+  - button "withdraw contribution"
+  - button "1 child session show"
+  - text: 1 more grouped result
+  - button "load more"

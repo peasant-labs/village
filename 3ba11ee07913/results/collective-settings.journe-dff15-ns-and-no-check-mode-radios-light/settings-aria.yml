@@ -1,0 +1,94 @@
+- navigation "breadcrumb":
+  - link "collectives":
+    - /url: /groups
+  - link "Acme Platform":
+    - /url: /groups/c011ec71-0000-4000-8000-000000000001
+  - text: settings
+- heading "Acme Platform · settings" [level=2]
+- paragraph: changes save right away.
+- navigation "settings sections":
+  - link "general":
+    - /url: "#cmg-settings-general"
+  - link "access":
+    - /url: "#cmg-settings-access"
+  - link "members":
+    - /url: "#cmg-settings-members"
+  - link "github orgs":
+    - /url: "#cmg-settings-github-orgs"
+  - link "pull requests":
+    - /url: "#cmg-settings-pull-requests"
+  - link "danger zone":
+    - /url: "#cmg-settings-danger-zone"
+- group:
+  - text: general 2 settings name Acme Platform
+  - button "edit name": edit
+  - text: purpose Transcripts behind the ingest and web services.
+  - button "edit purpose": edit
+- group:
+  - text: "access 2 settings who can publish open: anyone can join and publish. transcripts are approved automatically. verified only: only members of the acme github org can join and publish. curated: you approve each transcript before it appears."
+  - combobox "who can publish":
+    - option "open" [selected]
+    - option "verified only"
+    - option "curated"
+  - text: who can read members read and publish. contributors publish, and read only if who can read allows it.
+  - combobox "who can read":
+    - option "members only" [selected]
+    - option "members and contributors"
+- group:
+  - text: members 7 members invite by github username
+  - textbox "invite by github username":
+    - /placeholder: github username
+  - button "invite" [disabled]
+  - list "members":
+    - listitem: AD @alice-dev Alice Developer owner
+    - listitem:
+      - text: BA @bob-ai Bob Ainsley
+      - combobox "role for @bob-ai":
+        - option "member" [selected]
+        - option "contributor"
+      - button "remove @bob-ai": remove
+    - listitem:
+      - text: CM @carol-ml Carol Mendes
+      - combobox "role for @carol-ml":
+        - option "member" [selected]
+        - option "contributor"
+      - button "remove @carol-ml": remove
+    - listitem:
+      - text: EW @erin-web Erin Walsh
+      - combobox "role for @erin-web":
+        - option "member" [selected]
+        - option "contributor"
+      - button "remove @erin-web": remove
+    - listitem:
+      - text: "@ @OctoPerson"
+      - combobox "role for @OctoPerson":
+        - option "member" [selected]
+        - option "contributor"
+      - button "remove @OctoPerson": remove
+    - listitem:
+      - text: DO @dan-ops Dan Okafor
+      - combobox "role for @dan-ops":
+        - option "member"
+        - option "contributor" [selected]
+      - button "remove @dan-ops": remove
+    - listitem:
+      - text: FK @farid-k Farid Karimi
+      - combobox "role for @farid-k":
+        - option "member"
+        - option "contributor" [selected]
+      - button "remove @farid-k": remove
+  - text: when a member leaves what happens to the transcripts they published here.
+  - combobox "when a member leaves":
+    - option "the member decides" [selected]
+    - option "removed when they leave"
+- group:
+  - text: github orgs 1 org acme 2 of 14 repos linked. a collective links one github org today.
+  - button "manage"
+- group:
+  - text: pull requests 1 setting show transcripts on pull requests adds a peasant / prompts comment and check on pull requests in this collective's repos, listing which commits have transcripts. it never blocks merging.
+  - switch "show transcripts on pull requests" [checked]
+  - text: "on"
+  - paragraph: automatic linking is now a personal setting, in your settings.
+- group:
+  - text: danger zone delete Acme Platform for all 7 members. this cannot be undone.
+  - button "delete collective"

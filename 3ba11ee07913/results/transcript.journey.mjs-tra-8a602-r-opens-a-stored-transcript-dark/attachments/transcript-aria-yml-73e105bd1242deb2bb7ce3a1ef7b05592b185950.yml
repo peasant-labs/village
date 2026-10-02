@@ -1,0 +1,101 @@
+- navigation "breadcrumb":
+  - link "home":
+    - /url: /
+  - text: Verify sticky model attribution on the mounted Village tran…
+- link "localhost:3017/transcripts/demo":
+  - /url: http://localhost:3017/transcripts/demo
+- button "copy link"
+- status
+- button "more"
+- heading "Verify sticky model attribution on the mounted Village transcript route" [level=2]
+- text: claude code anthropic/claude-fable-5 5m 5 turns unknown prompts 0 tools 500 tokens
+- tablist "session views":
+  - tab "highlights 2"
+  - tab "full trace 5" [selected]
+  - tab "diffs 0"
+  - tab "files 0"
+  - tab "annotations 0"
+- complementary "user turns outline":
+  - text: user turns
+  - button "collapse user turns outline"
+  - list "user turns by duration":
+    - listitem:
+      - 'button "step 1: Verify sticky model attribution on the mounted Village tran…, 4m"': Verify sticky model attribution on the mounted Village transcript route. 4m
+- tabpanel "trace":
+  - text: 5 turns
+  - group "view mode":
+    - button "list" [pressed]
+    - button "graph"
+  - region "full trace turns":
+    - text: "Planning turns 0–4 user turn 1 4m user #1 just now"
+    - button "copy link to turn 1"
+    - button "Add label"
+    - text: "60"
+    - paragraph: Verify sticky model attribution on the mounted Village transcript route.
+    - img "Claude Code"
+    - text: "assistant anthropic/claude-fable-5 #1a just now"
+    - button "copy link to turn 1a"
+    - button "Add label"
+    - text: "100"
+    - paragraph: First assistant response with direct Fable evidence.
+    - img "Claude Code"
+    - text: "assistant anthropic/claude-fable-5 #1b just now"
+    - button "copy link to turn 1b"
+    - button "Add label"
+    - text: "100"
+    - paragraph: Second assistant response inherits Fable.
+    - status: "model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8"
+    - img "Claude Code"
+    - text: "assistant anthropic/claude-opus-4-8 #1c just now"
+    - button "copy link to turn 1c"
+    - button "Add label"
+    - text: "100"
+    - paragraph: Third assistant response records the switch to Opus.
+    - img "Claude Code"
+    - text: "assistant anthropic/claude-opus-4-8 #1d just now"
+    - button "copy link to turn 1d"
+    - button "Add label"
+    - text: "100"
+    - paragraph: Fourth assistant response inherits Opus.
+- complementary "filters":
+  - text: filters
+  - button "collapse filters"
+  - text: categories
+  - checkbox "prompts 1" [checked]
+  - text: prompts 1
+  - checkbox "responses 4" [checked]
+  - text: responses 4
+  - checkbox "thinking 0" [checked]
+  - text: thinking 0
+  - checkbox "tool calls 0" [checked]
+  - button "tool calls" [expanded]
+  - text: "0"
+  - checkbox "file edits 0" [checked] [disabled]
+  - text: file edits 0
+  - checkbox "bash 0" [checked] [disabled]
+  - text: bash 0
+  - checkbox "read 0" [checked] [disabled]
+  - text: read 0
+  - checkbox "search 0" [checked] [disabled]
+  - text: search 0
+  - checkbox "fetch 0" [checked] [disabled]
+  - text: fetch 0
+  - checkbox "tasks 0" [checked] [disabled]
+  - text: tasks 0
+  - checkbox "other 0" [checked] [disabled]
+  - text: other 0 semantic tags
+  - checkbox "errors"
+  - text: errors
+  - checkbox "retries"
+  - text: retries
+  - checkbox "re-edit"
+  - text: re-edit view options
+  - switch "show hidden indicators" [checked]
+  - text: show hidden indicators on
+  - switch "expand all tool calls"
+  - text: expand all tool calls off
+  - switch "compact mode"
+  - text: compact mode off jump to
+  - button "start"
+  - button "latest"
+- text: ⌘ f search · j / k step turns

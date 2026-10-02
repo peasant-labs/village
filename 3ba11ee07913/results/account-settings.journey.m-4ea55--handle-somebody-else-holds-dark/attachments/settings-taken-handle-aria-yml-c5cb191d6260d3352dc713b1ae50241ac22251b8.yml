@@ -1,0 +1,22 @@
+- heading "your settings" [level=1]
+- paragraph: switches apply right away. text changes when you press edit.
+- group:
+  - text: profile 2 settings handle
+  - alert: "@bob-ai is already claimed. try another."
+  - text: alice-dev
+  - button "edit handle": edit
+  - text: "not saved discoverable profile on: your handle shows on your transcripts and in member lists. off: you show as anon."
+  - switch "discoverable profile" [checked]
+  - text: "on"
+- group:
+  - text: "pull requests 1 setting link my transcripts to my pull requests automatically off: comment /peasant attach on a pull request. on: when you open a pull request in a repo that one of your collectives links, your transcripts that trace its commits are linked. who can read them does not change."
+  - switch "link my transcripts to my pull requests automatically"
+  - text: "off"
+- group:
+  - text: connections 2 connections github · alice-dev you sign in to village with this account.
+  - button "sign out"
+  - text: peasant on 2 computers it can publish as you. last used 12m ago.
+  - button "sign out everywhere"
+- group:
+  - text: danger zone delete your village account, with the transcripts you published and the collectives you own. this cannot be undone.
+  - button "delete account"

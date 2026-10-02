@@ -1,0 +1,45 @@
+- button "transcript groups hide" [expanded]
+- text: contributor
+- combobox "filter transcripts by contributor":
+  - option "all contributors" [selected]
+  - option "alice-dev"
+  - option "bob-ai"
+  - option "carol-ml"
+- button "list"
+- button "repos" [pressed]
+- checkbox "select all"
+- text: select all
+- button "remove selected (0)" [disabled]
+- text: repositories 3
+- button "https://github.com/acme/ingest-api https://github.com/acme/ingest-api 3 transcripts 2 contributors 1.8M tok" [expanded]
+- link "open repository":
+  - /url: https://github.com/acme/ingest-api
+- link "open transcript Fix flaky ingest test":
+  - /url: /transcripts/3f9c0a17-0000-4000-8000-000000000001
+- text: "Fix flaky ingest test Claude-code · main · Jan 1, 2024 A alice-dev visibility: shared"
+- button "1 child session show"
+- link "open transcript Refactoring database queries":
+  - /url: /transcripts/b4d9e310-0000-4000-8000-000000000005
+- text: "Refactoring database queries Gemini-cli · main · Dec 24, 2023 C carol-ml visibility: shared"
+- button "https://github.com/acme/web https://github.com/acme/web 1 transcript 1 contributor 612K tok"
+- link "open repository":
+  - /url: https://github.com/acme/web
+- button "unattributed no git remote 1 transcript 1 contributor 768K tok"
+- text: your contributions 2 claude-code
+- link "Investigate the private review":
+  - /url: /transcripts/6aeefaaa-0000-4000-8000-000000000001
+- text: pending Jan 1
+- button "withdraw contribution"
+- button "1 child session hide" [expanded]
+- text: claude-code
+- link "Follow up on the private review":
+  - /url: /transcripts/6aeefaaa-0000-4000-8000-000000000002
+- text: Jan 1
+- button "withdraw contribution"
+- paragraph: owner is unavailable
+- button "1 helper thread hide" [expanded]
+- list:
+  - listitem:
+    - link "Saved helper on the later page":
+      - /url: /transcripts/6aeefaaa-0000-4000-8000-000000000003
+    - text: claude-code unknown input submissions 12 turns

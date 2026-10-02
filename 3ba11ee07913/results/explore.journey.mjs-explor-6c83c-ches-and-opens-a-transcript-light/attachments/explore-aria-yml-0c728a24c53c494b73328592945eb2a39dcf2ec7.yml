@@ -1,0 +1,75 @@
+- complementary "filters":
+  - radiogroup "order":
+    - heading "order" [level=3]
+    - radio "recent" [checked]
+    - text: recent
+    - radio "most turns"
+    - text: most turns
+    - radio "most tokens"
+    - text: most tokens
+  - region "provider":
+    - heading "provider" [level=3]
+    - group "providers":
+      - button "all"
+      - button "claude-code"
+      - button "opencode"
+      - button "gemini-cli"
+      - button "codex"
+  - region "topics":
+    - heading "topics" [level=3]
+    - group "topics":
+      - button "claude-code"
+      - button "debugging"
+      - button "gemini-cli"
+      - button "refactoring"
+      - button "greenfield"
+      - button "iterative-refinement"
+  - text: 0 active
+- text: transcripts
+- status: "7"
+- group "view mode":
+  - button "grid view" [pressed]: grid
+  - button "list view": list
+  - button "profile view": profile
+- 'link "claude-code Claude Opus 4.5 visibility: public Building a REST API from scratch #greenfield #claude-code @alice-dev Jun 14, 2026"':
+  - /url: /transcripts/d41a8e
+  - text: "claude-code Claude Opus 4.5 visibility: public"
+  - heading "Building a REST API from scratch" [level=3]
+  - paragraph: "#greenfield #claude-code"
+  - text: "@alice-dev Jun 14, 2026"
+- 'link "opencode OpenCode visibility: public Started by a session this response does not carry #opencode @bob-ai Jun 14, 2026"':
+  - /url: /transcripts/c1a099
+  - text: "opencode OpenCode visibility: public"
+  - heading "Started by a session this response does not carry" [level=3]
+  - paragraph: "#opencode"
+  - text: "@bob-ai Jun 14, 2026"
+- 'link "claude-code Claude Sonnet 4.5 visibility: shared Debugging auth middleware with Claude Code #debugging #claude-code @alice-dev Jun 13, 2026"':
+  - /url: /transcripts/7c2b90
+  - text: "claude-code Claude Sonnet 4.5 visibility: shared"
+  - heading "Debugging auth middleware with Claude Code" [level=3]
+  - paragraph: "#debugging #claude-code"
+  - text: "@alice-dev Jun 13, 2026"
+- 'link "gemini-cli Gemini 2.5 Pro visibility: public Refactoring database queries with Gemini #refactoring #gemini-cli @charlie-ml Jun 12, 2026"':
+  - /url: /transcripts/b9f33c
+  - text: "gemini-cli Gemini 2.5 Pro visibility: public"
+  - heading "Refactoring database queries with Gemini" [level=3]
+  - paragraph: "#refactoring #gemini-cli"
+  - text: "@charlie-ml Jun 12, 2026"
+- 'link "opencode OpenCode visibility: public Greenfield React app setup #greenfield #iterative-refinement @bob-ai Jun 11, 2026"':
+  - /url: /transcripts/e2107a
+  - text: "opencode OpenCode visibility: public"
+  - heading "Greenfield React app setup" [level=3]
+  - paragraph: "#greenfield #iterative-refinement"
+  - text: "@bob-ai Jun 11, 2026"
+- 'link "claude-code Claude Opus 4.5 visibility: public Multi-agent debugging session #multi-agent #debugging @charlie-ml Jun 10, 2026"':
+  - /url: /transcripts/a5d8c1
+  - text: "claude-code Claude Opus 4.5 visibility: public"
+  - heading "Multi-agent debugging session" [level=3]
+  - paragraph: "#multi-agent #debugging"
+  - text: "@charlie-ml Jun 10, 2026"
+- 'link "codex Codex visibility: private Untitled transcript #iterative-refinement @anon Jun 9, 2026"':
+  - /url: /transcripts/f0b412
+  - text: "codex Codex visibility: private"
+  - heading "Untitled transcript" [level=3]
+  - paragraph: "#iterative-refinement"
+  - text: "@anon Jun 9, 2026"

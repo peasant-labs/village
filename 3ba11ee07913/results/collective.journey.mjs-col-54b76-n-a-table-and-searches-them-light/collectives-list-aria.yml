@@ -1,0 +1,38 @@
+- table "collectives 3":
+  - caption: collectives 3
+  - rowgroup:
+    - row "name your role members transcripts github org joining":
+      - columnheader "name"
+      - columnheader "your role"
+      - columnheader "members"
+      - columnheader "transcripts"
+      - columnheader "github org"
+      - columnheader "joining"
+  - rowgroup:
+    - row "Acme Platform Transcripts behind the ingest and web services. owner member for 5mo 8 248 acme open":
+      - cell "Acme Platform Transcripts behind the ingest and web services.":
+        - button "Acme Platform"
+        - text: Transcripts behind the ingest and web services.
+      - cell "owner member for 5mo"
+      - cell "8"
+      - cell "248"
+      - cell "acme"
+      - cell "open"
+    - row "Acme Company Every team at Acme. member member for 1mo 3 1,904 acme verified only":
+      - cell "Acme Company Every team at Acme.":
+        - button "Acme Company"
+        - text: Every team at Acme.
+      - cell "member member for 1mo"
+      - cell "3"
+      - cell "1,904"
+      - cell "acme"
+      - cell "verified only"
+    - row "ML Reading Group Papers we read and the sessions that reproduce them. 2 54 nothing linked open":
+      - cell "ML Reading Group Papers we read and the sessions that reproduce them.":
+        - button "ML Reading Group"
+        - text: Papers we read and the sessions that reproduce them.
+      - cell
+      - cell "2"
+      - cell "54"
+      - cell "nothing linked"
+      - cell "open"

@@ -1,0 +1,56 @@
+- dialog "link repositories from acme":
+  - heading "link repositories from acme" [level=3]
+  - button "close dialog"
+  - paragraph: pull requests in linked repos show the transcripts published to Acme Platform.
+  - text: search repos
+  - searchbox "search repos"
+  - button "select all"
+  - button "clear"
+  - text: 3 of 14 selected
+  - region "acme organisation":
+    - heading "acme organisation" [level=4]
+    - list:
+      - listitem:
+        - checkbox "acme/ingest-api private 4 members publish from it linked" [checked]
+        - text: acme/ingest-api private 4 members publish from it linked
+      - listitem:
+        - checkbox "acme/web 2 members publish from it linked" [checked]
+        - text: acme/web 2 members publish from it linked
+      - listitem:
+        - checkbox "acme/worker 3 members publish from it"
+        - text: acme/worker 3 members publish from it
+      - listitem:
+        - checkbox "acme/cli 1 member publishes from it to link" [checked]
+        - text: acme/cli 1 member publishes from it to link
+      - listitem:
+        - checkbox "acme/infra private"
+        - text: acme/infra private
+      - listitem:
+        - checkbox "acme/docs"
+        - text: acme/docs
+      - listitem:
+        - checkbox "acme/billing private"
+        - text: acme/billing private
+      - listitem:
+        - checkbox "acme/auth"
+        - text: acme/auth
+      - listitem:
+        - checkbox "acme/mobile"
+        - text: acme/mobile
+      - listitem:
+        - checkbox "acme/design-tokens"
+        - text: acme/design-tokens
+      - listitem:
+        - checkbox "acme/status-page"
+        - text: acme/status-page
+      - listitem:
+        - checkbox "acme/sdk-js"
+        - text: acme/sdk-js
+      - listitem:
+        - checkbox "acme/sdk-go"
+        - text: acme/sdk-go
+      - listitem:
+        - checkbox "acme/terraform private"
+        - text: acme/terraform private
+  - button "cancel"
+  - 'button "save: link 1 repository"'
