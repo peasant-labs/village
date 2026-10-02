@@ -1,0 +1,158 @@
+- status
+- heading "your transcripts" [level=1]
+- paragraph: sessions you published from peasant, and who can read each one.
+- list "your transcripts in numbers":
+  - listitem: 38 transcripts
+  - listitem: 3 collectives
+  - listitem: 9 pull requests
+  - listitem: 19.1M tokens
+  - listitem: 31h recorded
+- search:
+  - text: search your transcripts
+  - searchbox "search your transcripts"
+- table "transcripts you published":
+  - caption: transcripts you published
+  - rowgroup:
+    - row "title shared with pull requests when":
+      - columnheader "title"
+      - columnheader "shared with"
+      - columnheader "pull requests"
+      - columnheader "when"
+  - rowgroup:
+    - row "Claude Code Fix flaky ingest test ingest-api · fix/flaky-ingest Acme Platform Acme Company pull requests 2 more pull requests on the transcript page 12m ago":
+      - cell "Claude Code Fix flaky ingest test ingest-api · fix/flaky-ingest":
+        - img "Claude Code"
+        - link "Fix flaky ingest test":
+          - /url: /transcripts/ct-home-1
+        - link "ingest-api":
+          - /url: /users/alice-dev/projects/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        - text: · fix/flaky-ingest
+      - cell "Acme Platform Acme Company"
+      - cell "pull requests 2 more pull requests on the transcript page":
+        - list "pull requests":
+          - listitem:
+            - 'link "acme/ingest-api #45"':
+              - /url: /pulls/acme/ingest-api/45
+              - text: "#45"
+          - listitem:
+            - text: ","
+            - 'link "acme/ingest-api #42"':
+              - /url: /pulls/acme/ingest-api/42
+              - text: "#42"
+        - link "2 more pull requests on the transcript page":
+          - /url: /transcripts/ct-home-1
+          - text: "+2"
+      - cell "12m ago":
+        - time: 12m ago
+    - row "Claude Code Guard empty turns in the digest ingest-api · fix/flaky-ingest Acme Platform Acme Company pull requests 2h ago":
+      - cell "Claude Code Guard empty turns in the digest ingest-api · fix/flaky-ingest":
+        - img "Claude Code"
+        - link "Guard empty turns in the digest":
+          - /url: /transcripts/ct-home-2
+        - link "ingest-api":
+          - /url: /users/alice-dev/projects/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        - text: · fix/flaky-ingest
+      - cell "Acme Platform Acme Company"
+      - cell "pull requests":
+        - list "pull requests":
+          - listitem:
+            - 'link "acme/ingest-api #42"':
+              - /url: /pulls/acme/ingest-api/42
+              - text: "#42"
+      - cell "2h ago":
+        - time: 2h ago
+    - row "Claude Code Paginate the collectives list web · feat/paginate Acme Platform pull requests yesterday":
+      - cell "Claude Code Paginate the collectives list web · feat/paginate":
+        - img "Claude Code"
+        - link "Paginate the collectives list":
+          - /url: /transcripts/ct-home-3
+        - link "web":
+          - /url: /users/alice-dev/projects/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        - text: · feat/paginate
+      - cell "Acme Platform"
+      - cell "pull requests":
+        - list "pull requests":
+          - listitem:
+            - 'link "acme/web #33"':
+              - /url: /pulls/acme/web/33
+              - text: "#33"
+          - listitem:
+            - text: ","
+            - 'link "acme/web #31"':
+              - /url: /pulls/acme/web/31
+              - text: "#31"
+      - cell "yesterday":
+        - time: yesterday
+    - row "Claude Code Migrate retry queue to worker worker · develop Acme Platform none 2d ago":
+      - cell "Claude Code Migrate retry queue to worker worker · develop":
+        - img "Claude Code"
+        - link "Migrate retry queue to worker":
+          - /url: /transcripts/ct-home-4
+        - link "worker":
+          - /url: /users/alice-dev/projects/cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        - text: · develop
+      - cell "Acme Platform"
+      - cell "none"
+      - cell "2d ago":
+        - time: 2d ago
+    - row "Claude Code Reproduce the tokenizer benchmark ml-notes · main not shared with collective members none 3d ago":
+      - cell "Claude Code Reproduce the tokenizer benchmark ml-notes · main":
+        - img "Claude Code"
+        - link "Reproduce the tokenizer benchmark":
+          - /url: /transcripts/ct-home-5
+        - link "ml-notes":
+          - /url: /users/alice-dev/projects/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+        - text: · main
+      - cell "not shared with collective members"
+      - cell "none"
+      - cell "3d ago":
+        - time: 3d ago
+    - row "Claude Code Refactoring database queries ingest-api · develop Acme Platform pull requests show 1 more pull request last week":
+      - cell "Claude Code Refactoring database queries ingest-api · develop":
+        - img "Claude Code"
+        - link "Refactoring database queries":
+          - /url: /transcripts/ct-home-6
+        - link "ingest-api":
+          - /url: /users/alice-dev/projects/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        - text: · develop
+      - cell "Acme Platform"
+      - cell "pull requests show 1 more pull request":
+        - list "pull requests":
+          - listitem:
+            - 'link "acme/ingest-api #38"':
+              - /url: /pulls/acme/ingest-api/38
+              - text: "#38"
+          - listitem:
+            - text: ","
+            - 'link "acme/ingest-api #36"':
+              - /url: /pulls/acme/ingest-api/36
+              - text: "#36"
+        - button "show 1 more pull request": "+1"
+      - cell "last week":
+        - time: last week
+- text: 6 of 6 transcripts
+- complementary "your collectives and what is waiting":
+  - region "your collectives":
+    - heading "your collectives" [level=2]
+    - link "view all":
+      - /url: /groups
+    - list:
+      - listitem:
+        - link "Acme Platform":
+          - /url: /groups/11111111-1111-4111-8111-111111111111
+        - text: owner · 12 members
+      - listitem:
+        - link "Acme Company":
+          - /url: /groups/22222222-2222-4222-8222-222222222222
+        - text: member · 87 members
+      - listitem:
+        - link "ML Reading Group":
+          - /url: /groups/33333333-3333-4333-8333-333333333333
+        - text: contributor · 21 members
+  - region "waiting for approval":
+    - heading "waiting for approval" [level=2]
+    - list:
+      - listitem:
+        - link "ML Reading Group":
+          - /url: /groups/33333333-3333-4333-8333-333333333333
+        - text: 1 transcript waiting. the owner of ML Reading Group approves each transcript before members can read it.

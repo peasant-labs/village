@@ -1,0 +1,27 @@
+- status
+- heading "your transcripts" [level=1]
+- paragraph: sessions you published from peasant, and who can read each one.
+- heading "nothing published yet" [level=3]
+- paragraph: sessions you publish from peasant appear here, with who can read each one. sign peasant in to village on your computer, then publish a session from it.
+- code: peasant village login
+- button "copy command to clipboard": copy
+- link "how to publish from peasant":
+  - /url: /publish
+- complementary "your collectives and what is waiting":
+  - region "your collectives":
+    - heading "your collectives" [level=2]
+    - link "view all":
+      - /url: /groups
+    - list:
+      - listitem:
+        - link "Acme Platform":
+          - /url: /groups/11111111-1111-4111-8111-111111111111
+        - text: owner · 12 members
+      - listitem:
+        - link "Acme Company":
+          - /url: /groups/22222222-2222-4222-8222-222222222222
+        - text: member · 87 members
+      - listitem:
+        - link "ML Reading Group":
+          - /url: /groups/33333333-3333-4333-8333-333333333333
+        - text: contributor · 21 members
