@@ -16,7 +16,7 @@ UPDATE users SET
     username_chosen = true,
     updated_at = now()
 WHERE id = $1 AND github_username = $2 AND NOT username_chosen
-RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests
 `
 
 type ConfirmOwnHandleParams struct {
@@ -46,6 +46,7 @@ func (q *Queries) ConfirmOwnHandle(ctx context.Context, arg ConfirmOwnHandlePara
 		&i.UsernameChosen,
 		&i.ProviderUsername,
 		&i.PreviewBeforeAttach,
+		&i.AutoAttachPullRequests,
 	)
 	return i, err
 }
