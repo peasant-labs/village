@@ -1,0 +1,12 @@
+{
+  "tags": [
+    "wcag2a",
+    "wcag2aa"
+  ],
+  "violations": [],
+  "incomplete": [
+    "aria-valid-attr-value",
+    "color-contrast"
+  ],
+  "passes": 28
+}
