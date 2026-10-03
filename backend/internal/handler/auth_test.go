@@ -34,15 +34,18 @@ type mockQuerier struct {
 	updateCLISessionWithCode func(ctx context.Context, arg sqlc.UpdateCLISessionWithCodeParams) error
 	exchangeCLISession       func(ctx context.Context, arg sqlc.ExchangeCLISessionParams) (sqlc.CliAuthSession, error)
 
+	listAttachmentsBindingTranscript func(context.Context, pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
+
 	// User stubs
-	upsertUser           func(ctx context.Context, arg sqlc.UpsertUserParams) (sqlc.User, error)
-	upsertUserByProvider func(ctx context.Context, arg sqlc.UpsertUserByProviderParams) (sqlc.User, error)
-	getUserByID          func(ctx context.Context, id pgtype.UUID) (sqlc.User, error)
-	getUserByUsername    func(ctx context.Context, githubUsername string) (sqlc.User, error)
-	listUserAllOrgs      func(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error)
-	setUsername          func(ctx context.Context, arg sqlc.SetUsernameParams) (sqlc.User, error)
-	confirmOwnHandle     func(ctx context.Context, arg sqlc.ConfirmOwnHandleParams) (sqlc.User, error)
-	deleteUser           func(ctx context.Context, id pgtype.UUID) error
+	upsertUser                func(ctx context.Context, arg sqlc.UpsertUserParams) (sqlc.User, error)
+	upsertUserByProvider      func(ctx context.Context, arg sqlc.UpsertUserByProviderParams) (sqlc.User, error)
+	getUserByID               func(ctx context.Context, id pgtype.UUID) (sqlc.User, error)
+	getUserByProviderIdentity func(ctx context.Context, arg sqlc.GetUserByProviderIdentityParams) (sqlc.User, error)
+	getUserByUsername         func(ctx context.Context, githubUsername string) (sqlc.User, error)
+	listUserAllOrgs           func(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error)
+	setUsername               func(ctx context.Context, arg sqlc.SetUsernameParams) (sqlc.User, error)
+	confirmOwnHandle          func(ctx context.Context, arg sqlc.ConfirmOwnHandleParams) (sqlc.User, error)
+	deleteUser                func(ctx context.Context, id pgtype.UUID) error
 
 	// API key stubs
 	createAPIKey        func(ctx context.Context, arg sqlc.CreateAPIKeyParams) (sqlc.ApiKey, error)
@@ -156,11 +159,11 @@ type mockQuerier struct {
 	listUsersByIDs                           func(ctx context.Context, ids []pgtype.UUID) ([]sqlc.User, error)
 	listTagsByTranscriptIDs                  func(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListTagsByTranscriptIDsRow, error)
 
-	// Writes a test drives directly. Unset, setUserPreviewBeforeAttach returns a
+	// Writes a test drives directly. Unset, updateUserAttachSettings returns a
 	// zero user, and createGroup and addGroupMember panic as not stubbed.
-	setUserPreviewBeforeAttach func(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error)
-	createGroup                func(ctx context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error)
-	addGroupMember             func(ctx context.Context, arg sqlc.AddGroupMemberParams) error
+	updateUserAttachSettings func(ctx context.Context, arg sqlc.UpdateUserAttachSettingsParams) (sqlc.User, error)
+	createGroup              func(ctx context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error)
+	addGroupMember           func(ctx context.Context, arg sqlc.AddGroupMemberParams) error
 }
 
 // ---- CLI session ---------------------------------------------------------
@@ -1434,6 +1437,9 @@ func (m *mockQuerier) ListPullRequestAttachmentTranscripts(ctx context.Context, 
 }
 
 func (m *mockQuerier) ListAttachmentsBindingTranscript(ctx context.Context, transcriptID pgtype.UUID) ([]sqlc.PullRequestAttachment, error) {
+	if m.listAttachmentsBindingTranscript != nil {
+		return m.listAttachmentsBindingTranscript(ctx, transcriptID)
+	}
 	return nil, nil
 }
 
@@ -1457,9 +1463,9 @@ func (m *mockQuerier) ListAuthorWaitingPromptRequests(ctx context.Context, autho
 	return nil, nil
 }
 
-func (m *mockQuerier) SetUserPreviewBeforeAttach(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error) {
-	if m.setUserPreviewBeforeAttach != nil {
-		return m.setUserPreviewBeforeAttach(ctx, arg)
+func (m *mockQuerier) UpdateUserAttachSettings(ctx context.Context, arg sqlc.UpdateUserAttachSettingsParams) (sqlc.User, error) {
+	if m.updateUserAttachSettings != nil {
+		return m.updateUserAttachSettings(ctx, arg)
 	}
 	return sqlc.User{}, nil
 }
@@ -1485,6 +1491,9 @@ func (m *mockQuerier) SetPullRequestAttachmentRequester(ctx context.Context, arg
 }
 
 func (m *mockQuerier) GetUserByProviderIdentity(ctx context.Context, arg sqlc.GetUserByProviderIdentityParams) (sqlc.User, error) {
+	if m.getUserByProviderIdentity != nil {
+		return m.getUserByProviderIdentity(ctx, arg)
+	}
 	return sqlc.User{}, nil
 }
 
@@ -1535,4 +1544,19 @@ func (m *mockQuerier) ListTagsByTranscriptIDs(ctx context.Context, transcriptIds
 		return m.listTagsByTranscriptIDs(ctx, transcriptIds)
 	}
 	return []sqlc.ListTagsByTranscriptIDsRow{}, nil
+}
+
+func (m *mockQuerier) ListAttachmentsForCollectiveGrants(ctx context.Context, groupID pgtype.UUID) ([]sqlc.PullRequestAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) ListAttachmentsContainingTranscript(ctx context.Context, arg sqlc.ListAttachmentsContainingTranscriptParams) ([]sqlc.PullRequestAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockQuerier) LockPullRequestAttachmentArtifacts(ctx context.Context, id pgtype.UUID) (sqlc.PullRequestAttachment, error) {
+	return m.GetPullRequestAttachment(ctx, id)
+}
+func (m *mockQuerier) ListLiveOwnedDigestTranscripts(context.Context, sqlc.ListLiveOwnedDigestTranscriptsParams) ([]pgtype.UUID, error) {
+	return nil, nil
 }

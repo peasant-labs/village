@@ -74,7 +74,7 @@ func pullRequestEvent(repoName string, number int, authorID int64, headSHA strin
 
 // TestIssueCommentFromAuthorPreviews_RealPostgres is the command path end to
 // end: the author comments `/peasant attach` and the accepted transcript is
-// previewed — nothing widened, nothing posted — until the author confirms.
+// previewed — nothing bound, nothing posted — until the author confirms.
 func TestIssueCommentFromAuthorPreviews_RealPostgres(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
@@ -109,7 +109,7 @@ func TestIssueCommentFromAuthorPreviews_RealPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	if visibility != "private" {
-		t.Fatalf("visibility = %q before the author confirmed, want private: a preview widens and shares nothing", visibility)
+		t.Fatalf("visibility = %q before the author confirmed, want private: a preview changes nothing about who can read it", visibility)
 	}
 	fake.mu.Lock()
 	comments, checks := fake.commentCreates, fake.checkCreates
@@ -306,21 +306,11 @@ func TestPullRequestPushRefreshesAnAttachedAttachment(t *testing.T) {
 	if bindings != 1 {
 		t.Fatalf("bindings = %d, want the one bound transcript", bindings)
 	}
-	var visibility string
-	if err := pool.QueryRow(ctx, "SELECT visibility FROM transcripts WHERE id = $1", transcriptID).Scan(&visibility); err != nil {
-		t.Fatal(err)
+	if visibility := readTranscriptVisibility(t, ctx, pool, transcriptID); visibility != "private" {
+		t.Fatalf("visibility = %q, want private: neither the attach nor the refresh changes who can read it", visibility)
 	}
-	if visibility != "shared" {
-		t.Fatalf("visibility = %q, want shared", visibility)
-	}
-	var derived string
-	if err := pool.QueryRow(ctx, `
-		SELECT status FROM transcript_shares WHERE transcript_id = $1 AND group_id = $2
-	`, transcriptID, groupID).Scan(&derived); err != nil {
-		t.Fatal(err)
-	}
-	if derived != "approved" {
-		t.Fatalf("derived share = %q, want approved", derived)
+	if status := latestShareStatus(t, ctx, pool, transcriptID, groupID); status != "" {
+		t.Fatalf("the linking collective has a %q share attempt, want none: attaching opens no share", status)
 	}
 }
 

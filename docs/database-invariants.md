@@ -140,9 +140,13 @@ boundary are documented in
   (`requested | waiting | preview | attached | detached`) under
   `pull_request_attachments_state_menu`. `pull_request_attachment_transcripts`
   binds transcripts to an attachment by `position` and records
-  `previous_visibility`, the `transcripts.visibility` value read before an
-  attach widened it, which detach restores exactly. It is recorded once per
-  (attachment, transcript): re-binding preserves the first snapshot. **`state` is
+  `previous_visibility`, the `transcripts.visibility` value read, under the
+  transcript's publish lock, when the binding is made. It is recorded once per
+  (attachment, transcript): re-binding preserves the first snapshot. Attaching
+  binds only: it never moves a transcript's visibility and never opens a share,
+  so for a binding made that way the value is a record, not something detach
+  restores. Attaching used to widen, and the bindings it left are the only ones
+  detach restores (migration 044). **`state` is
   changed by exactly one Go function**, `internal/promptattach.Transition`, over
   the single statement `UpdatePullRequestAttachmentState`, which is conditional
   on the state the caller read (`state = expected_state`). That is
@@ -159,8 +163,9 @@ boundary are documented in
   `informational`, under `groups_prompts_check_mode_menu`), the mode menu
   mirrored in Go by `promptattach.CheckMode` / `AllCheckModes`. The attachment
   tables carry NO governance trigger and need no `app.actor_id`: they are not a
-  disclosure axis, and widening a transcript's visibility stays the audited
-  `transcripts` write it always was.
+  disclosure axis. Attaching writes no `transcripts` row at all, and releasing a
+  binding an older attach widened is the audited `transcripts` write it always
+  was, attributed to the owner.
 - **038 records accepted webhook deliveries; 040 makes the ledger resumable.**
   `github_webhook_deliveries` holds one row per verified GitHub App delivery:
   `delivery_id` (the opaque `X-GitHub-Delivery` value) is the PRIMARY KEY.
@@ -195,12 +200,48 @@ boundary are documented in
   instead of freezing a value a reinstall or a visibility change would
   invalidate. The column is NULLABLE with `ON DELETE SET NULL`, and that is the
   point: a collective can be deleted and its repository links cascade with it,
-  so a CASCADE here would delete the attachment's transcripts and the
-  `previous_visibility` snapshots they hold, leaving those transcripts shared
-  with a collective that no longer exists and nothing left to restore them.
-  SET NULL keeps the snapshot so a detach still restores exactly what was
-  recorded; an attachment whose collective is gone cannot post and the lifecycle
-  fails closed rather than guessing.
+  so a CASCADE here would delete the attachment's bindings, and with them the
+  `previous_visibility` a binding an older attach widened still needs, leaving
+  that transcript widened with nothing left to restore it from. SET NULL keeps
+  the bindings. An attachment whose collective is gone cannot post or detach,
+  and the lifecycle fails closed rather than guessing.
+
+- **044 tells the bindings an older attach widened from the rest, and records
+  the author's choice to link automatically.**
+  `pull_request_attachment_transcripts.attach_widened` is `BOOLEAN NOT NULL`
+  with NO default. `previous_visibility` cannot tell the two kinds apart: under
+  both rules it is the visibility before the binding, so a binding that raised
+  a private transcript to public and a new one whose owner later made the same
+  transcript public by hand hold the same row and the same current value, and
+  nothing else in the database separates them. The migration adds the column
+  with a constant `DEFAULT true`, which marks every binding that exists when it
+  runs (each one written by an attach that widened) without rewriting the
+  table, then drops the default, so every later insert must state the value.
+  The one application writer, `AttachPullRequestTranscript`, states `false` as a
+  literal, so no caller can create a binding that detach would narrow, and its
+  re-bind preserves the column, so a retry can never turn a widened binding into
+  one detach leaves alone. Detach touches a binding only when it is marked: it
+  withdraws the linking collective's share, restores the recorded visibility
+  when it is narrower than the visibility now (a restore to `private` stays
+  `shared` while another collective holds a live submission, so detaching never
+  takes away a grant the owner made), and clears the mark
+  (`ReleasePullRequestAttachmentTranscript`), all in one owner-attributed
+  transaction under the transcript's publish lock, the lock an owner's unshare
+  holds. Detach keeps every binding, so a detached pull request still lists the
+  transcripts it held; the next attach cycle clears them first, releasing any
+  still marked, and binds afresh. The same migration adds
+  `users.auto_attach_pull_requests BOOLEAN NOT NULL DEFAULT false`, the author's
+  choice to link their own transcripts when a pull request opens in a
+  repository a collective they belong to links. It is separate from
+  `preview_before_attach`, which asks before each attach. `GET` and `PATCH
+  /users/me/settings` carry both; a PATCH that carries one leaves the other as
+  stored, through one UPDATE that reads an omitted field as NULL
+  (`UpdateUserAttachSettings`). Because the binding
+  column has no default, code older than 044 cannot bind once the migration
+  has run: during a rolling deploy its attach fails loudly and a retry after the
+  rollout succeeds. Its detach still works and treats every binding as widened,
+  so older instances are drained before the migration runs (or detaches held
+  during the roll); the same holds after a down migration.
 
 ## 2. Licensing data model
 
@@ -289,8 +330,10 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   third stored copy of a visibility value, but it is **not a menu**: it is
   deliberately unconstrained because it copies a value already constrained on
   `transcripts.visibility`, and a third copy of the closed set is the drift this
-  split avoids. It exists to restore ONE specific prior value on detach, never to
-  be accepted from a caller.
+  split avoids. It records the visibility a transcript held when it was bound.
+  Detach restores it only for a binding marked `attach_widened` (one an older
+  attach widened, migration 044); for every other binding it is a record and
+  never a target. It is never accepted from a caller.
 
 ## 4. Governance event taxonomy
 
@@ -662,11 +705,14 @@ authenticating. Both are custom Postgres parameters read via
   their own (`republishDetachedTimeout`) that starts when that transaction
   starts. A client that hangs up mid-statement would otherwise make the driver
   close the connection that holds the lock, roll the replacement back, and
-  leave no connection to restore on. So a republish that narrowed commits past
-  a hang-up; one that narrowed nothing, like a first publish, stays on the
-  request. Every narrowing refreshes the pull request attachments that bind the
-  transcript on the way out, whatever the outcome, because a refresh that ran
-  inside the private window has already withdrawn it from a digest. A
+  leave no connection to restore on. So a republish that narrowed keeps the
+  audience past a hang-up: once its object write has completed, the
+  replacement commits with its restore; a hang-up before that fails the write,
+  which stays on the request, and the compensating restore runs. A republish
+  that narrowed nothing, like a first publish, stays on the request. Every
+  narrowing refreshes the pull request attachments that bind the transcript on
+  the way out, whatever the outcome, because a refresh that ran inside the
+  private window has already withdrawn it from the pull request's listing. A
   whole-project contribution decides its flip to `shared`, and the consent that
   flip needs, from the value under the row lock rather than from its earlier
   read: it cannot turn a restored public transcript into a shared-only one, and
@@ -683,21 +729,37 @@ authenticating. Both are custom Postgres parameters read via
   the attempt ledger's meaning: the latest attempt of the pair is `pending` or
   `approved` (a pending one counts, because it grants access the moment it is
   accepted). The unshare withdraws its submission only when that pair is live
-  (`withdrawLiveShare`, which a pull request detach uses too), so a repeat
+  (`withdrawLiveShare`, which releasing a binding an older attach widened uses
+  too, in its own transaction under the same publish lock), so a repeat
   withdraws nothing and is a 200; the narrowing rule still applies to it. When
   no live submission remains anywhere, it narrows `shared` to `private` in the
   same actor-attributed transaction, reading liveness from the ledger
   (`TranscriptHasLiveShareAttempt`), never from the derived row. A `public`
   transcript stays public. A narrowing refreshes the attachments that bind the
-  transcript, because a digest lists a bound transcript by its visibility.
+  transcript, because a pull request's check says whether anyone besides the
+  author can read what is attached.
   Sharing to collectives that all hold a live submission already is a
   duplicate and answers 409, except on a `private` transcript: there those
   submissions grant nothing, so the share flips it to `shared` and answers 200
   without opening an attempt. This is a rule of the owner's unshare, not of the
   column: `shared` can still outlive its last live submission through a
   collective's rejection or removal, a member leaving, a pull request detach
-  that restores `shared`, a share whose every requested collective was skipped,
+  that restores a recorded `shared`, a share whose every requested collective was skipped,
   and rows older than this rule.
+- **Attaching never changes who can read a transcript.** Attaching a transcript
+  to a pull request, by the author's click, a publish that completes a waiting
+  request, or the author's `auto_attach_pull_requests` choice, binds it and
+  writes nothing to `transcripts` or the share ledger. No access decision for a
+  transcript consults an attachment or a repository: `canViewTranscript` (the
+  owner, anyone for `public`, members of a collective the transcript is shared
+  with, and the owners of a collective it was submitted to) is the one read
+  check for the transcript routes. Asking GitHub whether a viewer can read
+  a private repository admits them only to that repository's pull request page,
+  which shows a bound transcript's title and prompts only to a viewer who can
+  open that transcript (the stored digest is narrowed per viewer by
+  `digest.Restrict`). The pull request's comment and check list only
+  transcripts anyone can read and count the rest, because Village cannot know
+  who reads a private repository's pull request.
 - **Content replacement uses immutable, content-addressed objects.** Publish
   uploads to an owner/transcript/content-hash key, then swaps `blob_key` in the
   same database transaction as the authoritative receipt. A database failure
@@ -816,3 +878,29 @@ authenticating. Both are custom Postgres parameters read via
   so the outer transaction survives; a fail-closed UPDATE test must actually
   MOVE a governance axis (a same-value update is WHEN-false and passes for the
   wrong reason).
+
+### Prompt attachment grants and derived copies
+
+- The prompts check succeeds only when another person can actually read a bound
+  transcript: public visibility, an existing collective owner review grant, or
+  an approved contribution with an accepted collective member. A shared label
+  alone and a pending membership are insufficient. Grant-query failures stop
+  posting rather than producing optimistic success.
+- Approval, batch approval, rejection, contribution removal, member departure,
+  accepted member addition, open joining and pending-member acceptance
+  refresh affected attached checks even when transcript visibility is unchanged.
+  Each refresh re-reads lifecycle state under the attachment lock. A batch uses
+  one detached completion deadline and deduplicates affected attachments.
+- An author's unbound preview still requires a live owned transcript. Bound
+  titles, start times and prompt text follow the canonical transcript read grant.
+- Transcript deletion locks affected attachment rows and prunes their derived
+  digests in the same transaction as row deletion. Every digest writer takes the
+  same row lock and restricts its input to live owned transcript IDs, so a late
+  GitHub response cannot restore deleted prompt copies in storage. No new state
+  or migration is involved. Reposting the captured attached rows also withdraws
+  the public text; an empty attachment posts an explicit explanation.
+- A failed GitHub edit cannot undo a committed access change or deletion. Local
+  reads remain restricted and stored deletion copies remain pruned; an external
+  comment can remain stale until GitHub accepts a refresh. The explicit refresh
+  action retries that remote work. This is an external service limit, not a
+  grant or transaction rollback.

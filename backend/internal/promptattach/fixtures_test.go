@@ -29,13 +29,14 @@ var requiredTransitionCaseNames = []string{
 }
 
 // requiredVisibilityCaseNames is the name manifest for
-// testdata/visibility_restore.yaml: one row per tier a transcript can hold
-// before an attach widens it. A deleted row would silently stop proving that
-// tier is restored exactly rather than by a coincidental default.
+// testdata/visibility_restore.yaml: one row per tier a binding can record, for a
+// binding made by attaching as it is now (bind_only) and one an older attach
+// widened (legacy). A deleted row would silently stop proving that tier and kind
+// survive exactly rather than by a coincidental default.
 var requiredVisibilityCaseNames = []string{
-	"private_is_preserved_exactly",
-	"shared_is_preserved_exactly",
-	"public_is_preserved_exactly",
+	"bind_only_private_is_preserved_exactly",
+	"bind_only_shared_is_preserved_exactly",
+	"bind_only_public_is_preserved_exactly",
 }
 
 // assertExactCaseNames holds a fixture to exact membership against its manifest.
@@ -81,6 +82,7 @@ type transitionCase struct {
 // exact rather than a default.
 type visibilityCase struct {
 	Name       string `yaml:"name"`
+	Kind       string `yaml:"kind"`
 	Visibility string `yaml:"visibility"`
 }
 
@@ -125,6 +127,9 @@ func loadVisibilityCases(t *testing.T) []visibilityCase {
 		}
 		if _, repeated := seen[c.Name]; repeated {
 			t.Fatalf("visibility_restore fixture repeats name %q; each row is named once", c.Name)
+		}
+		if c.Kind != "bind_only" && c.Kind != "legacy" {
+			t.Fatalf("visibility_restore row %q has kind %q; a binding is bind_only or legacy", c.Name, c.Kind)
 		}
 		seen[c.Name] = struct{}{}
 	}

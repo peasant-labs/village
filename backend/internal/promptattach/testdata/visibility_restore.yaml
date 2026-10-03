@@ -1,10 +1,12 @@
-# One row per visibility an attached transcript can hold before an attach
-# widens it. The detach path must preserve the recorded value exactly, so a
-# transcript that started `private` must not come back as a `private` default
-# by coincidence of the fixture - each row names the value it started with.
-- name: private_is_preserved_exactly
+# One row per visibility a binding can record. Attaching binds only and never
+# changes who can read a transcript, so a binding records the visibility the
+# transcript holds when it is bound and nothing restores it later.
+- name: bind_only_private_is_preserved_exactly
+  kind: bind_only
   visibility: private
-- name: shared_is_preserved_exactly
+- name: bind_only_shared_is_preserved_exactly
+  kind: bind_only
   visibility: shared
-- name: public_is_preserved_exactly
+- name: bind_only_public_is_preserved_exactly
+  kind: bind_only
   visibility: public

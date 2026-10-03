@@ -290,12 +290,62 @@ in the answer that are authored in the corpus; the unconfirmed shared case then
 shares again and requires the member's access back without a new attempt. The
 restore rule under the row lock, including the rows no mounted path can reach,
 is `testdata/republish-visibility-restore.yaml`. The pull request side of the
-same rule, a digest that keeps, drops or regains the row, is
+same rule, a listing that keeps, drops or regains the row, is
 `attachment_visibility_drift_integration_test.go`, and a whole-project
 contribution that waited through a republish is
 `a_visibility_restored_while_waiting_is_not_overwritten` in
 `groups-batch-share.yaml`, with its mirror
 `a_transcript_made_private_while_waiting_needs_consent`.
+
+### Attaching keeps the audience: four readers, three surfaces
+
+`internal/handler/attach_audience_integration_test.go` +
+`testdata/attach-audience.yaml` attach one transcript per row through the
+author's preview and confirm, on a public or a private repository, at each
+visibility, and then ask four readers (the owner, a member of the linking
+collective, a signed-in non-member whom GitHub admits to a private repository,
+and nobody signed in) what they can read: the transcript route's status, and
+whether the pull request page shows them its title and prompts. Each row also
+pins whether the posted comment and check list the prompt, the check's
+conclusion, that attaching and then detaching append no governance event and
+move no share, and that the detached pull request keeps its binding. Two rows
+change the visibility between attach and detach, through the owner's PATCH, and
+require the detach to keep it.
+
+Bindings an older attach widened are built directly in the state that attach
+left, marked `attach_widened`, by
+`attachment_legacy_detach_integration_test.go` + `testdata/legacy-detach.yaml`;
+each row detaches through the mounted route and pins the restored visibility,
+both collectives' live shares, the owner-attributed event when the detach
+narrowed, and the cleared mark. The same file proves the release waits for the
+transcript's publish lock (the share stays approved while the lock is held) and
+that a narrowing release reposts another pull request that listed the
+transcript. The database-level half, that a binding keeps its recorded value
+and kind through the detach transition and a re-bind, is
+`internal/promptattach/testdata/visibility_restore.yaml`.
+
+`internal/digest/testdata/restrict.yaml` pins `digest.Restrict`, the per-viewer
+narrowing the page applies: no item or text of a removed transcript, prompts
+renumbered from one, and, except for a commit two transcripts recorded, the
+same chain a fresh build over the kept transcripts produces.
+
+`attachment_auto_attach_integration_test.go` +
+`testdata/github_webhook/auto-attach.yaml` dispatch a `pull_request` `opened`
+event through the production dispatcher for each case of the author's
+`auto_attach_pull_requests` choice: opted in, opted out, no Village account, an
+unlinked repository, an author outside the linking collective, a fork, a
+redelivery that must not post a second comment, and a pull request that waits
+until a later publish completes it. The setting itself is written by
+`PATCH /users/me/settings`, pinned field by field in
+`testdata/user-settings-patch.yaml` and read back through PostgreSQL by
+`TestUserSettingsRoundTrip`.
+
+Three single-scenario races sit beside the fixtures: an owner narrowing a
+transcript while its attach is posting (`TestAnAttachReconcilesANarrowingDuringItsPost_RealPostgres`,
+through a fake GitHub hook that runs mid-post), a webhook request cancelled
+mid-post (`TestAutoAttachSurvivesTheWebhookGivingUp_RealPostgres`), and a page
+binding two transcripts with different audiences
+(`TestThePageShowsEachReaderOnlyWhatTheyCanRead_RealPostgres`).
 
 ### Contributing a whole project: refusals are asserted on the LEDGER
 
@@ -1085,8 +1135,9 @@ transaction control. A
 `schema_migrations(version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ)` table
 tracks what has run; each migration is checked before exec, so `RunMigrations`
 is idempotent. Files are paired `NNN_name.up.sql` / `NNN_name.down.sql`. The
-latest registered version is **032** (`032_authoritative_publication_receipts`);
-the next new migration is **033**. Versions 19 and 25 are intentionally absent
+latest registered version is the one `wantLatestMigration` in
+`migrations_registry_test.go` pins; read it there rather than from this file,
+and number the next migration one above it. Versions 19 and 25 are intentionally absent
 from the registry and must not be reused. See `docs/database-invariants.md` §1.
 
 **Registry-wide invariants live in ONE central test** -
@@ -1610,3 +1661,28 @@ these systems:
   fixture entries (`internal/handler/testfixtures/`, the contract corpora); the
   loaders and generic tests pick them up without new assertion helpers. Don't
   inline literals across test files.
+
+### Attachment grants and deletion
+
+`attachment-grants.yaml` drives mounted collective approval, batch approval,
+rejection, removal, member-departure and accepted membership routes against real PostgreSQL, asserting
+both the actual posted check and unchanged visibility. It also revokes a shared
+read grant during the real GitHub post and observes reconciliation.
+
+`attachment-deletion.yaml` drives the mounted transcript deletion route from
+preview, attached, detached and posting states. It checks durable digest bytes,
+owner-page privacy, empty remote reposts, a late artifact write, historical
+preview reads and failed remote edits. Production row locks serialize derived
+copies with deletion; fixtures execute that boundary rather than copying it.
+Tests purge their captured deletion-surviving governance audit rows explicitly.
+
+`attachment-legacy-operations.yaml` protects release-under-publish-lock, a stale
+already-released binding and the older marked binding cleared by a reattach,
+including the second pull request's actual repost. `attachment-actor-lookup.yaml`
+separates missing accounts from retryable database errors at the lookup boundary.
+All corpora use strict decoding and required-name manifests.
+
+`attachment-refresh-budget.yaml` observes the real batch helper's query contexts
+and exact shared deadline, including a canceled caller and a failing first read.
+It needs no real-time sleep or external service: the invariant is the completion
+budget, not database lock timing.

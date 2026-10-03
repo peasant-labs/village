@@ -57,11 +57,9 @@ RETURNING *;
 
 -- name: AttachPullRequestTranscript :exec
 -- Binds a transcript to an attachment at a position, recording the visibility the
--- transcript held before an attach widened it so detach can restore exactly that
--- value. Idempotent on the (attachment, transcript) key: re-binding updates the
--- position but PRESERVES the original previous_visibility, because the snapshot
--- describes the transcript before the FIRST widening. A refresh or retry after the
--- transcript was widened must not overwrite it with the already-widened tier.
+-- transcript holds when the binding is made. Attaching binds only and never
+-- changes who can read a transcript. Idempotent on the (attachment, transcript)
+-- key: re-binding updates the position and preserves previous_visibility.
 INSERT INTO pull_request_attachment_transcripts (
     attachment_id, transcript_id, position, previous_visibility
 ) VALUES (
@@ -106,29 +104,31 @@ ORDER BY requested_at ASC NULLS LAST, updated_at ASC, id ASC;
 -- The transcripts one attachment holds, with the fields the response shows, in
 -- attachment order. Reads the binding and the transcript together so the caller
 -- does not stitch two queries per row.
-SELECT pt.transcript_id, pt.position, pt.previous_visibility, t.title, t.session_start
+SELECT pt.transcript_id, pt.position, pt.previous_visibility, t.title, t.session_start, t.owner_id, t.visibility
 FROM pull_request_attachment_transcripts pt
 JOIN transcripts t ON t.id = pt.transcript_id
 WHERE pt.attachment_id = @attachment_id
 ORDER BY pt.position ASC, pt.transcript_id ASC;
 
 -- name: DeletePullRequestAttachmentTranscripts :exec
--- Clears an attachment's transcript bindings. Called after a detach has restored
--- each transcript from its recorded previous_visibility, so the next attach
--- records the visibility that is true at that time rather than replaying a
--- snapshot from a cycle that is over.
+-- Clears the bindings an earlier cycle left when a new attach begins. Detach
+-- keeps its bindings, so a detached pull request still lists the transcripts it
+-- held; the next attach binds afresh and records the visibility that is true at
+-- that time rather than a snapshot from a cycle that is over. The caller
+-- releases any binding an older attach widened before clearing it.
 DELETE FROM pull_request_attachment_transcripts WHERE attachment_id = $1;
 
 -- name: GetPullRequestAttachmentTranscript :one
--- One binding, for a compensation that must undo exactly the transcripts one
--- attempt widened rather than every binding the attachment holds.
+-- One binding, re-read under the transcript publish lock before releasing
+-- a visibility change made by an older attach.
 SELECT * FROM pull_request_attachment_transcripts
 WHERE attachment_id = $1 AND transcript_id = $2;
 
 -- name: DeletePullRequestAttachmentTranscript :exec
--- Removes one binding, paired with restoring its recorded visibility.
+-- Removes one binding that an attach which never completed made.
 DELETE FROM pull_request_attachment_transcripts
 WHERE attachment_id = $1 AND transcript_id = $2;
+
 
 -- name: ListAuthorAttachmentsForRepo :many
 -- The author's attachments for one repository name in the states a publish can
@@ -156,10 +156,11 @@ WHERE id = @id
 RETURNING *;
 
 -- name: ListAttachmentsBindingTranscript :many
--- The attachments that bind one transcript. The owner's visibility change reads
--- them so an attachment stops advertising prompts that are no longer as visible
--- as the repository it belongs to requires. Only attached attachments can be
--- advertising anything.
+-- The attachments that bind one transcript. A change to the transcript's
+-- visibility reads them so a pull request stops listing prompts that are no
+-- longer public, lists them when they become public, and its check says whether
+-- anyone besides the author can read what is attached. Only attached
+-- attachments can be listing anything.
 SELECT a.* FROM pull_request_attachments a
 JOIN pull_request_attachment_transcripts pt ON pt.attachment_id = a.id
 WHERE pt.transcript_id = @transcript_id AND a.state = 'attached'
@@ -262,3 +263,29 @@ WHERE ts.group_id = @group_id
   AND ts.status = 'approved'
   AND a.state = 'attached'
 ORDER BY a.id, pt.transcript_id;
+
+-- name: ListAttachmentsForCollectiveGrants :many
+-- Membership changes can alter a bound transcript's readers without changing
+-- its visibility. Read affected attachments before removing any share rows.
+SELECT DISTINCT a.* FROM pull_request_attachments a
+JOIN pull_request_attachment_transcripts pt ON pt.attachment_id = a.id
+JOIN transcript_shares ts ON ts.transcript_id = pt.transcript_id
+WHERE ts.group_id = @group_id AND a.state = 'attached'
+ORDER BY a.id;
+
+-- name: ListAttachmentsContainingTranscript :many
+-- Deletion must prune derived prompt copies, including unbound previews and
+-- detached digests. Lock rows so pruning and row removal commit together.
+SELECT a.* FROM pull_request_attachments a
+WHERE a.author_id = @owner_id
+  AND (a.digest->'items' @> jsonb_build_array(jsonb_build_object('transcriptId', @transcript_id::text))
+    OR EXISTS (SELECT 1 FROM pull_request_attachment_transcripts pt
+      WHERE pt.attachment_id = a.id AND pt.transcript_id = @transcript_id::uuid))
+ORDER BY a.id FOR UPDATE;
+
+-- name: LockPullRequestAttachmentArtifacts :one
+-- Serializes stored prompt copies with transcript deletion's pruning transaction.
+SELECT * FROM pull_request_attachments WHERE id = $1 FOR UPDATE;
+
+-- name: ListLiveOwnedDigestTranscripts :many
+SELECT id FROM transcripts WHERE owner_id = @owner_id AND id = ANY(@transcript_ids::uuid[]);

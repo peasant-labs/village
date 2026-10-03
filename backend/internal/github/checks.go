@@ -76,23 +76,23 @@ func PromptCheckActions() []CheckAction {
 }
 
 // PromptCheckConclusion chooses the check's conclusion from the collective's
-// prompts_check_mode, whether anything is attached, and whether the digest the
-// attachment carries has anything left in it.
+// prompts_check_mode, whether anything is attached, and whether anyone besides
+// the author can read at least one attached transcript.
 //
 // informational: neutral when nothing is attached, success when something is.
 // required: failure when nothing is attached, success when something is.
 //
-// An attachment whose every transcript has been dropped is neutral whatever the
-// mode says. Failure means "prompts exist and are not attached", which the author
-// can act on by attaching them; a digest with nothing left to verify is not that,
-// and a green check over it tells a reviewer the opposite of what the pull
-// request now advertises.
+// An attachment whose transcripts only their author can read is neutral whatever
+// the mode says. Failure means "prompts exist and are not attached", which the
+// author can act on by attaching them; prompts no reviewer can open are not
+// that, and a green check over them tells a reviewer the opposite of what they
+// can read.
 //
 // It fails closed: a mode outside the menu is treated as required, so an
 // unrecognized value can never weaken the check into a neutral pass.
-func PromptCheckConclusion(mode promptattach.CheckMode, attached, hasPrompts bool) string {
+func PromptCheckConclusion(mode promptattach.CheckMode, attached, readableBeyondAuthor bool) string {
 	if attached {
-		if hasPrompts {
+		if readableBeyondAuthor {
 			return CheckConclusionSuccess
 		}
 		return CheckConclusionNeutral

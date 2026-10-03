@@ -174,7 +174,8 @@ func TestPublishedUnrelatedSessionLeavesTheRequestWaiting(t *testing.T) {
 
 // TestPublishedAcceptedSessionRefreshesAnAttachedAttachment proves an attached
 // attachment extends when a later publish is accepted: the new transcript is
-// widened and the digest, edited in place, grows to include it.
+// bound, keeping its own visibility, and the digest, edited in place, grows to
+// include it.
 func TestPublishedAcceptedSessionRefreshesAnAttachedAttachment(t *testing.T) {
 	h, pool, blobs, fake := attachmentTestHandler(t)
 	ctx := context.Background()
@@ -231,8 +232,8 @@ func TestPublishedAcceptedSessionRefreshesAnAttachedAttachment(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT visibility FROM transcripts WHERE id = $1", secondTranscript).Scan(&addedVisibility); err != nil {
 		t.Fatal(err)
 	}
-	if addedVisibility != "shared" {
-		t.Fatalf("the newly accepted transcript visibility = %q, want shared", addedVisibility)
+	if addedVisibility != "private" {
+		t.Fatalf("the newly accepted transcript visibility = %q, want private: binding it changes nothing about who can read it", addedVisibility)
 	}
 	var bindings int
 	if err := pool.QueryRow(ctx, "SELECT count(*) FROM pull_request_attachment_transcripts WHERE attachment_id = $1", attached.ID).Scan(&bindings); err != nil {
@@ -316,7 +317,7 @@ func TestPublishedUnrelatedSessionDoesNotRepost(t *testing.T) {
 //
 // A republish of an attached transcript also narrows it and reposts the digest;
 // that narrowing is asserted where it belongs
-// (TestRepublishedNarrowingDropsTheDigestRow_RealPostgres). What this test pins
+// (TestUnconfirmedRepublishStopsListingTheTranscript_RealPostgres). What this test pins
 // is the row identity: no second transcript, attachment, binding, or sticky
 // comment appears, and the binding keeps the visibility recorded at the first
 // attach.
@@ -386,8 +387,8 @@ func TestRepublishedSessionDedupesTheAttachment(t *testing.T) {
 		t.Fatalf("state after the republish = %q, want attached", afterSecond.State)
 	}
 
-	// The binding keeps the tier the transcript held before the first widening,
-	// even though the republish rewrote the transcript row.
+	// The binding keeps the visibility recorded when it was made, even though the
+	// republish rewrote the transcript row.
 	var transcriptID pgtype.UUID
 	if err := pool.QueryRow(ctx, "SELECT id FROM transcripts WHERE owner_id = $1 AND local_id = $2", owner, sessionID).Scan(&transcriptID); err != nil {
 		t.Fatalf("read the republished transcript id: %v", err)

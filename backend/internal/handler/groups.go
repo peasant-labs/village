@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -542,6 +543,7 @@ func (h *Handler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.refreshAfterCollectiveMembershipChange(r, pgID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "added"})
 }
 
@@ -627,6 +629,7 @@ func (h *Handler) ReviewShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.refreshAfterCollectiveGrantChange(r, []pgtype.UUID{toPgUUID(transcriptID)})
 	writeJSON(w, http.StatusOK, map[string]string{"status": req.Status})
 }
 
@@ -732,6 +735,7 @@ func (h *Handler) BatchReviewShares(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	h.refreshAfterCollectiveGrantChange(r, decidedIDs)
 	writeJSON(w, http.StatusOK, batchReviewResponse{Decided: decided, AlreadyDecided: alreadyDecided})
 }
 
@@ -804,6 +808,7 @@ func (h *Handler) JoinGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.refreshAfterCollectiveMembershipChange(r, pgID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "joined", "role": "contributor"})
 }
 
@@ -866,6 +871,7 @@ func (h *Handler) PromoteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.refreshAfterCollectiveMembershipChange(r, pgID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "role": req.Role})
 }
 
@@ -904,6 +910,7 @@ func (h *Handler) RemoveGroupTranscript(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	h.refreshAfterCollectiveGrantChange(r, []pgtype.UUID{toPgUUID(transcriptID)})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})
 }
 
@@ -947,6 +954,15 @@ func (h *Handler) RemoveGroupMember(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var affected []sqlc.PullRequestAttachment
+	if h.gh != nil {
+		affected, err = h.queries.ListAttachmentsForCollectiveGrants(r.Context(), pgID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to read affected prompt checks; no member was removed")
+			return
+		}
+	}
+
 	err = h.queries.RemoveGroupMember(r.Context(), sqlc.RemoveGroupMemberParams{
 		GroupID: pgID,
 		UserID:  pgTargetID,
@@ -963,6 +979,14 @@ func (h *Handler) RemoveGroupMember(w http.ResponseWriter, r *http.Request) {
 		}); err != nil {
 			writeError(w, http.StatusInternalServerError, "Removed member but failed to retract transcripts")
 			return
+		}
+	}
+
+	if len(affected) > 0 {
+		ctx, cancel := attachmentWorkContext(r.Context())
+		defer cancel()
+		if err := h.refreshKnownAttachments(ctx, affected); err != nil {
+			log.Printf("pull request attachment refresh after collective membership changed failed: %v", err)
 		}
 	}
 
@@ -1113,7 +1137,7 @@ func (h *Handler) ListTranscriptCollectives(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusNotFound, transcriptCollectivesInvisible)
 		return
 	}
-	if allowed, _ := h.canReadTranscript(r.Context(), user, transcript); !allowed {
+	if !h.canViewTranscript(r.Context(), user, transcript) {
 		writeError(w, http.StatusNotFound, transcriptCollectivesInvisible)
 		return
 	}
@@ -1150,4 +1174,30 @@ func viewerID(user *AuthUser) pgtype.UUID {
 		return pgtype.UUID{}
 	}
 	return user.PgID()
+}
+
+// A collective decision changes transcript grants even when visibility stays
+// shared. GitHub failures do not undo the committed decision; a refresh retries.
+func (h *Handler) refreshAfterCollectiveGrantChange(r *http.Request, transcriptIDs []pgtype.UUID) {
+	if h.gh == nil {
+		return
+	}
+	if err := h.refreshAttachmentsForTranscripts(r.Context(), transcriptIDs); err != nil {
+		log.Printf("pull request attachment refresh after collective grants changed failed: %v", err)
+	}
+}
+
+func (h *Handler) refreshAfterCollectiveMembershipChange(r *http.Request, groupID pgtype.UUID) {
+	if h.gh == nil {
+		return
+	}
+	ctx, cancel := attachmentWorkContext(r.Context())
+	defer cancel()
+	attachments, err := h.queries.ListAttachmentsForCollectiveGrants(ctx, groupID)
+	if err == nil {
+		err = h.refreshKnownAttachments(ctx, attachments)
+	}
+	if err != nil {
+		log.Printf("pull request attachment refresh after collective membership changed failed: %v", err)
+	}
 }
