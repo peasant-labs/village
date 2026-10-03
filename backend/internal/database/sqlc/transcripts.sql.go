@@ -314,6 +314,40 @@ func (q *Queries) DeleteTranscript(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const getOwnerTranscriptTotals = `-- name: GetOwnerTranscriptTotals :one
+SELECT COUNT(*)::int AS total_transcripts,
+       COALESCE(SUM(GREATEST(turn_count, 0)), 0)::bigint AS total_turns,
+       COALESCE(SUM(GREATEST(duration_ms, 0)), 0)::bigint AS total_duration_ms,
+       COALESCE(SUM(GREATEST(COALESCE(tokens_in, 0), 0) + GREATEST(COALESCE(tokens_out, 0), 0)), 0)::bigint AS total_tokens
+FROM transcripts
+WHERE owner_id = $1
+`
+
+type GetOwnerTranscriptTotalsRow struct {
+	TotalTranscripts int32 `db:"total_transcripts" json:"total_transcripts"`
+	TotalTurns       int64 `db:"total_turns" json:"total_turns"`
+	TotalDurationMs  int64 `db:"total_duration_ms" json:"total_duration_ms"`
+	TotalTokens      int64 `db:"total_tokens" json:"total_tokens"`
+}
+
+// The totals GET /users/me/stats reports over every transcript one person
+// published: every visibility and every origin, because they are that person's
+// own. Tokens are input plus output, as the collective's totals count them.
+// A negative stored value (the publish contract sets no minimum on these
+// metrics) counts as zero, so one malformed transcript cannot make a total
+// negative and the whole response unservable.
+func (q *Queries) GetOwnerTranscriptTotals(ctx context.Context, ownerID pgtype.UUID) (GetOwnerTranscriptTotalsRow, error) {
+	row := q.db.QueryRow(ctx, getOwnerTranscriptTotals, ownerID)
+	var i GetOwnerTranscriptTotalsRow
+	err := row.Scan(
+		&i.TotalTranscripts,
+		&i.TotalTurns,
+		&i.TotalDurationMs,
+		&i.TotalTokens,
+	)
+	return i, err
+}
+
 const getTranscriptByID = `-- name: GetTranscriptByID :one
 SELECT id, owner_id, local_id, title, description, visibility, model_provider,
     model_name, harness_version, session_start, session_end, turn_count, token_count,

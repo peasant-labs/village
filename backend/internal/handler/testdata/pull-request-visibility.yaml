@@ -1,0 +1,77 @@
+# The visibility rule every pull request read applies, one attachment at a time.
+#
+# Each case hands GET /transcripts/{id}/pulls one candidate attachment on a public
+# transcript and says whether the viewer is shown it. The candidate read is
+# mocked, because what is under test here is the rule the handler applies to the
+# rows it gets back; which rows the database returns (states, the repository
+# link, membership) is proven against real PostgreSQL by transcript-pulls.yaml.
+#
+# viewer is one of:
+#   anonymous - no session
+#   author    - the pull request's author
+#   member    - a member of the collective the attachment belongs to
+#   reader    - signed in, not a member, and able to read the repository on
+#               GitHub; Village does not grant access through a repository's
+#               readers, so a private repository's attachment is omitted
+#   stranger  - signed in, with no relation to the attachment
+#
+# GitHub is never asked what a viewer may read: every case also asserts that no
+# permission question reached it.
+#
+# A detached attachment is listed by the transcript read, so the rule is pinned
+# for detached rows too: a repository's readers never reach one, even in
+# principle, because nothing is attached any more.
+cases:
+  - name: public-repository-attached-is-listed-to-anyone
+    viewer: anonymous
+    private: false
+    state: attached
+    listed: true
+
+  - name: public-repository-detached-is-listed-to-anyone
+    viewer: anonymous
+    private: false
+    state: detached
+    listed: true
+
+  - name: private-repository-is-omitted-for-an-anonymous-reader
+    viewer: anonymous
+    private: true
+    state: attached
+    listed: false
+
+  - name: private-repository-attached-is-listed-to-its-author
+    viewer: author
+    private: true
+    state: attached
+    listed: true
+
+  - name: private-repository-detached-is-listed-to-its-author
+    viewer: author
+    private: true
+    state: detached
+    listed: true
+
+  - name: private-repository-attached-is-listed-to-a-collective-member
+    viewer: member
+    private: true
+    state: attached
+    listed: true
+
+  - name: private-repository-detached-is-listed-to-a-collective-member
+    viewer: member
+    private: true
+    state: detached
+    listed: true
+
+  - name: private-repository-is-omitted-for-a-repository-reader-outside-the-collective
+    viewer: reader
+    private: true
+    state: attached
+    listed: false
+
+  - name: private-repository-is-omitted-for-a-signed-in-stranger
+    viewer: stranger
+    private: true
+    state: attached
+    listed: false

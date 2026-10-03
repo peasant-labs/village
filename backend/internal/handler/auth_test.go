@@ -143,6 +143,24 @@ type mockQuerier struct {
 	countRepositoryCommits         func(ctx context.Context, arg sqlc.CountRepositoryCommitsParams) (int64, error)
 	recordGitHubWebhookDelivery    func(ctx context.Context, arg sqlc.RecordGitHubWebhookDeliveryParams) (sqlc.RecordGitHubWebhookDeliveryRow, error)
 	completeGitHubWebhookDelivery  func(ctx context.Context, arg sqlc.CompleteGitHubWebhookDeliveryParams) error
+
+	// Pull request reads. The list reads answer an empty result when unstubbed,
+	// because the collective and list surfaces that other tests drive now ask
+	// them too; the personal totals, asked only by the route that serves them,
+	// panic.
+	listPullRequestCandidatesByTranscripts   func(ctx context.Context, arg sqlc.ListPullRequestCandidatesByTranscriptsParams) ([]sqlc.ListPullRequestCandidatesByTranscriptsRow, error)
+	listAttachedPullRequestCandidatesByOwner func(ctx context.Context, arg sqlc.ListAttachedPullRequestCandidatesByOwnerParams) ([]sqlc.ListAttachedPullRequestCandidatesByOwnerRow, error)
+	listAttachedPullRequestCandidatesByGroup func(ctx context.Context, arg sqlc.ListAttachedPullRequestCandidatesByGroupParams) ([]sqlc.ListAttachedPullRequestCandidatesByGroupRow, error)
+	listCollectiveSharedRemotes              func(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListCollectiveSharedRemotesRow, error)
+	getOwnerTranscriptTotals                 func(ctx context.Context, ownerID pgtype.UUID) (sqlc.GetOwnerTranscriptTotalsRow, error)
+	listUsersByIDs                           func(ctx context.Context, ids []pgtype.UUID) ([]sqlc.User, error)
+	listTagsByTranscriptIDs                  func(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListTagsByTranscriptIDsRow, error)
+
+	// Writes a test drives directly. Unset, setUserPreviewBeforeAttach returns a
+	// zero user, and createGroup and addGroupMember panic as not stubbed.
+	setUserPreviewBeforeAttach func(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error)
+	createGroup                func(ctx context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error)
+	addGroupMember             func(ctx context.Context, arg sqlc.AddGroupMemberParams) error
 }
 
 // ---- CLI session ---------------------------------------------------------
@@ -516,6 +534,9 @@ func (m *mockQuerier) ListPopularTags(ctx context.Context, limit int32) ([]sqlc.
 	return nil, nil
 }
 func (m *mockQuerier) CreateGroup(ctx context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error) {
+	if m.createGroup != nil {
+		return m.createGroup(ctx, arg)
+	}
 	panic("CreateGroup: not stubbed")
 }
 func (m *mockQuerier) GetGroupByID(ctx context.Context, id pgtype.UUID) (sqlc.Group, error) {
@@ -540,6 +561,9 @@ func (m *mockQuerier) ListVisibleGroups(ctx context.Context, userID pgtype.UUID)
 	panic("ListVisibleGroups: not stubbed")
 }
 func (m *mockQuerier) AddGroupMember(ctx context.Context, arg sqlc.AddGroupMemberParams) error {
+	if m.addGroupMember != nil {
+		return m.addGroupMember(ctx, arg)
+	}
 	panic("AddGroupMember: not stubbed")
 }
 func (m *mockQuerier) RemoveGroupMember(ctx context.Context, arg sqlc.RemoveGroupMemberParams) error {
@@ -1434,6 +1458,9 @@ func (m *mockQuerier) ListAuthorWaitingPromptRequests(ctx context.Context, autho
 }
 
 func (m *mockQuerier) SetUserPreviewBeforeAttach(ctx context.Context, arg sqlc.SetUserPreviewBeforeAttachParams) (sqlc.User, error) {
+	if m.setUserPreviewBeforeAttach != nil {
+		return m.setUserPreviewBeforeAttach(ctx, arg)
+	}
 	return sqlc.User{}, nil
 }
 
@@ -1459,4 +1486,53 @@ func (m *mockQuerier) SetPullRequestAttachmentRequester(ctx context.Context, arg
 
 func (m *mockQuerier) GetUserByProviderIdentity(ctx context.Context, arg sqlc.GetUserByProviderIdentityParams) (sqlc.User, error) {
 	return sqlc.User{}, nil
+}
+
+func (m *mockQuerier) ListPullRequestCandidatesByTranscripts(ctx context.Context, arg sqlc.ListPullRequestCandidatesByTranscriptsParams) ([]sqlc.ListPullRequestCandidatesByTranscriptsRow, error) {
+	if m.listPullRequestCandidatesByTranscripts != nil {
+		return m.listPullRequestCandidatesByTranscripts(ctx, arg)
+	}
+	return []sqlc.ListPullRequestCandidatesByTranscriptsRow{}, nil
+}
+
+func (m *mockQuerier) ListAttachedPullRequestCandidatesByOwner(ctx context.Context, arg sqlc.ListAttachedPullRequestCandidatesByOwnerParams) ([]sqlc.ListAttachedPullRequestCandidatesByOwnerRow, error) {
+	if m.listAttachedPullRequestCandidatesByOwner != nil {
+		return m.listAttachedPullRequestCandidatesByOwner(ctx, arg)
+	}
+	return []sqlc.ListAttachedPullRequestCandidatesByOwnerRow{}, nil
+}
+
+func (m *mockQuerier) ListAttachedPullRequestCandidatesByGroup(ctx context.Context, arg sqlc.ListAttachedPullRequestCandidatesByGroupParams) ([]sqlc.ListAttachedPullRequestCandidatesByGroupRow, error) {
+	if m.listAttachedPullRequestCandidatesByGroup != nil {
+		return m.listAttachedPullRequestCandidatesByGroup(ctx, arg)
+	}
+	return []sqlc.ListAttachedPullRequestCandidatesByGroupRow{}, nil
+}
+
+func (m *mockQuerier) ListCollectiveSharedRemotes(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListCollectiveSharedRemotesRow, error) {
+	if m.listCollectiveSharedRemotes != nil {
+		return m.listCollectiveSharedRemotes(ctx, groupID)
+	}
+	return []sqlc.ListCollectiveSharedRemotesRow{}, nil
+}
+
+func (m *mockQuerier) GetOwnerTranscriptTotals(ctx context.Context, ownerID pgtype.UUID) (sqlc.GetOwnerTranscriptTotalsRow, error) {
+	if m.getOwnerTranscriptTotals != nil {
+		return m.getOwnerTranscriptTotals(ctx, ownerID)
+	}
+	panic("GetOwnerTranscriptTotals: not stubbed")
+}
+
+func (m *mockQuerier) ListUsersByIDs(ctx context.Context, ids []pgtype.UUID) ([]sqlc.User, error) {
+	if m.listUsersByIDs != nil {
+		return m.listUsersByIDs(ctx, ids)
+	}
+	return []sqlc.User{}, nil
+}
+
+func (m *mockQuerier) ListTagsByTranscriptIDs(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListTagsByTranscriptIDsRow, error) {
+	if m.listTagsByTranscriptIDs != nil {
+		return m.listTagsByTranscriptIDs(ctx, transcriptIds)
+	}
+	return []sqlc.ListTagsByTranscriptIDsRow{}, nil
 }

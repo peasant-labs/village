@@ -152,6 +152,46 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 	return i, err
 }
 
+const listUsersByIDs = `-- name: ListUsersByIDs :many
+SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach FROM users WHERE id = ANY($1::uuid[])
+`
+
+// Several users in one statement, for list surfaces that would otherwise read
+// GetUserByID once per row.
+func (q *Queries) ListUsersByIDs(ctx context.Context, ids []pgtype.UUID) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.GithubID,
+			&i.GithubUsername,
+			&i.DisplayName,
+			&i.AvatarUrl,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.IsDiscoverable,
+			&i.Provider,
+			&i.ProviderUserID,
+			&i.UsernameChosen,
+			&i.ProviderUsername,
+			&i.PreviewBeforeAttach,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setUserPreviewBeforeAttach = `-- name: SetUserPreviewBeforeAttach :one
 UPDATE users
 SET preview_before_attach = $2, updated_at = now()

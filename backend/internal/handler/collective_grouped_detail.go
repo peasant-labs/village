@@ -83,8 +83,13 @@ func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, rol
 	if err != nil {
 		return failure()
 	}
+	pullRequestCount, err := h.collectivePullRequestCountFor(ctx, GetUser(ctx), group.ID, canRead)
+	if err != nil {
+		return failure()
+	}
 	response.Stats = schema.VillageGroupTranscriptStats{TotalTranscripts: stats.TotalTranscripts,
-		ContributorCount: stats.ContributorCount, TotalTurns: stats.TotalTurns, TotalDurationMs: stats.TotalDurationMs, TotalTokens: stats.TotalTokens}
+		ContributorCount: stats.ContributorCount, TotalTurns: stats.TotalTurns, TotalDurationMs: stats.TotalDurationMs, TotalTokens: stats.TotalTokens,
+		PullRequestCount: pullRequestCount}
 	models, err := h.queries.ListGroupModelBreakdown(ctx, group.ID)
 	if err != nil {
 		return failure()

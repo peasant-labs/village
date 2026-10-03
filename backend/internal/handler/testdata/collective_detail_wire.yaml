@@ -32,7 +32,7 @@ cases:
       {
         "group":{"id":"52000000-0000-4000-8000-000000000001","name":"Actual Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-01T10:00:00Z","updated_at":"2026-09-02T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory","post_prompts_check":true,"prompts_check_mode":"informational"},
         "members":[{"role":"owner","joined_at":"2026-09-01T10:01:00Z","id":"51000000-0000-4000-8000-000000000001","github_username":"detail-wire-owner","display_name":"Owner Name","avatar_url":"https://example.test/owner.png","github_orgs":[]}],
-        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0},
+        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0,"pull_request_count":0},
         "models":[],"contributors":[],"can_read":true,"your_role":"owner","transcripts":[],
         "pending_members":[{"role":"pending","joined_at":"2026-09-01T10:02:00Z","id":"51000000-0000-4000-8000-000000000002","github_username":"detail-wire-pending","display_name":"Pending Name","avatar_url":"https://example.test/pending.png","github_orgs":[]}]
       }
@@ -45,7 +45,7 @@ cases:
       {
         "group":{"id":"52000000-0000-4000-8000-000000000001","name":"Actual Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-01T10:00:00Z","updated_at":"2026-09-02T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory","post_prompts_check":true,"prompts_check_mode":"informational"},
         "members":[{"role":"owner","joined_at":"2026-09-01T10:01:00Z","id":"51000000-0000-4000-8000-000000000001","github_username":"detail-wire-owner","display_name":"Owner Name","avatar_url":"https://example.test/owner.png","github_orgs":[]}],
-        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0},
+        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0,"pull_request_count":0},
         "models":[],"contributors":[],"can_read":true,"your_role":"owner",
         "transcriptList":{"items":[],"page":1,"limit":20,"totalItems":0,"ordinarySessionTotal":0,"helperThreadTotal":0},
         "pending_members":[{"role":"pending","joined_at":"2026-09-01T10:02:00Z","id":"51000000-0000-4000-8000-000000000002","github_username":"detail-wire-pending","display_name":"Pending Name","avatar_url":"https://example.test/pending.png","github_orgs":[]}]
@@ -59,7 +59,7 @@ cases:
       {
         "group":{"id":"52000000-0000-4000-8000-000000000002","name":"Override Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-03T10:00:00Z","updated_at":"2026-09-04T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory","post_prompts_check":false,"prompts_check_mode":"required"},
         "members":[{"role":"owner","joined_at":"2026-09-03T10:01:00Z","id":"51000000-0000-4000-8000-000000000001","github_username":"detail-wire-owner","display_name":"Owner Name","avatar_url":"https://example.test/owner.png","github_orgs":[]}],
-        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0},
+        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0,"pull_request_count":0},
         "models":[],"contributors":[],"can_read":true,"your_role":"owner","transcripts":[],
         "pending_members":[{"role":"pending","joined_at":"2026-09-03T10:02:00Z","id":"51000000-0000-4000-8000-000000000002","github_username":"detail-wire-pending","display_name":"Pending Name","avatar_url":"https://example.test/pending.png","github_orgs":[]}]
       }
@@ -72,7 +72,7 @@ cases:
       {
         "group":{"id":"52000000-0000-4000-8000-000000000002","name":"Override Collective","description":"Preserved description","created_by":"51000000-0000-4000-8000-000000000001","created_at":"2026-09-03T10:00:00Z","updated_at":"2026-09-04T10:00:00Z","acceptance_mode":"curated","data_access":"members_only","linked_github_org":"example-org","display_members":true,"transcript_deletion_policy":"mandatory","post_prompts_check":false,"prompts_check_mode":"required"},
         "members":[{"role":"owner","joined_at":"2026-09-03T10:01:00Z","id":"51000000-0000-4000-8000-000000000001","github_username":"detail-wire-owner","display_name":"Owner Name","avatar_url":"https://example.test/owner.png","github_orgs":[]}],
-        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0},
+        "stats":{"total_transcripts":0,"contributor_count":0,"total_turns":0,"total_duration_ms":0,"total_tokens":0,"pull_request_count":0},
         "models":[],"contributors":[],"can_read":true,"your_role":"owner",
         "transcriptList":{"items":[],"page":1,"limit":20,"totalItems":0,"ordinarySessionTotal":0,"helperThreadTotal":0},
         "pending_members":[{"role":"pending","joined_at":"2026-09-03T10:02:00Z","id":"51000000-0000-4000-8000-000000000002","github_username":"detail-wire-pending","display_name":"Pending Name","avatar_url":"https://example.test/pending.png","github_orgs":[]}]

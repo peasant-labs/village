@@ -135,6 +135,41 @@ func (q *Queries) ListTags(ctx context.Context) ([]ListTagsRow, error) {
 	return items, nil
 }
 
+const listTagsByTranscriptIDs = `-- name: ListTagsByTranscriptIDs :many
+SELECT tt.transcript_id, t.id, t.name
+FROM tags t
+JOIN transcript_tags tt ON t.id = tt.tag_id
+WHERE tt.transcript_id = ANY($1::uuid[])
+`
+
+type ListTagsByTranscriptIDsRow struct {
+	TranscriptID pgtype.UUID `db:"transcript_id" json:"transcript_id"`
+	ID           pgtype.UUID `db:"id" json:"id"`
+	Name         string      `db:"name" json:"name"`
+}
+
+// The tags of a whole page of transcripts in one statement, for list surfaces
+// that would otherwise read GetTranscriptTags once per row.
+func (q *Queries) ListTagsByTranscriptIDs(ctx context.Context, transcriptIds []pgtype.UUID) ([]ListTagsByTranscriptIDsRow, error) {
+	rows, err := q.db.Query(ctx, listTagsByTranscriptIDs, transcriptIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTagsByTranscriptIDsRow{}
+	for rows.Next() {
+		var i ListTagsByTranscriptIDsRow
+		if err := rows.Scan(&i.TranscriptID, &i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unlinkTranscriptTags = `-- name: UnlinkTranscriptTags :exec
 DELETE FROM transcript_tags WHERE transcript_id = $1
 `

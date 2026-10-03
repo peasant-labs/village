@@ -98,7 +98,7 @@ func (h *Handler) GetPullRequestAttachment(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	response, err := h.attachmentResponseOf(r.Context(), attachment, repo.isPrivate, viewerID, viewerKnown)
+	response, err := h.attachmentResponseOf(r.Context(), attachment, repo, viewerID, viewerKnown)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
@@ -146,7 +146,7 @@ func (h *Handler) ConfirmPullRequestAttachment(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
 	}
-	response, err := h.attachmentResponseOf(r.Context(), updated, repo.isPrivate, user.PgID(), true)
+	response, err := h.attachmentResponseOf(r.Context(), updated, repo, user.PgID(), true)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
@@ -190,7 +190,7 @@ func (h *Handler) DetachPullRequestAttachment(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
 	}
-	response, err := h.attachmentResponseOf(r.Context(), updated, repo.isPrivate, user.PgID(), true)
+	response, err := h.attachmentResponseOf(r.Context(), updated, repo, user.PgID(), true)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not read the pull request attachment")
 		return
@@ -237,6 +237,15 @@ func (h *Handler) UpdateUserSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	var req schema.VillageUpdateUserSettingsRequest
 	if !h.decodeContractBody(w, r, opUpdateUserSettings, &req) {
+		return
+	}
+	// The contract declares automatic pull request linking, but this server does
+	// not link anything automatically yet, so it always reports the setting off.
+	// Turning it on is refused out loud rather than accepted and dropped: a PATCH
+	// that answered 200 while ignoring the one field it carried would leave the
+	// caller believing their transcripts are being linked.
+	if req.AutoAttachPullRequests != nil && *req.AutoAttachPullRequests {
+		writeError(w, http.StatusBadRequest, "auto_attach_pull_requests cannot be turned on yet: this server does not link transcripts to pull requests automatically, so nothing was changed")
 		return
 	}
 	if req.PreviewBeforeAttach == nil {

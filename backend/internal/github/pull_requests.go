@@ -9,9 +9,11 @@ import (
 // PullRequest is the pull request metadata the attachment lifecycle needs, in
 // one shape for every event type: a comment or a check-run button does not carry
 // the head SHA or the base/head repositories, so the lifecycle reads them here
-// rather than guessing.
+// rather than guessing. Title is what the pull request pages show beside the
+// number; Village stores neither it nor HeadRef, so both are read here.
 type PullRequest struct {
 	Number           int
+	Title            string
 	RepoID           int64
 	HeadSHA          string
 	HeadRef          string
@@ -33,7 +35,8 @@ func (c *Client) GetPullRequest(ctx context.Context, installationID int64, owner
 	}
 
 	var out struct {
-		Number int `json:"number"`
+		Number int    `json:"number"`
+		Title  string `json:"title"`
 		Head   struct {
 			SHA  string `json:"sha"`
 			Ref  string `json:"ref"`
@@ -69,6 +72,7 @@ func (c *Client) GetPullRequest(ctx context.Context, installationID int64, owner
 
 	pr := &PullRequest{
 		Number:           out.Number,
+		Title:            out.Title,
 		RepoID:           out.Base.Repo.ID,
 		HeadSHA:          out.Head.SHA,
 		HeadRef:          out.Head.Ref,
