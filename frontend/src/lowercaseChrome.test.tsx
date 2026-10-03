@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { providerDisplayName } from "@peasant-labs/fairtrade/ui";
@@ -14,6 +14,10 @@ import {
   renderHeaderAt,
 } from "@/test/mountedHomeRoute";
 import { installGroupRouteREST, renderGroupDetailRoute } from "@/test/mountedGroupRoute";
+import {
+  installGroupSettingsREST,
+  renderGroupSettingsRoute,
+} from "@/test/mountedAttachmentSurfaces";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import {
   loadLowercaseChromeFixtures,
@@ -247,6 +251,37 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
         return document.body;
       }
 
+      if (c.state === "invite-search") {
+        // The invite search lives on the settings page: mount it, open the
+        // dialog, and answer the one GitHub search request it makes.
+        installGroupSettingsREST({
+          id: GROUP_ID,
+          ownerUsername: content.viewer,
+          name: content.collective,
+          postPromptsCheck: true,
+          promptsCheckMode: "informational",
+        });
+        const groupRoute = globalThis.fetch;
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            if (String(input).startsWith("https://api.github.com/search/users")) {
+              return json({ items: [{ login: content.githubUser, avatar_url: "" }] });
+            }
+            return groupRoute(input, init);
+          }),
+        );
+        await renderGroupSettingsRoute(GROUP_ID);
+        fireEvent.click(await screen.findByRole("button", { name: /find a github user to invite/i }));
+        const dialog = await screen.findByRole("dialog", { name: /invite a github user/i });
+        fireEvent.change(within(dialog).getByPlaceholderText("github username"), {
+          target: { value: "octo" },
+        });
+        await within(dialog).findAllByRole("menu", { name: "github user results" }, { timeout: 3000 });
+        await within(dialog).findAllByText(content.githubUser);
+        return document.body;
+      }
+
       const owner = c.state !== "visitor";
       installGroupRouteREST({
         viewer: content.viewer,
@@ -281,19 +316,6 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
             ]
           : [],
       });
-      if (c.state === "invite-search") {
-        // The invite field searches GitHub itself; answer that one request.
-        const groupRoute = globalThis.fetch;
-        vi.stubGlobal(
-          "fetch",
-          vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-            if (String(input).startsWith("https://api.github.com/search/users")) {
-              return json({ items: [{ login: content.githubUser, avatar_url: "" }] });
-            }
-            return groupRoute(input, init);
-          }),
-        );
-      }
       await renderGroupDetailRoute(GROUP_ID);
       await waitFor(() => expect(document.body.textContent).toContain(content.collective));
       if (!owner) {
@@ -304,18 +326,12 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
       await screen.findAllByText(/connection isn.t set up/i);
       await screen.findByText("pending");
       if (c.state === "confirm-remove") {
-        fireEvent.click(screen.getByRole("checkbox", { name: "select every transcript on this page" }));
-        fireEvent.click(await screen.findByRole("button", { name: /remove from collective/ }));
+        // The select-all control lives inside the transcript-groups disclosure,
+        // which starts folded. The destructive confirm swaps in place.
+        fireEvent.click(await screen.findByRole("button", { name: /transcript groups/i }));
+        fireEvent.click(await screen.findByRole("checkbox", { name: "select all" }));
+        fireEvent.click(await screen.findByRole("button", { name: /remove selected/i }));
         await screen.findByText("remove from collective?");
-      }
-      if (c.state === "invite-search") {
-        // The rail is drawn twice (beside the page, and in the phone sheet);
-        // the first field is the one beside the page.
-        fireEvent.change(screen.getAllByPlaceholderText("github username")[0], {
-          target: { value: "octo" },
-        });
-        await screen.findAllByRole("menu", { name: "github user results" }, { timeout: 3000 });
-        await screen.findAllByText(content.githubUser);
       }
       return document.body;
     }

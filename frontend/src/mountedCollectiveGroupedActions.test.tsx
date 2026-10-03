@@ -149,6 +149,8 @@ function installREST(surface: "browse" | "contribute" | "review", testCase: Coll
         }
         return json(flatPendingRows(fixtures));
       }
+      if (path.endsWith("/repositories")) return json({ error: "not configured" }, 501);
+      if (path.endsWith("/my-shares")) return json(grouped ? { items: [], page: Number(url.searchParams.get("page") ?? 1), limit: 100, totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 } : []);
       if (path.includes("/transcript-groups/")) {
         calls.members.push(url.search);
         const scope = url.searchParams.get("scope");
@@ -242,6 +244,7 @@ for (const testCase of fixtures.cases) {
     await act(async () => {
       renderRoute(testCase.surface);
     });
+    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
 
     if (testCase.surface === "browse") {
       // The collective's browse list is still its own list; the grouped read
@@ -360,6 +363,7 @@ for (const testCase of fixtures.overlapCases) {
     await act(async () => {
       renderRoute(testCase.surface);
     });
+    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
 
     // The identity is drawn by the flat list ...
     await waitFor(() =>
@@ -445,6 +449,7 @@ for (const testCase of fixtures.connectorCases) {
     await act(async () => {
       renderRoute(testCase.surface);
     });
+    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
 
     await waitFor(() =>
       expect(screen.getByTestId(`contribute-session-row-${row.id}`)).toBeInTheDocument(),

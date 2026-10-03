@@ -333,12 +333,12 @@ function Row({
         className="inline-flex items-center gap-2 focus-mono cursor-pointer hover:underline"
       >
         {ownerFace}
-        <span className="text-xs text-ink-3">{attribution.label}</span>
+        <span className="font-[family-name:var(--font-mono)] text-[length:var(--fs-label)] text-ink-3">{attribution.label}</span>
       </Link>
     ) : (
       <>
         {ownerFace}
-        <span className="text-xs text-ink-3">{attribution.label}</span>
+        <span className="font-[family-name:var(--font-mono)] text-[length:var(--fs-label)] text-ink-3">{attribution.label}</span>
       </>
     );
 
@@ -400,10 +400,10 @@ function Row({
       )}
 
       <div className="min-w-0 flex-1 flex flex-col gap-0.5">
-        <span className="text-sm text-ink font-medium truncate">
+        <span className="font-[family-name:var(--font-body)] text-[length:var(--fs-body)] text-ink font-medium truncate">
           {displayTitle}
         </span>
-        <span className="text-[12px] text-ink-3 flex items-center gap-1.5 truncate">
+        <span className="font-[family-name:var(--font-mono)] text-[length:var(--fs-label)] text-ink-3 flex items-center gap-1.5 truncate">
           {/* The separator falls BETWEEN facts, so a row that cannot state one
               of them does not open with a stray mark or end with one. */}
           {statedFacts.map(({ fact, node }, i) => (

@@ -1,0 +1,26 @@
+cases:
+  - name: a-list-read-can-be-retried
+    why: a failed read must not pass for an empty successful list
+    surface: list
+    operation: read
+    error: the collectives service is unavailable
+  - name: a-detail-read-can-be-retried
+    why: an unavailable collective is not reported as missing
+    surface: detail
+    operation: read
+    error: the collective service is unavailable
+  - name: a-settings-read-can-be-retried
+    why: an unavailable settings read preserves a route to recovery
+    surface: settings
+    operation: read
+    error: the settings service is unavailable
+  - name: a-failed-create-preserves-the-form-for-retry
+    why: a refused create says why and retains the name until a retry succeeds
+    surface: list
+    operation: create-retry
+    error: the collective could not be created
+  - name: a-successful-create-opens-the-returned-collective
+    why: the returned identifier is the destination and the form cannot silently create another
+    surface: list
+    operation: create
+    error: null

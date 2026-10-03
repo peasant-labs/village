@@ -9,7 +9,6 @@ import {
   installGroupRouteREST,
   renderGroupContributeRoute,
   renderGroupDetailRoute,
-  type PendingShareFixtureRow,
   type RecordedGroupRequest,
 } from "@/test/mountedGroupRoute";
 import {
@@ -65,6 +64,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
   useSearchParams: () => new URLSearchParams(),
 }));
+
+function library(): HTMLElement { const element = document.querySelector<HTMLElement>('[data-testid="collective-transcript-library"]'); if (!element) throw new Error("the real collective page did not mount its transcript library"); return element; }
 
 const fixtures = loadChildSessionGroupingFixtures();
 
@@ -163,26 +164,6 @@ function groupTranscript(row: ChildSessionRow, index: number): GroupTranscript {
   };
 }
 
-function pendingShare(row: ChildSessionRow, index: number): PendingShareFixtureRow {
-  return {
-    transcript_id: row.name,
-    title: ROW_TITLE(row),
-    model_provider: ROW_PROVIDER,
-    owner_id: row.ownerID,
-    local_id: row.localID,
-    parent_session_id: row.parentSessionID,
-    // Every row of this fixture is one project on one branch: these cases ask
-    // how a STARTED session is read, not how the queue groups by project, so
-    // the grouping columns are held constant rather than left to vary.
-    project_hash: "commons-project",
-    project_name: "commons",
-    branch: ROW_BRANCH,
-    owner_username: row.ownerID,
-    owner_is_discoverable: true,
-    shared_at: publishedAt(index),
-  };
-}
-
 function myShare(row: ChildSessionRow, index: number): UserGroupShare {
   return {
     id: row.name,
@@ -255,6 +236,7 @@ async function renderCollectiveDetail(
   });
   await renderGroupDetailRoute(GROUP_ID);
   await flush();
+  if (fixtureRows.length > 0) await userEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
   return requests;
 }
 
@@ -262,11 +244,11 @@ describe("a collective's contributions read a started session under the session 
   for (const testCase of casesFor("collective-browse")) {
     it(testCase.name, async () => {
       await renderCollectiveDetail(testCase.rows);
-      await waitFor(() => expect(linkedIDs().length).toBeGreaterThan(0));
+      await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
 
       // The browse list is the only thing on this page that links a transcript,
       // so the whole document is the list's own root here.
-      await assertDisclosures(testCase, document.body, testCase.expectedRootRows, linkedIDs);
+      await assertDisclosures(testCase, library(), testCase.expectedRootRows, linkedIDs);
     });
   }
 
@@ -275,7 +257,7 @@ describe("a collective's contributions read a started session under the session 
       (c) => c.name === "a-collectives-contributions-read-a-started-session-under-its-starter",
     )!;
     await renderCollectiveDetail(testCase.rows);
-    await waitFor(() => expect(linkedIDs().length).toBeGreaterThan(0));
+    await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
 
     // Reveal the folded rows, so a folded row is held to the same columns as a
     // row that kept its place. A row that lost its columns on the way into a
@@ -314,7 +296,7 @@ describe("a collective's contributions read a started session under the session 
       (c) => c.name === "a-collectives-contributions-read-a-started-session-under-its-starter",
     )!;
     await renderCollectiveDetail(testCase.rows);
-    await waitFor(() => expect(linkedIDs().length).toBeGreaterThan(0));
+    await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
 
     const group = testCase.expectedGroups[0];
     const { chip, toggle } = disclosureFor(group.parent);
@@ -333,22 +315,22 @@ describe("a collective's contributions read a started session under the session 
     // The page reports the picked-out rows, which is what the remove action
     // then acts on; a box that ticked without joining the set would remove
     // nothing.
-    expect(document.body.textContent, "the page counts the picked-out row").toContain("1 selected");
+    expect(document.body.textContent, "the page counts the picked-out row").toContain("remove selected (1)");
   });
 
   it("ticks every row on the page with one control, folded rows included", async () => {
     const testCase = fixtures.cases.find(
       (c) => c.name === "a-collectives-contributions-read-a-started-session-under-its-starter",
     )!;
-    await renderCollectiveDetail(testCase.rows);
-    await waitFor(() => expect(linkedIDs().length).toBeGreaterThan(0));
+    const requests = await renderCollectiveDetail(testCase.rows);
+    await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
 
     const group = testCase.expectedGroups[0];
     const { chip, toggle } = disclosureFor(group.parent);
     await expandDisclosure(toggle, chip);
 
     const selectAll = screen.getByRole("checkbox", {
-      name: "select every transcript on this page",
+      name: "select all",
     });
     await act(async () => {
       await userEvent.click(selectAll);
@@ -365,8 +347,12 @@ describe("a collective's contributions read a started session under the session 
       ).toBe(true);
     }
     expect(document.body.textContent, "the page counts every row on it").toContain(
-      `${testCase.rows.length} selected`,
+      `remove selected (${testCase.rows.length})`,
     );
+    await userEvent.click(screen.getByRole("button", { name: `remove selected (${testCase.rows.length})` }));
+    expect(requests.filter((request) => request.method === "DELETE")).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: "yes" }));
+    await waitFor(() => expect(requests.filter((request) => request.method === "DELETE").map((request) => new URL(request.url).pathname)).toEqual(testCase.rows.map((row) => `/api/v1/groups/${GROUP_ID}/transcripts/${row.name}`)));
   });
 });
 
@@ -384,10 +370,10 @@ describe("a repository's rows read a started session under the session that star
   for (const testCase of casesFor("collective-repos")) {
     it(testCase.name, async () => {
       await renderCollectiveDetail(testCase.rows);
-      await waitFor(() => expect(linkedIDs().length).toBeGreaterThan(0));
+      await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
       await showRepositories();
 
-      await assertDisclosures(testCase, document.body, testCase.expectedRootRows, linkedIDs);
+      await assertDisclosures(testCase, library(), testCase.expectedRootRows, linkedIDs);
     });
   }
 
@@ -396,8 +382,19 @@ describe("a repository's rows read a started session under the session that star
       (c) => c.name === "a-collectives-contributions-read-a-started-session-under-its-starter",
     )!;
     await renderCollectiveDetail(testCase.rows);
-    await waitFor(() => expect(linkedIDs().length).toBeGreaterThan(0));
+    await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
     await showRepositories();
+
+    const repositoryLink = within(library()).getByRole("link", { name: "open repository" });
+    expect(repositoryLink.closest("button, [role='button']")).toBeNull();
+    const repositoryToggle = within(repositoryLink.parentElement!).getByRole("button");
+    expect(repositoryToggle).toHaveAttribute("aria-expanded", "true");
+    repositoryToggle.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(repositoryToggle).toHaveAttribute("aria-expanded", "false");
+    expect(repositoryLink).toHaveAttribute("href", `https://${REPO_REMOTE}`);
+    await userEvent.keyboard(" ");
+    expect(repositoryToggle).toHaveAttribute("aria-expanded", "true");
 
     const group = testCase.expectedGroups[0];
     const { chip, toggle } = disclosureFor(group.parent);
@@ -414,112 +411,6 @@ describe("a repository's rows read a started session under the session that star
   });
 });
 
-// ── the review queue of a curated collective ─────────────────────────────────
-
-/**
- * The review queue this page renders for the owner.
- *
- * The shared governance summary above it renders a queue of its own, so the
- * queue is found by what only this one has: a link to each submission's
- * transcript. Taking "the first queue on the page" would let an assertion pass
- * against the summary while the real queue was wrong.
- */
-function reviewQueue(): HTMLElement {
-  const queue = [...document.querySelectorAll<HTMLElement>("section.mod-queue")].find(
-    (candidate) => candidate.querySelector('a[href^="/transcripts/"]') != null,
-  );
-  if (queue == null) throw new Error("the collective rendered no review queue of its submissions");
-  return queue;
-}
-
-async function renderCuratedQueue(
-  testCase: ChildSessionGroupingCase,
-): Promise<RecordedGroupRequest[]> {
-  const requests = await renderCollectiveDetail([], {
-    acceptanceMode: "curated",
-    transcripts: [],
-    pendingShares: testCase.rows.map(pendingShare),
-  });
-  await waitFor(() => expect(reviewQueue()).toBeTruthy());
-  return requests;
-}
-
-/**
- * The review queue is the ONE list here that does not read a started submission
- * under the submission that started it.
- *
- * That is a decision, not an oversight, so it is asserted rather than left as
- * an absence of assertions. The queue component cannot nest a row, and forcing
- * one made the queue worse to work in: a revealed submission truncated its own
- * title, and a row's approve and reject drifted away from the title they
- * decide. Every row here is an irreversible decision, so a flat list is the
- * better answer until the component gains the affordance
- * (peasant-labs/fairtrade-design-system#75); the review page that replaces this
- * queue folds natively.
- *
- * What must hold is the property the fold could have taken away: every
- * submission is listed, and every one can still be decided.
- */
-describe("a review queue lists every submission side by side, each still decidable", () => {
-  for (const testCase of casesFor("pending-queue")) {
-    it(testCase.name, async () => {
-      await renderCuratedQueue(testCase);
-
-      // Every row, in server order -- including the ones another submission
-      // started. A build that folded them would list fewer.
-      expect(
-        linkedIDs(reviewQueue()),
-        `${testCase.name}: the submissions on screen, in order`,
-      ).toEqual(testCase.rows.map((row) => row.name));
-
-      // And no collapsed control anywhere on the queue. Asserted positively so
-      // a fold arriving here fails, rather than passing unnoticed because
-      // nothing looked for one.
-      expect(
-        chippedParentIDs(reviewQueue()),
-        `${testCase.name}: the review queue draws no collapsed control`,
-      ).toEqual([]);
-    });
-  }
-
-  it("gives every submission its own approve and reject, and sends the decision for the row clicked", async () => {
-    const testCase = fixtures.cases.find(
-      (c) => c.name === "a-review-queue-lists-a-started-submission-beside-its-starter",
-    )!;
-    const requests = await renderCuratedQueue(testCase);
-
-    // The started submission, the one a fold would have moved. It is reachable
-    // where it is, and carries both decisions.
-    const startedID = testCase.rows.find((row) => row.parentSessionID !== null)!.name;
-    const row = rowFor(reviewQueue(), startedID);
-    expect(
-      within(row).getByRole("button", { name: /reject/i }),
-      `${startedID} keeps its reject action`,
-    ).toBeTruthy();
-    const approve = within(row).getByRole("button", { name: /approve/i });
-
-    await act(async () => {
-      await userEvent.click(approve);
-    });
-    await flush();
-
-    // The decision must name the row that was clicked, never its starter.
-    const decisions = requests.filter((request) => request.method === "PATCH");
-    expect(
-      decisions.map((request) => ({
-        path: new URL(request.url, "https://village.test").pathname,
-        body: request.body,
-      })),
-      "the decision a moderator's click sent",
-    ).toEqual([
-      {
-        path: `/api/v1/groups/${GROUP_ID}/shares/${startedID}`,
-        body: { status: "approved" },
-      },
-    ]);
-  });
-});
-
 // ── a member's own contributions to a collective ─────────────────────────────
 
 describe("your contributions read a started contribution under the one that started it", () => {
@@ -530,12 +421,12 @@ describe("your contributions read a started contribution under the one that star
         transcripts: [],
         myShares: testCase.rows.map(myShare),
       });
-      await waitFor(() => expect(linkedIDs().length).toBeGreaterThan(0));
+      await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
 
       // Nothing else on this page links a transcript for this fixture: the
       // collective holds no browsable contributions here, so the whole document
       // is this list's root.
-      await assertDisclosures(testCase, document.body, testCase.expectedRootRows, linkedIDs);
+      await assertDisclosures(testCase, library(), testCase.expectedRootRows, linkedIDs);
     });
   }
 
@@ -543,12 +434,12 @@ describe("your contributions read a started contribution under the one that star
     const testCase = fixtures.cases.find(
       (c) => c.name === "your-contributions-read-a-started-contribution-under-its-starter",
     )!;
-    await renderCollectiveDetail([], {
+    const requests = await renderCollectiveDetail([], {
       role: "member",
       transcripts: [],
       myShares: testCase.rows.map(myShare),
     });
-    await waitFor(() => expect(linkedIDs().length).toBeGreaterThan(0));
+    await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
 
     const group = testCase.expectedGroups[0];
     const { chip, toggle } = disclosureFor(group.parent);
@@ -556,9 +447,12 @@ describe("your contributions read a started contribution under the one that star
 
     expect(linkedIDs(revealed), "the revealed contribution").toEqual(group.children);
     expect(
-      within(revealed).getAllByTitle("unshare from this collective"),
+      within(revealed).getAllByTitle("withdraw contribution"),
       "a revealed contribution can still be taken back",
     ).toHaveLength(group.children.length);
+    await userEvent.click(within(revealed).getAllByTitle("withdraw contribution")[0]);
+    await waitFor(() => expect(requests.filter((request) => request.method === "DELETE").map((request) => new URL(request.url).pathname)).toEqual([`/api/v1/transcripts/${group.children[0]}/share/${GROUP_ID}`]));
+    await waitFor(() => expect(linkedIDs(library())).not.toContain(group.children[0]));
   });
 });
 

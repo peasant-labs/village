@@ -83,6 +83,8 @@ export const Select = FtSelect as ComponentType<
  *  - `VisibilityEye` — transcript visibility glyph + tooltip.
  *  - `SessionGroupDisclosure` — the collapsed count control for a session
  *    list (0.0.21+); replaces the former local copy.
+ *  - `Toast` — the one-line result of an action on the collective pages
+ *    (saved, or what went wrong), with its own status or alert role.
  */
 export {
   Card,
@@ -93,6 +95,7 @@ export {
   ProviderTag,
   SessionGroupDisclosure,
   Tag,
+  Toast,
   Tooltip,
   VisibilityEye,
 } from "@peasant-labs/fairtrade/ui";

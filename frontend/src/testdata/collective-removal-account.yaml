@@ -1,0 +1,26 @@
+cases:
+  - name: removal-stops-after-account-changes
+    why: A later selected row must not be removed by another signed-in person, and their view must not borrow private rows.
+    switch: identity
+    timing: first-response
+    responseStatus: 200
+  - name: removal-stops-after-credential-changes
+    why: A replacement credential must not authorize the next row of an earlier decision.
+    switch: credential
+    timing: first-response
+    responseStatus: 200
+  - name: removal-failure-does-not-cross-accounts
+    why: A held failure must not set another account's error or continue its batch.
+    switch: identity
+    timing: first-response
+    responseStatus: 500
+  - name: removal-failure-does-not-cross-credentials
+    why: A held failure must not continue a batch after its credential changes.
+    switch: credential
+    timing: first-response
+    responseStatus: 500
+  - name: removal-refuses-a-credential-changed-before-dispatch
+    why: React Query can defer the mutation function after confirmation, so dispatch must recheck the original decision.
+    switch: credential
+    timing: before-dispatch
+    responseStatus: 200

@@ -14,6 +14,8 @@
  *   signed-out  - `/auth/me` refuses, so the app treats the visitor as signed
  *                 out (the sign-in journey) whatever cookie the browser holds
  *
+ * Setting any scenario also puts the collectives world back as it started.
+ *
  * The transcript half is proxied rather than imported because its contract
  * fixtures are large and stateful; proxying keeps it byte-for-byte the mock the
  * Puppeteer shoots already trust.
@@ -24,6 +26,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
 import { handleProjectRequest } from './lib/project-fixtures.mjs'
+import { handleCollectiveRequest, resetCollectiveWorld } from './lib/collective-fixtures.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)
@@ -36,7 +39,7 @@ const send = (res, code, body) => {
     'content-type': 'application/json',
     'access-control-allow-origin': '*',
     'access-control-allow-headers': '*',
-    'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS',
+    'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
   })
   res.end(body == null ? '' : JSON.stringify(body))
 }
@@ -112,6 +115,9 @@ const server = createServer(async (req, res) => {
       } catch {
         return send(res, 400, { error: 'invalid JSON body' })
       }
+      // Setting a scenario starts the collectives over, so one journey's
+      // links and settings writes never reach the next.
+      resetCollectiveWorld()
       return send(res, 200, { scenario })
     }
   }
@@ -123,6 +129,10 @@ const server = createServer(async (req, res) => {
   if (scenario === 'empty' && req.method === 'GET' && path === '/transcripts') {
     return send(res, 200, { transcripts: [], total: 0, agent_total: 0, page: 1, limit: 24 })
   }
+
+  // Retained contribution withdrawals belong to the collective fixture,
+  // before the generic transcript proxy claims that route.
+  if (handleCollectiveRequest(req, res)) return
 
   // Transcript detail and its subroutes go to the transcript mock; the list
   // (`/transcripts`, exact) stays with the explore half.
