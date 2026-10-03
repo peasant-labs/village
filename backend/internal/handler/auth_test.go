@@ -160,9 +160,11 @@ type mockQuerier struct {
 	listTagsByTranscriptIDs                  func(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListTagsByTranscriptIDsRow, error)
 
 	// Writes a test drives directly. Unset, updateUserAttachSettings returns a
-	// zero user, and createGroup and addGroupMember panic as not stubbed.
+	// zero user, and createGroup, updateGroup and addGroupMember panic as not
+	// stubbed.
 	updateUserAttachSettings func(ctx context.Context, arg sqlc.UpdateUserAttachSettingsParams) (sqlc.User, error)
 	createGroup              func(ctx context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error)
+	updateGroup              func(ctx context.Context, arg sqlc.UpdateGroupParams) (sqlc.Group, error)
 	addGroupMember           func(ctx context.Context, arg sqlc.AddGroupMemberParams) error
 }
 
@@ -549,6 +551,9 @@ func (m *mockQuerier) GetGroupByID(ctx context.Context, id pgtype.UUID) (sqlc.Gr
 	return sqlc.Group{}, nil
 }
 func (m *mockQuerier) UpdateGroup(ctx context.Context, arg sqlc.UpdateGroupParams) (sqlc.Group, error) {
+	if m.updateGroup != nil {
+		return m.updateGroup(ctx, arg)
+	}
 	panic("UpdateGroup: not stubbed")
 }
 func (m *mockQuerier) DeleteGroup(ctx context.Context, id pgtype.UUID) error {

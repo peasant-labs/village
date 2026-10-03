@@ -29,7 +29,8 @@ func TestUpdateGroupAppliesPromptCheckSettings(t *testing.T) {
 
 	var groupID pgtype.UUID
 	if err := pool.QueryRow(ctx, `
-		INSERT INTO groups (name, created_by) VALUES ('check-settings', $1) RETURNING id
+		INSERT INTO groups (name, description, created_by)
+		VALUES ('check-settings', 'the stored purpose', $1) RETURNING id
 	`, owner).Scan(&groupID); err != nil {
 		t.Fatalf("insert group: %v", err)
 	}
@@ -89,6 +90,16 @@ func TestUpdateGroupAppliesPromptCheckSettings(t *testing.T) {
 	}
 	if post, mode := settings(); !post || mode != "required" {
 		t.Fatalf("flag-only update = post=%v mode=%q, want true/required", post, mode)
+	}
+	// The settings page saves the switch on its own, so a flag-only body must
+	// leave the name and the description the collective stores.
+	var name string
+	var description pgtype.Text
+	if err := pool.QueryRow(ctx, "SELECT name, description FROM groups WHERE id = $1", groupID).Scan(&name, &description); err != nil {
+		t.Fatalf("read name and description: %v", err)
+	}
+	if name != "check-settings-renamed" || !description.Valid || description.String != "the stored purpose" {
+		t.Fatalf("flag-only update wrote name=%q description=%+v, want both kept", name, description)
 	}
 
 	// A mode outside the menu is refused before any write. The CONTRACT refuses

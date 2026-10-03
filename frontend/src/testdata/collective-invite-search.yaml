@@ -1,0 +1,11 @@
+cases:
+  - name: invite-search-preserves-the-selected-github-handle
+    why: The owner's retained search exit selects a real result and sends that exact case-sensitive handle only after invite.
+    query: Octo
+    handle: OctoPerson
+    fail: false
+  - name: invite-search-announces-a-failed-invitation
+    why: A failed member write remains announced in the open dialog and can be retried with the selected handle.
+    query: Octo
+    handle: OctoPerson
+    fail: true

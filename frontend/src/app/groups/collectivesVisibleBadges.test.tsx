@@ -5,6 +5,7 @@ import {
   collectiveRows,
   installCollectivesRouteREST,
   installCollectivesRouteTeardown,
+  listedCollectiveCount,
   loadCollectiveBadgeFixtures,
   renderCollectivesRoute,
   standingTextFor,

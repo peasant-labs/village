@@ -1,9 +1,4 @@
-import {
-  zVillageCreateGroupRequest,
-  zVillageUpdateGroupRequest,
-  type VillageCreateGroupRequest,
-  type VillageUpdateGroupRequest,
-} from "@peasant-labs/schema";
+import { zVillageCreateGroupRequest, type VillageCreateGroupRequest } from "@peasant-labs/schema";
 
 /** What the create-collective dialog hands back. */
 export interface CreateGroupForm {
@@ -32,33 +27,4 @@ export function createGroupRequest(form: CreateGroupForm): VillageCreateGroupReq
     body.linked_github_org = form.org;
   }
   return zVillageCreateGroupRequest.parse(body);
-}
-
-/** What the collective settings form hands back. */
-export interface UpdateGroupForm {
-  name: string;
-  description: string;
-  acceptance_mode: string;
-  data_access: string;
-  // Omitted means preserve. Sending a value is read as a claim to link the
-  // org, which the update path refuses unless the caller has marked it
-  // visible; the install handshake is what writes it.
-  linked_github_org?: string | null;
-  display_members?: boolean;
-  transcript_deletion_policy?: string;
-  // The prompts check a linked repository's pull requests receive. Named here
-  // because the contract parser below STRIPS unknown keys: a field absent from
-  // this shape never leaves the client, silently.
-  post_prompts_check?: boolean;
-  prompts_check_mode?: string;
-}
-
-/**
- * Builds the update body and proves it with the contract's own parser before
- * anything is sent. A null organisation clears the link and an omitted one
- * leaves it as it is; the update request accepts null where the create request
- * does not.
- */
-export function updateGroupRequest(form: UpdateGroupForm): VillageUpdateGroupRequest {
-  return zVillageUpdateGroupRequest.parse(form);
 }

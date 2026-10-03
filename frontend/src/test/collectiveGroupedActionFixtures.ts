@@ -551,6 +551,7 @@ function collectiveBrowseRow(fixtures: CollectiveGroupedActionFixtures, row: Row
       parent_session_id: null,
       visibility: "shared",
     }),
+    pull_requests: { count: 0, recent: [] },
     owner_username: "member-owner",
     owner_avatar_url: null,
     owner_is_discoverable: true,

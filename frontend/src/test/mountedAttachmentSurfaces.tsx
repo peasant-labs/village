@@ -8,14 +8,13 @@ import GroupSettingsPage from "@/app/groups/[id]/settings/page";
 import type { PromptDigest, VillagePullRequestAttachmentResponse } from "@peasant-labs/schema";
 
 /**
- * Mount support for the real routes this change touches: the pull request page
- * and the collective settings page, with REST stubbed at `fetch` and every
- * outbound request recorded so a test asserts the route a control hit rather
- * than inspecting a mutation object.
+ * Mount support for the real pull request page, with REST stubbed at `fetch`
+ * and every outbound request recorded so a test asserts the route a control
+ * hit rather than inspecting a mutation object.
  *
  * The pull request page reads everything it needs from its own payload, so it
- * mounts without an auth provider; the settings surface reads the caller, so it
- * mounts inside the provider the app mounts it in.
+ * mounts without an auth provider. The collective settings page mounts through
+ * `src/test/mountedCollectivePages.tsx`.
  */
 
 /** One recorded outbound request. */
@@ -180,6 +179,8 @@ export async function renderPullRequestRoute(owner: string, name: string, number
 export interface GroupSettingsFixture {
   id: string;
   ownerUsername: string;
+  /** The collective's name; the corpus passes its own user content. */
+  name?: string;
   postPromptsCheck: boolean;
   promptsCheckMode: "informational" | "required";
   // The org the collective already records, as the install handshake leaves it.
@@ -200,7 +201,7 @@ export function installGroupSettingsREST(fixture: GroupSettingsFixture): Recorde
   };
   const group = {
     id: fixture.id,
-    name: "fixture-collective",
+    name: fixture.name ?? "fixture-collective",
     description: "",
     acceptance_mode: "open",
     data_access: fixture.dataAccess ?? "members_only",

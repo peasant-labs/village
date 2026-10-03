@@ -24,6 +24,13 @@ installMountedRouteTeardown();
 
 const GROUP_ID = "55555555-5555-5555-5555-555555555555";
 
+/** The settings select's own labels, from the page's `whoCanReadChoices`. */
+const READ_LABELS: Record<string, string> = {
+  members_only: "members only",
+  contributors: "members and contributors",
+  public: "anyone (public)",
+};
+
 describe("collective settings: the public data-access option", () => {
   for (const c of fixtures.dataAccessCases) {
     it(c.name, async () => {
@@ -36,23 +43,23 @@ describe("collective settings: the public data-access option", () => {
       });
       await renderGroupSettingsRoute(GROUP_ID);
 
-      const select = (await screen.findByLabelText("data access")) as HTMLSelectElement;
+      const select = (await screen.findByLabelText("who can read")) as HTMLSelectElement;
       expect(Array.from(select.options).map((o) => o.value)).toEqual(c.expectOptions);
       // The collective's own value is shown, with its own label: a select with
       // no option for its value would silently display another one.
       expect(select.value).toBe(c.savedDataAccess);
       expect(select.selectedOptions[0]?.value).toBe(c.savedDataAccess);
-      expect(select.selectedOptions[0]?.textContent?.startsWith(c.savedDataAccess.replace("_", " "))).toBe(
-        true,
-      );
+      expect(select.selectedOptions[0]?.textContent?.trim()).toBe(READ_LABELS[c.savedDataAccess]);
 
-      // Saving without touching the control keeps the value it had.
-      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      // One change writes one field; the server keeps every field the body
+      // leaves out.
+      const next = c.expectOptions.find((value) => value !== c.savedDataAccess)!;
+      fireEvent.change(select, { target: { value: next } });
       await waitFor(() => {
         expect(requests.some((r) => r.method === "PATCH")).toBe(true);
       });
       expect(requests.find((r) => r.method === "PATCH")?.body).toMatchObject({
-        data_access: c.savedDataAccess,
+        data_access: next,
       });
     });
   }

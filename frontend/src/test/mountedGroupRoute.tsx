@@ -6,44 +6,31 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { parse } from "yaml";
 import { AuthProvider } from "@/providers/AuthProvider";
-import type { VillageSessionListItem, VillageSessionListPayload } from "@peasant-labs/schema";
 import GroupDetailPage from "@/app/groups/[id]/page";
-import GroupContributePage from "@/app/groups/[id]/contribute/page";
-import type {
-  Group,
-  GroupMember,
-  GroupTranscript,
-  User,
-  UserGroupShare,
-} from "@/lib/types";
-import type { ContributableTranscript } from "@/lib/contribute/types";
+import type { VillageSessionListItem, VillageSessionListPayload } from "@peasant-labs/schema";
 import type { PendingShare } from "@/lib/review/types";
+import GroupContributePage from "@/app/groups/[id]/contribute/page";
+import type { Group, GroupMember, GroupTranscript, UserGroupShare, User } from "@/lib/types";
+import type { ContributableTranscript } from "@/lib/contribute/types";
 
 /**
- * Mount support for the REAL `/groups/{id}` and `/groups/{id}/contribute`
- * routes, with REST stubbed at `fetch`, mirroring
- * `src/test/mountedProjectRoute.tsx`. Both routes mount inside the
- * `AuthProvider` the membership-gated header action and the contribute
- * page's own gate both read from, so a test asserts what a signed-in
- * member or a non-member visitor actually sees.
+ * Mount support for the REAL `/groups/{id}/contribute` route, with REST stubbed
+ * at `fetch`, mirroring `src/test/mountedProjectRoute.tsx`. The route mounts
+ * inside the `AuthProvider` the contribute page's own membership gate reads
+ * from, so a test asserts what a signed-in member or a non-member visitor
+ * actually sees.
  */
 
 // ── Fixture rows ─────────────────────────────────────────────────────────
 
 /** A row's viewer role in the collective, or `null` for a non-member/signed-out
- *  viewer. Owner and member are distinct rows because the header contribute
- *  action reaches them by different paths. */
+ *  viewer. */
 export type ContributeNavRole = "owner" | "member" | null;
 
 export interface ContributeNavRow {
   name: string;
   why: string;
   role: ContributeNavRole;
-  /** How many submissions the collective's review queue holds. A row that
-   *  sets this also makes the collective CURATED, because only a curated
-   *  collective has a queue at all. Omitted means an open collective with no
-   *  queue, which is what every navigation row wants. */
-  pendingCount?: number;
 }
 
 export interface ContributeNavFixtures {
@@ -57,13 +44,8 @@ export interface ContributeNavFixtures {
  * run.
  */
 const requiredRowNames = [
-  "member_navigates",
-  "owner_navigates_via_village_action",
-  "owner_no_double_button_even_if_manage_renders_its_own",
-  "non_member_no_button",
   "contribute_page_member_panel",
   "contribute_page_non_member_notice",
-  "owner_reaches_the_review_page_from_the_queue",
 ] as const;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -99,18 +81,7 @@ export function loadGroupsContributeNavFixtures(): ContributeNavFixtures {
         `rows[${index}] ("${name}").role must be "owner", "member" or null, got ${JSON.stringify(rawRole)}`
       );
     }
-    const rawPending = rawRow.pendingCount;
-    if (rawPending !== undefined && (typeof rawPending !== "number" || !Number.isInteger(rawPending) || rawPending < 0)) {
-      throw new Error(
-        `rows[${index}] ("${name}").pendingCount must be a non-negative integer when present, got ${JSON.stringify(rawPending)}`,
-      );
-    }
-    return {
-      name,
-      why,
-      role: rawRole as ContributeNavRole,
-      ...(rawPending === undefined ? {} : { pendingCount: rawPending as number }),
-    };
+    return { name, why, role: rawRole as ContributeNavRole };
   });
 
   const names = rows.map((r) => r.name);
@@ -187,7 +158,7 @@ export interface GroupRouteFixture {
   contributable?: ContributableTranscript[];
 }
 
-function makeUser(username: string): User {
+export function makeUser(username: string): User {
   return {
     id: `user-${username}`,
     github_id: 1,
@@ -286,6 +257,16 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
       url,
       body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
     });
+    if (method === "DELETE" && /\/transcripts\/[^/]+\/share\/[^/]+$/.test(new URL(url).pathname)) {
+      const transcriptID = new URL(url).pathname.split("/").at(-3);
+      fixture.myShares = (fixture.myShares ?? []).filter((share) => share.id !== transcriptID);
+      return json({ status: "removed" });
+    }
+    if (method === "DELETE" && /\/groups\/[^/]+\/transcripts\/[^/]+$/.test(new URL(url).pathname)) {
+      const transcriptID = new URL(url).pathname.split("/").at(-1);
+      fixture.transcripts = (fixture.transcripts ?? []).filter((row) => row.id !== transcriptID);
+      return json({ status: "removed" });
+    }
     if (method === "PATCH" && /\/shares\/[^/]+$/.test(url)) {
       return json({ ok: true });
     }
@@ -338,6 +319,31 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
     // control adds; both answer from the same list, which is what the real
     // endpoint does.
     if (new RegExp(`/groups/${fixture.groupId}(\\?|$)`).test(url)) {
+      const params = new URL(url, "https://village.test").searchParams;
+      if (params.get("view") === "grouped") {
+        // The grouped reader validates UUIDs strictly; the fixture's short ids
+        // are not UUIDs, so this branch serves valid ones.
+        const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+        const groupTranscripts = fixture.transcripts ?? [];
+        return json({
+          group: { ...group, id: uuid(1), created_by: uuid(2) },
+          members: members.map((member, index) => ({ ...member, id: uuid(index + 3) })),
+          stats: {
+            total_transcripts: groupTranscripts.length,
+            contributor_count: new Set(groupTranscripts.map((t) => t.owner_id)).size,
+            total_turns: 0,
+            total_duration_ms: 0,
+            total_tokens: 0,
+            pull_request_count: 0,
+          },
+          models: [],
+          contributors: [],
+          can_read: fixture.role != null,
+          your_role: fixture.role ?? "",
+          transcriptList: { ...EMPTY_GROUPED_MY_SHARES, page: Number(params.get("page") ?? 1) },
+          pending_members: [],
+        });
+      }
       const groupTranscripts = fixture.transcripts ?? [];
       return json({
         group,
@@ -363,8 +369,8 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
   return requests;
 }
 
-function Providers({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
+function Providers({ children, queryClient }: { children: ReactNode; queryClient?: QueryClient }) {
+  const client = queryClient ?? new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return (
@@ -377,14 +383,16 @@ function Providers({ children }: { children: ReactNode }) {
 }
 
 /** Renders the real `/groups/{id}` route. */
-export async function renderGroupDetailRoute(id: string): Promise<void> {
+export async function renderGroupDetailRoute(id: string, existingClient?: QueryClient): Promise<QueryClient> {
+  const queryClient = existingClient ?? new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   await act(async () => {
     render(
-      <Providers>
+      <Providers queryClient={queryClient}>
         <GroupDetailPage params={Promise.resolve({ id })} />
       </Providers>,
     );
   });
+  return queryClient;
 }
 
 /** Renders the real `/groups/{id}/contribute` route. */

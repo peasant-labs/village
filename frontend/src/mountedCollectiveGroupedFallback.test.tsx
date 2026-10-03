@@ -154,6 +154,8 @@ function installREST(
         }
         return json(flat.review);
       }
+      if (path.endsWith("/repositories")) return json({ error: "not configured" }, 501);
+      if (path.endsWith("/my-shares")) return json(grouped ? { items: [], page: Number(url.searchParams.get("page") ?? 1), limit: 100, totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 } : []);
       if (path.includes("/transcript-groups/")) {
         calls.members.push(url.search);
         const scope = url.searchParams.get("scope");
@@ -231,6 +233,7 @@ for (const testCase of fixtures.fallbackCases) {
     await act(async () => {
       renderRoute(testCase.surface);
     });
+    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
 
     // One grouped page read, and the group mounts exactly once wherever the
     // surface can draw it.
@@ -332,6 +335,7 @@ for (const testCase of fixtures.continuationCases) {
     await act(async () => {
       renderRoute(testCase.surface);
     });
+    if (testCase.surface === "browse") fireEvent.click(await screen.findByTestId("collective-library-disclosure-toggle"));
 
     // Page one is read at the route's own page size, and the later group is
     // unreachable until the continuation asks for page two.

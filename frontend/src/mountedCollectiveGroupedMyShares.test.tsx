@@ -86,7 +86,7 @@ async function linkedMember(transcriptID: string): Promise<HTMLElement> {
 
 for (const testCase of fixtures.cases) {
   it(testCase.name, async () => {
-    installGroupRouteREST({
+    const requests = installGroupRouteREST({
       viewer: VIEWER,
       groupId: GROUP_ID,
       groupName: "commons",
@@ -97,14 +97,22 @@ for (const testCase of fixtures.cases) {
       helperMembers,
     });
 
-    await act(async () => {
-      await renderGroupDetailRoute(GROUP_ID);
-    });
+    const queryClient = await renderGroupDetailRoute(GROUP_ID);
 
     if (testCase.grouped === "empty") {
       // Neither read carries a contribution, so the panel must not be mounted at
       // all -- no header, no grouped exit.
-      await waitFor(() => expect(screen.queryByTestId("my-contributions-panel")).toBeNull());
+      await waitFor(() => {
+        expect(requests.some((request) => request.url.endsWith(`/groups/${GROUP_ID}/my-shares`))).toBe(true);
+        expect(requests.some((request) => request.url.includes(`/groups/${GROUP_ID}/my-shares?view=grouped`))).toBe(true);
+        const flat = queryClient.getQueryCache().findAll({ queryKey: ["group-my-shares", GROUP_ID] }).find((query) => query.queryKey[2] === "flat" && query.queryKey[3] !== "anonymous");
+        const grouped = queryClient.getQueryCache().findAll({ queryKey: ["group-my-shares", GROUP_ID] }).find((query) => query.queryKey[2] === "grouped-paged");
+        expect(flat?.state.status).toBe("success");
+        expect(flat?.state.data).toEqual([]);
+        expect(grouped?.state.status).toBe("success");
+        expect(grouped?.state.data).toMatchObject({ pages: [{ items: [] }] });
+      });
+      expect(screen.queryByTestId("my-contributions-panel")).toBeNull();
       expect(document.querySelector('[data-testid="grouped-helper-fallback"]')).toBeNull();
       return;
     }
@@ -129,7 +137,7 @@ for (const testCase of fixtures.cases) {
         return found!;
       });
       expect(
-        panel.querySelectorAll('button[title="unshare from this collective"]'),
+        panel.querySelectorAll('button[title="withdraw contribution"]'),
         "no flat contribution row is drawn",
       ).toHaveLength(0);
       const groupKey = testCase.grouped === "context" ? "context" : "owner";
@@ -198,7 +206,7 @@ for (const testCase of fixtures.cases) {
       expect(within(contribution).getByText("pending")).toBeInTheDocument();
     }
     expect(
-      within(contribution).getByTitle("unshare from this collective"),
+      within(contribution).getByTitle("withdraw contribution"),
       "the contribution still carries its unshare control",
     ).toBeInTheDocument();
 
