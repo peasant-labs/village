@@ -131,6 +131,7 @@ async function mount(element: ReactNode, withAuth = false): Promise<void> {
 
 function groupTranscript(): GroupTranscript {
   return {
+    pull_requests: { count: 0, recent: [] },
     ...makeTranscriptFixture({
       id: TRANSCRIPT_ID,
       owner_id: `user-${content.viewer}`,
