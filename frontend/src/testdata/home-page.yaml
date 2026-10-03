@@ -101,12 +101,18 @@ accountMenuCases:
     item: profile
     effect: navigate
     target: "/users/alice-dev"
+  - name: settings-opens-the-signed-in-persons-settings
+    item: settings
+    effect: navigate
+    target: "/settings"
   - name: sign-out-ends-the-session
     item: sign out
     effect: sign-out
     target: null
 
-# What the home surface renders for a given owner-scoped transcript list.
+# What the home surface renders for a given owner-scoped transcript list: the
+# table of the person's own transcripts, the totals above it, and the rail of
+# their collectives beside it.
 #
 # Three fields describe the REQUEST rather than the rows, and each is written on
 # every case, never defaulted, so a case can never be silently read as the happy
@@ -120,11 +126,48 @@ accountMenuCases:
 #   expectHomeSurface  which of the page's six answers the case must land on.
 #                      A closed set, so a case cannot invent a seventh.
 #
-# `transcripts` is deliberately NOT written in published order: the page sorts
-# most-recent-first itself rather than trusting the response order, and a
-# corpus already in order could not tell the two apart.
+# Two more are written on every case too:
+#
+#   expectRowTitles     the titles the table lists when the page first settles,
+#                       in order. The mock serves the rows in the order written
+#                       here, a page at a time, so a case whose rows are NOT
+#                       written newest first proves the page orders them itself.
+#   expectProjectLinks  for each listed title, where its project name links: the
+#                       project page under the viewer's own profile, or null for
+#                       a row that arrived with no project identity.
+#
+# The rest are OPTIONAL, and each is present only on the case about it. Absent,
+# the mock serves no totals, no collectives and nothing waiting.
+#
+#   stats / expectStats            GET /users/me/stats, and the summary line.
+#   collectives                    GET /groups (the caller's memberships).
+#   expectRailCollectives          what the rail names for each, in order.
+#   contributions / expectWaiting  GET /users/me/collectives/contributions, and
+#                                  the collectives the waiting section names.
+#   search                         a query typed into the search box, and the
+#                                  titles the table lists for it.
+#   loadMore                       the titles after pressing `show N more` once.
+#   expectPullRequestCells         the pull requests column for named rows.
+#   expectSharedWithCells          the shared with column for named rows.
 homeCases:
+  - name: canonical-provider-marks-use-received-harness-without-provider-facts
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: mark-claude, title: Claude recorded work, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T12:00:00Z", modelProvider: claude-code }
+      - { id: mark-codex, title: Codex recorded work, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T11:00:00Z", modelProvider: codex }
+      - { id: mark-unknown, title: Earlier recorded work, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T10:00:00Z", modelProvider: earlier-agent }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles: [Claude recorded work, Codex recorded work, Earlier recorded work]
+    expectProjectLinks: []
+    expectProviderMarks:
+      - { title: Claude recorded work, brand: claude, label: Claude Code }
+      - { title: Codex recorded work, brand: openai, label: Codex }
+      - { title: Earlier recorded work, brand: null, label: null }
   - name: recent-sessions-lead-and-projects-follow
+    # Newest first, whatever order the rows arrive in, and each row's project
+    # name leads to that project's page.
     viewerUsername: alice-dev
     transcripts:
       - id: t-oldest
@@ -137,84 +180,128 @@ homeCases:
         projectHash: "2222222222222222222222222222222222222222222222222222222222222222"
         projectDisplayName: peasant
         publishedAt: "2026-08-20T10:00:00.000Z"
+        sharedWith: [Acme Platform, Acme Company]
       - id: t-middle
         title: license menu
         projectHash: "1111111111111111111111111111111111111111111111111111111111111111"
         projectDisplayName: village
         publishedAt: "2026-08-10T10:00:00.000Z"
-    expectRecentTitles:
+        visibility: public
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles:
       - publish wizard rebuild
       - license menu
       - first steps
-    # Most recently worked first: peasant's newest session is later than
-    # village's, so peasant leads even though village appears first in the
-    # rows above.
-    expectProjectRows:
-      - displayName: peasant
-        sessionCount: 1
+    expectProjectLinks:
+      - title: publish wizard rebuild
         href: /users/alice-dev/projects/2222222222222222222222222222222222222222222222222222222222222222
-      - displayName: village
-        sessionCount: 2
+      - title: license menu
         href: /users/alice-dev/projects/1111111111111111111111111111111111111111111111111111111111111111
-    usernameChosen: true
-    requestFailure: never
-    expectHomeSurface: rows
+      - title: first steps
+        href: /users/alice-dev/projects/1111111111111111111111111111111111111111111111111111111111111111
+    # The collectives that approved a row are named in their own case; with none,
+    # the row's own visibility answers.
+    expectSharedWithCells:
+      - title: publish wizard rebuild
+        text: [Acme Platform, Acme Company]
+      - title: license menu
+        text: [anyone with the link]
+      - title: first steps
+        text: [not shared with collective members]
 
-  - name: more-sessions-than-the-recent-list-shows-are-capped
+  - name: public-link-access-is-named-alongside-approved-collectives
     viewerUsername: alice-dev
     transcripts:
-      - id: t-1
-        title: session one
-        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
-        projectDisplayName: schema
-        publishedAt: "2026-07-01T10:00:00.000Z"
-      - id: t-6
-        title: session six
-        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
-        projectDisplayName: schema
-        publishedAt: "2026-07-06T10:00:00.000Z"
-      - id: t-2
-        title: session two
-        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
-        projectDisplayName: schema
-        publishedAt: "2026-07-02T10:00:00.000Z"
-      - id: t-5
-        title: session five
-        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
-        projectDisplayName: schema
-        publishedAt: "2026-07-05T10:00:00.000Z"
-      - id: t-3
-        title: session three
-        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
-        projectDisplayName: schema
-        publishedAt: "2026-07-03T10:00:00.000Z"
-      - id: t-4
-        title: session four
-        projectHash: "3333333333333333333333333333333333333333333333333333333333333333"
-        projectDisplayName: schema
-        publishedAt: "2026-07-04T10:00:00.000Z"
-    expectRecentTitles:
-      - session six
-      - session five
-      - session four
-      - session three
-      - session two
-    expectProjectRows:
-      - displayName: schema
-        sessionCount: 6
-        href: /users/alice-dev/projects/3333333333333333333333333333333333333333333333333333333333333333
+      - { id: public-approved, title: Public approved session, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T10:00:00Z", visibility: public, sharedWith: [Acme Platform] }
     usernameChosen: true
     requestFailure: never
     expectHomeSurface: rows
+    expectRowTitles: [Public approved session]
+    expectProjectLinks: []
+    expectSharedWithCells:
+      - { title: Public approved session, text: [anyone with the link, Acme Platform] }
+
+  - name: pending-private-submission-does-not-claim-author-only-access
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: private-pending, title: Private pending session, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T10:00:00Z", visibility: private }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles: [Private pending session]
+    expectProjectLinks: []
+    contributions:
+      - { id: 33333333-3333-4333-8333-333333333333, name: ML Reading Group, pending: 1 }
+    expectWaiting: [ML Reading Group]
+    expectSharedWithCells:
+      - { title: Private pending session, text: [not shared with collective members] }
+
+  - name: private-visibility-does-not-claim-retained-approved-members-can-read
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: private-approved, title: Private approved session, projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", projectDisplayName: village, publishedAt: "2026-08-21T10:00:00Z", visibility: private, sharedWith: [Acme Platform] }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles: [Private approved session]
+    expectProjectLinks: []
+    expectSharedWithCells:
+      - { title: Private approved session, text: [not shared with collective members] }
+
+  - name: more-sessions-than-the-recent-list-shows-are-capped
+    # More rows than one page: the table lists the first page, says how many it
+    # holds out of the total, and `show N more` appends the rest. The rows are
+    # written newest first so the first page served is the newest one.
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: t-25, title: session 25, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-25T10:00:00.000Z" }
+      - { id: t-24, title: session 24, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-24T10:00:00.000Z" }
+      - { id: t-23, title: session 23, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-23T10:00:00.000Z" }
+      - { id: t-22, title: session 22, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-22T10:00:00.000Z" }
+      - { id: t-21, title: session 21, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-21T10:00:00.000Z" }
+      - { id: t-20, title: session 20, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-20T10:00:00.000Z" }
+      - { id: t-19, title: session 19, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-19T10:00:00.000Z" }
+      - { id: t-18, title: session 18, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-18T10:00:00.000Z" }
+      - { id: t-17, title: session 17, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-17T10:00:00.000Z" }
+      - { id: t-16, title: session 16, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-16T10:00:00.000Z" }
+      - { id: t-15, title: session 15, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-15T10:00:00.000Z" }
+      - { id: t-14, title: session 14, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-14T10:00:00.000Z" }
+      - { id: t-13, title: session 13, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-13T10:00:00.000Z" }
+      - { id: t-12, title: session 12, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-12T10:00:00.000Z" }
+      - { id: t-11, title: session 11, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-11T10:00:00.000Z" }
+      - { id: t-10, title: session 10, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-10T10:00:00.000Z" }
+      - { id: t-09, title: session 09, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-09T10:00:00.000Z" }
+      - { id: t-08, title: session 08, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-08T10:00:00.000Z" }
+      - { id: t-07, title: session 07, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-07T10:00:00.000Z" }
+      - { id: t-06, title: session 06, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-06T10:00:00.000Z" }
+      - { id: t-05, title: session 05, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-05T10:00:00.000Z" }
+      - { id: t-04, title: session 04, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-04T10:00:00.000Z" }
+      - { id: t-03, title: session 03, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-03T10:00:00.000Z" }
+      - { id: t-02, title: session 02, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-02T10:00:00.000Z" }
+      - { id: t-01, title: session 01, projectHash: "3333333333333333333333333333333333333333333333333333333333333333", projectDisplayName: schema, publishedAt: "2026-07-01T10:00:00.000Z" }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles:
+      [session 25, session 24, session 23, session 22, session 21, session 20, session 19, session 18, session 17, session 16,
+       session 15, session 14, session 13, session 12, session 11, session 10, session 09, session 08, session 07, session 06]
+    expectProjectLinks: []
+    loadMore:
+      expectRowTitles:
+        [session 25, session 24, session 23, session 22, session 21, session 20, session 19, session 18, session 17, session 16,
+         session 15, session 14, session 13, session 12, session 11, session 10, session 09, session 08, session 07, session 06,
+         session 05, session 04, session 03, session 02, session 01]
 
   - name: a-person-with-nothing-published-gets-the-teaching-empty-state
     viewerUsername: newcomer
     transcripts: []
-    expectRecentTitles: []
-    expectProjectRows: []
     usernameChosen: true
     requestFailure: never
     expectHomeSurface: empty
+    expectRowTitles: []
+    expectProjectLinks: []
 
   - name: a-username-needing-escaping-still-links-to-its-project
     viewerUsername: a b
@@ -224,15 +311,14 @@ homeCases:
         projectHash: "4444444444444444444444444444444444444444444444444444444444444444"
         projectDisplayName: Mixed Case Project
         publishedAt: "2026-08-05T10:00:00.000Z"
-    expectRecentTitles:
-      - only session
-    expectProjectRows:
-      - displayName: Mixed Case Project
-        sessionCount: 1
-        href: /users/a%20b/projects/4444444444444444444444444444444444444444444444444444444444444444
     usernameChosen: true
     requestFailure: never
     expectHomeSurface: rows
+    expectRowTitles:
+      - only session
+    expectProjectLinks:
+      - title: only session
+        href: /users/a%20b/projects/4444444444444444444444444444444444444444444444444444444444444444
 
   - name: a-row-arriving-without-a-project-identity-is-reported-not-dropped
     viewerUsername: alice-dev
@@ -247,30 +333,32 @@ homeCases:
         projectHash: ""
         projectDisplayName: village
         publishedAt: "2026-08-16T10:00:00Z"
-    # Both rows still reach the recent list: only the PROJECT grouping needs an
-    # identity, so a malformed row is never hidden from the person who owns it.
-    expectRecentTitles:
-      - a session with no project identity
-      - a groupable session
-    expectProjectRows:
-      - displayName: village
-        sessionCount: 1
-        href: /users/alice-dev/projects/5555555555555555555555555555555555555555555555555555555555555555
     usernameChosen: true
     requestFailure: never
     expectHomeSurface: rows
+    # Both rows are listed: only the project LINK needs an identity, so a
+    # malformed row is never hidden from the person who owns it, and its project
+    # is named without a link rather than linked to a made-up project.
+    expectRowTitles:
+      - a session with no project identity
+      - a groupable session
+    expectProjectLinks:
+      - title: a session with no project identity
+        href: null
+      - title: a groupable session
+        href: /users/alice-dev/projects/5555555555555555555555555555555555555555555555555555555555555555
 
   - name: a-failed-request-is-not-an-empty-library
     viewerUsername: alice-dev
     # The request never answers, so the page has no rows — but the person may
     # well own hundreds. Telling them they have published nothing, and offering
-    # them a link to publish their first, is the failure this case forbids.
+    # them a way to publish their first, is the failure this case forbids.
     transcripts: []
     usernameChosen: true
     requestFailure: always
-    expectRecentTitles: []
-    expectProjectRows: []
     expectHomeSurface: failure
+    expectRowTitles: []
+    expectProjectLinks: []
 
   - name: a-failed-refresh-keeps-the-rows-it-already-had
     viewerUsername: alice-dev
@@ -286,13 +374,12 @@ homeCases:
         publishedAt: "2026-08-19T10:00:00Z"
     usernameChosen: true
     requestFailure: after-first-answer
-    expectRecentTitles:
-      - a confirmed session
-    expectProjectRows:
-      - displayName: village
-        sessionCount: 1
-        href: /users/alice-dev/projects/6666666666666666666666666666666666666666666666666666666666666666
     expectHomeSurface: stale
+    expectRowTitles:
+      - a confirmed session
+    expectProjectLinks:
+      - title: a confirmed session
+        href: /users/alice-dev/projects/6666666666666666666666666666666666666666666666666666666666666666
 
   - name: a-handle-still-being-chosen-asks-for-nothing
     # No handle yet, and the account has not claimed one, so the handle gate is
@@ -303,9 +390,9 @@ homeCases:
     transcripts: []
     usernameChosen: false
     requestFailure: never
-    expectRecentTitles: []
-    expectProjectRows: []
     expectHomeSurface: skeleton
+    expectRowTitles: []
+    expectProjectLinks: []
 
   - name: a-chosen-handle-that-is-blank-says-so
     # The account claims a chosen handle and carries none, so nothing is coming
@@ -315,9 +402,191 @@ homeCases:
     transcripts: []
     usernameChosen: true
     requestFailure: never
-    expectRecentTitles: []
-    expectProjectRows: []
     expectHomeSurface: no-handle
+    expectRowTitles: []
+    expectProjectLinks: []
+
+  - name: the-stats-line-states-the-personal-totals
+    # One line above the table, read from GET /users/me/stats, with the number
+    # of collectives from GET /groups. Values are formatted for a glance: a
+    # compact token count and whole hours recorded.
+    viewerUsername: alice-dev
+    transcripts:
+      - id: t-stats
+        title: fix flaky ingest test
+        projectHash: "7777777777777777777777777777777777777777777777777777777777777777"
+        projectDisplayName: ingest-api
+        publishedAt: "2026-08-21T10:00:00Z"
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles:
+      - fix flaky ingest test
+    expectProjectLinks:
+      - title: fix flaky ingest test
+        href: /users/alice-dev/projects/7777777777777777777777777777777777777777777777777777777777777777
+    stats:
+      transcripts: 38
+      turns: 1200
+      durationMs: 111600000
+      tokens: 19100000
+      pullRequests: 9
+    collectives:
+      - { id: 11111111-1111-4111-8111-111111111111, name: Acme Platform, role: owner, members: 12 }
+      - { id: 22222222-2222-4222-8222-222222222222, name: Acme Company, role: member, members: 87 }
+      - { id: 33333333-3333-4333-8333-333333333333, name: ML Reading Group, role: contributor, members: 21 }
+    expectRailCollectives:
+      - { name: Acme Platform, meta: owner · 12 members }
+      - { name: Acme Company, meta: member · 87 members }
+      - { name: ML Reading Group, meta: contributor · 21 members }
+    expectStats:
+      - 38 transcripts
+      - 3 collectives
+      - 9 pull requests
+      - 19.1M tokens
+      - 31h recorded
+
+  - name: a-search-lists-only-the-matching-transcripts
+    # The query is sent to the list as `q`; the table lists what the server
+    # matched and nothing else.
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: t-login, title: Fix login flow, projectHash: "8888888888888888888888888888888888888888888888888888888888888888", projectDisplayName: web, publishedAt: "2026-08-18T10:00:00Z" }
+      - { id: t-page, title: Paginate the collectives list, projectHash: "8888888888888888888888888888888888888888888888888888888888888888", projectDisplayName: web, publishedAt: "2026-08-19T10:00:00Z" }
+      - { id: t-flaky, title: fix flaky ingest test, projectHash: "8888888888888888888888888888888888888888888888888888888888888888", projectDisplayName: web, publishedAt: "2026-08-20T10:00:00Z" }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles:
+      - fix flaky ingest test
+      - Paginate the collectives list
+      - Fix login flow
+    expectProjectLinks: []
+    search:
+      query: fix
+      expectRowTitles:
+        - fix flaky ingest test
+        - Fix login flow
+
+  - name: a-search-that-matches-nothing-says-so
+    # An answered search with no rows is not an empty library: it says nothing
+    # matched and offers to clear the search, never the first-publish teaching.
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: t-only, title: Refactoring database queries, projectHash: "9999999999999999999999999999999999999999999999999999999999999999", projectDisplayName: ingest-api, publishedAt: "2026-08-17T10:00:00Z" }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles:
+      - Refactoring database queries
+    expectProjectLinks: []
+    search:
+      query: tokenizer
+      expectRowTitles: []
+
+  - name: the-pull-request-column-with-none-one-and-several
+    # A row carries how many pull requests it is attached to and at most the
+    # three newest. Two numbers show; the rest fold behind `+N`, which reveals
+    # them in place when the row carries them all, and leads to the transcript
+    # page when it does not. N is always the true count not shown.
+    viewerUsername: alice-dev
+    transcripts:
+      - id: t-none
+        title: Migrate retry queue to worker
+        projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        projectDisplayName: worker
+        publishedAt: "2026-08-10T10:00:00Z"
+        pullRequests: { count: 0, recent: [] }
+      - id: t-one
+        title: Guard empty turns in the digest
+        projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        projectDisplayName: worker
+        publishedAt: "2026-08-11T10:00:00Z"
+        pullRequests: { count: 1, recent: [{ repo: acme/ingest-api, number: 42 }] }
+      - id: t-three
+        title: Paginate the collectives list
+        projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        projectDisplayName: worker
+        publishedAt: "2026-08-12T10:00:00Z"
+        pullRequests:
+          count: 3
+          recent: [{ repo: acme/web, number: 33 }, { repo: acme/web, number: 31 }, { repo: acme/web, number: 29 }]
+      - id: t-four
+        title: Fix flaky ingest test
+        projectHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        projectDisplayName: worker
+        publishedAt: "2026-08-13T10:00:00Z"
+        pullRequests:
+          count: 4
+          recent: [{ repo: acme/ingest-api, number: 45 }, { repo: acme/ingest-api, number: 42 }, { repo: acme/web, number: 7 }]
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles:
+      - Fix flaky ingest test
+      - Paginate the collectives list
+      - Guard empty turns in the digest
+      - Migrate retry queue to worker
+    expectProjectLinks: []
+    expectPullRequestCells:
+      - { title: Migrate retry queue to worker, shown: [], more: none }
+      - { title: Guard empty turns in the digest, shown: ["#42"], more: none }
+      - { title: Paginate the collectives list, shown: ["#33", "#31"], more: reveal }
+      - { title: Fix flaky ingest test, shown: ["#45", "#42"], more: link }
+
+  - name: transcripts-waiting-for-approval-are-listed-by-collective
+    # A curated collective holds each transcript until its owner approves it.
+    # The rail names every collective holding something of the viewer's, from
+    # the pending counts GET /users/me/collectives/contributions already serves.
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: t-bench, title: Reproduce the tokenizer benchmark, projectHash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", projectDisplayName: ml-notes, publishedAt: "2026-08-14T10:00:00Z" }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles:
+      - Reproduce the tokenizer benchmark
+    expectProjectLinks: []
+    contributions:
+      - { id: 33333333-3333-4333-8333-333333333333, name: ML Reading Group, pending: 2 }
+      - { id: 11111111-1111-4111-8111-111111111111, name: Acme Platform, pending: 0 }
+    expectWaiting:
+      - ML Reading Group
+
+  - name: nothing-waiting-draws-no-waiting-section
+    # Contributions that are all approved leave nothing to wait for, so the rail
+    # draws no waiting section at all rather than an empty one.
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: t-approved, title: Refactoring database queries, projectHash: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", projectDisplayName: ingest-api, publishedAt: "2026-08-14T10:00:00Z" }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles:
+      - Refactoring database queries
+    expectProjectLinks: []
+    contributions:
+      - { id: 11111111-1111-4111-8111-111111111111, name: Acme Platform, pending: 0 }
+    expectWaiting: []
+
+  - name: the-rail-lists-your-collectives
+    # The collectives the viewer belongs to, each with their role and its size,
+    # linking to the collective's page; `view all` leads to the full list.
+    viewerUsername: alice-dev
+    transcripts:
+      - { id: t-rail, title: Fix flaky ingest test, projectHash: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", projectDisplayName: ingest-api, publishedAt: "2026-08-14T10:00:00Z" }
+    usernameChosen: true
+    requestFailure: never
+    expectHomeSurface: rows
+    expectRowTitles:
+      - Fix flaky ingest test
+    expectProjectLinks: []
+    collectives:
+      - { id: 11111111-1111-4111-8111-111111111111, name: Acme Platform, role: owner, members: 12 }
+      - { id: 44444444-4444-4444-8444-444444444444, name: Solo Circle, role: member, members: 1 }
+    expectRailCollectives:
+      - { name: Acme Platform, meta: owner · 12 members }
+      - { name: Solo Circle, meta: member · 1 member }
 
 # Ordering cases for the exported sort itself, including timestamps that do NOT
 # parse. The mounted corpus above rejects an unparseable timestamp on purpose (a

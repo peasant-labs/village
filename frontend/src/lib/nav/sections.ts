@@ -4,7 +4,7 @@
  * The nav is `home | collectives`, lowercase, rendered through the lifted
  * GraphSectionNav primitive (@peasant-labs/fairtrade/ui) with real next/link
  * navigation instead of the demo's internal view-switcher. The account menu
- * (profile, sign out) sits beside it in the Navbar, not in this registry.
+ * (profile, settings, sign out) sits beside it in the Navbar, not in this registry.
  *
  * Both sections belong to somebody who is signed in, so a signed-out visitor is
  * offered none: their `/` is the sign-in page. `navSections()` takes the live
