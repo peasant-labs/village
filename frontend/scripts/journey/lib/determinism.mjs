@@ -1,6 +1,7 @@
 /* VENDORED from fairtrade-design-system/scripts/journey/lib/determinism.mjs.
-   Byte-faithful except this banner. Do not edit here: edit the upstream file and
-   re-vendor. scripts/journey/lib/vendor-guard.test.mjs fails when the bodies drift. */
+   Byte-faithful except this banner, which the pinned body digest does not cover.
+   Do not edit here: edit the upstream file and re-vendor, then re-pin the digest in
+   scripts/journey/lib/vendor-digests.testdata.yaml. */
 /* Deterministic page state for the journey harness.
  *
  * Freezes the wall clock and replaces Math.random and crypto randomness with a

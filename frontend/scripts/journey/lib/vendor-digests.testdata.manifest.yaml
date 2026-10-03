@@ -1,0 +1,113 @@
+# Required-name inventory and executable mutations for vendor-digests.testdata.yaml.
+#
+# The names below are the contract. A manifest that quietly drops a mutation stops
+# proving the thing that mutation existed to prove, and a bare count would not notice
+# a swap of one name for another, so every set here is asserted by MEMBERSHIP.
+#
+# Each mutation is applied for real, to a copy of the vendored directory, and then the
+# guard is run over it. `expectedDiagnostic: null` means the mutation must NOT be
+# caught: that is how the "edit the banner only" case pins the digest to the canonical
+# body rather than to the whole file, which is the difference between a re-wording and
+# a re-vendor.
+#
+# `subject` is the discriminator: `vendored-file` mutations edit bytes in the copied
+# directory, `digest-corpus` mutations edit the corpus rows the guard reads.
+# `from`/`to` are an exact anchor in the file, which must occur exactly once; the test
+# refuses an anchor that is ambiguous rather than mutating the wrong occurrence.
+requiredFileNames:
+  - assertions.mjs
+  - determinism-constants.mjs
+  - determinism.mjs
+  - fixtures.mjs
+  - project-fixtures.mjs
+  - scenario.mjs
+  - vendor-digests.testdata.manifest.yaml
+  - vendor-digests.testdata.yaml
+  - vendor-guard.mjs
+  - vendor-guard.test.mjs
+requiredVendoredNames:
+  - assertions.mjs
+  - determinism-constants.mjs
+  - determinism.mjs
+requiredDriftCaseNames:
+  - a copy whose body moved off its pin is a vendored-copy drift
+  - a checkout that moved past the pin is an upstream-canonical drift
+  - a checkout without the upstream file is an upstream-missing drift
+  - a checkout that is a consumer tree is an upstream-not-canonical drift
+requiredMutationNames:
+  - one changed byte in the vendored axe helper body is caught by the pin
+  - one changed byte in the vendored determinism body is caught by the pin
+  - one changed byte in the vendored constants body is caught by the pin
+  - a reworded banner is not a re-vendor and keeps the pin valid
+  - a stripped banner is not a re-vendor and keeps the pin valid
+  - a pin that does not match its own copy is refused
+  - a pin written as anything but a sha256 is refused
+  - dropping a corpus row leaves the file unclassified and unchecked
+  - dropping the pin from a vendored row is refused
+  - relabelling a vendored copy as app-local is refused
+  - a file dropped into the directory without a row is refused
+mutations:
+  - name: one changed byte in the vendored axe helper body is caught by the pin
+    subject: vendored-file
+    target: assertions.mjs
+    from: "export const DEFAULT_AXE_TAGS = ['wcag2a', 'wcag2aa']"
+    to: "export const DEFAULT_AXE_TAGS = ['wcag2a', 'wcag2a']"
+    expectedDiagnostic: "drift: vendored-copy"
+  - name: one changed byte in the vendored determinism body is caught by the pin
+    subject: vendored-file
+    target: determinism.mjs
+    from: "s = (s + 0x6d2b79f5) | 0"
+    to: "s = (s + 0x6d2b79f4) | 0"
+    expectedDiagnostic: "drift: vendored-copy"
+  - name: one changed byte in the vendored constants body is caught by the pin
+    subject: vendored-file
+    target: determinism-constants.mjs
+    from: "export const PRNG_SEED = 0x9e3779b9"
+    to: "export const PRNG_SEED = 0x9e3779b8"
+    expectedDiagnostic: "drift: vendored-copy"
+  - name: a reworded banner is not a re-vendor and keeps the pin valid
+    subject: vendored-file
+    target: assertions.mjs
+    from: "   Do not edit here: edit the upstream file and re-vendor, then re-pin the digest in"
+    to: "   Village's banner, freely rewordable: the pinned digest does not cover it.\n   Do not edit here: edit the upstream file and re-vendor, then re-pin the digest in"
+    expectedDiagnostic: null
+  - name: a stripped banner is not a re-vendor and keeps the pin valid
+    subject: vendored-file
+    target: determinism-constants.mjs
+    from: "/* VENDORED from fairtrade-design-system/scripts/journey/lib/determinism-constants.mjs.\n   Byte-faithful except this banner, which the pinned body digest does not cover.\n   Do not edit here: edit the upstream file and re-vendor, then re-pin the digest in\n   scripts/journey/lib/vendor-digests.testdata.yaml. */\n"
+    to: ""
+    expectedDiagnostic: null
+  - name: a pin that does not match its own copy is refused
+    subject: digest-corpus
+    target: determinism.mjs
+    field: sha256
+    value: 1c54b886574975e83aa56197d809d0ed3d5f53254b385f9c82e69b9e8d5104da
+    expectedDiagnostic: "drift: vendored-copy"
+  - name: a pin written as anything but a sha256 is refused
+    subject: digest-corpus
+    target: determinism-constants.mjs
+    field: sha256
+    value: "not-a-sha256"
+    expectedDiagnostic: "carries no usable pin (sha256 is \"not-a-sha256\")"
+  - name: dropping a corpus row leaves the file unclassified and unchecked
+    subject: digest-corpus
+    target: assertions.mjs
+    dropRow: true
+    expectedDiagnostic: "but not classified by vendor-digests.testdata.yaml"
+  - name: dropping the pin from a vendored row is refused
+    subject: digest-corpus
+    target: determinism-constants.mjs
+    field: sha256
+    delete: true
+    expectedDiagnostic: "the vendored row \"determinism-constants.mjs\" carries no usable pin (sha256 is nothing)"
+  - name: relabelling a vendored copy as app-local is refused
+    subject: digest-corpus
+    target: assertions.mjs
+    field: kind
+    value: app-local
+    expectedDiagnostic: "the app-local row \"assertions.mjs\" carries a sha256, so a non-vendored file looks pinned"
+  - name: a file dropped into the directory without a row is refused
+    subject: vendored-file
+    target: helper-that-arrived-unannounced.mjs
+    create: "export const helperThatArrivedUnannounced = () => 'unchecked'\n"
+    expectedDiagnostic: "but not classified by vendor-digests.testdata.yaml"
