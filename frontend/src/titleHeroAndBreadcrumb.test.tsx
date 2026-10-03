@@ -122,22 +122,18 @@ describe("mounted production transcript route: routable breadcrumb", () => {
         expect(href?.startsWith("/projects")).toBe(false);
       }
 
-      // Two links now: the explore crumb, and the project crumb, which the app
-      // requires to navigate to /users/{username}/projects/{projectHash}.
+      // These fixtures are signed out: their home crumb is a label because
+      // the root becomes the sign-in page. The project remains a real exit.
       const crumbAnchors = [...nav!.querySelectorAll("a")];
-      expect(crumbAnchors).toHaveLength(2);
-      // Discovery has its own address. `/` is the signed-in person's home, so
-      // the crumb that says "explore" must lead to the explore route itself.
-      expect(crumbAnchors[0]?.getAttribute("href")).toBe("/explore");
-      expect(crumbAnchors[0]?.textContent).toBe("explore");
+      expect(crumbAnchors).toHaveLength(1);
+      expect(crumbAnchors[0]?.getAttribute("href")).toBe(expectedProjectHref);
+      expect(crumbAnchors[0]?.textContent).toBe(c.expectedProjectCrumbLabel);
+      expect(nav!.textContent).toContain("home");
+      expect(nav!.querySelector('a[href="/"]')).toBeNull();
 
-      expect(crumbAnchors[1]?.getAttribute("href")).toBe(expectedProjectHref);
-      expect(crumbAnchors[1]?.textContent).toBe(c.expectedProjectCrumbLabel);
-
-      // No crumb renders as a dead, unlinked label any more: the middle
-      // crumb is now always an anchor (asserted above), never a `span.link`.
-      const deadProjectCrumbs = [...nav!.querySelectorAll("span.link")];
-      expect(deadProjectCrumbs).toHaveLength(0);
+      // The sole label-only navigation crumb is the signed-out home label.
+      const labelCrumbs = [...nav!.querySelectorAll("span.link")];
+      expect(labelCrumbs.map((crumb) => crumb.textContent)).toEqual(["home"]);
 
       // Last crumb reads the RAW stored title (trimmed, truncated) — not
       // the hero's overlaid "Untitled transcript" placeholder — falling

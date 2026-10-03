@@ -1,0 +1,7 @@
+cases:
+  - name: another-account-cannot-read-cached-private-collective-suggestions
+    why: A new owner's actual access dialog must not reveal the previous account's memberships while current account reads are held.
+    change: actor
+  - name: replacement-credentials-cannot-read-cached-private-collective-suggestions
+    why: The same account with replacement credentials gets fresh owner-only reads instead of borrowing the earlier credential's cached private collectives.
+    change: credential
