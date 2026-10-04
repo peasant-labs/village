@@ -57,7 +57,7 @@ var _ provenancePreservationEvaluator = productionProvenancePreservationEvaluato
 type productionProvenancePreservationEvaluator struct{}
 
 func (productionProvenancePreservationEvaluator) Evaluate() error {
-	_, provenanceErr := EvaluatePreservationProofs()
+	_, provenanceErr, _ := EvaluatePreservationProofs()
 	return provenanceErr
 }
 

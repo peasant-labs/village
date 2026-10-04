@@ -113,6 +113,14 @@ func validateContentBoundary(raw []byte, knownHarness string, mode contentBounda
 		if err := validateObservedModelEvidence(&payload); err != nil {
 			return result, err
 		}
+		// Stored thinking-level values must still be canonical and bounded
+		// before migrate-on-read serves or rewrites them; publication validates
+		// the full producer rule in requireSupportedContentForHarness.
+		if mode == contentStoredRead {
+			if err := validateThinkingLevelValues(&payload); err != nil {
+				return result, err
+			}
+		}
 		result.canonical = &payload
 		return result, nil
 	}
@@ -184,13 +192,18 @@ func publicCanonicalHarness(detail map[string]json.RawMessage) bool {
 func publicEvidencePresence(detail map[string]json.RawMessage) (strict bool) {
 	_, strict = detail["nativeMetadata"]
 	for key := range detail {
-		if strings.EqualFold(key, "retainedUnknown") || strings.EqualFold(key, "diagnostics") || strings.EqualFold(key, "nativeMetadata") {
+		if strings.EqualFold(key, "retainedUnknown") || strings.EqualFold(key, "diagnostics") || strings.EqualFold(key, "nativeMetadata") || thinkingLevelMember(key) {
 			strict = true
 		}
 	}
 	var turns []map[string]json.RawMessage
 	_ = json.Unmarshal(detail["turns"], &turns)
 	for _, turn := range turns {
+		for key := range turn {
+			if thinkingLevelMember(key) {
+				strict = true
+			}
+		}
 		if _, ok := turn["usage"]; ok {
 			strict = true
 		}
@@ -211,6 +224,13 @@ func publicEvidencePresence(detail map[string]json.RawMessage) (strict bool) {
 		}
 	}
 	return strict
+}
+
+// thinkingLevelMember reports a session or turn thinking-level member under any
+// casing, so level-bearing content always takes the strict public decode and
+// cannot be projected through a legacy path that would drop it.
+func thinkingLevelMember(key string) bool {
+	return strings.EqualFold(key, "thinkingLevel") || strings.EqualFold(key, "thinkingLevelRaw")
 }
 
 func embeddedPublicRoot(value any, allowRoot bool) bool {

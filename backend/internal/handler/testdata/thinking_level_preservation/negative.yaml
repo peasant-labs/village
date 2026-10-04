@@ -1,0 +1,29 @@
+# Executed negatives for the thinking-level preservation proof. Each operation
+# is dispatched to a real rewrite encoder at the production rewrite boundary;
+# the field-drop encoder strips thinkingLevel/thinkingLevelRaw from the session
+# and every turn after the canonical encoder runs.
+cases:
+  - name: production_rewrite_preserves_level_evidence
+    operation: canonical_production_encoder
+    wantProofFailure: false
+    wantCapability: true
+    wantPublishRefusal: false
+    wantErrorContains: []
+  - name: field_drop_withholds_capability_and_refuses_level_publish
+    operation: drop_thinking_level_at_production_rewrite
+    wantProofFailure: true
+    wantCapability: false
+    wantPublishRefusal: true
+    wantErrorContains:
+      - {name: evidence_field, value: re-emitted thinkingLevel}
+      - {name: uploaded_evidence, value: uploaded transcript_file carries thinkingLevel or thinkingLevelRaw evidence}
+      - {name: no_writes, value: no transcript bytes or metadata were written}
+      - {name: no_silent_strip, value: silently stripping}
+      - {name: negotiation_endpoint, value: GET /api/v1/schema/version}
+      - {name: capability_name, value: thinking_level_v1}
+  - name: field_drop_keeps_legacy_publish_compatible
+    operation: legacy_payload_under_field_drop
+    wantProofFailure: true
+    wantCapability: false
+    wantPublishRefusal: false
+    wantErrorContains: []

@@ -1,0 +1,28 @@
+# Stored-read thinking-level validation. Previously stored invalid values are
+# refused after migrate-on-read with no rewrite; the corrected blob reads back
+# with the exact value. rewriteFailures pins that a level-bearing rewrite that
+# cannot be installed is denied rather than served without its evidence.
+reads:
+  - name: stored_user_turn_level_refused
+    content: '{"id":"stored-user","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"user","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi","thinkingLevel":"high"}]}'
+    wantError: is not assistant
+    corrected: '{"id":"stored-user","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi","thinkingLevel":"high"}]}'
+  - name: stored_non_canonical_level_refused
+    content: '{"id":"stored-noncanonical","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi","thinkingLevel":"turbo"}]}'
+    wantError: thinkingLevel
+    corrected: '{"id":"stored-noncanonical","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi","thinkingLevel":"xhigh"}]}'
+  - name: stored_edge_whitespace_raw_refused
+    content: '{"id":"stored-edge","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"thinkingLevelRaw":"max ","turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi"}]}'
+    wantError: thinkingLevelRaw
+    corrected: '{"id":"stored-edge","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"thinkingLevelRaw":"max","turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi"}]}'
+rewriteFailures:
+  - name: level_bearing_blob_write_failure_denies
+    contentCase: enriched_session_seed_and_per_turn_canonical_and_raw
+    failure: blob_write
+    wantStatus: 500
+    wantLevels: false
+  - name: legacy_blob_write_failure_serves
+    contentCase: legacy_without_levels_stays_absent
+    failure: blob_write
+    wantStatus: 200
+    wantLevels: false

@@ -73,13 +73,14 @@ func TestProductionProvenancePreservationProofPasses(t *testing.T) {
 }
 
 func TestAdvertisedContentCapabilitiesIncludeProvenanceWhenProofsPass(t *testing.T) {
-	capabilities := advertisedContentCapabilitiesWithEvaluators(fixedPreservationEvaluator{}, fixedProvenancePreservationEvaluator{})
+	capabilities := advertisedContentCapabilitiesWithEvaluators(fixedPreservationEvaluator{}, fixedProvenancePreservationEvaluator{}, fixedThinkingLevelPreservationEvaluator{})
 	want := []schema.ContentCapability{
 		schema.ContentCapabilityDetailedUsageV1,
 		schema.ContentCapabilityNativeMetadataV1,
 		schema.ContentCapabilityObservedModelV1,
 		schema.ContentCapabilityRetainedUnknownV1,
 		schema.ContentCapabilitySessionGraphProvenanceV1,
+		schema.ContentCapabilityThinkingLevelV1,
 		schema.ContentCapabilityToolNamespaceV1,
 	}
 	if !slicesEqualCapabilities(capabilities, want) {
@@ -91,7 +92,7 @@ func TestAdvertisedContentCapabilitiesIncludeProvenanceWhenProofsPass(t *testing
 }
 
 func TestAdvertisedContentCapabilitiesWithholdOnlyProvenanceWhenItsProofFails(t *testing.T) {
-	capabilities := advertisedContentCapabilitiesWithEvaluators(fixedPreservationEvaluator{}, fixedProvenancePreservationEvaluator{err: errors.New("provenance preservation unavailable")})
+	capabilities := advertisedContentCapabilitiesWithEvaluators(fixedPreservationEvaluator{}, fixedProvenancePreservationEvaluator{err: errors.New("provenance preservation unavailable")}, fixedThinkingLevelPreservationEvaluator{})
 	if hasProvenanceCapability(capabilities) {
 		t.Fatalf("failing provenance proof still advertised the provenance token: %v", capabilities)
 	}
@@ -100,6 +101,7 @@ func TestAdvertisedContentCapabilitiesWithholdOnlyProvenanceWhenItsProofFails(t 
 		schema.ContentCapabilityNativeMetadataV1,
 		schema.ContentCapabilityObservedModelV1,
 		schema.ContentCapabilityRetainedUnknownV1,
+		schema.ContentCapabilityThinkingLevelV1,
 		schema.ContentCapabilityToolNamespaceV1,
 	}
 	if !slicesEqualCapabilities(capabilities, want) {
@@ -111,7 +113,7 @@ func TestAdvertisedContentCapabilitiesWithholdOnlyProvenanceWhenItsProofFails(t 
 }
 
 func TestAdvertisedContentCapabilitiesWithholdAllWhenBaseProofFails(t *testing.T) {
-	capabilities := advertisedContentCapabilitiesWithEvaluators(fixedPreservationEvaluator{err: errors.New("base preservation unavailable")}, fixedProvenancePreservationEvaluator{})
+	capabilities := advertisedContentCapabilitiesWithEvaluators(fixedPreservationEvaluator{err: errors.New("base preservation unavailable")}, fixedProvenancePreservationEvaluator{}, fixedThinkingLevelPreservationEvaluator{})
 	if len(capabilities) != 0 {
 		t.Fatalf("failing base proof advertised %v, want the exact empty inventory", capabilities)
 	}
@@ -128,7 +130,7 @@ func TestAdvertisedContentCapabilitiesWithholdOnlyProvenanceWhenEvidenceDropped(
 	if !strings.Contains(proofErr.Error(), "provenance preservation proof failed") {
 		t.Fatalf("proof error is not actionable: %v", proofErr)
 	}
-	capabilities := advertisedContentCapabilitiesWithEvaluators(fixedPreservationEvaluator{}, fixedProvenancePreservationEvaluator{err: proofErr})
+	capabilities := advertisedContentCapabilitiesWithEvaluators(fixedPreservationEvaluator{}, fixedProvenancePreservationEvaluator{err: proofErr}, fixedThinkingLevelPreservationEvaluator{})
 	if hasProvenanceCapability(capabilities) {
 		t.Fatalf("lossy provenance rewrite still advertised the provenance token: %v", capabilities)
 	}
@@ -203,7 +205,7 @@ func TestSchemaEndpointWithholdsOnlyProvenanceWhenItsProofFails(t *testing.T) {
 
 func TestProvenancePublishGateRefusesWhenItsProofFails(t *testing.T) {
 	content := firstProvenanceFixtureContent(t)
-	refusal := requireSupportedContentForHarness([]byte(content), "codex", fixedPreservationEvaluator{}, fixedProvenancePreservationEvaluator{err: errors.New("provenance preservation unavailable")})
+	refusal := requireSupportedContentForHarness([]byte(content), "codex", fixedPreservationEvaluator{}, fixedProvenancePreservationEvaluator{err: errors.New("provenance preservation unavailable")}, fixedThinkingLevelPreservationEvaluator{})
 	if refusal == nil {
 		t.Fatal("provenance-bearing content was accepted while its proof failed")
 	}
@@ -216,7 +218,7 @@ func TestProvenancePublishGateRefusesWhenItsProofFails(t *testing.T) {
 
 func TestProvenancePublishGateIsIndependentOfSharedProofForProvenanceOnlyEvidence(t *testing.T) {
 	content := firstProvenanceFixtureContent(t)
-	if err := requireSupportedContentForHarness([]byte(content), "codex", fixedPreservationEvaluator{err: errors.New("shared preservation unavailable")}, fixedProvenancePreservationEvaluator{}); err != nil {
+	if err := requireSupportedContentForHarness([]byte(content), "codex", fixedPreservationEvaluator{err: errors.New("shared preservation unavailable")}, fixedProvenancePreservationEvaluator{}, fixedThinkingLevelPreservationEvaluator{}); err != nil {
 		t.Fatalf("provenance-only content was refused by the shared gate: %v", err)
 	}
 }

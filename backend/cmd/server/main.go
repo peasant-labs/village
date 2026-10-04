@@ -160,24 +160,26 @@ func logTranscriptEncryptionAuthorityReady(keyring *config.TranscriptKeyring) {
 }
 
 // evaluateAndLogPreservationProofs evaluates the preservation proofs once at
-// boot and caches both verdicts for the process lifetime, then logs the
+// boot and caches all three verdicts for the process lifetime, then logs the
 // outcomes. A failing proof never aborts boot; it only withholds its
 // advertisement and refuses matching publishes, so the listener still starts.
 func evaluateAndLogPreservationProofs() {
-	baseErr, provenanceErr := evaluatePreservationProofs()
-	baseOutcome, provenanceOutcome := "pass", "pass"
-	if baseErr != nil {
-		baseOutcome = "fail"
-	}
-	if provenanceErr != nil {
-		provenanceOutcome = "fail"
-	}
+	baseErr, provenanceErr, thinkingLevelErr := evaluatePreservationProofs()
 	slog.Info("preservation_proofs_evaluated",
-		"base_preservation", baseOutcome,
-		"provenance_preservation", provenanceOutcome,
+		"base_preservation", preservationProofOutcome(baseErr),
+		"provenance_preservation", preservationProofOutcome(provenanceErr),
+		"thinking_level_preservation", preservationProofOutcome(thinkingLevelErr),
 		"base_error", preservationProofErrorString(baseErr),
 		"provenance_error", preservationProofErrorString(provenanceErr),
+		"thinking_level_error", preservationProofErrorString(thinkingLevelErr),
 		"meaning", "cached preservation verdicts gate capability advertisement and publish refusal without aborting boot")
+}
+
+func preservationProofOutcome(err error) string {
+	if err != nil {
+		return "fail"
+	}
+	return "pass"
 }
 
 func preservationProofErrorString(err error) string {
