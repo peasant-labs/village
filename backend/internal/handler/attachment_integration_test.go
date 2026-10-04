@@ -64,12 +64,14 @@ type attachmentGitHubFake struct {
 	deleteNotFound      bool
 	checkCreates        int
 	checkCreateSHAs     []string
+	checkHeads          map[int64]string
 	checkUpdates        int
 	commentCreates      int
 	commentEdits        int
 	commentDeletes      int
 	lastCheckText       string
 	lastCheckConclusion string
+	lastCheckDetailsURL string
 	lastCommentBody     string
 	// beforeCommentWrite, when set, runs once as the next comment create or edit
 	// arrives, before the fake answers it, so a test can act in the middle of a
@@ -125,6 +127,17 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			}
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "[%s]", strings.Join(parts, ","))
+		case strings.Contains(r.URL.Path, "/check-runs/") && r.Method == http.MethodGet:
+			var id int64
+			fmt.Sscan(lastPathSegment(r.URL.Path), &id)
+			fake.mu.Lock()
+			head, exists := fake.checkHeads[id]
+			fake.mu.Unlock()
+			if !exists {
+				http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
+				return
+			}
+			fmt.Fprintf(w, `{"id":%d,"head_sha":%q,"status":"completed","conclusion":"success"}`, id, head)
 		case strings.Contains(r.URL.Path, "/check-runs"):
 			raw, _ := io.ReadAll(r.Body)
 			if writeFailure() {
@@ -135,23 +148,32 @@ func newAttachmentGitHubFake(t *testing.T) *attachmentGitHubFake {
 			var payload struct {
 				HeadSHA    string `json:"head_sha"`
 				Conclusion string `json:"conclusion"`
+				DetailsURL string `json:"details_url"`
 				Output     struct {
 					Summary string `json:"summary"`
 				} `json:"output"`
 			}
 			_ = json.Unmarshal(raw, &payload)
 			if r.Method == http.MethodPatch {
+				fmt.Sscan(lastPathSegment(r.URL.Path), &id)
 				fake.checkUpdates++
 			} else {
 				fake.checkCreates++
 				id = int64(10 + fake.checkCreates)
 				fake.checkCreateSHAs = append(fake.checkCreateSHAs, payload.HeadSHA)
+				if fake.checkHeads == nil {
+					fake.checkHeads = make(map[int64]string)
+				}
+				fake.checkHeads[id] = payload.HeadSHA
 			}
 			if payload.Output.Summary != "" {
 				fake.lastCheckText = payload.Output.Summary
 			}
 			if payload.Conclusion != "" {
 				fake.lastCheckConclusion = payload.Conclusion
+			}
+			if payload.DetailsURL != "" {
+				fake.lastCheckDetailsURL = payload.DetailsURL
 			}
 			fake.mu.Unlock()
 			w.WriteHeader(http.StatusOK)
@@ -570,8 +592,8 @@ func TestConfirmBindsWithoutChangingTheAudience_RealPostgres(t *testing.T) {
 	if strings.Contains(body, "please attach my prompts") {
 		t.Errorf("the comment carries a private transcript's prompt: %s", body)
 	}
-	if !strings.Contains(body, "1 attached transcript is not listed here.") {
-		t.Errorf("the comment must say an attached transcript is not listed: %s", body)
+	if !strings.Contains(body, unlistedRow) {
+		t.Errorf("the comment must send readers to village for a transcript it does not list: %s", body)
 	}
 	if conclusion != "neutral" {
 		t.Errorf("conclusion = %q, want neutral: nobody besides its author can read what is attached", conclusion)

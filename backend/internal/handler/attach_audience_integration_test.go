@@ -142,6 +142,8 @@ type attachAudienceWorld struct {
 	groupID      pgtype.UUID
 	transcriptID pgtype.UUID
 	title        string
+	author       string
+	sha          string
 	owner        *AuthUser
 	member       *AuthUser
 	reader       *AuthUser
@@ -173,6 +175,10 @@ func newAttachAudienceWorld(t *testing.T, c attachAudienceCase, githubBase int64
 	fake.setRepoReader(fmt.Sprintf("%d", githubBase+2), "audience-reader", "read")
 
 	sha := fmt.Sprintf("a%039d", githubBase)
+	w.sha = sha
+	if err := pool.QueryRow(ctx, `SELECT github_username FROM users WHERE id = $1`, owner).Scan(&w.author); err != nil {
+		t.Fatalf("read the stored author's handle: %v", err)
+	}
 	w.transcriptID = attachmentSeedTranscript(t, ctx, pool, blobs, owner,
 		"git@github.com:acme/"+w.repoName+".git", sha, c.Transcript, "", time.Now().Add(-time.Hour))
 	if _, err := pool.Exec(ctx, `UPDATE transcripts SET title = $2 WHERE id = $1`, w.transcriptID, w.title); err != nil {
@@ -312,14 +318,23 @@ func TestAttachingNeverChangesWhoCanRead_RealPostgres(t *testing.T) {
 			comment, summary, conclusion := w.fake.lastCommentBody, w.fake.lastCheckText, w.fake.lastCheckConclusion
 			w.fake.mu.Unlock()
 			for surface, text := range map[string]string{"comment": comment, "check": summary} {
+				if !strings.Contains(text, "| @<!-- -->"+w.author+" | "+w.sha[:7]+" |") {
+					t.Errorf("the posted %s does not carry the stored owner's handle and traced commit: %s", surface, text)
+				}
+				if !c.Expect.ListedOnPullRequest && strings.Contains(text, uuid.UUID(w.transcriptID.Bytes).String()) {
+					t.Errorf("the unlisted transcript's id reached the posted %s: %s", surface, text)
+				}
 				if listed := strings.Contains(text, "please attach my prompts"); listed != c.Expect.ListedOnPullRequest {
 					t.Errorf("the pull request's %s carries the prompt = %t, want %t: %s", surface, listed, c.Expect.ListedOnPullRequest, text)
 				}
-				if strings.Contains(text, w.title) {
-					t.Errorf("the pull request's %s carries the transcript's title: %s", surface, text)
+				// The title goes with the prompts: shown only for a transcript anyone
+				// can read. Any other transcript is a row that sends its readers to
+				// village.
+				if titled := strings.Contains(text, w.title); titled != c.Expect.ListedOnPullRequest {
+					t.Errorf("the pull request's %s carries the transcript's title = %t, want %t: %s", surface, titled, c.Expect.ListedOnPullRequest, text)
 				}
-				if unlisted := strings.Contains(text, "1 attached transcript is not listed here."); unlisted == c.Expect.ListedOnPullRequest {
-					t.Errorf("the pull request's %s says a transcript is not listed = %t, want %t: %s", surface, unlisted, !c.Expect.ListedOnPullRequest, text)
+				if unlisted := strings.Contains(text, unlistedRow); unlisted == c.Expect.ListedOnPullRequest {
+					t.Errorf("the pull request's %s sends readers to village for the transcript = %t, want %t: %s", surface, unlisted, !c.Expect.ListedOnPullRequest, text)
 				}
 			}
 			if conclusion != c.Expect.Check {

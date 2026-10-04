@@ -1456,10 +1456,6 @@ func (m *mockQuerier) DeletePullRequestAttachmentTranscripts(ctx context.Context
 	return nil
 }
 
-func (m *mockQuerier) SetPullRequestAttachmentDigest(ctx context.Context, arg sqlc.SetPullRequestAttachmentDigestParams) error {
-	return nil
-}
-
 func (m *mockQuerier) SetPullRequestAttachmentArtifacts(ctx context.Context, arg sqlc.SetPullRequestAttachmentArtifactsParams) error {
 	return nil
 }

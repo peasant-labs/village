@@ -10,12 +10,14 @@
  *
  * Scenario control: POST /__mock/scenario {"name":"..."} lets a journey declare
  * the world it needs without an env var or a restart. Today:
- *   default     - the composed fixtures as-is, signed in as alice-dev
- *   empty       - the browse list and the home list answer with no rows
- *                 (empty-state journeys)
- *   signed-out  - `/auth/me` refuses, so the app treats the visitor as signed
- *                 out (the sign-in journey) whatever cookie the browser holds
- *   no-keys     - peasant is signed in on no computer (the settings page)
+ *   default              - the composed fixtures as-is, signed in as alice-dev
+ *   empty                - the browse list and the home list answer with no rows
+ *                          (empty-state journeys)
+ *   signed-out           - `/auth/me` refuses, so the app treats the visitor as signed
+ *                          out (the sign-in journey) whatever cookie the browser holds
+ *   no-keys              - peasant is signed in on no computer (the settings page)
+ *   pull-request-reader  - the pull request page is served to a reviewer once
+ *                          attached, rather than to its author as a preview
  *
  * Setting any scenario also puts the collectives world back as it started.
  *   default           - the composed fixtures as-is
@@ -42,6 +44,7 @@ import {
   handleOwnedTranscriptRequest,
   resetOwnedTranscript,
 } from './lib/transcript-fixtures.mjs'
+import { handlePullRequestRequest } from './lib/pull-request-fixtures.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)
@@ -160,6 +163,10 @@ const server = createServer(async (req, res) => {
   // Retained contribution withdrawals belong to the collective fixture,
   // before the generic transcript proxy claims that route.
   if (handleCollectiveRequest(req, res)) return
+
+  // The pull request fixture owns its pull request and the reads of its own
+  // transcripts, which are not `ct-*` ids, so it answers before the proxy.
+  if (handlePullRequestRequest(req, res, scenario)) return
 
   // Transcript detail and its subroutes go to the transcript mock; the list
   // (`/transcripts`, exact) stays with the explore half.

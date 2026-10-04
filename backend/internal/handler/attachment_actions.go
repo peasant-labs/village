@@ -222,14 +222,18 @@ func (h *Handler) authorAttachOrPreview(ctx context.Context, attachment sqlc.Pul
 		}
 		return nil
 	}
-	return h.previewWithMatch(ctx, attachment, match, commitSet)
+	return h.previewWithMatch(ctx, attachment, repo, match, commitSet)
 }
 
-// previewWithMatch computes and stores the digest without binding or posting
-// anything, and moves the attachment to preview.
-func (h *Handler) previewWithMatch(ctx context.Context, attachment sqlc.PullRequestAttachment, match matcher.Result, commitSet []string) error {
+// previewWithMatch computes and stores the digest without binding anything, and
+// moves the attachment to preview. The pull request is told only that the
+// author has matching transcripts to review on village: the preview comment
+// names no transcript and no prompt, and a later attach edits that same comment
+// in place (a detach deletes it). GitHub is called before anything is stored, so
+// a failure leaves the attachment as it was for a retry.
+func (h *Handler) previewWithMatch(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, match matcher.Result, commitSet []string) error {
 	acceptedIDs := acceptedTranscriptIDs(match)
-	digests, err := h.buildAttachmentDigests(ctx, acceptedIDs, commitSet, match)
+	digests, err := h.buildAttachmentDigests(ctx, attachment, acceptedIDs, commitSet, match)
 	if err != nil {
 		return err
 	}
@@ -237,7 +241,17 @@ func (h *Handler) previewWithMatch(ctx context.Context, attachment sqlc.PullRequ
 	if err != nil {
 		return err
 	}
-	if err := h.queries.SetPullRequestAttachmentDigest(ctx, sqlc.SetPullRequestAttachmentDigestParams{ID: attachment.ID, Digest: encoded}); err != nil {
+	commentID, err := h.postPreviewComment(ctx, attachment, repo, len(acceptedIDs))
+	if err != nil {
+		return err
+	}
+	if err := h.storeAttachmentArtifacts(ctx, sqlc.SetPullRequestAttachmentArtifactsParams{
+		ID:         attachment.ID,
+		HeadSha:    attachment.HeadSha,
+		CommentID:  optionalInt8(commentID),
+		CheckRunID: attachment.CheckRunID,
+		Digest:     encoded,
+	}); err != nil {
 		return fmt.Errorf("could not store the preview digest: %w", err)
 	}
 	if promptattach.State(attachment.State) != promptattach.Preview {
@@ -305,7 +319,7 @@ func (h *Handler) refreshAttachedAttachment(ctx context.Context, attachment sqlc
 		return nil
 	}
 
-	digests, err := h.buildAttachmentDigests(ctx, ordered, commitSet, match)
+	digests, err := h.buildAttachmentDigests(ctx, attachment, ordered, commitSet, match)
 	if err != nil {
 		return err
 	}
@@ -592,7 +606,7 @@ func (h *Handler) refreshAttachmentForCommand(ctx context.Context, owner, name s
 		if promptattach.State(fresh.State) != promptattach.Attached {
 			return nil
 		}
-		return h.refreshAttachedAttachment(ctx, fresh, repo, pull.headSHA, false)
+		return h.refreshAttachedAttachment(ctx, fresh, repo, pull.headSHA, true)
 	})
 }
 

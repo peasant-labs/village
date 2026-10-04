@@ -1,7 +1,20 @@
-**peasant / prompts** - claude-code - 2 sessions - 2 prompts - 1/1 commits - https://village.example/transcripts
+**peasant / prompts · 2 transcripts trace 1 of 1 commits**
 
-- session: 1 prompt, 1 commit
-- 1. base repo ask
-- commit a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
-- session: 1 prompt, 0 commits
-- 2. fork ask
+| transcript | author | commits |
+| --- | --- | --- |
+| [Base repository work][1] | @<!-- -->alice-dev | a1b2c3d |
+| [Fork work][2] | @<!-- -->alice-dev | none |
+
+<details>
+<summary>2 prompts</summary>
+
+1. base repo ask
+2. fork ask
+
+</details>
+
+[view on village][pr]
+
+[1]: https://village.example/transcripts/7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+[2]: https://village.example/transcripts/8c2f5e3b-0d4a-4f9c-b2e7-3a6d9f0b1c24
+[pr]: https://village.example/pulls/acme/widgets/7
