@@ -95,7 +95,7 @@ export default function GroupSettingsPage({
     setNotice({
       ok: true,
       title: "github connected",
-      detail: "the github app is installed. pick the repositories to link under github orgs.",
+      detail: "the github app is installed. under github orgs, pick the repositories to link.",
     });
     void qc.invalidateQueries({ queryKey: ["group", id] });
     void qc.invalidateQueries({ queryKey: ["group-repositories", id] });
