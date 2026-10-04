@@ -1447,7 +1447,12 @@ escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
-The served/enforced contract expectation is Village API 0.24.0, including the
+The served/enforced contract expectation is Village API 0.25.0, including optional
+session and turn `thinkingLevel` / `thinkingLevelRaw` evidence and the
+`thinking_level_v1` preservation capability. Compared with 0.24.0, the generated
+spec adds the two thinking-level types and optional properties, and extends the
+capability description; existing menus, required arrays, and manifest shapes are
+unchanged. It retains the
 pull request reads (a transcript's pull requests as the narrow
 `VillageTranscriptPullRequest` row, the caller's totals, list-row summaries, and
 the collective and repository counts), retained unknown evidence, and the

@@ -7,6 +7,14 @@ canonical corpus is owned by `github.com/peasant-labs/schema` under
 exercise the tagged contract without redefining its expected behavior. Update
 the snapshot from the tagged schema module when the contract pin moves.
 
+The Village API 0.25.0 review adds optional thinking-level evidence without
+changing the existing versioned JSON corpus in Schema. The preservation fixtures
+in `../thinking_level_preservation/` exercise the new fields. Keep this consumer
+corpus's explicit turn timestamps/depth and complete token/stat fields: they
+exercise Village's stricter publication boundary and are not present in the
+upstream legacy examples. Reconcile the snapshot against the published module
+when updating the module pin rather than overwriting these consumer additions.
+
 ## Layout
 
 ```
@@ -22,7 +30,7 @@ contract/<version>/{valid,invalid}/{metadata,content,annotations}.json
 
 | Version | content.json shape | Exercises |
 |---|---|---|
-| `current` | `TranscriptContent` envelope (`contractVersion` 0.1.0, `kind` session_detail), `sessionDetail` with `harness` key, a **partType-bearing** turn, `scorecard`, `outcome` | the post-merge contract; migrate-on-read no-op (already canonical) |
+| `current` | `TranscriptContent` envelope (`contractVersion` 0.1.1, `kind` session_detail), `sessionDetail` with `harness` key, a **partType-bearing** turn, `scorecard`, `outcome` | the post-merge contract; migrate-on-read no-op (already canonical) |
 | `legacy-provider-keyed` | a **bare** `SessionDetailPayload` using the **pre-flip** `"provider"` key + legacy value `claude`; metadata uses `model.modelHarness` | migrate-on-read **key+value** migration (`provider`/`modelHarness`→`harness`, `claude`→`claude-code`) + rewrite |
 | `legacy-raw-jsonl` | a raw provider **JSONL array** (no envelope); metadata uses `model.provider: gemini` | raw-JSONL projection onto turns; metadata-surface `provider`→`harness` + `gemini`→`gemini-cli` |
 | `legacy-metadata-field` | **current** envelope content, but `metadata.json` carries the legacy `model.modelHarness: claude` key | isolates the **second wire surface**: `normalizeMetadataHarnessKey` on the publish path (`modelHarness`→`harness`, `claude`→`claude-code`), independent of the content shape |
