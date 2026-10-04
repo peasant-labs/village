@@ -117,9 +117,9 @@ describe("transcript page: the attestation control", () => {
       );
       await renderProductionRoute(transcriptID, "", { signedIn: true });
 
-      // The header action row has drawn for a signed-in viewer: the collectives
-      // holding the transcript are listed in it, which is where the control sat.
-      await screen.findByText("Acme Platform");
+      // The header action row has drawn for a signed-in viewer, which is where
+      // the control sat before it was hidden.
+      await screen.findByTestId("transcript-header-actions");
       await waitFor(() => {
         expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith("/auth/me"))).toBe(true);
       });

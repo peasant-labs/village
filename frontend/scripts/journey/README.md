@@ -50,7 +50,9 @@ selection and no port matrix. Override ports with `JOURNEY_APP_PORT` /
 
 A journey declares the world it needs with `setScenario(request, 'empty')`
 (`lib/scenario.mjs`), which calls the mock's `POST /__mock/scenario`; reset it to
-`'default'` when done.
+`'default'` when done. `'transcript-owner'` serves the owner's collectives on
+`GET /groups` for the transcript page's `manage access` popup, and every
+scenario change restores the owned transcript's audience.
 
 Chrome is the NixOS-packaged browser: set `CHROME_PATH`, or accept the default
 profile path. No Playwright browser download is required, which is why this works
@@ -144,6 +146,7 @@ resolved paths to the artifacts directory.
 | `lib/vendor-guard.test.mjs` | Fails when a vendored body drifts from the fairtrade canonical copy |
 | `mock.mjs` | Composed backend: browse + project in-process, transcript detail proxied, scenario control |
 | `lib/project-fixtures.mjs` | The project page's orphan-sessions fixtures (app-specific) |
+| `lib/transcript-fixtures.mjs` | A transcript the signed-in viewer owns: its audience, share routes and pull requests (app-specific) |
 | `lib/scenario.mjs` | Sets the composed mock's scenario from a journey |
 | `*.journey.mjs` | One file per fundamental feature |
 | `ci-post-evidence.mjs` | Posts the sticky evidence comment on a pull request |

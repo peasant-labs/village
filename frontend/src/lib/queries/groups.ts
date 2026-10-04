@@ -8,7 +8,7 @@ import type { Group, VisibleGroup, GroupMember, GroupContributor, GroupTranscrip
 // Each mounted binding owns an opaque namespace and credential epoch. A render
 // derives a fresh scope immediately and updates only its own guarded state.
 // Credentials stay in memory closures, never query keys or persisted cache data.
-function useCollectiveReadBinding() {
+export function useCollectiveReadBinding() {
   const { user, isLoading } = useAuth();
   const client = useQueryClient();
   const bindingId = useId();
