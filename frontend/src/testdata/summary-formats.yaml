@@ -1,0 +1,25 @@
+# Cases for the two formatters the home page's table and summary line use
+# (`src/lib/format.ts`), run by `src/lib/summaryFormats.test.ts`.
+#
+# Deletion protection is the required-NAME manifest in that test. `now` is
+# written on every relative-time case so a case never depends on the clock of
+# the machine running it.
+
+relativeTimeCases:
+  - { name: under-a-minute-is-just-now, now: "2026-09-30T12:00:00Z", at: "2026-09-30T11:59:31Z", expect: just now }
+  - { name: a-skewed-future-timestamp-is-just-now, now: "2026-09-30T12:00:00Z", at: "2026-09-30T12:05:00Z", expect: just now }
+  - { name: minutes, now: "2026-09-30T12:00:00Z", at: "2026-09-30T11:48:00Z", expect: 12m ago }
+  - { name: hours, now: "2026-09-30T12:00:00Z", at: "2026-09-30T10:00:00Z", expect: 2h ago }
+  - { name: one-day-is-yesterday, now: "2026-09-30T12:00:00Z", at: "2026-09-29T09:00:00Z", expect: yesterday }
+  - { name: days, now: "2026-09-30T12:00:00Z", at: "2026-09-27T12:00:00Z", expect: 3d ago }
+  - { name: seven-to-thirteen-days-is-last-week, now: "2026-09-30T12:00:00Z", at: "2026-09-21T12:00:00Z", expect: last week }
+  - { name: weeks, now: "2026-09-30T12:00:00Z", at: "2026-09-02T12:00:00Z", expect: 4w ago }
+  - { name: past-eight-weeks-is-the-date, now: "2026-09-30T12:00:00Z", at: "2026-07-01T12:00:00Z", expect: "Jul 1, 2026" }
+  - { name: an-unparseable-timestamp-states-nothing, now: "2026-09-30T12:00:00Z", at: "not a timestamp", expect: "" }
+
+durationCases:
+  - { name: nothing-recorded, ms: 0, expect: 0m }
+  - { name: under-a-minute-is-no-minutes, ms: 59999, expect: 0m }
+  - { name: minutes-below-an-hour, ms: 2700000, expect: 45m }
+  - { name: whole-hours-rounded-down, ms: 111600000, expect: 31h }
+  - { name: thousands-of-hours-are-grouped, ms: 4320000000, expect: "1,200h" }

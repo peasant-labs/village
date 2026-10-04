@@ -2,7 +2,8 @@
  *
  * Composes the explore browse fixtures (in-process, imported from
  * scripts/visual/mock-rest-explore.mjs) with the project-page fixtures
- * (in-process, from scripts/journey/lib/project-fixtures.mjs) and the
+ * (in-process, from scripts/journey/lib/project-fixtures.mjs), the home and
+ * settings fixtures (in-process, from scripts/journey/lib/home-fixtures.mjs) and the
  * transcript-detail fixtures (spawned from scripts/visual/mock-rest.mjs behind
  * an internal port). Journeys therefore need no per-area mock selection and no
  * port matrix; `pnpm journey` is the whole interface.
@@ -10,9 +11,11 @@
  * Scenario control: POST /__mock/scenario {"name":"..."} lets a journey declare
  * the world it needs without an env var or a restart. Today:
  *   default     - the composed fixtures as-is, signed in as alice-dev
- *   empty       - the browse list answers with no rows (empty-state journeys)
+ *   empty       - the browse list and the home list answer with no rows
+ *                 (empty-state journeys)
  *   signed-out  - `/auth/me` refuses, so the app treats the visitor as signed
  *                 out (the sign-in journey) whatever cookie the browser holds
+ *   no-keys     - peasant is signed in on no computer (the settings page)
  *
  * Setting any scenario also puts the collectives world back as it started.
  *
@@ -27,6 +30,7 @@ import { fileURLToPath } from 'node:url'
 import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
 import { handleProjectRequest } from './lib/project-fixtures.mjs'
 import { handleCollectiveRequest, resetCollectiveWorld } from './lib/collective-fixtures.mjs'
+import { handleHomeRequest } from './lib/home-fixtures.mjs'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8799)
 const TRANSCRIPT_PORT = Number(process.env.JOURNEY_TRANSCRIPT_PORT || PORT + 1)
@@ -125,6 +129,10 @@ const server = createServer(async (req, res) => {
   if (scenario === 'signed-out' && req.method === 'GET' && path === '/auth/me') {
     return send(res, 401, { error: 'not signed in' })
   }
+
+  // The signed-in person's own home and settings reads, including the
+  // owner-scoped list, which answers its own `empty` scenario.
+  if (await handleHomeRequest(req, res, scenario)) return
 
   if (scenario === 'empty' && req.method === 'GET' && path === '/transcripts') {
     return send(res, 200, { transcripts: [], total: 0, agent_total: 0, page: 1, limit: 24 })

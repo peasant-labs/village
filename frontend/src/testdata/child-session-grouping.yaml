@@ -11,9 +11,9 @@
 #                       browse card names no parent, so a count hanging off one
 #                       card would ask a visitor to guess which card it belonged
 #                       to.
-#   home                `/` for a signed-in visitor. Its own recent sessions,
-#                       where a started session hangs off its parent's row in an
-#                       expandable chip.
+#   home                `/` for a signed-in visitor. The table of their own
+#                       transcripts, where a started session hangs off its
+#                       parent's row in an expandable chip.
 #   project             /users/{username}/projects/{projectHash}, the same chip.
 #   profile             /users/{username}, a person's library. Folded WITHIN each
 #                       project group, which is the only place a starter and what
@@ -72,12 +72,12 @@
 # page renders them as their own collapsed group beside these ones, so a case
 # with both proves the two groups coexist.
 #
-# `expectedHomeRows` is the ordered list of rows the HOME list shows, and is
-# written only on a `home` case (every other case carries `[]`). Home caps its
-# list, so what it shows is not always every row that kept its place: it is the
-# first N groups, ranked by the newest row in each group. That ranking is why
-# the field states an ORDER -- a group holding the person's newest session must
-# not be cut off the page while that session is only reachable from inside it.
+# `expectedHomeRows` is the ordered list of rows the HOME table lists, and is
+# written only on a `home` case (every other case carries `[]`). Home lists every
+# row that kept its place, ranked by the newest row in each group. That ranking
+# is why the field states an ORDER -- a group holding the person's newest
+# session must not sit below rows older than that session, which is only
+# reachable from inside the group.
 #
 # `label` is the literal text of a chip's collapsed control, written out
 # rather than derived, so a change to the wording the code produces fails here
@@ -538,18 +538,14 @@ cases:
     expectedHomeRows: [fix-the-flaky-test, bisect-the-failure]
     expectedGroups: []
 
-  # More rows than home shows, with the person's NEWEST session inside a chip.
+  # The person's NEWEST session inside a chip.
   #
   # Rows arrive most-recent first, so `wire-the-retry` is the newest thing this
   # person did and `harden-the-client` -- the session that started it -- is the
   # OLDEST row here. Ranked by their own timestamps the parent would sit last,
-  # fall outside the cap, and take the newest session off the page with it,
-  # reachable from nowhere. Ranked by the newest row in each group the parent
-  # leads the list, and the row that drops off the end is the genuinely oldest
-  # group instead.
-  #
-  # This is also the only case where slicing the list BEFORE the fold and after
-  # it give different answers, so it is what holds that order in place.
+  # with the newest session buried inside it at the bottom of the table. Ranked
+  # by the newest row in each group the parent leads the table, and the
+  # genuinely oldest group sits last instead.
   - name: home-shows-the-group-holding-the-newest-session
     surfaces: [home]
     absentParentCause: none
@@ -590,7 +586,7 @@ cases:
        draft-the-runbook, check-the-metrics-panel, harden-the-client]
     expectedHomeRows:
       [harden-the-client, read-the-timeout-defaults, measure-the-backoff,
-       name-the-error-cases, draft-the-runbook]
+       name-the-error-cases, draft-the-runbook, check-the-metrics-panel]
     expectedGroups:
       - parent: harden-the-client
         label: "1 child session"

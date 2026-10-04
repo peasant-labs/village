@@ -2,7 +2,9 @@
 
    The home route at `/` fetches:
      - GET /api/v1/auth/me                     (who is looking; decides `/` serves home, not explore)
-     - GET /api/v1/transcripts?owner=...       (the caller's own sessions, grouped into projects)
+     - GET /api/v1/transcripts?owner=...       (the caller's own transcripts, a page at a time)
+     - GET /api/v1/users/me/stats, /groups and /users/me/collectives/contributions
+                                               (the summary line and the rail)
 
    It also serves the project page the home list links to:
      - GET /api/v1/users/{username}/projects/{projectHash}
@@ -326,6 +328,18 @@ const server = createServer((req, res) => {
   }
   if (path === '/auth/orgs') return send(res, 200, [])
   if (path === '/groups') return send(res, 200, [])
+  // The home page's summary line and rail. The totals describe the rows this
+  // mock serves; nothing is waiting for a collective's approval.
+  if (path === '/users/me/stats') {
+    return send(res, 200, {
+      total_transcripts: servedSessions.length,
+      total_turns: 0,
+      total_duration_ms: 0,
+      total_tokens: 0,
+      pull_request_count: 0,
+    })
+  }
+  if (path === '/users/me/collectives/contributions') return send(res, 200, { collectives: [] })
   if (path.startsWith('/tags/popular')) return send(res, 200, [])
   if (path === '/groups/search') return send(res, 200, { collectives: [] })
 

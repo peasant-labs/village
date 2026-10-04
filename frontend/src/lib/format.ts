@@ -428,3 +428,49 @@ export function visibilityTooltip(
       return visibility;
   }
 }
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+/**
+ * How long ago an ISO timestamp was, in the short words a list column has room
+ * for: `just now`, `12m ago`, `2h ago`, `yesterday`, `3d ago`, `last week`,
+ * `5w ago`, and past eight weeks the date itself.
+ *
+ * `now` is a parameter so a caller that renders a whole list reads one clock
+ * for every row, and so the rule can be tested without faking time. A value
+ * that does not parse states nothing (an empty string) rather than a wrong
+ * age; a timestamp in the future, which only a skewed clock produces, reads as
+ * `just now`.
+ */
+export function formatRelativeTime(iso: string, now: number = Date.now()): string {
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return "";
+  const age = now - at;
+  if (age < MINUTE_MS) return "just now";
+  if (age < HOUR_MS) return `${Math.floor(age / MINUTE_MS)}m ago`;
+  if (age < DAY_MS) return `${Math.floor(age / HOUR_MS)}h ago`;
+  if (age < 2 * DAY_MS) return "yesterday";
+  if (age < 7 * DAY_MS) return `${Math.floor(age / DAY_MS)}d ago`;
+  if (age < 14 * DAY_MS) return "last week";
+  if (age < 56 * DAY_MS) return `${Math.floor(age / (7 * DAY_MS))}w ago`;
+  return new Date(at).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
+ * A recorded duration for a summary line: whole hours once there is at least
+ * one (`31h`), whole minutes below that (`45m`), and `0m` for nothing. A total
+ * across many sessions is read at a glance, so it is rounded down rather than
+ * spelled to the second.
+ */
+export function formatRecordedDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < MINUTE_MS) return "0m";
+  if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS)}m`;
+  return `${Math.floor(ms / HOUR_MS).toLocaleString("en-US")}h`;
+}

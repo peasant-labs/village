@@ -5,7 +5,13 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import RootPage from "@/app/page";
 import ExploreRoute from "@/app/explore/page";
 import Navbar from "@/components/layout/Navbar";
-import type { HomeRequestFailure, HomeTranscriptCase } from "@/test/homePageFixtures";
+import type {
+  HomeCollectiveCase,
+  HomeContributionCase,
+  HomeRequestFailure,
+  HomeStatsCase,
+  HomeTranscriptCase,
+} from "@/test/homePageFixtures";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { TranscriptListItem, User } from "@/lib/types";
 
@@ -35,6 +41,12 @@ export interface MountedHomeFixture {
   ownerRequestFailure?: HomeRequestFailure;
   /** Whether the account claims a chosen handle. Defaults to true. */
   usernameChosen?: boolean;
+  /** What `GET /users/me/stats` answers. Defaults to all zero. */
+  stats?: HomeStatsCase;
+  /** What `GET /groups` answers: the caller's memberships. Defaults to none. */
+  collectives?: HomeCollectiveCase[];
+  /** What `GET /users/me/collectives/contributions` answers. Defaults to none. */
+  contributions?: HomeContributionCase[];
 }
 
 function userFixture(username: string, usernameChosen = true): User {
@@ -62,14 +74,65 @@ function listItem(t: HomeTranscriptCase, owner: User): TranscriptListItem {
       parent_session_id: t.parentSessionID ?? null,
       owner_id: owner.id,
       title: t.title,
+      model_provider: t.modelProvider ?? "claude-code",
       project_name: t.projectDisplayName,
       project_hash: t.projectHash,
       project_display_name: t.projectDisplayName,
       published_at: t.publishedAt,
       updated_at: t.publishedAt,
+      visibility: t.visibility ?? ((t.sharedWith ?? []).length > 0 ? "shared" : "private"),
     }),
     tags: [],
     owner,
+    // As the list serves them: only the collectives that APPROVED the row.
+    shares: (t.sharedWith ?? []).map((name, i) => ({
+      transcript_id: t.id,
+      group_id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      group_name: name,
+      acceptance_mode: "open",
+      status: "approved",
+      shared_at: t.publishedAt,
+    })),
+    pull_requests: {
+      count: t.pullRequests?.count ?? 0,
+      recent: (t.pullRequests?.recent ?? []).map((ref) => {
+        const [refOwner, name] = ref.repo.split("/");
+        return { owner: refOwner, name, number: ref.number };
+      }),
+    },
+  };
+}
+
+function groupRow(c: HomeCollectiveCase) {
+  return {
+    id: c.id,
+    name: c.name,
+    description: null,
+    created_by: "user-fixture-owner",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    acceptance_mode: "open",
+    data_access: "members",
+    display_members: true,
+    linked_github_org: null,
+    transcript_deletion_policy: "retain",
+    role: c.role,
+    member_since: "2026-01-01T00:00:00.000Z",
+    member_count: c.members,
+    transcript_count: 0,
+  };
+}
+
+function contributionRow(c: HomeContributionCase) {
+  return {
+    id: c.id,
+    name: c.name,
+    description: null,
+    linked_github_org: null,
+    approved_count: 1,
+    pending_count: c.pending,
+    rejected_attempt_count: 0,
+    withdrawn_attempt_count: 0,
   };
 }
 
@@ -144,6 +207,20 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
         ? json({ error: "not signed in" }, 401)
         : json(userFixture(viewer, chosen));
     }
+    if (path === "/users/me/stats") {
+      const stats = fixture.stats;
+      return json({
+        total_transcripts: stats?.transcripts ?? 0,
+        total_turns: stats?.turns ?? 0,
+        total_duration_ms: stats?.durationMs ?? 0,
+        total_tokens: stats?.tokens ?? 0,
+        pull_request_count: stats?.pullRequests ?? 0,
+      });
+    }
+    if (path === "/groups") return json((fixture.collectives ?? []).map(groupRow));
+    if (path === "/users/me/collectives/contributions") {
+      return json({ collectives: (fixture.contributions ?? []).map(contributionRow) });
+    }
     if (path.startsWith("/tags/popular")) return json([]);
     if (path.startsWith("/groups/search")) return json({ collectives: [] });
     if (path.startsWith("/transcripts")) {
@@ -174,13 +251,26 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
           return json({ error: "the session list is unavailable" }, 500);
         }
       }
-      const rows = isOwnerScoped ? fixture.transcripts.map((t) => listItem(t, owner)) : [];
+      // The owner-scoped list is served the way the list handler serves it: the
+      // query matched anywhere in the title ignoring case, then one page of the
+      // matches at the requested page and limit, in the order the case wrote
+      // them. Discovery's own request is answered with no rows.
+      const query = new URLSearchParams(path.includes("?") ? path.slice(path.indexOf("?") + 1) : "");
+      const q = (query.get("q") ?? "").toLowerCase();
+      const page = Number(query.get("page") ?? 1);
+      const limit = Number(query.get("limit") ?? 24);
+      const matching = isOwnerScoped
+        ? fixture.transcripts.filter((t) => t.title.toLowerCase().includes(q))
+        : [];
+      const rows = matching
+        .slice((page - 1) * limit, page * limit)
+        .map((t) => listItem(t, owner));
       return json({
         transcripts: rows,
-        total: rows.length,
+        total: matching.length,
         agent_total: 0,
-        page: 1,
-        limit: 24,
+        page,
+        limit,
       });
     }
     throw new Error(`mounted home route fixture received an unexpected request to ${url}`);
