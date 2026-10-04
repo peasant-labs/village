@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -194,18 +196,19 @@ func (h *Handler) loadAttachmentCandidates(ctx context.Context, authorID pgtype.
 	return candidates, nil
 }
 
-// attachmentDigests is one accepted set of transcripts projected for each
-// audience that reads it.
+// attachmentDigests is one accepted set of transcripts, projected for the pull
+// request's page and for its comment and check.
 type attachmentDigests struct {
 	// complete covers every transcript. It is what the attachment stores, and
 	// the pull request page narrows it to what its viewer can open before
-	// serving it.
+	// serving it. Its header links the pull request's page on village.
 	complete schema.PromptDigest
-	// listed covers only the transcripts the pull request's comment and check
-	// may show (listedOnPullRequest).
-	listed schema.PromptDigest
-	// unlisted counts the transcripts listed leaves out.
-	unlisted int
+	// rows say, for each transcript, what the comment and the check may show
+	// besides its prompts: its title (only when anyone can read it), its
+	// author, and whether it is listed (listedOnPullRequest).
+	rows []digest.Row
+	// commitSet is the pull request's commits, in the order GitHub listed them.
+	commitSet []string
 	// readableBeyondAuthor says whether anyone besides the author can read at
 	// least one of the transcripts, which is what the check's conclusion asks.
 	readableBeyondAuthor bool
@@ -216,20 +219,33 @@ type attachmentDigests struct {
 	readable map[schema.TranscriptID]bool
 }
 
+// forPullRequest is what the comment and the check render.
+func (d attachmentDigests) forPullRequest() digest.PullRequest {
+	return digest.PullRequest{Digest: d.complete, Rows: d.rows, CommitSet: d.commitSet}
+}
+
+// pullRequestPageURL is the pull request's page on village: where the check's
+// details link, the digest header, and every "read on village" link go.
+func (h *Handler) pullRequestPageURL(attachment sqlc.PullRequestAttachment) string {
+	return strings.TrimRight(h.cfg.FrontendURL, "/") + "/pulls/" + url.PathEscape(attachment.RepoOwner) + "/" +
+		url.PathEscape(attachment.RepoName) + "/" + strconv.Itoa(int(attachment.Number))
+}
+
 // buildAttachmentDigests projects an accepted match into the reviewer-facing
-// digests. It reads each transcript's turns once, through Village's single
+// digest. It reads each transcript's turns once, through Village's single
 // decrypting read path, and takes its anchor time and change counts from the
-// transcript's own recorded commit, never from the pull request side. Each
-// digest is built from its own transcripts rather than cut down from another,
-// so its counts and numbering describe only what it shows.
-func (h *Handler) buildAttachmentDigests(ctx context.Context, transcriptIDs []schema.TranscriptID, commitSet []string, match matcher.Result) (attachmentDigests, error) {
-	var complete, listed digest.Input
+// transcript's own recorded commit, never from the pull request side. It also
+// reads what the comment and the check say about each transcript besides its
+// prompts: the title and visibility it already read, and its owner's handle.
+func (h *Handler) buildAttachmentDigests(ctx context.Context, attachment sqlc.PullRequestAttachment, transcriptIDs []schema.TranscriptID, commitSet []string, match matcher.Result) (attachmentDigests, error) {
+	var complete digest.Input
 	result := attachmentDigests{visibility: make(map[schema.TranscriptID]string, len(transcriptIDs)), readable: make(map[schema.TranscriptID]bool, len(transcriptIDs))}
 
 	anchorsByTranscript := map[schema.TranscriptID][]matcher.Anchor{}
 	for _, accepted := range match.Accepted {
 		anchorsByTranscript[accepted.TranscriptID] = accepted.Anchors
 	}
+	handles := map[[16]byte]string{}
 
 	for _, accepted := range transcriptIDs {
 		transcriptID, err := uuid.Parse(string(accepted))
@@ -265,16 +281,15 @@ func (h *Handler) buildAttachmentDigests(ctx context.Context, transcriptIDs []sc
 				Command:   turn.Command,
 			})
 		}
-		session := digest.Session{
+		complete.Sessions = append(complete.Sessions, digest.Session{
 			TranscriptID:   accepted,
 			Harness:        schema.Harness(row.ModelProvider),
 			RedactionLevel: attachmentRedactionLevel,
 			SessionStart:   row.SessionStart.Time,
 			Turns:          turns,
-		}
-		var commits []digest.CommitMatch
+		})
 		for _, anchor := range anchorsByTranscript[accepted] {
-			commits = append(commits, digest.CommitMatch{
+			complete.Commits = append(complete.Commits, digest.CommitMatch{
 				TranscriptID: accepted,
 				CommitSHA:    anchor.CommitSHA,
 				AuthoredAt:   anchor.AuthoredAt,
@@ -285,14 +300,23 @@ func (h *Handler) buildAttachmentDigests(ctx context.Context, transcriptIDs []sc
 		}
 
 		result.visibility[accepted] = row.Visibility
-		complete.Sessions = append(complete.Sessions, session)
-		complete.Commits = append(complete.Commits, commits...)
-		if listedOnPullRequest(row.Visibility) {
-			listed.Sessions = append(listed.Sessions, session)
-			listed.Commits = append(listed.Commits, commits...)
-		} else {
-			result.unlisted++
+		author, known := handles[row.OwnerID.Bytes]
+		if !known {
+			owner, err := h.queries.GetUserByID(ctx, row.OwnerID)
+			if err != nil {
+				return attachmentDigests{}, fmt.Errorf("could not read an accepted transcript's author for the digest: %w", err)
+			}
+			author = owner.GithubUsername
+			handles[row.OwnerID.Bytes] = author
 		}
+		listed := listedOnPullRequest(row.Visibility)
+		entry := digest.Row{TranscriptID: accepted, Author: author, Listed: listed}
+		if listed {
+			// A title is only ever read into a row anyone may read.
+			entry.Title = row.Title.String
+			entry.URL = transcriptFrontendURL(h.cfg.FrontendURL, accepted)
+		}
+		result.rows = append(result.rows, entry)
 		readable, err := h.readableBeyondItsAuthor(ctx, row)
 		if err != nil {
 			return attachmentDigests{}, err
@@ -301,15 +325,12 @@ func (h *Handler) buildAttachmentDigests(ctx context.Context, transcriptIDs []sc
 		result.readableBeyondAuthor = result.readableBeyondAuthor || readable
 	}
 
-	villageURL := strings.TrimRight(h.cfg.FrontendURL, "/")
-	complete.VillageURL, listed.VillageURL = villageURL, villageURL
-	complete.CommitSet, listed.CommitSet = commitSet, commitSet
+	complete.VillageURL = h.pullRequestPageURL(attachment)
+	complete.CommitSet = commitSet
+	result.commitSet = commitSet
 
 	var err error
 	if result.complete, err = digest.Build(complete); err != nil {
-		return attachmentDigests{}, err
-	}
-	if result.listed, err = digest.Build(listed); err != nil {
 		return attachmentDigests{}, err
 	}
 	return result, nil

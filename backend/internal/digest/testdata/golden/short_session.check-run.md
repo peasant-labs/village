@@ -1,7 +1,19 @@
-**peasant / prompts** - claude-code - 1 session - 2 prompts - 1/3 commits - https://village.example/transcripts
+**peasant / prompts · 1 transcript traces 1 of 3 commits**
 
-- session: 2 prompts, 1 commit
-- 1. first ask
-- /superpowers:brainstorming the header story
-- commit a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 (+10/-2, 3 files)
-- 2. second ask with <REDACTED>
+| transcript | author | commits |
+| --- | --- | --- |
+| [Fix flaky ingest test][1] | @<!-- -->alice-dev | a1b2c3d |
+
+<details>
+<summary>2 prompts</summary>
+
+1. first ask
+   - /superpowers:brainstorming the header story
+2. second ask with \<REDACTED\>
+
+</details>
+
+[view on village][pr] · 1111111, 2222222 have no transcript
+
+[1]: https://village.example/transcripts/7b1e4d2a-9c3f-4e8b-a1d6-2f5c8e9a0b13
+[pr]: https://village.example/pulls/acme/widgets/7

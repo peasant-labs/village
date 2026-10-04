@@ -1,0 +1,5 @@
+# Named closed set of audience-change claims absent from GitHub-posted copy.
+- {name: visibility-is-not-described, forbidden: visibility}
+- {name: private-is-not-described, forbidden: private}
+- {name: narrowing-is-not-described, forbidden: narrow}
+- {name: change-is-not-described, forbidden: changed}

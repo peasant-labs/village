@@ -200,7 +200,15 @@ func TestRestrictShowsOnlyWhatTheReaderMayOpen(t *testing.T) {
 				t.Fatal("the case says the restricted chain cannot equal a fresh build, but it does: update matches_filtered_build")
 			}
 
-			if _, err := Render(restricted, CommentTier); err != nil {
+			// The restricted chain is still a digest the pull request can render:
+			// every kept transcript as a listed row.
+			pull := PullRequest{Digest: restricted, CommitSet: c.CommitSet}
+			for _, item := range restricted.Items {
+				if item.Kind == schema.DigestItemSession {
+					pull.Rows = append(pull.Rows, Row{TranscriptID: item.TranscriptID, Title: "kept", Author: "reader", Listed: true, URL: "https://village.example/transcripts/" + string(item.TranscriptID)})
+				}
+			}
+			if _, err := Render(pull, CommentTier); err != nil {
 				t.Fatalf("Render the restricted chain: %v", err)
 			}
 		})

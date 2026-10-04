@@ -29,9 +29,9 @@ const attachmentCheckTitle = "peasant / prompts"
 //
 // Attaching never changes who can read a transcript. It binds, and every surface
 // then shows a transcript's prompts only to readers of that transcript: the
-// pull request's comment and check list only the transcripts anyone can read,
-// and the pull request page narrows the stored digest to what its viewer can
-// open.
+// pull request's comment and check show the title and prompts only of the
+// transcripts anyone can read, and the pull request page narrows the stored
+// digest to what its viewer can open.
 //
 // Ordering is the contract. GitHub is called before the state moves, so a
 // failure answers 502 and leaves the attachment in its state for a retry; the
@@ -53,7 +53,7 @@ func (h *Handler) attachAcceptedAndPost(ctx context.Context, attachment sqlc.Pul
 		return attachment, errAttachmentNothingAccepted
 	}
 	acceptedIDs := acceptedTranscriptIDs(match)
-	digests, err := h.buildAttachmentDigests(ctx, acceptedIDs, commitSet, match)
+	digests, err := h.buildAttachmentDigests(ctx, attachment, acceptedIDs, commitSet, match)
 	if err != nil {
 		return attachment, err
 	}
@@ -185,11 +185,12 @@ func (h *Handler) bindOneTranscript(ctx context.Context, attachment sqlc.PullReq
 	})
 }
 
-// listedOnPullRequest reports whether a transcript's prompts may appear in the
-// pull request's comment and check. Those are read by whoever can read the pull
-// request, and Village cannot know who that is for a private repository, so only
-// a transcript anyone can read is listed there. Every other attached transcript
-// is counted and not described; its own readers open it on village.
+// listedOnPullRequest reports whether a transcript's title and prompts may
+// appear in the pull request's comment and check. Those are read by whoever can
+// read the pull request, and Village cannot know who that is for a private
+// repository, so only a transcript anyone can read is listed there. Every other
+// attached transcript is a row with its author, the commits it traced, and a
+// link to read it on village, where its own readers can open it.
 func listedOnPullRequest(visibility string) bool {
 	return visibility == dbVisibilityPublic
 }
@@ -229,21 +230,6 @@ func (h *Handler) readableBeyondItsAuthor(ctx context.Context, transcript sqlc.T
 		}
 	}
 	return false, nil
-}
-
-// attachmentUnlistedNote is the line a digest carries when attached transcripts
-// are not listed on the pull request, so a reader is told something is there
-// rather than left to notice the absence.
-//
-// It counts and says nothing else. A reason, even a true one, would describe a
-// transcript and its owner's choice of audience to every reader of the pull
-// request, and the page's own marking is deliberately as general, so this
-// surface does not become the one that says more.
-func attachmentUnlistedNote(unlisted int) string {
-	if unlisted == 1 {
-		return "\n_1 attached transcript is not listed here._\n"
-	}
-	return fmt.Sprintf("\n_%d attached transcripts are not listed here._\n", unlisted)
 }
 
 // disclosureRank orders the visibility tiers by how widely they disclose:
@@ -316,21 +302,26 @@ func (h *Handler) clearEarlierBindings(ctx context.Context, attachment sqlc.Pull
 	return nil
 }
 
-// postAttachment posts the check (when the collective asked for one) and the one
-// sticky comment, returning the ids to record. Both carry only the transcripts
-// listed on the pull request, and say how many attached transcripts are not
-// listed. A GitHub failure is returned unwrapped so the caller answers 502 with
-// the state unchanged.
+// postAttachment posts the check and the one sticky comment, returning the ids
+// to record. Both render the same rows by the same rule: every attached
+// transcript is a row, and only a transcript anyone can read shows its title
+// and prompts. The collective's post_prompts_check toggle gates both: off, nothing
+// is posted or edited and the recorded ids are kept, so a later detach still
+// removes what an earlier post left. A GitHub failure is returned unwrapped so
+// the caller answers 502 with the state unchanged.
 func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, digests attachmentDigests, headChanged bool) (commentID, checkRunID int64, err error) {
+	if !repo.postCheck {
+		return attachment.CommentID.Int64, attachment.CheckRunID.Int64, nil
+	}
 	if h.gh == nil {
 		return 0, 0, errAttachmentGitHubUnavailable
 	}
 
-	comment, err := digest.Render(digests.listed, digest.CommentTier)
+	comment, err := digest.Render(digests.forPullRequest(), digest.CommentTier)
 	if err != nil {
 		return 0, 0, fmt.Errorf("could not render the digest for the comment: %w", err)
 	}
-	summary, err := digest.Render(digests.listed, digest.CheckRunTier)
+	summary, err := digest.Render(digests.forPullRequest(), digest.CheckRunTier)
 	if err != nil {
 		return 0, 0, fmt.Errorf("could not render the digest for the check: %w", err)
 	}
@@ -338,52 +329,66 @@ func (h *Handler) postAttachment(ctx context.Context, attachment sqlc.PullReques
 		comment = "No transcripts remain attached to this pull request."
 		summary = comment
 	}
-	if digests.unlisted > 0 {
-		// The reader is told attached transcripts are not listed rather than left
-		// to notice, without being told which or why. The note is added after
-		// rendering because the digest payload is the wire contract and carries
-		// no such field.
-		note := attachmentUnlistedNote(digests.unlisted)
-		comment += note
-		summary += note
+
+	request := github.CheckRunRequest{
+		HeadSHA:    attachment.HeadSha,
+		ExternalID: attachmentExternalID(attachment),
+		Conclusion: github.PromptCheckConclusion(repo.checkMode, true, digests.readableBeyondAuthor),
+		Title:      attachmentCheckTitle,
+		Summary:    summary,
+		DetailsURL: h.pullRequestPageURL(attachment),
+		Actions:    github.PromptCheckActions(),
+	}
+	// A check run's head SHA is fixed when it is created; an update cannot move
+	// it. So a new head needs a NEW run, or the new commit has no check at all
+	// and a required check never satisfies branch protection.
+	createRun := !attachment.CheckRunID.Valid || headChanged
+	if !createRun {
+		run, readErr := h.gh.GetCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, attachment.CheckRunID.Int64)
+		if readErr != nil && !github.IsNotFound(readErr) {
+			return 0, 0, fmt.Errorf("%w: reading the recorded check run: %v", errAttachmentGitHub, readErr)
+		}
+		createRun = github.IsNotFound(readErr) || run == nil || run.HeadSHA != attachment.HeadSha
+	}
+	if createRun {
+		created, createErr := h.gh.CreateCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, request)
+		if createErr != nil {
+			return 0, 0, fmt.Errorf("%w: creating the check run: %v", errAttachmentGitHub, createErr)
+		}
+		checkRunID = created.ID
+	} else {
+		updated, updateErr := h.gh.UpdateCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, attachment.CheckRunID.Int64, request)
+		if updateErr != nil {
+			return 0, 0, fmt.Errorf("%w: updating the check run: %v", errAttachmentGitHub, updateErr)
+		}
+		checkRunID = updated.ID
 	}
 
-	if repo.postCheck {
-		request := github.CheckRunRequest{
-			HeadSHA:    attachment.HeadSha,
-			ExternalID: attachmentExternalID(attachment),
-			Conclusion: github.PromptCheckConclusion(repo.checkMode, true, digests.readableBeyondAuthor),
-			Title:      attachmentCheckTitle,
-			Summary:    summary,
-			Actions:    github.PromptCheckActions(),
-		}
-		// A check run's head SHA is fixed when it is created; an update cannot
-		// move it. So a new head needs a NEW run, or the new commit has no check
-		// at all and a required check never satisfies branch protection.
-		if !attachment.CheckRunID.Valid || headChanged {
-			created, createErr := h.gh.CreateCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, request)
-			if createErr != nil {
-				return 0, 0, fmt.Errorf("%w: creating the check run: %v", errAttachmentGitHub, createErr)
-			}
-			checkRunID = created.ID
-		} else {
-			updated, updateErr := h.gh.UpdateCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, attachment.CheckRunID.Int64, request)
-			if updateErr != nil {
-				return 0, 0, fmt.Errorf("%w: updating the check run: %v", errAttachmentGitHub, updateErr)
-			}
-			checkRunID = updated.ID
-		}
-	}
-
-	existing := int64(0)
-	if attachment.CommentID.Valid {
-		existing = attachment.CommentID.Int64
-	}
-	posted, err := h.gh.UpsertIssueComment(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, int(attachment.Number), existing, comment)
+	posted, err := h.gh.UpsertIssueComment(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, int(attachment.Number), attachment.CommentID.Int64, comment)
 	if err != nil {
 		return 0, 0, fmt.Errorf("%w: posting the comment: %v", errAttachmentGitHub, err)
 	}
 	return posted.ID, checkRunID, nil
+}
+
+// postPreviewComment posts or edits the sticky comment a pull request carries
+// while its author decides: how many of their transcripts match and a link to
+// review them on village. It names no transcript and no prompt. It returns the
+// comment id to record; with the collective's toggle off it posts nothing and
+// returns the recorded id unchanged.
+func (h *Handler) postPreviewComment(ctx context.Context, attachment sqlc.PullRequestAttachment, repo attachmentRepository, matches int) (int64, error) {
+	if !repo.postCheck {
+		return attachment.CommentID.Int64, nil
+	}
+	if h.gh == nil {
+		return 0, errAttachmentGitHubUnavailable
+	}
+	posted, err := h.gh.UpsertIssueComment(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, int(attachment.Number), attachment.CommentID.Int64,
+		digest.RenderPreview(matches, h.pullRequestPageURL(attachment)))
+	if err != nil {
+		return 0, fmt.Errorf("%w: posting the preview comment: %v", errAttachmentGitHub, err)
+	}
+	return posted.ID, nil
 }
 
 // attachmentExternalID is the stable reference GitHub shows for the run, so a
@@ -427,7 +432,7 @@ func (h *Handler) detachAttachment(ctx context.Context, attachment sqlc.PullRequ
 		// A 404 means the comment is already gone, which is the outcome detach
 		// wants; failing here would leave a partial detach stuck forever.
 	}
-	if repo.postCheck && attachment.CheckRunID.Valid {
+	if attachment.CheckRunID.Valid {
 		if _, err := h.gh.UpdateCheckRun(ctx, repo.installationID, attachment.RepoOwner, attachment.RepoName, attachment.CheckRunID.Int64, github.CheckRunRequest{
 			Conclusion: github.CheckConclusionNeutral,
 			Title:      attachmentCheckTitle,

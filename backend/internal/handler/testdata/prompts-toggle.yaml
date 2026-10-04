@@ -1,0 +1,193 @@
+# The collective's post_prompts_check toggle, crossed with what the author does
+# on the pull request. The toggle gates the preview comment, the attached
+# comment, and the check alike: off, no digest is posted or edited on
+# GitHub. Explicit detach removes earlier artifacts, while the attachment still moves (the pull request page works
+# either way).
+#
+# steps run in order through the production paths: click is the author's
+# `/peasant attach` comment (it previews, since one private transcript of theirs
+# matches), confirm is the author's confirm on village, and not_now is the
+# author's detach while the preview is open.
+#
+# expect.comment is the start of the last comment body posted ("" when none
+# is), and details_url says the check's details link opens the pull request's
+# page on village.
+- name: on_preview_posts_the_preview_comment
+  toggle: true
+  steps: [click]
+  expect:
+    artifact_ids: comment
+    state: preview
+    comment_creates: 1
+    comment_edits: 0
+    comment_deletes: 0
+    check_creates: 0
+    check_updates: 0
+    check_heads: []
+    comment: "1 of your transcripts matches this pull request: [review and attach them on village]"
+    details_url: false
+
+- name: on_attached_edits_the_preview_comment_and_posts_the_check
+  toggle: true
+  steps: [click, confirm]
+  expect:
+    artifact_ids: both
+    state: attached
+    comment_creates: 1
+    comment_edits: 1
+    comment_deletes: 0
+    check_creates: 1
+    check_updates: 0
+    check_heads: [original]
+    comment: "**peasant / prompts · 1 transcript traces 1 of 1 commits**"
+    details_url: true
+
+- name: on_not_now_deletes_the_preview_comment
+  toggle: true
+  steps: [click, not_now]
+  expect:
+    artifact_ids: none
+    state: detached
+    comment_creates: 1
+    comment_edits: 0
+    comment_deletes: 1
+    check_creates: 0
+    check_updates: 0
+    check_heads: []
+    comment: "1 of your transcripts matches this pull request: [review and attach them on village]"
+    details_url: false
+
+- name: off_preview_posts_nothing
+  toggle: false
+  steps: [click]
+  expect:
+    artifact_ids: none
+    state: preview
+    comment_creates: 0
+    comment_edits: 0
+    comment_deletes: 0
+    check_creates: 0
+    check_updates: 0
+    check_heads: []
+    comment: ""
+    details_url: false
+
+- name: off_attached_posts_nothing
+  toggle: false
+  steps: [click, confirm]
+  expect:
+    artifact_ids: none
+    state: attached
+    comment_creates: 0
+    comment_edits: 0
+    comment_deletes: 0
+    check_creates: 0
+    check_updates: 0
+    check_heads: []
+    comment: ""
+    details_url: false
+
+- name: off_not_now_posts_nothing
+  toggle: false
+  steps: [click, not_now]
+  expect:
+    artifact_ids: none
+    state: detached
+    comment_creates: 0
+    comment_edits: 0
+    comment_deletes: 0
+    check_creates: 0
+    check_updates: 0
+    check_heads: []
+    comment: ""
+    details_url: false
+
+- name: off_confirm_keeps_the_preview_id
+  toggle: true
+  steps: [click, flip_off, confirm]
+  expect:
+    state: attached
+    artifact_ids: comment
+    comment_creates: 1
+    comment_edits: 0
+    comment_deletes: 0
+    check_creates: 0
+    check_updates: 0
+    check_heads: []
+    comment: "1 of your transcripts matches this pull request: [review and attach them on village]"
+    details_url: false
+
+- name: off_refresh_keeps_both_posted_ids
+  toggle: true
+  steps: [click, confirm, flip_off, refresh]
+  expect:
+    state: attached
+    artifact_ids: both
+    comment_creates: 1
+    comment_edits: 1
+    comment_deletes: 0
+    check_creates: 1
+    check_updates: 0
+    check_heads: [original]
+    comment: "**peasant / prompts · 1 transcript traces 1 of 1 commits**"
+    details_url: true
+
+- name: off_push_and_refresh_keep_both_posted_ids
+  toggle: true
+  steps: [click, confirm, flip_off, push, refresh]
+  expect:
+    state: attached
+    artifact_ids: both
+    comment_creates: 1
+    comment_edits: 1
+    comment_deletes: 0
+    check_creates: 1
+    check_updates: 0
+    check_heads: [original]
+    comment: "**peasant / prompts · 1 transcript traces 1 of 1 commits**"
+    details_url: true
+
+- name: reenabled_refresh_creates_a_check_for_the_new_head
+  toggle: true
+  steps: [click, confirm, flip_off, push, flip_on, refresh]
+  expect:
+    state: attached
+    artifact_ids: both
+    comment_creates: 1
+    comment_edits: 2
+    comment_deletes: 0
+    check_creates: 2
+    check_updates: 0
+    check_heads: [original, new]
+    comment: "**peasant / prompts · 1 transcript traces 1 of 2 commits**"
+    details_url: true
+
+- name: off_detach_resets_the_posted_check
+  toggle: true
+  steps: [click, confirm, flip_off, not_now]
+  expect:
+    state: detached
+    artifact_ids: none
+    comment_creates: 1
+    comment_edits: 1
+    comment_deletes: 1
+    check_creates: 1
+    check_updates: 1
+    check_heads: [original]
+    comment: "**peasant / prompts · 1 transcript traces 1 of 1 commits**"
+    details_url: true
+
+- name: off_not_now_deletes_the_posted_preview
+  toggle: true
+  steps: [click, flip_off, not_now]
+  expect:
+    state: detached
+    artifact_ids: none
+    comment_creates: 1
+    comment_edits: 0
+    comment_deletes: 1
+    check_creates: 0
+    check_updates: 0
+    check_heads: []
+    comment: "1 of your transcripts matches this pull request: [review and attach them on village]"
+    details_url: false

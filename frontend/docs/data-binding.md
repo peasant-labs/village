@@ -449,4 +449,24 @@ unit cannot observe React Query's cached-data reuse in the mounted owner dialog;
 this adds no service, process or screenshot scan. Each fixture releases its held
 response, unmounts the route and clears its test cookie and fetch stub. This test
 can be simplified if authenticated reads acquire a shared enforced cache scope.
->>>>>>> theirs
+
+## Pull request attachment page
+
+The mounted `/pulls/{owner}/{name}/{number}` page reads the existing attachment,
+then each matching transcript and its collective metadata for the author.
+Fairtrade owns the split digest; consent actions follow their explanation as in
+the canonical in-use demo. Attaching does not change access. Private transcripts
+use “not shared with collective members” even when an earlier approval remains
+in the metadata: approval alone grants no ordinary member access, and an empty
+list does not rule out collective-owner review of a pending submission.
+
+The existing contract supplies the attachment author ID, coverage counts, and
+matched commit SHAs. It does not supply the author handle or unmatched commit
+subjects for the demo's decorative header line. The page shows the received
+branch and coverage counts without inventing either detail. Existing data and
+reads were checked before considering a contract change; those decorations do
+not justify extending the wire or adding a profile read.
+
+Production journeys check the consent actions' computed position in both
+themes. A unit mount cannot observe CSS layout; this assertion reuses the
+existing real-route journey and creates no additional service or process.

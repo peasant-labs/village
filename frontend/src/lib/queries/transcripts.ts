@@ -177,12 +177,22 @@ export function useTranscriptPages(
   });
 }
 
-export function useTranscript(id: string) {
-  return useQuery({
-    queryKey: ["transcript", id],
-    queryFn: ({ signal }) => api<TranscriptDetailResponse>(`/transcripts/${id}`, { signal }),
+/**
+ * The one definition of a transcript read, shared by {@link useTranscript} and
+ * by a page that reads a variable number of transcripts at once (`useQueries`),
+ * so both hit the same cache entry.
+ */
+export function transcriptQueryOptions(id: string) {
+  return {
+    queryKey: ["transcript", id] as const,
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      api<TranscriptDetailResponse>(`/transcripts/${id}`, { signal }),
     enabled: !!id,
-  });
+  };
+}
+
+export function useTranscript(id: string) {
+  return useQuery(transcriptQueryOptions(id));
 }
 
 export function useTranscriptContent(id: string, options: {knownHarness?: string; enabled?: boolean} = {}) {

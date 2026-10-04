@@ -951,9 +951,10 @@ type SetPullRequestAttachmentArtifactsParams struct {
 	ID         pgtype.UUID `db:"id" json:"id"`
 }
 
-// Records what an attach posted and against which commit. head_sha moves when a
-// new head is attached or refreshed; comment_id and check_run_id are the GitHub
-// objects a later refresh edits and a detach deletes or resets.
+// Records what a preview or an attach posted and against which commit, with the
+// digest it computed. head_sha moves when a new head is attached or refreshed;
+// comment_id and check_run_id are the GitHub objects a later preview, attach, or
+// refresh edits and a detach deletes or resets.
 func (q *Queries) SetPullRequestAttachmentArtifacts(ctx context.Context, arg SetPullRequestAttachmentArtifactsParams) error {
 	_, err := q.db.Exec(ctx, setPullRequestAttachmentArtifacts,
 		arg.HeadSha,
@@ -962,24 +963,6 @@ func (q *Queries) SetPullRequestAttachmentArtifacts(ctx context.Context, arg Set
 		arg.Digest,
 		arg.ID,
 	)
-	return err
-}
-
-const setPullRequestAttachmentDigest = `-- name: SetPullRequestAttachmentDigest :exec
-UPDATE pull_request_attachments
-SET digest = $1, updated_at = now()
-WHERE id = $2
-`
-
-type SetPullRequestAttachmentDigestParams struct {
-	Digest []byte      `db:"digest" json:"digest"`
-	ID     pgtype.UUID `db:"id" json:"id"`
-}
-
-// Stores the digest a preview computed without changing the state: a preview
-// exposes the digest on the pull request page but shares and posts nothing.
-func (q *Queries) SetPullRequestAttachmentDigest(ctx context.Context, arg SetPullRequestAttachmentDigestParams) error {
-	_, err := q.db.Exec(ctx, setPullRequestAttachmentDigest, arg.Digest, arg.ID)
 	return err
 }
 

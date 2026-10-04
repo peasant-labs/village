@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"unicode/utf8"
 
 	"github.com/peasant-labs/village/backend/internal/promptattach"
@@ -105,7 +106,9 @@ func PromptCheckConclusion(mode promptattach.CheckMode, attached, readableBeyond
 
 // CheckRunRequest is the content of a check run, apart from the pull request it
 // belongs to. HeadSHA is required when creating and ignored when updating;
-// Conclusion and Title are required either way.
+// Conclusion and Title are required either way. DetailsURL, when set, is the
+// absolute page GitHub's "details" link opens: the pull request's page on
+// village.
 type CheckRunRequest struct {
 	HeadSHA    string
 	ExternalID string
@@ -118,6 +121,7 @@ type CheckRunRequest struct {
 
 // CheckRun is the created or updated check run, as far as callers need it.
 type CheckRun struct {
+	HeadSHA    string
 	ID         int64
 	HTMLURL    string
 	Status     string
@@ -126,6 +130,7 @@ type CheckRun struct {
 
 // checkRunResponse mirrors GitHub's check-run object.
 type checkRunResponse struct {
+	HeadSHA    string `json:"head_sha"`
 	ID         int64  `json:"id"`
 	HTMLURL    string `json:"html_url"`
 	Status     string `json:"status"`
@@ -133,7 +138,22 @@ type checkRunResponse struct {
 }
 
 func (r checkRunResponse) checkRun() *CheckRun {
-	return &CheckRun{ID: r.ID, HTMLURL: r.HTMLURL, Status: r.Status, Conclusion: r.Conclusion}
+	return &CheckRun{HeadSHA: r.HeadSHA, ID: r.ID, HTMLURL: r.HTMLURL, Status: r.Status, Conclusion: r.Conclusion}
+}
+
+// GetCheckRun reads the immutable head of a recorded run. The attachment's
+// latest head can move while posting is off, so its stored run ID alone does
+// not establish that the run belongs to the head now being published.
+func (c *Client) GetCheckRun(ctx context.Context, installationID int64, owner, name string, checkRunID int64) (*CheckRun, error) {
+	if checkRunID <= 0 {
+		return nil, fmt.Errorf("github: get check run: check run id must be positive")
+	}
+	var out checkRunResponse
+	path := fmt.Sprintf("/repos/%s/%s/check-runs/%d", owner, name, checkRunID)
+	if err := c.doInstallationJSON(ctx, installationID, "get check run", http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.checkRun(), nil
 }
 
 // CreateCheckRun posts the pull request's check run for one head SHA. It is
@@ -219,6 +239,14 @@ func validateCheckRunRequest(req CheckRunRequest, creating bool) error {
 	}
 	if req.Title == "" {
 		return fmt.Errorf("github: check run: title is required")
+	}
+	if req.DetailsURL != "" {
+		// GitHub rejects a details_url that is not a full URL, so a relative
+		// path or a bare host fails here rather than as a 422 on every post.
+		parsed, err := url.Parse(req.DetailsURL)
+		if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+			return fmt.Errorf("github: check run: details url %q must be an absolute http or https URL", req.DetailsURL)
+		}
 	}
 	if len(req.Actions) > maxCheckActions {
 		return fmt.Errorf("github: check run: at most %d actions, got %d", maxCheckActions, len(req.Actions))

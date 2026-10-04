@@ -13,6 +13,7 @@
  * adopted. (A future fairtrade `.d.ts` fix removes the need for the widenings.)
  */
 import type {
+  AnchorHTMLAttributes,
   ButtonHTMLAttributes,
   ChangeEvent,
   ComponentProps,
@@ -49,6 +50,15 @@ import {
  */
 export const Button = FtButton as ComponentType<
   ComponentProps<typeof FtButton> & ButtonHTMLAttributes<HTMLButtonElement>
+>;
+
+/**
+ * fairtrade Button rendered as a real `<a>` (`as="a"`). It forwards native
+ * anchor attributes (`href`, `target`, `rel`, …) via `{...rest}`; widen its
+ * published type to expose them. Use it for a control that navigates.
+ */
+export const LinkButton = FtButton as ComponentType<
+  Omit<ComponentProps<typeof FtButton>, "as"> & { as: "a" } & AnchorHTMLAttributes<HTMLAnchorElement>
 >;
 
 /**
