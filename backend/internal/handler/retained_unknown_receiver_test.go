@@ -235,7 +235,7 @@ func TestRetainedUnknownActualWireBudget(t *testing.T) {
 			// A real publication must pass both the receiver boundary and metadata
 			// mirror path before any encrypted store side effect.
 			raw := []byte(c.Content)
-			if err := requireSupportedContentForHarness(raw, "claude-code", productionObservedModelPreservationEvaluator{}, productionProvenancePreservationEvaluator{}); err != nil {
+			if err := requireSupportedContentForHarness(raw, "claude-code", productionObservedModelPreservationEvaluator{}, productionProvenancePreservationEvaluator{}, productionThinkingLevelPreservationEvaluator{}); err != nil {
 				t.Fatal(err)
 			}
 			detail, err := decodePublicationDetail(raw)

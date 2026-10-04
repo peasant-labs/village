@@ -36,9 +36,9 @@ func capturePreservationLogs(t *testing.T) *bytes.Buffer {
 func TestServeEvaluatesPreservationProofsBeforeServing(t *testing.T) {
 	var calls []string
 	originalEvaluate := evaluatePreservationProofs
-	evaluatePreservationProofs = func() (error, error) {
+	evaluatePreservationProofs = func() (error, error, error) {
 		calls = append(calls, "evaluate")
-		return nil, nil
+		return nil, nil, nil
 	}
 	t.Cleanup(func() { evaluatePreservationProofs = originalEvaluate })
 
@@ -63,15 +63,15 @@ func TestServeEvaluatesPreservationProofsBeforeServing(t *testing.T) {
 	if !strings.Contains(logged, "msg=preservation_proofs_evaluated") {
 		t.Fatalf("serve dispatch did not log preservation verdicts: %q", logged)
 	}
-	if !strings.Contains(logged, "base_preservation=pass") || !strings.Contains(logged, "provenance_preservation=pass") {
+	if !strings.Contains(logged, "base_preservation=pass") || !strings.Contains(logged, "provenance_preservation=pass") || !strings.Contains(logged, "thinking_level_preservation=pass") {
 		t.Fatalf("serve dispatch did not log passing verdicts: %q", logged)
 	}
 }
 
 func TestServeContinuesWhenPreservationProofsFail(t *testing.T) {
 	originalEvaluate := evaluatePreservationProofs
-	evaluatePreservationProofs = func() (error, error) {
-		return errors.New("base preservation unavailable"), errors.New("provenance preservation unavailable")
+	evaluatePreservationProofs = func() (error, error, error) {
+		return errors.New("base preservation unavailable"), errors.New("provenance preservation unavailable"), errors.New("thinking-level preservation unavailable")
 	}
 	t.Cleanup(func() { evaluatePreservationProofs = originalEvaluate })
 
@@ -97,7 +97,7 @@ func TestServeContinuesWhenPreservationProofsFail(t *testing.T) {
 	if !strings.Contains(logged, "msg=preservation_proofs_evaluated") {
 		t.Fatalf("failing proofs did not log preservation verdicts: %q", logged)
 	}
-	if !strings.Contains(logged, "base_preservation=fail") || !strings.Contains(logged, "provenance_preservation=fail") {
+	if !strings.Contains(logged, "base_preservation=fail") || !strings.Contains(logged, "provenance_preservation=fail") || !strings.Contains(logged, "thinking_level_preservation=fail") {
 		t.Fatalf("failing proofs did not log failing verdicts: %q", logged)
 	}
 }

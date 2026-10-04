@@ -52,7 +52,7 @@ var _ contentRewriteEncoder = canonicalContentRewriteEncoder{}
 type productionObservedModelPreservationEvaluator struct{}
 
 func (productionObservedModelPreservationEvaluator) Evaluate() error {
-	baseErr, _ := EvaluatePreservationProofs()
+	baseErr, _, _ := EvaluatePreservationProofs()
 	return baseErr
 }
 
@@ -134,7 +134,7 @@ func originalContentEnvelope(raw []byte) ([]byte, error) {
 var productionContentRewriteEncoder contentRewriteEncoder = canonicalContentRewriteEncoder{}
 
 func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observedModelPreservationEvaluator) error {
-	return requireSupportedContentForHarness(raw, "", evaluator, productionProvenancePreservationEvaluator{})
+	return requireSupportedContentForHarness(raw, "", evaluator, productionProvenancePreservationEvaluator{}, productionThinkingLevelPreservationEvaluator{})
 }
 
 // requireSupportedContentForHarness is the production publish gate. It refuses
@@ -143,8 +143,9 @@ func requireSupportedContentCapabilityWithEvaluator(raw []byte, evaluator observ
 // advertisement: a client that cannot see a capability must not be able to lose
 // its evidence silently. The gates are per proof so a provenance-specific
 // failure refuses only the provenance evidence and cannot un-advertise or
-// un-refuse the shared tokens.
-func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluator observedModelPreservationEvaluator, provenance provenancePreservationEvaluator) error {
+// un-refuse the shared tokens; a thinking-level failure likewise refuses only
+// level-bearing content.
+func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluator observedModelPreservationEvaluator, provenance provenancePreservationEvaluator, thinkingLevel thinkingLevelPreservationEvaluator) error {
 	boundary, err := validateContentBoundary(raw, knownHarness, contentPublication)
 	if err != nil {
 		return fmt.Errorf("uploaded transcript content could not be decoded in handler.requireSupportedContentCapability before secret scan or storage because raw JSON validation failed; no transcript bytes or metadata were written; repair the transcript and retry: %w", err)
@@ -162,13 +163,16 @@ func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluato
 	if err := validateObservedModelEvidence(payload); err != nil {
 		return err
 	}
+	if err := validateThinkingLevelEvidence(payload); err != nil {
+		return err
+	}
 	required := schema.RequiredContentCapabilities(*payload)
 	if len(required) == 0 {
 		return nil
 	}
 	shared := make([]schema.ContentCapability, 0, len(required))
 	for _, capability := range required {
-		if capability != schema.ContentCapabilitySessionGraphProvenanceV1 {
+		if capability != schema.ContentCapabilitySessionGraphProvenanceV1 && capability != schema.ContentCapabilityThinkingLevelV1 {
 			shared = append(shared, capability)
 		}
 	}
@@ -180,6 +184,14 @@ func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluato
 	if containsContentCapability(required, schema.ContentCapabilitySessionGraphProvenanceV1) {
 		if err := provenance.Evaluate(); err != nil {
 			return fmt.Errorf("provenance-bearing transcript publish refused because the uploaded transcript_file carries durable session-relationship evidence (relationships, root identity, submission count, purpose, retained history, or per-block provenance) while Village's provenance preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would drop the session's recorded lineage; deploy a Village build whose GET /api/v1/schema/version advertises %q after the provenance preservation gate passes, then retry: %w", schema.ContentCapabilitySessionGraphProvenanceV1, err)
+		}
+	}
+	if containsContentCapability(required, schema.ContentCapabilityThinkingLevelV1) {
+		// The base proof withholds the whole advertisement, so a failing base
+		// proof refuses level-bearing content as well.
+		proofErr := errors.Join(evaluator.Evaluate(), thinkingLevel.Evaluate())
+		if proofErr != nil {
+			return fmt.Errorf("level-bearing transcript publish refused because the uploaded transcript_file carries thinkingLevel or thinkingLevelRaw evidence while Village's thinking-level preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would misreport how hard the assistant was asked to think; deploy a Village build whose GET /api/v1/schema/version advertises %q after the thinking-level preservation gate passes, then retry: %w", schema.ContentCapabilityThinkingLevelV1, proofErr)
 		}
 	}
 	return nil

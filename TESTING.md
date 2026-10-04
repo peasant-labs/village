@@ -26,6 +26,7 @@ suite under the race detector.
 | Contract request-body enforcement (collectives and user-settings mutations) | none | no | unit | `backend/internal/handler/contract_body_test.go`; fixture `testdata/contract_body_operations.yaml` |
 | Declared-but-unimplemented routes answer 501 (pull request attachment stubs) | none | no | unit | `backend/internal/router/attachment_stubs_test.go`; fixture `testdata/attachment_stub_routes.yaml` |
 | Pull request reads: visibility rule, transcript list, summaries, counts, no-N+1 guard | mixed | the database families do | both | [Pull request reads](#pull-request-reads-one-rule-four-surfaces) below |
+| Thinking-level preservation gate (`thinking_level_v1` proof, advertisement, publish refusal, read validation) | unit; lifecycle `//go:build integration` | the lifecycle test does (PostgreSQL + S3-compatible storage) | both | [Thinking-level preservation gate](#thinking-level-preservation-gate) below |
 | Governance rules (fail-closed fixtures, append-only teardown, drift guards, convergence) | mixed | mostly yes | both | [Governance testing](#governance-testing-migration-026) below |
 | Test performance (measured levers, template cache) | - | - | - | [Test performance](#test-performance-measured) below |
 
@@ -1446,7 +1447,12 @@ escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
-The served/enforced contract expectation is Village API 0.24.0, including the
+The served/enforced contract expectation is Village API 0.25.0, including optional
+session and turn `thinkingLevel` / `thinkingLevelRaw` evidence and the
+`thinking_level_v1` preservation capability. Compared with 0.24.0, the generated
+spec adds the two thinking-level types and optional properties, and extends the
+capability description; existing menus, required arrays, and manifest shapes are
+unchanged. It retains the
 pull request reads (a transcript's pull requests as the narrow
 `VillageTranscriptPullRequest` row, the caller's totals, list-row summaries, and
 the collective and repository counts), retained unknown evidence, and the
@@ -1605,6 +1611,49 @@ enriched publish precondition refuse. The same failing evaluator must still let
 the no-observation legacy fixture through. Keep this production-point negative
 when the canonical rewrite code moves; a synthetic standalone marshal test does
 not replace it.
+
+### Thinking-level preservation gate
+
+`internal/handler/testdata/thinking_level_preservation/` is the strict corpus for
+the optional session-level `thinkingLevel` seed, its bounded native
+`thinkingLevelRaw` spelling, and the same pair on assistant turns.
+`cases.yaml` is loaded by production code
+(`thinking_level_preservation.go`) with known-field decoding, one-document
+enforcement, an exact case count, an independent required-name inventory, and
+uniqueness checks. It holds an enriched case (session seed plus per-turn
+canonical and raw values, including `ultra`/`ultracode`, `off`/`none`, a
+raw-only spelling and a multibyte raw), a legacy-contract case carrying levels,
+and a legacy case without levels whose absence must stay absent (absence is
+never the canonical `off`).
+
+`executeThinkingLevelPreservationProof` runs `NewContentMigrator().Migrate`, the
+injected canonical rewrite encoder, and `Migrate` again, then compares the exact
+re-emitted JSON of every session and turn member and requires the re-emitted
+payload to need `thinking_level_v1` exactly when evidence is expected. Boot
+caches it as the third verdict of `EvaluatePreservationProofs`. `GET
+/api/v1/schema/version` advertises `thinking_level_v1` only while it passes; a
+failing thinking-level proof withholds only that token, and a failing base proof
+still withholds the whole advertisement. The publish gate validates level
+evidence (canonical set, raw bounds, assistant-only turns) before secret scan
+or storage, and refuses level-bearing content while the proof fails with a
+no-write message naming the token and the negotiation endpoint. Level-free
+legacy publishes stay accepted. Any `thinkingLevel`/`thinkingLevelRaw` member,
+under any casing, selects strict public-root decoding so a legacy projection
+cannot drop it. The read path runs `validateThinkingLevelValues` after
+migrate-on-read and refuses invalid stored values without rewriting.
+
+The negative is executed, not descriptive: `negative.yaml` dispatches each
+registered operation to a real encoder, and the field-drop encoder strips every
+thinking-level member after the production canonical encoder. It must fail
+exactly the two level-bearing cases, withhold only `thinking_level_v1`, refuse
+the enriched publish on the mounted handler with no scan, probe, row, or blob
+write, and still accept the legacy publish. `publish_gate.yaml` and
+`read_evidence.yaml` drive the mounted publish and read handlers; mutation tests
+prove each loader rejects a count-preserving name, operation, or fragment
+substitution. `thinking_level_lifecycle_integration_test.go` publishes the
+enriched case through real PostgreSQL and encrypted object storage and asserts
+the exact values on the display read and the pull. Keep the field-drop negative
+at the production rewrite boundary when the canonical rewrite code moves.
 
 ## Cross-repo contract tests & gate-faithful expectations
 
