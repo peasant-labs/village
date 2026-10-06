@@ -13,11 +13,11 @@ cases:
     thinkingLevelRaw: ""
     history:
       - {level: xhigh}
-      - {level: ultra, raw: ultracode}
+      - {level: ultra, raw: custom}
     turns:
       - {role: user}
       - {role: assistant, thinkingLevel: high}
-      - {role: assistant, thinkingLevel: ultra, thinkingLevelRaw: ultracode}
+      - {role: assistant, thinkingLevel: ultra, thinkingLevelRaw: custom}
       - {role: assistant, thinkingLevel: "off", thinkingLevelRaw: none}
       - {role: assistant, thinkingLevelRaw: custom}
       - {role: assistant, thinkingLevel: xhigh, thinkingLevelRaw: "深く考える"}
@@ -27,11 +27,11 @@ cases:
       thinkingLevelRaw: absent
       history:
         - {level: '"xhigh"', raw: absent}
-        - {level: '"ultra"', raw: '"ultracode"'}
+        - {level: '"ultra"', raw: '"custom"'}
       turns:
         - {thinkingLevel: absent, thinkingLevelRaw: absent}
         - {thinkingLevel: '"high"', thinkingLevelRaw: absent}
-        - {thinkingLevel: '"ultra"', thinkingLevelRaw: '"ultracode"'}
+        - {thinkingLevel: '"ultra"', thinkingLevelRaw: '"custom"'}
         - {thinkingLevel: '"off"', thinkingLevelRaw: '"none"'}
         - {thinkingLevel: absent, thinkingLevelRaw: '"custom"'}
         - {thinkingLevel: '"xhigh"', thinkingLevelRaw: '"深く考える"'}

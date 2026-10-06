@@ -12,9 +12,9 @@ reads:
     wantError: thinkingLevel
     corrected: '{"id":"stored-noncanonical","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi","thinkingLevel":"xhigh"}]}'
   - name: stored_edge_whitespace_raw_refused
-    content: '{"id":"stored-edge","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"thinkingLevelRaw":"max ","turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi"}]}'
+    content: '{"id":"stored-edge","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"thinkingLevelRaw":"custom ","turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi"}]}'
     wantError: thinkingLevelRaw
-    corrected: '{"id":"stored-edge","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"thinkingLevelRaw":"max","turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi"}]}'
+    corrected: '{"id":"stored-edge","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"thinkingLevelRaw":"custom","turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi"}]}'
   - name: stored_empty_history_entry_refused
     content: '{"id":"stored-history-empty","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"thinkingLevel":"high","thinkingLevelHistory":[{}],"turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi"}]}'
     wantError: thinkingLevelHistory

@@ -1622,7 +1622,7 @@ and the same per-turn pair on assistant turns.
 (`thinking_level_preservation.go`) with known-field decoding, one-document
 enforcement, an exact case count, an independent required-name inventory, and
 uniqueness checks. It holds an enriched case (session seed plus history plus
-per-turn canonical and raw values, including `ultra`/`ultracode`, `off`/`none`, a
+per-turn canonical and raw values, including `ultra`/`custom`, `off`/`none`, a
 raw-only spelling and a multibyte raw), a history-only case whose token
 requirement comes solely from a non-empty history, a legacy-contract case
 carrying levels, and a legacy case without levels whose absence must stay absent
