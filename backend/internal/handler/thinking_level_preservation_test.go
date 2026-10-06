@@ -179,10 +179,30 @@ func thinkingLevelFieldDropOracle(outcomes []thinkingLevelPreservationOutcome) e
 		}
 	}
 	want := []string{"enriched_session_seed_and_per_turn_canonical_and_raw", "legacy_contract_with_levels", "enriched_session_history_only_changes"}
+	slices.Sort(failed)
+	slices.Sort(want)
 	if !slices.Equal(failed, want) {
 		return fmt.Errorf("field-drop failed cases=%v, want %v", failed, want)
 	}
 	return nil
+}
+
+// TestThinkingLevelFieldDropOracleIsOrderIndependent proves the oracle asserts
+// the failed-case set, not the corpus order: reordering cases.yaml must not
+// change the verdict.
+func TestThinkingLevelFieldDropOracleIsOrderIndependent(t *testing.T) {
+	outcomes, err := executeThinkingLevelPreservationProofOutcomes(droppingThinkingLevelEncoder{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := thinkingLevelFieldDropOracle(outcomes); err != nil {
+		t.Fatalf("in-order field-drop outcomes: %v", err)
+	}
+	reversed := slices.Clone(outcomes)
+	slices.Reverse(reversed)
+	if err := thinkingLevelFieldDropOracle(reversed); err != nil {
+		t.Fatalf("reversed field-drop outcomes: %v", err)
+	}
 }
 
 func hasThinkingLevelCapability(capabilities []schema.ContentCapability) bool {
@@ -341,7 +361,7 @@ func TestThinkingLevelFieldDropNegative(t *testing.T) {
 	if encoder.executions != thinkingLevelPreservationCaseCount {
 		t.Fatalf("field-drop executions=%d, want exactly %d", encoder.executions, thinkingLevelPreservationCaseCount)
 	}
-	if (proofErr != nil) != negative.WantProofFailure || !strings.Contains(proofErr.Error(), negative.WantErrorContains[0].Value) {
+	if (proofErr != nil) != negative.WantProofFailure || (proofErr != nil && !strings.Contains(proofErr.Error(), negative.WantErrorContains[0].Value)) {
 		t.Fatalf("field-drop proof error=%v, want failure naming %q", proofErr, negative.WantErrorContains[0].Value)
 	}
 	evaluator := fixedThinkingLevelPreservationEvaluator{err: proofErr}
@@ -452,6 +472,7 @@ func TestThinkingLevelFixtureInventoryMutationGuards(t *testing.T) {
 		{"cases_duplicate", func(d []byte) error { _, err := loadThinkingLevelPreservationFixtures(d); return err }, thinkingLevelPreservationFixtureYAML, "name: legacy_contract_with_levels", "name: legacy_without_levels_stays_absent"},
 		{"cases_unknown_field", func(d []byte) error { _, err := loadThinkingLevelPreservationFixtures(d); return err }, thinkingLevelPreservationFixtureYAML, "    harness: codex", "    harness: codex\n    unexpected: true"},
 		{"cases_second_document", func(d []byte) error { _, err := loadThinkingLevelPreservationFixtures(d); return err }, thinkingLevelPreservationFixtureYAML, "cases:", "cases: []\n---\ncases:"},
+		{"cases_history_count_mismatch", func(d []byte) error { _, err := loadThinkingLevelPreservationFixtures(d); return err }, thinkingLevelPreservationFixtureYAML, "      - {level: high}\n", ""},
 		{"negative_name_substitution", func(d []byte) error { _, err := decodeThinkingLevelNegativeFixtures(d); return err }, thinkingLevelNegativeFixtureYAML, "field_drop_keeps_legacy_publish_compatible", "field_drop_keeps_legacy_publish_substitute"},
 		{"negative_operation_substitution", func(d []byte) error { _, err := decodeThinkingLevelNegativeFixtures(d); return err }, thinkingLevelNegativeFixtureYAML, "operation: legacy_payload_under_field_drop", "operation: substitute_payload_under_field_drop"},
 		{"negative_fragment_substitution", func(d []byte) error { _, err := decodeThinkingLevelNegativeFixtures(d); return err }, thinkingLevelNegativeFixtureYAML, "name: capability_name", "name: substitute_name"},

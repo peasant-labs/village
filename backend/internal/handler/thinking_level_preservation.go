@@ -198,6 +198,9 @@ func loadThinkingLevelPreservationFixtures(data []byte) ([]thinkingLevelPreserva
 		if len(fixtureCase.Turns) != len(fixtureCase.Expected.Turns) {
 			return nil, fmt.Errorf("thinking-level preservation fixture validation failed because case %q has %d source turns and %d expected turns %s; align the per-turn expectation lists and retry", fixtureCase.Name, len(fixtureCase.Turns), len(fixtureCase.Expected.Turns), where)
 		}
+		if len(fixtureCase.History) != len(fixtureCase.Expected.History) {
+			return nil, fmt.Errorf("thinking-level preservation fixture validation failed because case %q has %d source history entries and %d expected history entries %s; align the history expectation lists and retry", fixtureCase.Name, len(fixtureCase.History), len(fixtureCase.Expected.History), where)
+		}
 	}
 	for _, name := range thinkingLevelPreservationCaseNames {
 		if _, ok := seen[name]; !ok {
