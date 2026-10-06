@@ -23,3 +23,9 @@ cases:
   - name: invalid_session_level_refused
     content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-session","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"thinkingLevel":"extreme","turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hello"}]}}'
     wantErrorParts: [{name: why, value: thinkingLevel}, {name: when, value: before secret scan or storage}, {name: consequence, value: no transcript bytes or metadata were written}]
+  - name: valid_history_changes
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-history","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":2,"thinkingLevel":"high","thinkingLevelHistory":[{"level":"xhigh"},{"level":"ultra","raw":"ultracode"}],"turns":[{"index":0,"role":"user","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi"},{"index":1,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hello"}]}}'
+    wantErrorParts: []
+  - name: empty_history_entry_refused
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-history-empty","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"thinkingLevel":"high","thinkingLevelHistory":[{}],"turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hello"}]}}'
+    wantErrorParts: [{name: why, value: thinkingLevelHistory}, {name: when, value: before secret scan or storage}, {name: consequence, value: no transcript bytes or metadata were written}]

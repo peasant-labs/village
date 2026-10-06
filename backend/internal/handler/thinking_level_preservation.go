@@ -26,7 +26,7 @@ import (
 // publishes before any write (see requireSupportedContentForHarness), so the
 // evidence cannot be silently lost while legacy publishes stay accepted.
 
-const thinkingLevelPreservationCaseCount = 3
+const thinkingLevelPreservationCaseCount = 4
 
 // thinkingLevelPreservationCaseNames is the independent required-name
 // inventory that guards the corpus against deletion or silent renaming.
@@ -34,6 +34,7 @@ var thinkingLevelPreservationCaseNames = [...]string{
 	"enriched_session_seed_and_per_turn_canonical_and_raw",
 	"legacy_contract_with_levels",
 	"legacy_without_levels_stays_absent",
+	"enriched_session_history_only_changes",
 }
 
 // thinkingLevelAbsent is the fixture sentinel for an omitted JSON member.
@@ -54,8 +55,14 @@ type thinkingLevelPreservationCase struct {
 	Harness          string                          `yaml:"harness"`
 	ThinkingLevel    string                          `yaml:"thinkingLevel"`
 	ThinkingLevelRaw string                          `yaml:"thinkingLevelRaw"`
+	History          []thinkingLevelChangeSource     `yaml:"history"`
 	Turns            []thinkingLevelPreservationTurn `yaml:"turns"`
 	Expected         thinkingLevelPreservationExpect `yaml:"expected"`
+}
+
+type thinkingLevelChangeSource struct {
+	Level string `yaml:"level"`
+	Raw   string `yaml:"raw"`
 }
 
 type thinkingLevelPreservationTurn struct {
@@ -67,7 +74,13 @@ type thinkingLevelPreservationTurn struct {
 type thinkingLevelPreservationExpect struct {
 	ThinkingLevel    string                        `yaml:"thinkingLevel"`
 	ThinkingLevelRaw string                        `yaml:"thinkingLevelRaw"`
+	History          []thinkingLevelExpectedChange `yaml:"history"`
 	Turns            []thinkingLevelExpectedMember `yaml:"turns"`
+}
+
+type thinkingLevelExpectedChange struct {
+	Level string `yaml:"level"`
+	Raw   string `yaml:"raw"`
 }
 
 type thinkingLevelExpectedMember struct {
@@ -196,12 +209,19 @@ func loadThinkingLevelPreservationFixtures(data []byte) ([]thinkingLevelPreserva
 
 func (c thinkingLevelPreservationCase) envelopeJSON() ([]byte, error) {
 	payload := &schema.SessionDetailPayload{
-		SchemaVersion:    schema.PushContractVersion(c.SchemaVersion),
-		ID:               c.SessionID,
-		Harness:          schema.Harness(c.Harness),
-		ThinkingLevel:    schema.ThinkingLevel(c.ThinkingLevel),
-		ThinkingLevelRaw: schema.ThinkingLevelRaw(c.ThinkingLevelRaw),
-		Turns:            make([]schema.TurnDetail, 0, len(c.Turns)),
+		SchemaVersion:        schema.PushContractVersion(c.SchemaVersion),
+		ID:                   c.SessionID,
+		Harness:              schema.Harness(c.Harness),
+		ThinkingLevel:        schema.ThinkingLevel(c.ThinkingLevel),
+		ThinkingLevelRaw:     schema.ThinkingLevelRaw(c.ThinkingLevelRaw),
+		ThinkingLevelHistory: make([]schema.ThinkingLevelChange, 0, len(c.History)),
+		Turns:                make([]schema.TurnDetail, 0, len(c.Turns)),
+	}
+	for _, source := range c.History {
+		payload.ThinkingLevelHistory = append(payload.ThinkingLevelHistory, schema.ThinkingLevelChange{
+			Level: schema.ThinkingLevel(source.Level),
+			Raw:   schema.ThinkingLevelRaw(source.Raw),
+		})
 	}
 	for index, source := range c.Turns {
 		payload.Turns = append(payload.Turns, schema.TurnDetail{
@@ -226,17 +246,17 @@ func (c thinkingLevelPreservationCase) envelopeJSON() ([]byte, error) {
 	return encoded, nil
 }
 
-// assertThinkingLevels compares the re-emitted session and per-turn members
-// to the exact expected JSON (or absence) and checks that the re-emitted
+// assertThinkingLevels compares the re-emitted session, history, and per-turn
+// members to the exact expected JSON (or absence) and checks that the re-emitted
 // payload still requires thinking_level_v1 exactly when evidence is expected.
 func (c thinkingLevelPreservationCase) assertThinkingLevels(payload *schema.SessionDetailPayload) error {
 	const consequence = "thinking_level_v1 is withheld and level-bearing publishes must remain blocked; restore the field on the production typed encoder and retry"
-	if payload == nil || len(payload.Turns) != len(c.Expected.Turns) {
-		got := 0
+	if payload == nil || len(payload.Turns) != len(c.Expected.Turns) || len(payload.ThinkingLevelHistory) != len(c.Expected.History) {
+		gotTurns, gotHistory := 0, 0
 		if payload != nil {
-			got = len(payload.Turns)
+			gotTurns, gotHistory = len(payload.Turns), len(payload.ThinkingLevelHistory)
 		}
-		return fmt.Errorf("thinking-level preservation proof failed because case %q re-emitted %d turns, want %d in handler.thinkingLevelPreservationCase.assertThinkingLevels after typed migrate/rewrite; %s", c.Name, got, len(c.Expected.Turns), consequence)
+		return fmt.Errorf("thinking-level preservation proof failed because case %q re-emitted thinkingLevelHistory entries=%d and turns=%d, want %d and %d in handler.thinkingLevelPreservationCase.assertThinkingLevels after typed migrate/rewrite; %s", c.Name, gotHistory, gotTurns, len(c.Expected.History), len(c.Expected.Turns), consequence)
 	}
 	sessionJSON, err := json.Marshal(payload)
 	if err != nil {
@@ -246,6 +266,16 @@ func (c thinkingLevelPreservationCase) assertThinkingLevels(payload *schema.Sess
 		return err
 	}
 	evidence := c.Expected.ThinkingLevel != thinkingLevelAbsent || c.Expected.ThinkingLevelRaw != thinkingLevelAbsent
+	for index, want := range c.Expected.History {
+		changeJSON, err := json.Marshal(payload.ThinkingLevelHistory[index])
+		if err != nil {
+			return fmt.Errorf("thinking-level preservation proof failed because case %q history entry %d could not be encoded for comparison in handler.thinkingLevelPreservationCase.assertThinkingLevels after typed migrate/rewrite; %s: %w", c.Name, index, consequence, err)
+		}
+		if err := compareThinkingLevelChangeMembers(c.Name, fmt.Sprintf("history entry %d", index), changeJSON, want.Level, want.Raw); err != nil {
+			return err
+		}
+		evidence = evidence || want.Level != thinkingLevelAbsent || want.Raw != thinkingLevelAbsent
+	}
 	for index, want := range c.Expected.Turns {
 		turnJSON, err := json.Marshal(payload.Turns[index])
 		if err != nil {
@@ -282,6 +312,29 @@ func compareThinkingLevelMembers(name, scope string, document []byte, wantLevel,
 	return nil
 }
 
+// compareThinkingLevelChangeMembers is the history-entry counterpart of
+// compareThinkingLevelMembers: it compares the re-emitted level/raw members of
+// one thinkingLevelHistory entry to the exact expected JSON (or absence).
+func compareThinkingLevelChangeMembers(name, scope string, document []byte, wantLevel, wantRaw string) error {
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(document, &object); err != nil {
+		return fmt.Errorf("thinking-level preservation proof failed because case %q %s re-emission was not a JSON object in handler.compareThinkingLevelChangeMembers after typed migrate/rewrite; thinking_level_v1 is withheld; repair the canonical encoder and retry: %w", name, scope, err)
+	}
+	for _, member := range []struct{ key, want string }{{"level", wantLevel}, {"raw", wantRaw}} {
+		got, present := object[member.key]
+		if member.want == thinkingLevelAbsent {
+			if present {
+				return fmt.Errorf("thinking-level preservation proof failed because case %q %s fabricated thinkingLevelHistory %s=%s in handler.compareThinkingLevelChangeMembers after typed migrate/rewrite; absence must stay distinct from any level, so thinking_level_v1 is withheld; omit unobserved evidence and retry", name, scope, member.key, got)
+			}
+			continue
+		}
+		if !present || string(got) != member.want {
+			return fmt.Errorf("thinking-level preservation proof failed because case %q %s re-emitted thinkingLevelHistory %s=%s (present=%t), want exact JSON %s in handler.compareThinkingLevelChangeMembers after typed migrate/rewrite; thinking_level_v1 is withheld and level-bearing publishes must remain blocked; restore the field on the production typed encoder and retry", name, scope, member.key, got, present, member.want)
+		}
+	}
+	return nil
+}
+
 // validateThinkingLevelEvidence is the publish-time producer rule: the
 // session-level pair must be valid, and per-turn levels may appear only on
 // assistant turns with a valid canonical level and bounded raw spelling.
@@ -291,6 +344,11 @@ func validateThinkingLevelEvidence(payload *schema.SessionDetailPayload) error {
 	}
 	if err := validateThinkingLevelPair(payload.ThinkingLevel, payload.ThinkingLevelRaw); err != nil {
 		return fmt.Errorf("thinking-level evidence validation failed because session %q carries an invalid session-level thinkingLevel/thinkingLevelRaw in handler.validateThinkingLevelEvidence after upload decoding and before secret scan or storage; no transcript bytes or metadata were written; correct the producer's session seed and retry: %w", payload.ID, err)
+	}
+	for index, change := range payload.ThinkingLevelHistory {
+		if err := change.Validate(); err != nil {
+			return fmt.Errorf("thinking-level evidence validation failed because session %q thinkingLevelHistory entry %d violates the released Schema history policy in handler.validateThinkingLevelEvidence after upload decoding and before secret scan or storage; no transcript bytes or metadata were written; correct the producer's history entry and retry: %w", payload.ID, index, err)
+		}
 	}
 	for index, turn := range payload.Turns {
 		if err := schema.ValidateThinkingLevelEvidence(turn.Role, turn.ThinkingLevel, turn.ThinkingLevelRaw); err != nil {
@@ -308,6 +366,11 @@ func validateThinkingLevelValues(payload *schema.SessionDetailPayload) error {
 	}
 	if err := validateThinkingLevelPair(payload.ThinkingLevel, payload.ThinkingLevelRaw); err != nil {
 		return fmt.Errorf("thinking-level value validation failed because session %q carries an invalid stored session-level thinkingLevel/thinkingLevelRaw in handler.validateThinkingLevelValues after migrate-on-read and before serving; no response or canonical rewrite was produced; correct the stored producer evidence and republish: %w", payload.ID, err)
+	}
+	for index, change := range payload.ThinkingLevelHistory {
+		if err := change.Validate(); err != nil {
+			return fmt.Errorf("thinking-level value validation failed because session %q thinkingLevelHistory entry %d carries invalid stored evidence in handler.validateThinkingLevelValues after migrate-on-read and before serving; no response or canonical rewrite was produced; correct the stored producer evidence and republish: %w", payload.ID, index, err)
+		}
 	}
 	for index, turn := range payload.Turns {
 		if err := validateThinkingLevelPair(turn.ThinkingLevel, turn.ThinkingLevelRaw); err != nil {

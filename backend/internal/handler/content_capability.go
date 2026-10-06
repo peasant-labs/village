@@ -53,8 +53,8 @@ func advertisedContentCapabilitiesWithEvaluator(evaluator observedModelPreservat
 // emit the relationship evidence that would otherwise be lost.
 //
 // A failing thinking-level proof likewise withholds ONLY thinking_level_v1, so
-// a producer refuses to emit thinkingLevel/thinkingLevelRaw this deployment
-// could lose while level-free content keeps publishing.
+// a producer refuses to emit thinkingLevel/thinkingLevelRaw/thinkingLevelHistory
+// this deployment could lose while level-free content keeps publishing.
 //
 // The returned list is always the closed inventory in canonical lexicographic
 // order, so it always satisfies schema.ValidateContentCapabilityAdvertisements.

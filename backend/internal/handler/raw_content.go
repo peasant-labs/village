@@ -228,9 +228,10 @@ func publicEvidencePresence(detail map[string]json.RawMessage) (strict bool) {
 
 // thinkingLevelMember reports a session or turn thinking-level member under any
 // casing, so level-bearing content always takes the strict public decode and
-// cannot be projected through a legacy path that would drop it.
+// cannot be projected through a legacy path that would drop it. The in-session
+// history is included: a non-empty history is presence-bearing evidence too.
 func thinkingLevelMember(key string) bool {
-	return strings.EqualFold(key, "thinkingLevel") || strings.EqualFold(key, "thinkingLevelRaw")
+	return strings.EqualFold(key, "thinkingLevel") || strings.EqualFold(key, "thinkingLevelRaw") || strings.EqualFold(key, "thinkingLevelHistory")
 }
 
 func embeddedPublicRoot(value any, allowRoot bool) bool {
