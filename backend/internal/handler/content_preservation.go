@@ -191,7 +191,7 @@ func requireSupportedContentForHarness(raw []byte, knownHarness string, evaluato
 		// proof refuses level-bearing content as well.
 		proofErr := errors.Join(evaluator.Evaluate(), thinkingLevel.Evaluate())
 		if proofErr != nil {
-			return fmt.Errorf("level-bearing transcript publish refused because the uploaded transcript_file carries thinkingLevel or thinkingLevelRaw evidence while Village's thinking-level preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would misreport how hard the assistant was asked to think; deploy a Village build whose GET /api/v1/schema/version advertises %q after the thinking-level preservation gate passes, then retry: %w", schema.ContentCapabilityThinkingLevelV1, proofErr)
+			return fmt.Errorf("level-bearing transcript publish refused because the uploaded transcript_file carries thinkingLevel, thinkingLevelRaw, or thinkingLevelHistory evidence while Village's thinking-level preservation proof is failing in handler.requireSupportedContentCapability before secret scan or storage; no transcript bytes or metadata were written, and silently stripping the evidence would misreport how hard the assistant was asked to think; deploy a Village build whose GET /api/v1/schema/version advertises %q after the thinking-level preservation gate passes, then retry: %w", schema.ContentCapabilityThinkingLevelV1, proofErr)
 		}
 	}
 	return nil

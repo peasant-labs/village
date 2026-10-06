@@ -54,12 +54,15 @@ var thinkingLevelPublishGateCaseNames = [...]string{
 	"non_canonical_turn_level_refused",
 	"edge_whitespace_raw_refused",
 	"invalid_session_level_refused",
+	"valid_history_changes",
+	"empty_history_entry_refused",
 }
 
 var thinkingLevelReadCaseNames = [...]string{
 	"stored_user_turn_level_refused",
 	"stored_non_canonical_level_refused",
 	"stored_edge_whitespace_raw_refused",
+	"stored_empty_history_entry_refused",
 }
 
 var thinkingLevelRewriteFailureCaseNames = [...]string{
@@ -115,8 +118,9 @@ type fixedThinkingLevelPreservationEvaluator struct{ err error }
 func (e fixedThinkingLevelPreservationEvaluator) Evaluate() error { return e.err }
 
 // droppingThinkingLevelEncoder is the executed field-drop mutation: it runs the
-// production canonical encoder, then strips every thinking-level member from
-// the session and its turns, exactly as a lossy rewrite would.
+// production canonical encoder, then strips every thinking-level member
+// (session seed, raw spelling, and in-session history) from the session and its
+// turns, exactly as a lossy rewrite would.
 type droppingThinkingLevelEncoder struct{}
 
 func (droppingThinkingLevelEncoder) Encode(version schema.PushContractVersion, payload *schema.SessionDetailPayload) ([]byte, error) {
@@ -131,6 +135,7 @@ func (droppingThinkingLevelEncoder) Encode(version schema.PushContractVersion, p
 	detail, _ := document["sessionDetail"].(map[string]any)
 	delete(detail, "thinkingLevel")
 	delete(detail, "thinkingLevelRaw")
+	delete(detail, "thinkingLevelHistory")
 	turns, _ := detail["turns"].([]any)
 	for _, rawTurn := range turns {
 		if turn, ok := rawTurn.(map[string]any); ok {
@@ -161,7 +166,7 @@ func thinkingLevelCanonicalOracle(outcomes []thinkingLevelPreservationOutcome) e
 	return nil
 }
 
-// The field drop must fail exactly the two level-bearing cases and leave the
+// The field drop must fail exactly the three level-bearing cases and leave the
 // level-free legacy case passing.
 func thinkingLevelFieldDropOracle(outcomes []thinkingLevelPreservationOutcome) error {
 	failed := []string{}
@@ -173,7 +178,7 @@ func thinkingLevelFieldDropOracle(outcomes []thinkingLevelPreservationOutcome) e
 			failed = append(failed, outcome.Name)
 		}
 	}
-	want := []string{"enriched_session_seed_and_per_turn_canonical_and_raw", "legacy_contract_with_levels"}
+	want := []string{"enriched_session_seed_and_per_turn_canonical_and_raw", "legacy_contract_with_levels", "enriched_session_history_only_changes"}
 	if !slices.Equal(failed, want) {
 		return fmt.Errorf("field-drop failed cases=%v, want %v", failed, want)
 	}
@@ -381,6 +386,30 @@ func TestThinkingLevelPublishRefusedWhenBaseProofFails(t *testing.T) {
 	}
 }
 
+// The in-session history is presence-bearing evidence: content that carries
+// thinkingLevelHistory must take the strict public decode rather than the
+// legacy projection path that could drop it.
+func TestThinkingLevelHistoryIsPublicEvidence(t *testing.T) {
+	legacy := []byte(`{"id":"history-only","provider":"claude","thinkingLevelHistory":[{"level":"medium"}]}`)
+	if _, err := validateContentBoundary(legacy, "", contentPublication); err == nil {
+		t.Fatal("history-only legacy-shaped content took the legacy projection path instead of the strict public decode")
+	}
+}
+
+// A session with only a history (no seed and no per-turn level) still requires
+// thinking_level_v1, so it is refused before any write while the proof fails and
+// accepted when the proof passes.
+func TestThinkingLevelHistoryOnlyPublishGate(t *testing.T) {
+	raw := thinkingLevelFixtureContent(t, "enriched_session_history_only_changes")
+	refusal := requireSupportedContentForHarness(raw, "codex", fixedPreservationEvaluator{}, fixedProvenancePreservationEvaluator{}, fixedThinkingLevelPreservationEvaluator{err: errors.New("thinking-level preservation unavailable")})
+	if refusal == nil || !strings.Contains(refusal.Error(), "thinking_level_v1") {
+		t.Fatalf("history-only publish under a failing proof refusal=%v, want the thinking-level gate", refusal)
+	}
+	if err := requireSupportedContentForHarness(raw, "codex", fixedPreservationEvaluator{}, fixedProvenancePreservationEvaluator{}, fixedThinkingLevelPreservationEvaluator{}); err != nil {
+		t.Fatalf("history-only publish under a passing proof refusal=%v, want acceptance", err)
+	}
+}
+
 func TestThinkingLevelRegisteredOperationsDispatch(t *testing.T) {
 	cases, err := decodeThinkingLevelNegativeFixtures(thinkingLevelNegativeFixtureYAML)
 	if err != nil {
@@ -534,6 +563,14 @@ func TestThinkingLevelMountedPublishGate(t *testing.T) {
 				payload := decodeContentResponseEnvelope(t, served.Body.Bytes())
 				if payload.ThinkingLevel != original.SessionDetail.ThinkingLevel || payload.ThinkingLevelRaw != original.SessionDetail.ThinkingLevelRaw {
 					t.Fatalf("served session level=%q/%q, want %q/%q", payload.ThinkingLevel, payload.ThinkingLevelRaw, original.SessionDetail.ThinkingLevel, original.SessionDetail.ThinkingLevelRaw)
+				}
+				if len(payload.ThinkingLevelHistory) != len(original.SessionDetail.ThinkingLevelHistory) {
+					t.Fatalf("served history entries=%d, want %d", len(payload.ThinkingLevelHistory), len(original.SessionDetail.ThinkingLevelHistory))
+				}
+				for index, change := range original.SessionDetail.ThinkingLevelHistory {
+					if payload.ThinkingLevelHistory[index] != change {
+						t.Fatalf("served history entry %d=%+v, want %+v", index, payload.ThinkingLevelHistory[index], change)
+					}
 				}
 				for index, turn := range original.SessionDetail.Turns {
 					if payload.Turns[index].ThinkingLevel != turn.ThinkingLevel || payload.Turns[index].ThinkingLevelRaw != turn.ThinkingLevelRaw {

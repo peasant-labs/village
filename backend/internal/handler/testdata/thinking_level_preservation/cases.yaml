@@ -11,6 +11,9 @@ cases:
     harness: codex
     thinkingLevel: high
     thinkingLevelRaw: ""
+    history:
+      - {level: xhigh}
+      - {level: ultra, raw: ultracode}
     turns:
       - {role: user}
       - {role: assistant, thinkingLevel: high}
@@ -22,6 +25,9 @@ cases:
     expected:
       thinkingLevel: '"high"'
       thinkingLevelRaw: absent
+      history:
+        - {level: '"xhigh"', raw: absent}
+        - {level: '"ultra"', raw: '"ultracode"'}
       turns:
         - {thinkingLevel: absent, thinkingLevelRaw: absent}
         - {thinkingLevel: '"high"', thinkingLevelRaw: absent}
@@ -61,6 +67,30 @@ cases:
     expected:
       thinkingLevel: absent
       thinkingLevelRaw: absent
+      turns:
+        - {thinkingLevel: absent, thinkingLevelRaw: absent}
+        - {thinkingLevel: absent, thinkingLevelRaw: absent}
+  - name: enriched_session_history_only_changes
+    contractVersion: 0.1.1
+    schemaVersion: 0.1.1
+    sessionId: thinking-level-preservation-history
+    harness: codex
+    thinkingLevel: ""
+    thinkingLevelRaw: ""
+    history:
+      - {level: high}
+      - {level: "", raw: thinking-harder}
+      - {level: xhigh, raw: "深く考える"}
+    turns:
+      - {role: user}
+      - {role: assistant}
+    expected:
+      thinkingLevel: absent
+      thinkingLevelRaw: absent
+      history:
+        - {level: '"high"', raw: absent}
+        - {level: absent, raw: '"thinking-harder"'}
+        - {level: '"xhigh"', raw: '"深く考える"'}
       turns:
         - {thinkingLevel: absent, thinkingLevelRaw: absent}
         - {thinkingLevel: absent, thinkingLevelRaw: absent}
