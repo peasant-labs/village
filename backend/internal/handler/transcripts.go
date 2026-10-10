@@ -156,11 +156,31 @@ func publishSaveErrorMessage(err error, exposeStagedObjectKey bool) string {
 	return "Failed to save transcript"
 }
 
+// Publish multipart buffers are nested from the outer request to the metadata
+// document, and each layer has a distinct job:
+//
+//   - maxPublishRequestBytes bounds the whole multipart request (metadata plus
+//     transcript file plus multipart overhead) so an oversized body is refused
+//     before it is parsed.
+//   - maxPublishMultipartMemoryBytes is the multipart parser's memory budget.
+//     Non-file form values (the metadata document) must fit in that budget plus
+//     Go's own 10 MiB non-file reserve, so it must be at least the metadata
+//     document cap or the metadata never reaches the scan below; file parts
+//     larger than the budget spill to disk instead of being held in memory.
+//   - maxPublishMetadataBytes is the authoritative publish metadata document
+//     cap the scan enforces on the extracted part.
+const (
+	maxPublishRequestBytes         = 256 << 20
+	maxPublishMultipartMemoryBytes = 128 << 20
+	maxPublishMetadataBytes        = 128 << 20
+	maxPublishMetadataDepth        = 64
+)
+
 func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 
-	r.Body = http.MaxBytesReader(w, r.Body, 32<<20)
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, maxPublishRequestBytes)
+	if err := r.ParseMultipartForm(maxPublishMultipartMemoryBytes); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid multipart form")
 		return
 	}
@@ -176,7 +196,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	// Scan the bounded extracted part, never the multipart wrapper, before the
 	// legacy key normalizer or map decoder can collapse duplicate keys.
-	if err := schema.ScanRawJSONDocument([]byte(metadataStr), schema.RawJSONPathPolicy{MaxDocumentBytes: 4 << 20, MaxDocumentDepth: 64}); err != nil {
+	if err := schema.ScanRawJSONDocument([]byte(metadataStr), schema.RawJSONPathPolicy{MaxDocumentBytes: maxPublishMetadataBytes, MaxDocumentDepth: maxPublishMetadataDepth}); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid metadata JSON in PublishTranscript before normalization; nothing was written; repair the metadata part and retry: "+err.Error())
 		return
 	}
@@ -274,7 +294,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	content, err := io.ReadAll(io.LimitReader(file, (8<<20)+1))
+	// Read one byte past the general transcript content boundary so an oversized
+	// file is refused by the boundary with its exact byte limit rather than
+	// silently truncated. The same contentWireLimitBytes bounds stored reads.
+	content, err := io.ReadAll(io.LimitReader(file, (contentWireLimitBytes)+1))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to read file")
 		return
