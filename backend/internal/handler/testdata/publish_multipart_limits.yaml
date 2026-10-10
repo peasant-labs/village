@@ -1,0 +1,73 @@
+# Boundary corpus for the publish multipart buffers.
+#
+# Every case drives the real PublishTranscript handler over a synthetic
+# multipart request built to an exact byte count, so the outer request reader,
+# the multipart parser memory budget, and the metadata document scan are
+# exercised on the mounted production path rather than reimplemented here.
+#
+# `kind: metadata` fixes the length of the `metadata` form field.
+# `kind: multipart_total` fixes the length of the whole request body, with the
+# transcript file part padded to reach it.
+#
+# `expect` is what the production stack must do with that size:
+#   reaches_metadata_scan     the request reader and multipart parser accept the
+#                             body and the metadata reaches the next handler
+#                             validation (the sessionId precondition), which
+#                             answers 400 "sessionId is required".
+#   refused_by_metadata_scan  the metadata document scan refuses the part at its
+#                             byte cap.
+#   refused_by_request_cap    the outer request reader refuses the body.
+#
+# The byte targets are literals, never derived from production constants: a
+# revert to the former 4 MiB metadata cap or the former 32 MiB request cap must
+# fail here.
+required_names:
+  - metadata_one_byte_below_document_cap
+  - metadata_exact_document_cap
+  - metadata_one_byte_above_document_cap
+  - metadata_past_former_document_cap
+  - request_one_byte_below_total_cap
+  - request_exact_total_cap
+  - request_one_byte_above_total_cap
+
+cases:
+  - name: metadata_one_byte_below_document_cap
+    kind: metadata
+    target_bytes: 134217727
+    expect: reaches_metadata_scan
+    why: 128 MiB minus one byte is under the metadata document cap, so the part must reach the handler's later validation.
+  - name: metadata_exact_document_cap
+    kind: metadata
+    target_bytes: 134217728
+    expect: reaches_metadata_scan
+    why: the comparison is inclusive; an encoded document exactly at 128 MiB is accepted by the size gate.
+  - name: metadata_one_byte_above_document_cap
+    kind: metadata
+    target_bytes: 134217729
+    expect: refused_by_metadata_scan
+    want_error_contains:
+      - Invalid metadata JSON in PublishTranscript before normalization
+      - document exceeds 134217728 bytes
+    why: one byte past 128 MiB must be refused by the scan naming the exact cap, before normalization or decode.
+  - name: metadata_past_former_document_cap
+    kind: metadata
+    target_bytes: 4194305
+    expect: reaches_metadata_scan
+    why: a document one byte past the former 4 MiB cap must now reach the scan's later validation, not be refused at the old bound.
+  - name: request_one_byte_below_total_cap
+    kind: multipart_total
+    target_bytes: 268435455
+    expect: reaches_metadata_scan
+    why: 256 MiB minus one byte is under the whole-request cap, so the body parses and the metadata reaches the handler.
+  - name: request_exact_total_cap
+    kind: multipart_total
+    target_bytes: 268435456
+    expect: reaches_metadata_scan
+    why: the request cap is inclusive; a body exactly at 256 MiB parses.
+  - name: request_one_byte_above_total_cap
+    kind: multipart_total
+    target_bytes: 268435457
+    expect: refused_by_request_cap
+    want_error_contains:
+      - Invalid multipart form
+    why: one byte past 256 MiB must be refused by the outer request reader before parsing.
