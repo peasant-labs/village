@@ -8,6 +8,8 @@
 # `kind: metadata` fixes the length of the `metadata` form field.
 # `kind: multipart_total` fixes the length of the whole request body, with the
 # transcript file part padded to reach it.
+# `kind: transcript_file` fixes the length of the `transcript_file` part, which
+# the handler reads one byte past the general transcript content boundary.
 #
 # `expect` is what the production stack must do with that size:
 #   reaches_metadata_scan     the request reader and multipart parser accept the
@@ -17,10 +19,15 @@
 #   refused_by_metadata_scan  the metadata document scan refuses the part at its
 #                             byte cap.
 #   refused_by_request_cap    the outer request reader refuses the body.
+#   reaches_transcript_boundary  the transcript file is read and passes the
+#                             content size gate, then fails the next strict
+#                             validation, so the response is not a size refusal.
+#   refused_by_transcript_boundary  the content boundary refuses the file at its
+#                             byte cap.
 #
 # The byte targets are literals, never derived from production constants: a
-# revert to the former 4 MiB metadata cap or the former 32 MiB request cap must
-# fail here.
+# revert to the former 4 MiB metadata cap, the former 32 MiB request cap, or the
+# former 8 MiB transcript content cap must fail here.
 required_names:
   - metadata_one_byte_below_document_cap
   - metadata_exact_document_cap
@@ -29,6 +36,9 @@ required_names:
   - request_one_byte_below_total_cap
   - request_exact_total_cap
   - request_one_byte_above_total_cap
+  - transcript_file_one_byte_below_cap
+  - transcript_file_exact_cap
+  - transcript_file_one_byte_above_cap
 
 cases:
   - name: metadata_one_byte_below_document_cap
@@ -71,3 +81,20 @@ cases:
     want_error_contains:
       - Invalid multipart form
     why: one byte past 256 MiB must be refused by the outer request reader before parsing.
+  - name: transcript_file_one_byte_below_cap
+    kind: transcript_file
+    target_bytes: 134217727
+    expect: reaches_transcript_boundary
+    why: 128 MiB minus one byte is under the transcript content boundary, so the file is read and reaches strict content validation.
+  - name: transcript_file_exact_cap
+    kind: transcript_file
+    target_bytes: 134217728
+    expect: reaches_transcript_boundary
+    why: the transcript content boundary is inclusive; a file exactly at 128 MiB is read and reaches strict content validation.
+  - name: transcript_file_one_byte_above_cap
+    kind: transcript_file
+    target_bytes: 134217729
+    expect: refused_by_transcript_boundary
+    want_error_contains:
+      - document exceeds 134217728 bytes
+    why: one byte past 128 MiB must be refused by the content boundary naming the exact cap, not truncated.

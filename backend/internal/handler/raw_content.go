@@ -16,6 +16,20 @@ const (
 	contentStoredRead
 )
 
+// contentWireLimitBytes is the general transcript content wire budget, matching
+// the schema's 128 MiB detail and transcript raw documents. It bounds both a
+// publication upload and a stored read, so content accepted on publish is also
+// servable on read.
+const contentWireLimitBytes = 128 << 20
+
+// retainedUnknownEnvelopeBytes is the retained-unknown family's own envelope
+// cap. Retained evidence keeps this smaller bound (its payload inspection uses
+// the same per-document bound) while the general transcript boundary is
+// contentWireLimitBytes.
+const retainedUnknownEnvelopeBytes = 8 << 20
+
+const contentWireDepth = 64
+
 type contentBoundary struct {
 	shape     EnvelopeShape
 	canonical *schema.SessionDetailPayload
@@ -30,8 +44,8 @@ func validateContentBoundary(raw []byte, knownHarness string, mode contentBounda
 	trimmed := bytes.TrimSpace(raw)
 	knownPi := knownHarness == string(schema.HarnessPi)
 	policy := schema.RawJSONPathPolicy{
-		MaxDocumentBytes:       8 << 20,
-		MaxDocumentDepth:       64,
+		MaxDocumentBytes:       contentWireLimitBytes,
+		MaxDocumentDepth:       contentWireDepth,
 		OpaqueMetadataPointers: []string{"/nativeMetadata/*/data", "/sessionDetail/nativeMetadata/*/data"},
 	}
 	if len(raw) > policy.MaxDocumentBytes {
@@ -112,6 +126,15 @@ func validateContentBoundary(raw []byte, knownHarness string, mode contentBounda
 		// New evidence never receives the historical non-assistant allowance.
 		if err := validateObservedModelEvidence(&payload); err != nil {
 			return result, err
+		}
+		// Retained-unknown evidence keeps its own smaller envelope cap while the
+		// general transcript boundary is contentWireLimitBytes. The cap is
+		// enforced here, after the shape is known, so only retained content is
+		// bounded by it; the refusal is the same scanner message the general
+		// boundary produced before the lift.
+		if len(raw) > retainedUnknownEnvelopeBytes &&
+			containsContentCapability(schema.RequiredContentCapabilities(payload), schema.ContentCapabilityRetainedUnknownV1) {
+			return result, schema.ScanRawJSONDocument(raw, schema.RawJSONPathPolicy{MaxDocumentBytes: retainedUnknownEnvelopeBytes, MaxDocumentDepth: contentWireDepth})
 		}
 		result.canonical = &payload
 		return result, nil

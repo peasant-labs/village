@@ -294,7 +294,10 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	content, err := io.ReadAll(io.LimitReader(file, (8<<20)+1))
+	// Read one byte past the general transcript content boundary so an oversized
+	// file is refused by the boundary with its exact byte limit rather than
+	// silently truncated. The same contentWireLimitBytes bounds stored reads.
+	content, err := io.ReadAll(io.LimitReader(file, (contentWireLimitBytes)+1))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to read file")
 		return

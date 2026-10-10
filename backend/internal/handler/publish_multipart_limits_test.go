@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/peasant-labs/schema"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,6 +19,12 @@ import (
 // size scan and then fails the handler's sessionId precondition, so a response
 // other than a size refusal proves the part reached the scan.
 const publishLimitMetadataBase = `{"identity":{}}`
+
+// publishLimitTranscriptBase is a known-harness, structurally incomplete
+// transcript. It forces the strict canonical content path so the transcript
+// file passes the size gate and is then refused by the next validation, which
+// distinguishes a size refusal from a content refusal.
+const publishLimitTranscriptBase = `{"harness":"claude-code","turns":[]}`
 
 //go:embed testdata/publish_multipart_limits.yaml
 var publishMultipartLimitFixtureYAML []byte
@@ -38,16 +46,20 @@ type publishMultipartLimitCase struct {
 const (
 	publishLimitKindMetadata       = "metadata"
 	publishLimitKindMultipartTotal = "multipart_total"
+	publishLimitKindTranscriptFile = "transcript_file"
 
-	publishLimitExpectReaches         = "reaches_metadata_scan"
-	publishLimitExpectMetadataRefused = "refused_by_metadata_scan"
-	publishLimitExpectRequestRefused  = "refused_by_request_cap"
+	publishLimitExpectReaches          = "reaches_metadata_scan"
+	publishLimitExpectMetadataRefused  = "refused_by_metadata_scan"
+	publishLimitExpectRequestRefused   = "refused_by_request_cap"
+	publishLimitExpectTranscriptReach  = "reaches_transcript_boundary"
+	publishLimitExpectTranscriptRefuse = "refused_by_transcript_boundary"
 )
 
 // TestPublishTranscriptMultipartLimits pins the publish multipart boundaries on
 // the real handler: the whole-request cap, the multipart parser memory budget,
-// and the metadata document scan. Each fixture case states the exact byte count
-// it builds and what the stack must do with it.
+// the metadata document scan, and the transcript file content boundary. Each
+// fixture case states the exact byte count it builds and what the stack must do
+// with it.
 func TestPublishTranscriptMultipartLimits(t *testing.T) {
 	fixture := loadPublishMultipartLimitFixture(t)
 	for _, testCase := range fixture.Cases {
@@ -60,8 +72,13 @@ func TestPublishTranscriptMultipartLimits(t *testing.T) {
 
 			newTestHandler(&mockQuerier{}, nil).PublishTranscript(w, r)
 
-			if w.Code != http.StatusBadRequest {
-				t.Fatalf("status = %d, want 400; body = %q", w.Code, w.Body.String())
+			wantStatus := http.StatusBadRequest
+			if testCase.Kind == publishLimitKindTranscriptFile {
+				// The content boundary refusal is the handler's conflict answer.
+				wantStatus = http.StatusConflict
+			}
+			if w.Code != wantStatus {
+				t.Fatalf("status = %d, want %d; body = %q", w.Code, wantStatus, w.Body.String())
 			}
 			body := w.Body.String()
 			switch testCase.Expect {
@@ -87,6 +104,19 @@ func TestPublishTranscriptMultipartLimits(t *testing.T) {
 						t.Fatalf("case %q request refusal missing %q: %q", testCase.Name, want, body)
 					}
 				}
+			case publishLimitExpectTranscriptReach:
+				if !strings.Contains(body, "could not be decoded") {
+					t.Fatalf("case %q must read the transcript file and reach strict content validation, got %q", testCase.Name, body)
+				}
+				if strings.Contains(body, "document exceeds") {
+					t.Fatalf("case %q was refused at the content size gate instead of reaching strict validation: %q", testCase.Name, body)
+				}
+			case publishLimitExpectTranscriptRefuse:
+				for _, want := range testCase.WantErrorContains {
+					if !strings.Contains(body, want) {
+						t.Fatalf("case %q transcript boundary refusal missing %q: %q", testCase.Name, want, body)
+					}
+				}
 			default:
 				t.Fatalf("case %q has an unhandled expectation %q", testCase.Name, testCase.Expect)
 			}
@@ -100,11 +130,10 @@ func TestPublishTranscriptMultipartLimits(t *testing.T) {
 func publishLimitRequest(t *testing.T, testCase publishMultipartLimitCase) (io.Reader, string) {
 	t.Helper()
 
-	base, boundary := publishLimitMultipartTemplate(t)
-	content := []byte(publishLimitMetadataBase)
-
 	switch testCase.Kind {
 	case publishLimitKindMetadata:
+		base, boundary := publishLimitMultipartTemplate(t, publishLimitMetadataBase, "")
+		content := []byte(publishLimitMetadataBase)
 		idx := bytes.Index(base, content)
 		if idx < 0 {
 			t.Fatalf("metadata template does not contain the base document")
@@ -120,6 +149,7 @@ func publishLimitRequest(t *testing.T, testCase publishMultipartLimitCase) (io.R
 			bytes.NewReader(base[idx+len(content):]),
 		), boundary
 	case publishLimitKindMultipartTotal:
+		base, boundary := publishLimitMultipartTemplate(t, publishLimitMetadataBase, "")
 		suffix := []byte("\r\n--" + boundary + "--\r\n")
 		if !bytes.HasSuffix(base, suffix) {
 			t.Fatalf("multipart template does not end with the closing boundary")
@@ -134,16 +164,53 @@ func publishLimitRequest(t *testing.T, testCase publishMultipartLimitCase) (io.R
 			&publishLimitFiller{remaining: pad, b: 'a'},
 			bytes.NewReader(suffix),
 		), boundary
+	case publishLimitKindTranscriptFile:
+		base, boundary := publishLimitMultipartTemplate(t, publishLimitValidMetadata(t), publishLimitTranscriptBase)
+		content := []byte(publishLimitTranscriptBase)
+		idx := bytes.Index(base, content)
+		if idx < 0 {
+			t.Fatalf("transcript template does not contain the base content")
+		}
+		pad := testCase.TargetBytes - int64(len(content))
+		if pad < 0 {
+			t.Fatalf("transcript target %d is shorter than the base content %d", testCase.TargetBytes, len(content))
+		}
+		return io.MultiReader(
+			bytes.NewReader(base[:idx]),
+			bytes.NewReader(content),
+			&publishLimitFiller{remaining: pad, b: ' '},
+			bytes.NewReader(base[idx+len(content):]),
+		), boundary
 	default:
 		t.Fatalf("case %q has an unhandled kind %q", testCase.Name, testCase.Kind)
 		return nil, ""
 	}
 }
 
-// publishLimitMultipartTemplate builds a minimal multipart body with a
-// metadata field and a zero-length transcript file part. Callers splice filler
-// bytes into the metadata value or the file content to reach an exact size.
-func publishLimitMultipartTemplate(t *testing.T) ([]byte, string) {
+// publishLimitValidMetadata builds metadata the handler accepts up to the
+// transcript file read, so a transcript_file case reaches the content boundary
+// rather than an earlier metadata refusal.
+func publishLimitValidMetadata(t *testing.T) string {
+	t.Helper()
+
+	metadata := schema.PublishRequest{
+		Identity:  schema.SessionIdentity{SessionID: "550e8400-e29b-41d4-a716-446655440000", SchemaVersion: 2},
+		Model:     schema.ModelInfo{Harness: schema.HarnessCodex, Model: "gpt-4"},
+		Timestamp: schema.TimestampInfo{Start: 1700000000000, End: 1700000060000},
+		Source:    schema.SourceInfo{FilePath: "/p/t.jsonl", Format: "jsonl"},
+		Project:   schema.ProjectContext{Hash: testProjectHash, Name: "test-project"},
+	}
+	encoded, err := json.Marshal(metadata)
+	if err != nil {
+		t.Fatalf("marshal publish metadata: %v", err)
+	}
+	return string(encoded)
+}
+
+// publishLimitMultipartTemplate builds a minimal multipart body with a metadata
+// field and a transcript file part. Callers splice filler bytes into the
+// metadata value or the file content to reach an exact size.
+func publishLimitMultipartTemplate(t *testing.T, metadataValue, fileContent string) ([]byte, string) {
 	t.Helper()
 
 	body := &bytes.Buffer{}
@@ -152,11 +219,15 @@ func publishLimitMultipartTemplate(t *testing.T) ([]byte, string) {
 	if err != nil {
 		t.Fatalf("create metadata field: %v", err)
 	}
-	if _, err := field.Write([]byte(publishLimitMetadataBase)); err != nil {
+	if _, err := field.Write([]byte(metadataValue)); err != nil {
 		t.Fatalf("write metadata field: %v", err)
 	}
-	if _, err := writer.CreateFormFile("transcript_file", "transcript.jsonl"); err != nil {
+	part, err := writer.CreateFormFile("transcript_file", "transcript.jsonl")
+	if err != nil {
 		t.Fatalf("create transcript file part: %v", err)
+	}
+	if _, err := part.Write([]byte(fileContent)); err != nil {
+		t.Fatalf("write transcript file part: %v", err)
 	}
 	if err := writer.Close(); err != nil {
 		t.Fatalf("close multipart writer: %v", err)
@@ -217,16 +288,16 @@ func loadPublishMultipartLimitFixture(t *testing.T) publishMultipartLimitFixture
 			t.Fatalf("case %q target_bytes must be positive", testCase.Name)
 		}
 		switch testCase.Kind {
-		case publishLimitKindMetadata, publishLimitKindMultipartTotal:
+		case publishLimitKindMetadata, publishLimitKindMultipartTotal, publishLimitKindTranscriptFile:
 		default:
-			t.Fatalf("case %q kind %q is not %s or %s", testCase.Name, testCase.Kind, publishLimitKindMetadata, publishLimitKindMultipartTotal)
+			t.Fatalf("case %q kind %q is not %s, %s or %s", testCase.Name, testCase.Kind, publishLimitKindMetadata, publishLimitKindMultipartTotal, publishLimitKindTranscriptFile)
 		}
 		switch testCase.Expect {
-		case publishLimitExpectReaches:
+		case publishLimitExpectReaches, publishLimitExpectTranscriptReach:
 			if len(testCase.WantErrorContains) != 0 {
-				t.Fatalf("case %q reaches the handler and must not pin error text", testCase.Name)
+				t.Fatalf("case %q reaches a later stage and must not pin error text", testCase.Name)
 			}
-		case publishLimitExpectMetadataRefused, publishLimitExpectRequestRefused:
+		case publishLimitExpectMetadataRefused, publishLimitExpectRequestRefused, publishLimitExpectTranscriptRefuse:
 			if len(testCase.WantErrorContains) == 0 {
 				t.Fatalf("case %q refuses and must pin the refusal text", testCase.Name)
 			}
@@ -243,16 +314,17 @@ func loadPublishMultipartLimitFixture(t *testing.T) publishMultipartLimitFixture
 		t.Fatalf("required-name manifest covers %d of %d cases; every case must be named", len(fixture.RequiredNames), len(names))
 	}
 
-	// The corpus must be able to fail: without a case that reaches the handler
+	// The corpus must be able to fail: without a case that reaches a later stage
 	// it cannot tell a working cap from one that refuses everything, and
 	// without a refused case it cannot tell a lifted cap from no cap at all.
 	var sawReaches, sawRefusal bool
 	for _, testCase := range fixture.Cases {
-		sawReaches = sawReaches || testCase.Expect == publishLimitExpectReaches
-		sawRefusal = sawRefusal || testCase.Expect != publishLimitExpectReaches
+		reaches := testCase.Expect == publishLimitExpectReaches || testCase.Expect == publishLimitExpectTranscriptReach
+		sawReaches = sawReaches || reaches
+		sawRefusal = sawRefusal || !reaches
 	}
 	if !sawReaches || !sawRefusal {
-		t.Fatal("publish multipart limit corpus must hold a case that reaches the scan and one that is refused")
+		t.Fatal("publish multipart limit corpus must hold a case that reaches a later stage and one that is refused")
 	}
 	return fixture
 }
