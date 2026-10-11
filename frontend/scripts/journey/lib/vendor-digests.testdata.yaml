@@ -1,0 +1,123 @@
+# Pinned canonical body digests for the journey shared layer.
+#
+# Every file in scripts/journey/lib appears here exactly once, with a kind. The
+# inventory is CLOSED in both directions: a file on disk with no row, or a row with
+# no file, is a guard failure. A new module dropped into this directory therefore
+# has to be classified rather than sitting unchecked next to the copies that are.
+#
+#   vendored   a byte-for-byte copy of fairtrade-design-system/scripts/journey/lib/<name>.
+#              sha256 is over the CANONICAL BODY, every byte AFTER the VENDORED banner
+#              comment, so rewording the banner is not a re-vendor and needs no re-pin.
+#              This is the pin the guard compares on EVERY run, with no Fairtrade
+#              checkout in the environment: it holds in CI, in a release image, and on
+#              a reviewer's machine that has never seen the design system.
+#   app-local  Village's own module, not a copy of anything upstream. Never pinned.
+#   guard      this guard's own code and the corpus it reads. Reviewed by eye, never
+#              self-pinned: a pin cannot cover the file that writes pins.
+#
+# To re-pin after a re-vendor, from the repository root:
+#   node frontend/scripts/journey/lib/vendor-guard.mjs
+# which prints the digest each vendored body currently carries, computed by the same
+# module the guard compares with. Re-pin from a re-vendored copy only: a pin written
+# from a body that is itself wrong makes the gate green and the invariant false.
+#
+# This corpus is now the authoritative provenance record for what in this directory is
+# a copy, so the VENDORED banner is a pointer rather than the only witness. A rewording
+# or a stripping of that banner therefore leaves every pin valid, and the guard says so.
+#
+# The digests below are the canonical bodies at
+# fairtrade-design-system commit e369ee7, vendored on
+# 2026-09-26 by `git agent-commit` "chore(journey): re-vendor the shared assertion
+# helper from the design system" and the axe-call-shape follow-up.
+digestAlgorithm: sha256
+digestSubject: the canonical body, every byte after the VENDORED banner comment
+upstreamPathTemplate: fairtrade-design-system/scripts/journey/lib/{name}
+files:
+  - name: assertions.mjs
+    kind: vendored
+    sha256: d46e3c6db5ffea5c83418634c17b77b08083733853e15964a3c9253ed22d31b1
+  - name: determinism-constants.mjs
+    kind: vendored
+    sha256: 42d7a0ac5d4a8ec12656ce207ea2a9ec2c73fd2f92f4513e682f59175e347e16
+  - name: determinism.mjs
+    kind: vendored
+    sha256: 0118ec8a621c0f27eefa064a6b24da94cd7c0fb77c0e234b8f98995950521571
+  - name: fixtures.mjs
+    kind: app-local
+  - name: project-fixtures.mjs
+    kind: app-local
+  - name: scenario.mjs
+    kind: app-local
+  - name: vendor-digests.testdata.manifest.yaml
+    kind: guard
+  - name: vendor-digests.testdata.yaml
+    kind: guard
+  - name: vendor-guard.mjs
+    kind: guard
+  - name: vendor-guard.test.mjs
+    kind: guard
+
+# The drift shapes a pin can turn out to have, as real digests rather than
+# placeholders, so the diagnostic each one produces is checked against the numbers a
+# failing run would actually print. The guard must keep them apart by name: a copy
+# that no longer matches its pin, a checkout that moved past the pin, a checkout
+# without the file, and a checkout that is not the design system at all are four
+# different findings with four different repairs, and collapsing any pair of them
+# sends the reader to re-pin a corrupt copy.
+#
+# `bodyDigest` is what the copy in this tree digests to. `pinnedDigest` is the pin.
+# `liveDigest` is what the canonical file in a checkout digests to, and is null where
+# no digest was read. `drift` is both the required class in the printed text and the
+# live state the guard passes, so a class name can never drift from the state it names.
+driftCases:
+  - name: a copy whose body moved off its pin is a vendored-copy drift
+    drift: vendored-copy
+    subject: determinism-constants.mjs
+    pinnedDigest: 42d7a0ac5d4a8ec12656ce207ea2a9ec2c73fd2f92f4513e682f59175e347e16
+    bodyDigest: 42925dbf1201dd0f1c387a94a8e13aa80f43e14bf93ec5f1582447d96d4c9261
+    liveDigest: null
+    expectedPhrases:
+      - the vendored body of frontend/scripts/journey/lib/determinism-constants.mjs
+      - is the VENDORED COPY being wrong, not upstream movement
+      - (1) re-vendor
+      - (2) re-pin
+      - node frontend/scripts/journey/lib/vendor-guard.mjs
+      - pnpm --dir frontend check:journey-vendoring
+  - name: a checkout that moved past the pin is an upstream-canonical drift
+    drift: upstream-canonical
+    subject: determinism-constants.mjs
+    pinnedDigest: 42d7a0ac5d4a8ec12656ce207ea2a9ec2c73fd2f92f4513e682f59175e347e16
+    bodyDigest: 42d7a0ac5d4a8ec12656ce207ea2a9ec2c73fd2f92f4513e682f59175e347e16
+    liveDigest: 44e7e7a2abee165b28502112d6fa0a8825c3759fabbbe0b9928203b0f9164f6b
+    expectedPhrases:
+      - the VENDORED COPY HERE IS INTACT
+      - the mismatch is
+      - entirely upstream
+      - do not
+      - re-pin from a drifted checkout without re-vendoring first
+      - (1) re-vendor
+      - (2) re-pin
+  - name: a checkout without the upstream file is an upstream-missing drift
+    drift: upstream-missing
+    subject: determinism-constants.mjs
+    pinnedDigest: 42d7a0ac5d4a8ec12656ce207ea2a9ec2c73fd2f92f4513e682f59175e347e16
+    bodyDigest: 42d7a0ac5d4a8ec12656ce207ea2a9ec2c73fd2f92f4513e682f59175e347e16
+    liveDigest: null
+    expectedPhrases:
+      - the byte-identity invariant holds; only the upstream half of the
+      - proof is unavailable
+      - must not be reported as a broken vendored copy
+      - point FAIRTRADE_CHECKOUT at a checkout that has
+      - scripts/journey/lib/determinism-constants.mjs
+  - name: a checkout that is a consumer tree is an upstream-not-canonical drift
+    drift: upstream-not-canonical
+    subject: determinism-constants.mjs
+    pinnedDigest: 42d7a0ac5d4a8ec12656ce207ea2a9ec2c73fd2f92f4513e682f59175e347e16
+    bodyDigest: 42d7a0ac5d4a8ec12656ce207ea2a9ec2c73fd2f92f4513e682f59175e347e16
+    liveDigest: 60c63c1debd77c922e9b210f0958d5a9820489d5e6b984696531e8a87ec3cf22
+    expectedPhrases:
+      - opens with a VENDORED banner, so it is a consumer
+      - FAIRTRADE_CHECKOUT is not pointing at the design system
+      - The copy in this tree
+      - is still compared against its own pin, so the byte-identity invariant holds
+      - "Do not re-pin from this checkout: it would bless our own copy"
