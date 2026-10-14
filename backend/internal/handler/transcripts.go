@@ -312,7 +312,7 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	// (409) before the durable graph decode below, which owns raw-shape
 	// disagreements (422). Keeping the boundary first preserves the published
 	// producer classifications it already pins.
-	if err := requireSupportedContentForHarness(content, string(req.Model.Harness), h.preservationProof(), h.provenanceProof()); err != nil {
+	if err := requireSupportedContentForHarness(content, string(req.Model.Harness), h.preservationProof(), h.provenanceProof(), h.thinkingLevelProof()); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
@@ -1089,6 +1089,10 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := validateObservedModelValues(payload); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := validateThinkingLevelValues(payload); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

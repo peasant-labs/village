@@ -6,12 +6,14 @@ import "github.com/peasant-labs/schema"
 // capability inventory with every gating preservation proof applied. The base
 // enriched-content proof gates the shared evidence tokens; the provenance
 // preservation proof independently gates the sealed session_graph_provenance_v1
-// token for durable session-relationship evidence. A deployment whose proof
-// fails advertises less, never more.
+// token for durable session-relationship evidence; the thinking-level
+// preservation proof independently gates thinking_level_v1. A deployment whose
+// proof fails advertises less, never more.
 func advertisedContentCapabilities() []schema.ContentCapability {
 	return advertisedContentCapabilitiesWithEvaluators(
 		productionObservedModelPreservationEvaluator{},
 		productionProvenancePreservationEvaluator{},
+		productionThinkingLevelPreservationEvaluator{},
 	)
 }
 
@@ -30,10 +32,10 @@ func (h *Handler) provenanceProof() provenancePreservationEvaluator {
 }
 
 // advertisedContentCapabilitiesWithEvaluator applies the base enriched-content
-// proof and the production provenance proof. It is the seam tests use to drive
-// the base gate.
+// proof and the production provenance and thinking-level proofs. It is the
+// seam tests use to drive the base gate.
 func advertisedContentCapabilitiesWithEvaluator(evaluator observedModelPreservationEvaluator) []schema.ContentCapability {
-	return advertisedContentCapabilitiesWithEvaluators(evaluator, productionProvenancePreservationEvaluator{})
+	return advertisedContentCapabilitiesWithEvaluators(evaluator, productionProvenancePreservationEvaluator{}, productionThinkingLevelPreservationEvaluator{})
 }
 
 // advertisedContentCapabilitiesWithEvaluators is fail-closed per proof.
@@ -50,9 +52,13 @@ func advertisedContentCapabilitiesWithEvaluator(evaluator observedModelPreservat
 // token stays absent until its proof passes, so a producer correctly refuses to
 // emit the relationship evidence that would otherwise be lost.
 //
+// A failing thinking-level proof likewise withholds ONLY thinking_level_v1, so
+// a producer refuses to emit thinkingLevel/thinkingLevelRaw/thinkingLevelHistory
+// this deployment could lose while level-free content keeps publishing.
+//
 // The returned list is always the closed inventory in canonical lexicographic
 // order, so it always satisfies schema.ValidateContentCapabilityAdvertisements.
-func advertisedContentCapabilitiesWithEvaluators(evaluator observedModelPreservationEvaluator, provenance provenancePreservationEvaluator) []schema.ContentCapability {
+func advertisedContentCapabilitiesWithEvaluators(evaluator observedModelPreservationEvaluator, provenance provenancePreservationEvaluator, thinkingLevel thinkingLevelPreservationEvaluator) []schema.ContentCapability {
 	if err := evaluator.Evaluate(); err != nil {
 		return []schema.ContentCapability{}
 	}
@@ -64,6 +70,9 @@ func advertisedContentCapabilitiesWithEvaluators(evaluator observedModelPreserva
 	}
 	if err := provenance.Evaluate(); err == nil {
 		capabilities = append(capabilities, schema.ContentCapabilitySessionGraphProvenanceV1)
+	}
+	if err := thinkingLevel.Evaluate(); err == nil {
+		capabilities = append(capabilities, schema.ContentCapabilityThinkingLevelV1)
 	}
 	return append(capabilities, schema.ContentCapabilityToolNamespaceV1)
 }

@@ -1,0 +1,96 @@
+# Thinking-level preservation corpus. Each case is published as a typed
+# TranscriptContent envelope, migrated, rewritten through the production
+# canonical encoder, and migrated again; the re-emitted session and per-turn
+# thinkingLevel / thinkingLevelRaw members must equal the expected exact JSON
+# (or stay absent). "absent" is distinct from the canonical "off" level.
+cases:
+  - name: enriched_session_seed_and_per_turn_canonical_and_raw
+    contractVersion: 0.1.1
+    schemaVersion: 0.1.1
+    sessionId: thinking-level-preservation-enriched
+    harness: codex
+    thinkingLevel: high
+    thinkingLevelRaw: ""
+    history:
+      - {level: xhigh}
+      - {level: ultra, raw: custom}
+    turns:
+      - {role: user}
+      - {role: assistant, thinkingLevel: high}
+      - {role: assistant, thinkingLevel: ultra, thinkingLevelRaw: custom}
+      - {role: assistant, thinkingLevel: "off", thinkingLevelRaw: none}
+      - {role: assistant, thinkingLevelRaw: custom}
+      - {role: assistant, thinkingLevel: xhigh, thinkingLevelRaw: "深く考える"}
+      - {role: assistant}
+    expected:
+      thinkingLevel: '"high"'
+      thinkingLevelRaw: absent
+      history:
+        - {level: '"xhigh"', raw: absent}
+        - {level: '"ultra"', raw: '"custom"'}
+      turns:
+        - {thinkingLevel: absent, thinkingLevelRaw: absent}
+        - {thinkingLevel: '"high"', thinkingLevelRaw: absent}
+        - {thinkingLevel: '"ultra"', thinkingLevelRaw: '"custom"'}
+        - {thinkingLevel: '"off"', thinkingLevelRaw: '"none"'}
+        - {thinkingLevel: absent, thinkingLevelRaw: '"custom"'}
+        - {thinkingLevel: '"xhigh"', thinkingLevelRaw: '"深く考える"'}
+        - {thinkingLevel: absent, thinkingLevelRaw: absent}
+  - name: legacy_contract_with_levels
+    contractVersion: 0.0.9
+    schemaVersion: 0.0.9
+    sessionId: thinking-level-preservation-legacy-levels
+    harness: claude-code
+    thinkingLevel: max
+    thinkingLevelRaw: Max
+    turns:
+      - {role: user}
+      - {role: assistant, thinkingLevel: max, thinkingLevelRaw: Max}
+      - {role: assistant, thinkingLevel: minimal}
+    expected:
+      thinkingLevel: '"max"'
+      thinkingLevelRaw: '"Max"'
+      turns:
+        - {thinkingLevel: absent, thinkingLevelRaw: absent}
+        - {thinkingLevel: '"max"', thinkingLevelRaw: '"Max"'}
+        - {thinkingLevel: '"minimal"', thinkingLevelRaw: absent}
+  - name: legacy_without_levels_stays_absent
+    contractVersion: 0.0.9
+    schemaVersion: 0.0.9
+    sessionId: thinking-level-preservation-legacy-absent
+    harness: claude-code
+    thinkingLevel: ""
+    thinkingLevelRaw: ""
+    turns:
+      - {role: user}
+      - {role: assistant}
+    expected:
+      thinkingLevel: absent
+      thinkingLevelRaw: absent
+      turns:
+        - {thinkingLevel: absent, thinkingLevelRaw: absent}
+        - {thinkingLevel: absent, thinkingLevelRaw: absent}
+  - name: enriched_session_history_only_changes
+    contractVersion: 0.1.1
+    schemaVersion: 0.1.1
+    sessionId: thinking-level-preservation-history
+    harness: codex
+    thinkingLevel: ""
+    thinkingLevelRaw: ""
+    history:
+      - {level: high}
+      - {level: "", raw: thinking-harder}
+      - {level: xhigh, raw: "深く考える"}
+    turns:
+      - {role: user}
+      - {role: assistant}
+    expected:
+      thinkingLevel: absent
+      thinkingLevelRaw: absent
+      history:
+        - {level: '"high"', raw: absent}
+        - {level: absent, raw: '"thinking-harder"'}
+        - {level: '"xhigh"', raw: '"深く考える"'}
+      turns:
+        - {thinkingLevel: absent, thinkingLevelRaw: absent}
+        - {thinkingLevel: absent, thinkingLevelRaw: absent}

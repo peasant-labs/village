@@ -42,7 +42,10 @@ type Handler struct {
 	titles                TitlePipeline
 	preservationEvaluator observedModelPreservationEvaluator
 	provenanceEvaluator   provenancePreservationEvaluator
-	scanContent           func([]byte) []string
+	// thinkingLevelEvaluator gates thinking_level_v1 advertisement and the
+	// level-bearing publish refusal; nil means the cached production verdict.
+	thinkingLevelEvaluator thinkingLevelPreservationEvaluator
+	scanContent            func([]byte) []string
 
 	// discoveryReadBarrier, when non-nil, is invoked exactly once inside the
 	// discovery snapshot transaction after the total-count read and before the
@@ -122,13 +125,14 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 
 func NewWithTitlePipeline(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles TitlePipeline) *Handler {
 	h := &Handler{
-		cfg:                   cfg,
-		pool:                  pool,
-		queries:               sqlc.New(pool),
-		blobs:                 blobs,
-		titles:                titles,
-		preservationEvaluator: productionObservedModelPreservationEvaluator{},
-		provenanceEvaluator:   productionProvenancePreservationEvaluator{},
+		cfg:                    cfg,
+		pool:                   pool,
+		queries:                sqlc.New(pool),
+		blobs:                  blobs,
+		titles:                 titles,
+		preservationEvaluator:  productionObservedModelPreservationEvaluator{},
+		provenanceEvaluator:    productionProvenancePreservationEvaluator{},
+		thinkingLevelEvaluator: productionThinkingLevelPreservationEvaluator{},
 		// The remote-label rule belongs to the contract module, which both
 		// Village and Peasant import, so the two render one label for one
 		// repository instead of each formatting remotes their own way.

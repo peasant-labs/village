@@ -1,0 +1,31 @@
+# Pre-storage thinking-level evidence validation on the mounted publish
+# handler. A refused case must cause no secret scan, no probe, no row, and no
+# blob write; an accepted case must store exactly once.
+cases:
+  - name: valid_assistant_levels
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-valid","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":2,"thinkingLevel":"high","turns":[{"index":0,"role":"user","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi"},{"index":1,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hello","thinkingLevel":"ultra","thinkingLevelRaw":"custom"}]}}'
+    wantErrorParts: []
+  - name: legacy_without_levels_accepted
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-legacy","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hello"}]}}'
+    wantErrorParts: []
+  - name: user_turn_level_refused
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-user","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"user","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi","thinkingLevel":"high"}]}}'
+    wantErrorParts: [{name: why, value: 'role "user" is not assistant'}, {name: when, value: before secret scan or storage}, {name: consequence, value: no transcript bytes or metadata were written}]
+  - name: tool_turn_raw_refused
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-tool","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"tool","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"out","thinkingLevelRaw":"custom"}]}}'
+    wantErrorParts: [{name: why, value: 'role "tool" is not assistant'}, {name: when, value: before secret scan or storage}, {name: consequence, value: no transcript bytes or metadata were written}]
+  - name: non_canonical_turn_level_refused
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-noncanonical","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hello","thinkingLevel":"turbo"}]}}'
+    wantErrorParts: [{name: why, value: thinkingLevel}, {name: when, value: before secret scan or storage}, {name: consequence, value: no transcript bytes or metadata were written}]
+  - name: edge_whitespace_raw_refused
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-edge","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hello","thinkingLevel":"high","thinkingLevelRaw":" high"}]}}'
+    wantErrorParts: [{name: why, value: thinkingLevelRaw}, {name: when, value: before secret scan or storage}, {name: consequence, value: no transcript bytes or metadata were written}]
+  - name: invalid_session_level_refused
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-session","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"thinkingLevel":"extreme","turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hello"}]}}'
+    wantErrorParts: [{name: why, value: thinkingLevel}, {name: when, value: before secret scan or storage}, {name: consequence, value: no transcript bytes or metadata were written}]
+  - name: valid_history_changes
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-history","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":2,"thinkingLevel":"high","thinkingLevelHistory":[{"level":"xhigh"},{"level":"ultra","raw":"custom"}],"turns":[{"index":0,"role":"user","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hi"},{"index":1,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hello"}]}}'
+    wantErrorParts: []
+  - name: empty_history_entry_refused
+    content: '{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"level-history-empty","harness":"codex","startTime":"2026-01-01T00:00:00Z","endTime":"2026-01-01T00:01:00Z","durationMins":1,"tokensIn":60,"tokensOut":40,"totalTokens":100,"toolCallCount":0,"turnCount":1,"thinkingLevel":"high","thinkingLevelHistory":[{}],"turns":[{"index":0,"role":"assistant","timestamp":"2026-01-01T00:00:01Z","depth":0,"content":"hello"}]}}'
+    wantErrorParts: [{name: why, value: thinkingLevelHistory}, {name: when, value: before secret scan or storage}, {name: consequence, value: no transcript bytes or metadata were written}]
