@@ -87,6 +87,22 @@ Contract changes land and receive a module tag before Village updates its
 `go.mod` pin. Do not fork or vendor a local contract copy, and do not add an
 undocumented handler-only validation rule.
 
+Anything genuinely shared is owned by the contract. If two repos must agree on
+a concept, it belongs in the schema, never in a per-consumer derivation: update
+the contract (its own pull request and tag before a consumer re-pins it) instead
+of computing, restating, or forking it locally. Two definitions of one shared
+rule are drift, and drift is the failure mode this workspace treats as the
+defect. A shared rule is not made cheap by duplicating it.
+
+A contract or migration change is deliberate, not casual. A shipped migration
+is immutable and effectively irreversible in production, so a wrong column,
+index, or CHECK is a forward-only fix. Such a change carries the contract gates,
+the migration and invariant tests, and zero-diff codegen; expect the slower
+review, say so up front, and batch pending changes into one release instead of
+cutting one per change. Cost is a reason to be deliberate and to batch, never a
+reason to drift or to let a consumer re-derive a shared rule. The only exception
+is a scenario the user explicitly asks for.
+
 Before extending the contract or adding a migration, take the first path that
 fits: whether the answer is already derivable from data both sides hold, whether
 the consumer can compute it from what it already receives, and whether an
