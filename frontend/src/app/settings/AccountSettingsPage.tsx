@@ -149,7 +149,7 @@ function Settings({ user }: { user: User }) {
           defaultOpen
           count={myOrgs.data == null ? null : myOrgs.data.length}
           noun={["organization", "organizations"]}
-          description="showing one here is your choice. your membership already counts for collectives that accept its members."
+          description="showing it here is optional. collectives use your membership, not this switch."
           data-testid="settings-orgs"
         >
           {myOrgs.isError ? (
