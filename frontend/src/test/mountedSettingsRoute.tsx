@@ -52,7 +52,20 @@ export interface MountedSettingsBackend {
   switchAccount(id: string, handle: string, discoverable: boolean): void;
 }
 
-export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: boolean; read: "ok" | "failed"; write: "ok" | "failed" }, controls?: { deferProfile?: "handle" | "discoverable"; failLogout?: boolean; deferLogout?: boolean }): MountedSettingsBackend {
+/**
+ * The GitHub organizations the settings page reads and links.
+ *
+ * `items` is the caller's whole list, linked or not, because that is what
+ * `GET /auth/orgs` answers. A `read` or `write` of `"failed"` models the service
+ * being unavailable, which is the only way to reach the page's error states.
+ */
+export interface MountedSettingsOrgs {
+  items: Array<{ org_login: string; visible: boolean }>;
+  read?: "ok" | "failed";
+  write?: "ok" | "failed";
+}
+
+export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: boolean; read: "ok" | "failed"; write: "ok" | "failed" }, controls?: { deferProfile?: "handle" | "discoverable"; failLogout?: boolean; deferLogout?: boolean }, orgs: MountedSettingsOrgs = { items: [] }): MountedSettingsBackend {
   const writes: string[] = [];
   let accountID = "user-alice";
   let handle = SETTINGS_VIEWER;
@@ -60,6 +73,7 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
   const revoked = new Set(c.keys.filter((key) => key.revoked).map((key) => key.id));
   let revocations = 0;
   let automatic = prompt?.initial ?? false;
+  let orgReads = 0;
   let releaseProfile = () => {};
   const pendingProfile = controls?.deferProfile ? new Promise<void>((resolve) => { releaseProfile = resolve; }) : null;
   let releaseLogout = () => {};
@@ -87,6 +101,32 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
       }
 
       if (method === "GET" && path === "/auth/me") return json(userFor(handle, discoverable, accountID));
+      if (method === "GET" && path === "/auth/orgs") {
+        orgReads += 1;
+        // Only the first read fails, so the retry control has an answer to
+        // reach: a list that stayed broken could not be told from a retry that
+        // did nothing.
+        if (orgs.read === "failed" && orgReads === 1) {
+          return json({ error: "the organization service is unavailable" }, 500);
+        }
+        return json(
+          orgs.items.map((org) => ({
+            org_id: 1,
+            org_login: org.org_login,
+            avatar_url: null,
+            visible: org.visible,
+            fetched_at: "2026-09-01T00:00:00.000Z",
+          })),
+        );
+      }
+      if (method === "PATCH" && path.startsWith("/auth/orgs/") && path.endsWith("/visibility")) {
+        if (orgs.write === "failed") return json({ error: "the organization service is unavailable" }, 500);
+        const login = decodeURIComponent(path.slice("/auth/orgs/".length, -"/visibility".length));
+        const visible = Boolean(JSON.parse(String(init?.body)).visible);
+        const item = orgs.items.find((org) => org.org_login === login);
+        if (item) item.visible = visible;
+        return json({ status: "updated", visible });
+      }
       if (method === "GET" && path === "/users/me/settings") {
         backend.promptReads += 1;
         if (prompt?.read === "failed" && backend.promptReads === 1) return json({ error: "the settings service is unavailable" }, 500);

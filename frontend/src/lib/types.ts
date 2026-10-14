@@ -316,6 +316,17 @@ export interface UserOrg {
   fetched_at: string;
 }
 
+/**
+ * One organization as a PUBLIC profile reports it: only the fields a visitor
+ * may see. There is no `visible` because the server sends only visible rows,
+ * and no `fetched_at` because when village last asked GitHub is the owner's
+ * business.
+ */
+export interface UserPublicOrg {
+  org_login: string;
+  avatar_url: string | null;
+}
+
 /** @deprecated Import VillageCollectiveSearchResult from "@peasant-labs/schema". Alias kept for one release. */
 export type CollectiveSearchResult = VillageCollectiveSearchResult;
 

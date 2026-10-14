@@ -10,6 +10,7 @@ import {
   useUpdateMySettings,
 } from "@/lib/queries/auth";
 import { useUpdateAutoAttachPullRequests, useUserPromptSettings } from "@/lib/queries/pulls";
+import { useMyOrgs, useSetOrgVisibility } from "@/lib/queries/orgs";
 import {
   activePeasantKeys,
   newestUse,
@@ -75,6 +76,8 @@ function Settings({ user }: { user: User }) {
   const updateSettings = useUpdateMySettings();
   const settings = useUserPromptSettings(true, handle);
   const updateAutoAttach = useUpdateAutoAttachPullRequests(handle);
+  const myOrgs = useMyOrgs();
+  const setOrgVisibility = useSetOrgVisibility();
 
   async function commitHandle(next: boolean | string) {
     const wanted = String(next).trim();
@@ -114,6 +117,58 @@ function Settings({ user }: { user: User }) {
             }}
             data-testid="settings-discoverable"
           />
+          {/*
+           * GitHub organizations, one switch each. An organization is LINKED
+           * when `visible` is on: it then shows on the profile and can verify
+           * the person to a collective that requires members of it. The list is
+           * the caller's own, linked or not, so unlinking is switching one off.
+           * Organizations arrive from GitHub at sign-in only, so an empty list
+           * is answered with how to refresh rather than a blank section.
+           */}
+          {myOrgs.isError ? (
+            <div className="srow" data-testid="settings-orgs-read-error">
+              <p role="alert" style={{ fontSize: "var(--fs-body)", color: "var(--error)" }}>
+                your github organizations could not be read: {errorMessage(myOrgs.error)}
+              </p>
+              <RetryButton
+                label={myOrgs.isFetching ? "retrying" : "retry"}
+                busy={myOrgs.isFetching}
+                onRetry={() => myOrgs.refetch()}
+                testId="settings-orgs-retry"
+              />
+            </div>
+          ) : myOrgs.data == null ? null : myOrgs.data.length === 0 ? (
+            <div className="srow" data-testid="settings-orgs-empty">
+              <span className="srow-text-col">
+                <span className="srow-label">organizations</span>
+                <span className="srow-help">
+                  no github organizations were found for this account. sign out and
+                  sign in again to refresh them, then link the ones you want shown.
+                </span>
+              </span>
+            </div>
+          ) : (
+            myOrgs.data.map((org) => (
+              <SettingRow
+                key={org.org_login}
+                label={org.org_login}
+                help={
+                  org.visible
+                    ? "linked. shows on your profile, and confirms your membership to collectives that require it."
+                    : "not linked. link it to show it on your profile and confirm your membership to collectives that require it."
+                }
+                control="switch"
+                value={org.visible}
+                onCommit={async (next) => {
+                  await setOrgVisibility.mutateAsync({
+                    orgLogin: org.org_login,
+                    visible: Boolean(next),
+                  });
+                }}
+                data-testid={`settings-org-${org.org_login}`}
+              />
+            ))
+          )}
         </SettingGroup>
 
         <SettingGroup label="pull requests" defaultOpen data-testid="settings-pull-requests">

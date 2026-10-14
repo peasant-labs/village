@@ -1,0 +1,81 @@
+# What the settings page does with the caller's GitHub organizations. One switch
+# per organization links it to the profile or unlinks it. All four ways that can
+# go are here: linking, unlinking, a refused write, and the two shapes the list
+# itself can answer with (empty, and unreadable).
+#
+# Linking is not cosmetic: a collective that accepts verified members of a named
+# organization reads the same `visible` flag, so an organization that cannot be
+# linked is one whose members cannot contribute.
+
+cases:
+  - name: linking_an_organization_shows_it_on_the_profile
+    why: >
+      The whole point of the control. Losing this would leave an organization
+      that must be linked before its members can contribute impossible to link,
+      which is the state this page exists to end.
+    orgs:
+      - {org_login: peasant-labs, visible: false}
+      - {org_login: acme, visible: true}
+    read: ok
+    write: ok
+    action: toggle
+    target: peasant-labs
+    expected_visible: true
+    expected_alert: null
+    expected_list_state: linked-rows
+
+  - name: unlinking_a_linked_organization
+    why: >
+      Linking is reversible from the same row. Losing this would let an
+      organization be linked but never removed from a profile.
+    orgs:
+      - {org_login: peasant-labs, visible: true}
+    read: ok
+    write: ok
+    action: toggle
+    target: peasant-labs
+    expected_visible: false
+    expected_alert: null
+    expected_list_state: linked-rows
+
+  - name: a_refused_write_puts_the_previous_link_back
+    why: >
+      The server is the only writer of the flag, so a refused write must not
+      leave the switch showing a state nothing recorded.
+    orgs:
+      - {org_login: peasant-labs, visible: false}
+    read: ok
+    write: failed
+    action: toggle
+    target: peasant-labs
+    expected_visible: false
+    expected_alert: "the organization service is unavailable"
+    expected_list_state: linked-rows
+
+  - name: an_account_with_no_organizations_is_told_how_to_refresh
+    why: >
+      Organizations arrive from GitHub at sign-in only. An empty list has to say
+      so rather than show a blank section, or the person has no way to learn why
+      their organization is missing.
+    orgs: []
+    read: ok
+    write: ok
+    action: none
+    target: ""
+    expected_visible: false
+    expected_alert: null
+    expected_list_state: empty-guidance
+
+  - name: an_unreadable_list_is_reported_and_offers_a_retry
+    why: >
+      A list that could not be read is not an empty list: saying "no
+      organizations" would tell the person something false and would hide the
+      way to try again.
+    orgs: []
+    read: failed
+    write: ok
+    action: retry
+    target: ""
+    expected_visible: false
+    expected_alert: null
+    expected_list_state: read-error
