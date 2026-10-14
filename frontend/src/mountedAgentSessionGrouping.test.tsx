@@ -97,6 +97,7 @@ function installREST(testCase: AgentSessionGroupingCase): ReturnType<typeof vi.f
     const url = String(input);
     if (url.includes("/tags/popular")) return jsonResponse([]);
     if (url.includes("/groups/search")) return jsonResponse({ collectives: [] });
+    if (url.includes("/orgs")) return jsonResponse([]);
     if (url.includes(`/users/${PROFILE_USERNAME}`)) {
       return jsonResponse({
         id: "owner-1",

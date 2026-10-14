@@ -10,6 +10,7 @@ import {
 } from "@/components/transcript/ScopedHelperGroups";
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { useDeleteAccount, usePublicProfile, useUpdateMySettings } from "@/lib/queries/auth";
+import { usePublicOrgs } from "@/lib/queries/orgs";
 import { useAuth } from "@/providers/AuthProvider";
 import TranscriptList from "@/components/transcript/TranscriptList";
 import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
@@ -49,6 +50,10 @@ export default function UserProfilePage({
   const { username } = use(params);
   const { user } = useAuth();
   const { data: profile, isError: isProfileError } = usePublicProfile(username);
+  // The organizations this person has linked. The server sends only the
+  // visible ones, and answers the same way for an owner and a visitor.
+  const { data: linkedOrgs } = usePublicOrgs(username);
+  const publicOrgs = linkedOrgs ?? [];
   const { data, isLoading } = useTranscripts({ owner: username });
   // The server's own helper-group fold for this person's library. Independent
   // of the flat list above: the rows, the ordinary child chip and the project
@@ -385,6 +390,39 @@ export default function UserProfilePage({
           <p className="font-mono text-sm text-ink-3">@{username}</p>
         </div>
       </section>
+
+      {/*
+       * Linked GitHub organizations. Only the organizations a person has linked
+       * appear here; the server never sends an unlinked one. The whole section
+       * is omitted when there is nothing to show, so an unlinked profile gains
+       * no empty box where a different profile lists its organizations.
+       */}
+      {publicOrgs.length > 0 && (
+        <section className="flex flex-col gap-2" data-testid="profile-orgs">
+          <h2 className="font-mono text-[13px] text-ink-3">organizations</h2>
+          <ul className="flex flex-wrap items-center gap-2">
+            {publicOrgs.map((org) => (
+              <li
+                key={org.org_login}
+                data-testid="profile-org"
+                className="inline-flex items-center gap-2 border border-rule bg-surface px-2.5 h-8"
+              >
+                {org.avatar_url ? (
+                  <img
+                    src={org.avatar_url}
+                    alt=""
+                    className="size-4 shrink-0 border border-rule object-cover"
+                  />
+                ) : null}
+                {/* An organization login is USER CONTENT, never lowercased. */}
+                <span className="font-mono text-[13px] text-ink normal-case">
+                  {org.org_login}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* KPI tiles — StatGrid (transcripts + projects), shown once data lands */}
       {data && !isLoading && (

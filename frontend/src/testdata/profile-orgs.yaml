@@ -1,0 +1,26 @@
+# What a profile page shows for the organizations a person has linked.
+#
+# The server sends only the visible ones, so a case here cannot model a hidden
+# organization: "these are linked" is the only input the page can receive. The
+# page's other duty is the empty case, where it must show nothing at all rather
+# than an empty heading that reads as a claim about the person.
+
+cases:
+  - name: a_visitor_sees_the_organizations_linked_to_the_profile
+    why: >
+      The linked organizations are the payoff of the settings switch. Losing this
+      would leave linking an organization with nothing to show for it.
+    orgs:
+      - {org_login: peasant-labs, avatar_url: "https://avatars.githubusercontent.com/u/1"}
+      - {org_login: acme, avatar_url: null}
+    expect_section: true
+    expected_logins: [peasant-labs, acme]
+
+  - name: a_profile_with_no_linked_organizations_shows_no_section
+    why: >
+      An unlinked profile must not gain an empty "organizations" heading, which
+      would read as a claim that the person has none rather than that they linked
+      none.
+    orgs: []
+    expect_section: false
+    expected_logins: []
