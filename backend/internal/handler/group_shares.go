@@ -95,8 +95,8 @@ func shareStatusForGroup(ctx context.Context, q Querier, user *AuthUser, group s
 					Reason: shareRefusalUnverifiedOrg,
 					Message: fmt.Sprintf("this collective accepts contributions only from members of the %s organization, "+
 						"and that organization is not visible on your profile. Determined before anything was submitted, "+
-						"so nothing was written. Make your %s membership public on GitHub, refresh your organizations on "+
-						"your Village profile, then contribute again.",
+						"so nothing was written. Make your %s membership public on GitHub, sign in again to refresh your "+
+						"organizations, then link it on your settings page and contribute again.",
 						group.LinkedGithubOrg.String, group.LinkedGithubOrg.String),
 				}
 			}
@@ -108,8 +108,8 @@ func shareStatusForGroup(ctx context.Context, q Querier, user *AuthUser, group s
 				Reason: shareRefusalUnverifiedOrg,
 				Message: "this collective accepts contributions only from members whose GitHub organizations are visible, " +
 					"and none of yours are. Determined before anything was submitted, so nothing was written. Make at " +
-					"least one organization membership public on GitHub, refresh your organizations on your Village " +
-					"profile, then contribute again.",
+					"least one organization membership public on GitHub, sign in again to refresh your organizations, " +
+					"then link it on your settings page and contribute again.",
 			}
 		}
 		return ShareStatusApproved, nil
