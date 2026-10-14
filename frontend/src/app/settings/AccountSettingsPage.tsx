@@ -149,7 +149,7 @@ function Settings({ user }: { user: User }) {
           defaultOpen
           count={myOrgs.data == null ? null : myOrgs.data.length}
           noun={["organization", "organizations"]}
-          description="linking an organization shows it on your profile and confirms your membership to collectives that require it. your organizations arrive from github when you sign in."
+          description="link an organization to show it on your profile."
           data-testid="settings-orgs"
         >
           {myOrgs.isError ? (
@@ -168,9 +168,8 @@ function Settings({ user }: { user: User }) {
             <div className="srow" data-testid="settings-orgs-empty">
               <span className="srow-text-col">
                 <span className="srow-help">
-                  no github organizations were found for this account. make an
-                  organization membership public on github, then sign out and sign
-                  in again to refresh them.
+                  no github organizations found. make one public on github, then
+                  sign out and sign in again.
                 </span>
               </span>
             </div>
@@ -184,7 +183,11 @@ function Settings({ user }: { user: User }) {
                     {org.org_login}
                   </span>
                 }
-                help={org.visible ? "shown on your profile" : "not shown on your profile"}
+                help={
+                  org.visible
+                    ? "shown on your profile and to collectives that require it"
+                    : "not shown on your profile or to collectives that require it"
+                }
                 control="switch"
                 value={org.visible}
                 onCommit={async (next) => {
