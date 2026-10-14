@@ -1,15 +1,18 @@
 /* Screenshot the two surfaces that link a GitHub organization to a profile.
 
    Two captures per theme, taken from one live page each so they cannot mix builds:
-     settings-orgs   the settings profile group with one switch per organization
+     settings-orgs   the organizations section, one switch per organization
      profile-orgs    the profile's linked-organizations section
 
    Build provenance is asserted BEFORE any PNG is written. Both captures exist
-   only when this change is served: the settings group must carry a row per
-   organization with the switch showing the linked state the mock states, and
-   the profile must list exactly the organizations the mock returns as linked.
-   A stale server, or one serving another worktree, exits nonzero instead of
-   producing a misleading capture.
+   only when this change is served: the organizations must be their OWN settings
+   section (never rows inside "profile"), each row must carry the avatar GitHub
+   sent and the switch must show the state the mock states, and the profile must
+   list exactly the organizations the mock returns as linked.
+
+   An avatar is asserted by its LOADED pixels, not by its presence in the
+   payload: an `img` whose src never resolves still has the right attribute, and
+   a capture that showed a broken image would otherwise pass.
 
    Computed styles are read from the live DOM as well, because a scaled PNG
    cannot tell two close token values apart: the run reports the organization
@@ -57,6 +60,12 @@ await page.setCookie({ name: 'peasant_token', value: 'demo-token', domain: 'loca
 await applyDeterminism(page)
 await page.evaluateOnNewDocument((nextTheme) => localStorage.setItem('peasant-theme', nextTheme), theme)
 
+async function fail(message) {
+  await browser.close()
+  console.error(`ERROR [account-orgs-shoot.mjs] ${message}`)
+  process.exit(2)
+}
+
 async function settle(url) {
   await page.goto(url, { waitUntil: 'networkidle0' })
   await new Promise((r) => setTimeout(r, 900))
@@ -70,11 +79,7 @@ async function settle(url) {
 
 async function capture(name, selector, expect) {
   const el = await page.$(selector)
-  if (!el) {
-    await browser.close()
-    console.error(`ERROR [account-orgs-shoot.mjs] ${selector} did not resolve for ${name}.`)
-    process.exit(2)
-  }
+  if (!el) await fail(`${selector} did not resolve for ${name}.`)
   await expect(el, name)
 
   const file = `${out}/${name}.png`
@@ -89,41 +94,45 @@ async function capture(name, selector, expect) {
 }
 
 await settle(`${ORIGIN}/settings`)
-await capture('settings-orgs', '[data-testid="settings-profile"]', async (el, name) => {
+await capture('settings-orgs', '[data-testid="settings-orgs"]', async (el, name) => {
   const rows = await page.evaluate(
     (node) =>
-      [...node.querySelectorAll('[data-testid^="settings-org-"]')].map((row) => ({
-        id: row.getAttribute('data-testid'),
-        label: row.querySelector('.srow-label')?.textContent?.trim(),
-        checked: row.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
-        family: getComputedStyle(row.querySelector('.srow-label')).fontFamily,
-      })),
+      [...node.querySelectorAll('[data-testid^="settings-org-"]')].map((row) => {
+        const img = row.querySelector('img[data-testid="settings-avatar"]')
+        const label = row.querySelector('.srow-label')
+        return {
+          id: row.getAttribute('data-testid'),
+          label: label?.textContent?.trim(),
+          checked: row.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
+          family: getComputedStyle(label).fontFamily,
+          hasAvatar: img != null,
+          avatarLoaded: img != null && img.naturalWidth > 0,
+        }
+      }),
     el,
   )
+
+  if (await page.$('[data-testid="settings-profile"] [data-testid^="settings-org-"]')) {
+    await fail(`${name} drew the organizations inside the profile group; they are their own section.`)
+  }
+  if (rows.length !== 2) await fail(`${name} drew ${rows.length} organization rows, want 2: ${JSON.stringify(rows)}.`)
+
   const linked = rows.find((r) => r.id === `settings-org-${LINKED}`)
   const unlinked = rows.find((r) => r.id === `settings-org-${UNLINKED}`)
-  if (!linked || !unlinked) {
-    await browser.close()
-    console.error(`ERROR [account-orgs-shoot.mjs] ${name} is missing an organization row: ${JSON.stringify(rows)}.`)
-    process.exit(2)
-  }
+  if (!linked || !unlinked) await fail(`${name} is missing an organization row: ${JSON.stringify(rows)}.`)
   // The switch must show the state the server holds, not a default.
   if (linked.checked !== 'true' || unlinked.checked !== 'false') {
-    await browser.close()
-    console.error(`ERROR [account-orgs-shoot.mjs] ${name} shows linked=${linked.checked} unlinked=${unlinked.checked}, want true/false.`)
-    process.exit(2)
+    await fail(`${name} shows linked=${linked.checked} unlinked=${unlinked.checked}, want true/false.`)
   }
-  // A login is a data value: never lowercased, and drawn in the mono face.
+  // A login is a data value: never lowercased, drawn in the mono face, beside
+  // the avatar GitHub sent — asserted by loaded pixels, not by the attribute.
   for (const row of [linked, unlinked]) {
     if (row.label !== row.id.replace('settings-org-', '')) {
-      await browser.close()
-      console.error(`ERROR [account-orgs-shoot.mjs] ${name} drew the login as ${JSON.stringify(row.label)}.`)
-      process.exit(2)
+      await fail(`${name} drew the login as ${JSON.stringify(row.label)}.`)
     }
-    if (!/mono/i.test(row.family)) {
-      await browser.close()
-      console.error(`ERROR [account-orgs-shoot.mjs] ${name} drew the login in ${row.family}, want the mono face.`)
-      process.exit(2)
+    if (!/mono/i.test(row.family)) await fail(`${name} drew the login in ${row.family}, want the mono face.`)
+    if (!row.hasAvatar || !row.avatarLoaded) {
+      await fail(`${name} did not draw ${row.id}'s avatar (present=${row.hasAvatar} loaded=${row.avatarLoaded}).`)
     }
   }
 })
@@ -132,27 +141,25 @@ await settle(`${ORIGIN}/users/${USERNAME}`)
 await capture('profile-orgs', '[data-testid="profile-orgs"]', async (el, name) => {
   const shown = await page.evaluate(
     (node) =>
-      [...node.querySelectorAll('[data-testid="profile-org"]')].map((row) => ({
-        login: row.textContent.trim(),
-        radius: getComputedStyle(row).borderRadius,
-        family: getComputedStyle(row.querySelector('span')).fontFamily,
-      })),
+      [...node.querySelectorAll('[data-testid="profile-org"]')].map((row) => {
+        const img = row.querySelector('img[data-testid="profile-org-avatar"]')
+        return {
+          login: row.textContent.trim(),
+          radius: getComputedStyle(row).borderRadius,
+          family: getComputedStyle(row.querySelector('span')).fontFamily,
+          hasAvatar: img != null,
+          avatarLoaded: img != null && img.naturalWidth > 0,
+        }
+      }),
     el,
   )
   if (shown.length !== 1 || shown[0].login !== LINKED) {
-    await browser.close()
-    console.error(`ERROR [account-orgs-shoot.mjs] ${name} lists ${JSON.stringify(shown)}, want exactly ${LINKED}.`)
-    process.exit(2)
+    await fail(`${name} lists ${JSON.stringify(shown)}, want exactly ${LINKED}.`)
   }
-  if (shown[0].radius !== '0px') {
-    await browser.close()
-    console.error(`ERROR [account-orgs-shoot.mjs] ${name} drew the chip with radius ${shown[0].radius}, want 0px.`)
-    process.exit(2)
-  }
-  if (!/mono/i.test(shown[0].family)) {
-    await browser.close()
-    console.error(`ERROR [account-orgs-shoot.mjs] ${name} drew the login in ${shown[0].family}, want the mono face.`)
-    process.exit(2)
+  if (shown[0].radius !== '0px') await fail(`${name} drew the chip with radius ${shown[0].radius}, want 0px.`)
+  if (!/mono/i.test(shown[0].family)) await fail(`${name} drew the login in ${shown[0].family}, want the mono face.`)
+  if (!shown[0].hasAvatar || !shown[0].avatarLoaded) {
+    await fail(`${name} did not draw the organization's avatar (present=${shown[0].hasAvatar} loaded=${shown[0].avatarLoaded}).`)
   }
 })
 

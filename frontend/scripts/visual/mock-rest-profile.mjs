@@ -190,6 +190,14 @@ const send = (res, status, body) => {
   res.end(body == null ? '' : JSON.stringify(body))
 }
 
+/* A tiny inline SVG stands in for GitHub's avatar so a capture stays offline
+   and deterministic. The real column carries an avatars.githubusercontent.com
+   URL; only the bytes differ, and the page renders whatever URL it is given. */
+const orgAvatar = (initials, color) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="${color}"/><text x="16" y="21" font-family="monospace" font-size="13" fill="#ffffff" text-anchor="middle">${initials}</text></svg>`,
+  )}`
+
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`)
   const path = url.pathname.replace(/^\/api\/v1/, '')
@@ -203,8 +211,8 @@ const server = createServer((req, res) => {
   // them. One is linked so the switch shows both states in one capture.
   if (path === '/auth/orgs')
     return send(res, 200, [
-      { org_id: 1, org_login: 'peasant-labs', avatar_url: null, visible: true, fetched_at: '2026-09-01T00:00:00Z' },
-      { org_id: 2, org_login: 'acme-collective', avatar_url: null, visible: false, fetched_at: '2026-09-01T00:00:00Z' },
+      { org_id: 1, org_login: 'peasant-labs', avatar_url: orgAvatar('PL', '#6b7a52'), visible: true, fetched_at: '2026-09-01T00:00:00Z' },
+      { org_id: 2, org_login: 'acme-collective', avatar_url: orgAvatar('AC', '#8a6a4b'), visible: false, fetched_at: '2026-09-01T00:00:00Z' },
     ])
   // The rest of the settings page's reads, so its own capture shows the page
   // rather than two error rows beside the organizations.
@@ -214,7 +222,7 @@ const server = createServer((req, res) => {
   // A person's LINKED organizations, as the profile page reads them: only the
   // visible rows, and this user has one.
   if (/^\/users\/[^/]+\/orgs$/.test(path))
-    return send(res, 200, [{ org_login: 'peasant-labs', avatar_url: null }])
+    return send(res, 200, [{ org_login: 'peasant-labs', avatar_url: orgAvatar('PL', '#6b7a52') }])
   if (path === '/groups') return send(res, 200, [])
   if (path === '/users/me/collectives/contributions') return send(res, 200, { collectives: contributions })
 
