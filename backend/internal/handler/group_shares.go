@@ -79,37 +79,36 @@ type shareRefusal struct {
 func shareStatusForGroup(ctx context.Context, q Querier, user *AuthUser, group sqlc.Group) (ShareStatus, *shareRefusal) {
 	switch group.AcceptanceMode {
 	case "verified_only":
-		// A collective linked to a specific GitHub organization requires THAT
-		// organization to be visible on the member's profile. One that names no
-		// organization accepts any visible organization at all.
+		// A collective linked to a specific GitHub organization requires
+		// MEMBERSHIP of that organization. One that names no organization accepts
+		// any organization the member has on record. Neither requires the
+		// affiliation to be published: publishing is a separate, opt-in choice
+		// about the person's profile (see org_membership.go).
 		if group.LinkedGithubOrg.Valid && group.LinkedGithubOrg.String != "" {
-			ok, err := q.HasUserVisibleOrg(ctx, sqlc.HasUserVisibleOrgParams{
-				UserID: user.PgID(),
-				Lower:  group.LinkedGithubOrg.String,
-			})
+			ok, err := hasOrgMembership(ctx, q, user.PgID(), group.LinkedGithubOrg.String)
 			// A failed read is a refusal, not an acceptance: this collective
 			// admits verified members only, and an unanswered question about
-			// verification must not be resolved in the submitter's favour.
+			// membership must not be resolved in the submitter's favour.
 			if err != nil || !ok {
 				return "", &shareRefusal{
 					Reason: shareRefusalUnverifiedOrg,
 					Message: fmt.Sprintf("this collective accepts contributions only from members of the %s organization, "+
-						"and that organization is not visible on your profile. Determined before anything was submitted, "+
-						"so nothing was written. Make your %s membership public on GitHub, refresh your organizations on "+
-						"your Village profile, then contribute again.",
+						"and village has no record of your membership of it. Determined before anything was submitted, "+
+						"so nothing was written. If you have joined %s recently, sign in again so village re-reads your "+
+						"organizations, then contribute again.",
 						group.LinkedGithubOrg.String, group.LinkedGithubOrg.String),
 				}
 			}
 			return ShareStatusApproved, nil
 		}
-		visibleOrgs, _ := q.ListUserVisibleOrgs(ctx, user.PgID())
-		if len(visibleOrgs) == 0 {
+		anyOrg, err := hasAnyOrgMembership(ctx, q, user.PgID())
+		if err != nil || !anyOrg {
 			return "", &shareRefusal{
 				Reason: shareRefusalUnverifiedOrg,
-				Message: "this collective accepts contributions only from members whose GitHub organizations are visible, " +
-					"and none of yours are. Determined before anything was submitted, so nothing was written. Make at " +
-					"least one organization membership public on GitHub, refresh your organizations on your Village " +
-					"profile, then contribute again.",
+				Message: "this collective accepts contributions only from members of a GitHub organization, and village " +
+					"has no organization on record for you. Determined before anything was submitted, so nothing was " +
+					"written. If you have joined one recently, sign in again so village re-reads your organizations, " +
+					"then contribute again.",
 			}
 		}
 		return ShareStatusApproved, nil

@@ -37,15 +37,16 @@ type mockQuerier struct {
 	listAttachmentsBindingTranscript func(context.Context, pgtype.UUID) ([]sqlc.PullRequestAttachment, error)
 
 	// User stubs
-	upsertUser                func(ctx context.Context, arg sqlc.UpsertUserParams) (sqlc.User, error)
-	upsertUserByProvider      func(ctx context.Context, arg sqlc.UpsertUserByProviderParams) (sqlc.User, error)
-	getUserByID               func(ctx context.Context, id pgtype.UUID) (sqlc.User, error)
-	getUserByProviderIdentity func(ctx context.Context, arg sqlc.GetUserByProviderIdentityParams) (sqlc.User, error)
-	getUserByUsername         func(ctx context.Context, githubUsername string) (sqlc.User, error)
-	listUserAllOrgs           func(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error)
-	setUsername               func(ctx context.Context, arg sqlc.SetUsernameParams) (sqlc.User, error)
-	confirmOwnHandle          func(ctx context.Context, arg sqlc.ConfirmOwnHandleParams) (sqlc.User, error)
-	deleteUser                func(ctx context.Context, id pgtype.UUID) error
+	upsertUser                   func(ctx context.Context, arg sqlc.UpsertUserParams) (sqlc.User, error)
+	upsertUserByProvider         func(ctx context.Context, arg sqlc.UpsertUserByProviderParams) (sqlc.User, error)
+	getUserByID                  func(ctx context.Context, id pgtype.UUID) (sqlc.User, error)
+	getUserByProviderIdentity    func(ctx context.Context, arg sqlc.GetUserByProviderIdentityParams) (sqlc.User, error)
+	getUserByUsername            func(ctx context.Context, githubUsername string) (sqlc.User, error)
+	getUserVisibleOrgsByUsername func(ctx context.Context, githubUsername string) ([]sqlc.GetUserVisibleOrgsByUsernameRow, error)
+	listUserAllOrgs              func(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error)
+	setUsername                  func(ctx context.Context, arg sqlc.SetUsernameParams) (sqlc.User, error)
+	confirmOwnHandle             func(ctx context.Context, arg sqlc.ConfirmOwnHandleParams) (sqlc.User, error)
+	deleteUser                   func(ctx context.Context, id pgtype.UUID) error
 
 	// API key stubs
 	createAPIKey        func(ctx context.Context, arg sqlc.CreateAPIKeyParams) (sqlc.ApiKey, error)
@@ -671,6 +672,9 @@ func (m *mockQuerier) SetOrgVisibility(ctx context.Context, arg sqlc.SetOrgVisib
 	return nil
 }
 func (m *mockQuerier) GetUserVisibleOrgsByUsername(ctx context.Context, githubUsername string) ([]sqlc.GetUserVisibleOrgsByUsernameRow, error) {
+	if m.getUserVisibleOrgsByUsername != nil {
+		return m.getUserVisibleOrgsByUsername(ctx, githubUsername)
+	}
 	return nil, nil
 }
 func (m *mockQuerier) ListVisibleOrgsByUserIDs(ctx context.Context, userIds []pgtype.UUID) ([]sqlc.ListVisibleOrgsByUserIDsRow, error) {

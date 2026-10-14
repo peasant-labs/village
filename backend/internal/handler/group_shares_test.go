@@ -22,7 +22,7 @@ type shareStatusCase struct {
 	Why         string `yaml:"why"`
 	Acceptance  string `yaml:"acceptance"`
 	LinkedOrg   string `yaml:"linked_org"`
-	OrgVisible  bool   `yaml:"org_visible"`
+	OrgMember   bool   `yaml:"org_member"`
 	OrgReadFail bool   `yaml:"org_read_fails"`
 	WantStatus  string `yaml:"want_status"`
 	WantRefusal string `yaml:"want_refusal"`
@@ -33,16 +33,18 @@ var shareStatusModesYAML []byte
 
 // requiredShareStatusModeCases names the cases that must exist. Each is here
 // because losing it hides a specific failure: the two accepting modes, the two
-// verified-only shapes in both directions, and the failed org read that must be
-// answered as a refusal rather than as an acceptance.
+// verified-only shapes in both directions, an organization the member never
+// published (authorization must not depend on publication), and the failed org
+// read that must be answered as a refusal rather than as an acceptance.
 var requiredShareStatusModeCases = []string{
 	"open_collective_accepts_on_receipt",
 	"curated_collective_queues_for_review",
-	"verified_only_with_the_linked_org_visible_accepts",
+	"verified_only_with_the_linked_org_on_record_accepts",
+	"verified_only_accepts_an_organization_the_member_never_published",
 	"verified_only_without_the_linked_org_refuses",
 	"verified_only_org_read_failure_refuses",
-	"verified_only_unlinked_with_no_visible_org_refuses",
-	"verified_only_unlinked_with_a_visible_org_accepts",
+	"verified_only_unlinked_with_no_org_refuses",
+	"verified_only_unlinked_with_an_org_accepts",
 }
 
 func loadShareStatusModeCases(t *testing.T) []shareStatusCase {
@@ -81,17 +83,21 @@ func TestShareStatusForGroup(t *testing.T) {
 	for _, testCase := range loadShareStatusModeCases(t) {
 		t.Run(testCase.Name, func(t *testing.T) {
 			q := &mockQuerier{
-				hasUserVisibleOrg: func(context.Context, sqlc.HasUserVisibleOrgParams) (bool, error) {
+				listUserAllOrgs: func(_ context.Context, _ pgtype.UUID) ([]sqlc.ListUserAllOrgsRow, error) {
 					if testCase.OrgReadFail {
-						return false, context.DeadlineExceeded
+						return nil, context.DeadlineExceeded
 					}
-					return testCase.OrgVisible, nil
-				},
-				listUserVisibleOrgs: func(context.Context, pgtype.UUID) ([]sqlc.ListUserVisibleOrgsRow, error) {
-					if !testCase.OrgVisible {
+					if !testCase.OrgMember {
 						return nil, nil
 					}
-					return []sqlc.ListUserVisibleOrgsRow{{}}, nil
+					// Visible: false on purpose. Every accepting case is served
+					// an UNPUBLISHED affiliation, so a rule that starts requiring
+					// publication again fails here rather than passing quietly.
+					login := testCase.LinkedOrg
+					if login == "" {
+						login = "some-other-org"
+					}
+					return []sqlc.ListUserAllOrgsRow{{OrgLogin: login, Visible: false}}, nil
 				},
 			}
 			group := sqlc.Group{AcceptanceMode: testCase.Acceptance}

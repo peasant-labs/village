@@ -3,11 +3,15 @@
    The own-profile route fetches:
      - GET /api/v1/auth/me                                  (who is looking)
      - GET /api/v1/users/{username}                         (the public profile)
+     - GET /api/v1/users/{username}/orgs                    (the linked organizations)
      - GET /api/v1/transcripts?owner=...                    (the library)
      - GET /api/v1/users/me/collectives/contributions       (the section, now four counters)
    and, once a collective and then a submission are opened:
      - GET /api/v1/users/me/collectives/{groupId}/submissions   (the owner-only PAIRS list)
      - GET /api/v1/users/me/collectives/{groupId}/transcripts/{transcriptId}/events
+
+   It also answers the settings page's reads (`/auth/orgs`, `/users/me/settings`,
+   `/auth/api-keys`) so that surface can be captured from the same build.
 
    The dataset is chosen to exercise the cases the section has to get right in
    one capture: a collective with approved, awaiting-review AND repeatedly
@@ -186,6 +190,14 @@ const send = (res, status, body) => {
   res.end(body == null ? '' : JSON.stringify(body))
 }
 
+/* A tiny inline SVG stands in for GitHub's avatar so a capture stays offline
+   and deterministic. The real column carries an avatars.githubusercontent.com
+   URL; only the bytes differ, and the page renders whatever URL it is given. */
+const orgAvatar = (initials, color) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="${color}"/><text x="16" y="21" font-family="monospace" font-size="13" fill="#ffffff" text-anchor="middle">${initials}</text></svg>`,
+  )}`
+
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`)
   const path = url.pathname.replace(/^\/api\/v1/, '')
@@ -195,7 +207,22 @@ const server = createServer((req, res) => {
   if (req.method !== 'GET') return send(res, 404, { error: `no mock route for ${req.method} ${url.pathname}` })
 
   if (path === '/auth/me') return send(res, 200, user)
-  if (path === '/auth/orgs') return send(res, 200, [])
+  // The caller's own organizations, linked and not, as the settings page reads
+  // them. One is linked so the switch shows both states in one capture.
+  if (path === '/auth/orgs')
+    return send(res, 200, [
+      { org_id: 1, org_login: 'peasant-labs', avatar_url: orgAvatar('PL', '#6b7a52'), visible: true, fetched_at: '2026-09-01T00:00:00Z' },
+      { org_id: 2, org_login: 'acme-collective', avatar_url: orgAvatar('AC', '#8a6a4b'), visible: false, fetched_at: '2026-09-01T00:00:00Z' },
+    ])
+  // The rest of the settings page's reads, so its own capture shows the page
+  // rather than two error rows beside the organizations.
+  if (path === '/users/me/settings')
+    return send(res, 200, { auto_attach_pull_requests: false, preview_before_attach: true })
+  if (path === '/auth/api-keys') return send(res, 200, [])
+  // A person's LINKED organizations, as the profile page reads them: only the
+  // visible rows, and this user has one.
+  if (/^\/users\/[^/]+\/orgs$/.test(path))
+    return send(res, 200, [{ org_login: 'peasant-labs', avatar_url: orgAvatar('PL', '#6b7a52') }])
   if (path === '/groups') return send(res, 200, [])
   if (path === '/users/me/collectives/contributions') return send(res, 200, { collectives: contributions })
 

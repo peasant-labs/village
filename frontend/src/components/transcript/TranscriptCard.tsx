@@ -4,6 +4,7 @@
 // <Explore> transcript cards. It has no remaining import sites.
 
 import Link from "next/link";
+import Image from "next/image";
 import { ShieldCheck } from "lucide-react";
 import { ProviderTag, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
@@ -100,9 +101,12 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
               ?
             </div>
           ) : owner.avatar_url ? (
-            <img
+            <Image
               src={owner.avatar_url}
               alt=""
+              width={20}
+              height={20}
+              unoptimized
               className="w-5 h-5 border border-rule"
             />
           ) : (

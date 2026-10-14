@@ -65,6 +65,12 @@ export interface MountedProfileFixture {
     localID: string;
     parentSessionID: string | null;
   }>;
+  /**
+   * `GET /users/{username}/orgs` — the organizations the viewed profile has
+   * linked. Only visible organizations can appear, because the server sends
+   * only those; there is deliberately no "hidden org" to model here.
+   */
+  publicOrgs?: Array<{ org_login: string; avatar_url: string | null }>;
 }
 
 function userFixture(username: string): User {
@@ -187,6 +193,9 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
       });
     }
     if (path.startsWith("/users/")) {
+      // The profile's linked organizations answer as their own list; they are
+      // not a user, so the catch-all below would hand back the wrong shape.
+      if (/\/orgs$/.test(path)) return json(fixture.publicOrgs ?? []);
       return json(userFixture(fixture.profileUsername));
     }
     throw new Error(`mounted profile route fixture received an unexpected request to ${url}`);

@@ -1,6 +1,11 @@
 # What state a collective opens a submission in, and when it refuses one
 # outright. This is the rule both the single share and the whole-project
 # contribution apply, so a case lost here is a way for the two to drift apart.
+#
+# `org_member` is MEMBERSHIP of an organization on record. It is deliberately
+# not "published": the gate reads the member's organization record, and the
+# harness serves every accepting case with the affiliation unpublished, so a
+# case that starts requiring publication again cannot pass.
 
 - name: open_collective_accepts_on_receipt
   why: >
@@ -16,47 +21,57 @@
   acceptance: curated
   want_status: pending
 
-- name: verified_only_with_the_linked_org_visible_accepts
+- name: verified_only_with_the_linked_org_on_record_accepts
   why: >
-    A collective linked to one organization accepts a member of that organization
-    whose membership is public.
+    A collective linked to one organization accepts a member of that
+    organization. Losing this would make the link mean nothing.
   acceptance: verified_only
   linked_org: peasant-labs
-  org_visible: true
+  org_member: true
+  want_status: approved
+
+- name: verified_only_accepts_an_organization_the_member_never_published
+  why: >
+    Membership authorizes on its own. An affiliation the member keeps off their
+    profile still admits them, because choosing not to publish is not choosing
+    not to belong. Losing this would make the profile switch an access-control
+    switch again.
+  acceptance: verified_only
+  linked_org: peasant-labs
+  org_member: true
   want_status: approved
 
 - name: verified_only_without_the_linked_org_refuses
   why: >
-    The same collective refuses a member whose membership of that organization is
-    not visible. Losing this would make verified-only mean nothing.
+    The same collective refuses someone with no record of membership of that
+    organization. Losing this would make verified-only mean nothing.
   acceptance: verified_only
   linked_org: peasant-labs
-  org_visible: false
+  org_member: false
   want_refusal: unverified_org
 
 - name: verified_only_org_read_failure_refuses
   why: >
-    An unanswered question about verification is not an acceptance. Losing this
-    would let a database hiccup admit an unverified member.
+    An unanswered question about membership is not an acceptance. Losing this
+    would let a database hiccup admit a member who is not in the organization.
   acceptance: verified_only
   linked_org: peasant-labs
-  org_visible: true
+  org_member: true
   org_read_fails: true
   want_refusal: unverified_org
 
-- name: verified_only_unlinked_with_no_visible_org_refuses
+- name: verified_only_unlinked_with_no_org_refuses
   why: >
-    A verified-only collective that names no organization still requires one to
-    be visible. Losing this would admit a member with no public organization at
-    all.
+    A verified-only collective that names no organization still requires one on
+    record. Losing this would admit a member with no organization at all.
   acceptance: verified_only
-  org_visible: false
+  org_member: false
   want_refusal: unverified_org
 
-- name: verified_only_unlinked_with_a_visible_org_accepts
+- name: verified_only_unlinked_with_an_org_accepts
   why: >
-    The same collective accepts a member with any visible organization, which is
-    the shipped meaning of an unlinked verified-only collective.
+    The same collective accepts a member with any organization on record, which
+    is the shipped meaning of an unlinked verified-only collective.
   acceptance: verified_only
-  org_visible: true
+  org_member: true
   want_status: approved

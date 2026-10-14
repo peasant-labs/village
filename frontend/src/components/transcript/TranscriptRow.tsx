@@ -4,6 +4,7 @@
 // by the shared fairtrade <Explore> surface. It has no remaining import sites.
 
 import Link from "next/link";
+import Image from "next/image";
 import { ProviderName, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import type { TranscriptListItem } from "@/lib/types";
@@ -61,9 +62,12 @@ export default function TranscriptRow({ item }: { item: TranscriptListItem }) {
             ?
           </div>
         ) : owner.avatar_url ? (
-          <img
+          <Image
             src={owner.avatar_url}
             alt=""
+            width={16}
+            height={16}
+            unoptimized
             className="w-4 h-4 border border-rule"
           />
         ) : (

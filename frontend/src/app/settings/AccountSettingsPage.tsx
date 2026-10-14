@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   useDeleteAccount,
@@ -10,6 +11,7 @@ import {
   useUpdateMySettings,
 } from "@/lib/queries/auth";
 import { useUpdateAutoAttachPullRequests, useUserPromptSettings } from "@/lib/queries/pulls";
+import { useMyOrgs, useSetOrgVisibility } from "@/lib/queries/orgs";
 import {
   activePeasantKeys,
   newestUse,
@@ -69,12 +71,36 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * An organization's GitHub avatar, or nothing when GitHub sent none. The image
+ * is decorative: the login beside it is the organization's name, so an empty
+ * `alt` keeps a screen reader from saying the same organization twice.
+ */
+function OrgAvatar({ url }: { url: string | null }) {
+  if (!url) return null;
+  return (
+    // unoptimized: a provider-supplied avatar host (see the images note in
+    // next.config.ts). width/height are the rendered size, size-6.
+    <Image
+      src={url}
+      alt=""
+      width={24}
+      height={24}
+      unoptimized
+      className="size-6 border border-rule object-cover shrink-0"
+      data-testid="settings-avatar"
+    />
+  );
+}
+
 function Settings({ user }: { user: User }) {
   const handle = user.github_username;
   const setUsername = useSetUsername();
   const updateSettings = useUpdateMySettings();
   const settings = useUserPromptSettings(true, handle);
   const updateAutoAttach = useUpdateAutoAttachPullRequests(handle);
+  const myOrgs = useMyOrgs();
+  const setOrgVisibility = useSetOrgVisibility();
 
   async function commitHandle(next: boolean | string) {
     const wanted = String(next).trim();
@@ -114,6 +140,68 @@ function Settings({ user }: { user: User }) {
             }}
             data-testid="settings-discoverable"
           />
+        </SettingGroup>
+
+        {/*
+         * GitHub organizations, one switch each. An organization is LINKED
+         * when `visible` is on: it then shows on the profile and can verify the
+         * person to a collective that requires members of it. The list is the
+         * caller's own, linked or not, so unlinking is switching one off.
+         * Organizations arrive from GitHub at sign-in only, so an empty list is
+         * answered with how to refresh rather than a blank section.
+         */}
+        <SettingGroup
+          label="organizations"
+          defaultOpen
+          count={myOrgs.data == null ? null : myOrgs.data.length}
+          noun={["organization", "organizations"]}
+          description="showing it here is optional. collectives use your membership, not this switch."
+          data-testid="settings-orgs"
+        >
+          {myOrgs.isError ? (
+            <div className="srow" data-testid="settings-orgs-read-error">
+              <p role="alert" style={{ fontSize: "var(--fs-body)", color: "var(--error)" }}>
+                your github organizations could not be read: {errorMessage(myOrgs.error)}
+              </p>
+              <RetryButton
+                label={myOrgs.isFetching ? "retrying" : "retry"}
+                busy={myOrgs.isFetching}
+                onRetry={() => myOrgs.refetch()}
+                testId="settings-orgs-retry"
+              />
+            </div>
+          ) : myOrgs.data == null ? null : myOrgs.data.length === 0 ? (
+            <div className="srow" data-testid="settings-orgs-empty">
+              <span className="srow-text-col">
+                <span className="srow-help">
+                  no github organizations found. make one public on github, then
+                  sign out and sign in again.
+                </span>
+              </span>
+            </div>
+          ) : (
+            myOrgs.data.map((org) => (
+              <SettingRow
+                key={org.org_login}
+                label={
+                  <span className="inline-flex items-center gap-2">
+                    <OrgAvatar url={org.avatar_url} />
+                    {org.org_login}
+                  </span>
+                }
+                help={org.visible ? "shown on your profile" : "not shown on your profile"}
+                control="switch"
+                value={org.visible}
+                onCommit={async (next) => {
+                  await setOrgVisibility.mutateAsync({
+                    orgLogin: org.org_login,
+                    visible: Boolean(next),
+                  });
+                }}
+                data-testid={`settings-org-${org.org_login}`}
+              />
+            ))
+          )}
         </SettingGroup>
 
         <SettingGroup label="pull requests" defaultOpen data-testid="settings-pull-requests">

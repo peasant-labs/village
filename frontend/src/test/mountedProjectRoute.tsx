@@ -260,6 +260,7 @@ export function installProfileRouteREST(
         limit: 20,
       });
     }
+    if (/\/orgs$/.test(url)) return json([]);
     if (/\/users\/[^/?]+$/.test(url)) {
       if (profileStatus != null && profileStatus >= 400) {
         return json({ error: "not found" }, profileStatus);

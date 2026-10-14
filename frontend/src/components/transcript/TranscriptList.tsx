@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Pencil, Trash2 } from "lucide-react";
 import { ProviderName, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
@@ -317,7 +318,7 @@ function Row({
       ?
     </div>
   ) : owner.avatar_url ? (
-    <img src={owner.avatar_url} alt="" className="w-4 h-4 border border-rule" />
+    <Image src={owner.avatar_url} alt="" width={16} height={16} unoptimized className="w-4 h-4 border border-rule" />
   ) : (
     <div className="w-4 h-4 bg-surface-hover border border-rule flex items-center justify-center text-[8px] font-bold text-ink-2">
       {owner.github_username[0].toUpperCase()}
