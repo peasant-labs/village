@@ -21,6 +21,17 @@ import (
 // Reading the record is also the honest signal available: the server never
 // re-queries GitHub for a member's organizations, so a published affiliation
 // was never fresher or better checked than an unpublished one.
+//
+// ACCEPTED RISK, tracked in peasant-labs/village#286. The record is a
+// login-time snapshot: syncGitHubOrgs runs only during OAuth sign-in, and
+// DeleteStaleUserOrgs only then, so a member removed from an organization keeps
+// authorizing until their next sign-in — and an account that never signs in
+// again keeps it indefinitely. Closing that needs a live check, which needs a
+// credential the server does not hold: no user token is stored, and the GitHub
+// App path is per-organization and requires Members: read on each one. Accepted
+// for now, because the alternative is a larger change to how the OAuth token is
+// handled. What it costs is bounded: the failure admits someone who may no
+// longer belong, and it never grants more than the record they signed in with.
 
 // hasOrgMembership reports whether the person has this GitHub organization on
 // record, published or not.
