@@ -353,19 +353,28 @@ body {
 .stagger-6 { animation-delay: 0.3s; }
 
 /* ============================================
-   FAIRTRADE ADAPTATION — switch state markers line up
+   FAIRTRADE ADAPTATION — switch tracks line up, at the label's top
    ============================================ */
 
-/* fairtrade's switch puts its state word ("on" / "off") inside the row's control,
-   and the word is as wide as it is. On a settings page that leaves two rows a few
-   pixels apart: "off" is one character wider than "on", and the control is
-   right-aligned, so its switch is pushed LEFT of a row reading "on" (measured: a
-   9px jog between two rows of the same group). The word is a non-colour cue and
-   has to stay (WCAG 1.4.1), so reserve the wider word's width and every track on
-   the page lines up. The reservation follows fairtrade's own .sw-group, which
-   already gives the state column a --sp-8 floor; one more spacing step covers the
-   widest word. Report upstream: SettingRow + Switch expose no way to align the
-   marker, and a `3ch` reservation is half a pixel short of the word itself. */
+/* fairtrade lays a settings row out with `align-items: center`, which centres the
+   control against the label AND its help line together. A switch is short, so on a
+   row with help text it floats in the gap between the two lines: measured, its top
+   sat 15px below the organization's avatar. The control of a switch row is aligned
+   to the row's top instead, so the track starts level with the label's first line
+   (and with an avatar drawn in it). Other rows keep the centred control. */
+.cmg-settings .srow:has(.sw) .srow-control {
+  align-self: flex-start;
+}
+
+/* A switch inside a row is also as wide as its own state word ("on" / "off"), and
+   the control is right-aligned, so a row reading "off" pushed its track LEFT of a
+   row reading "on" (measured: a 9px jog between two rows of the same group). The
+   word is a non-colour cue and has to stay (WCAG 1.4.1), so reserve the wider
+   word's width and every track on the page lines up. The reservation follows
+   fairtrade's own .sw-group, which already gives the state column a --sp-8 floor;
+   one more spacing step covers the widest word. Report upstream: SettingRow +
+   Switch expose no way to align the marker, and a `3ch` reservation is half a
+   pixel short of the word itself. */
 .cmg-settings .sw-state {
   min-width: calc(var(--sp-8) + var(--sp-1));
 }
