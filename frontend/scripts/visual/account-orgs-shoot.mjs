@@ -109,6 +109,8 @@ await capture('settings-orgs', '[data-testid="settings-orgs"]', async (el, name)
           hasAvatar: img != null,
           avatarLoaded: img != null && img.naturalWidth > 0,
           switchLeft: track ? Math.round(track.getBoundingClientRect().left) : null,
+          switchTop: track ? Math.round(track.getBoundingClientRect().top) : null,
+          avatarTop: img ? Math.round(img.getBoundingClientRect().top) : null,
         }
       }),
     el,
@@ -143,6 +145,14 @@ await capture('settings-orgs', '[data-testid="settings-orgs"]', async (el, name)
   const lefts = [...new Set(rows.map((r) => r.switchLeft))]
   if (lefts.length !== 1) {
     await fail(`${name} drew the switches at different x positions: ${JSON.stringify(rows.map((r) => [r.id, r.switchLeft]))}.`)
+  }
+  // ...and each track starts level with its own label's first line, which is the
+  // avatar's top. A centred control floats in the gap between the label and its
+  // help line, which is the defect this pins.
+  for (const row of rows) {
+    if (row.switchTop !== row.avatarTop) {
+      await fail(`${name} drew ${row.id}'s switch at top ${row.switchTop}, but its avatar starts at ${row.avatarTop}.`)
+    }
   }
 })
 
