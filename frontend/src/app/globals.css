@@ -328,7 +328,11 @@ body {
 }
 
 .animate-fade-up {
-  animation: fade-up 0.5s ease-out both;
+  /* backwards, not both: `both` keeps the final translateY(0) applied, so the wrapper stays a
+     transformed ancestor and becomes the containing block for position: fixed. A dialog rendered
+     inside it is then positioned against the wrapper instead of the viewport and lands off-screen on
+     short displays. backwards keeps the entry state and reverts to no transform once it finishes. */
+  animation: fade-up 0.5s ease-out backwards;
 }
 
 .animate-fade-in {
