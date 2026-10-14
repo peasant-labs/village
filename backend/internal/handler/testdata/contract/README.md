@@ -7,9 +7,10 @@ canonical corpus is owned by `github.com/peasant-labs/schema` under
 exercise the tagged contract without redefining its expected behavior. Update
 the snapshot from the tagged schema module when the contract pin moves.
 
-The Village API 0.25.0 review adds optional thinking-level evidence (the session
+The Village API 0.26.0 review adds the optional collectives filter to the pull
+list; 0.25.0 added optional thinking-level evidence (the session
 `thinkingLevel`/`thinkingLevelRaw` pair, the in-session `thinkingLevelHistory`
-change list, and the per-turn pair) without changing the existing versioned JSON
+change list, and the per-turn pair). Neither changes the existing versioned JSON
 corpus in Schema. The preservation fixtures
 in `../thinking_level_preservation/` exercise the new fields. Keep this consumer
 corpus's explicit turn timestamps/depth and complete token/stat fields: they
