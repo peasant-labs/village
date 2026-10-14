@@ -7,7 +7,7 @@ export type AccountOrgListState = "linked-rows" | "empty-guidance" | "read-error
 export type AccountOrgCase = {
   name: string;
   why: string;
-  orgs: Array<{ org_login: string; visible: boolean }>;
+  orgs: Array<{ org_login: string; visible: boolean; avatar_url: string | null }>;
   read: "ok" | "failed";
   write: "ok" | "failed";
   action: "toggle" | "none" | "retry";
@@ -44,8 +44,12 @@ export function loadAccountOrgsFixtures(): AccountOrgCase[] {
     }
     if (!Array.isArray(row.orgs)) throw new Error("account-orgs case orgs must be an array");
     for (const org of row.orgs) {
-      assertExactKeys(org, ["org_login", "visible"], "account-orgs org");
-      if (typeof org.org_login !== "string" || typeof org.visible !== "boolean") {
+      assertExactKeys(org, ["org_login", "visible", "avatar_url"], "account-orgs org");
+      if (
+        typeof org.org_login !== "string" ||
+        typeof org.visible !== "boolean" ||
+        (org.avatar_url !== null && typeof org.avatar_url !== "string")
+      ) {
         throw new Error("invalid account-orgs org");
       }
     }

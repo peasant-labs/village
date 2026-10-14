@@ -45,6 +45,17 @@ describe("mounted profile route: the organizations linked to the profile", () =>
       // Order and membership are the server's: the page lists what it was sent,
       // in the order it was sent.
       expect(orgRows().map((row) => (row.textContent ?? "").trim())).toEqual(c.expected_logins);
+      // Each row draws the avatar GitHub sent, and no image at all when GitHub
+      // sent none: a placeholder beside a real login would be invented data.
+      orgRows().forEach((row, i) => {
+        const img = row.querySelector<HTMLImageElement>('[data-testid="profile-org-avatar"]');
+        const want = c.orgs[i].avatar_url;
+        if (want == null) {
+          expect(img, `${c.orgs[i].org_login} has no avatar and must draw no image`).toBeNull();
+        } else {
+          expect(img?.getAttribute("src")).toBe(want);
+        }
+      });
     });
   }
 });

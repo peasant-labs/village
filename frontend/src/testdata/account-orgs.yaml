@@ -6,6 +6,9 @@
 # Linking is not cosmetic: a collective that accepts verified members of a named
 # organization reads the same `visible` flag, so an organization that cannot be
 # linked is one whose members cannot contribute.
+#
+# Each organization carries the avatar GitHub gave it, and one case has none, so
+# a row is covered both with and without an image.
 
 cases:
   - name: linking_an_organization_shows_it_on_the_profile
@@ -14,8 +17,8 @@ cases:
       that must be linked before its members can contribute impossible to link,
       which is the state this page exists to end.
     orgs:
-      - {org_login: peasant-labs, visible: false}
-      - {org_login: acme, visible: true}
+      - {org_login: peasant-labs, visible: false, avatar_url: "https://avatars.githubusercontent.com/u/1"}
+      - {org_login: acme, visible: true, avatar_url: null}
     read: ok
     write: ok
     action: toggle
@@ -29,7 +32,7 @@ cases:
       Linking is reversible from the same row. Losing this would let an
       organization be linked but never removed from a profile.
     orgs:
-      - {org_login: peasant-labs, visible: true}
+      - {org_login: peasant-labs, visible: true, avatar_url: "https://avatars.githubusercontent.com/u/1"}
     read: ok
     write: ok
     action: toggle
@@ -43,7 +46,7 @@ cases:
       The server is the only writer of the flag, so a refused write must not
       leave the switch showing a state nothing recorded.
     orgs:
-      - {org_login: peasant-labs, visible: false}
+      - {org_login: peasant-labs, visible: false, avatar_url: null}
     read: ok
     write: failed
     action: toggle

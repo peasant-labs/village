@@ -411,7 +411,8 @@ export default function UserProfilePage({
                   <img
                     src={org.avatar_url}
                     alt=""
-                    className="size-4 shrink-0 border border-rule object-cover"
+                    data-testid="profile-org-avatar"
+                    className="size-6 border border-rule object-cover shrink-0"
                   />
                 ) : null}
                 {/* An organization login is USER CONTENT, never lowercased. */}

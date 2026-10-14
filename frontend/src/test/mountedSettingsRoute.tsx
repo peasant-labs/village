@@ -60,7 +60,7 @@ export interface MountedSettingsBackend {
  * being unavailable, which is the only way to reach the page's error states.
  */
 export interface MountedSettingsOrgs {
-  items: Array<{ org_login: string; visible: boolean }>;
+  items: Array<{ org_login: string; visible: boolean; avatar_url?: string | null }>;
   read?: "ok" | "failed";
   write?: "ok" | "failed";
 }
@@ -113,7 +113,7 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
           orgs.items.map((org) => ({
             org_id: 1,
             org_login: org.org_login,
-            avatar_url: null,
+            avatar_url: org.avatar_url ?? null,
             visible: org.visible,
             fetched_at: "2026-09-01T00:00:00.000Z",
           })),

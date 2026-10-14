@@ -12,6 +12,10 @@ import { loadAccountOrgsFixtures } from "@/test/accountOrgsFixtures";
 // and on the write village receives. Linking an organization is the only way a
 // member of it can contribute to a collective that requires that organization,
 // so the write, not just the drawn state, is what these cases hold.
+//
+// The organizations are also their OWN section here, not rows inside "profile":
+// a case asserts that placement directly, because where the control lives is
+// part of what a person has to find.
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -45,6 +49,13 @@ describe("the mounted organization links on settings", () => {
       await renderSettingsRoute();
       await screen.findByTestId("settings-page");
 
+      // The section is its own group, and the organizations are NOT rows of the
+      // profile group: that is the placement this surface is meant to have.
+      const section = await screen.findByTestId("settings-orgs");
+      expect(
+        document.querySelector('[data-testid="settings-profile"] [data-testid^="settings-org-"]'),
+      ).toBeNull();
+
       if (row.expected_list_state === "read-error") {
         const error = await screen.findByTestId("settings-orgs-read-error");
         expect(within(error).getByRole("alert")).toHaveTextContent("could not be read");
@@ -75,6 +86,18 @@ describe("the mounted organization links on settings", () => {
         expect(orgSwitches()).toHaveLength(0);
         expect(backend.writes).toEqual([]);
         return;
+      }
+
+      // The avatar GitHub sent is drawn, and an organization without one has no
+      // image rather than a broken or placeholder one.
+      for (const org of row.orgs) {
+        const rowEl = within(section).getByTestId(`settings-org-${org.org_login}`);
+        const img = rowEl.querySelector<HTMLImageElement>('[data-testid="settings-avatar"]');
+        if (org.avatar_url == null) {
+          expect(img, `${org.org_login} has no avatar and must draw no image`).toBeNull();
+        } else {
+          expect(img?.getAttribute("src")).toBe(org.avatar_url);
+        }
       }
 
       const current = row.orgs.find((org) => org.org_login === row.target);
