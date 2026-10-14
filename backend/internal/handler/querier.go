@@ -66,8 +66,10 @@ type Querier interface {
 	// membership for the canPullTranscript policy.
 	SetTranscriptContentHash(ctx context.Context, arg sqlc.SetTranscriptContentHashParams) error
 	ListPullableTranscripts(ctx context.Context, arg sqlc.ListPullableTranscriptsParams) ([]sqlc.ListPullableTranscriptsRow, error)
+	ListPullableTranscriptsInGroup(ctx context.Context, arg sqlc.ListPullableTranscriptsInGroupParams) ([]sqlc.ListPullableTranscriptsInGroupRow, error)
 	ListPullableTranscriptsByIDs(ctx context.Context, arg sqlc.ListPullableTranscriptsByIDsParams) ([]sqlc.ListPullableTranscriptsByIDsRow, error)
 	CountPullableTranscripts(ctx context.Context, userID pgtype.UUID) (int64, error)
+	CountPullableTranscriptsInGroup(ctx context.Context, arg sqlc.CountPullableTranscriptsInGroupParams) (int64, error)
 	CountTranscriptAnnotations(ctx context.Context, transcriptID pgtype.UUID) (int64, error)
 	CompareAndSwapContentIdentity(ctx context.Context, arg sqlc.CompareAndSwapContentIdentityParams) (int64, error)
 	CompareAndSwapTranscriptBlob(ctx context.Context, arg sqlc.CompareAndSwapTranscriptBlobParams) (sqlc.Transcript, error)

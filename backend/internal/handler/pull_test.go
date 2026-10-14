@@ -706,8 +706,8 @@ func TestPull_SchemaVersion_AdvertisesPullWindow(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.PullContractVersion != "0.1.0" {
-		t.Errorf("pullContractVersion: got %q, want %q", resp.PullContractVersion, "0.1.0")
+	if resp.PullContractVersion != "0.2.0" {
+		t.Errorf("pullContractVersion: got %q, want %q", resp.PullContractVersion, "0.2.0")
 	}
 	if resp.MinPullContractVersion != "0.1.0" {
 		t.Errorf("minPullContractVersion: got %q, want %q", resp.MinPullContractVersion, "0.1.0")

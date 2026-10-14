@@ -247,6 +247,29 @@ func (q *Queries) CountPullableTranscripts(ctx context.Context, userID pgtype.UU
 	return count, err
 }
 
+const countPullableTranscriptsInGroup = `-- name: CountPullableTranscriptsInGroup :one
+SELECT COUNT(DISTINCT t.id)
+FROM transcripts t
+JOIN transcript_shares ts
+    ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
+JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
+WHERE ts.group_id = ANY($2::uuid[])
+`
+
+type CountPullableTranscriptsInGroupParams struct {
+	UserID      pgtype.UUID   `db:"user_id" json:"user_id"`
+	Collectives []pgtype.UUID `db:"collectives" json:"collectives"`
+}
+
+// Returns PullListResponse.Total for the collectives filter, mirroring
+// ListPullableTranscriptsInGroup's predicate exactly.
+func (q *Queries) CountPullableTranscriptsInGroup(ctx context.Context, arg CountPullableTranscriptsInGroupParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countPullableTranscriptsInGroup, arg.UserID, arg.Collectives)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countTranscriptAnnotations = `-- name: CountTranscriptAnnotations :one
 SELECT COUNT(*) FROM annotations a
 JOIN transcripts t ON t.id = $1
@@ -436,6 +459,106 @@ func (q *Queries) ListPullableTranscriptsByIDs(ctx context.Context, arg ListPull
 	for rows.Next() {
 		var i ListPullableTranscriptsByIDsRow
 		if err := rows.Scan(&i.ID, &i.ContentHash, &i.LocalID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPullableTranscriptsInGroup = `-- name: ListPullableTranscriptsInGroup :many
+SELECT DISTINCT t.id, t.local_id, t.owner_id, u.github_username AS owner_username,
+       t.title, t.model_provider, t.project_name, t.visibility, t.schema_version,
+       t.published_at, t.updated_at, t.content_hash, t.license_id,
+        (SELECT COUNT(*) FROM annotations a
+            WHERE a.target_transcript_id = t.id
+               OR (a.owner_id = t.owner_id AND (
+                   a.session_id = t.local_id
+                   OR a.entry_session_id = t.local_id
+                 ))
+               OR EXISTS (
+                   SELECT 1 FROM transcript_associations ta
+                   WHERE ta.owner_id = a.owner_id
+                     AND ta.association_id = a.target_association_id
+                     AND ta.transcript_id = t.id
+               )) AS annotation_count
+FROM transcripts t
+JOIN users u ON u.id = t.owner_id
+JOIN transcript_shares ts
+    ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
+JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
+WHERE ts.group_id = ANY($2::uuid[])
+ORDER BY t.published_at DESC, t.id
+LIMIT $4 OFFSET $3
+`
+
+type ListPullableTranscriptsInGroupParams struct {
+	UserID      pgtype.UUID   `db:"user_id" json:"user_id"`
+	Collectives []pgtype.UUID `db:"collectives" json:"collectives"`
+	PageOffset  int32         `db:"page_offset" json:"page_offset"`
+	PageLimit   int32         `db:"page_limit" json:"page_limit"`
+}
+
+type ListPullableTranscriptsInGroupRow struct {
+	ID              pgtype.UUID        `db:"id" json:"id"`
+	LocalID         string             `db:"local_id" json:"local_id"`
+	OwnerID         pgtype.UUID        `db:"owner_id" json:"owner_id"`
+	OwnerUsername   string             `db:"owner_username" json:"owner_username"`
+	Title           pgtype.Text        `db:"title" json:"title"`
+	ModelProvider   string             `db:"model_provider" json:"model_provider"`
+	ProjectName     pgtype.Text        `db:"project_name" json:"project_name"`
+	Visibility      string             `db:"visibility" json:"visibility"`
+	SchemaVersion   string             `db:"schema_version" json:"schema_version"`
+	PublishedAt     pgtype.Timestamptz `db:"published_at" json:"published_at"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ContentHash     pgtype.Text        `db:"content_hash" json:"content_hash"`
+	LicenseID       pgtype.Text        `db:"license_id" json:"license_id"`
+	AnnotationCount int64              `db:"annotation_count" json:"annotation_count"`
+}
+
+// Returns the rows the requester may pull FROM ONE OR MORE COLLECTIVES: a
+// transcript with an approved share into any listed collective where the
+// requester is a member. Narrower than ListPullableTranscripts: the owner clause
+// is deliberately absent, so a transcript the requester owns but never shared
+// with a listed collective is NOT returned. Public visibility and
+// collective-owner preview stay excluded, matching the pull policy. The
+// group_members inner join enforces membership, so a collective the requester is
+// not in contributes no rows and no error (no membership or existence oracle).
+// Projects the same columns as ListPullableTranscripts, including the per-row
+// annotation count, newest-first, offset pagination.
+func (q *Queries) ListPullableTranscriptsInGroup(ctx context.Context, arg ListPullableTranscriptsInGroupParams) ([]ListPullableTranscriptsInGroupRow, error) {
+	rows, err := q.db.Query(ctx, listPullableTranscriptsInGroup,
+		arg.UserID,
+		arg.Collectives,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPullableTranscriptsInGroupRow{}
+	for rows.Next() {
+		var i ListPullableTranscriptsInGroupRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LocalID,
+			&i.OwnerID,
+			&i.OwnerUsername,
+			&i.Title,
+			&i.ModelProvider,
+			&i.ProjectName,
+			&i.Visibility,
+			&i.SchemaVersion,
+			&i.PublishedAt,
+			&i.UpdatedAt,
+			&i.ContentHash,
+			&i.LicenseID,
+			&i.AnnotationCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

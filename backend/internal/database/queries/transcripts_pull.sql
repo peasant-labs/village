@@ -63,6 +63,51 @@ LEFT JOIN transcript_shares ts
 LEFT JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
 WHERE t.owner_id = $1 OR gm.user_id = $1;
 
+-- name: ListPullableTranscriptsInGroup :many
+-- Returns the rows the requester may pull FROM ONE OR MORE COLLECTIVES: a
+-- transcript with an approved share into any listed collective where the
+-- requester is a member. Narrower than ListPullableTranscripts: the owner clause
+-- is deliberately absent, so a transcript the requester owns but never shared
+-- with a listed collective is NOT returned. Public visibility and
+-- collective-owner preview stay excluded, matching the pull policy. The
+-- group_members inner join enforces membership, so a collective the requester is
+-- not in contributes no rows and no error (no membership or existence oracle).
+-- Projects the same columns as ListPullableTranscripts, including the per-row
+-- annotation count, newest-first, offset pagination.
+SELECT DISTINCT t.id, t.local_id, t.owner_id, u.github_username AS owner_username,
+       t.title, t.model_provider, t.project_name, t.visibility, t.schema_version,
+       t.published_at, t.updated_at, t.content_hash, t.license_id,
+        (SELECT COUNT(*) FROM annotations a
+            WHERE a.target_transcript_id = t.id
+               OR (a.owner_id = t.owner_id AND (
+                   a.session_id = t.local_id
+                   OR a.entry_session_id = t.local_id
+                 ))
+               OR EXISTS (
+                   SELECT 1 FROM transcript_associations ta
+                   WHERE ta.owner_id = a.owner_id
+                     AND ta.association_id = a.target_association_id
+                     AND ta.transcript_id = t.id
+               )) AS annotation_count
+FROM transcripts t
+JOIN users u ON u.id = t.owner_id
+JOIN transcript_shares ts
+    ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
+JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = @user_id
+WHERE ts.group_id = ANY(@collectives::uuid[])
+ORDER BY t.published_at DESC, t.id
+LIMIT @page_limit OFFSET @page_offset;
+
+-- name: CountPullableTranscriptsInGroup :one
+-- Returns PullListResponse.Total for the collectives filter, mirroring
+-- ListPullableTranscriptsInGroup's predicate exactly.
+SELECT COUNT(DISTINCT t.id)
+FROM transcripts t
+JOIN transcript_shares ts
+    ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
+JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = @user_id
+WHERE ts.group_id = ANY(@collectives::uuid[]);
+
 -- name: CountTranscriptAnnotations :one
 -- Counts annotations for a single transcript's PullTranscriptInfo
 -- (the single-id meta route). The list route batches this via the correlated

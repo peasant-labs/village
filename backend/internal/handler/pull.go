@@ -141,11 +141,26 @@ func (h *Handler) pullTranscriptInfo(ctx context.Context, t sqlc.Transcript) sch
 // ListPullableTranscripts lists the transcripts the requester may pull (own +
 // approved group-shared; public and collective-preview excluded by
 // canPullTranscript / the query predicate). Offset pagination (MVP).
-// GET /api/v1/pull/transcripts?page=N&limit=M (AuthRequired)
+//
+// The optional collectives filter narrows the list to transcripts with an
+// approved share into any listed collective the requester belongs to. It is a
+// comma-separated list, the same shape as the tags filter on the transcript
+// lists. The owner clause is deliberately absent from the filtered predicate, so
+// a transcript the requester owns but never shared with a listed collective is
+// NOT returned. A collective the requester is not in contributes no rows, so the
+// filter never becomes an existence or membership oracle.
+//
+// GET /api/v1/pull/transcripts?page=N&limit=M&collectives=<uuid>[,<uuid>...] (AuthRequired)
 func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	if user == nil {
 		writeError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+
+	collectives, err := parseCollectiveFilter(r.URL.Query().Get("collectives"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -160,25 +175,60 @@ func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request
 	// content_hash, owner username, and a per-row annotation count) + ONE COUNT —
 	// NOT the old 2+4N round-trips (per-row GetTranscriptByID +
 	// GetTranscriptContentHash + CountTranscriptAnnotations + GetUserByID).
-	rows, err := h.queries.ListPullableTranscripts(r.Context(), sqlc.ListPullableTranscriptsParams{
-		UserID: user.PgID(),
-		Limit:  int32(limit),
-		Offset: int32(offset),
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to list pullable transcripts")
-		return
-	}
-
-	total, err := h.queries.CountPullableTranscripts(r.Context(), user.PgID())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to count pullable transcripts")
-		return
-	}
-
-	infos := make([]schema.PullTranscriptInfo, 0, len(rows))
-	for _, row := range rows {
-		infos = append(infos, pullInfoFromListRow(row))
+	//
+	// The collectives filter reads through its own dedicated pair. The unfiltered
+	// predicate is "owner OR approved share"; reusing it with a nullable group
+	// condition would leak the requester's own unshared transcripts into a
+	// filtered page.
+	var (
+		infos []schema.PullTranscriptInfo
+		total int64
+	)
+	if len(collectives) == 0 {
+		rows, listErr := h.queries.ListPullableTranscripts(r.Context(), sqlc.ListPullableTranscriptsParams{
+			UserID: user.PgID(),
+			Limit:  int32(limit),
+			Offset: int32(offset),
+		})
+		if listErr != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to list pullable transcripts")
+			return
+		}
+		total, listErr = h.queries.CountPullableTranscripts(r.Context(), user.PgID())
+		if listErr != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to count pullable transcripts")
+			return
+		}
+		infos = make([]schema.PullTranscriptInfo, 0, len(rows))
+		for _, row := range rows {
+			infos = append(infos, pullInfoFromListRow(row))
+		}
+	} else {
+		rows, listErr := h.queries.ListPullableTranscriptsInGroup(r.Context(), sqlc.ListPullableTranscriptsInGroupParams{
+			UserID:      user.PgID(),
+			Collectives: collectives,
+			PageLimit:   int32(limit),
+			PageOffset:  int32(offset),
+		})
+		if listErr != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to list pullable transcripts")
+			return
+		}
+		total, listErr = h.queries.CountPullableTranscriptsInGroup(r.Context(), sqlc.CountPullableTranscriptsInGroupParams{
+			UserID:      user.PgID(),
+			Collectives: collectives,
+		})
+		if listErr != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to count pullable transcripts")
+			return
+		}
+		infos = make([]schema.PullTranscriptInfo, 0, len(rows))
+		for _, row := range rows {
+			// The filtered row carries the same columns in the same order as the
+			// unfiltered one, so one projector serves both. A field drift between
+			// the two queries breaks this conversion at compile time.
+			infos = append(infos, pullInfoFromListRow(sqlc.ListPullableTranscriptsRow(row)))
+		}
 	}
 
 	writeJSON(w, http.StatusOK, schema.PullListResponse{
@@ -187,6 +237,40 @@ func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request
 		Limit:       limit,
 		Total:       int(total),
 	})
+}
+
+// parseCollectiveFilter parses the optional collectives query value: a
+// comma-separated list of collective identifiers. An absent value, or one with
+// only empty elements, returns nil (the unfiltered list). Duplicates collapse. A
+// value that is not a collective identifier is refused here, at the boundary, so
+// the query layer never sees an id it cannot interpret.
+func parseCollectiveFilter(raw string) ([]pgtype.UUID, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	parts := strings.Split(raw, ",")
+	ids := make([]pgtype.UUID, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+		id, err := uuid.Parse(value)
+		if err != nil {
+			return nil, fmt.Errorf("the collectives filter lists %q, which is not a collective identifier; send comma-separated collective UUIDs, for example ?collectives=99d59925-36bc-424c-a789-8be54d9702ba", value)
+		}
+		canonical := id.String()
+		if _, duplicate := seen[canonical]; duplicate {
+			continue
+		}
+		seen[canonical] = struct{}{}
+		ids = append(ids, toPgUUID(id))
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return ids, nil
 }
 
 // pullInfoFromListRow builds the wire metadata view from a batched
