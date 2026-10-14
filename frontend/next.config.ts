@@ -26,6 +26,15 @@ const nextConfig: NextConfig = {
     root: repositoryRoot,
   },
   images: {
+    // The optimizer is allowed to fetch GitHub avatars, but every avatar in the
+    // app renders through next/image with `unoptimized`, and that is deliberate.
+    // `users.avatar_url` is whichever URL the sign-in provider supplied, and
+    // village supports several: GitHub (avatars.githubusercontent.com), GitLab
+    // (its uploads or gravatar), HuggingFace (its CDN) and Codeberg (SourceHut
+    // supplies none at all). The optimizer refuses any host not listed here and
+    // answers 400, so an incomplete allowlist would break those members' avatars
+    // outright — a worse outcome than an unoptimized 16-64px avatar. Pages that
+    // change this should re-check every provider's avatar host, not just GitHub's.
     remotePatterns: [
       {
         protocol: "https",

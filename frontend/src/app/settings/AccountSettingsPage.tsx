@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   useDeleteAccount,
@@ -78,9 +79,14 @@ function errorMessage(error: unknown): string {
 function OrgAvatar({ url }: { url: string | null }) {
   if (!url) return null;
   return (
-    <img
+    // unoptimized: a provider-supplied avatar host (see the images note in
+    // next.config.ts). width/height are the rendered size, size-6.
+    <Image
       src={url}
       alt=""
+      width={24}
+      height={24}
+      unoptimized
       className="size-6 border border-rule object-cover shrink-0"
       data-testid="settings-avatar"
     />

@@ -17,6 +17,7 @@
  */
 
 import { useState, useEffect, useRef, useId } from "react";
+import Image from "next/image";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -247,9 +248,12 @@ export default function GitHubUserSearch({
                 onKeyDown={(e) => handleItemKeyDown(e, i)}
                 className="menu-item cursor-pointer"
               >
-                <img
+                <Image
                   src={user.avatar_url}
                   alt=""
+                  width={24}
+                  height={24}
+                  unoptimized
                   className="size-6 border border-rule object-cover shrink-0"
                 />
                 <span className="menu-text font-mono normal-case text-[var(--fs-label)]">{user.login}</span>

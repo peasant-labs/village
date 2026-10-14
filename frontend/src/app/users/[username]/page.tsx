@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
+import Image from "next/image";
 import { useTranscripts } from "@/lib/queries/transcripts";
 import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
 import {
@@ -371,9 +372,14 @@ export default function UserProfilePage({
       {/* Profile hero — square avatar, display name, @handle */}
       <section className="flex items-start gap-4">
         {avatarUrl ? (
-          <img
+          // unoptimized: a provider-supplied avatar host (see the images note
+          // in next.config.ts).
+          <Image
             src={avatarUrl}
             alt=""
+            width={64}
+            height={64}
+            unoptimized
             className="h-16 w-16 shrink-0 border border-rule object-cover"
           />
         ) : (
@@ -408,9 +414,14 @@ export default function UserProfilePage({
                 className="inline-flex items-center gap-2 border border-rule bg-surface px-2.5 h-8"
               >
                 {org.avatar_url ? (
-                  <img
+                  // unoptimized: a provider-supplied avatar host (see the
+                  // images note in next.config.ts).
+                  <Image
                     src={org.avatar_url}
                     alt=""
+                    width={24}
+                    height={24}
+                    unoptimized
                     data-testid="profile-org-avatar"
                     className="size-6 border border-rule object-cover shrink-0"
                   />
