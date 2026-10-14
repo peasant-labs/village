@@ -100,6 +100,7 @@ await capture('settings-orgs', '[data-testid="settings-orgs"]', async (el, name)
       [...node.querySelectorAll('[data-testid^="settings-org-"]')].map((row) => {
         const img = row.querySelector('img[data-testid="settings-avatar"]')
         const label = row.querySelector('.srow-label')
+        const track = row.querySelector('.sw')
         return {
           id: row.getAttribute('data-testid'),
           label: label?.textContent?.trim(),
@@ -107,6 +108,7 @@ await capture('settings-orgs', '[data-testid="settings-orgs"]', async (el, name)
           family: getComputedStyle(label).fontFamily,
           hasAvatar: img != null,
           avatarLoaded: img != null && img.naturalWidth > 0,
+          switchLeft: track ? Math.round(track.getBoundingClientRect().left) : null,
         }
       }),
     el,
@@ -134,6 +136,13 @@ await capture('settings-orgs', '[data-testid="settings-orgs"]', async (el, name)
     if (!row.hasAvatar || !row.avatarLoaded) {
       await fail(`${name} did not draw ${row.id}'s avatar (present=${row.hasAvatar} loaded=${row.avatarLoaded}).`)
     }
+  }
+  // Every track in the section sits at the same x. A switch is as wide as its
+  // own state word, and the control is right-aligned, so a row reading "off"
+  // otherwise pulls its track a few pixels left of a row reading "on".
+  const lefts = [...new Set(rows.map((r) => r.switchLeft))]
+  if (lefts.length !== 1) {
+    await fail(`${name} drew the switches at different x positions: ${JSON.stringify(rows.map((r) => [r.id, r.switchLeft]))}.`)
   }
 })
 
