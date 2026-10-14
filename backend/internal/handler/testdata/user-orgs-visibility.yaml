@@ -1,0 +1,53 @@
+# Who may read the organizations linked to a profile. The route is the same
+# visibility boundary the profile read is, so a hidden person is 404 to everyone
+# but themselves and an unknown handle is 404 too. An empty list in the hidden
+# case would confirm the account exists while the profile read denies it.
+
+- name: a_discoverable_profile_answers_with_its_linked_organizations
+  why: >
+    The ordinary case, and the one the profile page renders. Losing it would
+    leave linked organizations readable by nobody but their owner.
+  discoverable: true
+  viewer: other
+  user_exists: true
+  want_status: 200
+  orgs:
+    - {org_login: peasant-labs, avatar_url: "https://avatars.githubusercontent.com/u/1"}
+
+- name: the_owner_reads_their_own_hidden_organizations
+  why: >
+    Turning discoverability off hides a profile from other people, not from its
+    owner: the owner still has to see which organizations they linked.
+  discoverable: false
+  viewer: owner
+  user_exists: true
+  want_status: 200
+  orgs:
+    - {org_login: peasant-labs, avatar_url: null}
+
+- name: a_hidden_profile_is_not_found_for_another_signed_in_person
+  why: >
+    A signed-in stranger is not the owner. Answering their read would make the
+    organizations a way around the profile's own 404.
+  discoverable: false
+  viewer: other
+  user_exists: true
+  want_status: 404
+
+- name: a_hidden_profile_is_not_found_for_an_anonymous_reader
+  why: >
+    The route is open to signed-out readers, so the anonymous branch has to
+    refuse on its own rather than rely on a viewer it never had.
+  discoverable: false
+  viewer: anonymous
+  user_exists: true
+  want_status: 404
+
+- name: an_unknown_handle_is_not_found
+  why: >
+    A handle nobody holds answers 404 exactly as the profile read does, so the
+    two routes cannot disagree about whether a person exists.
+  discoverable: true
+  viewer: anonymous
+  user_exists: false
+  want_status: 404

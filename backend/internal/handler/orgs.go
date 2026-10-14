@@ -14,11 +14,31 @@ import (
 
 // ListUserPublicOrgs returns the visible GitHub orgs for a user by username.
 // GET /users/{username}/orgs (AuthOptional)
+//
+// It applies the SAME visibility boundary as GetUserPublicProfile: a person who
+// has turned discoverability off answers 404 to everyone but themselves, and an
+// unknown handle answers 404 too. An empty list instead would confirm that the
+// account exists while the profile read denies it, so the two routes would
+// disagree about the same person.
 func (h *Handler) ListUserPublicOrgs(w http.ResponseWriter, r *http.Request) {
 	username := chi.URLParam(r, "username")
 	if username == "" {
 		writeError(w, http.StatusBadRequest, "Missing username")
 		return
+	}
+
+	target, err := h.queries.GetUserByUsername(r.Context(), username)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "User not found")
+		return
+	}
+
+	if !target.IsDiscoverable {
+		viewer := GetUser(r.Context())
+		if viewer == nil || viewer.PgID() != target.ID {
+			writeError(w, http.StatusNotFound, "User not found")
+			return
+		}
 	}
 
 	orgs, err := h.queries.GetUserVisibleOrgsByUsername(r.Context(), username)

@@ -21,12 +21,17 @@ export function useMyOrgs() {
  * The organizations a person has linked to their profile, as any viewer sees
  * them. The server returns only the visible ones, so a page rendering these
  * never has to hide anything it was sent.
+ *
+ * A 404 here is the same profile-visibility boundary `usePublicProfile` reads:
+ * a hidden person answers it to everyone but themselves. Retrying would ask a
+ * question the server has already answered, so this read never retries.
  */
 export function usePublicOrgs(username: string) {
   return useQuery({
     queryKey: ["orgs", username],
     queryFn: () => api<UserPublicOrg[]>(`/users/${encodeURIComponent(username)}/orgs`),
     enabled: !!username,
+    retry: false,
   });
 }
 
