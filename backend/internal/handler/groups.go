@@ -71,17 +71,16 @@ func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 	// organization, as on update.
 	linkedOrg := pgtype.Text{Valid: false}
 	if trimmed := strings.TrimSpace(req.LinkedGitHubOrg); trimmed != "" {
-		// Caller must currently have this org marked visible.
-		ok, err := h.queries.HasUserVisibleOrg(r.Context(), sqlc.HasUserVisibleOrgParams{
-			UserID: user.PgID(),
-			Lower:  trimmed,
-		})
+		// Caller must be a member of this org. Publishing it is not required:
+		// the link is a claim about membership, and membership is what the
+		// server holds (see org_membership.go).
+		ok, err := hasOrgMembership(r.Context(), h.queries, user.PgID(), trimmed)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Failed to verify org membership")
 			return
 		}
 		if !ok {
-			writeError(w, http.StatusBadRequest, "You must have the GitHub organization marked visible to link this collective to it")
+			writeError(w, http.StatusBadRequest, "You must be a member of the GitHub organization to link this collective to it")
 			return
 		}
 		linkedOrg = pgtype.Text{String: trimmed, Valid: true}
@@ -445,23 +444,20 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// linked_github_org: nil pointer => no change; non-nil empty => clear;
-	// non-nil non-empty => set (after validation against caller's visible orgs).
+	// non-nil non-empty => set (after validation against the caller's membership).
 	linkedOrg := currentGroup.LinkedGithubOrg
 	if req.LinkedGitHubOrg != nil {
 		trimmed := strings.TrimSpace(*req.LinkedGitHubOrg)
 		if trimmed == "" {
 			linkedOrg = pgtype.Text{Valid: false}
 		} else {
-			ok, err := h.queries.HasUserVisibleOrg(r.Context(), sqlc.HasUserVisibleOrgParams{
-				UserID: user.PgID(),
-				Lower:  trimmed,
-			})
+			ok, err := hasOrgMembership(r.Context(), h.queries, user.PgID(), trimmed)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "Failed to verify org membership")
 				return
 			}
 			if !ok {
-				writeError(w, http.StatusBadRequest, "You must have the GitHub organization marked visible to link this collective to it")
+				writeError(w, http.StatusBadRequest, "You must be a member of the GitHub organization to link this collective to it")
 				return
 			}
 			linkedOrg = pgtype.Text{String: trimmed, Valid: true}
@@ -773,25 +769,26 @@ func (h *Handler) JoinGroup(w http.ResponseWriter, r *http.Request) {
 		// anyone may join
 	case "verified_only":
 		// If the collective is linked to a specific GitHub org, require
-		// the user to have THAT org marked visible. Otherwise require any
-		// visible org.
+		// MEMBERSHIP of that org. Otherwise require any org on record.
+		// Publishing the affiliation is not required (see org_membership.go).
 		if group.LinkedGithubOrg.Valid && group.LinkedGithubOrg.String != "" {
-			ok, err := h.queries.HasUserVisibleOrg(r.Context(), sqlc.HasUserVisibleOrgParams{
-				UserID: user.PgID(),
-				Lower:  group.LinkedGithubOrg.String,
-			})
+			ok, err := hasOrgMembership(r.Context(), h.queries, user.PgID(), group.LinkedGithubOrg.String)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "Failed to verify org membership")
 				return
 			}
 			if !ok {
-				writeError(w, http.StatusForbidden, "This collective requires verified membership in @"+group.LinkedGithubOrg.String)
+				writeError(w, http.StatusForbidden, "This collective requires membership of @"+group.LinkedGithubOrg.String)
 				return
 			}
 		} else {
-			visOrgs, _ := h.queries.ListUserVisibleOrgs(r.Context(), user.PgID())
-			if len(visOrgs) == 0 {
-				writeError(w, http.StatusForbidden, "This collective requires at least one verified GitHub organization")
+			anyOrg, err := hasAnyOrgMembership(r.Context(), h.queries, user.PgID())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Failed to verify org membership")
+				return
+			}
+			if !anyOrg {
+				writeError(w, http.StatusForbidden, "This collective requires a GitHub organization membership")
 				return
 			}
 		}

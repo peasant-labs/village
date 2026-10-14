@@ -149,7 +149,7 @@ function Settings({ user }: { user: User }) {
           defaultOpen
           count={myOrgs.data == null ? null : myOrgs.data.length}
           noun={["organization", "organizations"]}
-          description="link an organization to show it on your profile."
+          description="showing one here is your choice. your membership already counts for collectives that accept its members."
           data-testid="settings-orgs"
         >
           {myOrgs.isError ? (
@@ -183,11 +183,7 @@ function Settings({ user }: { user: User }) {
                     {org.org_login}
                   </span>
                 }
-                help={
-                  org.visible
-                    ? "shown on your profile and to collectives that require it"
-                    : "not shown on your profile or to collectives that require it"
-                }
+                help={org.visible ? "shown on your profile" : "not shown on your profile"}
                 control="switch"
                 value={org.visible}
                 onCommit={async (next) => {
