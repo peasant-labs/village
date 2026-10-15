@@ -19,12 +19,17 @@ const minPushContractVersion schema.PushContractVersion = "0.1.0"
 
 // pullContractVersion / minPullContractVersion advertise the PULL ENVELOPE
 // negotiation window [Min, Current]. They mirror peasant's
-// defaults.PullContractVersion / MinPullContractVersion ("0.1.0"). The pull
-// window is DISTINCT from the push window above: a client may pull a contract it
-// could not push, and vice versa, so they negotiate independently. Today both
-// sides sit at the single 0.1.0 envelope, so the window is [0.1.0, 0.1.0].
+// defaults.PullContractVersion / MinPullContractVersion. The pull window is
+// DISTINCT from the push window above: a client may pull a contract it could not
+// push, and vice versa, so they negotiate independently.
+//
+// Current is 0.2.0 because the pull list gained the optional collectives filter.
+// The floor stays 0.1.0: a village that predates the filter ignores the parameter
+// and would answer with the caller's whole pullable set, so a client that sends
+// it must refuse an older window rather than over-pull. Holding the floor also
+// keeps a 0.1.0 CLI working against this village.
 const (
-	pullContractVersion    schema.PushContractVersion = "0.1.0"
+	pullContractVersion    schema.PushContractVersion = "0.2.0"
 	minPullContractVersion schema.PushContractVersion = "0.1.0"
 )
 

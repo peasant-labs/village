@@ -84,8 +84,10 @@ type mockQuerier struct {
 	unlinkTranscriptTags                   func(ctx context.Context, transcriptID pgtype.UUID) error
 	getTranscriptContentHash               func(ctx context.Context, id pgtype.UUID) (pgtype.Text, error)
 	listPullableTranscripts                func(ctx context.Context, arg sqlc.ListPullableTranscriptsParams) ([]sqlc.ListPullableTranscriptsRow, error)
+	listPullableTranscriptsInCollective    func(ctx context.Context, arg sqlc.ListPullableTranscriptsInCollectiveParams) ([]sqlc.ListPullableTranscriptsInCollectiveRow, error)
 	listPullableTranscriptsByIDs           func(ctx context.Context, arg sqlc.ListPullableTranscriptsByIDsParams) ([]sqlc.ListPullableTranscriptsByIDsRow, error)
 	countPullableTranscripts               func(ctx context.Context, userID pgtype.UUID) (int64, error)
+	countPullableTranscriptsInCollective   func(ctx context.Context, arg sqlc.CountPullableTranscriptsInCollectiveParams) (int64, error)
 	countTranscriptAnnotations             func(ctx context.Context, transcriptID pgtype.UUID) (int64, error)
 	compareAndSwapTranscriptBlob           func(ctx context.Context, arg sqlc.CompareAndSwapTranscriptBlobParams) (sqlc.Transcript, error)
 	listApprovedTranscriptShareGroups      func(ctx context.Context, transcriptID pgtype.UUID) ([]pgtype.UUID, error)
@@ -470,6 +472,18 @@ func (m *mockQuerier) ListPullableTranscriptsByIDs(ctx context.Context, arg sqlc
 		return m.listPullableTranscriptsByIDs(ctx, arg)
 	}
 	return nil, nil
+}
+func (m *mockQuerier) ListPullableTranscriptsInCollective(ctx context.Context, arg sqlc.ListPullableTranscriptsInCollectiveParams) ([]sqlc.ListPullableTranscriptsInCollectiveRow, error) {
+	if m.listPullableTranscriptsInCollective != nil {
+		return m.listPullableTranscriptsInCollective(ctx, arg)
+	}
+	return nil, nil
+}
+func (m *mockQuerier) CountPullableTranscriptsInCollective(ctx context.Context, arg sqlc.CountPullableTranscriptsInCollectiveParams) (int64, error) {
+	if m.countPullableTranscriptsInCollective != nil {
+		return m.countPullableTranscriptsInCollective(ctx, arg)
+	}
+	return 0, nil
 }
 func (m *mockQuerier) CountPullableTranscripts(ctx context.Context, userID pgtype.UUID) (int64, error) {
 	if m.countPullableTranscripts != nil {
