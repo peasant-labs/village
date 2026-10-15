@@ -247,7 +247,7 @@ func (q *Queries) CountPullableTranscripts(ctx context.Context, userID pgtype.UU
 	return count, err
 }
 
-const countPullableTranscriptsInGroup = `-- name: CountPullableTranscriptsInGroup :one
+const countPullableTranscriptsInCollective = `-- name: CountPullableTranscriptsInCollective :one
 SELECT COUNT(DISTINCT t.id)
 FROM transcripts t
 JOIN transcript_shares ts
@@ -256,15 +256,15 @@ JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
 WHERE ts.group_id = ANY($2::uuid[])
 `
 
-type CountPullableTranscriptsInGroupParams struct {
+type CountPullableTranscriptsInCollectiveParams struct {
 	UserID      pgtype.UUID   `db:"user_id" json:"user_id"`
 	Collectives []pgtype.UUID `db:"collectives" json:"collectives"`
 }
 
 // Returns PullListResponse.Total for the collectives filter, mirroring
-// ListPullableTranscriptsInGroup's predicate exactly.
-func (q *Queries) CountPullableTranscriptsInGroup(ctx context.Context, arg CountPullableTranscriptsInGroupParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countPullableTranscriptsInGroup, arg.UserID, arg.Collectives)
+// ListPullableTranscriptsInCollective's predicate exactly.
+func (q *Queries) CountPullableTranscriptsInCollective(ctx context.Context, arg CountPullableTranscriptsInCollectiveParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countPullableTranscriptsInCollective, arg.UserID, arg.Collectives)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -469,7 +469,7 @@ func (q *Queries) ListPullableTranscriptsByIDs(ctx context.Context, arg ListPull
 	return items, nil
 }
 
-const listPullableTranscriptsInGroup = `-- name: ListPullableTranscriptsInGroup :many
+const listPullableTranscriptsInCollective = `-- name: ListPullableTranscriptsInCollective :many
 SELECT DISTINCT t.id, t.local_id, t.owner_id, u.github_username AS owner_username,
        t.title, t.model_provider, t.project_name, t.visibility, t.schema_version,
        t.published_at, t.updated_at, t.content_hash, t.license_id,
@@ -495,14 +495,14 @@ ORDER BY t.published_at DESC, t.id
 LIMIT $4 OFFSET $3
 `
 
-type ListPullableTranscriptsInGroupParams struct {
+type ListPullableTranscriptsInCollectiveParams struct {
 	UserID      pgtype.UUID   `db:"user_id" json:"user_id"`
 	Collectives []pgtype.UUID `db:"collectives" json:"collectives"`
 	PageOffset  int32         `db:"page_offset" json:"page_offset"`
 	PageLimit   int32         `db:"page_limit" json:"page_limit"`
 }
 
-type ListPullableTranscriptsInGroupRow struct {
+type ListPullableTranscriptsInCollectiveRow struct {
 	ID              pgtype.UUID        `db:"id" json:"id"`
 	LocalID         string             `db:"local_id" json:"local_id"`
 	OwnerID         pgtype.UUID        `db:"owner_id" json:"owner_id"`
@@ -529,8 +529,8 @@ type ListPullableTranscriptsInGroupRow struct {
 // not in contributes no rows and no error (no membership or existence oracle).
 // Projects the same columns as ListPullableTranscripts, including the per-row
 // annotation count, newest-first, offset pagination.
-func (q *Queries) ListPullableTranscriptsInGroup(ctx context.Context, arg ListPullableTranscriptsInGroupParams) ([]ListPullableTranscriptsInGroupRow, error) {
-	rows, err := q.db.Query(ctx, listPullableTranscriptsInGroup,
+func (q *Queries) ListPullableTranscriptsInCollective(ctx context.Context, arg ListPullableTranscriptsInCollectiveParams) ([]ListPullableTranscriptsInCollectiveRow, error) {
+	rows, err := q.db.Query(ctx, listPullableTranscriptsInCollective,
 		arg.UserID,
 		arg.Collectives,
 		arg.PageOffset,
@@ -540,9 +540,9 @@ func (q *Queries) ListPullableTranscriptsInGroup(ctx context.Context, arg ListPu
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListPullableTranscriptsInGroupRow{}
+	items := []ListPullableTranscriptsInCollectiveRow{}
 	for rows.Next() {
-		var i ListPullableTranscriptsInGroupRow
+		var i ListPullableTranscriptsInCollectiveRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.LocalID,

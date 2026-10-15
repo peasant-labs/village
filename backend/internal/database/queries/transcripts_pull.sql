@@ -63,7 +63,7 @@ LEFT JOIN transcript_shares ts
 LEFT JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
 WHERE t.owner_id = $1 OR gm.user_id = $1;
 
--- name: ListPullableTranscriptsInGroup :many
+-- name: ListPullableTranscriptsInCollective :many
 -- Returns the rows the requester may pull FROM ONE OR MORE COLLECTIVES: a
 -- transcript with an approved share into any listed collective where the
 -- requester is a member. Narrower than ListPullableTranscripts: the owner clause
@@ -98,9 +98,9 @@ WHERE ts.group_id = ANY(@collectives::uuid[])
 ORDER BY t.published_at DESC, t.id
 LIMIT @page_limit OFFSET @page_offset;
 
--- name: CountPullableTranscriptsInGroup :one
+-- name: CountPullableTranscriptsInCollective :one
 -- Returns PullListResponse.Total for the collectives filter, mirroring
--- ListPullableTranscriptsInGroup's predicate exactly.
+-- ListPullableTranscriptsInCollective's predicate exactly.
 SELECT COUNT(DISTINCT t.id)
 FROM transcripts t
 JOIN transcript_shares ts

@@ -4,8 +4,8 @@ package handler
 
 // Integration coverage for the collectives filter on the pull list.
 //
-// The filter is enforced entirely in unmocked SQL. ListPullableTranscriptsInGroup
-// and CountPullableTranscriptsInGroup must agree with each other, must exclude a
+// The filter is enforced entirely in unmocked SQL. ListPullableTranscriptsInCollective
+// and CountPullableTranscriptsInCollective must agree with each other, must exclude a
 // transcript the requester owns but never shared with a listed collective, and
 // must contribute nothing for a collective the requester is not in. A regression
 // that reused the unfiltered predicate (owner OR approved share) behind a nullable
@@ -60,13 +60,13 @@ func TestPull_CollectivesFilter_RealPostgres(t *testing.T) {
 		cleanupOwners(t, ctx, pool, users...)
 	}()
 
-	groupA := pullInsertGroup(t, ctx, pool, owner, "pull-collective-A")
-	groupB := pullInsertGroup(t, ctx, pool, owner, "pull-collective-B")
-	groupH := pullInsertGroup(t, ctx, pool, owner, "pull-collective-H")
+	collectiveA := pullInsertGroup(t, ctx, pool, owner, "pull-collective-A")
+	collectiveB := pullInsertGroup(t, ctx, pool, owner, "pull-collective-B")
+	collectiveH := pullInsertGroup(t, ctx, pool, owner, "pull-collective-H")
 	// The member belongs to A and B only. H exists and holds an approved share,
 	// but the member is not in it.
-	pullAddMember(t, ctx, pool, groupA, member, "member")
-	pullAddMember(t, ctx, pool, groupB, member, "member")
+	pullAddMember(t, ctx, pool, collectiveA, member, "member")
+	pullAddMember(t, ctx, pool, collectiveB, member, "member")
 
 	tsOwnedPrivate := pullInsertTranscript(t, ctx, pool, member, "owned-private", dbVisibilityPrivate)
 	tsOwnedInA := pullInsertTranscript(t, ctx, pool, member, "owned-in-A", dbVisibilityShared)
@@ -78,35 +78,35 @@ func TestPull_CollectivesFilter_RealPostgres(t *testing.T) {
 	tsPublic := pullInsertTranscript(t, ctx, pool, stranger, "public", dbVisibilityPublic)
 	tsMultiAB := pullInsertTranscript(t, ctx, pool, owner, "multi-A-B", dbVisibilityShared)
 
-	pullShare(t, ctx, pool, tsOwnedInA, groupA, "approved")
-	pullShare(t, ctx, pool, tsApprovedA, groupA, "approved")
-	pullShare(t, ctx, pool, tsApprovedB, groupB, "approved")
-	pullShare(t, ctx, pool, tsApprovedH, groupH, "approved")
-	pullShare(t, ctx, pool, tsPendingA, groupA, "pending")
-	pullShare(t, ctx, pool, tsRejectedA, groupA, "rejected")
-	pullShare(t, ctx, pool, tsMultiAB, groupA, "approved")
-	pullShare(t, ctx, pool, tsMultiAB, groupB, "approved")
+	pullShare(t, ctx, pool, tsOwnedInA, collectiveA, "approved")
+	pullShare(t, ctx, pool, tsApprovedA, collectiveA, "approved")
+	pullShare(t, ctx, pool, tsApprovedB, collectiveB, "approved")
+	pullShare(t, ctx, pool, tsApprovedH, collectiveH, "approved")
+	pullShare(t, ctx, pool, tsPendingA, collectiveA, "pending")
+	pullShare(t, ctx, pool, tsRejectedA, collectiveA, "rejected")
+	pullShare(t, ctx, pool, tsMultiAB, collectiveA, "approved")
+	pullShare(t, ctx, pool, tsMultiAB, collectiveB, "approved")
 
 	h := &Handler{pool: pool, queries: sqlc.New(pool)}
 
 	// set runs the real filtered list and count and returns the listed id set.
 	listSet := func(name string, collectives ...pgtype.UUID) map[uuid.UUID]bool {
 		t.Helper()
-		rows, err := h.queries.ListPullableTranscriptsInGroup(ctx, sqlc.ListPullableTranscriptsInGroupParams{
+		rows, err := h.queries.ListPullableTranscriptsInCollective(ctx, sqlc.ListPullableTranscriptsInCollectiveParams{
 			UserID:      member,
 			Collectives: collectives,
 			PageLimit:   100,
 			PageOffset:  0,
 		})
 		if err != nil {
-			t.Fatalf("%s: ListPullableTranscriptsInGroup: %v", name, err)
+			t.Fatalf("%s: ListPullableTranscriptsInCollective: %v", name, err)
 		}
-		total, err := h.queries.CountPullableTranscriptsInGroup(ctx, sqlc.CountPullableTranscriptsInGroupParams{
+		total, err := h.queries.CountPullableTranscriptsInCollective(ctx, sqlc.CountPullableTranscriptsInCollectiveParams{
 			UserID:      member,
 			Collectives: collectives,
 		})
 		if err != nil {
-			t.Fatalf("%s: CountPullableTranscriptsInGroup: %v", name, err)
+			t.Fatalf("%s: CountPullableTranscriptsInCollective: %v", name, err)
 		}
 		if int(total) != len(rows) {
 			t.Errorf("%s: count %d disagrees with %d listed rows", name, total, len(rows))
@@ -141,20 +141,20 @@ func TestPull_CollectivesFilter_RealPostgres(t *testing.T) {
 	}
 
 	// The single-collective shelf is the approved shares into that collective.
-	expect("collectives=[A]", listSet("[A]", groupA), tsOwnedInA, tsApprovedA, tsMultiAB)
-	expect("collectives=[B]", listSet("[B]", groupB), tsApprovedB, tsMultiAB)
+	expect("collectives=[A]", listSet("[A]", collectiveA), tsOwnedInA, tsApprovedA, tsMultiAB)
+	expect("collectives=[B]", listSet("[B]", collectiveB), tsApprovedB, tsMultiAB)
 
 	// Several collectives: the union, each transcript once.
-	expect("collectives=[A,B]", listSet("[A,B]", groupA, groupB), tsOwnedInA, tsApprovedA, tsApprovedB, tsMultiAB)
+	expect("collectives=[A,B]", listSet("[A,B]", collectiveA, collectiveB), tsOwnedInA, tsApprovedA, tsApprovedB, tsMultiAB)
 
 	// A collective the member is not in contributes nothing, exactly like a
 	// collective that does not exist. No error, no rows: no existence oracle.
-	expect("collectives=[H] (not a member)", listSet("[H]", groupH))
+	expect("collectives=[H] (not a member)", listSet("[H]", collectiveH))
 	expect("collectives=[unknown]", listSet("[unknown]", toPgUUID(uuid.New())))
 
 	// The excluded rows stay excluded from the union. Pending and rejected shares,
 	// public visibility, and a collective the member is not in.
-	union := listSet("[A,B]", groupA, groupB)
+	union := listSet("[A,B]", collectiveA, collectiveB)
 	for _, excluded := range []struct {
 		name string
 		id   pgtype.UUID

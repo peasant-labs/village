@@ -204,7 +204,7 @@ func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request
 			infos = append(infos, pullInfoFromListRow(row))
 		}
 	} else {
-		rows, listErr := h.queries.ListPullableTranscriptsInGroup(r.Context(), sqlc.ListPullableTranscriptsInGroupParams{
+		rows, listErr := h.queries.ListPullableTranscriptsInCollective(r.Context(), sqlc.ListPullableTranscriptsInCollectiveParams{
 			UserID:      user.PgID(),
 			Collectives: collectives,
 			PageLimit:   int32(limit),
@@ -214,7 +214,7 @@ func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request
 			writeError(w, http.StatusInternalServerError, "Failed to list pullable transcripts")
 			return
 		}
-		total, listErr = h.queries.CountPullableTranscriptsInGroup(r.Context(), sqlc.CountPullableTranscriptsInGroupParams{
+		total, listErr = h.queries.CountPullableTranscriptsInCollective(r.Context(), sqlc.CountPullableTranscriptsInCollectiveParams{
 			UserID:      user.PgID(),
 			Collectives: collectives,
 		})

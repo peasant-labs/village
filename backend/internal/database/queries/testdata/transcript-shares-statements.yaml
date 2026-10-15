@@ -37,8 +37,8 @@
 
 - {name: ListPullableTranscripts, file: transcripts_pull.sql, kind: read}
 - {name: CountPullableTranscripts, file: transcripts_pull.sql, kind: read}
-- {name: ListPullableTranscriptsInGroup, file: transcripts_pull.sql, kind: read}
-- {name: CountPullableTranscriptsInGroup, file: transcripts_pull.sql, kind: read}
+- {name: ListPullableTranscriptsInCollective, file: transcripts_pull.sql, kind: read}
+- {name: CountPullableTranscriptsInCollective, file: transcripts_pull.sql, kind: read}
 - {name: ListPullableTranscriptsByIDs, file: transcripts_pull.sql, kind: read}
 
 - {name: ListProjectTranscriptsForViewer, file: transcripts.sql, kind: read}
