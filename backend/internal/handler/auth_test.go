@@ -598,6 +598,12 @@ func (m *mockQuerier) GetGroupMember(ctx context.Context, arg sqlc.GetGroupMembe
 	}
 	panic("GetGroupMember: not stubbed")
 }
+func (m *mockQuerier) GetGroupMemberForShare(ctx context.Context, arg sqlc.GetGroupMemberForShareParams) (sqlc.GroupMember, error) {
+	return m.GetGroupMember(ctx, sqlc.GetGroupMemberParams{GroupID: arg.GroupID, UserID: arg.UserID})
+}
+func (m *mockQuerier) GetGroupByIDForShare(ctx context.Context, id pgtype.UUID) (sqlc.Group, error) {
+	return m.GetGroupByID(ctx, id)
+}
 func (m *mockQuerier) ListGroupMembers(ctx context.Context, arg sqlc.ListGroupMembersParams) ([]sqlc.ListGroupMembersRow, error) {
 	panic("ListGroupMembers: not stubbed")
 }

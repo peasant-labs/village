@@ -1007,24 +1007,72 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 
 	transcript, err := h.queries.GetTranscriptByID(r.Context(), toPgUUID(id))
 	if err != nil {
-		writeError(w, http.StatusNotFound, "Transcript not found")
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "Transcript not found")
+		} else {
+			writeError(w, http.StatusInternalServerError, "Cannot read transcript detail because the database lookup failed. No availability decision was made; retry the lookup.")
+		}
 		return
 	}
 
 	user := GetUser(r.Context())
-	if !h.canViewTranscript(r.Context(), user, transcript) {
+	allowed, err := h.transcriptViewAccess(r.Context(), user, transcript)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Cannot determine transcript access because a database grant lookup failed. No availability decision was made; retry the lookup.")
+		return
+	}
+	if !allowed {
 		writeError(w, http.StatusNotFound, "Transcript not found")
 		return
 	}
 
 	tags, _ := h.queries.GetTranscriptTags(r.Context(), transcript.ID)
-	shares, _ := h.queries.ListTranscriptShares(r.Context(), transcript.ID)
+	shares, err := h.queries.ListTranscriptShares(r.Context(), transcript.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Cannot read transcript associations because the database lookup failed. No complete detail was returned; retry the transcript lookup.")
+		return
+	}
 	owner, _ := h.queries.GetUserByID(r.Context(), transcript.OwnerID)
 	ownerOrgs, _ := h.queries.ListUserVisibleOrgs(r.Context(), transcript.OwnerID)
 	attestations, _ := h.queries.ListTranscriptAttestations(r.Context(), transcript.ID)
 
 	// Enrich shares with acceptance_mode
-	enrichedShares, _ := h.queries.ListSharesByTranscriptIDs(r.Context(), []pgtype.UUID{transcript.ID})
+	enrichedShares, err := h.queries.ListSharesByTranscriptIDs(r.Context(), []pgtype.UUID{transcript.ID})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Cannot read enriched transcript associations because the database lookup failed. No complete detail was returned; retry the transcript lookup.")
+		return
+	}
+	// The owner retains their pending and historical submissions. Every other
+	// viewer gets exactly the accepted association set disclosed by the dedicated
+	// endpoint, including its contributor opt-in and collective visibility gates.
+	if user == nil || transcript.OwnerID != user.PgID() {
+		visible, err := h.queries.ListTranscriptCollectivesForViewer(r.Context(), sqlc.ListTranscriptCollectivesForViewerParams{
+			TranscriptID:  transcript.ID,
+			UserID:        viewerID(user),
+			ViewerIsOwner: false,
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Cannot determine the disclosed transcript associations because the database lookup failed. No complete detail was returned; retry the transcript lookup.")
+			return
+		}
+		allowed := make(map[pgtype.UUID]bool, len(visible))
+		for _, row := range visible {
+			allowed[row.ID] = true
+		}
+		disclosedShares := make([]sqlc.ListTranscriptSharesRow, 0, len(visible))
+		for _, row := range shares {
+			if allowed[row.GroupID] {
+				disclosedShares = append(disclosedShares, row)
+			}
+		}
+		disclosedEnriched := make([]sqlc.ListSharesByTranscriptIDsRow, 0, len(visible))
+		for _, row := range enrichedShares {
+			if allowed[row.GroupID] {
+				disclosedEnriched = append(disclosedEnriched, row)
+			}
+		}
+		shares, enrichedShares = disclosedShares, disclosedEnriched
+	}
 
 	identity := projectIdentityKey{OwnerID: transcript.OwnerID, ProjectHash: transcript.ProjectHash}
 	resolved := h.resolveProjectIdentities(r.Context(), []projectIdentityKey{identity})[identity]
@@ -1511,118 +1559,89 @@ func (h *Handler) shareTranscriptLocked(w http.ResponseWriter, r *http.Request, 
 		return false
 	}
 
-	var alreadyShared []string
+	// Parse and deduplicate the entire requested set before opening the write
+	// transaction. An invalid or refused target never becomes a skipped success.
+	groups := make([]pgtype.UUID, 0, len(req.GroupIDs))
+	seen := map[pgtype.UUID]bool{}
 	for _, gidStr := range req.GroupIDs {
 		gid, err := uuid.Parse(gidStr)
 		if err != nil {
-			continue
+			writeError(w, http.StatusBadRequest, "The share names an invalid collective ID. Nothing was submitted; select valid collectives and explicitly retry.")
+			return false
 		}
 		pgGID := toPgUUID(gid)
-
-		// A live submission - one awaiting review, or one already accepted -
-		// is a duplicate, not a new instance. A rejected, withdrawn or removed
-		// history is not: submitting again after any of those opens the next
-		// attempt, which is the whole point of recording attempts.
-		//
-		// This is the application-level half of the duplicate refusal. The
-		// other half is uq_share_attempt_open in the database, which refuses a
-		// concurrent duplicate this read cannot see; the insert below turns
-		// that refusal into the same actionable answer.
-		latest, err := q.GetLatestShareAttempt(r.Context(), sqlc.GetLatestShareAttemptParams{
-			TranscriptID: pgID,
-			GroupID:      pgGID,
-		})
-		if err == nil && shareAttemptIsLive(latest.Status) {
-			alreadyShared = append(alreadyShared, gidStr)
-			continue
-		}
-
-		_, err = q.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{
-			GroupID: pgGID,
-			UserID:  user.PgID(),
-		})
-		if err != nil {
-			continue
-		}
-
-		// Determine share status based on collective's acceptance mode
-		group, err := q.GetGroupByID(r.Context(), pgGID)
-		if err != nil {
-			continue
-		}
-
-		// The acceptance-mode rule lives in shareStatusForGroup so this path and
-		// the whole-project path cannot disagree about what a collective accepts
-		// or about who may offer it anything. This caller answers a refusal by
-		// skipping the collective, exactly as it did when the rule was inline.
-		status, refusal := shareStatusForGroup(r.Context(), q, user, group)
-		if refusal != nil {
-			continue // skip — the collective does not accept a submission from this member
-		}
-
-		if err := q.ShareTranscriptWithStatus(r.Context(), sqlc.ShareTranscriptWithStatusParams{
-			TranscriptID: pgID,
-			GroupID:      pgGID,
-			Status:       string(status),
-		}); err != nil {
-			switch classifyShareAttemptConflict(err) {
-			case shareAttemptConflictOpen:
-				// A live submission is a duplicate, not a new instance, so this
-				// collective joins the already-submitted list and the rest of
-				// the request carries on. Unchanged behaviour.
-				alreadyShared = append(alreadyShared, gidStr)
-				continue
-			case shareAttemptConflictEventNum:
-				// Another writer appended an event to this pair that this
-				// statement could not yet see, so the ordinal it computed was
-				// taken by the time it wrote. That is a CONFLICT the person can
-				// clear by asking again, not a failure, and it is answered here
-				// rather than falling through to an unexplained 500.
-				writeError(w, http.StatusConflict, "Transcript "+id.String()+" was submitted to collective "+gidStr+
-					" by another request at the same moment as this one, so this submission lost the race for its place in "+
-					"that collective's history. Nothing was submitted to that collective. Share it again: the next attempt "+
-					"either records the submission or reports it as already submitted.")
-				return false
-			}
-			writeError(w, http.StatusInternalServerError, "Could not record the submission of this transcript to collective "+gidStr+
-				" while opening a new share attempt. Nothing was submitted to that collective. Retry the share; if it keeps failing, the collective may have been deleted while the request was in flight.")
-			return false
+		if !seen[pgGID] {
+			seen[pgGID] = true
+			groups = append(groups, pgGID)
 		}
 	}
-
-	// Every requested collective already holds a live submission. That is a
-	// duplicate, and refused, unless the transcript is private: a live share
-	// on a private transcript grants its collective nothing, which is the state
-	// a republish whose outcome could not be confirmed leaves behind (and the
-	// state every republish left before the audience was restored). Sharing it
-	// again is how the owner gives those collectives their access back, so it
-	// falls through to the flip below and answers 200.
-	if len(alreadyShared) > 0 && len(alreadyShared) == len(req.GroupIDs) && transcript.Visibility != dbVisibilityPrivate {
-		writeError(w, http.StatusConflict, "This transcript is already submitted to "+
-			pluralCollectives(len(alreadyShared))+": a submission awaiting review or already accepted is still live, so a second submission would be a duplicate rather than a new attempt. "+
-			"Nothing was changed. Withdraw the existing submission first if you want to submit it again, or wait for the collective to decide it; once it is rejected or withdrawn, sharing again opens a new attempt.")
+	if len(groups) == 0 {
+		writeError(w, http.StatusBadRequest, "No collective was selected. Nothing was submitted and visibility is unchanged; select at least one collective and explicitly retry.")
 		return false
 	}
-
-	// Sharing a private transcript flips it to 'shared'. The flip runs under
-	// inTxAs against the locked pre-image, so the migration-026 trigger records
-	// visibility_changed atomically (already-shared / concurrent cases are the
-	// trigger's WHEN-clause no-op); only flip FROM private, leaving an explicit
-	// public/shared intact.
 	widened := false
-	if transcript.Visibility == dbVisibilityPrivate {
-		shared := dbVisibilityShared
-		if err := h.inTxAsOnConn(r.Context(), conn, user.PgID(), func(q Querier) error {
-			_, txErr := applyMetadataPatch(r.Context(), q, pgID, metadataPatch{Visibility: &shared})
-			return txErr
-		}); err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to update transcript visibility")
-			return false
+	var shares []sqlc.ListTranscriptSharesRow
+	err = h.inCollectiveAuthorityTx(r.Context(), conn, user.PgID(), groups, func(q Querier) error {
+		current, err := q.GetTranscriptByID(r.Context(), pgID)
+		if err != nil {
+			return err
 		}
-		widened = true
+		if current.OwnerID != user.PgID() {
+			return &shareOperationRefusal{http.StatusForbidden, "Not the transcript owner; nothing was submitted. Reload your own transcripts before retrying."}
+		}
+		statuses := make(map[pgtype.UUID]ShareStatus, len(groups))
+		live := make(map[pgtype.UUID]bool, len(groups))
+		for _, groupID := range groups {
+			status, err := finalShareStatus(r.Context(), q, user, groupID)
+			if err != nil {
+				return err
+			}
+			statuses[groupID] = status
+			latest, err := q.GetLatestShareAttempt(r.Context(), sqlc.GetLatestShareAttemptParams{TranscriptID: pgID, GroupID: groupID})
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return err
+			}
+			live[groupID] = err == nil && shareAttemptIsLive(latest.Status)
+		}
+		newAttempts := 0
+		for _, groupID := range groups {
+			if live[groupID] {
+				continue
+			}
+			if err := q.ShareTranscriptWithStatus(r.Context(), sqlc.ShareTranscriptWithStatusParams{TranscriptID: pgID, GroupID: groupID, Status: string(statuses[groupID])}); err != nil {
+				if kind := classifyShareAttemptConflict(err); kind != shareAttemptConflictNone {
+					message := " already has a submission awaiting review; withdraw it or wait for its decision before submitting again."
+					if kind == shareAttemptConflictEventNum {
+						message = " lost the race for its place in collective history; explicitly share it again to read the current submission state."
+					}
+					return &shareOperationRefusal{http.StatusConflict, "Transcript " + id.String() + " in collective " + uuid.UUID(groupID.Bytes).String() + message + " Nothing from this share operation was committed."}
+				}
+				return err
+			}
+			newAttempts++
+		}
+		if newAttempts == 0 && current.Visibility != dbVisibilityPrivate {
+			return &shareOperationRefusal{http.StatusConflict, "This transcript is already submitted to " + pluralCollectives(len(groups)) + ". Nothing was changed. Withdraw or wait for the existing submission to be decided before submitting again."}
+		}
+		if current.Visibility == dbVisibilityPrivate {
+			shared := dbVisibilityShared
+			if _, err := applyMetadataPatch(r.Context(), q, pgID, metadataPatch{Visibility: &shared}); err != nil {
+				return err
+			}
+			widened = true
+		}
+		shares, err = q.ListTranscriptShares(r.Context(), pgID)
+		return err
+	})
+	if err != nil {
+		var refusal *shareOperationRefusal
+		if errors.As(err, &refusal) {
+			writeError(w, refusal.status, refusal.message)
+		} else {
+			writeError(w, http.StatusInternalServerError, "The database could not confirm this share operation. Reload current submissions and visibility before explicitly retrying; an earlier content upload is a separate operation and is not rolled back.")
+		}
+		return false
 	}
-
-	shares, _ := q.ListTranscriptShares(r.Context(), pgID)
 	writeJSON(w, http.StatusOK, shares)
 	return widened
 }
@@ -2132,19 +2151,27 @@ func parseListOriginScope(value string) (sessionorigin.Origin, bool, error) {
 }
 
 func (h *Handler) canViewTranscript(ctx context.Context, user *AuthUser, t sqlc.Transcript) bool {
+	allowed, _ := h.transcriptViewAccess(ctx, user, t)
+	return allowed
+}
+
+// transcriptViewAccess is the single transcript read policy. Association
+// snapshots must distinguish failed grant reads from known nondisclosure; older
+// boolean callers still fail closed through canViewTranscript.
+func (h *Handler) transcriptViewAccess(ctx context.Context, user *AuthUser, t sqlc.Transcript) (bool, error) {
 	if t.Visibility == "public" {
-		return true
+		return true, nil
 	}
 	if user == nil {
-		return false
+		return false, nil
 	}
 	if t.OwnerID == user.PgID() {
-		return true
+		return true, nil
 	}
 	if t.Visibility == "shared" {
 		shares, err := h.queries.ListApprovedTranscriptShareGroups(ctx, t.ID)
 		if err != nil {
-			return false
+			return false, err
 		}
 		for _, groupID := range shares {
 			member, err := h.queries.GetGroupMember(ctx, sqlc.GetGroupMemberParams{
@@ -2152,22 +2179,26 @@ func (h *Handler) canViewTranscript(ctx context.Context, user *AuthUser, t sqlc.
 				UserID:  user.PgID(),
 			})
 			if err == nil && canReadData(member.Role, "contributors") {
-				return true
+				return true, nil
+			}
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return false, err
 			}
 		}
 	}
 	// Collective owners can preview transcripts shared with their collective
 	// (including private/pending submissions awaiting approval).
 	owners, err := h.queries.ListGroupOwnersForTranscript(ctx, t.ID)
-	if err == nil {
-		callerPg := user.PgID()
-		for _, ownerID := range owners {
-			if ownerID == callerPg {
-				return true
-			}
+	if err != nil {
+		return false, err
+	}
+	callerPg := user.PgID()
+	for _, ownerID := range owners {
+		if ownerID == callerPg {
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // persistCommits replaces a transcript's stored git commits with the payload's

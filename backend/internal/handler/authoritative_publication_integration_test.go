@@ -526,6 +526,21 @@ func removeBlobReplacementFailureTrigger(t *testing.T, ctx context.Context, pool
 
 func assertMutationHandlersWaitForSessionLock(t *testing.T, ctx context.Context, pool *pgxpool.Pool, h *Handler, user *AuthUser, tid pgtype.UUID, localID string) {
 	t.Helper()
+	// Probe an authorized share, not an empty target set whose validation may
+	// correctly refuse before a lock is needed. The target is test-owned and
+	// removed before returning, so this lock proof leaves no contribution behind.
+	group, err := h.queries.CreateGroup(ctx, sqlc.CreateGroupParams{Name: "publish-lock-" + uuid.NewString(), CreatedBy: user.PgID(), AcceptanceMode: "open", DataAccess: "members_only"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := h.queries.DeleteGroup(context.Background(), group.ID); err != nil {
+			t.Error(err)
+		}
+	}()
+	if err := h.queries.AddGroupMember(ctx, sqlc.AddGroupMemberParams{GroupID: group.ID, UserID: user.PgID(), Role: "owner"}); err != nil {
+		t.Fatal(err)
+	}
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -558,7 +573,7 @@ func assertMutationHandlersWaitForSessionLock(t *testing.T, ctx context.Context,
 		t.Fatal(err)
 	}
 	done = make(chan int, 1)
-	go func() { done <- mountedShareProbe(h, user, tid) }()
+	go func() { done <- mountedShareProbe(h, user, tid, group.ID) }()
 	select {
 	case <-done:
 		t.Fatal("share escaped the session advisory lock")
@@ -591,12 +606,13 @@ func mountedOwnerPatchBody(h *Handler, user *AuthUser, tid pgtype.UUID, body str
 	h.UpdateTranscript(w, r)
 	return w
 }
-func mountedShareProbe(h *Handler, user *AuthUser, tid pgtype.UUID) int {
+func mountedShareProbe(h *Handler, user *AuthUser, tid, groupID pgtype.UUID) int {
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", uuid.UUID(tid.Bytes).String())
 	ctx := context.WithValue(context.Background(), UserContextKey, user)
 	ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/"+uuid.UUID(tid.Bytes).String()+"/share", bytes.NewBufferString(`{"group_ids":[]}`)).WithContext(ctx)
+	body, _ := json.Marshal(map[string][]string{"group_ids": {uuid.UUID(groupID.Bytes).String()}})
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/"+uuid.UUID(tid.Bytes).String()+"/share", bytes.NewReader(body)).WithContext(ctx)
 	w := httptest.NewRecorder()
 	h.ShareTranscript(w, r)
 	return w.Code

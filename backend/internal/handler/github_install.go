@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -169,9 +170,15 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 		if bound != nil {
 			target = uuid.UUID(bound.ID.Bytes).String()
 			if !alreadyBound {
-				if err := h.queries.SetGroupLinkedGitHubOrg(r.Context(), sqlc.SetGroupLinkedGitHubOrgParams{
-					ID:              bound.ID,
-					LinkedGithubOrg: pgtype.Text{String: account, Valid: true},
+				if err := h.inCollectiveAuthorityTx(r.Context(), nil, user.PgID(), []pgtype.UUID{bound.ID}, func(q Querier) error {
+					member, err := q.GetGroupMemberForShare(r.Context(), sqlc.GetGroupMemberForShareParams{GroupID: bound.ID, UserID: user.PgID()})
+					if err != nil || member.Role != "owner" {
+						return fmt.Errorf("collective installation binding refused because current ownership could not be verified; reload your collectives and retry")
+					}
+					return q.SetGroupLinkedGitHubOrg(r.Context(), sqlc.SetGroupLinkedGitHubOrgParams{
+						ID:              bound.ID,
+						LinkedGithubOrg: pgtype.Text{String: account, Valid: true},
+					})
 				}); err != nil {
 					writeError(w, http.StatusInternalServerError, "Could not bind the collective to the installation")
 					return

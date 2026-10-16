@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -242,20 +243,28 @@ func (h *Handler) syncGitHubOrgs(ctx context.Context, client *http.Client, userI
 		return
 	}
 
-	for _, org := range orgs {
-		_ = h.queries.UpsertUserGitHubOrg(ctx, sqlc.UpsertUserGitHubOrgParams{
-			UserID:    userID,
-			OrgLogin:  org.Login,
-			OrgID:     org.ID,
-			AvatarUrl: toPgText(org.AvatarURL),
-		})
-	}
+	// Install the organization snapshot under the same actor authority lock
+	// final verified-only submissions hold. Network I/O has already completed.
+	if err := h.inCollectiveAuthorityTx(ctx, nil, userID, nil, func(q Querier) error {
+		for _, org := range orgs {
+			if err := q.UpsertUserGitHubOrg(ctx, sqlc.UpsertUserGitHubOrgParams{
+				UserID:    userID,
+				OrgLogin:  org.Login,
+				OrgID:     org.ID,
+				AvatarUrl: toPgText(org.AvatarURL),
+			}); err != nil {
+				return err
+			}
+		}
 
-	// Delete orgs that weren't fetched this time (user left them)
-	_ = h.queries.DeleteStaleUserOrgs(ctx, sqlc.DeleteStaleUserOrgsParams{
-		UserID:    userID,
-		FetchedAt: pgtype.Timestamptz{Time: fetchStart, Valid: true},
-	})
+		// Delete orgs that weren't fetched this time (user left them)
+		return q.DeleteStaleUserOrgs(ctx, sqlc.DeleteStaleUserOrgsParams{
+			UserID:    userID,
+			FetchedAt: pgtype.Timestamptz{Time: fetchStart, Valid: true},
+		})
+	}); err != nil {
+		slog.Error("organization snapshot transaction was not confirmed", "operation", "organization_snapshot", "stage", "persistence", "consequence", "the current organization snapshot must be reread before retrying", "remediation", "sign in again after checking database connectivity", "cause_type", fmt.Sprintf("%T", err))
+	}
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {

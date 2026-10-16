@@ -105,6 +105,34 @@ func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, erro
 	return i, err
 }
 
+const getGroupByIDForShare = `-- name: GetGroupByIDForShare :one
+SELECT id, name, description, created_by, created_at, updated_at, acceptance_mode, data_access, linked_github_org, display_members, transcript_deletion_policy, post_prompts_check, prompts_check_mode FROM groups WHERE id = $1 FOR SHARE
+`
+
+// Retain the current policy until a caller's transaction ends. Outside a
+// transaction this remains an ordinary single-statement read. The row lock
+// also serializes cascaded account deletion with final share authorization.
+func (q *Queries) GetGroupByIDForShare(ctx context.Context, id pgtype.UUID) (Group, error) {
+	row := q.db.QueryRow(ctx, getGroupByIDForShare, id)
+	var i Group
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AcceptanceMode,
+		&i.DataAccess,
+		&i.LinkedGithubOrg,
+		&i.DisplayMembers,
+		&i.TranscriptDeletionPolicy,
+		&i.PostPromptsCheck,
+		&i.PromptsCheckMode,
+	)
+	return i, err
+}
+
 const getGroupMember = `-- name: GetGroupMember :one
 SELECT group_id, user_id, role, joined_at FROM group_members WHERE group_id = $1 AND user_id = $2
 `
@@ -116,6 +144,27 @@ type GetGroupMemberParams struct {
 
 func (q *Queries) GetGroupMember(ctx context.Context, arg GetGroupMemberParams) (GroupMember, error) {
 	row := q.db.QueryRow(ctx, getGroupMember, arg.GroupID, arg.UserID)
+	var i GroupMember
+	err := row.Scan(
+		&i.GroupID,
+		&i.UserID,
+		&i.Role,
+		&i.JoinedAt,
+	)
+	return i, err
+}
+
+const getGroupMemberForShare = `-- name: GetGroupMemberForShare :one
+SELECT group_id, user_id, role, joined_at FROM group_members WHERE group_id = $1 AND user_id = $2 FOR SHARE
+`
+
+type GetGroupMemberForShareParams struct {
+	GroupID pgtype.UUID `db:"group_id" json:"group_id"`
+	UserID  pgtype.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *Queries) GetGroupMemberForShare(ctx context.Context, arg GetGroupMemberForShareParams) (GroupMember, error) {
+	row := q.db.QueryRow(ctx, getGroupMemberForShare, arg.GroupID, arg.UserID)
 	var i GroupMember
 	err := row.Scan(
 		&i.GroupID,

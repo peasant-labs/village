@@ -96,6 +96,7 @@ type Querier interface {
 	// Group methods
 	CreateGroup(ctx context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error)
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (sqlc.Group, error)
+	GetGroupByIDForShare(ctx context.Context, id pgtype.UUID) (sqlc.Group, error)
 	UpdateGroup(ctx context.Context, arg sqlc.UpdateGroupParams) (sqlc.Group, error)
 	DeleteGroup(ctx context.Context, id pgtype.UUID) error
 	ListUserGroups(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListUserGroupsRow, error)
@@ -110,6 +111,7 @@ type Querier interface {
 	AddGroupMember(ctx context.Context, arg sqlc.AddGroupMemberParams) error
 	RemoveGroupMember(ctx context.Context, arg sqlc.RemoveGroupMemberParams) error
 	GetGroupMember(ctx context.Context, arg sqlc.GetGroupMemberParams) (sqlc.GroupMember, error)
+	GetGroupMemberForShare(ctx context.Context, arg sqlc.GetGroupMemberForShareParams) (sqlc.GroupMember, error)
 	ListGroupMembers(ctx context.Context, arg sqlc.ListGroupMembersParams) ([]sqlc.ListGroupMembersRow, error)
 	ListGroupPendingMembers(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListGroupPendingMembersRow, error)
 	UpdateMemberRole(ctx context.Context, arg sqlc.UpdateMemberRoleParams) error

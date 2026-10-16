@@ -195,10 +195,14 @@ func (h *Handler) GetOrg(w http.ResponseWriter, r *http.Request) {
 	if user != nil {
 		callerID = user.PgID()
 	}
-	rows, _ := h.queries.ListCollectivesByGitHubOrg(r.Context(), sqlc.ListCollectivesByGitHubOrgParams{
+	rows, err := h.queries.ListCollectivesByGitHubOrg(r.Context(), sqlc.ListCollectivesByGitHubOrgParams{
 		Lower:  login,
 		UserID: callerID,
 	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Cannot read this organization's linked collectives because the database lookup failed. No complete organization result was returned; retry the organization lookup.")
+		return
+	}
 	collectives := make([]orgCollectiveSummary, 0, len(rows))
 	for _, row := range rows {
 		collectives = append(collectives, orgCollectiveSummary{

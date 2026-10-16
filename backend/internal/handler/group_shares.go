@@ -3,18 +3,9 @@ package handler
 // Offering a WHOLE project to a collective, and the read that tells the person
 // what they may offer.
 //
-// The single-transcript share path (ShareTranscript) runs its inserts as
-// autocommit statements and skips whatever it cannot do, which is right when the
-// person named one transcript and several collectives: a collective that refuses
-// them changes nothing about the others. A project batch is the opposite
-// promise. The person selected a set and pressed one button, so a refusal must
-// leave NOTHING written and a partial success must never be silently narrowed.
-//
-// That promise shapes the whole file: every check that can refuse runs BEFORE
-// any write, the writes then run in ONE transaction whose failure rolls the
-// whole batch back, and the duplicate-conflict pattern the single path uses
-// (record it and carry on) is deliberately NOT reproduced inside that
-// transaction, where carrying on after an error is not possible at all.
+// Single-transcript and whole-project sharing both validate every requested
+// target under final authority locks and write their selected operation in one
+// transaction. A refusal never silently narrows a person's selection.
 
 import (
 	"context"
@@ -26,6 +17,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -328,7 +320,7 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 
 	var writeErr error
 	if err := h.withPublishLocksMany(ctx, user.PgID(), localIDs, func(conn *pgxpool.Conn) error {
-		writeErr = h.writeBatchShare(ctx, conn, user, pgGroupID, status, remaining, req.VisibilityConfirmed)
+		writeErr = h.writeBatchShare(ctx, conn, user, pgGroupID, status, remaining, req.VisibilityConfirmed, req.ProjectHash)
 		return nil
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf(
@@ -347,10 +339,14 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnprocessableEntity, consent.message)
 			return
 		}
+		var authority *shareOperationRefusal
+		if errors.As(writeErr, &authority) {
+			writeError(w, authority.status, authority.message)
+			return
+		}
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf(
-			"contributing project %s to this collective failed while the submissions were being recorded, so the WHOLE "+
-				"contribution was rolled back and nothing was written. Retry the contribution; if it keeps failing, the "+
-				"collective may have been deleted while the request was in flight.", req.ProjectHash))
+			"the database could not confirm the contribution of project %s. Reload current submissions and visibility "+
+				"before explicitly retrying; an earlier content upload is a separate operation and is not rolled back.", req.ProjectHash))
 		return
 	}
 
@@ -370,29 +366,40 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 
 // writeBatchShare performs every write of one batch inside ONE transaction.
 //
-// The single share path answers a duplicate conflict by recording the collective
-// and continuing to the next one. That is safe there ONLY because each insert is
-// its own autocommit statement. Here the statements share a transaction, so an
-// error has already aborted it: continuing would run the remaining statements
-// against a dead transaction and commit nothing while reporting success. The
-// conflict is therefore returned, which rolls the whole batch back, and the
-// person is told to contribute again - the next attempt reads the conflicting
-// transcript as already contributed and submits the rest.
-func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user *AuthUser, groupID pgtype.UUID, status ShareStatus, candidates []sqlc.ListOwnerProjectShareCandidatesRow, visibilityConfirmed bool) error {
+// Any statement error rolls back the operation. Continuing after a PostgreSQL
+// error would run the remaining statements against an aborted transaction.
+func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user *AuthUser, groupID pgtype.UUID, status ShareStatus, candidates []sqlc.ListOwnerProjectShareCandidatesRow, visibilityConfirmed bool, projectHash string) error {
 	shared := dbVisibilityShared
-	return h.inTxAsOnConn(ctx, conn, user.PgID(), func(q Querier) error {
+	return h.inCollectiveAuthorityTx(ctx, conn, user.PgID(), []pgtype.UUID{groupID}, func(q Querier) error {
+		currentStatus, err := finalShareStatus(ctx, q, user, groupID)
+		if err != nil {
+			return err
+		}
+		if currentStatus != status {
+			return &shareOperationRefusal{http.StatusConflict, "The collective's acceptance policy changed while this contribution waited. Nothing was submitted; reload the policy and explicitly retry without changing your consent."}
+		}
 		for _, candidate := range candidates {
+			current, err := q.GetTranscriptByID(ctx, candidate.ID)
+			if err != nil {
+				return err
+			}
+			if current.OwnerID != user.PgID() || current.ProjectHash != projectHash {
+				return &shareOperationRefusal{http.StatusForbidden, "A selected transcript no longer belongs to your selected project. Nothing was submitted; reload the project and explicitly retry."}
+			}
+			latest, err := q.GetLatestShareAttempt(ctx, sqlc.GetLatestShareAttemptParams{TranscriptID: candidate.ID, GroupID: groupID})
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return err
+			}
+			if err == nil && shareAttemptIsLive(latest.Status) {
+				return &batchShareConflict{TranscriptID: uuid.UUID(candidate.ID.Bytes).String(), Kind: shareAttemptConflictOpen}
+			}
 			if err := q.ShareTranscriptWithStatus(ctx, sqlc.ShareTranscriptWithStatusParams{
 				TranscriptID: candidate.ID,
 				GroupID:      groupID,
 				Status:       string(status),
 			}); err != nil {
 				if kind := classifyShareAttemptConflict(err); kind != shareAttemptConflictNone {
-					// Returning rolls the WHOLE batch back. The single share
-					// path records a conflict and carries on, which is safe only
-					// because its statements are autocommit; inside this
-					// transaction the error has already aborted it, so
-					// continuing would commit nothing while reporting success.
+					// Returning rolls the whole batch back, including visibility.
 					return &batchShareConflict{TranscriptID: uuid.UUID(candidate.ID.Bytes).String(), Kind: kind}
 				}
 				return fmt.Errorf("open a share attempt for transcript %s: %w", uuid.UUID(candidate.ID.Bytes).String(), err)
