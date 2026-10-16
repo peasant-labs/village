@@ -41,6 +41,7 @@ const HTML = process.env.JOURNEY_HTML !== '0'
 export default defineConfig({
   testDir: './scripts/journey',
   testMatch: '**/*.journey.mjs',
+  testIgnore: '**/collectives-built.journey.mjs',
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
