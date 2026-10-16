@@ -1,92 +1,41 @@
 import { createServer } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
-import { spawn, execFileSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs'
 import { resolve, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { handleCollectiveRequest } from './lib/collective-fixtures.mjs'
 import { handleHomeRequest } from './lib/home-fixtures.mjs'
 import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
+import { acquireBuildLifecycle, bounded } from './lib/built-lifecycle.mjs'
+import { collectiveQueueFixture } from './lib/collectives-built-fixtures.mjs'
 
 const frontend = fileURLToPath(new URL('../../', import.meta.url))
 process.chdir(frontend)
 const repo = resolve(frontend, '..')
 const root = join(repo, 'review-capture', `collectives-built-${randomUUID()}`)
 const lock = join(frontend, '.collectives-built-lock')
-const owner = randomUUID()
-const children = []
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex')
-const ticks = (pid) => readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ')[1].split(' ')[19]
-const alive = (pid, start) => { try { return ticks(pid) === start } catch { return false } }
-const owned = (child, token) => readdirSync('/proc').some((pid) => {
-  if (!/^\d+$/.test(pid)) return false
-  try {
-    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ')[1].split(' ')
-    return stat[0] !== 'Z' && Number(stat[2]) === child.pid &&
-      readFileSync(`/proc/${pid}/environ`, 'utf8').split('\0').includes(`COLLECTIVES_BUILD_OWNER=${token}`)
-  } catch { return false }
-})
-async function stop(child, token) {
-  if (!owned(child, token)) return
-  const signal = (name) => { try { process.kill(-child.pid, name) } catch (error) { if (error.code !== 'ESRCH') throw error } }
-  signal('SIGTERM')
-  for (let i = 0; i < 20 && owned(child, token); i++) await delay(100)
-  if (owned(child, token)) signal('SIGKILL')
-}
-async function stopOwnedGroups(token) {
-  const groups = new Set()
-  for (const pid of readdirSync('/proc').filter((value) => /^\d+$/.test(value))) {
-    try {
-      if (readFileSync(`/proc/${pid}/environ`, 'utf8').split('\0').includes(`COLLECTIVES_BUILD_OWNER=${token}`)) {
-        groups.add(Number(readFileSync(`/proc/${pid}/stat`, 'utf8').split(') ')[1].split(' ')[2]))
-      }
-    } catch { /* process exited */ }
-  }
-  // Chromium can own a separate process group; the inherited random marker
-  // proves it too, even if its Playwright parent died before cleanup.
-  for (const pid of groups) await stop({ pid }, token)
-}
-// Linux /proc identity plus the random child environment marker prevents PID
-// reuse from turning stale-run recovery into a broad process kill.
-if (existsSync(lock)) {
-  const old = JSON.parse(readFileSync(join(lock, 'owner.json'), 'utf8'))
-  if (alive(old.pid, old.start)) throw new Error('A collective build already owns .next; wait for it to finish before running this command')
-  await stopOwnedGroups(old.owner)
-  console.log('Recovered stale collective build ownership; only marker-proven process groups were stopped')
-  rmSync(lock, { recursive: true })
-}
-mkdirSync(lock)
-mkdirSync(root, { recursive: true })
-const saveOwner = () => writeFileSync(join(lock, 'owner.json'), JSON.stringify({ pid: process.pid, start: ticks(process.pid), owner, children }))
-saveOwner()
+const lifecycle = await acquireBuildLifecycle(lock)
 let server
 let cleaning
 async function cleanup() {
   if (cleaning) return cleaning
   cleaning = (async () => {
-    for (const child of [...children].reverse()) await stop(child, owner)
-    await stopOwnedGroups(owner)
-    if (server?.listening) { server.closeAllConnections(); await new Promise((done) => server.close(done)) }
-    rmSync(lock, { recursive: true, force: true })
+    try {
+      if (server?.listening) { server.closeAllConnections(); await new Promise((done) => server.close(done)) }
+    } finally { await lifecycle.cleanup() }
   })()
   return cleaning
 }
-for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.once(signal, () => { void cleanup().then(() => process.exit(1)) })
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.once(signal, () => {
+  void cleanup().then(() => process.exit(1), (error) => { console.error(error); process.exit(1) })
+})
 function launch(args, env) {
   if (cleaning) throw new Error('The collective build is stopping; no new process may start during cleanup')
-  const child = spawn('pnpm', args, { cwd: frontend, detached: true, stdio: 'inherit', env: { ...process.env, ...env, COLLECTIVES_BUILD_OWNER: owner } })
-  const record = { pid: child.pid, start: ticks(child.pid) }
-  children.push(record); saveOwner()
-  child.done = new Promise((done, fail) => { child.once('error', fail); child.once('exit', (code, signal) => code === 0 ? done() : fail(new Error(`${args.join(' ')} failed (${code ?? signal}); inspect ${root}`))) })
-  // next start stays running while the suite executes; attach rejection now.
-  child.done.catch(() => {})
-  return child
-}
-async function bounded(promise, ms, operation) {
-  let timer
-  try { return await Promise.race([promise, new Promise((_, fail) => { timer = setTimeout(() => fail(new Error(`${operation} exceeded ${ms}ms; owned resources will be stopped`)), ms) })]) } finally { clearTimeout(timer) }
+  return lifecycle.launch('pnpm', args, { cwd: frontend, stdio: 'inherit', env: { ...process.env, ...env } })
 }
 async function unusedPort() {
   const socket = createNetServer()
@@ -96,18 +45,22 @@ async function unusedPort() {
   return port
 }
 try {
+  mkdirSync(root, { recursive: true })
   const apiRequests = []
+  let contributionContext = false
   server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://fixture')
     apiRequests.push(url.pathname)
     if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }); res.end(); return }
     if (!url.pathname.startsWith('/api/v1/')) { res.writeHead(400); res.end('fixture requires the complete /api/v1 API base'); return }
-    const queue = url.pathname.match(/^\/api\/v1\/collectives\/[^/]+\/(pending|contributable)$/)
-    if (queue) {
+    if (req.method === 'POST' && url.pathname === '/api/v1/__built/contribution-context') {
+      contributionContext = url.searchParams.get('enabled') === '1'
+      res.writeHead(204); res.end(); return
+    }
+    const queue = collectiveQueueFixture(url, contributionContext)
+    if (queue !== undefined) {
       res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' })
-      res.end(JSON.stringify(url.searchParams.get('view') === 'grouped'
-        ? { items: [], page: 1, limit: Number(url.searchParams.get('limit') || 100), totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 }
-        : queue[1] === 'pending' ? [] : { transcripts: [] }))
+      res.end(JSON.stringify(queue))
       return
     }
     if (handleCollectiveRequest(req, res)) return

@@ -8,6 +8,14 @@ export interface LegacyCollectiveCase {
   query: string;
   body: string;
   role: "table" | "heading";
+  assertions: Array<{
+    role?: "table" | "button" | "searchbox" | "combobox";
+    name?: string;
+    testId?: string;
+    text?: string;
+    disabled?: boolean;
+  }>;
+  back?: { name: string; href: string; role: "table" | "heading"; body: string };
 }
 
 export function loadLegacyCollectiveFixtures(): LegacyCollectiveCase[] {
@@ -22,6 +30,14 @@ export function loadLegacyCollectiveFixtures(): LegacyCollectiveCase[] {
   for (const row of data.cases) {
     if (typeof row.suffix !== "string" || typeof row.query !== "string" || !row.body || !["table", "heading"].includes(row.role)) {
       throw new Error(`Invalid legacy collective fixture ${row.name}; provide route, query and mounted body expectation`);
+    }
+    if (!Array.isArray(row.assertions) || row.assertions.length === 0 || row.assertions.some((assertion) =>
+      assertion.testId ? typeof assertion.testId !== "string" || typeof assertion.text !== "string" :
+        !["table", "button", "searchbox", "combobox"].includes(assertion.role ?? "") || typeof assertion.name !== "string")) {
+      throw new Error(`Missing meaningful mounted body/control expectations for ${row.name}`);
+    }
+    if (row.name !== "list" && (!row.back || !row.back.href.startsWith("/collectives") || !row.back.name || !row.back.body)) {
+      throw new Error(`Missing canonical back exit expectation for ${row.name}`);
     }
   }
   return data.cases;

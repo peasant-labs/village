@@ -34,7 +34,9 @@ pnpm --dir frontend run journey:collectives-built
 
 Use `CHROME_PATH` for a preinstalled Chromium, or the pinned Playwright browser
 installed in CI's container. The command does not download a browser or skip when
-one is missing. The existing `journey:ci` remains the dev-mode catalog; it excludes
+one is missing. Linux `/proc` and util-linux `flock` are required (included in the
+Nix development shell and checked explicitly by CI). No portability to another
+platform is claimed. The existing `journey:ci` remains the dev-mode catalog; it excludes
 this focused built test and is not substituted for production evidence.
 
 The wrapper binds a loopback fixture API to a kernel-allocated port, compiles the
@@ -45,7 +47,13 @@ every referenced script/style before Playwright starts. No frontend network
 interception replaces application routing or API-client behavior.
 
 Both rendered themes exercise a real main-nav click, every legacy URL with query
-values, canonical active state and representative mounted bodies. The journey
+values, canonical active state and representative mounted bodies. Named YAML
+assertions protect detail transcript data, settings controls, the empty contribution
+and review bodies, their disabled actions, and real canonical back exits. A second
+remote fixture state exposes a grouped-only contribution exit: the actual mounted
+hook must consume its published, validated envelope rather than hiding a decoding
+error behind a heading or an empty flat result. Grouped pending reads independently
+validate their different published payload shape. The journey
 checks computed type/radius, real `/api/v1/collectives` requests, and axe, and saves
 full-page screenshots plus machine reports under `review-capture/collectives-built-*`.
 Inspect the images before treating them as review evidence. PR screenshots still
@@ -65,19 +73,47 @@ Cost: one build (600 seconds maximum), startup (30 seconds), one worker, no retr
 comparison framework, configuration matrix, or copied production policy engine.
 CI runs the exact same command with frozen dependencies and explicit Chromium.
 
-The `.collectives-built-lock` serializes access to this worktree's `.next` output;
-use separate worktrees for concurrent builds. The wrapper owns detached child
-process groups and closes its in-process HTTP fixture in `finally` and on signals.
-TERM is followed by bounded KILL only for a group whose process environment still
-contains the run's random ownership marker. After SIGKILL, the next invocation
-checks the old owner's Linux process start identity and reaps only groups with
-that exact marker, not arbitrary listeners or reused PIDs. No live credentials,
+The `.collectives-built-lock.gate` inode is never deleted. A util-linux kernel
+`flock`, retained by a small pipe-driven keeper, serializes the complete stale
+identity read, owned-group reap, metadata replacement and build lifetime. A
+contender waits at most half a second, then fails without changing the winner's
+metadata. Pipe EOF after owner SIGKILL releases the kernel lock. Under that lock,
+the next invocation checks the old owner's Linux process start identity and reaps
+only groups with its exact random marker, never arbitrary listeners or reused PIDs.
+Use separate worktrees for concurrent builds.
+
+The immutable pid/start/marker record is atomically renamed into place before
+any workload can spawn. Child launch never truncates or rewrites it. An interrupted
+unpublished temporary identity is safe to discard under the kernel lock because
+no workload can precede publication. Every launched child retains one settlement
+promise, shared by execution and cleanup. The wrapper closes its in-process HTTP
+fixture in `finally` and on signals. Marker-proven groups receive TERM, up to two
+seconds to exit, then KILL and another bounded two seconds. Cleanup reaps all direct
+children and verifies no marker-owned live groups remain before removing metadata
+or releasing build ownership. If that proof fails, recovery metadata remains and
+the command fails with corrective guidance. Polling is bounded by those deadlines;
+each snapshot inspects only current Linux process records. No live credentials,
 database, user XDG directory or fixed fixture port are used. Sanitized evidence is
 retained; there are no temporary credential stores to remove.
+
+Direct named YAML tests import that same lifecycle and fixture builder: a
+TERM-resistant disposable child proves settlement and absence before cleanup
+returns, two actual concurrent processes compete over a stale owner, and an
+interrupted sibling bookkeeping file cannot damage immutable recovery identity.
+Recovery must leave a different marker's child alive. These tests need no Next
+build, database, browser, source copy, or second cleanup implementation; disposable
+children have a 15-second self-exit deadline if their test parent is killed. Each
+test owns a random temporary directory and removes it after bounded cleanup.
+They run in the existing unit command on clean Nix/CI checkouts. This small process
+test promotion is necessary because a direct browser assertion cannot observe
+atomic ownership races or child reaping. It can simplify only when equivalent
+process-lifetime coverage replaces it.
 
 Mutation expectations: dropping a redirect/query value fails the real HTTP/URL
 assertions; leaving a caller on the old path or dropping `/api/v1` fails request
 assertions; removing canonical nav/body fails mounted assertions; stale assets
-fail provenance before screenshots. The alias cases can retire only after the
+fail provenance before screenshots. Removing the actual contribution empty body
+while retaining its heading and disabled action is also rejected by the real built
+journey's body-text assertion in both themes. The alias cases can retire only after the
 release-window requirement passes. Simplify this runner if a shared built-app
 runner later protects the same behavior, not while only a dev server covers it.

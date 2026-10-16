@@ -81,7 +81,9 @@ jobs:
           retention-days: 14
 
       - name: Verify built collective routes and legacy redirects
-        run: pnpm --dir frontend run journey:collectives-built
+        run: |
+          command -v flock || { echo 'The built collective journey requires util-linux flock'; exit 1; }
+          pnpm --dir frontend run journey:collectives-built
 
       - name: Upload built collective evidence
         if: always()

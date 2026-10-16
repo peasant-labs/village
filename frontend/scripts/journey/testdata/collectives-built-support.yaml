@@ -1,0 +1,32 @@
+requiredNames:
+  - grouped-contributable-envelope
+  - grouped-pending-payload
+  - term-resistant-child
+  - concurrent-stale-acquisition
+  - interrupted-bookkeeping
+contributionContext:
+  kind: context_container
+  context:
+    groupId: 81000000-0000-4000-8000-000000000001
+    ownerStatus: known_unavailable
+  helperGroups:
+    - groupId: 81000000-0000-4000-8000-000000000001
+      purpose: helper_review
+      helperThreadCount: 1
+      memberScope: built-collective-context
+cases:
+  - name: grouped-contributable-envelope
+    route: /api/v1/collectives/c011ec71-0000-4000-8000-000000000001/contributable?view=grouped&page=1&limit=100
+    schema: contributable
+  - name: grouped-pending-payload
+    route: /api/v1/collectives/c011ec71-0000-4000-8000-000000000001/pending?view=grouped&page=1&limit=100
+    schema: pending
+  - name: term-resistant-child
+    termMs: 100
+    killMs: 2000
+  - name: concurrent-stale-acquisition
+    termMs: 100
+    killMs: 2000
+  - name: interrupted-bookkeeping
+    termMs: 100
+    killMs: 2000

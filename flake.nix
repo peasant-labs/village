@@ -52,6 +52,7 @@
         sqlite # CLI for inspecting analytics store
         nodejs_26 # Node.js runtime for frontend tooling
         pnpm # frontend package manager and build tooling
+        util-linux # flock serializes production-browser builds and stale recovery
         typescript
         typescript-language-server
         # protobuf           # protoc
