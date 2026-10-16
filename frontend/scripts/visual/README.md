@@ -86,7 +86,7 @@ mounted into the composer's `renderTurnActions` slot exactly as the production p
 | `probe-village.mjs` | Print the harness route's DOM shape — tab/view-toggle labels, `.tb-*` box sizes, and the page scroll metrics. Run first whenever the harness route or the shared composite changes, to confirm the capture selectors still resolve and the page overflows the viewport (`document.scrollHeight > innerHeight`). |
 | `village-shoot.mjs` | Drive the harness route with puppeteer and screenshot every transcript surface for one theme. Each capture is run through the non-empty-surface gate before it's accepted; each surface is wrapped in try/catch so one failure records a gap and the run continues. |
 | `explore-agent-group-shoot.mjs` | Capture the collapsed and expanded group of agent-driven sessions on the real Explore route, in one theme, from one live page. Asserts build provenance (the group's control, its counted label, and the expanded rows' labels) before writing any PNG, so a stale or wrong-worktree server fails instead of producing a misleading capture. |
-| `review-shoot.mjs` | Capture the collective review route `/groups/{id}/review` in one theme: the pending queue read as a project > branch > session tree with the transcript preview column and the decide-a-selection bottom bar. Two images per theme — the queue with nothing selected, and the queue with a project ticked AND the preview column open on a real submission. Asserts build provenance against the live DOM before writing any PNG: the review panel mounted, the queue grouped into more than one project (a flat list is the surface this route replaces), at least one child-session disclosure present, and BOTH bottom-bar decisions available. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the header at the top, and the clip box covering the whole document. The viewport is only grown to the document for the queue-alone image; with the preview open the shared contribute/review composition measures a constant 202px taller than any viewport it is given (the same is true of the shipped `/groups/{id}/contribute` route), so that state is rastered whole from the base viewport instead. |
+| `review-shoot.mjs` | Capture the collective review route `/collectives/{id}/review` in one theme: the pending queue read as a project > branch > session tree with the transcript preview column and the decide-a-selection bottom bar. Two images per theme — the queue with nothing selected, and the queue with a project ticked AND the preview column open on a real submission. Asserts build provenance against the live DOM before writing any PNG: the review panel mounted, the queue grouped into more than one project (a flat list is the surface this route replaces), at least one child-session disclosure present, and BOTH bottom-bar decisions available. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the header at the top, and the clip box covering the whole document. The viewport is only grown to the document for the queue-alone image; with the preview open the shared contribute/review composition measures a constant 202px taller than any viewport it is given (the same is true of the shipped `/collectives/{id}/contribute` route), so that state is rastered whole from the base viewport instead. |
 | `child-session-shoot.mjs` | Capture how one surface treats a session that another session started, in one theme, from one live page: `explore` (folded away, no control), `home` and `project` (collapsed and expanded chip), and the six lists sharing that same design — `profile`, `collective-data`, `collective-repos`, `collective-contributions`, `contribute-tree` (each closed and open), plus `collective-pending`, which does NOT fold and is captured once, flat (see "The six lists that fold behind the same control"). Asserts build provenance against the live DOM before writing any PNG — on discovery, that the started rows are off the grid, that a row whose parent the response does not carry still browses, that NO control rendered, and that the count above the grid matches the cards under it; on the other two, that the chip carries a bare counted label with nothing in front of it (it is read from the label element, not the whole control, so a leading mark cannot hide inside the show/hide affordance), that it sits in the same list unit as its own parent row, and that its VERTICAL RHYTHM holds as computed style — the row carrying a chip one design-system step tighter underneath, still opening its original distance above, an ordinary row in the same list unchanged, the indentation untouched, and the rendered gap within its band. Also asserts **capture geometry** on both sides of every raster: the page parked at scroll 0, the whole document inside the viewport, and the clip box covering the document — so the fixed app header cannot composite over the middle of the image and the bottom of the list cannot be cut. |
 | `surface-gate.mjs` | The non-empty-surface gate (vendored, self-contained copy of the fairtrade `scripts/surface-gate.mjs`). Fails a capture that is blank / near-empty / byte-identical to another surface — closing the silent-blank hole a valid-but-empty bounding box leaves open (e.g. an empty graph). |
 | `demo-helper-groups-shoot.mjs` | Capture the canonical Fairtrade grouped-helper demonstration (the demo REFERENCE side of the collective SxS arms) from a SERVED demo build, both themes. Before writing any PNG it proves the **exact release** (`FAIRTRADE_CHECKOUT`'s `package.json` version equals this app's `@peasant-labs/fairtrade` pin AND `git describe --tags --exact-match` names `fairtrade-v<version>`), digsests the **served asset** (sha256) and cross-checks it byte-for-byte against the same file in that checkout's `dist/`, and checks the content markers (the arm's `[data-helper-demo]` case in the live DOM and the demonstration + connector markers in that served chunk). `DEMO_ASSET_SHA256` substitutes a served-bytes pin (recorded as digest-only). It writes `provenance.json` + `styles.json` (the shared computed readings and wrap measurements) next to the captures. |
@@ -310,24 +310,24 @@ Manual click-through checklist for the non-automated part of the gate:
 2. Toggle provider `claude-code` and topic `greenfield`; clear filters and confirm transcript `d41a8e` returns.
 3. Switch between grid and list.
 4. Open transcript `d41a8e`, confirm the route changes to `/transcripts/d41a8e`, then open profile `alice-dev` and confirm `/users/alice-dev`.
-5. Search `ai` again, open `AI Research Team`, confirm `/groups/ai-research-team`, then back out and confirm the shell still renders the card grid.
+5. Search `ai` again, open `AI Research Team`, confirm `/collectives/ai-research-team`, then back out and confirm the shell still renders the card grid.
 
 ### Grouped helper threads on the collective routes
 
 `grouped-helper-shoot.mjs` also drives the collective surfaces whose grouped
 read hangs a saved helper group under its owner row:
 
-- `collective-browse` — `/groups/{id}`. The collective's own browse list draws
+- `collective-browse` — `/collectives/{id}`. The collective's own browse list draws
   the server's saved helper group under the owner row it was grouped with, and
   the group expands to individually linked members. The browse list is
   read-only: it offers no per-member selection.
-- `collective-contribute` — `/groups/{id}/contribute`. Expanding the group and
+- `collective-contribute` — `/collectives/{id}/contribute`. Expanding the group and
   ticking ONE member arms the contribution bar with exactly one transcript, and
   the SAME transcript's flat tree row reads checked: one identity, one selection.
-- `collective-review` — `/groups/{id}/review`. The same explicit per-member
+- `collective-review` — `/collectives/{id}/review`. The same explicit per-member
   selection and the same one-identity rule on the owner's review queue; one tick
   arms the decision bar.
-- `collective-my-shares` — `/groups/{id}`. The "your contributions" panel keeps
+- `collective-my-shares` — `/collectives/{id}`. The "your contributions" panel keeps
   every contribution state it always stated (its count, its link, its pending
   badge and its unshare control) while the saved helper group the server grouped
   under that contribution hangs beneath its own row and expands to individually
@@ -528,7 +528,7 @@ PORT=$APP_PORT NEXT_PUBLIC_API_URL=http://localhost:$MOCK_REST_PORT/api/v1 pnpm 
 #    by hand for the collective page (both markers), failing closed when no chunk
 #    carries them (a stale build, another worktree, or dev). The contribute and
 #    review routes load only the mount marker: check that one there.
-curl -s "http://localhost:$APP_PORT/groups/$GROUP" \
+curl -s "http://localhost:$APP_PORT/collectives/$GROUP" \
   | grep -oE 'src="[^"]*\.js"' | sed 's/src="//;s/"//' | sort -u > /tmp/village-chunks.txt
 proven=0
 while read -r chunk; do
@@ -687,7 +687,7 @@ captured once, flat:
 
 - `profile` — `/users/{username}`, the fold within a project of the person's own
   library.
-- `collective-data` — `/groups/{id}`, the collective's contributions. They were a
+- `collective-data` — `/collectives/{id}`, the collective's contributions. They were a
   table of their own until they had to fold here as well; a second renderer would
   have needed a second fold and the two would have drifted. The capture asserts
   what the move must not lose: no table remains on that panel, the row still
@@ -708,7 +708,7 @@ captured once, flat:
   to decide, which is why the fold was removed from this surface.
 - `collective-contributions` — the same page's "your contributions", where each
   revealed row must keep its remove action.
-- `contribute-tree` — `/groups/{id}/contribute`. The label is a bare count here
+- `contribute-tree` — `/collectives/{id}/contribute`. The label is a bare count here
   now; it read `+ N child sessions` before.
 
 Every one of the five that still fold asserts, from the live DOM and before any

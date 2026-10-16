@@ -265,7 +265,7 @@ export type Group = Omit<VillageGroup, "post_prompts_check" | "prompts_check_mod
   };
 
 /**
- * A collective the caller may SEE, as served by `GET /groups/visible`.
+ * A collective the caller may SEE, as served by `GET /collectives/visible`.
  *
  * It is a different question from {@link Group}, which is the set the caller
  * BELONGS to. A collective admitted by the public or open rule alone carries a
@@ -567,7 +567,7 @@ export type ShareEvent = VillageShareEvent;
  *
  * This is EVERY pair the owner has ever had with the collective, including a
  * pair whose every event ended in a withdrawal and so has no row left in the
- * legacy current-state list (`GET /groups/{id}/my-shares`). A fully-withdrawn
+ * legacy current-state list (`GET /collectives/{id}/my-shares`). A fully-withdrawn
  * pair still appears here, carrying its latest ({@link status},
  * {@link event_num}, {@link recorded_at}) — the same fields the events
  * endpoint's last row would show for it. This is deliberately NOT the

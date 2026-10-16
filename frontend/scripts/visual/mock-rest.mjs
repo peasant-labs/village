@@ -229,7 +229,7 @@ const groupDetail = {
 
 const groupsList = [groupDetail.group]
 
-// The four kinds of row the collectives page (`GET /groups/visible`) can show,
+// The four kinds of row the collectives page (`GET /collectives/visible`) can show,
 // so a capture of that surface carries every combination of the two badges
 // rather than only the membership rows the old list could produce.
 const visibleCollectives = [
@@ -497,10 +497,10 @@ const previewTranscriptContent = {
         {
           id: 'tool-1',
           name: 'Read',
-          arguments: '{"path":"src/app/groups/[id]/contribute/page.tsx"}',
+          arguments: '{"path":"src/app/collectives/[id]/contribute/page.tsx"}',
           result: 'read 344 lines',
           durationMs: 40,
-          filePath: 'src/app/groups/[id]/contribute/page.tsx',
+          filePath: 'src/app/collectives/[id]/contribute/page.tsx',
           isError: false,
           toolKind: 'read',
         },
@@ -927,13 +927,13 @@ const server = createServer((req, res) => {
   }
   if (req.method === 'GET' && p === '/auth/me') return send(res, 200, user)
   if (req.method === 'GET' && p === '/auth/orgs') return send(res, 200, [{ org_id: 1, org_login: 'anthropic-labs', avatar_url: null, visible: true, fetched_at: '2026-06-28T12:00:00Z' }])
-  if (req.method === 'GET' && p === '/groups') return send(res, 200, groupsList)
-  if (req.method === 'GET' && p === '/groups/visible') return send(res, 200, visibleCollectives)
+  if (req.method === 'GET' && p === '/collectives') return send(res, 200, groupsList)
+  if (req.method === 'GET' && p === '/collectives/visible') return send(res, 200, visibleCollectives)
   if (req.method === 'GET' && p === '/users/me/collectives/contributions') return send(res, 200, { collectives: myCollectiveContributions })
-  if (req.method === 'GET' && p === `/groups/${groupId}`) return send(res, 200, groupDetail)
-  if (req.method === 'GET' && p === `/groups/${groupId}/my-shares`) return send(res, 200, [])
-  if (req.method === 'GET' && p === `/groups/${groupId}/repositories`) return send(res, 200, { repositories: [] })
-  if (req.method === 'GET' && p === `/groups/${groupId}/repositories/available`) {
+  if (req.method === 'GET' && p === `/collectives/${groupId}`) return send(res, 200, groupDetail)
+  if (req.method === 'GET' && p === `/collectives/${groupId}/my-shares`) return send(res, 200, [])
+  if (req.method === 'GET' && p === `/collectives/${groupId}/repositories`) return send(res, 200, { repositories: [] })
+  if (req.method === 'GET' && p === `/collectives/${groupId}/repositories/available`) {
     return send(res, 200, {
       repositories: [
         { owner: 'peasant-labs', name: 'village', is_private: false },
@@ -942,11 +942,11 @@ const server = createServer((req, res) => {
       ],
     })
   }
-  if (req.method === 'GET' && p === `/groups/${groupId}/pending`) return send(res, 200, pendingShares)
+  if (req.method === 'GET' && p === `/collectives/${groupId}/pending`) return send(res, 200, pendingShares)
   // The batch review decision. Every id is decided except a designated one,
   // so a capture can show BOTH outcomes the page has to render: rows that
   // leave the queue, and a row another reviewer already decided.
-  if (req.method === 'PATCH' && p === `/groups/${groupId}/shares`) {
+  if (req.method === 'PATCH' && p === `/collectives/${groupId}/shares`) {
     let body = ''
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {
@@ -959,10 +959,10 @@ const server = createServer((req, res) => {
     })
     return
   }
-  if (req.method === 'GET' && p === `/groups/${groupId}/transcripts`) return send(res, 200, { transcripts: groupDetail.transcripts })
-  if (req.method === 'GET' && p === `/groups/${groupId}/settings`) return send(res, 200, groupDetail)
-  if (req.method === 'GET' && p === `/groups/${groupId}/contributable`) return send(res, 200, contributableResponse)
-  if (req.method === 'POST' && p === `/groups/${groupId}/shares`) {
+  if (req.method === 'GET' && p === `/collectives/${groupId}/transcripts`) return send(res, 200, { transcripts: groupDetail.transcripts })
+  if (req.method === 'GET' && p === `/collectives/${groupId}/settings`) return send(res, 200, groupDetail)
+  if (req.method === 'GET' && p === `/collectives/${groupId}/contributable`) return send(res, 200, contributableResponse)
+  if (req.method === 'POST' && p === `/collectives/${groupId}/shares`) {
     let body = ''
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {

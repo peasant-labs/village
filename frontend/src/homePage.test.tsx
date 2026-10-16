@@ -488,11 +488,11 @@ describe("mounted home route: your transcripts, their totals and your collective
           listed.map((li) => ({ name: text(li.querySelector("a")), meta: text(li.querySelector(".cmg-rail-meta")) })),
         ).toEqual(c.expectRailCollectives);
         expect(listed.map((li) => li.querySelector("a")!.getAttribute("href"))).toEqual(
-          c.collectives!.map((collective) => `/groups/${collective.id}`),
+          c.collectives!.map((collective) => `/collectives/${collective.id}`),
         );
         expect(
           screen.getByRole("link", { name: "view all" }).getAttribute("href"),
-        ).toBe("/groups");
+        ).toBe("/collectives");
       }
 
       if (c.expectWaiting !== undefined) {

@@ -5,7 +5,7 @@ import type { BatchShareRequest, BatchShareResponse, ContributableResponse } fro
 import { requireExplicitContributionIDs } from "../contribute/groupedSelection";
 
 /**
- * `GET /groups/{id}/contributable` — every transcript the caller owns that
+ * `GET /collectives/{id}/contributable` — every transcript the caller owns that
  * could be contributed to this collective, including ones already shared
  * (flagged `already_shared`, never omitted, so the tree can show and disable
  * them instead of the row silently disappearing between visits).
@@ -13,13 +13,13 @@ import { requireExplicitContributionIDs } from "../contribute/groupedSelection";
 export function useContributable(groupId: string) {
   return useQuery({
     queryKey: ["group-contributable", groupId],
-    queryFn: () => api<ContributableResponse>(`/groups/${groupId}/contributable`),
+    queryFn: () => api<ContributableResponse>(`/collectives/${groupId}/contributable`),
     enabled: !!groupId,
   });
 }
 
 /**
- * `POST /groups/{id}/shares` — ONE project's batch. The caller
+ * `POST /collectives/{id}/shares` — ONE project's batch. The caller
  * (`useContributeRun`) is responsible for splitting a multi-project
  * selection into one call per project; this mutation never accepts more
  * than one `project_hash` per call, by construction of {@link BatchShareRequest}.
@@ -28,7 +28,7 @@ export function useBatchShareProject(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: BatchShareRequest) =>
-      api<BatchShareResponse>(`/groups/${groupId}/shares`, {
+      api<BatchShareResponse>(`/collectives/${groupId}/shares`, {
         method: "POST",
         body: JSON.stringify(body),
       }),
@@ -62,7 +62,7 @@ const INITIAL_STATE: ContributeRunState = {
 
 /**
  * Drives the sequential one-POST-per-project batch-share run: iterates
- * the selected projects IN ORDER, awaiting each `POST /groups/{id}/shares`
+ * the selected projects IN ORDER, awaiting each `POST /collectives/{id}/shares`
  * before starting the next, and never stops early on a failure — every
  * project named in `batches` gets its own attempt, and `state.results`
  * reports each one's outcome (success or the server's own {@link ApiError})

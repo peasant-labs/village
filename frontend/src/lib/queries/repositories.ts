@@ -27,7 +27,7 @@ export function useRepositories(groupId: string, enabled = true) {
   return useQuery({
     queryKey: ["group-repositories", groupId],
     queryFn: () =>
-      api<LinkedRepositoriesResponse>(`/groups/${groupId}/repositories`),
+      api<LinkedRepositoriesResponse>(`/collectives/${groupId}/repositories`),
     enabled: enabled && !!groupId,
     // A 501 (not configured) and a 403 (membership) are both terminal states;
     // never spin on them. Other failures get React Query's default behaviour.
@@ -48,7 +48,7 @@ export function useAvailableRepositories(groupId: string, enabled = true) {
   return useQuery({
     queryKey: ["group-repositories-available", groupId],
     queryFn: () =>
-      api<VillageAvailableRepositoriesResponse>(`/groups/${groupId}/repositories/available`),
+      api<VillageAvailableRepositoriesResponse>(`/collectives/${groupId}/repositories/available`),
     enabled: enabled && !!groupId,
     retry: (failureCount, err) => {
       if (isNotConfigured(err) || isApiErrorStatus(err, 403)) return false;
@@ -76,7 +76,7 @@ export function useLinkRepository() {
       owner: string;
       name: string;
     }) =>
-      api(`/groups/${groupId}/repositories`, {
+      api(`/collectives/${groupId}/repositories`, {
         method: "POST",
         body: JSON.stringify({ owner, name }),
       }),
@@ -103,7 +103,7 @@ export function useUnlinkRepository() {
       name: string;
     }) =>
       api(
-        `/groups/${groupId}/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
+        `/collectives/${groupId}/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
         { method: "DELETE" }
       ),
     onSuccess: (_, vars) => {
@@ -135,7 +135,7 @@ export function useRepositoryCommits(
     queryKey: ["group-repository-commits", groupId, owner, name, refresh],
     queryFn: () =>
       api<RepositoryCommitsResponse>(
-        `/groups/${groupId}/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/commits${
+        `/collectives/${groupId}/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/commits${
           refresh ? "?refresh=true" : ""
         }`
       ),

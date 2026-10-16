@@ -94,7 +94,7 @@ async function renderDiscovery(testCase: ExploreSurfaceCase): Promise<string[]> 
       calls.push(url);
       if (url.includes("/auth/me")) return json({ error: "signed out" }, 401);
       if (url.includes("/tags/popular")) return json([]);
-      if (url.includes("/groups/search")) return json({ collectives: [] });
+      if (url.includes("/collectives/search")) return json({ collectives: [] });
       if (url.includes("/transcript-groups/")) return json(surfaceMemberPayload(testCase.member));
       if (url.includes("/transcripts")) {
         if (url.includes("view=grouped")) return json(exploreGroupedPayload(testCase));
@@ -163,7 +163,7 @@ function installContinuationREST(testCase: ContinuationCase): string[] {
         ? json(userFixture(testCase.owner)) : json({ error: "signed out" }, 401);
       if (url.includes("/users/me/stats")) return json({ total_transcripts: 1, total_turns: 0, total_duration_ms: 0, total_tokens: 0, pull_request_count: 0 });
       if (url.includes("/users/me/collectives/contributions")) return json({ collectives: [] });
-      if (/\/groups(?:\?|$)/.test(url)) return json([]);
+      if (/\/collectives(?:\?|$)/.test(url)) return json([]);
       if (url.includes("/transcript-groups/")) return json(surfaceMemberPayload(testCase.laterMember));
       if (url.includes("/transcripts")) {
         const params = new URL(url).searchParams;

@@ -65,7 +65,7 @@ function ContributedCollectiveRow({
             fixture name renders in full", not "no name ever truncates". */}
         <div className="min-w-[12rem] flex-1 flex flex-col gap-1">
           <Link
-            href={`/groups/${collective.id}`}
+            href={`/collectives/${collective.id}`}
             className="font-[family-name:var(--font-display)] text-sm font-semibold text-ink truncate hover:text-ink-2 transition-colors focus-mono cursor-pointer"
           >
             {collective.name}

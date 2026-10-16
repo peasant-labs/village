@@ -37,7 +37,7 @@ export function useCollectiveReadBinding() {
 }
 
 /**
- * The collectives the caller BELONGS to (`GET /groups`).
+ * The collectives the caller BELONGS to (`GET /collectives`).
  *
  * This is the set to offer somebody who is choosing where to contribute: every
  * row is a membership and carries a role. For the browse surface, which shows
@@ -46,12 +46,12 @@ export function useCollectiveReadBinding() {
 export function useGroups() {
   return useQuery({
     queryKey: ["groups"],
-    queryFn: () => api<Group[]>("/groups"),
+    queryFn: () => api<Group[]>("/collectives"),
   });
 }
 
 /**
- * Every collective the caller may SEE (`GET /groups/visible`), whether or not
+ * Every collective the caller may SEE (`GET /collectives/visible`), whether or not
  * they belong to it: the server admits a collective whose data is public, one
  * that anybody may join, and one the caller is a member of.
  *
@@ -60,7 +60,7 @@ export function useGroups() {
 export function useVisibleGroups() {
   return useQuery({
     queryKey: ["visible-groups"],
-    queryFn: () => api<VisibleGroup[]>("/groups/visible"),
+    queryFn: () => api<VisibleGroup[]>("/collectives/visible"),
   });
 }
 
@@ -79,7 +79,7 @@ export function useGroup(id: string) {
         can_read: boolean;
         your_role: string;
         pending_members?: GroupMember[];
-      }>(`/groups/${id}`, signal),
+      }>(`/collectives/${id}`, signal),
     enabled: !isLoading && !!id,
   });
 }
@@ -91,7 +91,7 @@ export function useGroupTranscripts(groupId: string, page: number, pageSize: num
     queryFn: async ({ signal }) => {
       const res = await read<{
         transcripts: GroupTranscript[];
-      }>(`/groups/${groupId}?limit=${pageSize}&offset=${page * pageSize}`, signal);
+      }>(`/collectives/${groupId}?limit=${pageSize}&offset=${page * pageSize}`, signal);
       return res.transcripts ?? [];
     },
     enabled: !isLoading && enabled && !!groupId,
@@ -107,7 +107,7 @@ export function useRemoveGroupTranscript() {
     mutationFn: ({ groupId, transcriptId, decision }: { groupId: string; transcriptId: string; decision?: Decision }) => {
       // React Query may defer dispatch after the page's confirmation guard.
       if (!current(decision)) throw new Error("the signed-in account changed before removal");
-      return api(`/groups/${groupId}/transcripts/${transcriptId}`, { method: "DELETE" });
+      return api(`/collectives/${groupId}/transcripts/${transcriptId}`, { method: "DELETE" });
     },
     onSuccess: (_, vars) => {
       if (!current(vars.decision)) return;
@@ -121,7 +121,7 @@ export function useCreateGroup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: VillageCreateGroupRequest) =>
-      api<VillageGroup>("/groups", { method: "POST", body: JSON.stringify(data) }),
+      api<VillageGroup>("/collectives", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["groups"] });
       qc.invalidateQueries({ queryKey: ["visible-groups"] });
@@ -138,7 +138,7 @@ export function useUpdateGroup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: VillageUpdateGroupRequest }) =>
-      api<VillageGroup>(`/groups/${id}`, {
+      api<VillageGroup>(`/collectives/${id}`, {
         method: "PATCH",
         body: JSON.stringify(body),
       }),
@@ -154,7 +154,7 @@ export function useMyGroupShares(groupId: string, enabled = true) {
   const { viewer, version, isLoading, read } = useCollectiveReadBinding();
   return useQuery({
     queryKey: ["group-my-shares", groupId, "flat", viewer, version],
-    queryFn: ({ signal }) => read<UserGroupShare[]>(`/groups/${groupId}/my-shares`, signal),
+    queryFn: ({ signal }) => read<UserGroupShare[]>(`/collectives/${groupId}/my-shares`, signal),
     enabled: !isLoading && enabled && !!groupId,
   });
 }
@@ -162,7 +162,7 @@ export function useMyGroupShares(groupId: string, enabled = true) {
 export function useDeleteGroup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api(`/groups/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) => api(`/collectives/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["groups"] });
       qc.invalidateQueries({ queryKey: ["visible-groups"] });
@@ -174,7 +174,7 @@ export function useJoinGroup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (groupId: string) =>
-      api(`/groups/${groupId}/join`, { method: "POST" }),
+      api(`/collectives/${groupId}/join`, { method: "POST" }),
     onSuccess: (_, groupId) => {
       qc.invalidateQueries({ queryKey: ["group", groupId] });
       qc.invalidateQueries({ queryKey: ["groups"] });
@@ -187,7 +187,7 @@ export function usePromoteMember() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ groupId, userId, role }: { groupId: string; userId: string; role: string }) =>
-      api(`/groups/${groupId}/members/${userId}/role`, {
+      api(`/collectives/${groupId}/members/${userId}/role`, {
         method: "PATCH",
         body: JSON.stringify({ role }),
       }),
@@ -201,7 +201,7 @@ export function useAddGroupMember() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ groupId, username }: { groupId: string; username: string }) =>
-      api(`/groups/${groupId}/members`, {
+      api(`/collectives/${groupId}/members`, {
         method: "POST",
         body: JSON.stringify({ username }),
       }),
@@ -224,7 +224,7 @@ export function useRemoveGroupMember() {
       retract?: boolean;
     }) => {
       const qs = retract ? "?retract=true" : "";
-      return api(`/groups/${groupId}/members/${userId}${qs}`, { method: "DELETE" });
+      return api(`/collectives/${groupId}/members/${userId}${qs}`, { method: "DELETE" });
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["group", vars.groupId] });
@@ -239,7 +239,7 @@ export function useRemoveGroupMember() {
 export function useSearchCollectives(query: string) {
   return useQuery({
     queryKey: ["collective-search", query],
-    queryFn: () => api<CollectiveSearchResponse>(`/groups/search?q=${encodeURIComponent(query)}`),
+    queryFn: () => api<CollectiveSearchResponse>(`/collectives/search?q=${encodeURIComponent(query)}`),
     enabled: query.trim().length > 0,
   });
 }

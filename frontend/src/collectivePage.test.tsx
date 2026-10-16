@@ -106,7 +106,7 @@ describe("the collective page", () => {
 
     await waitFor(() => {
       expect(requests.filter((r) => r.method !== "GET")).toEqual([
-        { method: "POST", path: `/groups/${world.group.id}/join`, body: null },
+        { method: "POST", path: `/collectives/${world.group.id}/join`, body: null },
       ]);
     });
   });
@@ -122,7 +122,7 @@ describe("the collective page", () => {
     fireEvent.click(screen.getByRole("button", { name: "show more" }));
 
     await waitFor(() => {
-      expect(requests.map((r) => r.path)).toContain(`/groups/${world.group.id}?limit=40&offset=0`);
+      expect(requests.map((r) => r.path)).toContain(`/collectives/${world.group.id}?limit=40&offset=0`);
     });
   });
 });
@@ -154,7 +154,7 @@ describe("the collectives list", () => {
       expect(rows, listCase.why).toEqual(listCase.expectRows);
     });
     if (listCase.query) {
-      expect(requests.map((r) => r.path)).toContain(`/groups/search?q=${listCase.query}`);
+      expect(requests.map((r) => r.path)).toContain(`/collectives/search?q=${listCase.query}`);
     }
   });
 });
@@ -192,8 +192,8 @@ describe("collective read and create recovery", () => {
     world.role = "owner";
     world.canRead = true;
     const path = c.operation === "read"
-      ? c.surface === "list" ? "/groups/visible" : `/groups/${world.group.id}`
-      : "/groups";
+      ? c.surface === "list" ? "/collectives/visible" : `/collectives/${world.group.id}`
+      : "/collectives";
     world.failures = c.error ? [{ method: c.operation === "read" ? "GET" : "POST", path, status: 503, error: c.error }] : [];
     const requests = installCollectiveREST(world);
     if (c.surface === "detail") await renderCollectivePage(world, true);
@@ -224,12 +224,12 @@ describe("collective read and create recovery", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(c.error!);
       expect(pushedRoutes).toEqual([]);
       expect(screen.getByRole("textbox", { name: "name" })).toHaveValue(world.group.name);
-      expect(requests.filter((r) => r.method === "POST" && r.path === "/groups")).toHaveLength(1);
+      expect(requests.filter((r) => r.method === "POST" && r.path === "/collectives")).toHaveLength(1);
       world.failures = [];
       fireEvent.click(screen.getByRole("button", { name: "create collective" }));
     }
-    await waitFor(() => expect(pushedRoutes).toEqual([`/groups/${world.group.id}`]));
-    const writes = requests.filter((r) => r.method === "POST" && r.path === "/groups");
+    await waitFor(() => expect(pushedRoutes).toEqual([`/collectives/${world.group.id}`]));
+    const writes = requests.filter((r) => r.method === "POST" && r.path === "/collectives");
     expect(writes).toHaveLength(c.operation === "create-retry" ? 2 : 1);
     expect(writes[0].body).toMatchObject({ name: world.group.name });
   });

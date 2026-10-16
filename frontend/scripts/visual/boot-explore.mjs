@@ -119,7 +119,7 @@ if (!collective) {
   process.exit(2)
 }
 await collective.click()
-await page.waitForFunction(() => window.location.pathname === '/groups/ai-research-team')
+await page.waitForFunction(() => window.location.pathname === '/collectives/ai-research-team')
 await page.goto(URL, { waitUntil: 'networkidle0' })
 
 await pause(700)

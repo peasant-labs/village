@@ -22,7 +22,7 @@
      profile                   /users/{username}. The fold within a project of
                                the person's own library.
                                Captures: village-profile-child-*.
-     collective-data           /groups/{id}. The collective's contributions,
+     collective-data           /collectives/{id}. The collective's contributions,
                                now drawn by the shared transcript list rather
                                than a table of their own: the owner's per-row
                                selection and the "all" select-all are asserted
@@ -40,7 +40,7 @@
      collective-contributions  the same page's "your contributions", where each
                                revealed row keeps its remove action.
                                Captures: village-collective-contributions-child-*.
-     contribute-tree           /groups/{id}/contribute. The label is a bare
+     contribute-tree           /collectives/{id}/contribute. The label is a bare
                                count here now; it read "+ N child sessions"
                                before.
                                Captures: village-contribute-child-*.
@@ -123,7 +123,7 @@ const SURFACES = {
   },
 
   'collective-data': {
-    path: `/groups/${GROUP_ID}`,
+    path: `/collectives/${GROUP_ID}`,
     prefix: 'village-collective-data-child',
     mountSelector: '[aria-label="select every transcript on this page"]',
     parentID: 'gt-parent',
@@ -133,7 +133,7 @@ const SURFACES = {
   },
 
   'collective-repos': {
-    path: `/groups/${GROUP_ID}`,
+    path: `/collectives/${GROUP_ID}`,
     prefix: 'village-collective-repos-child',
     mountSelector: '[aria-label="select every transcript on this page"]',
     // The repository view is a choice on the same panel, so the capture makes
@@ -159,7 +159,7 @@ const SURFACES = {
   // It has no `parentID`/`mountSelector`, so it never enters the generic
   // fold-behind-one-control branch below; it is handled in its own branch.
   'collective-pending': {
-    path: `/groups/${GROUP_ID}`,
+    path: `/collectives/${GROUP_ID}`,
     prefix: 'village-collective-pending-child',
     queueLabel: 'pending review',
     rows: [
@@ -171,7 +171,7 @@ const SURFACES = {
   },
 
   'collective-contributions': {
-    path: `/groups/${GROUP_ID}`,
+    path: `/collectives/${GROUP_ID}`,
     prefix: 'village-collective-contributions-child',
     mountSelector: '[data-parent-transcript-id="ms-parent"]',
     parentID: 'ms-parent',
@@ -181,7 +181,7 @@ const SURFACES = {
   },
 
   'contribute-tree': {
-    path: `/groups/${GROUP_ID}/contribute`,
+    path: `/collectives/${GROUP_ID}/contribute`,
     prefix: 'village-contribute-child',
     mountSelector: '[data-parent-transcript-id="ct-parent"]',
     parentID: 'ct-parent',

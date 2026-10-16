@@ -1,9 +1,9 @@
 /* Host-integration boot check for the village Manage surfaces.
 
    Verifies the real routes mount non-empty through the live app + REST path:
-     - /groups                → collectives list
-      - /groups/:id            -> collective detail shell (shared manage surface)
-      - /groups/:id/settings   -> settings form
+     - /collectives                → collectives list
+      - /collectives/:id            -> collective detail shell (shared manage surface)
+      - /collectives/:id/settings   -> settings form
 
    usage:
      MOCK_REST_PORT=8788 node scripts/visual/mock-rest.mjs &
@@ -71,11 +71,11 @@ const shotCurrent = async (label, sel) => {
   console.log(`OK ${label}: ${Math.round(box.width)}x${Math.round(box.height)} nonbg=${(r.nonbgRatio * 100).toFixed(1)}% colors=${r.distinctColors}`)
 }
 
-await capture('manage-collectives', `${ORIGIN}/groups`, '.cmg-grid')
-await page.goto(`${ORIGIN}/groups/${encodeURIComponent(GROUP_ID)}`, { waitUntil: 'networkidle0' })
+await capture('manage-collectives', `${ORIGIN}/collectives`, '.cmg-grid')
+await page.goto(`${ORIGIN}/collectives/${encodeURIComponent(GROUP_ID)}`, { waitUntil: 'networkidle0' })
 await pause(800)
 await shotCurrent('manage-detail', '.cmg-d-main')
-await page.goto(`${ORIGIN}/groups/${encodeURIComponent(GROUP_ID)}/settings`, { waitUntil: 'networkidle0' })
+await page.goto(`${ORIGIN}/collectives/${encodeURIComponent(GROUP_ID)}/settings`, { waitUntil: 'networkidle0' })
 await pause(600)
 await shotCurrent('manage-settings', '.cmg-settings form')
 

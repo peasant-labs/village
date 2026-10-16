@@ -16,18 +16,18 @@
      member-failure `/` — the registered member endpoint refuses, so the open
                     group must state the failure and offer a retry instead of
                     claiming a successful empty result.
-     collective-browse   `/groups/{id}` — the collective's own browse list
+     collective-browse   `/collectives/{id}` — the collective's own browse list
                     carries the saved helper group under its owner row, read
                     only (no per-member selection on a browse surface).
-     collective-contribute `/groups/{id}/contribute` — expanding the group and
+     collective-contribute `/collectives/{id}/contribute` — expanding the group and
                     ticking ONE member arms the contribution action with exactly
                     one transcript, and that SAME identity's flat tree row reads
                     checked: one identity is one selection; no group id is ever
                     sent.
-     collective-review   `/groups/{id}/review` — the same explicit per-member
+     collective-review   `/collectives/{id}/review` — the same explicit per-member
                     selection and the same one-identity rule on the owner's
                     review queue.
-     collective-my-shares `/groups/{id}` — the "your contributions" panel keeps
+     collective-my-shares `/collectives/{id}` — the "your contributions" panel keeps
                     every contribution state it always stated (its link, its
                     pending badge, its unshare control, the panel's count) while
                     the saved helper group the server grouped under that
@@ -111,13 +111,13 @@ const ARM_URL = {
   // The failure arm reuses the home mount, whose grouped read is single-page:
   // one disclosure to open, one failing member request to state.
   'member-failure': `${ORIGIN}/`,
-  'collective-browse': `${ORIGIN}/groups/${COLLECTIVE}`,
-  'collective-contribute': `${ORIGIN}/groups/${COLLECTIVE}/contribute`,
-  'collective-review': `${ORIGIN}/groups/${COLLECTIVE}/review`,
-  'collective-my-shares': `${ORIGIN}/groups/${COLLECTIVE}`,
-  'collective-browse-empty-flat': `${ORIGIN}/groups/${COLLECTIVE}`,
-  'collective-contribute-empty-flat': `${ORIGIN}/groups/${COLLECTIVE}/contribute`,
-  'collective-contribute-later': `${ORIGIN}/groups/${COLLECTIVE}/contribute`,
+  'collective-browse': `${ORIGIN}/collectives/${COLLECTIVE}`,
+  'collective-contribute': `${ORIGIN}/collectives/${COLLECTIVE}/contribute`,
+  'collective-review': `${ORIGIN}/collectives/${COLLECTIVE}/review`,
+  'collective-my-shares': `${ORIGIN}/collectives/${COLLECTIVE}`,
+  'collective-browse-empty-flat': `${ORIGIN}/collectives/${COLLECTIVE}`,
+  'collective-contribute-empty-flat': `${ORIGIN}/collectives/${COLLECTIVE}/contribute`,
+  'collective-contribute-later': `${ORIGIN}/collectives/${COLLECTIVE}/contribute`,
 }
 const URL = process.env.VILLAGE_URL || ARM_URL[SURFACE]
 

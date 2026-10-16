@@ -99,7 +99,7 @@ class Schedule {
   fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = String(input);
     if (url.includes("/tags/popular")) return Promise.resolve(jsonResponse([]));
-    if (url.includes("/groups/search")) return Promise.resolve(jsonResponse({ collectives: [] }));
+    if (url.includes("/collectives/search")) return Promise.resolve(jsonResponse({ collectives: [] }));
     if (url.includes("/transcripts")) {
       // The grouped helper read is a separate, opt-in view of the same route;
       // it never participates in the flat pagination schedule.

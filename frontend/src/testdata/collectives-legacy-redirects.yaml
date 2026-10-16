@@ -1,0 +1,32 @@
+requiredNames:
+  - list
+  - detail
+  - settings
+  - contribute
+  - review
+cases:
+  - name: list
+    suffix: ""
+    query: "q=Acme+Platform&tag=first&tag=second&empty=&return=%2Fhome%3Fx%3D1"
+    body: collectives 3
+    role: table
+  - name: detail
+    suffix: /c011ec71-0000-4000-8000-000000000001
+    query: "view=grouped&page=2&tag=a&tag=b"
+    body: Acme Platform
+    role: heading
+  - name: settings
+    suffix: /c011ec71-0000-4000-8000-000000000001/settings
+    query: "tab=members&next=%2Fhome"
+    body: Acme Platform
+    role: heading
+  - name: contribute
+    suffix: /c011ec71-0000-4000-8000-000000000001/contribute
+    query: "q=private+session&tag=one&tag=two"
+    body: contribute
+    role: heading
+  - name: review
+    suffix: /c011ec71-0000-4000-8000-000000000001/review
+    query: "page=2&limit=20&empty="
+    body: review
+    role: heading

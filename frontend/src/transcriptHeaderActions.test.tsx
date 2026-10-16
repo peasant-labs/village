@@ -81,7 +81,7 @@ function audienceRoutes(served: MountedRouteTranscriptMetadata, answer: number, 
   return (url, init) => {
     const method = init?.method ?? "GET";
     const path = url.replace(API_PREFIX, "");
-    if (method === "GET" && path === "/groups") {
+    if (method === "GET" && path === "/collectives") {
       return json(
         content.groups.map((g) => ({
           id: g.id,
@@ -98,7 +98,7 @@ function audienceRoutes(served: MountedRouteTranscriptMetadata, answer: number, 
         .map((g) => ({ id: g.id, name: g.name, approved_count: served.viewer_collectives!.some((c) => c.id === g.id) ? 1 : 0,
           pending_count: pending.has(g.id) ? 1 : 0, rejected_attempt_count: 0, withdrawn_attempt_count: 0 })) });
     }
-    const ownShares = path.match(/^\/groups\/([^/]+)\/my-shares$/);
+    const ownShares = path.match(/^\/collectives\/([^/]+)\/my-shares$/);
     if (method === "GET" && ownShares) {
       const id = ownShares[1];
       const approved = served.viewer_collectives!.some((c) => c.id === id);
@@ -441,7 +441,7 @@ it(fx.departedCollective.name, async () => {
   const base = audienceRoutes(served, 200, log);
   await mount("owner", served, (url, init) => {
     const path = url.replace(API_PREFIX, "");
-    if (path === "/groups" && (init?.method ?? "GET") === "GET") {
+    if (path === "/collectives" && (init?.method ?? "GET") === "GET") {
       return json(content.groups.filter((g) => g.id !== fx.departedCollective.id).map((g) => ({ ...g, role: "member" })));
     }
     if (path === `/transcripts/${content.transcriptId}/collectives`) return json({ collectives: [] });

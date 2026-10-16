@@ -1,4 +1,4 @@
-/* Computed-style probe for the `/groups/{id}/contribute` page's narrow layout.
+/* Computed-style probe for the `/collectives/{id}/contribute` page's narrow layout.
 
    Close-value layouts (a single grid column vs. two) are indistinguishable in a
    scaled PNG, so this probe reads `getComputedStyle` directly at both sides of
@@ -31,7 +31,7 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function readGrid(width) {
   await page.setViewport({ width, height: 1000, deviceScaleFactor: 1 })
-  await page.goto(`${ORIGIN}/groups/${encodeURIComponent(GROUP_ID)}/contribute`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${ORIGIN}/collectives/${encodeURIComponent(GROUP_ID)}/contribute`, { waitUntil: 'domcontentloaded' })
   await pause(900)
   return page.evaluate(() => {
     const grid = document.querySelector('.cmg-root .grid')

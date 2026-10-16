@@ -115,7 +115,7 @@ function branchSortKey(label: string): string {
 /**
  * The shared fold's four facts, read out of a contributable row.
  *
- * `GET /groups/{id}/contributable` answers with the caller's OWN transcripts
+ * `GET /collectives/{id}/contributable` answers with the caller's OWN transcripts
  * only, so every row here has one owner and the fold's per-owner scoping has
  * nothing to separate. It is still stated, because the fold matches a parent on
  * the owner AND the session id, and a constant is the honest way to say "these

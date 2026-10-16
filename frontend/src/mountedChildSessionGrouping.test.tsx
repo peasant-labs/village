@@ -231,7 +231,7 @@ function installExploreREST(testCase: ChildSessionGroupingCase): void {
     const url = String(input);
     if (url.includes("/auth/me")) return jsonResponse({ error: "not signed in" }, 401);
     if (url.includes("/tags/popular")) return jsonResponse([]);
-    if (url.includes("/groups/search")) return jsonResponse({ collectives: [] });
+    if (url.includes("/collectives/search")) return jsonResponse({ collectives: [] });
     if (url.includes("/transcripts")) {
       if (url.includes("origin=agent")) return jsonResponse(agentListResponse(testCase));
       return jsonResponse(listResponse(testCase));

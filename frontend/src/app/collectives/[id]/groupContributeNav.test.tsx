@@ -8,7 +8,7 @@ import {
 } from "@/test/mountedGroupRoute";
 
 /**
- * Mounts the REAL `/groups/{id}/contribute` route to prove the dedicated route
+ * Mounts the REAL `/collectives/{id}/contribute` route to prove the dedicated route
  * renders the selection panel for a member and a membership notice for
  * everyone else. How the collective page reaches this route and the review
  * route is covered by the overflow cases in `src/testdata/collective-page.yaml`.

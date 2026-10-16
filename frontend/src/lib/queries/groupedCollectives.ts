@@ -69,7 +69,7 @@ function useCollectiveReadPaged<T>(
     queryKey,
     queryFn: async ({ pageParam, signal }) => {
       const requestFilters = { ...filters, page: pageParam, limit };
-      const raw = await api<unknown>(`/groups/${encodeURIComponent(groupId)}${suffix}?${listQuery(requestFilters)}`, { signal });
+      const raw = await api<unknown>(`/collectives/${encodeURIComponent(groupId)}${suffix}?${listQuery(requestFilters)}`, { signal });
       const response = decode(raw);
       const page = pageOf(response);
       if (page.page !== pageParam || page.limit !== limit) {

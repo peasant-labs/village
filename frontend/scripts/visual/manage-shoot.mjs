@@ -1,16 +1,16 @@
 /* Screenshot the real village Manage surfaces for parity against the fairtrade in-use demo.
 
    Captures:
-     - manage-collectives: /groups list surface (shared CollectivesView)
-      - manage-detail:      /groups/:id detail surface (shared manage surface + local page),
+     - manage-collectives: /collectives list surface (shared CollectivesView)
+      - manage-detail:      /collectives/:id detail surface (shared manage surface + local page),
                              captured as manage-detail for an OWNER viewer and as
                              manage-detail-member for a MEMBER viewer, so both header
                              contribute actions are on the record
-      - manage-contribute:  /groups/:id/contribute -- the project > branch > session tree +
+      - manage-contribute:  /collectives/:id/contribute -- the project > branch > session tree +
                              preview column (village#66), at a wide (two-column) and a narrow
                              (single-column, below the 880px container breakpoint) viewport,
                              plus a progress/receipt-state capture of one project's run
-      - manage-settings:    /groups/:id/settings settings form
+      - manage-settings:    /collectives/:id/settings settings form
 
    usage: CHROME_PATH=/path/to/chrome VILLAGE_URL=http://localhost:3000 node scripts/visual/manage-shoot.mjs <theme> <outdir>
 
@@ -79,11 +79,11 @@ const shot = async (name, sel, { fullPage = false } = {}) => {
   console.log('shot', name.padEnd(24), `${Math.round(box.width)}x${Math.round(box.height)}`.padEnd(11), `nonbg=${(r.nonbgRatio * 100).toFixed(1)}% colors=${r.distinctColors}`)
 }
 
-await page.goto(`${ORIGIN}/groups`, { waitUntil: 'domcontentloaded' })
+await page.goto(`${ORIGIN}/collectives`, { waitUntil: 'domcontentloaded' })
 await pause(900)
 await shot('manage-collectives', '.cmg-grid')
 
-await page.goto(`${ORIGIN}/groups/${encodeURIComponent(GROUP_ID)}`, { waitUntil: 'domcontentloaded' })
+await page.goto(`${ORIGIN}/collectives/${encodeURIComponent(GROUP_ID)}`, { waitUntil: 'domcontentloaded' })
 await pause(900)
 // Fail closed on a role mismatch, on BOTH axes. The page must state the role this shoot claims
 // to be capturing (otherwise the REST mock is serving the other role), and it must offer exactly
@@ -102,7 +102,7 @@ const served = await page.evaluate(() => {
 })
 if (served.role !== VIEWER_ROLE) {
   console.error(
-    `ERROR [manage-shoot.mjs] /groups/${GROUP_ID} reports the viewer's role as ` +
+    `ERROR [manage-shoot.mjs] /collectives/${GROUP_ID} reports the viewer's role as ` +
     `${JSON.stringify(served.role)} while this shoot was asked for MOCK_ROLE=${VIEWER_ROLE}. ` +
     `The REST mock is serving the other role, so the capture would be named after a surface it ` +
     `does not show. Restart the mock with MOCK_ROLE=${VIEWER_ROLE} and retry.`,
@@ -111,7 +111,7 @@ if (served.role !== VIEWER_ROLE) {
 }
 if (served.actions !== 1) {
   console.error(
-    `ERROR [manage-shoot.mjs] /groups/${GROUP_ID} offered ${served.actions} contribute actions ` +
+    `ERROR [manage-shoot.mjs] /collectives/${GROUP_ID} offered ${served.actions} contribute actions ` +
     `for MOCK_ROLE=${VIEWER_ROLE}; exactly one is expected (an owner sees village's own action, a ` +
     `member sees the shared manage surface's). Check the served build is the one you just built, ` +
     `then retry.`,
@@ -120,7 +120,7 @@ if (served.actions !== 1) {
 }
 await shot(VIEWER_ROLE === 'member' ? 'manage-detail-member' : 'manage-detail', '.cmg-d-main')
 
-await page.goto(`${ORIGIN}/groups/${encodeURIComponent(GROUP_ID)}/contribute`, { waitUntil: 'domcontentloaded' })
+await page.goto(`${ORIGIN}/collectives/${encodeURIComponent(GROUP_ID)}/contribute`, { waitUntil: 'domcontentloaded' })
 await pause(900)
 await shot('manage-contribute', '.cmg-root')
 
@@ -178,7 +178,7 @@ if (contributeBtn) {
 // and preview columns must stack into ONE column instead of the wide
 // two-column grid.
 await page.setViewport({ width: 700, height: 1000, deviceScaleFactor: 1 })
-await page.goto(`${ORIGIN}/groups/${encodeURIComponent(GROUP_ID)}/contribute`, { waitUntil: 'domcontentloaded' })
+await page.goto(`${ORIGIN}/collectives/${encodeURIComponent(GROUP_ID)}/contribute`, { waitUntil: 'domcontentloaded' })
 await pause(900)
 await shot('manage-contribute-narrow', '.cmg-root')
 await page.setViewport({ width: 1460, height: 1000, deviceScaleFactor: 1 })
@@ -188,7 +188,7 @@ await page.setViewport({ width: 1460, height: 1000, deviceScaleFactor: 1 })
 // capture would omit the danger zone entirely. Only an owner can open settings at all, so a
 // member run stops here rather than failing on a form that route correctly refuses to render.
 if (VIEWER_ROLE === 'owner') {
-  await page.goto(`${ORIGIN}/groups/${encodeURIComponent(GROUP_ID)}/settings`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${ORIGIN}/collectives/${encodeURIComponent(GROUP_ID)}/settings`, { waitUntil: 'domcontentloaded' })
   await pause(900)
   // Provenance for THIS change: the prompts-check switch and its mode radios must
   // be in the served build before the settings surface is captured, or a stale

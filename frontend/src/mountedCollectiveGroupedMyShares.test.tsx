@@ -18,7 +18,7 @@ import {
  * Mounted evidence for the grouped my-shares panel on the REAL collective page,
  * driven by `src/testdata/collective-grouped-my-shares.yaml`.
  *
- * The REAL `/groups/{id}` route renders through the REAL grouped query hook;
+ * The REAL `/collectives/{id}` route renders through the REAL grouped query hook;
  * only HTTP is controlled. The panel reads the grouped variant of the same
  * `my-shares` route as a supplement to the flat contributions it already read,
  * so what is proved here is:
@@ -103,8 +103,8 @@ for (const testCase of fixtures.cases) {
       // Neither read carries a contribution, so the panel must not be mounted at
       // all -- no header, no grouped exit.
       await waitFor(() => {
-        expect(requests.some((request) => request.url.endsWith(`/groups/${GROUP_ID}/my-shares`))).toBe(true);
-        expect(requests.some((request) => request.url.includes(`/groups/${GROUP_ID}/my-shares?view=grouped`))).toBe(true);
+        expect(requests.some((request) => request.url.endsWith(`/collectives/${GROUP_ID}/my-shares`))).toBe(true);
+        expect(requests.some((request) => request.url.includes(`/collectives/${GROUP_ID}/my-shares?view=grouped`))).toBe(true);
         const flat = queryClient.getQueryCache().findAll({ queryKey: ["group-my-shares", GROUP_ID] }).find((query) => query.queryKey[2] === "flat" && query.queryKey[3] !== "anonymous");
         const grouped = queryClient.getQueryCache().findAll({ queryKey: ["group-my-shares", GROUP_ID] }).find((query) => query.queryKey[2] === "grouped-paged");
         expect(flat?.state.status).toBe("success");

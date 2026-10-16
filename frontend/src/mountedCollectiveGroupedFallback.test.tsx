@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import GroupContributePage from "@/app/groups/[id]/contribute/page";
-import GroupDetailPage from "@/app/groups/[id]/page";
-import GroupReviewPage from "@/app/groups/[id]/review/page";
+import GroupContributePage from "@/app/collectives/[id]/contribute/page";
+import GroupDetailPage from "@/app/collectives/[id]/page";
+import GroupReviewPage from "@/app/collectives/[id]/review/page";
 import { AuthProvider } from "@/providers/AuthProvider";
 import type { Group, User } from "@/lib/types";
 import {
@@ -25,7 +25,7 @@ import { memberUUID } from "@/test/groupedHelperMountFixtures";
  * Mounted evidence for the grouped exits a collective's flat rendering does not
  * carry, driven by `src/testdata/collective-grouped-actions.yaml`.
  *
- * The REAL `/groups/{id}`, `/groups/{id}/contribute` and `/groups/{id}/review`
+ * The REAL `/collectives/{id}`, `/collectives/{id}/contribute` and `/collectives/{id}/review`
  * routes render, each through its REAL grouped query hook; only HTTP is
  * controlled. Two states are proved here:
  *
@@ -122,7 +122,7 @@ function installREST(
 
       if (path.endsWith("/auth/me")) return json(VIEWER);
       if (path.endsWith("/auth/orgs")) return json([]);
-      if (path === `/api/v1/groups/${GROUP_ID}`) {
+      if (path === `/api/v1/collectives/${GROUP_ID}`) {
         if (grouped) {
           calls.grouped.push(url.search);
           return json(groupedResponse(surface, groupedPage(page)));
@@ -140,14 +140,14 @@ function installREST(
           pending_members: [],
         });
       }
-      if (path === `/api/v1/groups/${GROUP_ID}/contributable`) {
+      if (path === `/api/v1/collectives/${GROUP_ID}/contributable`) {
         if (grouped) {
           calls.grouped.push(url.search);
           return json(groupedResponse(surface, groupedPage(page)));
         }
         return json(flat.contribute);
       }
-      if (path === `/api/v1/groups/${GROUP_ID}/pending`) {
+      if (path === `/api/v1/collectives/${GROUP_ID}/pending`) {
         if (grouped) {
           calls.grouped.push(url.search);
           return json(groupedResponse(surface, groupedPage(page)));

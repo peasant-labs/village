@@ -197,7 +197,7 @@ export default function PullRequestPage({
             message="village has no prompt attachment for this pull request that you can open."
             action={
               <Link
-                href="/groups"
+                href="/collectives"
                 data-testid="pull-request-back-link"
                 className="font-mono text-[length:var(--fs-label)] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
               >

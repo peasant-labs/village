@@ -250,7 +250,7 @@ const server = createServer(async (req, res) => {
     return send(res, 200, VIEWER === 'other' ? otherViewer : owner)
   }
   if (req.method === 'GET' && path === '/auth/orgs') return send(res, 200, [])
-  if (req.method === 'GET' && path === '/groups') return send(res, 200, [])
+  if (req.method === 'GET' && path === '/collectives') return send(res, 200, [])
 
   if (req.method === 'PATCH' && path === `/users/me/projects/${PROJECT_HASH}`) {
     const body = await readBody(req)

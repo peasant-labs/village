@@ -84,7 +84,7 @@ function installREST(): Calls {
           pull_request_count: 0,
         });
       }
-      if (url.pathname.endsWith("/groups")) return json([]);
+      if (url.pathname.endsWith("/collectives")) return json([]);
       if (url.pathname.endsWith("/users/me/collectives/contributions")) return json({ collectives: [] });
       if (url.pathname.endsWith("/transcripts")) {
         if (url.searchParams.get("view") === "grouped") {

@@ -38,7 +38,7 @@ for (const c of loadExplicitRunCases()) {
   it(c.name, async () => {
     const requests: BatchShareRequest[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toContain("/groups/collective/shares");
+      expect(String(input)).toContain("/collectives/collective/shares");
       expect(init?.method).toBe("POST");
       const body: BatchShareRequest = JSON.parse(String(init?.body));
       requests.push(body);

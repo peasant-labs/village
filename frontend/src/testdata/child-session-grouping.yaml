@@ -18,7 +18,7 @@
 #   profile             /users/{username}, a person's library. Folded WITHIN each
 #                       project group, which is the only place a starter and what
 #                       it started can both be.
-#   contribute          /groups/{id}/contribute, the project > branch > session
+#   contribute          /collectives/{id}/contribute, the project > branch > session
 #                       selection tree.
 # explore can carry rows from several publishers. home, project, profile and
 # contribute read ONE person's own sessions, so a case asserted on any of those

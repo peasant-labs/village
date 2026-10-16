@@ -47,7 +47,7 @@ for (const testCase of loadCollectiveRemovalAccountFixtures()) {
       expect(within(library).getByRole("button", { name: "remove selected (0)" })).toBeDisabled();
       return;
     }
-    await waitFor(() => expect(deletes).toEqual([{ path: `/api/v1/groups/${world.groupId}/transcripts/${first}`, authorization: "Bearer first-credential" }]));
+    await waitFor(() => expect(deletes).toEqual([{ path: `/api/v1/collectives/${world.groupId}/transcripts/${first}`, authorization: "Bearer first-credential" }]));
     if (testCase.switch === "identity") {
       world.viewer = "bea";
       world.transcripts = [];
@@ -63,7 +63,7 @@ for (const testCase of loadCollectiveRemovalAccountFixtures()) {
     }
     await act(async () => { release(); await held; });
     await waitFor(() => expect(client.isMutating()).toBe(0));
-    expect(deletes).toEqual([{ path: `/api/v1/groups/${world.groupId}/transcripts/${first}`, authorization: "Bearer first-credential" }]);
+    expect(deletes).toEqual([{ path: `/api/v1/collectives/${world.groupId}/transcripts/${first}`, authorization: "Bearer first-credential" }]);
     expect(screen.queryByText(/original account failure/)).toBeNull();
     if (testCase.switch === "credential") expect(within(library).getByRole("button", { name: "remove selected (0)" })).toBeDisabled();
   });

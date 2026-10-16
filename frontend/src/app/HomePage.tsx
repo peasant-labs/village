@@ -32,7 +32,7 @@ import type { TranscriptListItem } from "@/lib/types";
  *
  * Every read is the caller's own and already served: the owner-scoped
  * transcript list (a page at a time, with search), `GET /users/me/stats` for
- * the totals, `GET /groups` for the collectives they belong to, and
+ * the totals, `GET /collectives` for the collectives they belong to, and
  * `GET /users/me/collectives/contributions` for what is still waiting for a
  * collective's approval.
  */

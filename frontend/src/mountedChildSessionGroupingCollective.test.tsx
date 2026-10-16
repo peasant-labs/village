@@ -31,11 +31,11 @@ import {
  * Mounted evidence for a session that another session started, on the REAL
  * collective routes, with only HTTP controlled.
  *
- *   /groups/{id}              a collective's contributions, read as a list and
+ *   /collectives/{id}              a collective's contributions, read as a list and
  *                             read by repository; the owner's review queue of a
  *                             curated collective; and a member's own
  *                             contributions to it.
- *   /groups/{id}/contribute   the project > branch > session selection tree.
+ *   /collectives/{id}/contribute   the project > branch > session selection tree.
  *
  * These four lists do not agree on what a row IS -- a transcript list draws an
  * anchor, a review queue draws a queue item with its own approve and reject
@@ -352,7 +352,7 @@ describe("a collective's contributions read a started session under the session 
     await userEvent.click(screen.getByRole("button", { name: `remove selected (${testCase.rows.length})` }));
     expect(requests.filter((request) => request.method === "DELETE")).toEqual([]);
     await userEvent.click(screen.getByRole("button", { name: "yes" }));
-    await waitFor(() => expect(requests.filter((request) => request.method === "DELETE").map((request) => new URL(request.url).pathname)).toEqual(testCase.rows.map((row) => `/api/v1/groups/${GROUP_ID}/transcripts/${row.name}`)));
+    await waitFor(() => expect(requests.filter((request) => request.method === "DELETE").map((request) => new URL(request.url).pathname)).toEqual(testCase.rows.map((row) => `/api/v1/collectives/${GROUP_ID}/transcripts/${row.name}`)));
   });
 });
 

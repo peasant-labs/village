@@ -225,7 +225,7 @@ describe("the pull request page", () => {
 
     await screen.findByTestId("pull-request-page-not-found");
     const back = screen.getByTestId("pull-request-back-link");
-    expect(back.getAttribute("href")).toBe("/groups");
+    expect(back.getAttribute("href")).toBe("/collectives");
     expect(spoken(back)).toBe("back to collectives");
   });
 

@@ -19,7 +19,7 @@ for (const row of loadHeaderLogoutRecoveryFixtures().cases) {
       return read(input, init);
     });
     try {
-      await renderHeaderAt("/groups");
+      await renderHeaderAt("/collectives");
       const account = await screen.findByRole("button", { name: "account menu for @alice-dev" });
       const frames: FrameRequestCallback[] = [];
       if (row.mode === "rapid") vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });

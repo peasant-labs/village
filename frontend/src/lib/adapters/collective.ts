@@ -39,7 +39,7 @@ export type CollectiveData = NonNullable<DetailData["collective"]>;
 export type PolicyChoice = NonNullable<SettingsData["whoCanPublish"]>[number];
 export type CollectiveTranscriptRow = NonNullable<CollectiveData["transcripts"]>[number];
 
-/** The caller's standing in a collective, as `GET /groups/{id}` states it. */
+/** The caller's standing in a collective, as `GET /collectives/{id}` states it. */
 export type CollectiveRole = "" | "pending" | "contributor" | "member" | "owner";
 
 /** A role that belongs to the collective, as opposed to a pending request. */

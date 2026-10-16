@@ -39,7 +39,7 @@ test.describe('collectives', () => {
   })
 
   test('lists the collectives in a table and searches them', async ({ page, theme }, testInfo) => {
-    await page.goto('/groups')
+    await page.goto('/collectives')
     await expectTheme(page, theme)
 
     const table = page.getByRole('table', { name: 'collectives 3' })
@@ -58,11 +58,11 @@ test.describe('collectives', () => {
     await expect(results.getByRole('button', { name: JOURNEY_COLLECTIVES.visitor.name })).toHaveCount(0)
 
     await results.getByRole('button', { name: OWNER.name }).click()
-    await expect(page).toHaveURL(new RegExp(`/groups/${OWNER.id}$`))
+    await expect(page).toHaveURL(new RegExp(`/collectives/${OWNER.id}$`))
   })
 
   test('shows the owner the boxes, the stats, the table and the github orgs rail', async ({ page, theme }, testInfo) => {
-    await page.goto(`/groups/${OWNER.id}`)
+    await page.goto(`/collectives/${OWNER.id}`)
     await expectTheme(page, theme)
 
     await expect(page.getByRole('heading', { name: OWNER.name })).toBeVisible()
@@ -90,7 +90,7 @@ test.describe('collectives', () => {
   })
 
   test('retains transcript grouping and private contribution withdrawal on the mounted detail page', async ({ page, theme }, testInfo) => {
-    await page.goto(`/groups/${OWNER.id}`)
+    await page.goto(`/collectives/${OWNER.id}`)
     await expectTheme(page, theme)
     const library = page.getByTestId('collective-transcript-library')
     await library.getByTestId('collective-library-disclosure-toggle').click()
@@ -103,7 +103,7 @@ test.describe('collectives', () => {
     await expect(contribution.getByRole('link', { name: RETAINED_CONTRIBUTIONS[1].title })).toBeVisible()
     await expect(library.getByRole('alert')).toHaveCount(0)
     const continuation = contribution.getByTestId('grouped-helper-continuation')
-    const laterPage = page.waitForResponse((response) => response.url().includes(`/groups/${OWNER.id}/my-shares?`) && new URL(response.url()).searchParams.get('page') === '2')
+    const laterPage = page.waitForResponse((response) => response.url().includes(`/collectives/${OWNER.id}/my-shares?`) && new URL(response.url()).searchParams.get('page') === '2')
     await continuation.getByRole('button', { name: /load/ }).click()
     expect((await laterPage).ok()).toBe(true)
     const helpers = contribution.locator(`[data-group-id="${RETAINED_GROUPED.groupID}"]`)
@@ -144,7 +144,7 @@ test.describe('collectives', () => {
   })
 
   test('shows a member the org without manage, and leave', async ({ page, theme }, testInfo) => {
-    await page.goto(`/groups/${MEMBER.id}`)
+    await page.goto(`/collectives/${MEMBER.id}`)
     await expectTheme(page, theme)
 
     await expect(page.getByRole('heading', { name: MEMBER.name })).toBeVisible()
@@ -160,7 +160,7 @@ test.describe('collectives', () => {
   })
 
   test('opens the repo picker, links a repository and says what it saved', async ({ page, theme }, testInfo) => {
-    await page.goto(`/groups/${OWNER.id}`)
+    await page.goto(`/collectives/${OWNER.id}`)
     await expectTheme(page, theme)
 
     const rail = page.getByRole('complementary', { name: 'github orgs and members' })

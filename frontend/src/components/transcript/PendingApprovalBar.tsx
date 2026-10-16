@@ -23,7 +23,7 @@ export default function PendingApprovalBar({
 
   const review = useMutation({
     mutationFn: ({ groupId, status }: { groupId: string; status: "approved" | "rejected" }) =>
-      api(`/groups/${groupId}/shares/${transcriptId}`, {
+      api(`/collectives/${groupId}/shares/${transcriptId}`, {
         method: "PATCH",
         body: JSON.stringify({ status }),
       }),

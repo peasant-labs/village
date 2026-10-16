@@ -134,9 +134,9 @@ const server = createServer((req, res) => {
     if (DELAY_MS > 0) return void setTimeout(() => send(res, 200, body), DELAY_MS)
     return send(res, 200, body)
   }
-  if (req.method === 'GET' && path === '/groups/search') return send(res, 200, { collectives: [] })
+  if (req.method === 'GET' && path === '/collectives/search') return send(res, 200, { collectives: [] })
   if (req.method === 'GET' && path === '/tags/popular') return send(res, 200, [])
-  if (req.method === 'GET' && path === '/groups') return send(res, 200, [])
+  if (req.method === 'GET' && path === '/collectives') return send(res, 200, [])
   if (req.method === 'GET' && path === '/auth/me') return send(res, 200, user)
   if (req.method === 'GET' && path === '/auth/orgs') return send(res, 200, [])
 

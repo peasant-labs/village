@@ -1,4 +1,4 @@
-/* Screenshot the collective review route, /groups/{id}/review.
+/* Screenshot the collective review route, /collectives/{id}/review.
 
    One surface, both themes. The page reads the collective's pending queue as
    the same project > branch > session tree the contribute page uses, with a
@@ -51,7 +51,7 @@ if (!CHROME) {
     'set CHROME_PATH to your Chrome/Chromium binary.')
 }
 
-const URL = `${ORIGIN}/groups/${GROUP}/review`
+const URL = `${ORIGIN}/collectives/${GROUP}/review`
 mkdirSync(out, { recursive: true })
 
 const BASE_VP = { width: 1396, height: 939, deviceScaleFactor: 1 }
@@ -136,7 +136,7 @@ const settleWholePageInViewport = async () => {
    CONSTANT 202px taller than whatever viewport it is given - growing the
    viewport grows the document by the same amount, forever, and the settle
    loop can never converge. (Measured on the shipped
-   `/groups/{id}/contribute` route too, at 939/1400/2400px: doc = viewport +
+   `/collectives/{id}/contribute` route too, at 939/1400/2400px: doc = viewport +
    202 every time. It is a property of that composition, not of this change.)
 
    Nothing is given up. `captureBeyondViewport` rasters the whole document
@@ -218,7 +218,7 @@ if (!(await waitFor('[data-testid="review-panel"]'))) {
   await stop(2, 'the review panel never mounted.',
     'the served build predates this route, the viewer is not the collective owner, or the mock served an empty pending queue.',
     'the capture would be a notice or an empty state, not the surface under review.',
-    'rebuild and restart the app from THIS worktree, confirm the mock serves /groups/{id}/pending rows, and retry.')
+    'rebuild and restart the app from THIS worktree, confirm the mock serves /collectives/{id}/pending rows, and retry.')
 }
 
 // The tree must be GROUPED. A flat list is exactly the surface this change
@@ -229,7 +229,7 @@ if (projects.length < 2) {
   await stop(2, `the queue rendered ${projects.length} project grouping(s): ${projects.join(', ') || '(none)'}.`,
     'the pending rows carry no project identity, or the served build reads the queue as one flat list.',
     'the capture would not show the grouping this change exists for.',
-    'confirm the backend widened /groups/{id}/pending with project_hash/project_name/branch, rebuild, and retry.')
+    'confirm the backend widened /collectives/{id}/pending with project_hash/project_name/branch, rebuild, and retry.')
 }
 
 // The shared child-session disclosure: a submission read under the submission

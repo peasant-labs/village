@@ -365,7 +365,7 @@ export function groupByRepo<
 /**
  * One collective-browse transcript as a transcript list reads it.
  *
- * The `/groups/{id}/transcripts` response carries the author flattened onto the
+ * The `/collectives/{id}/transcripts` response carries the author flattened onto the
  * transcript (`owner_username`, `owner_avatar_url`, `owner_is_discoverable`)
  * rather than as a nested account, because a collective's browse page needs a
  * handle and an avatar and nothing else about that person. This lifts those

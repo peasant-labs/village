@@ -13,7 +13,7 @@ import type {
 import type { AsPlainString } from "@/lib/types";
 
 /**
- * One row of `GET /groups/{id}/pending`: a submission awaiting a decision.
+ * One row of `GET /collectives/{id}/pending`: a submission awaiting a decision.
  * A queue can hold rows from several publishers, and `local_id` is unique per
  * owner rather than globally, so matching a started session to its starter
  * needs `owner_id` and `local_id` together.
@@ -34,7 +34,7 @@ export type ReviewDecision = VillageReviewDecision;
 export type BatchReviewRequest = VillageBatchReviewRequest;
 
 /**
- * `PATCH /groups/{id}/shares` response body. `decided` names the submissions
+ * `PATCH /collectives/{id}/shares` response body. `decided` names the submissions
  * this action moved out of the queue; `already_decided` names every requested
  * id that did not move, because another reviewer decided it first or it was
  * never a live submission to this collective. Both read the same way to the

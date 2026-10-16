@@ -296,7 +296,7 @@ export async function handleHomeRequest(req, res, scenario) {
     })
     return true
   }
-  if (req.method === 'GET' && path === '/groups') {
+  if (req.method === 'GET' && path === '/collectives') {
     send(res, 200, COLLECTIVES.map(groupRow))
     return true
   }

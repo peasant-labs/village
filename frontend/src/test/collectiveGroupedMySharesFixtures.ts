@@ -253,7 +253,7 @@ function myShareArm(row: {
   };
 }
 
-/** The flat contribution `GET /groups/{id}/my-shares` serves for one row. */
+/** The flat contribution `GET /collectives/{id}/my-shares` serves for one row. */
 export function flatMyShare(fixtures: CollectiveMyShareFixtures, name: string): UserGroupShare {
   return myShareArm(myShareRow(fixtures, name));
 }

@@ -47,7 +47,7 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
   const { viewer, version, isLoading, read } = useCollectiveReadBinding();
   const groups = useQuery({
     queryKey: ["groups", "manage-access", viewer, version],
-    queryFn: ({ signal }) => read<Group[]>("/groups", signal),
+    queryFn: ({ signal }) => read<Group[]>("/collectives", signal),
     enabled: open && !isLoading,
   });
   const contributions = useQuery({
@@ -59,7 +59,7 @@ export default function ManageAccessDialog({ open, onClose, transcriptId }: Mana
   const submissions = useQueries({
     queries: liveGroups.map((group) => ({
       queryKey: ["group-my-shares", group.id, "manage-access", viewer, version],
-      queryFn: ({ signal }: { signal: AbortSignal }) => read<VillageUserGroupShare[]>(`/groups/${encodeURIComponent(group.id)}/my-shares`, signal),
+      queryFn: ({ signal }: { signal: AbortSignal }) => read<VillageUserGroupShare[]>(`/collectives/${encodeURIComponent(group.id)}/my-shares`, signal),
       enabled: open && !isLoading,
     })),
   });

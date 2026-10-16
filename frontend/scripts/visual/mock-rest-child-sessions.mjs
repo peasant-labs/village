@@ -5,11 +5,11 @@
    reads them together:
 
      profile library        GET /users/{username}, GET /transcripts?owner=...
-     collective data list   GET /groups/{id}
+     collective data list   GET /collectives/{id}
      collective repos view  the same response, read by repository
-     pending-share queue    GET /groups/{id}/pending
-     your contributions     GET /groups/{id}/my-shares
-     contribute tree        GET /groups/{id}/contributable
+     pending-share queue    GET /collectives/{id}/pending
+     your contributions     GET /collectives/{id}/my-shares
+     contribute tree        GET /collectives/{id}/contributable
 
    EVERY one of those datasets carries the same two cases, because the contrast
    is the evidence:
@@ -630,20 +630,20 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && p === '/users/me/collectives/contributions') {
     return send(res, 200, { collectives: contributions })
   }
-  if (req.method === 'GET' && p === '/groups') return send(res, 200, [groupDetail.group])
-  if (req.method === 'GET' && p === '/groups/visible') return send(res, 200, [groupDetail.group])
-  if (req.method === 'GET' && p === `/groups/${GROUP_ID}`) return send(res, 200, groupDetail)
-  if (req.method === 'GET' && p === `/groups/${GROUP_ID}/settings`) return send(res, 200, groupDetail)
-  if (req.method === 'GET' && p === `/groups/${GROUP_ID}/pending`) return send(res, 200, pendingShares)
-  if (req.method === 'GET' && p === `/groups/${GROUP_ID}/my-shares`) return send(res, 200, myShares)
-  if (req.method === 'GET' && p === `/groups/${GROUP_ID}/transcripts`) {
+  if (req.method === 'GET' && p === '/collectives') return send(res, 200, [groupDetail.group])
+  if (req.method === 'GET' && p === '/collectives/visible') return send(res, 200, [groupDetail.group])
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}`) return send(res, 200, groupDetail)
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/settings`) return send(res, 200, groupDetail)
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/pending`) return send(res, 200, pendingShares)
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/my-shares`) return send(res, 200, myShares)
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/transcripts`) {
     return send(res, 200, { transcripts: groupTranscripts })
   }
-  if (req.method === 'GET' && p === `/groups/${GROUP_ID}/contributable`) return send(res, 200, contributable)
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/contributable`) return send(res, 200, contributable)
   // No repository is linked here. Answered rather than refused, so the panel
   // renders its own empty state instead of a failure the capture would have to
   // explain away.
-  if (req.method === 'GET' && p === `/groups/${GROUP_ID}/repositories`) return send(res, 200, { repositories: [] })
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/repositories`) return send(res, 200, { repositories: [] })
 
   return send(res, 401, { error: 'unauthenticated (mock)' })
 })

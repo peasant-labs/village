@@ -10,7 +10,7 @@ import {
 } from "@/test/groupsContributeTreeFixtures";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { makeUser } from "@/test/mountedGroupRoute";
-import GroupContributePage from "@/app/groups/[id]/contribute/page";
+import GroupContributePage from "@/app/collectives/[id]/contribute/page";
 
 const cases = loadGroupsContributeTreeFixtures();
 
@@ -38,7 +38,7 @@ function makeGroup(id: string): Group {
   };
 }
 
-/** Stubs `fetch` for the real mounted `/groups/{id}/contribute` route: the
+/** Stubs `fetch` for the real mounted `/collectives/{id}/contribute` route: the
  *  group detail, the contributable listing, and the batch-share POST. Records
  *  every request so a test asserts the parsed BODY, never a call count
  *  alone. */
@@ -51,7 +51,7 @@ function installContributeRouteREST(groupId: string, contributable: Contributabl
     requests.push({ method, url, body });
 
     if (url.endsWith("/auth/me")) return new Response(JSON.stringify(makeUser("viewer")), { status: 200, headers: { "content-type": "application/json" } });
-    if (url.endsWith(`/groups/${groupId}`)) {
+    if (url.endsWith(`/collectives/${groupId}`)) {
       return new Response(
         JSON.stringify({
           group: makeGroup(groupId),
@@ -66,13 +66,13 @@ function installContributeRouteREST(groupId: string, contributable: Contributabl
         { status: 200, headers: { "content-type": "application/json" } },
       );
     }
-    if (url.endsWith(`/groups/${groupId}/contributable`)) {
+    if (url.endsWith(`/collectives/${groupId}/contributable`)) {
       return new Response(JSON.stringify(contributable), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
     }
-    if (url.endsWith(`/groups/${groupId}/shares`)) {
+    if (url.endsWith(`/collectives/${groupId}/shares`)) {
       return new Response(
         JSON.stringify({
           project_hash: body.project_hash,
@@ -102,7 +102,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("the real /groups/{id}/contribute route (private_selection_opens_confirm)", () => {
+describe("the real /collectives/{id}/contribute route (private_selection_opens_confirm)", () => {
   it("opens the confirm dialog before any request, then sends exactly the confirmed batch", async () => {
     const c = caseByName(cases, "page", "private_selection_opens_confirm");
     const rows = c.rows.map(toContributableTranscript);
