@@ -21,8 +21,12 @@ type viewerIdentity struct {
 // organisations their account belongs to. A caller who signed in through another
 // provider has no GitHub identity here, so they control no installation account.
 func (h *Handler) loadViewerIdentity(ctx context.Context, user *AuthUser) (*viewerIdentity, error) {
+	return loadViewerIdentity(ctx, h.queries, user)
+}
+
+func loadViewerIdentity(ctx context.Context, q Querier, user *AuthUser) (*viewerIdentity, error) {
 	identity := &viewerIdentity{orgIDs: make(map[int64]struct{})}
-	row, err := h.queries.GetUserByID(ctx, user.PgID())
+	row, err := q.GetUserByID(ctx, user.PgID())
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +37,7 @@ func (h *Handler) loadViewerIdentity(ctx context.Context, user *AuthUser) (*view
 		return identity, nil
 	}
 	identity.githubID = row.GithubID
-	orgs, err := h.queries.ListUserAllOrgs(ctx, user.PgID())
+	orgs, err := q.ListUserAllOrgs(ctx, user.PgID())
 	if err != nil {
 		return nil, err
 	}

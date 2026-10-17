@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -212,50 +213,138 @@ func handleIsLogin(handle, login string) bool {
 // into the database. Stale orgs (those the user has left) are removed.
 // Errors are logged but do not fail the login flow.
 func (h *Handler) syncGitHubOrgs(ctx context.Context, client *http.Client, userID pgtype.UUID) {
-	fetchStart := time.Now()
+	if err := h.syncGitHubOrgSnapshot(ctx, client, userID); err != nil {
+		slog.Error("organization snapshot was not installed", "operation", "organization_snapshot", "stage", "fetch_or_persistence", "consequence", "the last complete organization set is retained; an older response cannot replace a newer invocation", "remediation", "sign in again after checking GitHub and database connectivity", "cause_type", fmt.Sprintf("%T", err))
+	}
+}
 
-	resp, err := client.Get("https://api.github.com/user/orgs?per_page=100")
+func (h *Handler) syncGitHubOrgSnapshot(ctx context.Context, client *http.Client, userID pgtype.UUID) error {
+	var issued int64
+	if err := h.inCollectiveAuthorityTx(ctx, nil, userID, nil, func(ctx context.Context, q Querier) error {
+		var err error
+		issued, err = q.IssueGitHubOrgSyncGeneration(ctx, userID)
+		return err
+	}); err != nil {
+		return fmt.Errorf("organization fetch could not allocate its user generation (account missing or generation exhausted); no organization rows changed; authenticate an existing account and inspect database state before retrying: %w", err)
+	}
+	// A durable issuance commits before network I/O; no lock spans GitHub.
+	orgs, err := fetchGitHubOrgSnapshot(ctx, client)
 	if err != nil {
-		log.Printf("syncGitHubOrgs: failed to fetch orgs: %v", err)
-		return
+		return err
 	}
-	defer resp.Body.Close()
+	return h.inCollectiveAuthorityTx(ctx, nil, userID, nil, func(ctx context.Context, q Querier) error {
+		current, err := q.GetGitHubOrgSyncGenerationForUpdate(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if current != issued {
+			return nil
+		} // superseded, including by an empty/failed newer fetch
+		logins := make([]string, 0, len(orgs))
+		for _, org := range orgs {
+			logins = append(logins, strings.ToLower(org.Login))
+			if err := q.UpsertUserGitHubOrg(ctx, sqlc.UpsertUserGitHubOrgParams{
+				UserID:    userID,
+				OrgLogin:  org.Login,
+				OrgID:     org.ID,
+				AvatarUrl: toPgText(org.AvatarURL),
+			}); err != nil {
+				return err
+			}
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("syncGitHubOrgs: GitHub returned status %d", resp.StatusCode)
-		return
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("syncGitHubOrgs: failed to read response: %v", err)
-		return
-	}
-
-	var orgs []struct {
-		ID        int64  `json:"id"`
-		Login     string `json:"login"`
-		AvatarURL string `json:"avatar_url"`
-	}
-	if err := json.Unmarshal(body, &orgs); err != nil {
-		log.Printf("syncGitHubOrgs: failed to parse orgs: %v", err)
-		return
-	}
-
-	for _, org := range orgs {
-		_ = h.queries.UpsertUserGitHubOrg(ctx, sqlc.UpsertUserGitHubOrgParams{
-			UserID:    userID,
-			OrgLogin:  org.Login,
-			OrgID:     org.ID,
-			AvatarUrl: toPgText(org.AvatarURL),
+		return q.DeleteUserOrgsOutsideSnapshot(ctx, sqlc.DeleteUserOrgsOutsideSnapshotParams{
+			UserID:  userID,
+			Column2: logins,
 		})
-	}
-
-	// Delete orgs that weren't fetched this time (user left them)
-	_ = h.queries.DeleteStaleUserOrgs(ctx, sqlc.DeleteStaleUserOrgsParams{
-		UserID:    userID,
-		FetchedAt: pgtype.Timestamptz{Time: fetchStart, Valid: true},
 	})
+}
+
+type githubOrg struct {
+	ID        int64  `json:"id"`
+	Login     string `json:"login"`
+	AvatarURL string `json:"avatar_url"`
+}
+
+// Fetch complete bounded pages, following only GitHub's exact organization
+// endpoint. A malformed, repeated, oversized or truncated page retains the old
+// complete set; a prefix is never an authorization snapshot.
+func fetchGitHubOrgSnapshot(ctx context.Context, client *http.Client) ([]githubOrg, error) {
+	// OAuth's transport adds credentials to each request. Do not follow a
+	// redirect to a different endpoint, even when the supplied client would.
+	boundedClient := *client
+	boundedClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	all := make([]githubOrg, 0)
+	ids := map[int64]bool{}
+	logins := map[string]bool{}
+	next := "https://api.github.com/user/orgs?per_page=100"
+	for page := 1; page <= 100; page++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, next, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := boundedClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("fetch complete organization snapshot page %d: %w", page, err)
+		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
+		closeErr := resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		if resp.StatusCode != http.StatusOK || len(body) > 1<<20 {
+			return nil, fmt.Errorf("organization page %d was unavailable or exceeded its bound; retain the previous snapshot and retry sign-in", page)
+		}
+		var rows []githubOrg
+		if err := json.Unmarshal(body, &rows); err != nil || rows == nil || len(rows) > 100 {
+			return nil, fmt.Errorf("organization page %d was not a complete bounded JSON array; retain the previous snapshot and retry sign-in", page)
+		}
+		for _, org := range rows {
+			login := strings.ToLower(org.Login)
+			if org.ID <= 0 || login == "" || strings.TrimSpace(login) != login || ids[org.ID] || logins[login] {
+				return nil, fmt.Errorf("organization page %d repeats or omits identity; retain the previous snapshot and retry sign-in", page)
+			}
+			ids[org.ID], logins[login] = true, true
+			all = append(all, org)
+		}
+		next = ""
+		for _, link := range strings.Split(resp.Header.Get("Link"), ",") {
+			parts := strings.Split(link, ";")
+			isNext := false
+			for _, part := range parts[1:] {
+				if strings.TrimSpace(part) == `rel="next"` {
+					isNext = true
+				}
+			}
+			if !isNext {
+				continue
+			}
+			if next != "" {
+				return nil, fmt.Errorf("organization response repeats next-page link; retry sign-in")
+			}
+			u, err := url.Parse(strings.Trim(strings.TrimSpace(parts[0]), "<>"))
+			if err != nil || u.Scheme != "https" || u.Host != "api.github.com" || u.Path != "/user/orgs" || u.User != nil || u.Fragment != "" {
+				return nil, fmt.Errorf("organization pagination left the trusted endpoint; retry sign-in")
+			}
+			query := u.Query()
+			if len(query) != 2 || query.Get("page") != strconv.Itoa(page+1) || query.Get("per_page") != "100" || len(query["page"]) != 1 || len(query["per_page"]) != 1 {
+				return nil, fmt.Errorf("organization pagination is not sequential; retry sign-in")
+			}
+			next = u.String()
+		}
+		if next == "" {
+			return all, nil
+		}
+		if len(rows) == 0 {
+			return nil, fmt.Errorf("organization pagination returned an empty prefix before completion; retry sign-in")
+		}
+	}
+	return nil, fmt.Errorf("organization snapshot exceeds 100 pages; prior membership retained; ask an operator to review the fetch bound")
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {

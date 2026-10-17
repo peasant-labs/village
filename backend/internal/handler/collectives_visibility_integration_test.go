@@ -83,6 +83,8 @@ type cvCase struct {
 // member branch, the opt-in gate, the status-versus-join confusion, and the one
 // place where counting transcripts and counting events genuinely diverge.
 var requiredCollectiveVisibilityCases = []string{
+	"foreign-discoverability-hidden",
+	"access-loss-not-global-delete",
 	"public_collective_listed_for_anonymous_viewer",
 	"public_collective_listed_for_other_signed_in_viewer",
 	"public_collective_listed_for_contributing_owner",
@@ -165,6 +167,7 @@ func TestCollectiveVisibilityMatrix(t *testing.T) {
 			}
 
 			world.assertTranscriptCollectives(t, h, testCase.Viewer, testCase.Expect.TranscriptCollectives)
+			world.assertDetailDisclosure(t, h, testCase.Viewer)
 			world.assertProjectRollup(t, ctx, h, testCase.Viewer, testCase.Expect)
 			world.assertContributions(t, h, testCase.Expect, testCase.Why)
 			oracle := world.searchOracle(t, ctx, h, testCase.Viewer)
@@ -447,6 +450,9 @@ func (w *collectiveWorld) step(t *testing.T, h *Handler, index int, step string)
 	case "remove":
 		h.RemoveGroupTranscript(rec, w.request(moderator, http.MethodDelete, "/api/v1/groups/transcripts", nil,
 			map[string]string{"id": w.groupID(), "transcriptID": transcript}))
+	case "remove-viewer-member":
+		h.RemoveGroupMember(rec, w.request(moderator, http.MethodDelete, "/api/v1/groups/members", nil,
+			map[string]string{"id": w.groupID(), "userID": uuid.UUID(w.member.Bytes).String()}))
 	default:
 		t.Fatalf("the corpus asks for step %q on transcript %d; this interpreter performs submit, approve, reject, "+
 			"unshare and remove", step, index)
@@ -481,6 +487,63 @@ func (w *collectiveWorld) transcriptCollectives(t *testing.T, h *Handler, viewer
 		ids = append(ids, c.ID)
 	}
 	return http.StatusOK, ids
+}
+
+// Detail is a second mounted production exit for the same associations. A
+// withheld row must not escape via either of its older broad share projections.
+func (w *collectiveWorld) assertDetailDisclosure(t *testing.T, h *Handler, viewerName string) {
+	t.Helper()
+	actor, isOwner := w.viewer(t, viewerName)
+	status, disclosed := w.transcriptCollectives(t, h, viewerName)
+	router := chi.NewRouter()
+	router.Get("/transcripts/{id}", h.GetTranscript)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, w.request(actor, http.MethodGet, "/transcripts/"+uuid.UUID(w.transcripts[0].Bytes).String(), nil, nil))
+	if rec.Code != status {
+		t.Fatalf("detail/dedicated status %d/%d: %s", rec.Code, status, rec.Body.String())
+	}
+	if status != 200 {
+		return
+	}
+	var response struct {
+		Shares []struct {
+			GroupID string `json:"group_id"`
+		} `json:"shares"`
+		Enriched []struct {
+			GroupID string `json:"group_id"`
+		} `json:"enriched_shares"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if isOwner {
+		// Owner history/pending projections remain available even though the
+		// dedicated viewer set is approved-only.
+		rows, err := h.queries.ListTranscriptShares(context.Background(), w.transcripts[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(response.Shares) != len(rows) {
+			t.Fatalf("owner detail lost pending/history shares: %s", rec.Body.String())
+		}
+		return
+	}
+	if len(response.Shares) != len(disclosed) || len(response.Enriched) != len(disclosed) {
+		t.Fatalf("detail associations differ from dedicated disclosed set %v: %s", disclosed, rec.Body.String())
+	}
+	for _, row := range response.Shares {
+		if !containsID(disclosed, row.GroupID) {
+			t.Fatalf("detail leaked share %s", row.GroupID)
+		}
+	}
+	for _, row := range response.Enriched {
+		if !containsID(disclosed, row.GroupID) {
+			t.Fatalf("detail leaked enriched share %s", row.GroupID)
+		}
+	}
+	if !containsID(disclosed, w.groupID()) && strings.Contains(rec.Body.String(), w.groupID()) {
+		t.Fatalf("hidden collective id remains in detail: %s", rec.Body.String())
+	}
 }
 
 func (w *collectiveWorld) assertTranscriptCollectives(t *testing.T, h *Handler, viewerName, want string) {

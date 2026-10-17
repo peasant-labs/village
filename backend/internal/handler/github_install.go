@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -169,9 +171,22 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 		if bound != nil {
 			target = uuid.UUID(bound.ID.Bytes).String()
 			if !alreadyBound {
-				if err := h.queries.SetGroupLinkedGitHubOrg(r.Context(), sqlc.SetGroupLinkedGitHubOrgParams{
-					ID:              bound.ID,
-					LinkedGithubOrg: pgtype.Text{String: account, Valid: true},
+				if err := h.inCollectiveAuthorityTx(r.Context(), nil, user.PgID(), []pgtype.UUID{bound.ID}, func(ctx context.Context, q Querier) error {
+					member, err := q.GetGroupMemberForShare(ctx, sqlc.GetGroupMemberForShareParams{GroupID: bound.ID, UserID: user.PgID()})
+					if err != nil || member.Role != "owner" {
+						return fmt.Errorf("collective installation binding refused because current ownership could not be verified; reload your collectives and retry")
+					}
+					identity, err := loadViewerIdentity(ctx, q, user)
+					if err != nil {
+						return err
+					}
+					if !identity.controlsAccount(inst.AccountID) {
+						return fmt.Errorf("installation binding refused because current account control was lost; sign in again and retry from an organization you currently control")
+					}
+					return q.SetGroupLinkedGitHubOrg(ctx, sqlc.SetGroupLinkedGitHubOrgParams{
+						ID:              bound.ID,
+						LinkedGithubOrg: pgtype.Text{String: account, Valid: true},
+					})
 				}); err != nil {
 					writeError(w, http.StatusInternalServerError, "Could not bind the collective to the installation")
 					return

@@ -32,6 +32,11 @@ func installRequest(h *Handler, path string, userID uuid.UUID) *httptest.Respons
 
 func installHandler(t *testing.T, f *fakeGitHub, mq *mockQuerier) *Handler {
 	t.Helper()
+	if mq.getGroupMember == nil {
+		mq.getGroupMember = func(_ context.Context, arg sqlc.GetGroupMemberParams) (sqlc.GroupMember, error) {
+			return sqlc.GroupMember{GroupID: arg.GroupID, UserID: arg.UserID, Role: "owner"}, nil
+		}
+	}
 	if f == nil {
 		f = &fakeGitHub{}
 	}

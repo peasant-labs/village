@@ -26,6 +26,42 @@
 # gate BEFORE the collectives list, and a case that silently inherited "public"
 # would hide the difference.
 
+- name: foreign-discoverability-hidden
+  why: detail and dedicated association reads must both withhold an opted-out foreign contributor without revealing hidden association IDs
+  collective: {data_access: public, acceptance_mode: open}
+  owner_is_discoverable: false
+  transcript_visibility: public
+  transcripts: [{steps: [submit]}]
+  viewer: other
+  expect:
+    transcript_collectives: absent
+    project_rollup: absent
+    project_rollup_transcript_count: 0
+    search_collectives: visible
+    contributions_listed: true
+    approved_count: 1
+    pending_count: 0
+    rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
+
+- name: access-loss-not-global-delete
+  why: leaving a public collective does not hide its accepted association or delete the publicly readable transcript
+  collective: {data_access: public, acceptance_mode: curated}
+  owner_is_discoverable: true
+  transcript_visibility: public
+  transcripts: [{steps: [submit, approve, remove-viewer-member]}]
+  viewer: member
+  expect:
+    transcript_collectives: listed
+    project_rollup: listed
+    project_rollup_transcript_count: 1
+    search_collectives: visible
+    contributions_listed: true
+    approved_count: 1
+    pending_count: 0
+    rejected_attempt_count: 0
+    withdrawn_attempt_count: 0
+
 - name: public_collective_listed_for_anonymous_viewer
   why: a collective whose data is public is visible to everyone, so a signed-out reader sees the membership
   collective: {data_access: public, acceptance_mode: curated}

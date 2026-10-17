@@ -1,0 +1,6 @@
+- {name: github-profile-upsert-keeps-generation, operation: github}
+- {name: provider-profile-upsert-keeps-generation, operation: provider}
+- {name: username-change-keeps-generation, operation: username}
+- {name: handle-confirmation-keeps-generation, operation: confirm}
+- {name: discoverability-change-keeps-generation, operation: discoverability}
+- {name: attachment-settings-change-keeps-generation, operation: settings}

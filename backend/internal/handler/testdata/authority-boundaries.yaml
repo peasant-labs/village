@@ -1,0 +1,21 @@
+- {name: batch-live-selection-revoked-before-final-write, operation: batch-revoked}
+- {name: newer-empty-org-snapshot-fences-old-login, operation: org-overlap, newer: empty}
+- {name: newer-failed-org-fetch-retains-complete-set, operation: org-overlap, newer: failed}
+- {name: org-second-write-failure-retains-complete-set, operation: org-write-failure}
+- {name: verified-only-share-waits-for-current-org-snapshot, operation: org-share}
+- {name: exhausted-org-generation-does-not-fetch, operation: generation-refusal, key: exhausted}
+- {name: deleted-user-org-sync-does-not-fetch, operation: generation-refusal, key: deleted}
+- {name: missing-user-org-sync-does-not-fetch, operation: generation-refusal, key: missing}
+- {name: org-pagination-installs-complete-set-preserving-visibility, operation: org-pages, newer: complete}
+- {name: org-pagination-failed-prefix-retains-complete-set, operation: org-pages, newer: failed}
+- {name: org-pagination-untrusted-next-retains-complete-set, operation: org-pages, newer: untrusted}
+- {name: installation-binding-rechecks-current-org-control, operation: binding}
+- {name: promote-member-serializes-current-owner-policy-write, operation: promote}
+- {name: member-removal-retraction-failure-rolls-back-all-effects, operation: retract-failure}
+- {name: actor-lock-wait-is-bounded-and-releases-publish-lock, operation: timeout, key: actor}
+- {name: collective-lock-wait-is-bounded-and-releases-publish-lock, operation: timeout, key: collective}
+- {name: account-delete-cascade-waits-for-member-authority-row, operation: cascade, key: member}
+- {name: creator-delete-cascade-waits-for-collective-authority-row, operation: cascade, key: group}
+- name: private-org-generation-never-enters-raw-user-endpoints
+  operation: private-json
+  fields: [id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests]

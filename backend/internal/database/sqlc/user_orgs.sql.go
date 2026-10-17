@@ -26,6 +26,32 @@ func (q *Queries) DeleteStaleUserOrgs(ctx context.Context, arg DeleteStaleUserOr
 	return err
 }
 
+const deleteUserOrgsOutsideSnapshot = `-- name: DeleteUserOrgsOutsideSnapshot :exec
+DELETE FROM user_github_orgs
+WHERE user_id = $1 AND NOT (lower(org_login) = ANY($2::text[]))
+`
+
+type DeleteUserOrgsOutsideSnapshotParams struct {
+	UserID  pgtype.UUID `db:"user_id" json:"user_id"`
+	Column2 []string    `db:"column_2" json:"column_2"`
+}
+
+func (q *Queries) DeleteUserOrgsOutsideSnapshot(ctx context.Context, arg DeleteUserOrgsOutsideSnapshotParams) error {
+	_, err := q.db.Exec(ctx, deleteUserOrgsOutsideSnapshot, arg.UserID, arg.Column2)
+	return err
+}
+
+const getGitHubOrgSyncGenerationForUpdate = `-- name: GetGitHubOrgSyncGenerationForUpdate :one
+SELECT github_org_sync_generation FROM users WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetGitHubOrgSyncGenerationForUpdate(ctx context.Context, id pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, getGitHubOrgSyncGenerationForUpdate, id)
+	var github_org_sync_generation int64
+	err := row.Scan(&github_org_sync_generation)
+	return github_org_sync_generation, err
+}
+
 const getOrgStats = `-- name: GetOrgStats :one
 SELECT
     ugo.org_login,
@@ -113,6 +139,21 @@ func (q *Queries) HasUserVisibleOrg(ctx context.Context, arg HasUserVisibleOrgPa
 	var has_org bool
 	err := row.Scan(&has_org)
 	return has_org, err
+}
+
+const issueGitHubOrgSyncGeneration = `-- name: IssueGitHubOrgSyncGeneration :one
+UPDATE users SET github_org_sync_generation = github_org_sync_generation + 1
+WHERE id = $1 AND github_org_sync_generation < 9223372036854775807
+RETURNING github_org_sync_generation
+`
+
+// Allocate before external I/O. An empty or failed newer fetch still fences
+// older responses. Never wrap an exhausted generation or recreate a user.
+func (q *Queries) IssueGitHubOrgSyncGeneration(ctx context.Context, id pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, issueGitHubOrgSyncGeneration, id)
+	var github_org_sync_generation int64
+	err := row.Scan(&github_org_sync_generation)
+	return github_org_sync_generation, err
 }
 
 const listOrgMembers = `-- name: ListOrgMembers :many

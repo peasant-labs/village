@@ -77,6 +77,9 @@ type Handler struct {
 	// constructors below; a handler that never set it refuses to serve the route
 	// at all rather than serving an unbounded response.
 	contributableRowLimit int
+	// Zero selects the 15-second production authority transaction budget.
+	// Tests inject a short bound to prove lock wait cancellation and cleanup.
+	collectiveAuthorityTimeout time.Duration
 
 	// gh is the GitHub App client backing the collective-repository feature.
 	// It is nil when the App is not configured; handlers detect this via

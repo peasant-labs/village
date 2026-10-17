@@ -14,3 +14,6 @@ sql:
         # drift (the ListTranscripts license_id regression class).
         emit_db_tags: true
         emit_empty_slices: true
+        overrides:
+          - column: users.github_org_sync_generation
+            go_struct_tag: 'json:"-" db:"github_org_sync_generation"'

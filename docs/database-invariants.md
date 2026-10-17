@@ -245,6 +245,44 @@ boundary are documented in
 
 ## 2. Licensing data model
 
+### Private organization snapshot issuance
+
+Migration 045 adds `users.github_org_sync_generation`, a nonnegative BIGINT
+starting at zero, solely to fence organization fetches. Organization rows cannot
+represent a newer EMPTY snapshot once all rows are deleted. Their `fetched_at`
+timestamps, the unrelated `users.updated_at`, CLI-only OAuth sessions and
+process-local state cannot supply cross-replica issuance identity. This is the
+necessary server authority state, not a collective observation cache, shared
+wire rule or rename migration. No historical membership is fabricated.
+
+`syncGitHubOrgSnapshot` commits a guarded generation increment under the actor
+authority lock BEFORE requesting GitHub. Missing/deleted users and an exhausted
+BIGINT refuse without fetching or wrapping. Profile, handle, discoverability and
+attachment-setting writers never reset this generation. After external I/O,
+installation reacquires the actor lock and locks the user row, compares the
+issued generation with the current one, and discards superseded responses. A
+newer failed request preserves the prior complete organization set while still
+fencing every older in-flight response. A newer empty snapshot therefore cannot
+be undone by a delayed earlier login. This works across Handler instances,
+replicas and process restarts without wall-clock ordering or locks over GitHub.
+
+Organization pages are fetched from the exact HTTPS GitHub organizations
+endpoint, sequentially with at most 100 pages, 100 entries and 1 MiB per page,
+and one 30-second external-fetch budget. Redirects and untrusted/repeated page
+links, invalid or repeated identities, incomplete pages and failures retain the
+prior complete set. Only a fully fetched set matching the current issuance can
+upsert rows and delete the exact absent-login set, together in one transaction.
+Surviving rows retain their publication visibility. `fetched_at` records an
+observation, never decides issuance order. No retry is queued.
+
+The generation MUST NOT enter served user JSON. The column-specific sqlc
+override preserves its database tag and emits `json:"-"`, while real mounted
+`/auth/me` and public-profile tests assert the exact preexisting public field
+membership. Generated SQL/model output is regenerated, not hand-edited. The
+down migration removes only this private fence, not organization rows; running
+old writers during a rolling deployment cannot provide the new fencing
+guarantee, so drain older application instances before relying on it.
+
 ### Durable session graph projections
 
 Migration 039 adds `transcripts.input_submission_count` (nullable BIGINT, range
@@ -514,16 +552,58 @@ The audit triggers (migration 026) and the share-derivation triggers
   and no second write path - and, for each transcript that was private,
   `applyMetadataPatch` moves it to `shared`. It adds NO trigger, NO GUC, and no
   new table.
-- **The whole batch is ONE transaction, and the single share's
-  continue-on-conflict pattern must NEVER be copied into it.** The single share
-  runs its inserts as autocommit statements, so recording a duplicate conflict
-  and carrying on to the next collective is safe there. Inside a transaction the
-  first error has already aborted it: continuing would run the remaining
-  statements against a dead transaction and commit nothing while reporting
-  success. The batch therefore returns the conflict, which rolls the WHOLE batch
-  back, and answers 409 naming the transcript. Every other refusal (ownership,
-  project membership, consent, an already-live selection) is decided BEFORE the
-  transaction opens, so a refused contribution leaves the ledger byte-identical.
+- **Each requested share operation is ONE transaction.** A single transcript's
+  entire requested collective set and a whole project's selected transcripts
+  each commit their attempts and already-consented private-to-shared visibility
+  together. Validate every target; an invalid, pending-member, removed-member or
+  policy-refused target is never silently skipped. Any statement error rolls the
+  operation back, including earlier attempts and visibility changes. A refusal
+  cannot widen a private transcript with no accepted target. An earlier content
+  upload is a separate committed operation, not part of this transaction.
+- **Final authority is read under shared writer locks.** After transcript publish
+  locks, `inCollectiveAuthorityTx` acquires the authenticated actor's
+  `village:collective-actor:<uuid>` key and every requested
+  `village:collective-authority:<uuid>` key as transaction advisory locks, sorted
+  and deduplicated. The actor key serializes organization-snapshot replacement
+  with verified-only decisions. Membership and group-policy reads retain row
+  `FOR SHARE` locks to transaction end, including against account-delete cascades.
+  The single share checks current ownership, accepted membership and the existing
+  `shareStatusForGroup` policy; the batch also checks current project identity,
+  consent and unchanged preflight acceptance outcome. The batch takes publish
+  locks for the ENTIRE selected set, including previously live submissions,
+  rereads every selected ownership/project/current-attempt classification, and
+  derives both receipt arrays from those final reads. A previously live target
+  revoked while the batch waits refuses and rolls back the whole operation;
+  it is never silently omitted, falsely reported already shared or automatically
+  resubmitted. A changed batch outcome requires explicit retry rather than
+  silently changing what was offered.
+  Policy updates/deletion, member addition/join/promotion/removal, review/removal
+  of contributions and installation linked-org binding use the same authority
+  transaction before their own checks.
+  Login organization replacement holds the same actor key and installs its
+  complete generation-fenced fetched snapshot atomically. Installation binding
+  rereads account identity and organization IDs using that transaction's Querier
+  under actor and collective locks, and rechecks current account control and
+  ownership immediately before writing. A stale preflight identity never binds
+  an organization the caller no longer controls. HTTP success is emitted only after
+  commit. Member removal and optional share retraction also commit together.
+  No authority-lock holder acquires a transcript publish lock; attachment refresh
+  is post-commit. Its affected rows are captured before retraction removes the
+  grant join, preserving the existing check-withdrawal exit. No external-service I/O is
+  performed under these transactions. Other than the private issuance fence
+  above, locking adds no stored state or policy engine; the existing shared
+  schema and acceptance rule remain authoritative.
+- **Authority database work is bounded.** Each authority transaction, including
+  connection acquisition, advisory-lock waits and callback queries, receives a
+  15-second context budget (shorter caller deadlines win). PostgreSQL local
+  lock/statement timeouts are installed before authority locks and use half that
+  budget per statement, so a stalled holder is refused before context
+  cancellation would discard the session. Callback queries use the bounded
+  context; external attachment refresh runs only after commit/release. Existing
+  rollback and advisory-unlock cleanup each have their own bounded context and
+  evict uncertain physical sessions. A timeout never reports success or queues
+  a retry; an uncertain commit still requires rereading current state. This is
+  separate from HTTP WriteTimeout, which does not cancel handler contexts.
 - **The ledger refuses a new attempt in TWO distinct ways, and they need
   opposite advice.** `uq_share_attempt_open` refuses a second submission while
   one is AWAITING REVIEW - a duplicate, cleared only by deciding or withdrawing
@@ -725,6 +805,20 @@ authenticating. Both are custom Postgres parameters read via
   The transcript owner keeps access, and collective owners keep the separate
   review-preview grant for submissions they must decide. This uses existing
   rows and queries; it adds no stored state or migration.
+- **Transcript association disclosure is separate from content access.** A
+  non-owner's detail response filters both `shares` and `enriched_shares` through
+  `ListTranscriptCollectivesForViewer`, exactly the accepted association set the
+  dedicated endpoint discloses. Collective visibility and contributor
+  discoverability both apply; a withheld association looks absent rather than
+  producing an existence-confirming refusal. Owners retain their broader
+  pending/current projections and separate attempt-history reads. Share,
+  enrichment, disclosure and organization-linked-collective query errors fail
+  the read rather than produce successful empty snapshots. On the dedicated
+  association endpoint and detail read an unavailable transcript or grant lookup
+  is a server failure, not the known-negative 404 used for absent or unreadable
+  transcripts. The error-bearing check and the older fail-closed boolean callers
+  share one implementation of the transcript read policy. No
+  association observation grants permission to pull content.
 - **An owner's unshare never leaves `shared` with no live submission.** Live is
   the attempt ledger's meaning: the latest attempt of the pair is `pending` or
   `approved` (a pending one counts, because it grants access the moment it is
@@ -741,11 +835,12 @@ authenticating. Both are custom Postgres parameters read via
   Sharing to collectives that all hold a live submission already is a
   duplicate and answers 409, except on a `private` transcript: there those
   submissions grant nothing, so the share flips it to `shared` and answers 200
-  without opening an attempt. This is a rule of the owner's unshare, not of the
-  column: `shared` can still outlive its last live submission through a
+  without opening an attempt. Recovery still checks current accepted membership
+  and policy for every requested target; a retained live attempt cannot restore
+  authority after membership is revoked. This is a rule of the owner's unshare,
+  not of the column: `shared` can still outlive its last live submission through a
   collective's rejection or removal, a member leaving, a pull request detach
-  that restores a recorded `shared`, a share whose every requested collective was skipped,
-  and rows older than this rule.
+  that restores a recorded `shared`, and rows older than this rule.
 - **Attaching never changes who can read a transcript.** Attaching a transcript
   to a pull request, by the author's click, a publish that completes a waiting
   request, or the author's `auto_attach_pull_requests` choice, binds it and
