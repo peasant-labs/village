@@ -291,21 +291,12 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 		alreadyLive[row.TranscriptID] = struct{}{}
 	}
 
-	alreadyShared := make([]string, 0, len(alreadyLive))
 	remaining := make([]sqlc.ListOwnerProjectShareCandidatesRow, 0, len(selected))
 	for _, candidate := range selected {
 		if _, isLive := alreadyLive[candidate.ID]; isLive {
-			alreadyShared = append(alreadyShared, uuid.UUID(candidate.ID.Bytes).String())
 			continue
 		}
 		remaining = append(remaining, candidate)
-	}
-
-	if len(remaining) == 0 {
-		writeError(w, http.StatusConflict, "Every transcript in this selection is already submitted to "+
-			pluralCollectives(len(alreadyShared))+": a submission awaiting review or already accepted is still live, so a second submission would be a duplicate rather than a new attempt. "+
-			"Nothing was changed. Withdraw the existing submissions first if you want to submit them again, or wait for the collective to decide them; once they are rejected or withdrawn, sharing again opens a new attempt.")
-		return
 	}
 
 	if consentRefusal := consentRefusalForPrivate(remaining, req.VisibilityConfirmed); consentRefusal != "" {
@@ -313,14 +304,15 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	localIDs := make([]string, 0, len(remaining))
-	for _, candidate := range remaining {
+	localIDs := make([]string, 0, len(selected))
+	for _, candidate := range selected {
 		localIDs = append(localIDs, candidate.LocalID)
 	}
 
 	var writeErr error
+	result := batchShareResponse{ProjectHash: req.ProjectHash, Shared: []batchShareEntry{}, AlreadyShared: []string{}}
 	if err := h.withPublishLocksMany(ctx, user.PgID(), localIDs, func(conn *pgxpool.Conn) error {
-		writeErr = h.writeBatchShare(ctx, conn, user, pgGroupID, status, remaining, req.VisibilityConfirmed, req.ProjectHash)
+		writeErr = h.writeBatchShare(ctx, conn, user, pgGroupID, status, selected, req.VisibilityConfirmed, req.ProjectHash, alreadyLive, &result)
 		return nil
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf(
@@ -350,27 +342,16 @@ func (h *Handler) BatchShareProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shared := make([]batchShareEntry, 0, len(remaining))
-	for _, candidate := range remaining {
-		shared = append(shared, batchShareEntry{
-			TranscriptID: uuid.UUID(candidate.ID.Bytes).String(),
-			Status:       status,
-		})
-	}
-	writeJSON(w, http.StatusOK, batchShareResponse{
-		ProjectHash:   req.ProjectHash,
-		Shared:        shared,
-		AlreadyShared: alreadyShared,
-	})
+	writeJSON(w, http.StatusOK, result)
 }
 
 // writeBatchShare performs every write of one batch inside ONE transaction.
 //
 // Any statement error rolls back the operation. Continuing after a PostgreSQL
 // error would run the remaining statements against an aborted transaction.
-func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user *AuthUser, groupID pgtype.UUID, status ShareStatus, candidates []sqlc.ListOwnerProjectShareCandidatesRow, visibilityConfirmed bool, projectHash string) error {
+func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user *AuthUser, groupID pgtype.UUID, status ShareStatus, candidates []sqlc.ListOwnerProjectShareCandidatesRow, visibilityConfirmed bool, projectHash string, preflightLive map[pgtype.UUID]struct{}, result *batchShareResponse) error {
 	shared := dbVisibilityShared
-	return h.inCollectiveAuthorityTx(ctx, conn, user.PgID(), []pgtype.UUID{groupID}, func(q Querier) error {
+	return h.inCollectiveAuthorityTx(ctx, conn, user.PgID(), []pgtype.UUID{groupID}, func(ctx context.Context, q Querier) error {
 		currentStatus, err := finalShareStatus(ctx, q, user, groupID)
 		if err != nil {
 			return err
@@ -390,8 +371,14 @@ func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user 
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
 			}
-			if err == nil && shareAttemptIsLive(latest.Status) {
-				return &batchShareConflict{TranscriptID: uuid.UUID(candidate.ID.Bytes).String(), Kind: shareAttemptConflictOpen}
+			isLive := err == nil && shareAttemptIsLive(latest.Status)
+			_, wasLive := preflightLive[candidate.ID]
+			if isLive != wasLive {
+				return &shareOperationRefusal{http.StatusConflict, "The selected transcript " + uuid.UUID(candidate.ID.Bytes).String() + " changed contribution state while this request waited. The whole contribution was rolled back; reload the complete selection and explicitly retry. No withdrawn or rejected contribution was automatically resubmitted."}
+			}
+			if isLive {
+				result.AlreadyShared = append(result.AlreadyShared, uuid.UUID(candidate.ID.Bytes).String())
+				continue
 			}
 			if err := q.ShareTranscriptWithStatus(ctx, sqlc.ShareTranscriptWithStatusParams{
 				TranscriptID: candidate.ID,
@@ -404,6 +391,7 @@ func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user 
 				}
 				return fmt.Errorf("open a share attempt for transcript %s: %w", uuid.UUID(candidate.ID.Bytes).String(), err)
 			}
+			result.Shared = append(result.Shared, batchShareEntry{TranscriptID: uuid.UUID(candidate.ID.Bytes).String(), Status: currentStatus})
 			// Contributing a private transcript makes it visible to the
 			// collective, so its visibility moves with the submission and in the
 			// same transaction: the two can never be observed apart, and the
@@ -432,6 +420,9 @@ func (h *Handler) writeBatchShare(ctx context.Context, conn *pgxpool.Conn, user 
 			if _, err := applyMetadataPatch(ctx, q, candidate.ID, metadataPatch{Visibility: &shared}); err != nil {
 				return fmt.Errorf("record the new visibility of transcript %s: %w", uuid.UUID(candidate.ID.Bytes).String(), err)
 			}
+		}
+		if len(result.Shared) == 0 {
+			return &shareOperationRefusal{http.StatusConflict, "Every transcript in this selection is already submitted to " + pluralCollectives(len(result.AlreadyShared)) + ". Nothing was changed. Withdraw the existing submissions or wait for them to be decided before submitting again."}
 		}
 		return nil
 	})

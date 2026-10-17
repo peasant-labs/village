@@ -28,6 +28,9 @@ import (
 // ----------------------------------------------------------------------------
 
 type mockQuerier struct {
+	issueGitHubOrgSyncGeneration        func(context.Context, pgtype.UUID) (int64, error)
+	getGitHubOrgSyncGenerationForUpdate func(context.Context, pgtype.UUID) (int64, error)
+	deleteUserOrgsOutsideSnapshot       func(context.Context, sqlc.DeleteUserOrgsOutsideSnapshotParams) error
 	// CLI session stubs
 	insertCLISession         func(ctx context.Context, arg sqlc.InsertCLISessionParams) (pgtype.UUID, error)
 	getCLISessionByState     func(ctx context.Context, oauthState string) (sqlc.CliAuthSession, error)
@@ -169,6 +172,25 @@ type mockQuerier struct {
 	createGroup              func(ctx context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error)
 	updateGroup              func(ctx context.Context, arg sqlc.UpdateGroupParams) (sqlc.Group, error)
 	addGroupMember           func(ctx context.Context, arg sqlc.AddGroupMemberParams) error
+}
+
+func (m *mockQuerier) IssueGitHubOrgSyncGeneration(ctx context.Context, id pgtype.UUID) (int64, error) {
+	if m.issueGitHubOrgSyncGeneration != nil {
+		return m.issueGitHubOrgSyncGeneration(ctx, id)
+	}
+	return 1, nil
+}
+func (m *mockQuerier) GetGitHubOrgSyncGenerationForUpdate(ctx context.Context, id pgtype.UUID) (int64, error) {
+	if m.getGitHubOrgSyncGenerationForUpdate != nil {
+		return m.getGitHubOrgSyncGenerationForUpdate(ctx, id)
+	}
+	return 1, nil
+}
+func (m *mockQuerier) DeleteUserOrgsOutsideSnapshot(ctx context.Context, arg sqlc.DeleteUserOrgsOutsideSnapshotParams) error {
+	if m.deleteUserOrgsOutsideSnapshot != nil {
+		return m.deleteUserOrgsOutsideSnapshot(ctx, arg)
+	}
+	return nil
 }
 
 // ---- CLI session ---------------------------------------------------------

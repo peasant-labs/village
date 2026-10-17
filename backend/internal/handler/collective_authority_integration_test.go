@@ -235,7 +235,7 @@ func TestCollectiveFinalAuthority(t *testing.T) {
 						t.Error("share request did not terminate")
 					}
 				}()
-				world.waitForLockWaiter(t, ctx, "advisory")
+				waitForSessionBlockedBy(t, ctx, pool, backendPID(t, ctx, conn))
 				change()
 				if _, err := conn.Exec(ctx, "SELECT pg_advisory_unlock(hashtextextended($1,0))", key); err != nil {
 					t.Fatal(err)
@@ -394,7 +394,7 @@ func assertOwnerAuthorityAfterRoleChange(t *testing.T, ctx context.Context, h *H
 	workers.Add(1)
 	go func() {
 		defer workers.Done()
-		writerDone <- h.inCollectiveAuthorityTx(ctx, nil, world.owner, []pgtype.UUID{world.group}, func(q Querier) error {
+		writerDone <- h.inCollectiveAuthorityTx(ctx, nil, world.owner, []pgtype.UUID{world.group}, func(ctx context.Context, q Querier) error {
 			if err := q.UpdateMemberRole(ctx, sqlc.UpdateMemberRoleParams{GroupID: world.group, UserID: world.moderator, Role: "member"}); err != nil {
 				return err
 			}
@@ -430,7 +430,14 @@ func assertOwnerAuthorityAfterRoleChange(t *testing.T, ctx context.Context, h *H
 		router.ServeHTTP(rec, request)
 		result <- rec
 	}()
-	world.waitForLockWaiter(t, ctx, "advisory")
+	var blocker int32
+	// The role writer holds this exact collective key while its barrier waits.
+	if err := world.pool.QueryRow(ctx, `SELECT pid FROM pg_locks WHERE locktype='advisory' AND granted
+	 AND classid=((hashtextextended($1,0)>>32)&4294967295)::oid
+	 AND objid=(hashtextextended($1,0)&4294967295)::oid`, "village:collective-authority:"+uuid.UUID(world.group.Bytes).String()).Scan(&blocker); err != nil {
+		t.Fatal(err)
+	}
+	waitForSessionBlockedBy(t, ctx, world.pool, blocker)
 	unblock()
 	select {
 	case err := <-writerDone:

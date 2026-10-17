@@ -12,6 +12,9 @@ import (
 // It is satisfied by *sqlc.Queries and can be mocked in tests.
 // Only methods that are actually called from handler files are listed here.
 type Querier interface {
+	IssueGitHubOrgSyncGeneration(context.Context, pgtype.UUID) (int64, error)
+	GetGitHubOrgSyncGenerationForUpdate(context.Context, pgtype.UUID) (int64, error)
+	DeleteUserOrgsOutsideSnapshot(context.Context, sqlc.DeleteUserOrgsOutsideSnapshotParams) error
 	// CLI auth session methods
 	InsertCLISession(ctx context.Context, arg sqlc.InsertCLISessionParams) (pgtype.UUID, error)
 	GetCLISessionByState(ctx context.Context, oauthState string) (sqlc.CliAuthSession, error)

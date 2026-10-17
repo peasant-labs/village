@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -22,7 +23,13 @@ import (
 // writers. Transcript publish locks, when needed, precede these sorted,
 // deduplicated transaction locks. No caller acquires a publish lock while these
 // locks are held; attachment refresh runs only after commit.
-func (h *Handler) inCollectiveAuthorityTx(ctx context.Context, conn *pgxpool.Conn, actor pgtype.UUID, groups []pgtype.UUID, fn func(Querier) error) error {
+func (h *Handler) inCollectiveAuthorityTx(ctx context.Context, conn *pgxpool.Conn, actor pgtype.UUID, groups []pgtype.UUID, fn func(context.Context, Querier) error) error {
+	budget := h.collectiveAuthorityTimeout
+	if budget <= 0 {
+		budget = 15 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
 	if !actor.Valid {
 		return errors.New("collective mutation requires an authenticated actor before opening its transaction; sign in and retry")
 	}
@@ -44,13 +51,23 @@ func (h *Handler) inCollectiveAuthorityTx(ctx context.Context, conn *pgxpool.Con
 	}
 	return h.inTxRawOnConn(ctx, beginner, uuid.UUID(actor.Bytes).String(), func(q Querier, tx pgx.Tx) error {
 		if tx != nil {
+			// PostgreSQL cancels blocked statements before the overall context
+			// expires, leaving time to roll back and unlock the pinned session.
+			statementBudget := budget / 2
+			if statementBudget < time.Millisecond {
+				statementBudget = time.Millisecond
+			}
+			limit := fmt.Sprintf("%dms", statementBudget.Milliseconds())
+			if _, err := tx.Exec(ctx, "SELECT set_config('lock_timeout',$1,true), set_config('statement_timeout',$1,true)", limit); err != nil {
+				return err
+			}
 			for _, key := range keys {
 				if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", key); err != nil {
 					return fmt.Errorf("lock collective authority before mutation; nothing committed, retry the request: %w", err)
 				}
 			}
 		}
-		return fn(q)
+		return fn(ctx, q)
 	})
 }
 
@@ -148,7 +165,8 @@ func (h *Handler) mutateCollective(w http.ResponseWriter, r *http.Request, mutat
 	}
 	buffer := &collectiveMutationResponse{header: make(http.Header)}
 	var affected []sqlc.PullRequestAttachment
-	err = h.inCollectiveAuthorityTx(r.Context(), nil, GetUser(r.Context()).PgID(), []pgtype.UUID{groupID}, func(q Querier) error {
+	err = h.inCollectiveAuthorityTx(r.Context(), nil, GetUser(r.Context()).PgID(), []pgtype.UUID{groupID}, func(ctx context.Context, q Querier) error {
+		r = r.WithContext(ctx)
 		if refreshGrants && h.gh != nil {
 			// Capture before retracting share rows, or the affected attachments
 			// would disappear from the grant join before their checks refresh.

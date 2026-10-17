@@ -6,6 +6,20 @@ SET org_id = EXCLUDED.org_id,
     avatar_url = EXCLUDED.avatar_url,
     fetched_at = now();
 
+-- name: IssueGitHubOrgSyncGeneration :one
+-- Allocate before external I/O. An empty or failed newer fetch still fences
+-- older responses. Never wrap an exhausted generation or recreate a user.
+UPDATE users SET github_org_sync_generation = github_org_sync_generation + 1
+WHERE id = $1 AND github_org_sync_generation < 9223372036854775807
+RETURNING github_org_sync_generation;
+
+-- name: GetGitHubOrgSyncGenerationForUpdate :one
+SELECT github_org_sync_generation FROM users WHERE id = $1 FOR UPDATE;
+
+-- name: DeleteUserOrgsOutsideSnapshot :exec
+DELETE FROM user_github_orgs
+WHERE user_id = $1 AND NOT (lower(org_login) = ANY($2::text[]));
+
 -- name: DeleteStaleUserOrgs :exec
 DELETE FROM user_github_orgs
 WHERE user_id = $1 AND fetched_at < $2;

@@ -1581,7 +1581,8 @@ func (h *Handler) shareTranscriptLocked(w http.ResponseWriter, r *http.Request, 
 	}
 	widened := false
 	var shares []sqlc.ListTranscriptSharesRow
-	err = h.inCollectiveAuthorityTx(r.Context(), conn, user.PgID(), groups, func(q Querier) error {
+	err = h.inCollectiveAuthorityTx(r.Context(), conn, user.PgID(), groups, func(ctx context.Context, q Querier) error {
+		r = r.WithContext(ctx)
 		current, err := q.GetTranscriptByID(r.Context(), pgID)
 		if err != nil {
 			return err
