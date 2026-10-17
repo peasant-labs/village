@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
 	"regexp"
@@ -46,6 +47,7 @@ type contractBody struct {
 // same fail-closed answer as a missing validator, so no internal text reaches
 // a client.
 func (h *Handler) readContractBody(w http.ResponseWriter, r *http.Request, op ContractOperation) (contractBody, bool) {
+	op = requestContractOperation(r, op)
 	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxContractBodyBytes))
 	if err != nil {
 		var tooLarge *http.MaxBytesError
@@ -132,7 +134,7 @@ var (
 // asserts each is mounted at exactly this method and path; the handler tests
 // assert each has a compiled body schema and a fixture row.
 func ContractEnforcedOperations() []ContractOperation {
-	return []ContractOperation{
+	operations := []ContractOperation{
 		opCreateGroup,
 		opUpdateGroup,
 		opAddGroupMember,
@@ -144,6 +146,39 @@ func ContractEnforcedOperations() []ContractOperation {
 		opShareTranscript,
 		opUpdateUserSettings,
 	}
+	for _, op := range operations {
+		if strings.HasPrefix(op.Path, "/api/v1/groups") {
+			operations = append(operations, canonicalCollectiveOperation(op))
+		}
+	}
+	return operations
+}
+
+func canonicalCollectiveOperation(op ContractOperation) ContractOperation {
+	op.Path = "/api/v1/collectives" + strings.TrimPrefix(op.Path, "/api/v1/groups")
+	return op
+}
+
+// Direct handler callers retain their explicit operation. On a mounted canonical
+// resource request, enforce that resource's OWN declared request schema from the
+// same module whose bytes are served, not the deprecated operation's body.
+func requestContractOperation(r *http.Request, op ContractOperation) ContractOperation {
+	if strings.HasPrefix(op.Path, "/api/v1/groups") && canonicalCollectiveResource(r) {
+		return canonicalCollectiveOperation(op)
+	}
+	return op
+}
+
+// Mounted resource identity selects its declared wire contract. A query value,
+// collective name or UUID containing similar text never selects another family.
+// Direct handler callers without a completed route pattern use the same exact
+// root-segment boundary on their request path.
+func canonicalCollectiveResource(r *http.Request) bool {
+	path := r.URL.Path
+	if route := chi.RouteContext(r.Context()); route != nil && route.RoutePattern() != "" {
+		path = route.RoutePattern()
+	}
+	return path == "/api/v1/collectives" || strings.HasPrefix(path, "/api/v1/collectives/") || path == "/collectives" || strings.HasPrefix(path, "/collectives/")
 }
 
 // ErrContractBodyUndeclared reports a lookup for an operation the served

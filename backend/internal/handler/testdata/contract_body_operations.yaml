@@ -114,3 +114,52 @@
     - name: preview flag is a string
       body: '{"preview_before_attach":"yes"}'
       expect: "/preview_before_attach: expected"
+
+- name: create collective
+  method: POST
+  path: /api/v1/collectives
+  conforming: '{"name":"Night Shift","acceptance_mode":"open","data_access":"members_only"}'
+  malformed:
+    - {name: name missing, body: '{}', expect: "/: missing properties: 'name'"}
+- name: update collective
+  method: PATCH
+  path: /api/v1/collectives/{id}
+  conforming: '{"name":"Renamed","display_members":true}'
+  malformed:
+    - {name: display flag wrong type, body: '{"display_members":"yes"}', expect: '/display_members: expected'}
+- name: add collective member
+  method: POST
+  path: /api/v1/collectives/{id}/members
+  conforming: '{"username":"octocat"}'
+  malformed:
+    - {name: username missing, body: '{}', expect: "/: missing properties: 'username'"}
+- name: update collective member role
+  method: PATCH
+  path: /api/v1/collectives/{id}/members/{userID}/role
+  conforming: '{"role":"member"}'
+  malformed:
+    - {name: role forbidden, body: '{"role":"owner"}', expect: '/role: value must be one of "contributor", "member"'}
+- name: link collective repository
+  method: POST
+  path: /api/v1/collectives/{id}/repositories
+  conforming: '{"owner":"acme","name":"repo"}'
+  malformed:
+    - {name: owner missing, body: '{"name":"repo"}', expect: "/: missing properties: 'owner'"}
+- name: collective batch share
+  method: POST
+  path: /api/v1/collectives/{id}/shares
+  conforming: '{"project_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","visibility_confirmed":true}'
+  malformed:
+    - {name: confirmation missing, body: '{"project_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}', expect: "/: missing properties: 'visibility_confirmed'"}
+- name: collective batch review
+  method: PATCH
+  path: /api/v1/collectives/{id}/shares
+  conforming: '{"transcript_ids":[],"status":"approved"}'
+  malformed:
+    - {name: decision forbidden, body: '{"transcript_ids":[],"status":"maybe"}', expect: '/status: value must be one of "approved", "rejected"'}
+- name: collective single review
+  method: PATCH
+  path: /api/v1/collectives/{id}/shares/{transcriptID}
+  conforming: '{"status":"rejected"}'
+  malformed:
+    - {name: decision missing, body: '{}', expect: "/: missing properties: 'status'"}

@@ -444,6 +444,27 @@ The audit triggers (migration 026) and the share-derivation triggers
   writes it - a source guard over `queries/*.sql` parses each statement's write
   targets, and the fail-closed trigger refuses the write even if a statement
   slips past review.
+- **Resource aliases do not rename stored relationships.** Canonical
+  `/collectives` and deprecated `/groups` routes use the same handlers, current
+  authorization and transaction protocol throughout the actual compatibility
+  window. Request-body enforcement selects the declared mounted family from
+  the same module as the served document. Grouped contribution alone has an
+  explicit schema-owned transition envelope: canonical uses `group_id` and
+  deprecated uses `groupId`, both with identical authorized `transcriptList`.
+  The mounted resource family selects and validates the shared envelope; query
+  strings never choose another wire shape. Omitted-view flat output, helper
+  groups, database table/column names and attempt identities stay unchanged.
+- **Owner history emits the shared attempt contract, not a second actor rule.**
+  `ListShareEventHistory` builds `schema.VillageShareEvent`, obtains actor
+  capacity from `schema.VillageContributionAttemptActor`, normalizes recorded
+  and decision instants to UTC without truncation, and calls the event's shared
+  validator before returning any rows. Pending actor is an explicit empty
+  string and decision time an explicit null; initial automatic approval may
+  retain a null decision. Unsupported stored data fails the whole history read
+  rather than silently dropping a row or inventing an actor. Moderator UUIDs
+  are never serialized; FK anonymization therefore preserves existing wire
+  actor evidence. Attempt transitions and their reconciliation relation remain
+  owned by Schema and are checked against actual SQL emission fixtures here.
 - **A decision only ever moves an OPEN attempt, one statement or many rows.**
   Both review writers - `UpdateShareStatus` (one submission) and
   `BatchUpdateShareStatus` (a whole selection, `transcript_id = ANY(...)`) -

@@ -96,6 +96,11 @@ func TestContributionAttemptEmission(t *testing.T) {
 				if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 					t.Fatal(err)
 				}
+				for _, event := range result {
+					if err := event.Validate(); err != nil {
+						t.Fatalf("emitted attempt violates shared canonical validation: %v", err)
+					}
+				}
 				return result, append([]byte(nil), rec.Body.Bytes()...)
 			}
 			body, _ := json.Marshal(map[string][]string{"group_ids": {gid}})
@@ -128,7 +133,7 @@ func TestContributionAttemptEmission(t *testing.T) {
 				t.Fatalf("unknown action %q", c.Action)
 			}
 			after, wire := history()
-			if len(after) != int(c.Ordinal) || after[len(after)-1].EventNum != c.Ordinal || after[len(after)-1].Status != c.Status || (after[len(after)-1].DecidedAt != nil) != c.Decided {
+			if len(after) != int(c.Ordinal) || after[len(after)-1].EventNum != c.Ordinal || string(after[len(after)-1].Status) != c.Status || (after[len(after)-1].DecidedAt != nil) != c.Decided {
 				t.Fatalf("unexpected attempt emission: %s", wire)
 			}
 			if after[0].RecordedAt != before[0].RecordedAt {

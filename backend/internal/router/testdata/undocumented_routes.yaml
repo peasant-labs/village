@@ -18,9 +18,6 @@ routes:
   - method: POST
     path: /api/v1/auth/logout
     reason: session logout, predates the contract
-  - method: GET
-    path: /api/v1/auth/me
-    reason: signed-in account read, predates the contract
   - method: DELETE
     path: /api/v1/auth/me
     reason: account deletion, predates the contract
@@ -39,9 +36,6 @@ routes:
   - method: DELETE
     path: /api/v1/auth/api-keys/{id}
     reason: API key revocation, predates the contract
-  - method: GET
-    path: /api/v1/auth/orgs
-    reason: caller's organisations, predates the contract
   - method: PATCH
     path: /api/v1/auth/orgs/{orgLogin}/visibility
     reason: organisation visibility toggle, predates the contract
@@ -78,9 +72,6 @@ routes:
   - method: GET
     path: /api/v1/orgs/search
     reason: organisation search, predates the contract
-  - method: GET
-    path: /api/v1/orgs/{login}
-    reason: organisation page, predates the contract
   - method: GET
     path: /api/v1/tags
     reason: tag list, predates the contract

@@ -37,6 +37,14 @@ type contractBodyOperationCase struct {
 // keyed by method and path. It lives here so deleting fixture rows cannot
 // delete the manifest that protects them.
 var requiredContractBodyOperations = []string{
+	"POST /api/v1/collectives",
+	"PATCH /api/v1/collectives/{id}",
+	"POST /api/v1/collectives/{id}/members",
+	"PATCH /api/v1/collectives/{id}/members/{userID}/role",
+	"POST /api/v1/collectives/{id}/repositories",
+	"POST /api/v1/collectives/{id}/shares",
+	"PATCH /api/v1/collectives/{id}/shares",
+	"PATCH /api/v1/collectives/{id}/shares/{transcriptID}",
 	"POST /api/v1/groups",
 	"PATCH /api/v1/groups/{id}",
 	"POST /api/v1/groups/{id}/members",
@@ -231,14 +239,16 @@ func contractBodyRouter(t *testing.T) http.Handler {
 		})
 	})
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Post("/groups", h.CreateGroup)
-		r.Patch("/groups/{id}", h.UpdateGroup)
-		r.Post("/groups/{id}/members", h.AddGroupMember)
-		r.Patch("/groups/{id}/members/{userID}/role", h.PromoteMember)
-		r.Post("/groups/{id}/repositories", h.LinkRepository)
-		r.Post("/groups/{id}/shares", h.BatchShareProject)
-		r.Patch("/groups/{id}/shares", h.BatchReviewShares)
-		r.Patch("/groups/{id}/shares/{transcriptID}", h.ReviewShare)
+		for _, prefix := range []string{"/groups", "/collectives"} {
+			r.Post(prefix, h.CreateGroup)
+			r.Patch(prefix+"/{id}", h.UpdateGroup)
+			r.Post(prefix+"/{id}/members", h.AddGroupMember)
+			r.Patch(prefix+"/{id}/members/{userID}/role", h.PromoteMember)
+			r.Post(prefix+"/{id}/repositories", h.LinkRepository)
+			r.Post(prefix+"/{id}/shares", h.BatchShareProject)
+			r.Patch(prefix+"/{id}/shares", h.BatchReviewShares)
+			r.Patch(prefix+"/{id}/shares/{transcriptID}", h.ReviewShare)
+		}
 		r.Post("/transcripts/{id}/share", h.ShareTranscript)
 		r.Patch("/users/me/settings", h.UpdateUserSettings)
 	})
@@ -426,6 +436,45 @@ func TestContractBody_OversizedBodyAnswers413(t *testing.T) {
 // brokenValidator stands in for a validator whose served contract failed to
 // compile: every call reports the compile error rather than a body verdict.
 type brokenValidator struct{ err error }
+
+type observedContractValidator struct {
+	PayloadValidator
+	operation *ContractOperation
+}
+
+func (v observedContractValidator) ValidateBody(method, path string, body []byte) error {
+	*v.operation = ContractOperation{Method: method, Path: path}
+	return v.PayloadValidator.ValidateBody(method, path, body)
+}
+
+// Both resources currently declare equal bodies. Observe the real validation
+// boundary so a regression that silently enforces only the deprecated operation
+// still fails even before those body schemas diverge in a later contract.
+func TestContractBodyCanonicalRequestUsesOwnDeclaredOperation(t *testing.T) {
+	original := payloadValidator
+	t.Cleanup(func() { payloadValidator = original })
+	var observed ContractOperation
+	payloadValidator = func() PayloadValidator {
+		return observedContractValidator{PayloadValidator: moduleValidator{}, operation: &observed}
+	}
+	h := &Handler{}
+	for _, c := range loadContractBodyOperations(t) {
+		if !strings.HasPrefix(c.Path, "/api/v1/collectives") {
+			continue
+		}
+		t.Run(c.Name, func(t *testing.T) {
+			req := httptest.NewRequest(c.Method, contractBodyTarget(c.Path), strings.NewReader(c.Conforming))
+			rec := httptest.NewRecorder()
+			legacy := ContractOperation{Method: c.Method, Path: strings.Replace(c.Path, "/api/v1/collectives", "/api/v1/groups", 1)}
+			if _, ok := h.readContractBody(rec, req, legacy); !ok {
+				t.Fatalf("canonical body rejected: %s", rec.Body.String())
+			}
+			if observed.Method != c.Method || observed.Path != c.Path {
+				t.Fatalf("canonical request enforced %s instead of %s %s", observed, c.Method, c.Path)
+			}
+		})
+	}
+}
 
 func (b brokenValidator) ValidatePublish([]byte) error              { return b.err }
 func (b brokenValidator) ValidateAnnotation([]byte) error           { return b.err }
