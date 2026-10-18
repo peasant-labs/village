@@ -16,5 +16,5 @@ export function collectiveQueueFixture(url, showContext = false) {
     helperThreadTotal: showContext && match[2] === 'contributable' ? 1 : 0,
   })
   return match[2] === 'pending' ? transcriptList
-    : zVillageGroupedContributableResponse.parse({ groupId: match[1], transcriptList })
+    : zVillageGroupedContributableResponse.parse({ group_id: match[1], transcriptList })
 }

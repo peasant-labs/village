@@ -41,21 +41,21 @@ func (h *Handler) getCollectiveGrouped(w http.ResponseWriter, r *http.Request) {
 // pending-member visibility still follow the same owner flag as the flat route.
 // The pull-request check settings are the same stored row facts the flat route
 // serves, so the grouped body carries them too instead of dropping them.
-func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, role string, canRead bool, list schema.VillageSessionListPayload) (schema.VillageGroupedGroupDetailResponse, error) {
+func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, role string, canRead bool, list schema.VillageSessionListPayload) (schema.VillageGroupedCollectiveDetailResponse, error) {
 	promptsCheckMode := schema.VillagePromptsCheckMode(group.PromptsCheckMode)
-	response := schema.VillageGroupedGroupDetailResponse{
-		Group: schema.VillageGroupDetailRecord{
+	response := schema.VillageGroupedCollectiveDetailResponse{
+		Group: schema.VillageCollectiveDetailRecord{
 			ID: schema.VillageUUID(uuid.UUID(group.ID.Bytes).String()), Name: group.Name,
 			Description: pgTextPointer(group.Description), CreatedBy: schema.VillageUUID(uuid.UUID(group.CreatedBy.Bytes).String()),
 			CreatedAt: group.CreatedAt.Time, UpdatedAt: group.UpdatedAt.Time,
-			AcceptanceMode: schema.VillageGroupAcceptanceMode(group.AcceptanceMode),
-			DataAccess:     schema.VillageGroupDataAccess(group.DataAccess), LinkedGithubOrg: pgTextPointer(group.LinkedGithubOrg),
+			AcceptanceMode: schema.VillageCollectiveAcceptanceMode(group.AcceptanceMode),
+			DataAccess:     schema.VillageCollectiveDataAccess(group.DataAccess), LinkedGithubOrg: pgTextPointer(group.LinkedGithubOrg),
 			DisplayMembers: group.DisplayMembers, TranscriptDeletionPolicy: schema.VillageTranscriptDeletionPolicy(group.TranscriptDeletionPolicy),
 			PostPromptsCheck: &group.PostPromptsCheck, PromptsCheckMode: &promptsCheckMode,
 		},
-		Members: []schema.VillageGroupMember{}, Models: []schema.VillageGroupModelBreakdown{},
-		Contributors: []schema.VillageGroupContributor{}, CanRead: canRead,
-		YourRole: schema.VillageGroupViewerRole(role), TranscriptList: list,
+		Members: []schema.VillageCollectiveMember{}, Models: []schema.VillageCollectiveModelBreakdown{},
+		Contributors: []schema.VillageCollectiveContributor{}, CanRead: canRead,
+		YourRole: schema.VillageCollectiveViewerRole(role), TranscriptList: list,
 	}
 	// A stored mode outside the closed menu is refused rather than replaced by a
 	// guess, because a client cannot interpret it and a substituted setting would
@@ -63,7 +63,7 @@ func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, rol
 	if !promptsCheckMode.IsValid() {
 		return response, collectiveGroupedFailure(500, "collectiveGroupedDetail", "the stored pull-request check mode is outside the supported menu", "repair the collective's pull-request check setting through an explicit owner update and retry")
 	}
-	failure := func() (schema.VillageGroupedGroupDetailResponse, error) {
+	failure := func() (schema.VillageGroupedCollectiveDetailResponse, error) {
 		return response, collectiveGroupedFailure(500, "collectiveGroupedDetail", "collective metadata could not be read", "retry the collective page; a failed read is not an empty roster or dataset")
 	}
 	ctx := r.Context()
@@ -73,8 +73,8 @@ func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, rol
 	}
 	for _, row := range members {
 		orgs := append([]string{}, row.GithubOrgs...)
-		response.Members = append(response.Members, schema.VillageGroupMember{
-			Role: schema.VillageGroupRole(row.Role), JoinedAt: row.JoinedAt.Time,
+		response.Members = append(response.Members, schema.VillageCollectiveMember{
+			Role: schema.VillageCollectiveRole(row.Role), JoinedAt: row.JoinedAt.Time,
 			ID: schema.VillageUUID(uuid.UUID(row.ID.Bytes).String()), GithubUsername: row.GithubUsername,
 			DisplayName: pgTextPointer(row.DisplayName), AvatarURL: pgTextPointer(row.AvatarUrl), GithubOrgs: orgs,
 		})
@@ -87,7 +87,7 @@ func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, rol
 	if err != nil {
 		return failure()
 	}
-	response.Stats = schema.VillageGroupTranscriptStats{TotalTranscripts: stats.TotalTranscripts,
+	response.Stats = schema.VillageCollectiveTranscriptStats{TotalTranscripts: stats.TotalTranscripts,
 		ContributorCount: stats.ContributorCount, TotalTurns: stats.TotalTurns, TotalDurationMs: stats.TotalDurationMs, TotalTokens: stats.TotalTokens,
 		PullRequestCount: pullRequestCount}
 	models, err := h.queries.ListGroupModelBreakdown(ctx, group.ID)
@@ -95,14 +95,14 @@ func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, rol
 		return failure()
 	}
 	for _, row := range models {
-		response.Models = append(response.Models, schema.VillageGroupModelBreakdown{ModelProvider: row.ModelProvider, TranscriptCount: row.TranscriptCount})
+		response.Models = append(response.Models, schema.VillageCollectiveModelBreakdown{ModelProvider: row.ModelProvider, TranscriptCount: row.TranscriptCount})
 	}
 	contributors, err := h.queries.ListGroupContributors(ctx, sqlc.ListGroupContributorsParams{GroupID: group.ID, ViewerIsOwner: role == "owner"})
 	if err != nil {
 		return failure()
 	}
 	for _, row := range contributors {
-		response.Contributors = append(response.Contributors, schema.VillageGroupContributor{
+		response.Contributors = append(response.Contributors, schema.VillageCollectiveContributor{
 			ID: schema.VillageUUID(uuid.UUID(row.ID.Bytes).String()), GithubUsername: row.GithubUsername,
 			AvatarURL: pgTextPointer(row.AvatarUrl), TranscriptCount: row.TranscriptCount,
 		})
@@ -112,10 +112,10 @@ func (h *Handler) collectiveGroupedDetail(r *http.Request, group sqlc.Group, rol
 		if err != nil {
 			return failure()
 		}
-		response.PendingMembers = []schema.VillageGroupMember{}
+		response.PendingMembers = []schema.VillageCollectiveMember{}
 		for _, row := range pending {
-			response.PendingMembers = append(response.PendingMembers, schema.VillageGroupMember{
-				Role: schema.VillageGroupRole(row.Role), JoinedAt: row.JoinedAt.Time,
+			response.PendingMembers = append(response.PendingMembers, schema.VillageCollectiveMember{
+				Role: schema.VillageCollectiveRole(row.Role), JoinedAt: row.JoinedAt.Time,
 				ID: schema.VillageUUID(uuid.UUID(row.ID.Bytes).String()), GithubUsername: row.GithubUsername,
 				DisplayName: pgTextPointer(row.DisplayName), AvatarURL: pgTextPointer(row.AvatarUrl), GithubOrgs: append([]string{}, row.GithubOrgs...),
 			})

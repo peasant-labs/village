@@ -27,6 +27,9 @@ cases:
     query: "tab=members&next=%2Fhome"
     body: Acme Platform
     role: heading
+    nameEdits:
+      - { name: save-published-contract-name, value: Acme Platform Published }
+      - { name: restore-original-collective-name, value: Acme Platform }
     assertions:
       - { role: button, name: edit name }
       - { role: combobox, name: "role for @bob-ai" }

@@ -106,7 +106,8 @@ src/
 │   ├── publish/          # Publishing dashboard (API keys + CLI instructions)
 │   ├── transcripts/[id]/ # Transcript detail view
 │   ├── me/transcripts/   # User's library
-│   ├── groups/           # Collectives
+│   ├── collectives/      # Canonical collective pages
+│   ├── groups/           # Query-preserving redirects retained for the release window
 │   └── users/[username]/ # Public profile
 ├── components/
 │   ├── transcript/       # TranscriptCard, TranscriptViewer

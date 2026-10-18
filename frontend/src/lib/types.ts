@@ -52,17 +52,17 @@ export interface UserProjectPageResponse {
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 import type {
   SessionRelationshipNavigation,
-  VillageGroup,
-  VillageGroupViewerRole,
+  VillageCollective,
+  VillageCollectiveViewerRole,
   VillageCollectiveSearchResponse,
   VillageCollectiveSearchResult,
   VillageCollectiveSubmission,
   VillageContributedCollective,
-  VillageGroupContributor,
-  VillageGroupMember,
-  VillageGroupModelBreakdown,
-  VillageGroupTranscript,
-  VillageGroupTranscriptStats,
+  VillageCollectiveContributor,
+  VillageCollectiveMember,
+  VillageCollectiveModelBreakdown,
+  VillageCollectiveTranscript,
+  VillageCollectiveTranscriptStats,
   VillageLinkedRepositoriesResponse,
   VillageLinkedRepository,
   VillagePullRequestsSummary,
@@ -72,9 +72,9 @@ import type {
   VillageShareEventActor,
   VillageShareStatus,
   VillageTranscriptCollective,
-  VillageUserGroup,
-  VillageUserGroupShare,
-  VillageVisibleGroup,
+  VillageUserCollective,
+  VillageUserCollectiveShare,
+  VillageVisibleCollective,
 } from "@peasant-labs/schema";
 
 export interface User {
@@ -255,12 +255,12 @@ export type AsJSONNumber<T, K extends keyof T> = Omit<T, K> & { [P in K]: number
  * row's counts made optional and the role is the viewer role. The two
  * pull-request check settings are optional until the server stores them.
  *
- * @deprecated Import VillageGroup, VillageUserGroup, or VillageGroupDetailRecord from "@peasant-labs/schema". Alias kept for one release.
+ * @deprecated Import VillageCollective, VillageUserCollective, or VillageCollectiveDetailRecord from "@peasant-labs/schema". Alias kept for one release.
  */
-export type Group = Omit<VillageGroup, "post_prompts_check" | "prompts_check_mode"> &
-  Partial<Pick<VillageGroup, "post_prompts_check" | "prompts_check_mode">> &
-  Partial<Pick<VillageUserGroup, "member_count" | "transcript_count">> & {
-    role: VillageGroupViewerRole;
+export type Group = Omit<VillageCollective, "post_prompts_check" | "prompts_check_mode"> &
+  Partial<Pick<VillageCollective, "post_prompts_check" | "prompts_check_mode">> &
+  Partial<Pick<VillageUserCollective, "member_count" | "transcript_count">> & {
+    role: VillageCollectiveViewerRole;
     member_since: string | null;
   };
 
@@ -272,26 +272,26 @@ export type Group = Omit<VillageGroup, "post_prompts_check" | "prompts_check_mod
  * NULL role and a NULL member_since, and a consumer must read those as "you are
  * not a member of this one" rather than as a value that failed to load.
  */
-/** @deprecated Import VillageVisibleGroup from "@peasant-labs/schema". Alias kept for one release. */
-export type VisibleGroup = VillageVisibleGroup;
+/** @deprecated Import VillageVisibleCollective from "@peasant-labs/schema". Alias kept for one release. */
+export type VisibleGroup = VillageVisibleCollective;
 
-/** @deprecated Import VillageUserGroupShare from "@peasant-labs/schema". Alias kept for one release. */
-export type UserGroupShare = VillageUserGroupShare;
+/** @deprecated Import VillageUserCollectiveShare from "@peasant-labs/schema". Alias kept for one release. */
+export type UserGroupShare = VillageUserCollectiveShare;
 
-/** @deprecated Import VillageGroupTranscriptStats from "@peasant-labs/schema". Alias kept for one release. */
-export type GroupTranscriptStats = AsJSONNumber<VillageGroupTranscriptStats, "total_duration_ms" | "total_tokens" | "total_turns">;
+/** @deprecated Import VillageCollectiveTranscriptStats from "@peasant-labs/schema". Alias kept for one release. */
+export type GroupTranscriptStats = AsJSONNumber<VillageCollectiveTranscriptStats, "total_duration_ms" | "total_tokens" | "total_turns">;
 
-/** @deprecated Import VillageGroupModelBreakdown from "@peasant-labs/schema". Alias kept for one release. */
-export type GroupModelBreakdown = VillageGroupModelBreakdown;
+/** @deprecated Import VillageCollectiveModelBreakdown from "@peasant-labs/schema". Alias kept for one release. */
+export type GroupModelBreakdown = VillageCollectiveModelBreakdown;
 
-/** @deprecated Import VillageGroupContributor from "@peasant-labs/schema". Alias kept for one release. */
-export type GroupContributor = VillageGroupContributor;
+/** @deprecated Import VillageCollectiveContributor from "@peasant-labs/schema". Alias kept for one release. */
+export type GroupContributor = VillageCollectiveContributor;
 
-/** @deprecated Import VillageGroupMember from "@peasant-labs/schema". Alias kept for one release. */
-export type GroupMember = VillageGroupMember;
+/** @deprecated Import VillageCollectiveMember from "@peasant-labs/schema". Alias kept for one release. */
+export type GroupMember = VillageCollectiveMember;
 
-/** @deprecated Import VillageGroupTranscript from "@peasant-labs/schema". Alias kept for one release. */
-export type GroupTranscript = AsPlainString<VillageGroupTranscript, "project_hash">;
+/** @deprecated Import VillageCollectiveTranscript from "@peasant-labs/schema". Alias kept for one release. */
+export type GroupTranscript = AsPlainString<VillageCollectiveTranscript, "project_hash">;
 
 interface TranscriptShare {
   group_id: string;

@@ -48,9 +48,28 @@ test('built collective navigation and every legacy inbound link', async ({ page,
       if (assertion.disabled === true) await expect(locator).toBeDisabled()
       if (assertion.disabled === false) await expect(locator).toBeEnabled()
     }
+    if (row.name === 'settings') {
+      // Execute the real mounted edit/save callback, not merely its button.
+      // Restore the fixture's name through that SAME callback for later routes.
+      for (const { value } of row.nameEdits) {
+        await page.getByRole('button', { name: 'edit name', exact: true }).click()
+        const input = page.getByRole('textbox', { name: 'name', exact: true })
+        await expect(input).toBeFocused()
+        await input.fill(value)
+        const saved = page.waitForResponse((response) => response.request().method() === 'PATCH' && response.url() === `${manifest.apiBase}/collectives/c011ec71-0000-4000-8000-000000000001`)
+        await page.getByRole('button', { name: 'save', exact: true }).click()
+        const response = await saved
+        expect(response.ok()).toBe(true)
+        expect(response.request().postDataJSON()).toEqual({ name: value })
+        await expect(page.getByRole('heading', { name: new RegExp(value) }).first()).toBeVisible()
+      }
+    }
     await expectComputedTokens(page, 'main', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })
     await page.waitForLoadState('networkidle')
     await page.evaluate(() => document.fonts.ready)
+    const surfaceAxe = await scanAxe(page)
+    writeFileSync(`${process.env.COLLECTIVES_BUILT_ROOT}/${theme}-${row.name}-axe.json`, JSON.stringify(surfaceAxe, null, 2))
+    expect(seriousViolations(surfaceAxe), `WCAG AA findings on ${row.name}`).toEqual([])
     await page.screenshot({ path: `${process.env.COLLECTIVES_BUILT_ROOT}/${theme}-${row.name}.png`, fullPage: true, animations: 'disabled' })
     if (row.back) {
       const back = page.getByRole('link', { name: row.back.name, exact: true })
@@ -74,8 +93,19 @@ test('built collective navigation and every legacy inbound link', async ({ page,
   await expect(page.getByRole('heading', { name: 'Acme Platform', exact: true })).toBeVisible()
   const styles = await page.getByRole('main').evaluate((node) => {
     const css = getComputedStyle(node)
-    return { fontFamily: css.fontFamily, fontSize: css.fontSize, radius: css.borderRadius, theme: document.documentElement.dataset.theme }
+    const primary = css.fontFamily.split(',')[0].trim().replaceAll('"', '')
+    const faceLoaded = [...document.fonts].some((face) => face.family.replaceAll('"', '') === primary && face.status === 'loaded')
+    return { fontFamily: css.fontFamily, fontSize: css.fontSize, radius: css.borderRadius, theme: document.documentElement.dataset.theme, faceLoaded }
   })
+  expect(styles.faceLoaded).toBe(true)
+  await page.getByRole('link', { name: 'home', exact: true }).first().focus()
+  await page.keyboard.press('Tab')
+  const focus = await page.locator(':focus').evaluate((node) => {
+    const css = getComputedStyle(node)
+    return { tag: node.tagName, outline: css.outlineStyle, width: css.outlineWidth, shadow: css.boxShadow }
+  })
+  expect((focus.outline !== 'none' && parseFloat(focus.width) > 0) || focus.shadow !== 'none').toBe(true)
+  styles.keyboardFocus = focus
   writeFileSync(`${process.env.COLLECTIVES_BUILT_ROOT}/${theme}-computed.json`, JSON.stringify(styles, null, 2))
   const axe = await scanAxe(page)
   writeFileSync(`${process.env.COLLECTIVES_BUILT_ROOT}/${theme}-axe.json`, JSON.stringify(axe, null, 2))
@@ -83,5 +113,11 @@ test('built collective navigation and every legacy inbound link', async ({ page,
   expect(requests).toContain('/api/v1/collectives/visible')
   expect(requests).toContain('/api/v1/collectives/c011ec71-0000-4000-8000-000000000001')
   expect(requests.some((path) => path.includes('/groups') || path.includes('/api/v1/api/v1'))).toBe(false)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/collectives')
+  await expectTheme(page, theme)
+  await expect(page.getByRole('table', { name: 'collectives 3' })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: `${process.env.COLLECTIVES_BUILT_ROOT}/${theme}-mobile-list.png`, fullPage: true, animations: 'disabled' })
   writeFileSync(`${process.env.COLLECTIVES_BUILT_ROOT}/${theme}-requests.json`, JSON.stringify(requests, null, 2))
 })

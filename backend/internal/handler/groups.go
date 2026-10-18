@@ -288,7 +288,7 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 		ViewerIsOwner: yourRole == "owner",
 	})
 
-	groupStats := schema.VillageGroupTranscriptStats{
+	groupStats := schema.VillageCollectiveTranscriptStats{
 		TotalTranscripts: stats.TotalTranscripts, ContributorCount: stats.ContributorCount,
 		TotalTurns: stats.TotalTurns, TotalDurationMs: stats.TotalDurationMs, TotalTokens: stats.TotalTokens,
 		PullRequestCount: pullRequestCount,

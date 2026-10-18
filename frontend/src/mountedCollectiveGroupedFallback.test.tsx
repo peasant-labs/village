@@ -102,7 +102,7 @@ interface FlatPayloads {
 /** The grouped response body for one route's own decoder. */
 function groupedResponse(surface: ActionSurface, page: GroupedPageShape): unknown {
   if (surface === "browse") return groupedDetailPage(fixtures, page);
-  if (surface === "contribute") return { groupId: GROUP_ID, transcriptList: page };
+  if (surface === "contribute") return { group_id: GROUP_ID, transcriptList: page };
   return page;
 }
 

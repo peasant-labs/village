@@ -8,6 +8,7 @@ export interface LegacyCollectiveCase {
   query: string;
   body: string;
   role: "table" | "heading";
+  nameEdits?: Array<{ name: string; value: string }>;
   assertions: Array<{
     role?: "table" | "button" | "searchbox" | "combobox";
     name?: string;
@@ -28,6 +29,9 @@ export function loadLegacyCollectiveFixtures(): LegacyCollectiveCase[] {
     throw new Error("Legacy collective redirect fixture names must retain every supported browser route");
   }
   for (const row of data.cases) {
+	if (row.name === "settings" && (!row.nameEdits || JSON.stringify(row.nameEdits.map((step) => step.name)) !== JSON.stringify(["save-published-contract-name", "restore-original-collective-name"]) || row.nameEdits.some((step) => !step.value))) {
+	  throw new Error("Settings journey must execute the named save and restore callbacks through the mounted production page");
+	}
     if (typeof row.suffix !== "string" || typeof row.query !== "string" || !row.body || !["table", "heading"].includes(row.role)) {
       throw new Error(`Invalid legacy collective fixture ${row.name}; provide route, query and mounted body expectation`);
     }

@@ -202,7 +202,7 @@ export function installCollectiveREST(world: CollectiveWorld): RecordedRequest[]
 
     const base = `/collectives/${id}`;
     if (path === base && method === "GET") {
-      if (url.searchParams.get("view") === "grouped") return json({ groupId: world.group.id, transcriptList: { items: [], page: Number(url.searchParams.get("page") ?? 1), limit: Number(url.searchParams.get("limit") ?? 100), totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 } });
+      if (url.searchParams.get("view") === "grouped") return json({ group_id: world.group.id, transcriptList: { items: [], page: Number(url.searchParams.get("page") ?? 1), limit: Number(url.searchParams.get("limit") ?? 100), totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 } });
       const limit = Number(url.searchParams.get("limit") ?? 20);
       const offset = Number(url.searchParams.get("offset") ?? 0);
       const transcripts = world.canRead

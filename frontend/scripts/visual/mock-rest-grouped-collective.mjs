@@ -390,7 +390,7 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && path === `/collectives/${GROUP_ID}/contributable`) {
     if (url.searchParams.get('view') === 'grouped') {
       const requestedPage = Number(url.searchParams.get('page') || 1)
-      return send(res, 200, { groupId: GROUP_ID, transcriptList: listPage('contributable', 'contributable', requestedPage) })
+      return send(res, 200, { group_id: GROUP_ID, transcriptList: listPage('contributable', 'contributable', requestedPage) })
     }
     return send(res, 200, flatContributable)
   }

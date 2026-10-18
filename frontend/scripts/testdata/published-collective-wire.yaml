@@ -1,0 +1,6 @@
+- {name: current-canonical-accepts-real-postgres-producer, validator: canonical, response: canonical, accepts: true}
+- {name: current-deprecated-accepts-real-postgres-producer, validator: deprecated, response: legacy, accepts: true}
+- {name: current-canonical-refuses-legacy-only-key, validator: canonical, response: legacy, accepts: false}
+- {name: current-deprecated-refuses-canonical-only-key, validator: deprecated, response: canonical, accepts: false}
+- {name: published-old-parser-accepts-real-legacy-producer, validator: old, response: legacy, accepts: true}
+- {name: published-old-parser-refuses-canonical-only-producer, validator: old, response: canonical, accepts: false}

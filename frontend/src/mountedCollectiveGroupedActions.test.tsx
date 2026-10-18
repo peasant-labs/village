@@ -122,7 +122,7 @@ function installREST(surface: "browse" | "contribute" | "review", testCase: Coll
         if (grouped) {
           calls.grouped.push(url.search);
           return json({
-            groupId: GROUP_ID,
+            group_id: GROUP_ID,
             transcriptList: {
               items,
               page: 1,

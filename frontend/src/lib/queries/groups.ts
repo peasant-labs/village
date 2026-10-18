@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { VillageCreateGroupRequest, VillageGroup, VillageUpdateGroupRequest } from "@peasant-labs/schema";
+import type { VillageCreateCollectiveRequest, VillageCollective, VillageUpdateCollectiveRequest } from "@peasant-labs/schema";
 import { api, getAuthHeaders } from "../api";
 import { useAuth } from "@/providers/AuthProvider";
 import type { Group, VisibleGroup, GroupMember, GroupContributor, GroupTranscript, GroupTranscriptStats, GroupModelBreakdown, CollectiveSearchResponse, UserGroupShare, User } from "../types";
@@ -120,8 +120,8 @@ export function useRemoveGroupTranscript() {
 export function useCreateGroup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: VillageCreateGroupRequest) =>
-      api<VillageGroup>("/collectives", { method: "POST", body: JSON.stringify(data) }),
+    mutationFn: (data: VillageCreateCollectiveRequest) =>
+      api<VillageCollective>("/collectives", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["groups"] });
       qc.invalidateQueries({ queryKey: ["visible-groups"] });
@@ -137,8 +137,8 @@ export function useCreateGroup() {
 export function useUpdateGroup() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, body }: { id: string; body: VillageUpdateGroupRequest }) =>
-      api<VillageGroup>(`/collectives/${id}`, {
+    mutationFn: ({ id, body }: { id: string; body: VillageUpdateCollectiveRequest }) =>
+      api<VillageCollective>(`/collectives/${id}`, {
         method: "PATCH",
         body: JSON.stringify(body),
       }),

@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -93,6 +95,23 @@ func TestGroupedContributableAliasWireCompatibility(t *testing.T) {
 				t.Fatalf("resource family changed authorized list payload: %s / %s", observedList, raw["transcriptList"])
 			}
 			observedList = append(json.RawMessage(nil), raw["transcriptList"]...)
+			// Optional owned evidence output feeds published npm validators with
+			// these exact mounted PostgreSQL-handler bytes, never a rewritten DTO.
+			if dir := os.Getenv("COLLECTIVE_WIRE_EVIDENCE_DIR"); dir != "" {
+				if !filepath.IsAbs(dir) {
+					t.Fatal("COLLECTIVE_WIRE_EVIDENCE_DIR must be an absolute test-owned path")
+				}
+				if err := os.MkdirAll(dir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				name := "canonical.json"
+				if c.Prefix == "/groups" {
+					name = "legacy.json"
+				}
+				if err := os.WriteFile(filepath.Join(dir, name), rec.Body.Bytes(), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
 		})
 	}
 }

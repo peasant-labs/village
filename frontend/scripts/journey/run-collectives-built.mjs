@@ -11,6 +11,7 @@ import { handleHomeRequest } from './lib/home-fixtures.mjs'
 import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
 import { acquireBuildLifecycle, bounded } from './lib/built-lifecycle.mjs'
 import { collectiveQueueFixture } from './lib/collectives-built-fixtures.mjs'
+import { parse } from 'yaml'
 
 const frontend = fileURLToPath(new URL('../../', import.meta.url))
 process.chdir(frontend)
@@ -51,7 +52,10 @@ try {
   server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://fixture')
     apiRequests.push(url.pathname)
-    if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }); res.end(); return }
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS' })
+      res.end(); return
+    }
     if (!url.pathname.startsWith('/api/v1/')) { res.writeHead(400); res.end('fixture requires the complete /api/v1 API base'); return }
     if (req.method === 'POST' && url.pathname === '/api/v1/__built/contribution-context') {
       contributionContext = url.searchParams.get('enabled') === '1'
@@ -89,6 +93,17 @@ try {
     lockHash: hash(readFileSync(join(repo, 'pnpm-lock.yaml'))), frontend, apiBase, appURL, buildID, assets,
     servedVerified: false,
   }
+  const schemaPackage = JSON.parse(readFileSync(join(frontend, 'node_modules/@peasant-labs/schema/package.json'), 'utf8'))
+  const designPackage = JSON.parse(readFileSync(join(frontend, 'node_modules/@peasant-labs/fairtrade/package.json'), 'utf8'))
+  const declared = JSON.parse(readFileSync(join(frontend, 'package.json'), 'utf8')).dependencies
+  const lockfile = parse(readFileSync(join(repo, 'pnpm-lock.yaml'), 'utf8'))
+  if (schemaPackage.version !== declared['@peasant-labs/schema'] || designPackage.version !== declared['@peasant-labs/fairtrade']) throw new Error('Built browser dependencies differ from exact declared published pins')
+  manifest.dependencies = {
+    schema: { version: schemaPackage.version, integrity: lockfile.packages[`@peasant-labs/schema@${schemaPackage.version}`]?.resolution.integrity },
+    fairtrade: { version: designPackage.version, integrity: lockfile.packages[`@peasant-labs/fairtrade@${designPackage.version}`]?.resolution.integrity },
+  }
+  if (!manifest.dependencies.schema.integrity || !manifest.dependencies.fairtrade.integrity) throw new Error('Published package integrity is missing from the frozen lockfile')
+  manifest.apiKind = 'app-owned-rest-fixture'
   manifest.sourceFiles = Object.fromEntries(execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: repo, encoding: 'utf8' })
     .split('\0').filter(Boolean).filter((path) => existsSync(join(repo, path))).map((path) => [path, hash(readFileSync(join(repo, path)))]))
   writeFileSync(join(root, 'build.json'), JSON.stringify(manifest, null, 2))
