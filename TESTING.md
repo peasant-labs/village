@@ -1447,12 +1447,26 @@ escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
-The served/enforced contract expectation is Village API 0.25.0, including optional
+The published module pin is Schema v0.31.0 and the literal served/enforced
+contract expectation is Village API 0.27.0. Mounted contract bytes are pinned
+against the independently downloaded GitHub release asset in
+`backend/internal/router/testdata/published_schema.yaml`; the body validator uses
+that same module's embedded document. The grouped contribution transition
+preserves `groupId` on deprecated `/groups` and requires `group_id` on canonical
+`/collectives`, with the same authorized `transcriptList`. The raw mounted
+PostgreSQL test can write its exact response bytes to a test-owned
+`COLLECTIVE_WIRE_EVIDENCE_DIR`; run
+`node frontend/scripts/verify-published-collective-wire.mjs <evidence-dir> <old-package-root>`
+to test them against the installed current npm validator and an independently
+installed published Schema0.25.0 package. This is a producer/parser proof, not
+hand-authored response normalization or a source-workspace substitute.
+
+The served/enforced contract retains optional
 session and turn `thinkingLevel` / `thinkingLevelRaw` evidence and the
-`thinking_level_v1` preservation capability. Compared with 0.24.0, the generated
-spec adds the two thinking-level types and optional properties, and extends the
-capability description; existing menus, required arrays, and manifest shapes are
-unchanged. It retains the
+`thinking_level_v1` preservation capability. That addition, introduced in
+Village API0.25.0 compared with0.24.0, added the two thinking-level types and
+optional properties and extended the capability description without changing
+the existing menus, required arrays or manifest shapes. The current contract retains the
 pull request reads (a transcript's pull requests as the narrow
 `VillageTranscriptPullRequest` row, the caller's totals, list-row summaries, and
 the collective and repository counts), retained unknown evidence, and the

@@ -1,6 +1,6 @@
 /**
- * The wire contract for `GET /groups/{id}/contributable` and
- * `POST /groups/{id}/shares`. The shapes come from the published contract
+ * The wire contract for `GET /collectives/{id}/contributable` and
+ * `POST /collectives/{id}/shares`. The shapes come from the published contract
  * package, which village serves and enforces from the same bytes; the names
  * below are the historical local names, kept as aliases for one release so
  * consumers do not change.
@@ -35,7 +35,7 @@ export type ContributableTranscript = AsPlainString<VillageContributableTranscri
 export type ContributableResponse = Omit<VillageContributableResponse, "transcripts"> & { transcripts: ContributableTranscript[] };
 
 /**
- * `POST /groups/{id}/shares` request body. Every id must belong to the same
+ * `POST /collectives/{id}/shares` request body. Every id must belong to the same
  * `project_hash`: one POST per project.
  *
  * @deprecated Import VillageBatchShareRequest from "@peasant-labs/schema". Alias kept for one release.

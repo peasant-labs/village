@@ -48,9 +48,9 @@ export const HOME_SECTION: NavSection = {
 /** The collectives the signed-in person belongs to, and each one's page. */
 export const COLLECTIVES_SECTION: NavSection = {
   id: "collectives",
-  href: "/groups",
+  href: "/collectives",
   label: "collectives",
-  activePrefixes: ["/groups"],
+  activePrefixes: ["/collectives"],
 };
 
 export function navSections(opts: { isLoggedIn: boolean }): NavSection[] {
@@ -81,10 +81,10 @@ export function isSectionActive(section: NavSection, pathname: string): boolean 
  * on a top-level route (nothing to go back to).
  */
 export function backTarget(pathname: string, isLoggedIn: boolean): { href: string } | null {
-  const settingsMatch = pathname.match(/^\/groups\/([^/]+)\/settings\/?$/);
-  if (settingsMatch) return { href: `/groups/${settingsMatch[1]}` };
+  const settingsMatch = pathname.match(/^\/collectives\/([^/]+)\/settings\/?$/);
+  if (settingsMatch) return { href: `/collectives/${settingsMatch[1]}` };
 
-  const detailMatch = pathname.match(/^\/groups\/([^/]+)\/?$/);
+  const detailMatch = pathname.match(/^\/collectives\/([^/]+)\/?$/);
   if (detailMatch) return { href: COLLECTIVES_SECTION.href };
 
   if (pathname.match(/^\/transcripts\/([^/]+)\/?$/)) {

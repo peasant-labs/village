@@ -59,8 +59,8 @@ cases:
       manage: true
       settings: true
       overflow:
-        - { label: publish several transcripts, route: "/groups/{id}/contribute" }
-        - { label: review transcripts, route: "/groups/{id}/review" }
+        - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
+        - { label: review transcripts, route: "/collectives/{id}/review" }
       headerActions: []
       transcriptRows: 2
       memberBreakdown: 1 owner · 2 members · 1 contributor
@@ -83,7 +83,7 @@ cases:
       manage: false
       settings: true
       overflow:
-        - { label: publish several transcripts, route: "/groups/{id}/contribute" }
+        - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
       headerActions: [connect github]
       transcriptRows: 2
       memberBreakdown: 1 owner · 2 members · 1 contributor
@@ -106,7 +106,7 @@ cases:
       manage: false
       settings: false
       overflow:
-        - { label: publish several transcripts, route: "/groups/{id}/contribute" }
+        - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
       headerActions: [leave]
       transcriptRows: 2
       memberBreakdown: 1 owner · 2 members · 1 contributor
@@ -128,7 +128,7 @@ cases:
       manage: false
       settings: false
       overflow:
-        - { label: publish several transcripts, route: "/groups/{id}/contribute" }
+        - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
       headerActions: [leave]
       transcriptRows: 0
       memberBreakdown: 1 owner · 2 members · 1 contributor
@@ -192,7 +192,7 @@ listCases:
 
   - name: a-search-shows-only-the-server-matches
     why: >-
-      a submitted search asks GET /groups/search and shows only what it
+      a submitted search asks GET /collectives/search and shows only what it
       answered; a match the list already holds keeps its role and joining.
     query: acme
     expectCaption: search results 2
@@ -209,7 +209,7 @@ listCases:
     expectRows:
       - { name: Night Shift, role: "", org: nothing linked, joining: "" }
 
-# The list world: what GET /groups/visible and GET /groups/search answer.
+# The list world: what GET /collectives/visible and GET /collectives/search answer.
 visible:
   - { id: 1c000000-0000-4000-8000-000000000001, name: Acme Platform, role: owner, org: acme, mode: open }
   - { id: 1c000000-0000-4000-8000-000000000002, name: Acme Company, role: member, org: acme, mode: verified_only }

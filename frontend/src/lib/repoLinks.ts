@@ -1,7 +1,7 @@
 /**
  * Saving the repo picker: the picker reports what changed as `{ add, remove }`
  * and the collective's routes link and unlink one repository per call
- * (`POST /groups/{id}/repositories`, `DELETE /groups/{id}/repositories/{owner}/{name}`).
+ * (`POST /collectives/{id}/repositories`, `DELETE /collectives/{id}/repositories/{owner}/{name}`).
  * The calls run one after another, links first, and the first failure stops the
  * rest, so the message can say exactly what was saved and what was not.
  */

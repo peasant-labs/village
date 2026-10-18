@@ -421,6 +421,10 @@ func TestUnsharingTheLinkingCollectiveEndsItsMembersPrompts_RealPostgres(t *test
 // the page again, while the check says so without waiting for a later refresh.
 func TestResharingRestoresTheMembersPrompts_RealPostgres(t *testing.T) {
 	w := newSharedAttachedWorld(t, 992063, false, "informational")
+	// This positive recovery requires current membership as well as the old
+	// live attempt. The attachment-only fixture does not create memberships for
+	// its creator; an old attempt alone must never authorize a new share action.
+	shareAddMember(t, context.Background(), w.pool, w.groupID, w.owner.PgID(), "owner")
 	key := uuidFromPg(w.transcriptID).String()
 	if !w.memberSeesPrompts(t) {
 		t.Fatal("the member must see the prompts before the narrowing, or the test proves nothing")

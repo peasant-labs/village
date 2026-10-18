@@ -181,7 +181,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
     case "navbar": {
       const signedIn = c.state !== "signed-out";
       installHomeRouteREST({ viewerUsername: signedIn ? content.viewer : null, transcripts: [] });
-      await renderHeaderAt(signedIn ? "/groups" : "/explore");
+      await renderHeaderAt(signedIn ? "/collectives" : "/explore");
       await waitFor(() => expect(document.querySelector("header .animate-shimmer")).toBeNull());
       if (c.state === "account-menu-open") {
         fireEvent.click(await screen.findByRole("button", { name: `account menu for @${content.viewer}` }));
@@ -201,10 +201,10 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
           if (c.state === "not-configured" && url.includes("/repositories")) {
             return json({ error: "not configured" }, 501);
           }
-          if (url.endsWith(`/groups/${GROUP_ID}/repositories/available`)) {
+          if (url.endsWith(`/collectives/${GROUP_ID}/repositories/available`)) {
             return json({ repositories: [{ owner, name, is_private: true }] });
           }
-          if (url.endsWith(`/groups/${GROUP_ID}/repositories`)) {
+          if (url.endsWith(`/collectives/${GROUP_ID}/repositories`)) {
             return json({
               repositories: [
                 {
@@ -242,7 +242,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
           vi.fn(async (input: RequestInfo | URL) => {
             const url = String(input);
             if (url.endsWith("/auth/me")) return json({ error: "not signed in" }, 401);
-            if (url.endsWith(`/groups/${GROUP_ID}`)) return json({ error: "not found" }, 404);
+            if (url.endsWith(`/collectives/${GROUP_ID}`)) return json({ error: "not found" }, 404);
             throw new Error(`group not-found fixture received an unexpected request to ${url}`);
           }),
         );
@@ -398,7 +398,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
         "fetch",
         vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
           const url = String(input);
-          if (url.endsWith("/groups")) {
+          if (url.endsWith("/collectives")) {
             return json(
               c.state === "no-collectives"
                 ? []

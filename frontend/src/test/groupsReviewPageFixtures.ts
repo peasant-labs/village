@@ -60,7 +60,7 @@ export interface ReviewPageCase {
   why: string;
   /** The signed-in viewer's handle. */
   viewer: string;
-  /** `your_role` the `/groups/{id}` payload reports. */
+  /** `your_role` the `/collectives/{id}` payload reports. */
   role: "member" | "owner";
   pending: PendingShareSpec[];
   /** The queue as a REFETCH answers it, when a case needs the list to change

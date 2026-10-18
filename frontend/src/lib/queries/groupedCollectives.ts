@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import {
   zVillageGroupedContributableResponse,
-  zVillageGroupedGroupDetailResponse,
+  zVillageGroupedCollectiveDetailResponse,
   zVillageSessionListPayload,
   type VillageSessionListItem,
 } from "@peasant-labs/schema";
@@ -69,7 +69,7 @@ function useCollectiveReadPaged<T>(
     queryKey,
     queryFn: async ({ pageParam, signal }) => {
       const requestFilters = { ...filters, page: pageParam, limit };
-      const raw = await api<unknown>(`/groups/${encodeURIComponent(groupId)}${suffix}?${listQuery(requestFilters)}`, { signal });
+      const raw = await api<unknown>(`/collectives/${encodeURIComponent(groupId)}${suffix}?${listQuery(requestFilters)}`, { signal });
       const response = decode(raw);
       const page = pageOf(response);
       if (page.page !== pageParam || page.limit !== limit) {
@@ -105,11 +105,17 @@ function useCollectiveReadPaged<T>(
 }
 
 export function useGroupedCollective(groupId: string, filters: CollectiveListFilters, enabled = true) {
-  return useCollectiveReadPaged("group", groupId, "", filters, enabled, (raw) => zVillageGroupedGroupDetailResponse.parse(raw), (response) => response.transcriptList);
+  return useCollectiveReadPaged("group", groupId, "", filters, enabled, (raw) => zVillageGroupedCollectiveDetailResponse.parse(raw), (response) => response.transcriptList);
 }
 
 export function useGroupedContributable(groupId: string, filters: CollectiveListFilters, enabled = true) {
-  return useCollectiveReadPaged("group-contributable", groupId, "/contributable", filters, enabled, (raw) => zVillageGroupedContributableResponse.parse(raw), (response) => response.transcriptList);
+  return useCollectiveReadPaged("group-contributable", groupId, "/contributable", filters, enabled, (raw) => {
+    const response = zVillageGroupedContributableResponse.parse(raw);
+    if (response.group_id !== groupId) {
+      throw new Error("collective grouped contribution read refused before caching: the response identifies a different collective; no selectable rows were retained; refresh the originating collective list");
+    }
+    return response;
+  }, (response) => response.transcriptList);
 }
 
 export function useGroupedPendingShares(groupId: string, filters: CollectiveListFilters, enabled: boolean) {

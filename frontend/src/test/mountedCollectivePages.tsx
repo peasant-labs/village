@@ -4,9 +4,9 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import type { VillageCollectiveSearchResult } from "@peasant-labs/schema";
 import { AuthProvider } from "@/providers/AuthProvider";
-import GroupsPage from "@/app/groups/page";
-import GroupDetailPage from "@/app/groups/[id]/page";
-import GroupSettingsPage from "@/app/groups/[id]/settings/page";
+import GroupsPage from "@/app/collectives/page";
+import GroupDetailPage from "@/app/collectives/[id]/page";
+import GroupSettingsPage from "@/app/collectives/[id]/settings/page";
 import { resetNextNavigation } from "@/test/nextNavigationMock";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { Group, GroupMember, GroupTranscript, User, VisibleGroup } from "@/lib/types";
@@ -187,12 +187,12 @@ export function installCollectiveREST(world: CollectiveWorld): RecordedRequest[]
 
     if (path === "/auth/me") return json(makeViewer(world.viewer.id, world.viewer.username));
     if (path === "/auth/orgs") return json([]);
-    if (path === "/groups" && method === "POST") {
+    if (path === "/collectives" && method === "POST") {
       return json({ ...world.group, ...(body as object) });
     }
-    if (path === "/groups/visible") return json(world.visible ?? []);
+    if (path === "/collectives/visible") return json(world.visible ?? []);
     if (path === "/users/me/collectives/contributions") return json({ collectives: [] });
-    if (path === "/groups/search") {
+    if (path === "/collectives/search") {
       const q = (url.searchParams.get("q") ?? "").toLowerCase();
       const hits = (world.searchable ?? []).filter(
         (c) => c.name.toLowerCase().includes(q) || (c.linked_github_org ?? "").toLowerCase().includes(q),
@@ -200,9 +200,9 @@ export function installCollectiveREST(world: CollectiveWorld): RecordedRequest[]
       return json({ collectives: hits });
     }
 
-    const base = `/groups/${id}`;
+    const base = `/collectives/${id}`;
     if (path === base && method === "GET") {
-      if (url.searchParams.get("view") === "grouped") return json({ groupId: world.group.id, transcriptList: { items: [], page: Number(url.searchParams.get("page") ?? 1), limit: Number(url.searchParams.get("limit") ?? 100), totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 } });
+      if (url.searchParams.get("view") === "grouped") return json({ group_id: world.group.id, transcriptList: { items: [], page: Number(url.searchParams.get("page") ?? 1), limit: Number(url.searchParams.get("limit") ?? 100), totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 } });
       const limit = Number(url.searchParams.get("limit") ?? 20);
       const offset = Number(url.searchParams.get("offset") ?? 0);
       const transcripts = world.canRead
@@ -287,7 +287,7 @@ function Providers({ children }: { children: ReactNode }) {
   );
 }
 
-/** Renders the real `/groups` route and waits for its heading. */
+/** Renders the real `/collectives` route and waits for its heading. */
 export async function renderCollectivesList(): Promise<void> {
   await act(async () => {
     render(
@@ -300,7 +300,7 @@ export async function renderCollectivesList(): Promise<void> {
 }
 
 /**
- * Renders the real `/groups/{id}` route and waits until the collective and the
+ * Renders the real `/collectives/{id}` route and waits until the collective and the
  * viewer have both arrived: the policy boxes are drawn from the one and the
  * header actions from the other.
  */
@@ -322,7 +322,7 @@ export async function renderCollectivePage(world: CollectiveWorld, expectReadFai
   });
 }
 
-/** Renders the real `/groups/{id}/settings` route and waits for its sections. */
+/** Renders the real `/collectives/{id}/settings` route and waits for its sections. */
 export async function renderCollectiveSettings(world: CollectiveWorld, expectReadFailure = false): Promise<void> {
   await act(async () => {
     render(

@@ -19,10 +19,10 @@ for (const testCase of loadCollectiveReadAccountFixtures()) {
     const reads: (string | null)[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
-      const flat = url.pathname === `/api/v1/groups/${world.groupId}` && !url.search;
+      const flat = url.pathname === `/api/v1/collectives/${world.groupId}` && !url.search;
       if (flat) reads.push(new Headers(init?.headers).get("Authorization"));
       const response = await delegate(input, init);
-      if (url.pathname === `/api/v1/groups/${world.groupId}` && !url.search) {
+      if (url.pathname === `/api/v1/collectives/${world.groupId}` && !url.search) {
         if (hold) await held;
       }
       return response;

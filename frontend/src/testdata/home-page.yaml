@@ -43,10 +43,10 @@ navCases:
     expectBackHref: null
   - name: signed-in-visitor-at-a-collective-highlights-collectives
     isLoggedIn: true
-    pathname: "/groups/acme-platform"
+    pathname: "/collectives/acme-platform"
     expectLabels: [home, collectives]
     expectActiveLabel: collectives
-    expectBackHref: "/groups"
+    expectBackHref: "/collectives"
   - name: a-transcript-page-highlights-home
     isLoggedIn: true
     pathname: "/transcripts/abc123"
@@ -140,7 +140,7 @@ accountMenuCases:
 # the mock serves no totals, no collectives and nothing waiting.
 #
 #   stats / expectStats            GET /users/me/stats, and the summary line.
-#   collectives                    GET /groups (the caller's memberships).
+#   collectives                    GET /collectives (the caller's memberships).
 #   expectRailCollectives          what the rail names for each, in order.
 #   contributions / expectWaiting  GET /users/me/collectives/contributions, and
 #                                  the collectives the waiting section names.
@@ -408,7 +408,7 @@ homeCases:
 
   - name: the-stats-line-states-the-personal-totals
     # One line above the table, read from GET /users/me/stats, with the number
-    # of collectives from GET /groups. Values are formatted for a glance: a
+    # of collectives from GET /collectives. Values are formatted for a glance: a
     # compact token count and whole hours recorded.
     viewerUsername: alice-dev
     transcripts:

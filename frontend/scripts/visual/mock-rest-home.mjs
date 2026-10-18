@@ -3,7 +3,7 @@
    The home route at `/` fetches:
      - GET /api/v1/auth/me                     (who is looking; decides `/` serves home, not explore)
      - GET /api/v1/transcripts?owner=...       (the caller's own transcripts, a page at a time)
-     - GET /api/v1/users/me/stats, /groups and /users/me/collectives/contributions
+     - GET /api/v1/users/me/stats, /collectives and /users/me/collectives/contributions
                                                (the summary line and the rail)
 
    It also serves the project page the home list links to:
@@ -327,7 +327,7 @@ const server = createServer((req, res) => {
     return send(res, 200, user)
   }
   if (path === '/auth/orgs') return send(res, 200, [])
-  if (path === '/groups') return send(res, 200, [])
+  if (path === '/collectives') return send(res, 200, [])
   // The home page's summary line and rail. The totals describe the rows this
   // mock serves; nothing is waiting for a collective's approval.
   if (path === '/users/me/stats') {
@@ -341,7 +341,7 @@ const server = createServer((req, res) => {
   }
   if (path === '/users/me/collectives/contributions') return send(res, 200, { collectives: [] })
   if (path.startsWith('/tags/popular')) return send(res, 200, [])
-  if (path === '/groups/search') return send(res, 200, { collectives: [] })
+  if (path === '/collectives/search') return send(res, 200, { collectives: [] })
 
   if (path === '/transcripts') {
     // The home page asks for its own rows. An unscoped request is discovery's,

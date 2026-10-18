@@ -1,4 +1,4 @@
-# The owner-only collective review route, /groups/{id}/review.
+# The owner-only collective review route, /collectives/{id}/review.
 #
 # Every case mounts the REAL route inside the real AuthProvider with REST
 # stubbed at fetch. `pending` is the queue the server answers with; `select`

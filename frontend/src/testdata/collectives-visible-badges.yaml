@@ -5,7 +5,7 @@
 # offered it something are different facts, and each combination renders
 # differently.
 #
-# `role` is what GET /groups/visible reports for this row: null means the caller
+# `role` is what GET /collectives/visible reports for this row: null means the caller
 # only sees the collective, through the public or open rule.
 #
 # The four counters are this caller's own, from

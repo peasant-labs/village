@@ -2,7 +2,7 @@
 
    The Explore page fetches three browse endpoints on first load:
      - GET /api/v1/transcripts?...
-     - GET /api/v1/groups/search?q=...
+     - GET /api/v1/collectives/search?q=...
      - GET /api/v1/tags/popular?limit=...
 
    This mock serves a representative dataset for those requests so the visual
@@ -481,9 +481,9 @@ export function handleExploreRequest(req, res) {
   }
 
   if (req.method === 'GET' && path === '/transcripts') { send(res, 200, filterTranscripts(url)); return true }
-  if (req.method === 'GET' && path === '/groups/search') { send(res, 200, filterCollectives(url)); return true }
+  if (req.method === 'GET' && path === '/collectives/search') { send(res, 200, filterCollectives(url)); return true }
   if (req.method === 'GET' && path === '/tags/popular') { send(res, 200, filterPopularTags(url)); return true }
-  if (req.method === 'GET' && path === '/groups') { send(res, 200, []); return true }
+  if (req.method === 'GET' && path === '/collectives') { send(res, 200, []); return true }
   if (req.method === 'GET' && path === '/auth/me') { send(res, 200, user); return true }
   if (req.method === 'GET' && path === '/auth/orgs') { send(res, 200, []); return true }
 

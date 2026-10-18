@@ -6,6 +6,12 @@ RETURNING *;
 -- name: GetGroupByID :one
 SELECT * FROM groups WHERE id = $1;
 
+-- name: GetGroupByIDForShare :one
+-- Retain the current policy until a caller's transaction ends. Outside a
+-- transaction this remains an ordinary single-statement read. The row lock
+-- also serializes cascaded account deletion with final share authorization.
+SELECT * FROM groups WHERE id = $1 FOR SHARE;
+
 -- name: UpdateGroup :one
 -- The prompts-check settings are writable here because the served contract
 -- declares them on the group update; a field the caller omitted is resolved to
@@ -96,6 +102,9 @@ DELETE FROM group_members WHERE group_id = $1 AND user_id = $2;
 
 -- name: GetGroupMember :one
 SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2;
+
+-- name: GetGroupMemberForShare :one
+SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2 FOR SHARE;
 
 -- name: ListGroupMembers :many
 SELECT gm.role, gm.joined_at, u.id, u.github_username, u.display_name, u.avatar_url,

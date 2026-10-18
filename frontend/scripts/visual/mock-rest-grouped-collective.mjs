@@ -1,13 +1,13 @@
 /* REST mock for the collective grouped-helper capture.
 
    The real routes under capture are:
-     GET /api/v1/groups/{id}                  (the collective browse list)
-     GET /api/v1/groups/{id}?view=grouped     (the same metadata, grouped page)
-     GET /api/v1/groups/{id}/contributable    (the contribute tree)
-     GET /api/v1/groups/{id}/contributable?view=grouped
-     GET /api/v1/groups/{id}/pending          (the review queue)
-     GET /api/v1/groups/{id}/pending?view=grouped
-     GET /api/v1/groups/{id}/my-shares
+     GET /api/v1/collectives/{id}                  (the collective browse list)
+     GET /api/v1/collectives/{id}?view=grouped     (the same metadata, grouped page)
+     GET /api/v1/collectives/{id}/contributable    (the contribute tree)
+     GET /api/v1/collectives/{id}/contributable?view=grouped
+     GET /api/v1/collectives/{id}/pending          (the review queue)
+     GET /api/v1/collectives/{id}/pending?view=grouped
+     GET /api/v1/collectives/{id}/my-shares
      GET /api/v1/transcript-groups/{groupId}/members?scope=...
      GET /api/v1/auth/me
 
@@ -194,7 +194,7 @@ const pendingArm = (row) => ({
   shared_at: '2026-09-02T10:00:00Z',
 })
 
-/* The caller's OWN contribution, as `GET /groups/{id}/my-shares` serves it. The
+/* The caller's OWN contribution, as `GET /collectives/{id}/my-shares` serves it. The
    viewer is the collective's owner here, so the contribution belongs to them. */
 const myShareArm = (row, status = 'approved') => ({
   id: row.id,
@@ -380,32 +380,32 @@ const server = createServer((req, res) => {
 
   if (path === '/auth/me') return send(res, 200, user)
   if (path === '/auth/orgs') return send(res, 200, [])
-  if (path === '/groups/visible' || path === '/groups') return send(res, 200, [flatGroupDetail.group])
+  if (path === '/collectives/visible' || path === '/collectives') return send(res, 200, [flatGroupDetail.group])
 
-  if (req.method === 'GET' && path === `/groups/${GROUP_ID}`) {
+  if (req.method === 'GET' && path === `/collectives/${GROUP_ID}`) {
     const grouped = url.searchParams.get('view') === 'grouped'
     const requestedPage = Number(url.searchParams.get('page') || 1)
     return send(res, 200, grouped ? groupedGroupDetail(requestedPage) : flatGroupDetail)
   }
-  if (req.method === 'GET' && path === `/groups/${GROUP_ID}/contributable`) {
+  if (req.method === 'GET' && path === `/collectives/${GROUP_ID}/contributable`) {
     if (url.searchParams.get('view') === 'grouped') {
       const requestedPage = Number(url.searchParams.get('page') || 1)
-      return send(res, 200, { groupId: GROUP_ID, transcriptList: listPage('contributable', 'contributable', requestedPage) })
+      return send(res, 200, { group_id: GROUP_ID, transcriptList: listPage('contributable', 'contributable', requestedPage) })
     }
     return send(res, 200, flatContributable)
   }
-  if (req.method === 'GET' && path === `/groups/${GROUP_ID}/pending`) {
+  if (req.method === 'GET' && path === `/collectives/${GROUP_ID}/pending`) {
     if (url.searchParams.get('view') === 'grouped') {
       const requestedPage = Number(url.searchParams.get('page') || 1)
       return send(res, 200, listPage('pending', 'pending', requestedPage))
     }
     return send(res, 200, flatPending)
   }
-  if (req.method === 'GET' && path === `/groups/${GROUP_ID}/my-shares`) {
+  if (req.method === 'GET' && path === `/collectives/${GROUP_ID}/my-shares`) {
     if (url.searchParams.get('view') === 'grouped') return send(res, 200, groupedMySharesPage())
     return send(res, 200, flatMyShares)
   }
-  if (req.method === 'GET' && path === `/groups/${GROUP_ID}/repositories`) {
+  if (req.method === 'GET' && path === `/collectives/${GROUP_ID}/repositories`) {
     // The repository feature is optional server-side; 501 is a clean
     // not-configured state the panel states itself.
     return send(res, 501, { error: 'not configured' })

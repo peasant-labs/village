@@ -335,7 +335,7 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 					t.Fatal("collective metadata/access lost")
 				}
 			case "contributable":
-				var response schema.VillageGroupedContributableResponse
+				var response schema.VillageDeprecatedGroupedContributableResponse
 				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 					t.Fatal(err)
 				}

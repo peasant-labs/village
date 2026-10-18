@@ -688,7 +688,7 @@ export interface GroupedPageShape {
   helperThreadTotal: number;
 }
 
-/** The `GET /groups/{id}?view=grouped` body carrying an explicit page. */
+/** The `GET /collectives/{id}?view=grouped` body carrying an explicit page. */
 export function groupedDetailPage(
   fixtures: CollectiveGroupedActionFixtures,
   page: GroupedPageShape,
@@ -725,7 +725,7 @@ export function groupedDetailPage(
   };
 }
 
-/** The `GET /groups/{id}?view=grouped` body: the flat collective metadata with
+/** The `GET /collectives/{id}?view=grouped` body: the flat collective metadata with
  *  only its transcript collection replaced by the grouped page. */
 export function groupedDetailPayload(
   fixtures: CollectiveGroupedActionFixtures,

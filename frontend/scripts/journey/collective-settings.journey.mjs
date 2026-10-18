@@ -14,7 +14,7 @@ import { loadCollectiveInviteSearchFixtures } from '../../src/test/collectiveInv
 import { JOURNEY_COLLECTIVES } from './lib/collective-fixtures.mjs'
 
 const OWNER = JOURNEY_COLLECTIVES.owner
-const SETTINGS = `/groups/${OWNER.id}/settings`
+const SETTINGS = `/collectives/${OWNER.id}/settings`
 const SECTIONS = ['general', 'access', 'members', 'github orgs', 'pull requests', 'danger zone']
 
 async function still(page, testInfo, name, locator) {

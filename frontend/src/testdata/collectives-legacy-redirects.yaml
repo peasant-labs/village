@@ -1,0 +1,58 @@
+requiredNames:
+  - list
+  - detail
+  - settings
+  - contribute
+  - review
+cases:
+  - name: list
+    suffix: ""
+    query: "q=Acme+Platform&tag=first&tag=second&empty=&return=%2Fhome%3Fx%3D1"
+    body: collectives 3
+    role: table
+    assertions:
+      - { role: button, name: Acme Platform }
+      - { role: searchbox, name: collective or github org }
+  - name: detail
+    suffix: /c011ec71-0000-4000-8000-000000000001
+    query: "view=grouped&page=2&tag=a&tag=b"
+    body: Acme Platform
+    role: heading
+    assertions:
+      - { role: table, name: transcripts 248, text: Fix flaky ingest test }
+      - { role: button, name: settings }
+    back: { name: back, href: /collectives, role: table, body: collectives 3 }
+  - name: settings
+    suffix: /c011ec71-0000-4000-8000-000000000001/settings
+    query: "tab=members&next=%2Fhome"
+    body: Acme Platform
+    role: heading
+    nameEdits:
+      - { name: save-published-contract-name, value: Acme Platform Published }
+      - { name: restore-original-collective-name, value: Acme Platform }
+    assertions:
+      - { role: button, name: edit name }
+      - { role: combobox, name: "role for @bob-ai" }
+      - { role: button, name: delete collective }
+    back: { name: back, href: /collectives/c011ec71-0000-4000-8000-000000000001, role: heading, body: Acme Platform }
+  - name: contribute
+    suffix: /c011ec71-0000-4000-8000-000000000001/contribute
+    query: "q=private+session&tag=one&tag=two"
+    body: contribute
+    role: heading
+    assertions:
+      - { testId: contribute-member-panel, text: "all your transcripts are already shared with this collective, or you have no published transcripts." }
+      - { role: button, name: contribute 0 transcripts, disabled: true }
+      - { testId: contribute-selection-count, text: 0 selected }
+    back: { name: back to Acme Platform, href: /collectives/c011ec71-0000-4000-8000-000000000001, role: heading, body: Acme Platform }
+  - name: review
+    suffix: /c011ec71-0000-4000-8000-000000000001/review
+    query: "page=2&limit=20&empty="
+    body: review
+    role: heading
+    assertions:
+      - { testId: review-empty-queue, text: nothing is waiting for review in this collective. }
+      - { role: button, name: reject selected, disabled: true }
+      - { role: button, name: approve selected, disabled: true }
+      - { testId: review-selection-count, text: 0 selected }
+    back: { name: back to Acme Platform, href: /collectives/c011ec71-0000-4000-8000-000000000001, role: heading, body: Acme Platform }

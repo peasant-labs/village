@@ -7,14 +7,14 @@ answers and never rebuilds those access rules.
 
 | Surface | Boundary |
 | --- | --- |
-| Your collective list | `GET /groups` |
-| Visible collective table | `GET /groups/visible` |
-| Create collective | `POST /groups`; navigate to the returned collective ID only after success |
-| Collective detail and settings | `GET /groups/{id}` |
-| Accepted transcript page | Paginated `GET /groups/{id}/transcripts` |
-| The caller's contributions | `GET /groups/{id}/my-shares` |
-| Change a setting | Partial `PATCH /groups/{id}`; omitted name and description remain unchanged |
-| Join or leave | `POST /groups/{id}/join`; `DELETE /groups/{id}/members/{userID}` with the chosen retraction option |
+| Your collective list | `GET /collectives` |
+| Visible collective table | `GET /collectives/visible` |
+| Create collective | `POST /collectives`; navigate to the returned collective ID only after success |
+| Collective detail and settings | `GET /collectives/{id}` |
+| Accepted transcript page | Paginated `GET /collectives/{id}/transcripts` |
+| The caller's contributions | `GET /collectives/{id}/my-shares` |
+| Change a setting | Partial `PATCH /collectives/{id}`; omitted name and description remain unchanged |
+| Join or leave | `POST /collectives/{id}/join`; `DELETE /collectives/{id}/members/{userID}` with the chosen retraction option |
 | Member administration | Existing add-member and role-change routes, guarded by server ownership |
 | Repository connections | Existing collective repository routes; the backend decides permissions and GitHub effects |
 

@@ -102,7 +102,7 @@ function metadata() {
 }
 
 /** Serves the owned transcript's reads and its share routes. `ownerGroups`
- *  says whether `GET /groups` answers with the owner's collectives: only the
+ *  says whether `GET /collectives` answers with the owner's collectives: only the
  *  transcript-owner scenario asks for it, so other journeys keep the explore
  *  half's empty list. */
 export function handleOwnedTranscriptRequest(req, res, { ownerGroups }) {
@@ -110,7 +110,7 @@ export function handleOwnedTranscriptRequest(req, res, { ownerGroups }) {
   const path = url.pathname.replace(/^\/api\/v1/, '')
   const base = `/transcripts/${OWNED_TRANSCRIPT.id}`
 
-  if (ownerGroups && req.method === 'GET' && path === '/groups') {
+  if (ownerGroups && req.method === 'GET' && path === '/collectives') {
     send(res, 200, OWNER_GROUPS.map((g) => ({ ...g, role: 'member', member_since: '2026-01-01T00:00:00Z' })))
     return true
   }
@@ -120,7 +120,7 @@ export function handleOwnedTranscriptRequest(req, res, { ownerGroups }) {
         pending_count: pending.includes(g.id) ? 1 : 0, rejected_attempt_count: 0, withdrawn_attempt_count: 0 })) })
     return true
   }
-  const ownShares = path.match(/^\/groups\/([^/]+)\/my-shares$/)
+  const ownShares = path.match(/^\/collectives\/([^/]+)\/my-shares$/)
   if (ownerGroups && req.method === 'GET' && ownShares) {
     const id = ownShares[1]
     send(res, 200, readers.includes(id) || pending.includes(id)

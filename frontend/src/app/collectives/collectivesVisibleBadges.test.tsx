@@ -12,7 +12,7 @@ import {
 } from "@/test/mountedCollectivesRoute";
 
 /**
- * Mounts the REAL `/groups` collectives route, with the design system's real
+ * Mounts the REAL `/collectives` collectives route, with the design system's real
  * `CollectivesView` rendering the table, to prove three things a person on that
  * page depends on:
  *

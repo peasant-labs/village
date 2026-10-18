@@ -22,7 +22,7 @@
  * Setting any scenario also puts the collectives world back as it started.
  *   default           - the composed fixtures as-is
  *   empty             - the browse list answers with no rows (empty-state journeys)
- *   transcript-owner  - `GET /groups` answers with the owner's collectives, the
+ *   transcript-owner  - `GET /collectives` answers with the owner's collectives, the
  *                       pool the transcript page's `manage access` picker offers
  * Setting any scenario restores the owned transcript's audience
  * (lib/transcript-fixtures.mjs), so each journey starts from the same readers.

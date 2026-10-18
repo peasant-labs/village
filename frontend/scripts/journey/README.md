@@ -51,7 +51,7 @@ selection and no port matrix. Override ports with `JOURNEY_APP_PORT` /
 A journey declares the world it needs with `setScenario(request, 'empty')`
 (`lib/scenario.mjs`), which calls the mock's `POST /__mock/scenario`; reset it to
 `'default'` when done. `'transcript-owner'` serves the owner's collectives on
-`GET /groups` for the transcript page's `manage access` popup, and every
+`GET /collectives` for the transcript page's `manage access` popup, and every
 scenario change restores the owned transcript's audience.
 
 Chrome is the NixOS-packaged browser: set `CHROME_PATH`, or accept the default

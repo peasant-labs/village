@@ -20,9 +20,9 @@ for (const testCase of loadManageAccessAccountFixtures()) {
     const metadata = { transcript: { id: "earlier-transcript", local_id: detail.id, visibility: "shared" as const, title: "earlier owned session", description: null, project_name: "village" }, owner: viewer, enriched_shares: [], viewer_collectives: [] };
     installRESTFixture(metadata.transcript.id, metadata, detail, "earlier account access", viewer, (url) => {
       const path = new URL(url).pathname.replace(/^\/api\/v1/, "");
-      if (path === "/groups") return json([{ id: "private-group", name: privateCollective, role: "member", acceptance_mode: "open", member_count: 1 }]);
+      if (path === "/collectives") return json([{ id: "private-group", name: privateCollective, role: "member", acceptance_mode: "open", member_count: 1 }]);
       if (path === "/users/me/collectives/contributions") return json({ collectives: [{ id: "private-group", name: privateCollective, approved_count: 0, pending_count: 1, rejected_attempt_count: 0, withdrawn_attempt_count: 0 }] });
-      if (path === "/groups/private-group/my-shares") return json([{ id: metadata.transcript.id, status: "pending" }]);
+      if (path === "/collectives/private-group/my-shares") return json([{ id: metadata.transcript.id, status: "pending" }]);
     });
     setAuthTokenCookie("earlier-credential");
     const client = await renderProductionRoute(metadata.transcript.id, "", { signedIn: true });
@@ -38,12 +38,12 @@ for (const testCase of loadManageAccessAccountFixtures()) {
     let currentReads = 0;
     installRESTFixture(nextMetadata.transcript.id, nextMetadata, detail, "current account access", nextViewer, async (url) => {
       const path = new URL(url).pathname.replace(/^\/api\/v1/, "");
-      if (path === "/groups" || path === "/users/me/collectives/contributions") {
+      if (path === "/collectives" || path === "/users/me/collectives/contributions") {
         currentReads++;
         await held;
-        return json(path === "/groups" ? [] : { collectives: [] });
+        return json(path === "/collectives" ? [] : { collectives: [] });
       }
-      if (path === "/groups/private-group/my-shares") return json([]);
+      if (path === "/collectives/private-group/my-shares") return json([]);
     });
     if (testCase.change === "credential") setAuthTokenCookie("current-credential");
     await renderProductionRoute(nextMetadata.transcript.id, "", { signedIn: true, client });

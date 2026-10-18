@@ -1,0 +1,21 @@
+- name: published-canonical-key-renders-current-collective
+  requestedId: 50000000-0000-4000-8000-000000000001
+  response:
+    group_id: 50000000-0000-4000-8000-000000000001
+    transcriptList: &emptyList {items: [], page: 1, limit: 20, totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0}
+  success: true
+  error: ''
+- name: deprecated-only-key-refused-on-canonical-read
+  requestedId: 50000000-0000-4000-8000-000000000001
+  response:
+    groupId: 50000000-0000-4000-8000-000000000001
+    transcriptList: *emptyList
+  success: false
+  error: group_id
+- name: canonical-other-collective-refused-before-caching
+  requestedId: 50000000-0000-4000-8000-000000000001
+  response:
+    group_id: 50000000-0000-4000-8000-000000000002
+    transcriptList: *emptyList
+  success: false
+  error: different collective

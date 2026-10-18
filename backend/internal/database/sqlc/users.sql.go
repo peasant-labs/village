@@ -16,7 +16,7 @@ UPDATE users SET
     username_chosen = true,
     updated_at = now()
 WHERE id = $1 AND github_username = $2 AND NOT username_chosen
-RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests, github_org_sync_generation
 `
 
 type ConfirmOwnHandleParams struct {
@@ -47,6 +47,7 @@ func (q *Queries) ConfirmOwnHandle(ctx context.Context, arg ConfirmOwnHandlePara
 		&i.ProviderUsername,
 		&i.PreviewBeforeAttach,
 		&i.AutoAttachPullRequests,
+		&i.GithubOrgSyncGeneration,
 	)
 	return i, err
 }
@@ -62,7 +63,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
 
 const getUserByID = `-- name: GetUserByID :one
 
-SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests FROM users WHERE id = $1
+SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests, github_org_sync_generation FROM users WHERE id = $1
 `
 
 // ⚠️ DO-NOT-TOUCH (TRAP — NOT the harness wire key): users.provider here is the
@@ -87,12 +88,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.ProviderUsername,
 		&i.PreviewBeforeAttach,
 		&i.AutoAttachPullRequests,
+		&i.GithubOrgSyncGeneration,
 	)
 	return i, err
 }
 
 const getUserByProviderIdentity = `-- name: GetUserByProviderIdentity :one
-SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests FROM users WHERE provider = $1 AND provider_user_id = $2
+SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests, github_org_sync_generation FROM users WHERE provider = $1 AND provider_user_id = $2
 `
 
 type GetUserByProviderIdentityParams struct {
@@ -124,12 +126,13 @@ func (q *Queries) GetUserByProviderIdentity(ctx context.Context, arg GetUserByPr
 		&i.ProviderUsername,
 		&i.PreviewBeforeAttach,
 		&i.AutoAttachPullRequests,
+		&i.GithubOrgSyncGeneration,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests FROM users WHERE lower(github_username) = lower($1)
+SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests, github_org_sync_generation FROM users WHERE lower(github_username) = lower($1)
 `
 
 // Canonical handle lookup. github_username is globally unique (case-insensitive),
@@ -152,12 +155,13 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 		&i.ProviderUsername,
 		&i.PreviewBeforeAttach,
 		&i.AutoAttachPullRequests,
+		&i.GithubOrgSyncGeneration,
 	)
 	return i, err
 }
 
 const listUsersByIDs = `-- name: ListUsersByIDs :many
-SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests FROM users WHERE id = ANY($1::uuid[])
+SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests, github_org_sync_generation FROM users WHERE id = ANY($1::uuid[])
 `
 
 // Several users in one statement, for list surfaces that would otherwise read
@@ -186,6 +190,7 @@ func (q *Queries) ListUsersByIDs(ctx context.Context, ids []pgtype.UUID) ([]User
 			&i.ProviderUsername,
 			&i.PreviewBeforeAttach,
 			&i.AutoAttachPullRequests,
+			&i.GithubOrgSyncGeneration,
 		); err != nil {
 			return nil, err
 		}
@@ -203,7 +208,7 @@ UPDATE users SET
     username_chosen = true,
     updated_at = now()
 WHERE id = $1
-RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests, github_org_sync_generation
 `
 
 type SetUsernameParams struct {
@@ -231,6 +236,7 @@ func (q *Queries) SetUsername(ctx context.Context, arg SetUsernameParams) (User,
 		&i.ProviderUsername,
 		&i.PreviewBeforeAttach,
 		&i.AutoAttachPullRequests,
+		&i.GithubOrgSyncGeneration,
 	)
 	return i, err
 }
@@ -241,7 +247,7 @@ SET preview_before_attach     = COALESCE($1, preview_before_attach),
     auto_attach_pull_requests = COALESCE($2, auto_attach_pull_requests),
     updated_at                = now()
 WHERE id = $3
-RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests, github_org_sync_generation
 `
 
 type UpdateUserAttachSettingsParams struct {
@@ -274,6 +280,7 @@ func (q *Queries) UpdateUserAttachSettings(ctx context.Context, arg UpdateUserAt
 		&i.ProviderUsername,
 		&i.PreviewBeforeAttach,
 		&i.AutoAttachPullRequests,
+		&i.GithubOrgSyncGeneration,
 	)
 	return i, err
 }
@@ -283,7 +290,7 @@ UPDATE users SET
     is_discoverable = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests, github_org_sync_generation
 `
 
 type UpdateUserDiscoverableParams struct {
@@ -309,6 +316,7 @@ func (q *Queries) UpdateUserDiscoverable(ctx context.Context, arg UpdateUserDisc
 		&i.ProviderUsername,
 		&i.PreviewBeforeAttach,
 		&i.AutoAttachPullRequests,
+		&i.GithubOrgSyncGeneration,
 	)
 	return i, err
 }
@@ -321,7 +329,7 @@ ON CONFLICT (github_id) DO UPDATE SET
     display_name = EXCLUDED.display_name,
     avatar_url = EXCLUDED.avatar_url,
     updated_at = now()
-RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests, github_org_sync_generation
 `
 
 type UpsertUserParams struct {
@@ -359,6 +367,7 @@ func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (User, e
 		&i.ProviderUsername,
 		&i.PreviewBeforeAttach,
 		&i.AutoAttachPullRequests,
+		&i.GithubOrgSyncGeneration,
 	)
 	return i, err
 }
@@ -371,7 +380,7 @@ ON CONFLICT (provider, provider_user_id) DO UPDATE SET
     display_name = EXCLUDED.display_name,
     avatar_url = EXCLUDED.avatar_url,
     updated_at = now()
-RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests
+RETURNING id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests, github_org_sync_generation
 `
 
 type UpsertUserByProviderParams struct {
@@ -416,6 +425,7 @@ func (q *Queries) UpsertUserByProvider(ctx context.Context, arg UpsertUserByProv
 		&i.ProviderUsername,
 		&i.PreviewBeforeAttach,
 		&i.AutoAttachPullRequests,
+		&i.GithubOrgSyncGeneration,
 	)
 	return i, err
 }

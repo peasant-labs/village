@@ -6,12 +6,12 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { parse } from "yaml";
 import { AuthProvider } from "@/providers/AuthProvider";
-import GroupsPage from "@/app/groups/page";
+import GroupsPage from "@/app/collectives/page";
 import type { ContributedCollective, User, VisibleGroup } from "@/lib/types";
-import { AllVillageGroupRoles, type VillageGroupRole } from "@peasant-labs/schema";
+import { AllVillageCollectiveRoles, type VillageCollectiveRole } from "@peasant-labs/schema";
 
 /**
- * Mount support for the REAL `/groups` collectives route, with REST stubbed at
+ * Mount support for the REAL `/collectives` collectives route, with REST stubbed at
  * `fetch`, mirroring `src/test/mountedGroupRoute.tsx`.
  *
  * The route mounts inside the `AuthProvider` the page's signed-in gate reads,
@@ -32,8 +32,8 @@ export interface CollectiveBadgeExpectation {
 export interface CollectiveBadgeRow {
   name: string;
   why: string;
-  /** `role` as GET /groups/visible reports it; null for a collective the caller only sees. */
-  role: VillageGroupRole | null;
+  /** `role` as GET /collectives/visible reports it; null for a collective the caller only sees. */
+  role: VillageCollectiveRole | null;
   /** This caller's approved contributions to this collective. */
   approved: number;
   /** This caller's contributions to this collective still awaiting review. */
@@ -105,7 +105,7 @@ export function loadCollectiveBadgeFixtures(): CollectiveBadgeFixtures {
     const name = assertString(rawRow.name, `rows[${index}].name`);
     const why = assertString(rawRow.why, `rows[${index}].why`);
     const role = assertNullableString(rawRow.role, `rows[${index}] ("${name}").role`);
-    if (role !== null && !(AllVillageGroupRoles as readonly string[]).includes(role)) {
+    if (role !== null && !(AllVillageCollectiveRoles as readonly string[]).includes(role)) {
       throw new Error(`rows[${index}] ("${name}").role ${JSON.stringify(role)} is not a collective role the contract knows`);
     }
     const approved = assertCount(rawRow.approved, `rows[${index}] ("${name}").approved`);
@@ -140,7 +140,7 @@ export function loadCollectiveBadgeFixtures(): CollectiveBadgeFixtures {
     return {
       name,
       why,
-      role: role as VillageGroupRole | null,
+      role: role as VillageCollectiveRole | null,
       approved,
       pending,
       rejected,
@@ -191,12 +191,12 @@ export function loadCollectiveBadgeFixtures(): CollectiveBadgeFixtures {
 
 // ── Route fixture ────────────────────────────────────────────────────────
 
-/** The id GET /groups/visible reports for one fixture row. */
+/** The id GET /collectives/visible reports for one fixture row. */
 export function collectiveIdFor(row: CollectiveBadgeRow): string {
   return `collective-${row.name}`;
 }
 
-/** The name GET /groups/visible reports for one fixture row. */
+/** The name GET /collectives/visible reports for one fixture row. */
 export function collectiveNameFor(row: CollectiveBadgeRow): string {
   return `collective ${row.name}`;
 }
@@ -280,9 +280,9 @@ const json = (body: unknown, status = 200) =>
 
 /**
  * Stubs `fetch` for the collectives route: `/auth/me`, `/auth/orgs`,
- * `/groups/visible`, and `/users/me/collectives/contributions`.
+ * `/collectives/visible`, and `/users/me/collectives/contributions`.
  *
- * Every fixture row is served in ONE `/groups/visible` body, because the page
+ * Every fixture row is served in ONE `/collectives/visible` body, because the page
  * shows one list and the point of the change is that a person sees collectives
  * they do not belong to beside ones they do.
  *
@@ -305,7 +305,7 @@ export function installCollectivesRouteREST(rows: readonly CollectiveBadgeRow[])
 
     if (url.endsWith("/auth/me")) return json(makeUser("collectives-viewer"));
     if (url.endsWith("/auth/orgs")) return json([]);
-    if (url.endsWith("/groups/visible")) return json(groups);
+    if (url.endsWith("/collectives/visible")) return json(groups);
     if (url.endsWith("/users/me/collectives/contributions")) return json({ collectives: contributions });
     // A request to the membership-only list is a real failure here: the page
     // must ask the visible-collectives route, and answering both would let a
@@ -386,7 +386,7 @@ export function standingTextFor(row: CollectiveBadgeRow): string {
 }
 
 /**
- * Renders the real `/groups` route and waits until BOTH of its requests have
+ * Renders the real `/collectives` route and waits until BOTH of its requests have
  * landed and been rendered.
  *
  * The viewer's identity and the contribution counters arrive over the same

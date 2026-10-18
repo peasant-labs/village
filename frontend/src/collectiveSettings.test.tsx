@@ -52,7 +52,7 @@ async function perform(settingsCase: SettingsCase): Promise<void> {
 describe("the collective settings", () => {
   it.each(fixtures.cases.map((c) => [c.name, c] as const))("%s", async (_name, settingsCase) => {
     const world = fixtures.worldFor(settingsCase);
-    window.history.replaceState(null, "", `/groups/${world.group.id}/settings${settingsCase.search}`);
+    window.history.replaceState(null, "", `/collectives/${world.group.id}/settings${settingsCase.search}`);
     const requests = installCollectiveREST(world);
     await renderCollectiveSettings(world);
     await perform(settingsCase);

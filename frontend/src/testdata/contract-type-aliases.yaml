@@ -15,27 +15,27 @@ files:
     known_hand_written_outside_scope: [User, Transcript, TranscriptListResponse]
     aliases:
       - local: Group
-        generated: VillageGroup
+        generated: VillageCollective
         declaration: >-
-          Omit<VillageGroup, "post_prompts_check" | "prompts_check_mode"> & Partial<Pick<VillageGroup, "post_prompts_check" | "prompts_check_mode">> & Partial<Pick<VillageUserGroup, "member_count" | "transcript_count">> & { role: VillageGroupViewerRole; member_since: string | null; }
+          Omit<VillageCollective, "post_prompts_check" | "prompts_check_mode"> & Partial<Pick<VillageCollective, "post_prompts_check" | "prompts_check_mode">> & Partial<Pick<VillageUserCollective, "member_count" | "transcript_count">> & { role: VillageCollectiveViewerRole; member_since: string | null; }
       - local: VisibleGroup
-        generated: VillageVisibleGroup
+        generated: VillageVisibleCollective
       - local: UserGroupShare
-        generated: VillageUserGroupShare
+        generated: VillageUserCollectiveShare
       - local: GroupTranscriptStats
-        generated: VillageGroupTranscriptStats
+        generated: VillageCollectiveTranscriptStats
         declaration: >-
-          AsJSONNumber<VillageGroupTranscriptStats, "total_duration_ms" | "total_tokens" | "total_turns">
+          AsJSONNumber<VillageCollectiveTranscriptStats, "total_duration_ms" | "total_tokens" | "total_turns">
       - local: GroupModelBreakdown
-        generated: VillageGroupModelBreakdown
+        generated: VillageCollectiveModelBreakdown
       - local: GroupContributor
-        generated: VillageGroupContributor
+        generated: VillageCollectiveContributor
       - local: GroupMember
-        generated: VillageGroupMember
+        generated: VillageCollectiveMember
       - local: GroupTranscript
-        generated: VillageGroupTranscript
+        generated: VillageCollectiveTranscript
         declaration: >-
-          AsPlainString<VillageGroupTranscript, "project_hash">
+          AsPlainString<VillageCollectiveTranscript, "project_hash">
       - local: CollectiveSearchResult
         generated: VillageCollectiveSearchResult
       - local: CollectiveSearchResponse

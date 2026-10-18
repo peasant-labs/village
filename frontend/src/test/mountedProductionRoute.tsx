@@ -183,7 +183,7 @@ export function installRESTFixture(
     if (url.endsWith(`/transcripts/${transcriptID}`)) {
       return new Response(JSON.stringify(resolvedMetadata), { status: 200, headers: { "content-type": "application/json" } });
     }
-    if (url.endsWith("/groups")) {
+    if (url.endsWith("/collectives")) {
       return new Response(JSON.stringify([]), { status: 200, headers: { "content-type": "application/json" } });
     }
     throw new Error(`${fixtureLabel} fixture received an unexpected request to ${url}`);

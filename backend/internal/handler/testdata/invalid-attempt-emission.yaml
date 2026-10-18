@@ -1,0 +1,6 @@
+- name: zero-recorded-at-refuses-history-emission
+  recorded: '0001-01-01T00:00:00Z'
+  decided: ''
+- name: pending-decision-refuses-history-emission
+  recorded: '2026-09-01T10:00:00.123456Z'
+  decided: '2026-09-01T10:01:00.654321Z'

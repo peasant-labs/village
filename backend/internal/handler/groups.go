@@ -1,13 +1,14 @@
 package handler
 
 import (
-	"log"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/peasant-labs/schema"
@@ -251,7 +252,11 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 
 	group, err := h.queries.GetGroupByID(r.Context(), pgID)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "Group not found")
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "Group not found")
+		} else {
+			writeError(w, http.StatusInternalServerError, "Collective metadata could not be loaded because its lookup failed. No metadata was returned; retry the request. If the failure persists, ask an operator to check database connectivity.")
+		}
 		return
 	}
 
@@ -287,7 +292,7 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 		ViewerIsOwner: yourRole == "owner",
 	})
 
-	groupStats := schema.VillageGroupTranscriptStats{
+	groupStats := schema.VillageCollectiveTranscriptStats{
 		TotalTranscripts: stats.TotalTranscripts, ContributorCount: stats.ContributorCount,
 		TotalTurns: stats.TotalTurns, TotalDurationMs: stats.TotalDurationMs, TotalTokens: stats.TotalTokens,
 		PullRequestCount: pullRequestCount,
@@ -347,6 +352,10 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
+	h.mutateCollective(w, r, (*Handler).updateGroupLocked, false)
+}
+
+func (h *Handler) updateGroupLocked(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -485,6 +494,10 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
+	h.mutateCollective(w, r, (*Handler).deleteGroupLocked, false)
+}
+
+func (h *Handler) deleteGroupLocked(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -511,6 +524,10 @@ func (h *Handler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
+	h.mutateCollective(w, r, (*Handler).addGroupMemberLocked, true)
+}
+
+func (h *Handler) addGroupMemberLocked(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -551,7 +568,6 @@ func (h *Handler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.refreshAfterCollectiveMembershipChange(r, pgID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "added"})
 }
 
@@ -590,6 +606,10 @@ func (h *Handler) ListPendingShares(w http.ResponseWriter, r *http.Request) {
 // ReviewShare approves or rejects a pending transcript share.
 // PATCH /groups/{id}/shares/{transcriptID} (AuthRequired, owner only)
 func (h *Handler) ReviewShare(w http.ResponseWriter, r *http.Request) {
+	h.mutateCollective(w, r, (*Handler).reviewShareLocked, true)
+}
+
+func (h *Handler) reviewShareLocked(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -637,7 +657,6 @@ func (h *Handler) ReviewShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.refreshAfterCollectiveGrantChange(r, []pgtype.UUID{toPgUUID(transcriptID)})
 	writeJSON(w, http.StatusOK, map[string]string{"status": req.Status})
 }
 
@@ -674,6 +693,10 @@ type batchReviewResponse struct {
 // governance-audit axis, needs no actor GUC, and never mutates transcript
 // visibility. The decision is attributed on each attempt row by decided_by.
 func (h *Handler) BatchReviewShares(w http.ResponseWriter, r *http.Request) {
+	h.mutateCollective(w, r, (*Handler).batchReviewSharesLocked, true)
+}
+
+func (h *Handler) batchReviewSharesLocked(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -743,13 +766,16 @@ func (h *Handler) BatchReviewShares(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.refreshAfterCollectiveGrantChange(r, decidedIDs)
 	writeJSON(w, http.StatusOK, batchReviewResponse{Decided: decided, AlreadyDecided: alreadyDecided})
 }
 
 // JoinGroup allows a logged-in user to self-join an open-acceptance collective
 // as a contributor. POST /groups/{id}/join (AuthRequired)
 func (h *Handler) JoinGroup(w http.ResponseWriter, r *http.Request) {
+	h.mutateCollective(w, r, (*Handler).joinGroupLocked, true)
+}
+
+func (h *Handler) joinGroupLocked(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -817,13 +843,16 @@ func (h *Handler) JoinGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.refreshAfterCollectiveMembershipChange(r, pgID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "joined", "role": "contributor"})
 }
 
 // PromoteMember changes a member's role. Only owners can promote/demote.
 // PATCH /groups/{id}/members/{userID}/role (AuthRequired)
 func (h *Handler) PromoteMember(w http.ResponseWriter, r *http.Request) {
+	h.mutateCollective(w, r, (*Handler).promoteMemberLocked, true)
+}
+
+func (h *Handler) promoteMemberLocked(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -880,7 +909,6 @@ func (h *Handler) PromoteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.refreshAfterCollectiveMembershipChange(r, pgID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "role": req.Role})
 }
 
@@ -889,6 +917,10 @@ func (h *Handler) PromoteMember(w http.ResponseWriter, r *http.Request) {
 // transcript_shares row is deleted. Owner-only.
 // DELETE /groups/{id}/transcripts/{transcriptID} (AuthRequired)
 func (h *Handler) RemoveGroupTranscript(w http.ResponseWriter, r *http.Request) {
+	h.mutateCollective(w, r, (*Handler).removeGroupTranscriptLocked, true)
+}
+
+func (h *Handler) removeGroupTranscriptLocked(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -919,11 +951,14 @@ func (h *Handler) RemoveGroupTranscript(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	h.refreshAfterCollectiveGrantChange(r, []pgtype.UUID{toPgUUID(transcriptID)})
 	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})
 }
 
 func (h *Handler) RemoveGroupMember(w http.ResponseWriter, r *http.Request) {
+	h.mutateCollective(w, r, (*Handler).removeGroupMemberLocked, true)
+}
+
+func (h *Handler) removeGroupMemberLocked(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -963,15 +998,6 @@ func (h *Handler) RemoveGroupMember(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var affected []sqlc.PullRequestAttachment
-	if h.gh != nil {
-		affected, err = h.queries.ListAttachmentsForCollectiveGrants(r.Context(), pgID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to read affected prompt checks; no member was removed")
-			return
-		}
-	}
-
 	err = h.queries.RemoveGroupMember(r.Context(), sqlc.RemoveGroupMemberParams{
 		GroupID: pgID,
 		UserID:  pgTargetID,
@@ -986,16 +1012,8 @@ func (h *Handler) RemoveGroupMember(w http.ResponseWriter, r *http.Request) {
 			GroupID: pgID,
 			OwnerID: pgTargetID,
 		}); err != nil {
-			writeError(w, http.StatusInternalServerError, "Removed member but failed to retract transcripts")
+			writeError(w, http.StatusInternalServerError, "Could not retract the member's transcripts; the membership operation was rolled back. Retry the removal.")
 			return
-		}
-	}
-
-	if len(affected) > 0 {
-		ctx, cancel := attachmentWorkContext(r.Context())
-		defer cancel()
-		if err := h.refreshKnownAttachments(ctx, affected); err != nil {
-			log.Printf("pull request attachment refresh after collective membership changed failed: %v", err)
 		}
 	}
 
@@ -1143,10 +1161,19 @@ func (h *Handler) ListTranscriptCollectives(w http.ResponseWriter, r *http.Reque
 	// One answer for "no such transcript" and "not yours to see", so that asking
 	// cannot be used to discover which transcripts exist.
 	if err != nil {
-		writeError(w, http.StatusNotFound, transcriptCollectivesInvisible)
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, transcriptCollectivesInvisible)
+		} else {
+			writeError(w, http.StatusInternalServerError, "Cannot read the transcript for its collective associations because the database lookup failed. No availability decision was made; retry the lookup.")
+		}
 		return
 	}
-	if !h.canViewTranscript(r.Context(), user, transcript) {
+	allowed, err := h.transcriptViewAccess(r.Context(), user, transcript)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Cannot determine transcript access for its collective associations because a database grant lookup failed. No availability decision was made; retry the lookup.")
+		return
+	}
+	if !allowed {
 		writeError(w, http.StatusNotFound, transcriptCollectivesInvisible)
 		return
 	}
@@ -1183,30 +1210,4 @@ func viewerID(user *AuthUser) pgtype.UUID {
 		return pgtype.UUID{}
 	}
 	return user.PgID()
-}
-
-// A collective decision changes transcript grants even when visibility stays
-// shared. GitHub failures do not undo the committed decision; a refresh retries.
-func (h *Handler) refreshAfterCollectiveGrantChange(r *http.Request, transcriptIDs []pgtype.UUID) {
-	if h.gh == nil {
-		return
-	}
-	if err := h.refreshAttachmentsForTranscripts(r.Context(), transcriptIDs); err != nil {
-		log.Printf("pull request attachment refresh after collective grants changed failed: %v", err)
-	}
-}
-
-func (h *Handler) refreshAfterCollectiveMembershipChange(r *http.Request, groupID pgtype.UUID) {
-	if h.gh == nil {
-		return
-	}
-	ctx, cancel := attachmentWorkContext(r.Context())
-	defer cancel()
-	attachments, err := h.queries.ListAttachmentsForCollectiveGrants(ctx, groupID)
-	if err == nil {
-		err = h.refreshKnownAttachments(ctx, attachments)
-	}
-	if err != nil {
-		log.Printf("pull request attachment refresh after collective membership changed failed: %v", err)
-	}
 }

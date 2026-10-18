@@ -1,0 +1,24 @@
+- {name: public-collectives, method: GET, suffix: /public, auth: optional, status: 200}
+- {name: search-collectives-query, method: GET, suffix: '/search?q=alias-fixture&limit=1', auth: optional, status: 200}
+- {name: create-collective-body, method: POST, suffix: '', auth: required, body: '{"name":7}', status: 400}
+- {name: membership-list, method: GET, suffix: '', auth: required, status: 200}
+- {name: visible-list, method: GET, suffix: /visible, auth: required, status: 200}
+- {name: collective-detail-id, method: GET, suffix: '/{id}', auth: optional, status: 200}
+- {name: update-collective-body, method: PATCH, suffix: '/{id}', auth: required, body: '{"display_members":"yes"}', status: 400}
+- {name: delete-collective-owner-refusal, method: DELETE, suffix: '/{id}', auth: required, actor: other, status: 403}
+- {name: join-existing-membership, method: POST, suffix: '/{id}/join', auth: required, status: 409}
+- {name: add-member-body, method: POST, suffix: '/{id}/members', auth: required, body: '{}', status: 400}
+- {name: member-role-user-id-body, method: PATCH, suffix: '/{id}/members/{userID}/role', auth: required, body: '{"role":"owner"}', status: 400}
+- {name: remove-member-owner-refusal, method: DELETE, suffix: '/{id}/members/{userID}?retract=true', auth: required, actor: other, status: 403}
+- {name: contributable-flat, method: GET, suffix: '/{id}/contributable', auth: required, status: 200}
+- {name: batch-share-body, method: POST, suffix: '/{id}/shares', auth: required, body: '{}', status: 400}
+- {name: pending-query, method: GET, suffix: '/{id}/pending?page=1&limit=2', auth: required, status: 200}
+- {name: my-shares-query, method: GET, suffix: '/{id}/my-shares?page=1&limit=2', auth: required, status: 200}
+- {name: batch-review-body, method: PATCH, suffix: '/{id}/shares', auth: required, body: '{"transcript_ids":[],"status":"maybe"}', status: 400}
+- {name: single-review-transcript-id-body, method: PATCH, suffix: '/{id}/shares/{transcriptID}', auth: required, body: '{}', status: 400}
+- {name: remove-transcript-owner-refusal, method: DELETE, suffix: '/{id}/transcripts/{transcriptID}', auth: required, actor: other, status: 403}
+- {name: repository-list, method: GET, suffix: '/{id}/repositories', auth: required, status: 200}
+- {name: link-repository-config-refusal, method: POST, suffix: '/{id}/repositories', auth: required, body: '{}', status: 501}
+- {name: available-repositories-query, method: GET, suffix: '/{id}/repositories/available?refresh=true', auth: required, status: 501}
+- {name: unlink-repository-parameters, method: DELETE, suffix: '/{id}/repositories/{owner}/{name}', auth: required, status: 404}
+- {name: repository-commits-query, method: GET, suffix: '/{id}/repositories/{owner}/{name}/commits?refresh=true', auth: required, status: 404}

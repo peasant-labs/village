@@ -1,0 +1,12 @@
+- {name: history-transient-is-failure, route: history, failure: transient, status: 500}
+- {name: history-wrapped-transient-is-failure, route: history, failure: wrapped-transient, status: 500}
+- {name: history-cancellation-is-failure, route: history, failure: canceled, status: 500}
+- {name: history-absent-is-private-negative, route: history, failure: absent, status: 404}
+- {name: history-wrapped-absence-is-private-negative, route: history, failure: wrapped-absent, status: 404}
+- {name: history-nonowner-remains-private-negative, route: history, failure: nonowner, status: 404}
+- {name: history-anonymous-remains-unauthorized, route: history, failure: anonymous, status: 401}
+- {name: collective-transient-is-failure, route: collective, failure: transient, status: 500}
+- {name: collective-wrapped-transient-is-failure, route: collective, failure: wrapped-transient, status: 500}
+- {name: collective-cancellation-is-failure, route: collective, failure: canceled, status: 500}
+- {name: collective-absent-is-negative, route: collective, failure: absent, status: 404}
+- {name: collective-wrapped-absence-is-negative, route: collective, failure: wrapped-absent, status: 404}

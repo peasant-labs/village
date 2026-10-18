@@ -38,7 +38,7 @@ for (const testCase of loadCollectiveInviteSearchFixtures()) {
       await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("invitation unavailable"));
       fireEvent.click(within(dialog).getByRole("button", { name: "invite" }));
     }
-    await waitFor(() => expect(requests.filter((request) => request.method === "POST")).toEqual([{ method: "POST", path: `/groups/${world.group.id}/members`, body: { username: testCase.handle } }]));
+    await waitFor(() => expect(requests.filter((request) => request.method === "POST")).toEqual([{ method: "POST", path: `/collectives/${world.group.id}/members`, body: { username: testCase.handle } }]));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "invite a github user" })).toBeNull());
     expect(screen.getByTestId("collective-notice")).toHaveTextContent(`@${testCase.handle} can now publish here.`);
   });

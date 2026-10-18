@@ -4,7 +4,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import PullRequestPage from "@/app/pulls/[owner]/[name]/[number]/page";
-import GroupSettingsPage from "@/app/groups/[id]/settings/page";
+import GroupSettingsPage from "@/app/collectives/[id]/settings/page";
 import type { PromptDigest, VillagePullRequestAttachmentResponse } from "@peasant-labs/schema";
 
 /**
@@ -315,10 +315,10 @@ export function installGroupSettingsREST(fixture: GroupSettingsFixture): Recorde
     if (url.includes("/orgs")) {
       return json([]);
     }
-    if (method === "PATCH" && /\/groups\/[^/]+$/.test(url)) {
+    if (method === "PATCH" && /\/collectives\/[^/]+$/.test(url)) {
       return json({ ...group, ...(body as object) });
     }
-    if (url.includes("/groups/")) {
+    if (url.includes("/collectives/")) {
       return json({
         group,
         members: [],

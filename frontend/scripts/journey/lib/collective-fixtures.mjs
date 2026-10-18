@@ -268,7 +268,7 @@ export function handleCollectiveRequest(req, res) {
   const path = url.pathname.replace(/^\/api\/v1/, '')
   const entries = Object.values(world.collectives)
 
-  if (req.method === 'GET' && path === '/groups/visible') {
+  if (req.method === 'GET' && path === '/collectives/visible') {
     send(res, 200, entries.map(visibleRow))
     return true
   }
@@ -276,7 +276,7 @@ export function handleCollectiveRequest(req, res) {
     send(res, 200, { collectives: [] })
     return true
   }
-  if (req.method === 'GET' && path === '/groups/search') {
+  if (req.method === 'GET' && path === '/collectives/search') {
     const q = (url.searchParams.get('q') || '').trim().toLowerCase()
     const hits = entries.filter((entry) =>
       entry.group.name.toLowerCase().includes(q) || (entry.group.linked_github_org || '').toLowerCase().includes(q))
@@ -308,7 +308,7 @@ export function handleCollectiveRequest(req, res) {
     send(res, 200, { status: 'removed' })
     return true
   }
-  const match = path.match(/^\/groups\/([^/]+)(\/.*)?$/)
+  const match = path.match(/^\/collectives\/([^/]+)(\/.*)?$/)
   if (!match) return false
   const entry = world.collectives[match[1]]
   if (!entry) return false

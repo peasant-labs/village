@@ -1,0 +1,8 @@
+- name: legacy-grouped-envelope-stays-groupId
+  prefix: /groups
+  required: groupId
+  forbidden: group_id
+- name: canonical-grouped-envelope-uses-group_id
+  prefix: /collectives
+  required: group_id
+  forbidden: groupId

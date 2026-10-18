@@ -133,7 +133,7 @@ func TestShareEventHistory(t *testing.T) {
 				if int(got[i].EventNum) != want.EventNum {
 					t.Errorf("event %d: event_num = %d, want %d (%s)", i, got[i].EventNum, want.EventNum, tc.Why)
 				}
-				if got[i].Status != want.Status {
+				if string(got[i].Status) != want.Status {
 					t.Errorf("event %d: status = %q, want %q (%s)", i, got[i].Status, want.Status, tc.Why)
 				}
 				if (got[i].DecidedAt != nil) != want.Decided {

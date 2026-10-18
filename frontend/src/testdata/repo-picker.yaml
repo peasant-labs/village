@@ -2,8 +2,8 @@
 # collective page's `github orgs` rail, mounted through the real route.
 #
 # Save sends one call per repository, one after another, links first:
-# `POST /groups/{id}/repositories` and
-# `DELETE /groups/{id}/repositories/{owner}/{name}`. The first failure stops
+# `POST /collectives/{id}/repositories` and
+# `DELETE /collectives/{id}/repositories/{owner}/{name}`. The first failure stops
 # the rest, and the message says what was saved, where it stopped and what it
 # did not try. Each case lists the calls in the order they must be made.
 #

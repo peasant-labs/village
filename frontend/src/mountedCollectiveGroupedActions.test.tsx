@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import GroupContributePage from "@/app/groups/[id]/contribute/page";
-import GroupDetailPage from "@/app/groups/[id]/page";
-import GroupReviewPage from "@/app/groups/[id]/review/page";
+import GroupContributePage from "@/app/collectives/[id]/contribute/page";
+import GroupDetailPage from "@/app/collectives/[id]/page";
+import GroupReviewPage from "@/app/collectives/[id]/review/page";
 import { AuthProvider } from "@/providers/AuthProvider";
 import type { Group, User } from "@/lib/types";
 import {
@@ -22,7 +22,7 @@ import { memberUUID } from "@/test/groupedHelperMountFixtures";
  * Mounted evidence for the collective grouped-helper contribution and review
  * actions, driven by `src/testdata/collective-grouped-actions.yaml`.
  *
- * The REAL `/groups/{id}/contribute` and `/groups/{id}/review` routes render,
+ * The REAL `/collectives/{id}/contribute` and `/collectives/{id}/review` routes render,
  * each through its REAL grouped query hook and REAL mutation hook; only HTTP is
  * controlled. The flat list stays the authority for its own rows; the grouped
  * read attaches the server's saved helper groups to those rows. A person
@@ -101,7 +101,7 @@ function installREST(surface: "browse" | "contribute" | "review", testCase: Coll
 
       if (path.endsWith("/auth/me")) return json(VIEWER);
       if (path.endsWith("/auth/orgs")) return json([]);
-      if (path === `/api/v1/groups/${GROUP_ID}`) {
+      if (path === `/api/v1/collectives/${GROUP_ID}`) {
         if (grouped) {
           calls.grouped.push(url.search);
           return json(groupedDetailPayload(fixtures, testCase));
@@ -118,11 +118,11 @@ function installREST(surface: "browse" | "contribute" | "review", testCase: Coll
           pending_members: [],
         });
       }
-      if (path === `/api/v1/groups/${GROUP_ID}/contributable`) {
+      if (path === `/api/v1/collectives/${GROUP_ID}/contributable`) {
         if (grouped) {
           calls.grouped.push(url.search);
           return json({
-            groupId: GROUP_ID,
+            group_id: GROUP_ID,
             transcriptList: {
               items,
               page: 1,
@@ -135,7 +135,7 @@ function installREST(surface: "browse" | "contribute" | "review", testCase: Coll
         }
         return json({ group_id: GROUP_ID, transcripts: flatContributeRows(fixtures) });
       }
-      if (path === `/api/v1/groups/${GROUP_ID}/pending`) {
+      if (path === `/api/v1/collectives/${GROUP_ID}/pending`) {
         if (grouped) {
           calls.grouped.push(url.search);
           return json({
@@ -160,7 +160,7 @@ function installREST(surface: "browse" | "contribute" | "review", testCase: Coll
         if (key == null) return json({ error: "unknown scope" }, 409);
         return json(memberPage(fixtures, key, surface));
       }
-      if (path === `/api/v1/groups/${GROUP_ID}/shares` && method === "POST") {
+      if (path === `/api/v1/collectives/${GROUP_ID}/shares` && method === "POST") {
         const body = JSON.parse(String(init?.body));
         calls.mutations.push({ method, path, body });
         return json({
@@ -169,7 +169,7 @@ function installREST(surface: "browse" | "contribute" | "review", testCase: Coll
           already_shared: [],
         });
       }
-      if (path === `/api/v1/groups/${GROUP_ID}/shares` && method === "PATCH") {
+      if (path === `/api/v1/collectives/${GROUP_ID}/shares` && method === "PATCH") {
         const body = JSON.parse(String(init?.body));
         calls.mutations.push({ method, path, body });
         return json({ decided: body.transcript_ids, already_decided: [] });

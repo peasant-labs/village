@@ -64,3 +64,44 @@
   path: /api/v1/users/me/settings
   body: '{"preview_before_attach":true,"Preview_Before_Attach":false}'
   expect: 'key "Preview_Before_Attach" differs only in case from the declared field "preview_before_attach"'
+
+- name: create collective
+  method: POST
+  path: /api/v1/collectives
+  body: '{"name":"night shift","NAME":7}'
+  expect: 'key "NAME" differs only in case from the declared field "name"'
+- name: update collective
+  method: PATCH
+  path: /api/v1/collectives/{id}
+  body: '{"name":"renamed","Data_Access":"public"}'
+  expect: 'key "Data_Access" differs only in case from the declared field "data_access"'
+- name: add collective member
+  method: POST
+  path: /api/v1/collectives/{id}/members
+  body: '{"username":"octocat","USERNAME":"someone-else"}'
+  expect: 'key "USERNAME" differs only in case from the declared field "username"'
+- name: update collective member role
+  method: PATCH
+  path: /api/v1/collectives/{id}/members/{userID}/role
+  body: '{"role":"member","ROLE":"owner"}'
+  expect: 'key "ROLE" differs only in case from the declared field "role"'
+- name: link collective repository
+  method: POST
+  path: /api/v1/collectives/{id}/repositories
+  body: '{"owner":"acme","name":"repo","installation_id":42,"Installation_ID":-1}'
+  expect: 'key "Installation_ID" differs only in case from the declared field "installation_id"'
+- name: collective batch share
+  method: POST
+  path: /api/v1/collectives/{id}/shares
+  body: '{"project_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","visibility_confirmed":true,"VISIBILITY_CONFIRMED":false}'
+  expect: 'key "VISIBILITY_CONFIRMED" differs only in case from the declared field "visibility_confirmed"'
+- name: collective batch review
+  method: PATCH
+  path: /api/v1/collectives/{id}/shares
+  body: '{"transcript_ids":[],"status":"approved","Status":"rejected"}'
+  expect: 'key "Status" differs only in case from the declared field "status"'
+- name: collective single review
+  method: PATCH
+  path: /api/v1/collectives/{id}/shares/{transcriptID}
+  body: '{"status":"rejected","STATUS":"approved"}'
+  expect: 'key "STATUS" differs only in case from the declared field "status"'

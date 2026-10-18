@@ -4,7 +4,7 @@
 #
 # Every change is its own write. A text field saves when the owner presses
 # edit, then save; a switch or a select saves the moment it changes. A settings
-# change sends exactly the one field it writes with `PATCH /groups/{id}` (the
+# change sends exactly the one field it writes with `PATCH /collectives/{id}` (the
 # server keeps every field the body leaves out), and a failed write puts the
 # old value back and says why. A member's role and removal use the member
 # routes. `{id}` and `{member}` in a path stand for the collective's and the
@@ -43,7 +43,7 @@ cases:
     action: { kind: edit-text, label: name, value: Acme Platform Team }
     expect:
       writes:
-        - { method: PATCH, path: "/groups/{id}", body: { name: Acme Platform Team } }
+        - { method: PATCH, path: "/collectives/{id}", body: { name: Acme Platform Team } }
       shows: [Acme Platform Team]
       alert: null
       switchOn: null
@@ -55,11 +55,11 @@ cases:
       the server refuses the switch; the switch returns to on and the row
       says why.
     search: ""
-    fail: { method: PATCH, path: "/groups/{id}", status: 500, error: the collective could not be saved }
+    fail: { method: PATCH, path: "/collectives/{id}", status: 500, error: the collective could not be saved }
     action: { kind: toggle, label: show transcripts on pull requests }
     expect:
       writes:
-        - { method: PATCH, path: "/groups/{id}", body: { post_prompts_check: false } }
+        - { method: PATCH, path: "/collectives/{id}", body: { post_prompts_check: false } }
       shows: []
       alert: the collective could not be saved
       switchOn: true
@@ -75,7 +75,7 @@ cases:
     action: { kind: toggle, label: show transcripts on pull requests }
     expect:
       writes:
-        - { method: PATCH, path: "/groups/{id}", body: { post_prompts_check: false } }
+        - { method: PATCH, path: "/collectives/{id}", body: { post_prompts_check: false } }
       shows: []
       alert: null
       switchOn: false
@@ -89,7 +89,7 @@ cases:
     action: { kind: role, member: bob-ai, role: contributor }
     expect:
       writes:
-        - { method: PATCH, path: "/groups/{id}/members/{member}/role", body: { role: contributor } }
+        - { method: PATCH, path: "/collectives/{id}/members/{member}/role", body: { role: contributor } }
       shows: [role changed]
       alert: null
       switchOn: null
@@ -103,7 +103,7 @@ cases:
     action: { kind: remove, member: bob-ai }
     expect:
       writes:
-        - { method: DELETE, path: "/groups/{id}/members/{member}", body: null }
+        - { method: DELETE, path: "/collectives/{id}/members/{member}", body: null }
       shows: [member removed]
       alert: null
       switchOn: null
@@ -140,4 +140,4 @@ cases:
       alert: null
       switchOn: null
       notice: github connected
-      replaced: "/groups/{id}/settings"
+      replaced: "/collectives/{id}/settings"

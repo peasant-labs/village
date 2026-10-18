@@ -1,64 +1,21 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
-// shareEventActor is the closed set of actor classes rendered on a
-// share-event history entry. It NEVER carries a user id: exposing a
-// moderator's identity to the submitter they reviewed is a disclosure this
-// plan has not authorised, and the owner-facing history only needs to say
-// WHO ACTED IN WHAT CAPACITY, not who they are.
-type shareEventActor string
-
-const (
-	// shareEventActorNone is rendered for a still-open (pending) event: it has
-	// not been decided yet, so there is no actor to name.
-	shareEventActorNone       shareEventActor = ""
-	shareEventActorOwner      shareEventActor = "owner"
-	shareEventActorCollective shareEventActor = "collective"
-	shareEventActorModerator  shareEventActor = "moderator"
-)
-
-// classifyShareEventActor derives the actor class from the event's STATUS,
-// never from the decided_by user id column. The write paths in shares.sql
-// establish this mapping: UnshareTranscript records a retraction without
-// setting decided_by (the owner is acting on their own submission);
-// RemoveGroupTranscript records a revocation without setting decided_by (the
-// collective is acting); UpdateShareStatus records an approval or rejection
-// WITH decided_by set to the reviewing moderator's id. A pending event has
-// not been decided yet, so it carries no actor.
-func classifyShareEventActor(status string) shareEventActor {
-	switch status {
-	case "approved", "rejected":
-		return shareEventActorModerator
-	case "retracted":
-		return shareEventActorOwner
-	case "revoked":
-		return shareEventActorCollective
-	default:
-		return shareEventActorNone
-	}
-}
-
-// ShareEventHistoryEntry is one row of an owner's share-event history: a
-// numbered event with its outcome and, once decided, who acted in what
-// capacity. See classifyShareEventActor for why DecidedByActor is a closed
-// class rather than a user id.
-type ShareEventHistoryEntry struct {
-	EventNum       int32           `json:"event_num"`
-	Status         string          `json:"status"`
-	RecordedAt     time.Time       `json:"recorded_at"`
-	DecidedAt      *time.Time      `json:"decided_at"`
-	DecidedByActor shareEventActor `json:"decided_by_actor"`
-}
+// ShareEventHistoryEntry keeps the handler's existing Go name while the shared
+// contract owns the wire shape, actor capacities and attempt validation.
+type ShareEventHistoryEntry = schema.VillageShareEvent
 
 // ListShareEventHistory returns the full event history for one (transcript,
 // collective) pair, oldest event first, so the owner can see why a
@@ -105,7 +62,11 @@ func (h *Handler) ListShareEventHistory(w http.ResponseWriter, r *http.Request) 
 
 	transcript, err := h.queries.GetTranscriptByID(r.Context(), toPgUUID(transcriptID))
 	if err != nil {
-		writeError(w, http.StatusNotFound, "Transcript not found")
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "Transcript not found")
+		} else {
+			writeError(w, http.StatusInternalServerError, "Share-event history could not be loaded because its transcript lookup failed. No history was returned; retry the request. If the failure persists, ask an operator to check database connectivity.")
+		}
 		return
 	}
 	if transcript.OwnerID != user.PgID() {
@@ -133,15 +94,24 @@ func (h *Handler) ListShareEventHistory(w http.ResponseWriter, r *http.Request) 
 
 	events := make([]ShareEventHistoryEntry, 0, len(rows))
 	for _, row := range rows {
+		actor, err := schema.VillageContributionAttemptActor(schema.VillageShareStatus(row.Status))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "The stored contribution attempt has an unsupported status. No history was returned; ask an operator to inspect the attempt ledger before retrying.")
+			return
+		}
 		entry := ShareEventHistoryEntry{
 			EventNum:       row.EventNum,
-			Status:         row.Status,
-			RecordedAt:     row.RecordedAt.Time,
-			DecidedByActor: classifyShareEventActor(row.Status),
+			Status:         schema.VillageShareStatus(row.Status),
+			RecordedAt:     row.RecordedAt.Time.UTC(),
+			DecidedByActor: actor,
 		}
 		if row.DecidedAt.Valid {
-			decidedAt := row.DecidedAt.Time
+			decidedAt := row.DecidedAt.Time.UTC()
 			entry.DecidedAt = &decidedAt
+		}
+		if err := entry.Validate(); err != nil {
+			writeError(w, http.StatusInternalServerError, "The stored contribution attempt does not satisfy the history contract. No history was returned; ask an operator to inspect the attempt ledger before retrying.")
+			return
 		}
 		events = append(events, entry)
 	}

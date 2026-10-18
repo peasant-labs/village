@@ -21,6 +21,8 @@ backend/bin/
 /node_modules/
 frontend/node_modules/
 frontend/.next/
+frontend/.collectives-built-lock/
+frontend/.collectives-built-lock.gate
 frontend/out/
 
 # Local visual-capture output. Per-round proof screenshots are evidence for one

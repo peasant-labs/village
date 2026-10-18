@@ -15,6 +15,7 @@
     "journey:ci": "JOURNEY_HTML=0 playwright test --config playwright.journey.config.mjs",
     "journey:update": "playwright test --config playwright.journey.config.mjs --update-snapshots",
     "journey:report": "playwright show-report scripts/journey/.artifacts/html",
+    "journey:collectives-built": "node scripts/journey/run-collectives-built.mjs",
     "lint": "eslint",
     "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run && pnpm run test:mutation",
     "test:mutation": "node scripts/test-contract-compat-mutations.mjs && node scripts/test-transcript-query-guard-mutations.mjs && node scripts/test-grouped-helper-mount-mutations.mjs",
@@ -47,7 +48,7 @@
   },
   "dependencies": {
     "@peasant-labs/fairtrade": "0.0.24",
-    "@peasant-labs/schema": "0.25.0",
+    "@peasant-labs/schema": "0.31.0",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-table": "^8.21.3",
     "@xyflow/react": "^12.10.1",

@@ -80,6 +80,20 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+      - name: Verify built collective routes and legacy redirects
+        run: |
+          command -v flock || { echo 'The built collective journey requires util-linux flock'; exit 1; }
+          pnpm --dir frontend run journey:collectives-built
+
+      - name: Upload built collective evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: collectives-built
+          path: review-capture/collectives-built-*/
+          include-hidden-files: true
+          retention-days: 14
+
   # Evidence posting runs OUTSIDE the Playwright container: ci-post-evidence
   # shells out to the gh CLI, which the pool runner image and the GitHub-hosted
   # runners carry but the Playwright image does not. setup-node provides the

@@ -38,10 +38,12 @@ func (h *Handler) RegisterCollectiveBrowseRoutes(r chi.Router) {
 	if err := h.registerCollectiveGroupedScopes(); err != nil {
 		panic(err)
 	}
-	r.With(h.AuthOptional).Get("/groups/{id}", h.GetGroup)
-	r.With(h.AuthRequired).Get("/groups/{id}/contributable", h.ListContributable)
-	r.With(h.AuthRequired).Get("/groups/{id}/pending", h.ListPendingShares)
-	r.With(h.AuthRequired).Get("/groups/{id}/my-shares", h.ListMyGroupShares)
+	for _, prefix := range []string{"/collectives", "/groups"} {
+		r.With(h.AuthOptional).Get(prefix+"/{id}", h.GetGroup)
+		r.With(h.AuthRequired).Get(prefix+"/{id}/contributable", h.ListContributable)
+		r.With(h.AuthRequired).Get(prefix+"/{id}/pending", h.ListPendingShares)
+		r.With(h.AuthRequired).Get(prefix+"/{id}/my-shares", h.ListMyGroupShares)
+	}
 }
 
 // collectiveGroupedAccess deliberately uses the same role policies as the flat
@@ -158,7 +160,21 @@ func (h *Handler) listCollectiveGrouped(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	if variant == GroupedRouteContributable {
-		writeJSON(w, http.StatusOK, schema.VillageGroupedContributableResponse{GroupID: schema.VillageUUID(request.Collective), TranscriptList: list})
+		if canonicalCollectiveResource(r) {
+			response := schema.VillageGroupedContributableResponse{GroupID: schema.VillageUUID(request.Collective), TranscriptList: list}
+			if err := response.Validate(); err != nil {
+				writeCollectiveGroupedError(w, collectiveGroupedFailure(500, "listCollectiveGrouped", "the canonical grouped contribution envelope is invalid", "retry after an operator inspects the grouped response"))
+				return
+			}
+			writeJSON(w, http.StatusOK, response)
+		} else {
+			response := schema.VillageDeprecatedGroupedContributableResponse{GroupID: schema.VillageUUID(request.Collective), TranscriptList: list}
+			if err := response.Validate(); err != nil {
+				writeCollectiveGroupedError(w, collectiveGroupedFailure(500, "listCollectiveGrouped", "the deprecated grouped contribution envelope is invalid", "retry after an operator inspects the grouped response"))
+				return
+			}
+			writeJSON(w, http.StatusOK, response)
+		}
 		return
 	}
 	writeJSON(w, http.StatusOK, list)

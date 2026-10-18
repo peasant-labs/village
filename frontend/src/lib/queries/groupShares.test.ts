@@ -20,7 +20,7 @@ interface RecordedRequest {
   body: unknown;
 }
 
-/** Stubs `fetch` for `/groups/{id}/shares`, answering per-project per the
+/** Stubs `fetch` for `/collectives/{id}/shares`, answering per-project per the
  *  case's `failing` list; records every request so a test can assert the
  *  parsed BODY, never a call count alone. */
 function installBatchShareREST(failing: string[], failureMessage: string): RecordedRequest[] {

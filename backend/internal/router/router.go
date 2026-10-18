@@ -132,42 +132,45 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthOptional).Get("/transcripts/{id}/collectives", h.ListTranscriptCollectives)
 		r.With(h.AuthRequired).Get("/users/me/collectives/contributions", h.ListMyCollectiveContributions)
 
-		// Groups
-		r.Get("/groups/public", h.ListPublicGroups)
-		r.With(h.AuthOptional).Get("/groups/search", h.SearchCollectives)
-		r.With(h.AuthRequired).Post("/groups", h.CreateGroup)
-		r.With(h.AuthRequired).Get("/groups", h.ListGroups)
-		// The collectives a person may SEE, as distinct from the ones they belong
-		// to. Both routes exist because the browse surface and the contribute
-		// picker ask different questions.
-		r.With(h.AuthRequired).Get("/groups/visible", h.ListVisibleGroups)
-		h.RegisterCollectiveBrowseRoutes(r)
-		r.With(h.AuthRequired).Patch("/groups/{id}", h.UpdateGroup)
-		r.With(h.AuthRequired).Delete("/groups/{id}", h.DeleteGroup)
-		r.With(h.AuthRequired).Post("/groups/{id}/join", h.JoinGroup)
-		r.With(h.AuthRequired).Post("/groups/{id}/members", h.AddGroupMember)
-		r.With(h.AuthRequired).Patch("/groups/{id}/members/{userID}/role", h.PromoteMember)
-		r.With(h.AuthRequired).Delete("/groups/{id}/members/{userID}", h.RemoveGroupMember)
-		// Contributing a whole project: one read that says what the caller may
-		// offer this collective, and one write that offers a project's
-		// transcripts in a single transaction. Both are member-only.
-		r.With(h.AuthRequired).Post("/groups/{id}/shares", h.BatchShareProject)
-		// Reviewing submissions: one route decides ONE submission, the other
-		// decides a whole selection in one action. Both are owner-only and
-		// neither touches transcript visibility.
-		r.With(h.AuthRequired).Patch("/groups/{id}/shares", h.BatchReviewShares)
-		r.With(h.AuthRequired).Patch("/groups/{id}/shares/{transcriptID}", h.ReviewShare)
-		r.With(h.AuthRequired).Delete("/groups/{id}/transcripts/{transcriptID}", h.RemoveGroupTranscript)
+		// Both resource families share handlers and auth through the complete
+		// released compatibility window. Helper-group routes are unrelated.
+		for _, prefix := range []string{"/collectives", "/groups"} {
+			r.Get(prefix+"/public", h.ListPublicGroups)
+			r.With(h.AuthOptional).Get(prefix+"/search", h.SearchCollectives)
+			r.With(h.AuthRequired).Post(prefix, h.CreateGroup)
+			r.With(h.AuthRequired).Get(prefix, h.ListGroups)
+			// The collectives a person may SEE, as distinct from the ones they belong
+			// to. Both routes exist because the browse surface and the contribute
+			// picker ask different questions.
+			r.With(h.AuthRequired).Get(prefix+"/visible", h.ListVisibleGroups)
+			r.With(h.AuthRequired).Patch(prefix+"/{id}", h.UpdateGroup)
+			r.With(h.AuthRequired).Delete(prefix+"/{id}", h.DeleteGroup)
+			r.With(h.AuthRequired).Post(prefix+"/{id}/join", h.JoinGroup)
+			r.With(h.AuthRequired).Post(prefix+"/{id}/members", h.AddGroupMember)
+			r.With(h.AuthRequired).Patch(prefix+"/{id}/members/{userID}/role", h.PromoteMember)
+			r.With(h.AuthRequired).Delete(prefix+"/{id}/members/{userID}", h.RemoveGroupMember)
+			// Contributing a whole project: one read that says what the caller may
+			// offer this collective, and one write that offers a project's
+			// transcripts in a single transaction. Both are member-only.
+			r.With(h.AuthRequired).Post(prefix+"/{id}/shares", h.BatchShareProject)
+			// Reviewing submissions: one route decides ONE submission, the other
+			// decides a whole selection in one action. Both are owner-only and
+			// neither touches transcript visibility.
+			r.With(h.AuthRequired).Patch(prefix+"/{id}/shares", h.BatchReviewShares)
+			r.With(h.AuthRequired).Patch(prefix+"/{id}/shares/{transcriptID}", h.ReviewShare)
+			r.With(h.AuthRequired).Delete(prefix+"/{id}/transcripts/{transcriptID}", h.RemoveGroupTranscript)
 
-		// Collective linked repositories (GitHub App; config-gated -> 501 when off).
-		// Writes (link/unlink/refresh) are owner-only; reads require membership.
-		r.With(h.AuthRequired).Get("/groups/{id}/repositories", h.ListRepositories)
-		r.With(h.AuthRequired).Post("/groups/{id}/repositories", h.LinkRepository)
-		r.With(h.AuthRequired).Delete("/groups/{id}/repositories/{owner}/{name}", h.UnlinkRepository)
-		r.With(h.AuthRequired).Get("/groups/{id}/repositories/{owner}/{name}/commits", h.ListRepositoryCommits)
-		// The repositories the App can offer this collective, for the picker. A
-		// literal segment, so chi resolves it ahead of any {owner} pattern.
-		r.With(h.AuthRequired).Get("/groups/{id}/repositories/available", h.ListAvailableRepositories)
+			// Collective linked repositories (GitHub App; config-gated -> 501 when off).
+			// Writes (link/unlink/refresh) are owner-only; reads require membership.
+			r.With(h.AuthRequired).Get(prefix+"/{id}/repositories", h.ListRepositories)
+			r.With(h.AuthRequired).Post(prefix+"/{id}/repositories", h.LinkRepository)
+			r.With(h.AuthRequired).Delete(prefix+"/{id}/repositories/{owner}/{name}", h.UnlinkRepository)
+			r.With(h.AuthRequired).Get(prefix+"/{id}/repositories/{owner}/{name}/commits", h.ListRepositoryCommits)
+			// The repositories the App can offer this collective, for the picker. A
+			// literal segment, so chi resolves it ahead of any {owner} pattern.
+			r.With(h.AuthRequired).Get(prefix+"/{id}/repositories/available", h.ListAvailableRepositories)
+		}
+		h.RegisterCollectiveBrowseRoutes(r)
 
 		// Tags
 		r.Get("/tags", h.ListTags)

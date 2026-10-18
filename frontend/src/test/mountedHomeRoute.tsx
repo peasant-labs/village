@@ -43,7 +43,7 @@ export interface MountedHomeFixture {
   usernameChosen?: boolean;
   /** What `GET /users/me/stats` answers. Defaults to all zero. */
   stats?: HomeStatsCase;
-  /** What `GET /groups` answers: the caller's memberships. Defaults to none. */
+  /** What `GET /collectives` answers: the caller's memberships. Defaults to none. */
   collectives?: HomeCollectiveCase[];
   /** What `GET /users/me/collectives/contributions` answers. Defaults to none. */
   contributions?: HomeContributionCase[];
@@ -217,12 +217,12 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
         pull_request_count: stats?.pullRequests ?? 0,
       });
     }
-    if (path === "/groups") return json((fixture.collectives ?? []).map(groupRow));
+    if (path === "/collectives") return json((fixture.collectives ?? []).map(groupRow));
     if (path === "/users/me/collectives/contributions") {
       return json({ collectives: (fixture.contributions ?? []).map(contributionRow) });
     }
     if (path.startsWith("/tags/popular")) return json([]);
-    if (path.startsWith("/groups/search")) return json({ collectives: [] });
+    if (path.startsWith("/collectives/search")) return json({ collectives: [] });
     if (path.startsWith("/transcripts")) {
       // The grouped helper read is a separate, opt-in view of the same route. It
       // is answered here (rather than through the flat owner-request failure

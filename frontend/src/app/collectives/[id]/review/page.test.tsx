@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/providers/AuthProvider";
-import GroupReviewPage from "@/app/groups/[id]/review/page";
+import GroupReviewPage from "@/app/collectives/[id]/review/page";
 import {
   loadGroupsReviewPageFixtures,
   reviewCaseByName,
@@ -12,7 +12,7 @@ import {
 } from "@/test/groupsReviewPageFixtures";
 
 /**
- * The REAL `/groups/{id}/review` route, mounted inside the real
+ * The REAL `/collectives/{id}/review` route, mounted inside the real
  * `AuthProvider` with REST stubbed at `fetch`. Every assertion is on what a
  * signed-in owner (or a non-owner) actually sees and on the PARSED body of
  * the request a click sends — never on a call count alone.
@@ -61,14 +61,14 @@ function installReviewRouteREST(testCase: ReviewPageCase): RecordedRequest[] {
         provider_username: testCase.viewer,
       });
     }
-    if (url.includes(`/groups/${GROUP_ID}/pending`)) {
+    if (url.includes(`/collectives/${GROUP_ID}/pending`)) {
       pendingReads += 1;
       return json(afterRefetch != null && pendingReads > 1 ? afterRefetch : pending);
     }
-    if (url.endsWith(`/groups/${GROUP_ID}/shares`) && method === "PATCH") {
+    if (url.endsWith(`/collectives/${GROUP_ID}/shares`) && method === "PATCH") {
       return json({ decided: testCase.decided, already_decided: testCase.alreadyDecided });
     }
-    if (new RegExp(`/groups/${GROUP_ID}$`).test(url)) {
+    if (new RegExp(`/collectives/${GROUP_ID}$`).test(url)) {
       return json({
         group: {
           id: GROUP_ID,
@@ -142,7 +142,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("/groups/{id}/review", () => {
+describe("/collectives/{id}/review", () => {
   it("reads the pending queue as a project > branch > session tree", async () => {
     const testCase = reviewCaseByName(cases, "owner_reads_the_queue_grouped_by_project");
     await mountReviewRoute(testCase);

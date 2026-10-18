@@ -1,5 +1,5 @@
 # Fixture rows for `groupContributeNav.test.tsx`: the dedicated
-# /groups/{id}/contribute route opened directly. Each row's `name` is a stable
+# /collectives/{id}/contribute route opened directly. Each row's `name` is a stable
 # identifier the test's required-name manifest checks membership against
 # (never a bare count) — see the loader in `src/test/mountedGroupRoute.tsx`
 # and the test file itself for the exact assertion each row drives.
@@ -9,13 +9,13 @@
 rows:
   - name: contribute_page_member_panel
     why: >
-      A member opening the dedicated /groups/{id}/contribute route directly
+      A member opening the dedicated /collectives/{id}/contribute route directly
       sees the moved selection panel (their shareable transcripts), not a
       membership notice.
     role: member
   - name: contribute_page_non_member_notice
     why: >
       A non-member (or signed-out visitor) opening the dedicated
-      /groups/{id}/contribute route directly sees a notice and a link back
+      /collectives/{id}/contribute route directly sees a notice and a link back
       to the collective, never the selection panel.
     role: null

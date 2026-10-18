@@ -128,10 +128,10 @@ test.describe('explore', () => {
       .getByRole('region', { name: 'matching collectives' })
       .getByRole('link', { name: /AI Research Team/ })
     await expect(collective).toBeVisible()
-    await expect(collective).toHaveAttribute('href', '/groups/ai-research-team')
+    await expect(collective).toHaveAttribute('href', '/collectives/ai-research-team')
 
     await collective.click()
-    await expect(page).toHaveURL(/\/groups\/ai-research-team/)
+    await expect(page).toHaveURL(/\/collectives\/ai-research-team/)
   })
 
   test('renders no rows when the server returns an empty list', async ({ page, request }) => {

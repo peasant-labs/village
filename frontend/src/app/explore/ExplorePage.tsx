@@ -270,10 +270,10 @@ export default function ExplorePage() {
             onFiltersChange={setFilters}
             transcriptHref={(transcript) => `/transcripts/${transcript.id}`}
             profileHref={(owner) => `/users/${owner.githubUsername}`}
-            collectiveHref={(collective) => `/groups/${collective.id}`}
+            collectiveHref={(collective) => `/collectives/${collective.id}`}
             onOpenTranscript={(transcript) => router.push(`/transcripts/${transcript.id}`)}
             onOpenProfile={(owner) => router.push(`/users/${owner.githubUsername}`)}
-            onOpenCollective={(collective) => router.push(`/groups/${collective.id}`)}
+            onOpenCollective={(collective) => router.push(`/collectives/${collective.id}`)}
           />
           {/* Agent-driven sessions are excluded from the rows above by the
               server, which reports how many the same filters matched. The

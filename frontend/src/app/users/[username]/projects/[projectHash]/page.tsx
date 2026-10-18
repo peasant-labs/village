@@ -295,7 +295,7 @@ export default function UserProjectPage({
             <li key={c.id} className="flex items-start gap-3 px-5 py-3">
               <div className="min-w-0 flex-1 flex flex-col gap-0.5">
                 <Link
-                  href={`/groups/${c.id}`}
+                  href={`/collectives/${c.id}`}
                   className="text-sm font-medium text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer truncate"
                 >
                   {c.name}

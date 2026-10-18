@@ -6,15 +6,15 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { parse } from "yaml";
 import { AuthProvider } from "@/providers/AuthProvider";
-import GroupDetailPage from "@/app/groups/[id]/page";
+import GroupDetailPage from "@/app/collectives/[id]/page";
 import type { VillageSessionListItem, VillageSessionListPayload } from "@peasant-labs/schema";
 import type { PendingShare } from "@/lib/review/types";
-import GroupContributePage from "@/app/groups/[id]/contribute/page";
+import GroupContributePage from "@/app/collectives/[id]/contribute/page";
 import type { Group, GroupMember, GroupTranscript, UserGroupShare, User } from "@/lib/types";
 import type { ContributableTranscript } from "@/lib/contribute/types";
 
 /**
- * Mount support for the REAL `/groups/{id}/contribute` route, with REST stubbed
+ * Mount support for the REAL `/collectives/{id}/contribute` route, with REST stubbed
  * at `fetch`, mirroring `src/test/mountedProjectRoute.tsx`. The route mounts
  * inside the `AuthProvider` the contribute page's own membership gate reads
  * from, so a test asserts what a signed-in member or a non-member visitor
@@ -105,7 +105,7 @@ export function loadGroupsContributeNavFixtures(): ContributeNavFixtures {
 // ── Route fixture ────────────────────────────────────────────────────────
 
 /**
- * One pending submission as `GET /groups/{id}/pending` answers it.
+ * One pending submission as `GET /collectives/{id}/pending` answers it.
  *
  * This is the WIRE type, not a second copy of it, so a fixture row cannot
  * drift from what the route actually serves. The three identity columns are
@@ -133,28 +133,28 @@ export interface GroupRouteFixture {
   viewer: string | null;
   groupId: string;
   groupName: string;
-  /** `your_role` the `/groups/{id}` payload reports, or `null` for a non-member. */
+  /** `your_role` the `/collectives/{id}` payload reports, or `null` for a non-member. */
   role: "contributor" | "member" | "owner" | null;
   /** How the collective accepts contributions. `curated` is what opens the
    *  owner's review queue; the default keeps every existing case's `open`
    *  collective unchanged. */
   acceptanceMode?: "open" | "verified_only" | "curated";
-  /** The collective's contributions, served on `/groups/{id}` and read by both
+  /** The collective's contributions, served on `/collectives/{id}` and read by both
    *  the browse list and the repository view. */
   transcripts?: GroupTranscript[];
-  /** `GET /groups/{id}/pending`, the owner's review queue of a curated
+  /** `GET /collectives/{id}/pending`, the owner's review queue of a curated
    *  collective. */
   pendingShares?: PendingShareFixtureRow[];
-  /** `GET /groups/{id}/my-shares`, this person's own contributions. */
+  /** `GET /collectives/{id}/my-shares`, this person's own contributions. */
   myShares?: UserGroupShare[];
-  /** `GET /groups/{id}/my-shares?view=grouped`, the same contributions with the
+  /** `GET /collectives/{id}/my-shares?view=grouped`, the same contributions with the
    *  saved helper groups the server grouped under each owner row. The panel
    *  reads it as a supplement; omitting it serves one empty grouped page. */
   groupedMyShares?: (page: number) => VillageSessionListPayload;
   /** `GET /transcript-groups/{groupId}/members?scope=...`, the saved helper
    *  members one expanded group serves, keyed by that group's opaque scope. */
   helperMembers?: Record<string, HelperMemberPageFixture>;
-  /** `GET /groups/{id}/contributable`, what the contribute tree offers. */
+  /** `GET /collectives/{id}/contributable`, what the contribute tree offers. */
   contributable?: ContributableTranscript[];
 }
 
@@ -233,11 +233,11 @@ export interface RecordedGroupRequest {
 }
 
 /**
- * Stubs `fetch` for one group-route fixture: `/auth/me`, `/groups/{id}`,
- * `/groups/{id}/my-shares` (fired unconditionally for a signed-in viewer by
- * `useMyGroupShares`), `/groups/{id}/pending` (the owner's review queue of a
- * curated collective), `/groups/{id}/repositories`, `/groups/{id}/contributable`,
- * the `PATCH /groups/{id}/shares/{transcriptId}` a moderator's decision sends,
+ * Stubs `fetch` for one group-route fixture: `/auth/me`, `/collectives/{id}`,
+ * `/collectives/{id}/my-shares` (fired unconditionally for a signed-in viewer by
+ * `useMyGroupShares`), `/collectives/{id}/pending` (the owner's review queue of a
+ * curated collective), `/collectives/{id}/repositories`, `/collectives/{id}/contributable`,
+ * the `PATCH /collectives/{id}/shares/{transcriptId}` a moderator's decision sends,
  * and `/transcripts?owner=...` (fired by the contribute page's `useTranscripts`
  * for a member).
  *
@@ -262,7 +262,7 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
       fixture.myShares = (fixture.myShares ?? []).filter((share) => share.id !== transcriptID);
       return json({ status: "removed" });
     }
-    if (method === "DELETE" && /\/groups\/[^/]+\/transcripts\/[^/]+$/.test(new URL(url).pathname)) {
+    if (method === "DELETE" && /\/collectives\/[^/]+\/transcripts\/[^/]+$/.test(new URL(url).pathname)) {
       const transcriptID = new URL(url).pathname.split("/").at(-1);
       fixture.transcripts = (fixture.transcripts ?? []).filter((row) => row.id !== transcriptID);
       return json({ status: "removed" });
@@ -318,7 +318,7 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
     // The detail payload, with or without the paging query the "browse all"
     // control adds; both answer from the same list, which is what the real
     // endpoint does.
-    if (new RegExp(`/groups/${fixture.groupId}(\\?|$)`).test(url)) {
+    if (new RegExp(`/collectives/${fixture.groupId}(\\?|$)`).test(url)) {
       const params = new URL(url, "https://village.test").searchParams;
       if (params.get("view") === "grouped") {
         // The grouped reader validates UUIDs strictly; the fixture's short ids
@@ -382,7 +382,7 @@ function Providers({ children, queryClient }: { children: ReactNode; queryClient
   );
 }
 
-/** Renders the real `/groups/{id}` route. */
+/** Renders the real `/collectives/{id}` route. */
 export async function renderGroupDetailRoute(id: string, existingClient?: QueryClient): Promise<QueryClient> {
   const queryClient = existingClient ?? new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   await act(async () => {
@@ -395,7 +395,7 @@ export async function renderGroupDetailRoute(id: string, existingClient?: QueryC
   return queryClient;
 }
 
-/** Renders the real `/groups/{id}/contribute` route. */
+/** Renders the real `/collectives/{id}/contribute` route. */
 export async function renderGroupContributeRoute(id: string): Promise<void> {
   await act(async () => {
     render(

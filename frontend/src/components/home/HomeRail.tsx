@@ -46,7 +46,7 @@ export default function HomeRail({
           <h2 className="cmg-rail-title" id={collectivesTitle}>
             your collectives
           </h2>
-          <Link href="/groups" className="btn btn-ghost btn-sm">
+          <Link href="/collectives" className="btn btn-ghost btn-sm">
             view all
           </Link>
         </div>
@@ -73,7 +73,7 @@ export default function HomeRail({
           <ul className="cmg-rail-list">
             {mine.slice(0, RAIL_COLLECTIVES_SHOWN).map((c) => (
               <li key={c.id} data-testid="home-rail-collective">
-                <Link href={`/groups/${c.id}`} className="cmg-rail-link">
+                <Link href={`/collectives/${c.id}`} className="cmg-rail-link">
                   {c.name}
                 </Link>
                 <span className="cmg-rail-meta">
@@ -111,7 +111,7 @@ export default function HomeRail({
           <ul className="cmg-rail-list">
             {waiting.map((c) => (
               <li key={c.id} data-testid="home-rail-waiting-collective">
-                <Link href={`/groups/${c.id}`} className="cmg-rail-link">
+                <Link href={`/collectives/${c.id}`} className="cmg-rail-link">
                   {c.name}
                 </Link>
                 <span className="cmg-rail-meta">

@@ -223,7 +223,7 @@ const server = createServer((req, res) => {
   // visible rows, and this user has one.
   if (/^\/users\/[^/]+\/orgs$/.test(path))
     return send(res, 200, [{ org_login: 'peasant-labs', avatar_url: orgAvatar('PL', '#6b7a52') }])
-  if (path === '/groups') return send(res, 200, [])
+  if (path === '/collectives') return send(res, 200, [])
   if (path === '/users/me/collectives/contributions') return send(res, 200, { collectives: contributions })
 
   const events = path.match(/^\/users\/me\/collectives\/([^/]+)\/transcripts\/([^/]+)\/events$/)

@@ -1,0 +1,12 @@
+- {name: attempt-pending-approved, acceptance: curated, action: approve, status: approved, ordinal: 1, decided: true}
+- {name: attempt-pending-rejected, acceptance: curated, action: reject, status: rejected, ordinal: 1, decided: true}
+- {name: attempt-pending-retracted, acceptance: curated, action: unshare, status: retracted, ordinal: 1, decided: true}
+- {name: attempt-pending-revoked, acceptance: curated, action: remove, status: revoked, ordinal: 1, decided: true}
+- {name: attempt-late-pending-after-terminal, acceptance: curated, action: approve, mutation: pending, status: approved, ordinal: 1, decided: true}
+- {name: attempt-terminal-exact-replay, acceptance: curated, action: approve, status: approved, ordinal: 1, decided: true}
+- {name: attempt-recorded-at-conflict, acceptance: curated, action: approve, mutation: recorded_at, status: approved, ordinal: 1, decided: true}
+- {name: attempt-terminal-conflict, acceptance: curated, action: approve, mutation: rejected, status: approved, ordinal: 1, decided: true}
+- {name: attempt-terminal-decision-conflict, acceptance: curated, action: approve, mutation: decided_at, status: approved, ordinal: 1, decided: true}
+- {name: attempt-approved-withdrawal-new-ordinal, acceptance: open, action: unshare, status: retracted, ordinal: 2, decided: true}
+- {name: attempt-initial-auto-approved-null-decision, acceptance: open, action: none, status: approved, ordinal: 1, decided: false}
+- {name: attempt-moderator-deletion-wire-unchanged, acceptance: curated, action: delete-moderator, status: approved, ordinal: 1, decided: true}

@@ -12,7 +12,7 @@ import (
 // being served, with one query for the whole page
 // (fillCollectivePullRequestSummaries).
 func collectiveSessionRow(s schema.VillageTranscript, username string, avatar *string, discoverable bool) schema.VillageSessionRow {
-	return schema.VillageSessionRow{Session: s, Collective: &schema.VillageGroupTranscript{
+	return schema.VillageSessionRow{Session: s, Collective: &schema.VillageCollectiveTranscript{
 		ID: s.ID, OwnerID: s.OwnerID, LocalID: s.LocalID,
 		Title: s.Title, Description: s.Description, Visibility: s.Visibility,
 		ModelProvider: s.ModelProvider, ModelName: s.ModelName, HarnessVersion: s.HarnessVersion,
@@ -58,7 +58,7 @@ func pendingSessionRow(s schema.VillageTranscript, username string, discoverable
 }
 
 func myShareSessionRow(s schema.VillageTranscript, status schema.VillageShareStatus, sharedAt time.Time) schema.VillageSessionRow {
-	return schema.VillageSessionRow{Session: s, MyShare: &schema.VillageUserGroupShare{
+	return schema.VillageSessionRow{Session: s, MyShare: &schema.VillageUserCollectiveShare{
 		ID: s.ID, Title: s.Title, ModelProvider: s.ModelProvider, ModelName: s.ModelName,
 		Visibility: s.Visibility, PublishedAt: s.PublishedAt, TurnCount: s.TurnCount,
 		TokensIn: s.TokensIn, TokensOut: s.TokensOut, OwnerID: s.OwnerID, LocalID: s.LocalID,

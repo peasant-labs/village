@@ -15,7 +15,7 @@ export default function CollectiveCard({
 }) {
   return (
     <Link
-      href={`/groups/${collective.id}`}
+      href={`/collectives/${collective.id}`}
       className="block border border-rule bg-surface hover:bg-surface-hover transition-colors focus-mono cursor-pointer p-4 flex flex-col gap-2"
     >
       {/* Header row */}
