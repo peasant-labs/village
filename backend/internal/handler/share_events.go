@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/peasant-labs/schema"
 
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
@@ -60,7 +62,11 @@ func (h *Handler) ListShareEventHistory(w http.ResponseWriter, r *http.Request) 
 
 	transcript, err := h.queries.GetTranscriptByID(r.Context(), toPgUUID(transcriptID))
 	if err != nil {
-		writeError(w, http.StatusNotFound, "Transcript not found")
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "Transcript not found")
+		} else {
+			writeError(w, http.StatusInternalServerError, "Share-event history could not be loaded because its transcript lookup failed. No history was returned; retry the request. If the failure persists, ask an operator to check database connectivity.")
+		}
 		return
 	}
 	if transcript.OwnerID != user.PgID() {

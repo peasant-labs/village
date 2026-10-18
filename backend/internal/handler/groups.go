@@ -252,7 +252,11 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 
 	group, err := h.queries.GetGroupByID(r.Context(), pgID)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "Group not found")
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "Group not found")
+		} else {
+			writeError(w, http.StatusInternalServerError, "Collective metadata could not be loaded because its lookup failed. No metadata was returned; retry the request. If the failure persists, ask an operator to check database connectivity.")
+		}
 		return
 	}
 
