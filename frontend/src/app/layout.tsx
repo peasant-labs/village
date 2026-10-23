@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { LayoutShell } from "@/components/LayoutShell";
 import { atkinsonHyperlegible, atkinsonHyperlegibleMono } from "@/app/fonts";
+import { THEME_BOOT_SCRIPT } from "@/hooks/useTheme";
 // CSS import order: fairtrade components.css (tokens + base + component
 // styles) FIRST, then the fairtrade analytics per-surface bundle (nothing
 // auto-loads it — the dashboard ships unstyled without the explicit import),
@@ -39,13 +41,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // data-theme="dark" is the server-rendered default; useTheme.ts takes over
-    // on the client and applies the stored preference (dark unless overridden).
+    // data-theme="dark" is what the server renders; the head script below
+    // replaces it before the first paint with the person's stored choice, or
+    // the system's scheme when there is none, and useTheme.ts keeps it there.
+    // The attribute is expected to differ from the server's at hydration.
     <html
       lang="en"
       data-theme="dark"
+      suppressHydrationWarning
       className={`${atkinsonHyperlegible.variable} ${atkinsonHyperlegibleMono.variable}`}
     >
+      <head>
+        <Script id="peasant-theme" strategy="beforeInteractive">
+          {THEME_BOOT_SCRIPT}
+        </Script>
+      </head>
       <body className="min-h-screen bg-canvas text-ink antialiased">
         <LayoutShell>{children}</LayoutShell>
       </body>
