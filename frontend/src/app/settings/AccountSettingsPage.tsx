@@ -421,8 +421,8 @@ function DeleteAccount() {
     <div className="srow on-row-stack" data-testid="settings-delete">
       <span className="srow-text-col">
         <span className="srow-help">
-          Deleting your account removes it from peasant online, with the transcripts you published and
-          the collectives you own. It cannot be undone.
+          deleting your account removes it from peasant online, with the transcripts you published and
+          the collectives you own. it cannot be undone.
         </span>
         {error && (
           <span className="srow-error" role="alert">

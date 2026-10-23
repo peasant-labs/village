@@ -174,3 +174,10 @@ cases:
     surface: profile-page
     state: not-found
     expectContent: [viewer]
+
+  - name: the-account-settings-with-its-danger-zone
+    # Every section's card, the danger zone's words included: the settings
+    # descriptions are chrome, lowercase like the rest.
+    surface: account-settings
+    state: own
+    expectContent: []

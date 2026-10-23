@@ -24,6 +24,7 @@ export const SURFACE_STATES = {
   "contribute-picker": ["open", "no-collectives", "contributed"],
   "pending-approval-bar": ["pending"],
   "profile-page": ["own", "visitor", "not-found"],
+  "account-settings": ["own"],
 } as const;
 
 export type LowercaseSurface = keyof typeof SURFACE_STATES;
@@ -76,6 +77,7 @@ const requiredCaseNames = [
   "a-profile-its-owner-reads",
   "a-profile-a-visitor-reads",
   "a-profile-that-does-not-exist",
+  "the-account-settings-with-its-danger-zone",
 ] as const;
 
 const contentKeys: LowercaseContentKey[] = [

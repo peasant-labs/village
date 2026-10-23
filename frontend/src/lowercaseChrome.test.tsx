@@ -22,6 +22,8 @@ import {
 import { installCollectiveREST, makeGroup, mountCollectiveSettings } from "@/test/mountedCollectivePages";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { installProfileRESTFixture, renderProfileRoute } from "@/test/mountedProfileRoute";
+import { installSettingsRouteREST, renderSettingsRoute } from "@/test/mountedSettingsRoute";
+import { loadAccountSettingsFixtures } from "@/test/accountSettingsFixtures";
 import {
   loadLowercaseChromeFixtures,
   type LowercaseChromeCase,
@@ -499,6 +501,13 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
         await waitFor(() => expect(document.body.textContent).toContain("transcript-flaky-ingest"));
         if (c.state === "own") await screen.findAllByText("discoverable profile");
       }
+      return document.body;
+    }
+
+    case "account-settings": {
+      installSettingsRouteREST(loadAccountSettingsFixtures().cases[0]);
+      await renderSettingsRoute();
+      await screen.findByTestId("settings-delete");
       return document.body;
     }
 
