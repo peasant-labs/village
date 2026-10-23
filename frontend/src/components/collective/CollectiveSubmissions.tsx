@@ -41,7 +41,7 @@ export default function CollectiveSubmissions({
 
   if (isError) {
     return (
-      <p className="border border-danger/40 bg-danger-soft px-4 py-3 text-[13px] text-danger">
+      <p className="border border-danger/40 bg-danger-soft px-4 py-3 text-[length:var(--fs-body)] text-danger">
         your submissions to this collective could not be loaded:{" "}
         {String((error as Error)?.message ?? "the request failed")}. nothing was changed. retry, or
         reload this page.
@@ -56,7 +56,7 @@ export default function CollectiveSubmissions({
       emptyState={
         <p
           data-testid="collective-submissions-empty"
-          className="px-1 py-2 font-mono text-xs text-ink-3"
+          className="px-1 py-2 font-mono text-[length:var(--fs-label)] text-ink-3"
         >
           no submissions of yours are on record in this collective
         </p>
@@ -82,14 +82,14 @@ export default function CollectiveSubmissions({
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border border-rule bg-surface px-4 py-2.5">
                 <Link
                   href={`/transcripts/${pair.transcript_id}`}
-                  className="min-w-[8rem] flex-1 truncate text-[13px] text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer"
+                  className="min-w-[8rem] flex-1 truncate text-[length:var(--fs-body)] text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer"
                 >
                   {pair.title ?? pair.transcript_id.slice(0, 8)}
                 </Link>
                 <span
                   data-testid="collective-submission-status"
                   data-status={pair.status}
-                  className="font-mono text-xs text-ink-3 shrink-0"
+                  className="font-mono text-[length:var(--fs-label)] text-ink-3 shrink-0"
                 >
                   {submissionPairChip(pair.status)}
                 </span>
@@ -101,7 +101,7 @@ export default function CollectiveSubmissions({
                   }
                   className={cn(
                     "inline-flex items-center gap-1.5 h-8 px-2.5 shrink-0",
-                    "border border-rule bg-surface font-mono text-xs text-ink-3",
+                    "border border-rule bg-surface font-mono text-[length:var(--fs-label)] text-ink-3",
                     "hover:bg-surface-hover hover:text-ink transition-colors focus-mono cursor-pointer",
                   )}
                 >
@@ -111,7 +111,7 @@ export default function CollectiveSubmissions({
               </div>
               {open && (
                 <div className="mt-2">
-                  <p className="mb-2 font-mono text-xs text-ink-3">
+                  <p className="mb-2 font-mono text-[length:var(--fs-label)] text-ink-3">
                     every recorded event for this submission in {groupName}, oldest first
                   </p>
                   <ShareEventLog groupId={groupId} transcriptId={pair.transcript_id} />

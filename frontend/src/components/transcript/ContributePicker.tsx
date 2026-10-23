@@ -88,9 +88,9 @@ export default function ContributePicker({
 
           <div className="flex flex-col gap-2 p-4">
             {isLoading ? (
-              <p className="text-[13px] text-ink-3">loading collectives…</p>
+              <p className="text-[length:var(--fs-body)] text-ink-3">loading collectives…</p>
             ) : !groups || groups.length === 0 ? (
-              <p className="text-[13px] text-ink-3">
+              <p className="text-[length:var(--fs-body)] text-ink-3">
                 you haven&apos;t joined any collectives yet.
               </p>
             ) : (
@@ -109,7 +109,7 @@ export default function ContributePicker({
                     )}
                     aria-pressed={selected === g.id}
                   >
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
+                    <span className="min-w-0 flex-1 truncate text-[length:var(--fs-body)] font-medium">
                       {g.name}
                     </span>
                     <span
@@ -126,12 +126,12 @@ export default function ContributePicker({
             )}
 
             {share.isError && (
-              <p className="text-[12px] text-danger">
+              <p className="text-[length:var(--fs-body)] text-danger">
                 could not contribute. try again.
               </p>
             )}
             {confirmation && (
-              <p className="text-[12px] text-success">{confirmation}</p>
+              <p className="text-[length:var(--fs-body)] text-success">{confirmation}</p>
             )}
           </div>
 
@@ -140,7 +140,7 @@ export default function ContributePicker({
               type="button"
               onClick={onClose}
               className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 h-8 text-[13px] font-medium",
+                "inline-flex items-center gap-1.5 px-2.5 h-8 text-[length:var(--fs-body)] font-medium",
                 "border border-rule bg-surface text-ink",
                 "hover:bg-surface-hover focus-mono transition-colors cursor-pointer",
               )}
@@ -152,7 +152,7 @@ export default function ContributePicker({
               onClick={submit}
               disabled={!selected || share.isPending || !!confirmation}
               className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 h-8 text-[13px] font-medium",
+                "inline-flex items-center gap-1.5 px-2.5 h-8 text-[length:var(--fs-body)] font-medium",
                 "bg-mark text-mark-fg border border-mark",
                 "hover:opacity-90 focus-mono transition-opacity cursor-pointer",
                 "disabled:opacity-60 disabled:cursor-not-allowed",

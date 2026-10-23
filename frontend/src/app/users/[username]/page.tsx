@@ -223,7 +223,7 @@ export default function UserProfilePage({
                       {group.project}
                     </h2>
                   </Link>
-                  <span className="font-mono text-xs text-ink-3 tabular-nums shrink-0">
+                  <span className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums shrink-0">
                     {group.items.length} session
                     {group.items.length !== 1 ? "s" : ""}
                   </span>
@@ -292,7 +292,7 @@ export default function UserProfilePage({
                 updateSettingsMutation.isPending && "opacity-50 cursor-wait",
               )}
             >
-              <span className="font-mono text-xs text-ink-3 tabular-nums">
+              <span className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums">
                 {user.is_discoverable ? "on" : "off"}
               </span>
               <input
@@ -312,7 +312,7 @@ export default function UserProfilePage({
 
         <RailSection title="account" icon={AlertTriangle} meta={undefined}>
           <div className="flex flex-col gap-3">
-            <p className="text-[13px] text-ink-3 leading-relaxed">
+            <p className="text-[length:var(--fs-body)] text-ink-3 leading-relaxed">
               permanently delete your account. this also removes your published
               transcripts and the collectives you own. this cannot be undone.
             </p>
@@ -326,7 +326,7 @@ export default function UserProfilePage({
               {deleteAccountMutation.isPending ? "deleting" : "delete account"}
             </Button>
             {deleteAccountMutation.isError && (
-              <p role="alert" className="text-[13px] text-ink">
+              <p role="alert" className="text-[length:var(--fs-body)] text-ink">
                 your account was not deleted: {deleteAccountMutation.error.message}
               </p>
             )}
@@ -400,7 +400,7 @@ export default function UserProfilePage({
                   />
                 ) : null}
                 {/* An organization login is USER CONTENT, never lowercased. */}
-                <span className="font-mono text-[13px] text-ink normal-case">
+                <span className="font-mono text-[length:var(--fs-label)] text-ink normal-case">
                   {org.org_login}
                 </span>
               </li>

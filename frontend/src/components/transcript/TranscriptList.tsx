@@ -445,7 +445,7 @@ function Row({
             <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
               <span
                 data-testid="agent-session-badge"
-                className="font-mono text-[11px] text-ink-3 border border-rule px-1"
+                className="font-mono text-[length:var(--fs-label)] text-ink-3 border border-rule px-1"
               >
                 agent session
               </span>
@@ -478,7 +478,7 @@ function Row({
         >
           {confirmingDelete ? (
             <>
-              <span className="font-mono text-[11px] text-ink-3">delete?</span>
+              <span className="font-mono text-[length:var(--fs-label)] text-ink-3">delete?</span>
               <button
                 type="button"
                 disabled={del.isPending}

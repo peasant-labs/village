@@ -35,7 +35,7 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
         className="h-full flex items-center justify-center border border-rule bg-surface"
         data-testid="transcript-preview-empty"
       >
-        <p className="text-[13px] text-ink-3">select a session to preview it</p>
+        <p className="text-[length:var(--fs-body)] text-ink-3">select a session to preview it</p>
       </div>
     );
   }
@@ -53,7 +53,7 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
   if (!data) {
     return (
       <div className="h-full flex items-center justify-center border border-rule bg-surface">
-        <p className="text-[13px] text-ink-3">transcript not found</p>
+        <p className="text-[length:var(--fs-body)] text-ink-3">transcript not found</p>
       </div>
     );
   }
@@ -63,7 +63,7 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
       <div className="h-full flex flex-col items-center justify-center gap-2 border border-rule bg-surface text-center px-6">
         <FileX2 size={28} strokeWidth={1.5} className="text-ink-4" aria-hidden />
         <p className="text-sm text-ink">unsupported transcript format</p>
-        <p className="text-[12px] text-ink-3 max-w-xs">
+        <p className="text-[length:var(--fs-body)] text-ink-3 max-w-xs">
           this transcript was published in a legacy format the preview cannot render.
         </p>
       </div>

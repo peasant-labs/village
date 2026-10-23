@@ -117,7 +117,7 @@ export default function AttestButton({ transcriptId }: { transcriptId: string })
             {/* mono, lowercase eyebrow -- matches the DS's own eyebrow convention
                 (fairtrade src/ui/SignIn.jsx .si-eyebrow: font-mono, lowercase, ink-3),
                 not village's local .v2-eyebrow (uppercase, off-DS for this composition). */}
-            <span className="font-mono text-[11px] tracking-wide text-ink-3">new attestation</span>
+            <span className="font-mono text-[length:var(--fs-label)] tracking-wide text-ink-3">new attestation</span>
           </div>
 
           <div className="px-5 py-4 flex flex-col gap-4">
@@ -163,7 +163,7 @@ export default function AttestButton({ transcriptId }: { transcriptId: string })
             </div>
 
             {createAttestation.isError && (
-              <p className="text-[13px] text-danger px-3 py-2 border border-danger/30 bg-danger-soft">
+              <p className="text-[length:var(--fs-body)] text-danger px-3 py-2 border border-danger/30 bg-danger-soft">
                 {createAttestation.error.message}
               </p>
             )}

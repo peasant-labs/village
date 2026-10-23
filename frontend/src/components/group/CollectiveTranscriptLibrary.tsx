@@ -36,7 +36,7 @@ function MyContributionRow({ share, groupID, onUnshare, unsharing, helperGroups,
 }) {
     const row = (<div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5 hover:bg-surface-hover transition-colors">
       <ProviderBadge provider={share.model_provider}/>
-      <Link href={transcriptHref(share.id, { kind: "collective", id: groupID })} className="text-[var(--fs-body)] text-ink truncate min-w-0 flex-1 basis-[12rem] hover:underline focus-mono cursor-pointer">
+      <Link href={transcriptHref(share.id, { kind: "collective", id: groupID })} className="text-[length:var(--fs-body)] text-ink truncate min-w-0 flex-1 basis-[12rem] hover:underline focus-mono cursor-pointer">
         {share.title || "untitled"}
       </Link>
       {share.status === "pending" && (<span className="text-sm font-mono text-ink-3 tracking-wider shrink-0">
@@ -211,7 +211,7 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
         isFetching: boolean;
         refetch: () => unknown;
     }) {
-        return <div role="alert" className="text-[var(--fs-body)] text-danger px-5 py-3"><p>could not read saved transcript groups: {query.error?.message}</p><button type="button" className="btn btn-secondary btn-sm" disabled={query.isFetching} onClick={() => void query.refetch()}>try again</button></div>;
+        return <div role="alert" className="text-[length:var(--fs-body)] text-danger px-5 py-3"><p>could not read saved transcript groups: {query.error?.message}</p><button type="button" className="btn btn-secondary btn-sm" disabled={query.isFetching} onClick={() => void query.refetch()}>try again</button></div>;
     }
     return <div className="flex flex-col gap-4 min-w-0" data-testid="collective-transcript-library">
     {canRead && (transcripts.length > 0 || fallback.length > 0 || grouped.remainingItems > 0 || grouped.isError) && <div className="border border-rule bg-surface">
@@ -229,7 +229,7 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
                     next.delete(row.id);
             } return next; })}>select all</Checkbox><ConfirmInline aria-label={`remove selected (${selected.size})`} label={`remove selected (${selected.size})`} confirmLabel="remove from collective" disabled={selected.size === 0} busy={removing} onConfirm={removeSelected}/></div>}
           </div>}
-          {removeError && <p role="alert" className="text-[var(--fs-body)] text-danger px-5 py-3">could not remove all selected contributions: {removeError}. failed rows remain selected; try again.</p>}
+          {removeError && <p role="alert" className="text-[length:var(--fs-body)] text-danger px-5 py-3">could not remove all selected contributions: {removeError}. failed rows remain selected; try again.</p>}
           {view === "repos" ? <CollectiveRepos transcripts={visible} viewerIsOwner={isOwner} helperGroups={helpers} onRefreshOrigin={grouped.refreshOrigin} context={{ kind: "collective", id: groupID }}/> : <TranscriptList items={folded.rootItems} childSessions={children} facts={COLLECTIVE_BROWSE_FACTS} selection={isOwner ? { selectedIDs: selected, onToggle: (id) => { if (removing)
                 return; changeSelection((current) => { const next = new Set(current); if (next.has(id))
                 next.delete(id);
@@ -241,9 +241,9 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
       </SessionGroupDisclosure>
     </div>}
     {user && (shares.length > 0 || myFallback.length > 0 || groupedMine.remainingItems > 0 || myShares.isError || groupedMine.isError) && <div className="border border-rule bg-surface" data-testid="my-contributions-panel">
-      <div className="flex justify-between px-5 py-3 border-b border-rule"><span className="text-[var(--fs-body)] text-ink">your contributions</span><span className="font-mono text-sm text-ink-3 tabular-nums">{shares.length}</span></div>
+      <div className="flex justify-between px-5 py-3 border-b border-rule"><span className="text-[length:var(--fs-body)] text-ink">your contributions</span><span className="font-mono text-sm text-ink-3 tabular-nums">{shares.length}</span></div>
       {myShares.isError && retry(myShares)}
-      {withdraw.isError && <p role="alert" className="text-[var(--fs-body)] text-danger px-5 py-3">could not withdraw the contribution: {withdraw.error.message}. try again.</p>}
+      {withdraw.isError && <p role="alert" className="text-[length:var(--fs-body)] text-danger px-5 py-3">could not withdraw the contribution: {withdraw.error.message}. try again.</p>}
       <div className="divide-y divide-rule">{mine.rootItems.map((share) => <div key={share.id}><MyContributionRow share={share} groupID={groupID} onUnshare={withdraw.mutate} unsharing={withdraw.isPending} helperGroups={myHelpers.get(share.id)} onRefreshOrigin={groupedMine.refreshOrigin}/><MyContributionChildren parentShareID={share.id} startedShares={myChildren.get(share.id) ?? []} groupID={groupID} onUnshare={withdraw.mutate} unsharing={withdraw.isPending} helperGroupsByRowID={myHelpers} onRefreshOrigin={groupedMine.refreshOrigin}/></div>)}</div>
       {groupedMine.isError && retry(groupedMine)}
       {(myFallback.length > 0 || groupedMine.remainingItems > 0) && <div data-testid="grouped-helper-fallback" className="border-t border-rule"><ScopedUnownedHelperGroups items={groupedMine.items} representedOwnerIds={representedMine} onRefreshOrigin={groupedMine.refreshOrigin}/><ScopedGroupedContinuation remaining={groupedMine.remainingItems} busy={groupedMine.isFetchingNextPage} onLoadMore={() => void groupedMine.fetchNextPage()}/></div>}

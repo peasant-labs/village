@@ -113,7 +113,7 @@ function AgentSessionRows({
           role="alert"
           className="border-t border-rule px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
         >
-          <p className="text-[13px] text-ink-3">
+          <p className="text-[length:var(--fs-body)] text-ink-3">
             {`Failed to load the ${label} for this list. `}
             {error instanceof Error ? error.message : "Unknown error."}
             {" The sessions are still reachable from their own links. Retry to load the group."}
@@ -143,7 +143,7 @@ function AgentSessionRows({
               >
                 previous
               </button>
-              <span className="font-mono text-xs text-ink-3 tabular-nums">
+              <span className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums">
                 page {page} of {totalPages}
               </span>
               <button

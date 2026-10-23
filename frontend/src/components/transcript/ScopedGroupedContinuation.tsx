@@ -29,7 +29,7 @@ export default function ScopedGroupedContinuation({
       className="flex items-center justify-between gap-3 px-5 py-3"
       data-testid="grouped-helper-continuation"
     >
-      <span className="font-mono text-xs text-ink-3 tabular-nums">
+      <span className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums">
         {remaining.toLocaleString()} more grouped {remaining === 1 ? "result" : "results"}
       </span>
       <Button size="sm" variant="ghost" disabled={busy} onClick={onLoadMore}>

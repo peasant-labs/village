@@ -256,7 +256,7 @@ export function ScopedHelperGroup({
         >
           previous
         </button>
-        <span className="font-mono text-xs text-ink-3 tabular-nums">
+        <span className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums">
           page {page} of {totalPages}
         </span>
         <button

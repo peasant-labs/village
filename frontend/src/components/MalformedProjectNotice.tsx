@@ -41,7 +41,7 @@ export default function MalformedProjectNotice({
       <p className="font-medium">
         {count} transcript{count !== 1 ? "s" : ""} could not be grouped by project
       </p>
-      <p className="mt-1 text-[13px]">
+      <p className="mt-1 text-[length:var(--fs-body)]">
         Each is missing the project identity the server is expected to always
         provide. {consequence}
       </p>

@@ -64,7 +64,7 @@ export default function RequestFailureState({
             that already says the request is going out again. */}
         <div role="alert" className="flex flex-col items-center gap-3">
           <p className="text-sm font-medium text-ink">{title}</p>
-          <p className="text-[13px] text-ink-3 max-w-sm">{message}</p>
+          <p className="text-[length:var(--fs-body)] text-ink-3 max-w-sm">{message}</p>
         </div>
         <RetryButton label={retryLabel} busy={retryDisabled} onRetry={onRetry} />
       </div>

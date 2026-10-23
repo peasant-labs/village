@@ -295,7 +295,7 @@ export default function UserProjectPage({
                   {c.name}
                 </Link>
                 {c.description && (
-                  <span className="text-[13px] text-ink-3 leading-relaxed line-clamp-2">
+                  <span className="text-[length:var(--fs-body)] text-ink-3 leading-relaxed line-clamp-2">
                     {c.description}
                   </span>
                 )}
@@ -365,13 +365,13 @@ export default function UserProjectPage({
             {clearName.isPending ? "resetting" : "reset to default"}
           </Button>
         </div>
-        <p className="text-[13px] text-ink-3 leading-relaxed">
+        <p className="text-[length:var(--fs-body)] text-ink-3 leading-relaxed">
           {hasOverride
             ? "Resetting removes your name and returns the project to the name peasant resolves from its transcripts."
             : "This project uses the name peasant resolves from its transcripts. There is nothing to reset."}
         </p>
         {mutationError && (
-          <p role="alert" className="text-[13px] text-danger leading-relaxed">
+          <p role="alert" className="text-[length:var(--fs-body)] text-danger leading-relaxed">
             {mutationError.message}
           </p>
         )}

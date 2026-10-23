@@ -103,7 +103,7 @@ function DialogBody({
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
               placeholder="untitled"
               className={cn(
-                "w-full px-2 py-1.5 text-[13px]",
+                "w-full px-2 py-1.5 text-[length:var(--fs-body)]",
                 "bg-canvas border border-rule text-ink focus-mono",
               )}
             />
@@ -136,7 +136,7 @@ function DialogBody({
           </div>
 
           {update.isError && (
-            <p className="text-[12px] text-danger" role="alert">
+            <p className="text-[length:var(--fs-body)] text-danger" role="alert">
               {update.error instanceof ApiError && update.error.status === 422 && update.error.message
                 ? update.error.message
                 : "Could not save changes. Try again."}
@@ -149,7 +149,7 @@ function DialogBody({
             type="button"
             onClick={onClose}
             className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 h-8 text-[13px] font-medium",
+              "inline-flex items-center gap-1.5 px-2.5 h-8 text-[length:var(--fs-body)] font-medium",
               "border border-rule bg-surface text-ink",
               "hover:bg-surface-hover focus-mono transition-colors cursor-pointer",
             )}
@@ -160,7 +160,7 @@ function DialogBody({
             type="submit"
             disabled={update.isPending}
             className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 h-8 text-[13px] font-medium",
+              "inline-flex items-center gap-1.5 px-2.5 h-8 text-[length:var(--fs-body)] font-medium",
               "bg-mark text-mark-fg border border-mark",
               "hover:opacity-90 focus-mono transition-opacity cursor-pointer",
               "disabled:opacity-60 disabled:cursor-not-allowed",
@@ -205,7 +205,7 @@ function VisibilityButton({
         {icon}
         {label}
       </span>
-      <span className={cn("text-[11px]", active ? "opacity-80" : "text-ink-3")}>
+      <span className={cn("text-[length:var(--fs-body)]", active ? "opacity-80" : "text-ink-3")}>
         {desc}
       </span>
     </button>

@@ -199,7 +199,7 @@ function SessionRow({
           </button>
           {session.mark != null && <Tag className="shrink-0">{session.mark}</Tag>}
         </div>
-        <div className="font-mono text-xs text-ink-3 tabular-nums [overflow-wrap:anywhere]">{session.meta}</div>
+        <div className="font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums [overflow-wrap:anywhere]">{session.meta}</div>
       </div>
     </div>
   );

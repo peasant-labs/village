@@ -354,7 +354,7 @@ export function SessionDetailV2({
         <div className="max-w-[1600px] mx-auto px-6 pt-6">
           <div className="border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger">
             <p className="font-medium">transcript unavailable</p>
-            <p className="mt-1 text-[13px]">{error}</p>
+            <p className="mt-1 text-[length:var(--fs-body)]">{error}</p>
           </div>
         </div>
       );
@@ -388,7 +388,7 @@ export function SessionDetailV2({
       {/* A fetch error after data loaded: the transcript on screen is the
           last good snapshot — say so instead of pretending it is live. */}
       {error != null && (
-        <p className="max-w-[1600px] w-full mx-auto px-6 pt-2 text-[12px] text-danger shrink-0">
+        <p className="max-w-[1600px] w-full mx-auto px-6 pt-2 text-[length:var(--fs-body)] text-danger shrink-0">
           connection error; showing the last loaded transcript.
         </p>
       )}
@@ -407,7 +407,7 @@ export function SessionDetailV2({
           {transcriptId && (
             <Link
               href={`/transcripts/${transcriptId}`}
-              className="text-[12px] text-ink-3 hover:text-ink transition-colors focus-mono shrink-0"
+              className="text-[length:var(--fs-body)] text-ink-3 hover:text-ink transition-colors focus-mono shrink-0"
               data-testid="preview-open-full-link"
             >
               open full transcript

@@ -70,7 +70,7 @@ export default function ShareEventLog({
   // does. Loading and empty still go through DataState.
   if (isError) {
     return (
-      <p className="border border-danger/40 bg-danger-soft px-4 py-3 text-[13px] text-danger">
+      <p className="border border-danger/40 bg-danger-soft px-4 py-3 text-[length:var(--fs-body)] text-danger">
         the event history for this submission could not be loaded:{" "}
         {String((error as Error)?.message ?? "the request failed")}. nothing was changed. retry, or
         reload this page.
@@ -83,7 +83,7 @@ export default function ShareEventLog({
       loading={isLoading}
       empty={events.length === 0}
       emptyState={
-        <p className="px-4 py-3 font-mono text-xs text-ink-3">
+        <p className="px-4 py-3 font-mono text-[length:var(--fs-label)] text-ink-3">
           no events recorded for this submission
         </p>
       }
@@ -102,11 +102,11 @@ export default function ShareEventLog({
               data-event-status={event.status}
               className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 leading-relaxed"
             >
-              <span className="font-mono text-xs text-ink-4 tabular-nums shrink-0">
+              <span className="font-mono text-[length:var(--fs-label)] text-ink-4 tabular-nums shrink-0">
                 event {event.event_num}
               </span>
               <Icon className="size-3.5 text-ink-3 shrink-0" />
-              <span className="font-mono text-[13px] text-ink whitespace-nowrap">{shareEventLabel(event)}</span>
+              <span className="font-mono text-[length:var(--fs-label)] text-ink whitespace-nowrap">{shareEventLabel(event)}</span>
               {/* When this event happened: the decision time once decided,
                   the submission time while still open. Both come from the same
                   row, and the write paths only ever open a new attempt after
@@ -114,7 +114,7 @@ export default function ShareEventLog({
                   reading forwards in time. */}
               <span
                 data-testid="share-event-time"
-                className="ml-auto font-mono text-xs text-ink-3 tabular-nums shrink-0"
+                className="ml-auto font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums shrink-0"
               >
                 {formatEventTime(event.decided_at ?? event.recorded_at)}
               </span>

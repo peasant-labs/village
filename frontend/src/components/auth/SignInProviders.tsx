@@ -103,7 +103,7 @@ export function SignInProviders() {
       <button
         type="button"
         onClick={() => start(primary.id)}
-        className="inline-flex h-8 items-center gap-1.5 bg-mark px-3 text-xs font-medium text-mark-fg transition-colors hover:bg-mark/90 focus-mono cursor-pointer"
+        className="inline-flex h-8 items-center gap-1.5 bg-mark px-3 text-[length:var(--fs-body)] font-medium text-mark-fg transition-colors hover:bg-mark/90 focus-mono cursor-pointer"
       >
         {primary.icon}
         {primary.label}
@@ -136,7 +136,7 @@ export function SignInProviders() {
                 setOpen(false);
                 start(p.id);
               }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-ink transition-colors hover:bg-surface-hover focus-mono cursor-pointer"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-[length:var(--fs-body)] font-medium text-ink transition-colors hover:bg-surface-hover focus-mono cursor-pointer"
             >
               <span className="text-ink-2">{p.icon}</span>
               {p.label}

@@ -256,7 +256,7 @@ export default function GitHubUserSearch({
                   unoptimized
                   className="size-6 border border-rule object-cover shrink-0"
                 />
-                <span className="menu-text font-mono normal-case text-[var(--fs-label)]">{user.login}</span>
+                <span className="menu-text font-mono normal-case text-[length:var(--fs-label)]">{user.login}</span>
               </li>
             ))}
           </ul>

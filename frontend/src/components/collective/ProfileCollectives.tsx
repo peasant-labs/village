@@ -30,7 +30,7 @@ function ContributionCounter({
 }) {
   return (
     <div data-testid={testId} className="flex min-w-0 flex-col gap-0.5">
-      <span className="font-mono text-xs text-ink-3">{label}</span>
+      <span className="font-mono text-[length:var(--fs-label)] text-ink-3">{label}</span>
       <span className="font-mono text-sm text-ink tabular-nums">{value.toLocaleString()}</span>
     </div>
   );
@@ -69,7 +69,7 @@ function ContributedCollectiveRow({
             {collective.name}
           </Link>
           {collective.description && (
-            <p className="text-[13px] text-ink-3 leading-relaxed line-clamp-2">
+            <p className="text-[length:var(--fs-body)] text-ink-3 leading-relaxed line-clamp-2">
               {collective.description}
             </p>
           )}
@@ -119,7 +119,7 @@ function ContributedCollectiveRow({
             onClick={onToggle}
             className={cn(
               "inline-flex items-center gap-1.5 h-8 px-2.5 shrink-0 self-center",
-              "border border-rule bg-surface font-mono text-xs text-ink-3",
+              "border border-rule bg-surface font-mono text-[length:var(--fs-label)] text-ink-3",
               "hover:bg-surface-hover hover:text-ink transition-colors focus-mono cursor-pointer",
             )}
           >
@@ -187,7 +187,7 @@ export default function ProfileCollectives({ isOwnProfile }: { isOwnProfile: boo
       </div>
 
       {isError ? (
-        <p className="px-5 py-4 text-[13px] text-danger">
+        <p className="px-5 py-4 text-[length:var(--fs-body)] text-danger">
           your contributed collectives could not be loaded:{" "}
           {String((error as Error)?.message ?? "the request failed")}. your contributions are
           unchanged and nothing was written. retry, or reload this page.

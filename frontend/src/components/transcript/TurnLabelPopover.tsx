@@ -158,7 +158,7 @@ export default function TurnLabelPopover({
             </Select>
 
             {error && (
-              <span className="text-[12px] text-danger" role="alert">
+              <span className="text-[length:var(--fs-body)] text-danger" role="alert">
                 {error}
               </span>
             )}

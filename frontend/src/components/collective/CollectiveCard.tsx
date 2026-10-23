@@ -30,18 +30,18 @@ export default function CollectiveCard({
 
       {/* Description */}
       {collective.description && (
-        <p className="text-[12px] text-ink-3 leading-relaxed line-clamp-2">
+        <p className="text-[length:var(--fs-body)] text-ink-3 leading-relaxed line-clamp-2">
           {collective.description}
         </p>
       )}
 
       {/* Footer row */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-mono tabular-nums text-[11px] text-ink-3">
+        <span className="font-mono tabular-nums text-[length:var(--fs-label)] text-ink-3">
           {collective.member_count} members &middot; {collective.transcript_count} transcripts
         </span>
         {collective.linked_github_org && (
-          <span className="inline-flex items-center gap-1 border border-rule px-1.5 py-0.5 font-mono text-[10px] text-ink-3">
+          <span className="inline-flex items-center gap-1 border border-rule px-1.5 py-0.5 font-mono text-[length:var(--fs-label)] text-ink-3">
             <Building2 className="h-2.5 w-2.5" strokeWidth={1.75} />
             @{collective.linked_github_org}
           </span>

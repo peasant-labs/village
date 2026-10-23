@@ -307,10 +307,10 @@ export default function GroupSettingsPage({
           </button>
         }
       >
-        <p className="text-[var(--fs-body)] text-ink-2">find their github handle, then invite them to this collective.</p>
+        <p className="text-[length:var(--fs-body)] text-ink-2">find their github handle, then invite them to this collective.</p>
         <GitHubUserSearch value={inviteHandle} onChange={setInviteHandle} onSelect={setInviteHandle} />
         {addMember.isError && (
-          <p role="alert" className="text-[var(--fs-body)] text-danger">
+          <p role="alert" className="text-[length:var(--fs-body)] text-danger">
             could not add a member: {addMember.error.message}. try again.
           </p>
         )}

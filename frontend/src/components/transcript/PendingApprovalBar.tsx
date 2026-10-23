@@ -45,7 +45,7 @@ export default function PendingApprovalBar({
           <div key={r.groupId} className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
               <Clock className="size-3.5 text-warning shrink-0" />
-              <span className="text-[13px] text-ink truncate">
+              <span className="text-[length:var(--fs-body)] text-ink truncate">
                 pending review in{" "}
                 <span className="font-mono text-warning">{r.groupName}</span>
               </span>
@@ -75,7 +75,7 @@ export default function PendingApprovalBar({
         {reviews
           .filter((r) => resolved[r.groupId])
           .map((r) => (
-            <div key={r.groupId} className="flex items-center gap-2 text-[13px] text-ink-3">
+            <div key={r.groupId} className="flex items-center gap-2 text-[length:var(--fs-body)] text-ink-3">
               {resolved[r.groupId] === "approved" ? (
                 <Check className="size-3.5 text-success" />
               ) : (

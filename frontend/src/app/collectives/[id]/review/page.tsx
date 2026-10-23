@@ -335,16 +335,16 @@ export default function GroupReviewPage({
       <div className="fixed bottom-0 left-0 right-0 border-t border-rule bg-surface z-10">
         <div className="max-w-[var(--on-page-max)] mx-auto px-6 max-sm:px-4 py-3 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-col gap-1 min-w-0">
-            <p className="text-xs font-mono text-ink-3 tabular-nums" data-testid="review-selection-count">
+            <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums" data-testid="review-selection-count">
               {selectedCount} selected
             </p>
             {stale.size > 0 && (
-              <p className="text-xs font-mono text-ink-3 tabular-nums" data-testid="review-stale-notice">
+              <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums" data-testid="review-stale-notice">
                 {stale.size} already decided by someone else
               </p>
             )}
             {review.isError && (
-              <p className="text-xs text-danger" data-testid="review-error">
+              <p className="text-[length:var(--fs-body)] text-danger" data-testid="review-error">
                 {review.error instanceof Error ? review.error.message : "the decision could not be applied."}
               </p>
             )}

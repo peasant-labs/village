@@ -35,7 +35,7 @@ export default function ScopedGroupedHelperSection({
 
   return (
     <div className="mt-4 flex flex-col gap-3" data-testid="grouped-helper-section">
-      <p className="font-mono text-xs text-ink-3">saved helper threads</p>
+      <p className="font-mono text-[length:var(--fs-label)] text-ink-3">saved helper threads</p>
       <div className="border border-rule bg-surface">
         <ScopedGroupedHelperRows items={items} onRefreshOrigin={grouped.refreshOrigin} />
       </div>

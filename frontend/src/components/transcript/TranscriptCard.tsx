@@ -43,7 +43,7 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
           )}
           {projectDisplay && (
             <span
-              className="text-[11px] font-mono text-ink-3 truncate"
+              className="text-[length:var(--fs-label)] font-mono text-ink-3 truncate"
               title={describeNameSource(t.project_name_source)}
             >
               {projectDisplay}
@@ -83,7 +83,7 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
 
       {/* Collective membership */}
       {shares && shares.length > 0 && (
-        <div className="flex items-center flex-wrap gap-1.5 mt-2 text-[11px] font-mono text-ink-4">
+        <div className="flex items-center flex-wrap gap-1.5 mt-2 text-[length:var(--fs-label)] font-mono text-ink-4">
           {shares.slice(0, 3).map((s, i) => (
             <span key={s.group_id}>
               {i > 0 && <span className="mx-1">&middot;</span>}
@@ -114,10 +114,10 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
               {owner.github_username[0].toUpperCase()}
             </div>
           )}
-          <span className="text-xs text-ink-3">{attribution.label}</span>
+          <span className="text-[length:var(--fs-body)] text-ink-3">{attribution.label}</span>
         </div>
 
-        <div className="flex items-center gap-3 text-[11px] font-mono text-ink-4 tabular-nums">
+        <div className="flex items-center gap-3 text-[length:var(--fs-label)] font-mono text-ink-4 tabular-nums">
           {t.duration_ms != null && <span>{formatDuration(t.duration_ms)}</span>}
           {t.tool_call_count != null && <span>{t.tool_call_count} tools</span>}
           {t.turn_count != null && <span>{t.turn_count} turns</span>}

@@ -322,7 +322,7 @@ export default function GroupContributePage({
       <div className="fixed bottom-0 left-0 right-0 border-t border-rule bg-surface z-10">
         <div className="max-w-[var(--on-page-max)] mx-auto px-6 max-sm:px-4 py-3 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-col gap-1 min-w-0">
-          <p className="text-xs font-mono text-ink-3 tabular-nums" data-testid="contribute-selection-count">{selectedCount} selected</p>
+          <p className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums" data-testid="contribute-selection-count">{selectedCount} selected</p>
           {run.state.running && (
             <div
               className="w-64 max-w-full h-1 bg-rule overflow-hidden"
@@ -339,7 +339,7 @@ export default function GroupContributePage({
             </div>
           )}
           {!run.state.running && run.state.results.size > 0 && (
-            <ul className="flex flex-col gap-1 text-xs text-ink-3" data-testid="contribute-run-receipt">
+            <ul className="flex flex-col gap-1 text-[length:var(--fs-body)] text-ink-3" data-testid="contribute-run-receipt">
               {[...run.state.results.entries()].map(([projectHash, outcome]) => (
                 <li key={projectHash} className="tabular-nums">
                   {projectLabelByHash.get(projectHash) ?? projectHash}:{" "}

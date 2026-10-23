@@ -68,10 +68,10 @@ function NotConfiguredNotice() {
     <div className="flex items-start gap-3 border border-rule bg-surface-hover px-4 py-3">
       <PlugZap className="size-4 shrink-0 text-ink-3 mt-0.5" />
       <div className="flex flex-col gap-0.5">
-        <p className="text-[13px] font-medium text-ink">
+        <p className="text-[length:var(--fs-body)] font-medium text-ink">
           github connection isn&apos;t set up
         </p>
-        <p className="text-[12px] text-ink-3">
+        <p className="text-[length:var(--fs-body)] text-ink-3">
           an admin must register the github app on this server before
           repositories can be linked. nothing is broken — this feature is just
           turned off here.
@@ -106,7 +106,7 @@ function RepositoryCommits({
 
   if (commits.isLoading) {
     return (
-      <div className="flex items-center gap-2 px-4 py-3 text-[12px] text-ink-3">
+      <div className="flex items-center gap-2 px-4 py-3 text-[length:var(--fs-body)] text-ink-3">
         <Loader2 className="size-3.5 animate-spin" />
         loading commits…
       </div>
@@ -116,7 +116,7 @@ function RepositoryCommits({
   if (commits.isError) {
     if (isNotConfigured(commits.error)) return <NotConfiguredNotice />;
     return (
-      <div className="px-4 py-3 text-[12px] text-danger">
+      <div className="px-4 py-3 text-[length:var(--fs-body)] text-danger">
         couldn&apos;t load commits: {commits.error.message}
       </div>
     );
@@ -151,7 +151,7 @@ function RepositoryCommits({
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-[12px] text-ink-3 py-2">
+        <p className="text-[length:var(--fs-body)] text-ink-3 py-2">
           no commits cached yet.
           {isOwner
             ? " use refresh to pull them from github."
@@ -218,18 +218,18 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
         </Button>
       </div>
       {available.isLoading ? (
-        <div className="flex items-center gap-2 text-[13px] text-ink-3">
+        <div className="flex items-center gap-2 text-[length:var(--fs-body)] text-ink-3">
           <Loader2 className="size-4 animate-spin" />
           loading repositories…
         </div>
       ) : available.isError ? (
-        <p className="text-[12px] text-danger">
+        <p className="text-[length:var(--fs-body)] text-danger">
           {isNotConfigured(available.error)
             ? "github isn't set up on this server."
             : available.error.message}
         </p>
       ) : repos.length === 0 ? (
-        <p className="text-[12px] text-ink-3">
+        <p className="text-[length:var(--fs-body)] text-ink-3">
           no repositories available. connect the github app to this collective&apos;s
           organization above to choose one.
         </p>
@@ -266,10 +266,10 @@ function LinkRepoForm({ groupId }: { groupId: string }) {
         </div>
       )}
       {validationError && (
-        <p className="text-[12px] text-danger">{validationError}</p>
+        <p className="text-[length:var(--fs-body)] text-danger">{validationError}</p>
       )}
       {link.isError && !validationError && (
-        <p className="text-[12px] text-danger">
+        <p className="text-[length:var(--fs-body)] text-danger">
           {isNotConfigured(link.error)
             ? "github connection isn't set up on this server."
             : link.error.message}
@@ -320,7 +320,7 @@ export default function LinkedRepositories({
           </span>
         </div>
         {repos.data && (
-          <span className="text-xs font-mono text-ink-3 tabular-nums">
+          <span className="text-[length:var(--fs-label)] font-mono text-ink-3 tabular-nums">
             {repos.data.repositories.length}
           </span>
         )}
@@ -336,18 +336,18 @@ export default function LinkedRepositories({
             {isOwner && <LinkRepoForm groupId={groupId} />}
 
             {repos.isLoading ? (
-              <div className="flex items-center gap-2 px-5 py-6 text-[13px] text-ink-3">
+              <div className="flex items-center gap-2 px-5 py-6 text-[length:var(--fs-body)] text-ink-3">
                 <Loader2 className="size-4 animate-spin" />
                 loading repositories…
               </div>
             ) : repos.isError ? (
-              <div className="px-5 py-6 text-[13px] text-danger">
+              <div className="px-5 py-6 text-[length:var(--fs-body)] text-danger">
                 {repos.error.message}
               </div>
             ) : (repos.data?.repositories.length ?? 0) === 0 ? (
               <div className="px-5 py-8 text-center">
                 <FolderGit2 className="size-6 text-ink-4 mx-auto mb-2" />
-                <p className="text-[13px] text-ink-3">
+                <p className="text-[length:var(--fs-body)] text-ink-3">
                   no repositories linked yet.
                   {isOwner
                     ? " link one above to cache its commit history."
@@ -365,10 +365,10 @@ export default function LinkedRepositories({
                       <div className="flex items-center gap-3 px-5 py-3">
                         <Github className="size-4 shrink-0 text-ink-3" />
                         <div className="min-w-0 flex-1 flex flex-col">
-                          <span className="text-[13px] text-ink truncate">
+                          <span className="text-[length:var(--fs-body)] text-ink truncate">
                             {repo.owner}/{repo.name}
                           </span>
-                          <span className="text-[11px] font-mono text-ink-4 tabular-nums">
+                          <span className="text-[length:var(--fs-label)] font-mono text-ink-4 tabular-nums">
                             synced {formatDate(repo.last_synced_at)}
                           </span>
                         </div>
@@ -392,7 +392,7 @@ export default function LinkedRepositories({
                         {isOwner &&
                           (isConfirming ? (
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-[11px] font-mono text-ink-3">
+                              <span className="text-[length:var(--fs-label)] font-mono text-ink-3">
                                 unlink?
                               </span>
                               <Button

@@ -248,7 +248,7 @@ export default function ExplorePage() {
                 because its label changes while a retry is in flight, and an
                 alert is atomic: wrapping the button would re-announce the whole
                 failure assertively on every press. */}
-            <p role="alert" className="text-[13px] text-ink-3">{failureMessage}</p>
+            <p role="alert" className="text-[length:var(--fs-body)] text-ink-3">{failureMessage}</p>
             {retryButton}
           </div>
         )}
@@ -263,7 +263,7 @@ export default function ExplorePage() {
           <div
             aria-hidden="true"
             data-testid="session-list-loading"
-            className="flex items-center gap-2 px-4 py-2 mb-4 border border-rule bg-surface text-[13px] text-ink-3"
+            className="flex items-center gap-2 px-4 py-2 mb-4 border border-rule bg-surface text-[length:var(--fs-body)] text-ink-3"
           >
             <Loader2 size={14} className="text-ink-3 motion-safe:animate-spin" aria-hidden="true" />
             <span className="mono tnum">{busyMessage}</span>

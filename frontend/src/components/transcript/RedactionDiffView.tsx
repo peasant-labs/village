@@ -84,7 +84,7 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-medium border border-rule tabular-nums',
+        'inline-flex items-center gap-1 px-2 py-0.5 text-[length:var(--fs-label)] font-mono font-medium border border-rule tabular-nums',
         isLow
           ? 'bg-warning-soft text-warning'
           : 'bg-surface-hover text-ink-3',
@@ -104,7 +104,7 @@ function ContextBlock({ redaction }: { redaction: Redaction }) {
   const startLine = redaction.lineNumber - redaction.contextBefore.length;
 
   return (
-    <div className="border border-rule bg-code-bg font-mono text-xs overflow-x-auto">
+    <div className="border border-rule bg-code-bg font-mono text-[length:var(--fs-label)] overflow-x-auto">
       {redaction.contextBefore.map((line, i) => (
         <div key={`before-${i}`} className="flex">
           <span className="inline-block w-12 shrink-0 select-none px-2 py-0.5 text-right text-ink-4 tabular-nums border-r border-rule">
@@ -203,7 +203,7 @@ function RedactionCard({
             </Chip>
           </Tooltip>
         )}
-        <span className="text-xs text-ink-3 ml-auto font-mono tabular-nums">
+        <span className="text-[length:var(--fs-label)] text-ink-3 ml-auto font-mono tabular-nums">
           line {redaction.lineNumber}
         </span>
       </div>
@@ -215,7 +215,7 @@ function RedactionCard({
       <ContextBlock redaction={redaction} />
 
       {/* Replacement summary */}
-      <div className="text-xs text-ink-3">
+      <div className="text-[length:var(--fs-body)] text-ink-3">
         <span className="line-through text-diff-del-text">
           {redaction.originalText.length > 50
             ? redaction.originalText.slice(0, 47) + '...'
@@ -241,7 +241,7 @@ function RedactionCard({
             >
               Redact
             </Button>
-            <span className="text-xs text-danger flex items-center gap-1">
+            <span className="text-[length:var(--fs-body)] text-danger flex items-center gap-1">
               <AlertTriangleIcon className="size-3" />
               This content will be exposed
             </span>
@@ -276,7 +276,7 @@ function RedactionEmptyState() {
             <ShieldAlertIcon className="size-6 text-ink-3" />
           </div>
           <h3 className="text-sm font-medium text-ink">No redactions detected</h3>
-          <p className="mt-1 text-xs text-ink-3 max-w-sm">
+          <p className="mt-1 text-[length:var(--fs-body)] text-ink-3 max-w-sm">
             No sensitive content was auto-detected in this transcript.
             The session is safe to share as-is.
           </p>

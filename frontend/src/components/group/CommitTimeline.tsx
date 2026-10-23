@@ -61,7 +61,7 @@ const OVERLAY_COLUMNS: DataTableColumn[] = [
     label: "SHA",
     width: "7rem",
     render: (sha, row) => (
-      <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-ink-3 tabular-nums">
+      <span className="inline-flex items-center gap-1.5 font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums">
         {row.matched && (
           <GitCommitHorizontal className="size-3 text-ink shrink-0" />
         )}
@@ -73,7 +73,7 @@ const OVERLAY_COLUMNS: DataTableColumn[] = [
     key: "message",
     label: "Message",
     render: (message) => (
-      <span className="block max-w-0 truncate text-[12px] text-ink">
+      <span className="block max-w-0 truncate text-[length:var(--fs-body)] text-ink">
         {(message ?? "").split("\n")[0] || "—"}
       </span>
     ),
@@ -98,7 +98,7 @@ const OVERLAY_COLUMNS: DataTableColumn[] = [
           ))}
         </div>
       ) : (
-        <span className="text-[11px] font-mono text-ink-4">—</span>
+        <span className="text-[length:var(--fs-label)] font-mono text-ink-4">—</span>
       ),
   },
   {
@@ -108,7 +108,7 @@ const OVERLAY_COLUMNS: DataTableColumn[] = [
     sortable: true,
     width: "7rem",
     render: (iso) => (
-      <span className="whitespace-nowrap font-mono text-[11px] text-ink-3 tabular-nums">
+      <span className="whitespace-nowrap font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums">
         {formatDate(iso)}
       </span>
     ),
@@ -212,7 +212,7 @@ export default function CommitTimeline({
         </span>
         <div className="flex items-center gap-2">
           {anyLoading && (
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-ink-4 tabular-nums">
+            <span className="inline-flex items-center gap-1.5 text-[length:var(--fs-label)] font-mono text-ink-4 tabular-nums">
               <Loader2 className="size-3 animate-spin" />
               {loadedCount}/{transcripts.length}
             </span>
@@ -223,7 +223,7 @@ export default function CommitTimeline({
               type="button"
               onClick={() => setOnlyMatched(false)}
               aria-pressed={!onlyMatched}
-              className={`px-2.5 py-1 text-[11px] font-mono transition-colors cursor-pointer focus-mono ${
+              className={`px-2.5 py-1 text-[length:var(--fs-label)] font-mono transition-colors cursor-pointer focus-mono ${
                 !onlyMatched
                   ? "bg-ink text-canvas"
                   : "text-ink-3 hover:text-ink hover:bg-surface-hover"
@@ -236,7 +236,7 @@ export default function CommitTimeline({
               onClick={() => setOnlyMatched(true)}
               aria-pressed={onlyMatched}
               disabled={matchedCount === 0}
-              className={`px-2.5 py-1 text-[11px] font-mono border-l border-rule transition-colors cursor-pointer focus-mono disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`px-2.5 py-1 text-[length:var(--fs-label)] font-mono border-l border-rule transition-colors cursor-pointer focus-mono disabled:opacity-50 disabled:cursor-not-allowed ${
                 onlyMatched
                   ? "bg-ink text-canvas"
                   : "text-ink-3 hover:text-ink hover:bg-surface-hover"
@@ -249,15 +249,15 @@ export default function CommitTimeline({
       </div>
 
       {repoCommits.length === 0 ? (
-        <p className="text-[12px] text-ink-3 py-2">
+        <p className="text-[length:var(--fs-body)] text-ink-3 py-2">
           No commits to overlay yet.
         </p>
       ) : transcripts.length === 0 ? (
-        <p className="text-[12px] text-ink-3 py-2">
+        <p className="text-[length:var(--fs-body)] text-ink-3 py-2">
           No collective transcripts to match against these commits.
         </p>
       ) : visible.length === 0 ? (
-        <p className="text-[12px] text-ink-3 py-2">
+        <p className="text-[length:var(--fs-body)] text-ink-3 py-2">
           None of this collective&apos;s transcripts touch these commits yet.
         </p>
       ) : (

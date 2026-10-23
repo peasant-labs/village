@@ -105,7 +105,7 @@ export default function CollectiveRepos({
       <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
         <div className="flex items-center gap-2">
           <FolderGit2 className="size-3.5 text-ink-3" />
-          <span className="text-[var(--fs-body)] font-medium text-ink">repositories</span>
+          <span className="text-[length:var(--fs-body)] font-medium text-ink">repositories</span>
         </div>
         <span className="text-sm font-mono text-ink-3 tabular-nums">
           {repoGroups.length}
@@ -140,7 +140,7 @@ export default function CollectiveRepos({
                   <div className="min-w-0 flex-1 flex flex-col">
                     {/* A long repository name wraps rather than clipping; on a
                         phone the remote, which repeats it, gives way. */}
-                    <span className="font-[family-name:var(--font-display)] text-[var(--fs-body)] text-ink tracking-tight [overflow-wrap:anywhere]">
+                    <span className="font-[family-name:var(--font-display)] text-[length:var(--fs-body)] text-ink tracking-tight [overflow-wrap:anywhere]">
                       {repo.unattributed ? "unattributed" : repo.name}
                     </span>
                     {repo.remote ? (
