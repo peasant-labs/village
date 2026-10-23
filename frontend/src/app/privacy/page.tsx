@@ -5,9 +5,9 @@ import { PrivacyNotice } from "./PrivacyNotice";
 // The gallery and tab name carry the strict term; the description carries the
 // familiar one so search and link previews match both.
 export const metadata: Metadata = {
-  title: "privacy notice | village",
+  title: "privacy notice | peasant",
   description:
-    "Village privacy notice (privacy policy): who operates Village and what a public contribution licenses.",
+    "The peasant online privacy notice (privacy policy): who operates peasant online and what a public contribution licenses.",
 };
 
 export default function PrivacyPage() {

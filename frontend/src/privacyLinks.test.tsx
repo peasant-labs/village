@@ -15,6 +15,8 @@ import { loadPrivacyNoticeFixtures } from "@/test/privacyNoticeFixtures";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => "/publish",
+  // The signed-out bar reads the query so its sign-in link returns here.
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const fixtures = loadPrivacyNoticeFixtures();

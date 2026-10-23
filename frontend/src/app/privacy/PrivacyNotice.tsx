@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { OnCrumb, OnHead, OnPage } from "@/components/online/Page";
 import {
   CONFIRMATION,
   LICENSE_ORDER,
@@ -22,41 +21,35 @@ const SECTION_HEADING =
 const CHOICE_HEADING = "font-mono text-base lowercase text-ink";
 
 /**
- * The privacy notice: who operates Village, and what a person grants when they
- * publish under each license choice. Static content; no data fetch.
+ * The privacy notice: who operates peasant online, and what a person grants
+ * when they publish under each license choice. Static content; no data fetch.
+ *
+ * The chrome around the notice names the product. The notice's own sentences
+ * (in `notice.ts`) are the operator's legal wording and are changed only on the
+ * operator's instruction.
  */
 export function PrivacyNotice() {
   return (
-    <div
-      className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-8 animate-fade-up"
-      data-testid="privacy-notice"
-    >
-      <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs">
-        <Link
-          href="/"
-          className="text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-        >
-          Village
-        </Link>
-        <ChevronRight className="size-3 shrink-0 text-ink-4" />
-        <span className="font-medium text-ink">privacy notice</span>
-      </nav>
+    <OnPage tight testId="privacy-notice">
+      {/* The trail's root is the product: a signed-in reader's home, and the
+          product's own site for anyone else. */}
+      <OnCrumb items={[{ label: "peasant", href: "/" }, { label: "privacy notice" }]} />
 
-      <div className="flex flex-col gap-1">
-        <h1 className="font-[family-name:var(--font-display)] text-2xl tracking-tight text-ink">
-          privacy notice
-        </h1>
-        <p className="text-sm text-ink-3">
-          Who operates Village, and what a public contribution licenses.
-        </p>
-        <p className="font-mono text-xs text-ink-4 tabular-nums">
-          last updated <time dateTime={NOTICE_UPDATED}>{NOTICE_UPDATED}</time>
-        </p>
-      </div>
+      <OnHead
+        title="privacy notice"
+        lede={
+          <>
+            Who operates peasant online, and what a public contribution licenses.{" "}
+            <span className="on-cap tabular-nums">
+              last updated <time dateTime={NOTICE_UPDATED}>{NOTICE_UPDATED}</time>
+            </span>
+          </>
+        }
+      />
 
       <div role="region" aria-labelledby="privacy-operator" className="flex flex-col gap-3">
         <h2 id="privacy-operator" className={SECTION_HEADING}>
-          who operates village
+          who operates peasant online
         </h2>
         <p className={PROSE}>
           Village is currently operated by {OPERATOR.name}, an individual based in{" "}
@@ -114,6 +107,6 @@ export function PrivacyNotice() {
           );
         })}
       </div>
-    </div>
+    </OnPage>
   );
 }

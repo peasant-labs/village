@@ -23,7 +23,7 @@ function noticeSurface(): HTMLElement {
 describe("the /privacy route", () => {
   it("is titled and headed 'privacy notice'", () => {
     render(<PrivacyPage />);
-    expect(metadata.title).toBe("privacy notice | village");
+    expect(metadata.title).toBe("privacy notice | peasant");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("privacy notice");
   });
 
