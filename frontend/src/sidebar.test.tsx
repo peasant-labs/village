@@ -108,7 +108,8 @@ describe("mounted sidebar: the other apps", () => {
     await renderHeaderAt("/");
     await chromeSettled("sections");
 
-    const apps = screen.getByRole("navigation", { name: "apps" });
+    // The other apps sit among the shortcuts at the top, with the search.
+    const apps = screen.getByRole("navigation", { name: "shortcuts" });
     // The sidebar is this app, so the switcher does not name it, and the local
     // app runs on the person's own computer, so it is not offered from here.
     expect(within(apps).queryByText("online")).toBeNull();
@@ -179,6 +180,19 @@ describe("mounted sidebar: the search", () => {
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     expect(document.activeElement).toBe(box);
     expect(pushedRoutes).toEqual([]);
+  });
+});
+
+describe("mounted sidebar: the settings gear", () => {
+  it("leads to the person's settings and is current there, and only there", async () => {
+    installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
+    await renderHeaderAt("/settings");
+    await chromeSettled("sections");
+    const gear = screen.getByRole("link", { name: "settings" });
+    expect(gear).toHaveAttribute("href", "/settings");
+    expect(gear).toHaveAttribute("aria-current", "page");
+    const sections = screen.getByRole("navigation", { name: SECTIONS_NAV });
+    expect(within(sections).queryByRole("link", { current: "page" })).toBeNull();
   });
 });
 

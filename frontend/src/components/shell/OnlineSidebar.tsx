@@ -38,6 +38,7 @@ export function currentItemFor(
     if (context?.kind === "pull") return "pulls";
     return "home";
   }
+  if (pathname === "/settings") return "settings";
   if (pathname === "/collectives") return "collectives";
   const collective = pathname.match(/^\/collectives\/([^/]+)/);
   if (collective) return collectiveIds.has(collective[1]) ? `collective:${collective[1]}` : "collectives";
@@ -45,11 +46,12 @@ export function currentItemFor(
 }
 
 /**
- * The signed-in app's sidebar, from fairtrade: the sections, the collectives
- * the person belongs to (each with its colour), the app switcher and the
- * footer: the theme switch, then the person's own corner. It is the same on
- * every page: a settings page keeps its sections in a bar of its own inside the
- * page body, as `/settings` does.
+ * The signed-in app's sidebar, from fairtrade, in its one order: the
+ * shortcuts (the search, the docs and the community), the sections and the
+ * collectives the person belongs to (each with its colour), then the footer:
+ * the person's own corner, the settings gear and the theme switch. It is the
+ * same on every page: a settings page keeps its sections in a bar of its own
+ * inside the page body, as `/settings` does.
  *
  * While the session read is in flight there is no person yet, so the corner
  * that names them is left out until it answers.
@@ -105,6 +107,7 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
       onThemeChange={setTheme}
       accountSlot={user ? <AccountMenu user={user} /> : undefined}
       search={{ onOpen: openSearch, shortcut: "⌘k", keyShortcuts: "Meta+K Control+K" }}
+      settingsHref="/settings"
     />
   );
 }
