@@ -28,6 +28,8 @@
  *   empty             - the browse list answers with no rows (empty-state journeys)
  *   transcript-owner  - `GET /collectives` answers with the owner's collectives, the
  *                       pool the transcript page's `manage access` picker offers
+ *   viewer-in-org     - `GET /auth/orgs` answers one visible org (`acme`), so the
+ *                       new-collective dialog's org picker has one to offer
  * Setting any scenario restores the owned transcript's audience
  * (lib/transcript-fixtures.mjs), so each journey starts from the same readers.
  *
@@ -45,6 +47,7 @@ import {
   applyCollectivePageScenario,
   handleCollectivePageRequest,
   handleCollectiveRequest,
+  handleNewCollectiveRequest,
   resetCollectiveWorld,
 } from './lib/collective-fixtures.mjs'
 import { handleHomeRequest } from './lib/home-fixtures.mjs'
@@ -169,6 +172,10 @@ const server = createServer(async (req, res) => {
     return proxyToTranscript(req, res, OWNED_TRANSCRIPT.contentPath)
   }
   if (handleOwnedTranscriptRequest(req, res, { ownerGroups: scenario === 'transcript-owner' })) return
+
+  // Creating a collective, joining one and adding people (the new-collective
+  // dialog and /discover) answer before the collective reads.
+  if (handleNewCollectiveRequest(req, res, scenario)) return
 
   // Retained contribution withdrawals belong to the collective fixture,
   // before the generic transcript proxy claims that route.

@@ -115,7 +115,7 @@ try {
     }
   })(), 30_000, 'next start readiness')
   manifest.canonicalHTMLHash = hash(readFileSync(join(frontend, '.next/server/app/collectives.html')))
-  if (!html.includes(buildID) || hash(html) !== manifest.canonicalHTMLHash || !html.includes('sign in to join or create collectives')) throw new Error('Served canonical HTML differs from this production build')
+  if (!html.includes(buildID) || hash(html) !== manifest.canonicalHTMLHash || !html.includes('Your teams, labs and classes.')) throw new Error('Served canonical HTML differs from this production build')
   const references = [...html.matchAll(/(?:src|href)="([^"?#]+\.(?:js|css))"/g)].map((match) => match[1]).filter((path) => path.startsWith('/_next/'))
   if (!references.length) throw new Error('No served Next assets found; provenance cannot be verified')
   for (const path of new Set(references)) {

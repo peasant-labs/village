@@ -166,6 +166,45 @@ const group = (id, name, description, overrides) => ({
   ...overrides,
 })
 
+// ── discover and new-collective fixtures ────────────────────────────────────
+//
+// Collectives the viewer may see but has not joined, one per way of joining,
+// so /discover has a card for each: an open one anybody joins, a verified one
+// tied to an org the viewer is not in (the join is refused with the server's
+// reason), and a curated one with no join at all. The verified and curated ones
+// are public, which is what makes them visible to a non-member.
+
+export const DISCOVER_COLLECTIVES = {
+  /** Open: the viewer may join it. */
+  open: { id: 'c011ec71-0000-4000-8000-000000000011', name: 'Open Evals 2026' },
+  /** Verified: tied to an org the viewer is not in, so joining is refused. */
+  verified: { id: 'c011ec71-0000-4000-8000-000000000012', name: 'Rust Review Club', org: 'rust-club' },
+  /** Curated: invite only, so the card offers no join. */
+  curated: { id: 'c011ec71-0000-4000-8000-000000000013', name: 'Agents In Class' },
+}
+
+/** Handles of people who have never signed in: adding one is refused, as the server refuses it. */
+const NEVER_SIGNED_IN = new Set(['nobody-here'])
+
+function discoverEntries() {
+  const { open, verified, curated } = DISCOVER_COLLECTIVES
+  const crowd = (prefix, count) => Array.from({ length: count }, (_, n) => person(`user-${prefix}-${n}`, `${prefix}-${n}`, null, n === 0 ? 'owner' : 'member'))
+  const entry = (row, description, overrides, members, transcripts) => ({
+    group: group(row.id, row.name, description, { created_by: members[0].id, ...overrides }),
+    role: '',
+    members,
+    transcripts: [],
+    stats: { total_transcripts: transcripts, contributor_count: members.length, total_turns: transcripts * 30, total_duration_ms: 3_600_000 * transcripts, total_tokens: transcripts * 400_000, pull_request_count: 0 },
+    linked: [],
+    memberSince: null,
+  })
+  return {
+    [open.id]: entry(open, 'Shared evaluation runs for agent benchmarks, published as they finish.', {}, crowd('evals', 12), 1940),
+    [verified.id]: entry(verified, null, { acceptance_mode: 'verified_only', data_access: 'public', linked_github_org: verified.org }, crowd('rust', 4), 310),
+    [curated.id]: entry(curated, 'A course on working with coding agents. Students publish; the teacher approves each session.', { acceptance_mode: 'curated', data_access: 'public' }, crowd('class', 6), 488),
+  }
+}
+
 function freshWorld() {
   const { owner, member, visitor } = JOURNEY_COLLECTIVES
   return {
@@ -198,6 +237,7 @@ function freshWorld() {
         linked: [],
         memberSince: null,
       },
+      ...discoverEntries(),
     },
   }
 }
@@ -441,6 +481,90 @@ export function handleCollectivePageRequest(req, res) {
   if (member && req.method === 'DELETE') {
     entry.members = entry.members.filter((m) => m.id !== decodeURIComponent(member[1]))
     send(res, 200, { status: 'removed' })
+    return true
+  }
+  return false
+}
+
+// ── new-collective and join writes (see discoverEntries above) ──────────────
+
+/**
+ * The writes the new-collective dialog and /discover make: create a
+ * collective, join one, and add a person (refused, the way the server refuses
+ * it, for a handle that has never signed in). The `viewer-in-org` scenario also gives the
+ * viewer a visible GitHub org, so the dialog's org picker has one to offer.
+ * Returns false for everything else.
+ */
+export function handleNewCollectiveRequest(req, res, scenario) {
+  const url = new URL(req.url, 'http://localhost')
+  const path = url.pathname.replace(/^\/api\/v1/, '')
+
+  if (req.method === 'GET' && path === '/auth/orgs' && scenario === 'viewer-in-org') {
+    send(res, 200, [{ org_id: 4242, org_login: 'acme', avatar_url: null, visible: true, fetched_at: ago(60) }])
+    return true
+  }
+  if (req.method === 'POST' && path === '/collectives') {
+    readJSON(req).then((body) => {
+      const name = typeof body.name === 'string' ? body.name : ''
+      if (!name) { send(res, 400, { error: 'Name is required' }); return }
+      if (body.linked_github_org && !(scenario === 'viewer-in-org' && body.linked_github_org === 'acme')) {
+        send(res, 400, { error: 'You must be a member of the GitHub organization to link this collective to it' })
+        return
+      }
+      const id = fixtureUUID(`created-${Object.keys(world.collectives).length}-${name}`)
+      const created = group(id, name, body.description || null, {
+        acceptance_mode: body.acceptance_mode || 'open',
+        data_access: body.data_access || 'members_only',
+        linked_github_org: body.linked_github_org || null,
+        created_at: ago(0),
+        updated_at: ago(0),
+      })
+      world.collectives[id] = {
+        group: created,
+        role: 'owner',
+        members: [person(VIEWER_ID, 'alice-dev', 'Alice Developer', 'owner')],
+        transcripts: [],
+        stats: { total_transcripts: 0, contributor_count: 0, total_turns: 0, total_duration_ms: 0, total_tokens: 0, pull_request_count: 0 },
+        linked: [],
+        memberSince: ago(0),
+        createdByDialog: true,
+      }
+      const { post_prompts_check, prompts_check_mode, ...record } = created
+      send(res, 201, { ...record, post_prompts_check, prompts_check_mode })
+    })
+    return true
+  }
+  const join = path.match(/^\/collectives\/([^/]+)\/join$/)
+  if (join && req.method === 'POST') {
+    const entry = world.collectives[join[1]]
+    if (!entry) { send(res, 404, { error: 'Group not found' }); return true }
+    const mode = entry.group.acceptance_mode
+    if (mode === 'curated') { send(res, 403, { error: 'This collective requires an invitation to join' }); return true }
+    if (mode === 'verified_only' && entry.group.linked_github_org !== 'acme') {
+      send(res, 403, { error: `This collective requires membership of @${entry.group.linked_github_org}` })
+      return true
+    }
+    if (entry.role) { send(res, 409, { error: 'Already a member of this collective' }); return true }
+    entry.role = 'contributor'
+    entry.memberSince = ago(0)
+    entry.members = [...entry.members, person(VIEWER_ID, 'alice-dev', 'Alice Developer', 'contributor')]
+    send(res, 200, { status: 'joined', role: 'contributor' })
+    return true
+  }
+  // Adding people to a collective the dialog just created; additions to the
+  // fixture's own collectives fall through to handleCollectiveRequest, which
+  // the settings journeys drive.
+  const members = path.match(/^\/collectives\/([^/]+)\/members$/)
+  if (members && req.method === 'POST' && world.collectives[members[1]]?.createdByDialog) {
+    readJSON(req).then((body) => {
+      const entry = world.collectives[members[1]]
+      if (NEVER_SIGNED_IN.has(body.username)) {
+        send(res, 404, { error: `@${body.username} hasn't joined the platform yet. They need to sign in first.` })
+        return
+      }
+      entry.members = [...entry.members.filter((m) => m.github_username !== body.username), person(`user-${body.username}`, body.username, null, 'member')]
+      send(res, 200, { status: 'added' })
+    })
     return true
   }
   return false

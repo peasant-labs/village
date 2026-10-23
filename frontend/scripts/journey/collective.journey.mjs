@@ -1,13 +1,13 @@
 /* Journey: the collectives list and a collective.
  *
- * Opens the collectives list (a table with a search), a collective as its
- * owner, as a member, as the owner of a curated collective with sessions
- * waiting, and as a signed-out reader of a public one, and the repo picker the
- * owner opens from the stats tab, all through the real routes against the
- * composed mock's collective fixtures (lib/collective-fixtures.mjs). It asserts
- * roles, names and computed tokens rather than class strings, records the
- * accessible tree and the axe report, and attaches the still a reviewer reads
- * first.
+ * Opens the collectives list (the collectives the viewer belongs to), a
+ * collective as its owner, as a member, as the owner of a curated collective
+ * with sessions waiting, and as a signed-out reader of a public one, and the
+ * repo picker the owner opens from the stats tab, all through the real routes
+ * against the composed mock's collective fixtures (lib/collective-fixtures.mjs).
+ * It asserts roles, names and computed tokens rather than class strings,
+ * records the accessible tree and the axe report, and attaches the still a
+ * reviewer reads first.
  */
 import { writeFileSync } from 'node:fs'
 import { test, expect } from './lib/fixtures.mjs'
@@ -51,26 +51,24 @@ test.describe('collectives', () => {
     await setScenario(request, 'default')
   })
 
-  test('lists the collectives in a table and searches them', async ({ page, theme }, testInfo) => {
+  test('lists the collectives the viewer belongs to in a table', async ({ page, theme }, testInfo) => {
     await page.goto('/collectives')
     await expectTheme(page, theme)
 
-    const table = page.getByRole('table', { name: 'collectives 3' })
+    // The list holds memberships; a collective the viewer only sees is on
+    // /discover (scripts/journey/discover.journey.mjs).
+    const table = page.getByRole('table', { name: 'collectives you belong to' })
     await expect(table).toBeVisible()
-    for (const { name } of Object.values(JOURNEY_COLLECTIVES)) {
-      await expect(table.getByRole('button', { name })).toBeVisible()
+    for (const { name } of [OWNER, MEMBER]) {
+      await expect(table.getByRole('link', { name, exact: true })).toBeVisible()
     }
-    await expectComputedTokens(page, '.iu-page', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })
+    await expect(table.getByRole('link', { name: JOURNEY_COLLECTIVES.visitor.name })).toHaveCount(0)
+    await expectComputedTokens(page, '[data-testid="collectives-page"]', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })
     await still(page, testInfo, 'collectives-list')
     await record(page, testInfo, table, 'collectives-list')
 
-    await page.getByRole('searchbox', { name: 'collective or github org' }).fill('acme')
-    await page.getByRole('button', { name: 'search' }).click()
-    const results = page.getByRole('table', { name: 'search results 2' })
-    await expect(results.getByRole('button', { name: OWNER.name })).toBeVisible()
-    await expect(results.getByRole('button', { name: JOURNEY_COLLECTIVES.visitor.name })).toHaveCount(0)
-
-    await results.getByRole('button', { name: OWNER.name }).click()
+    await expect(page.getByRole('link', { name: 'discover', exact: true })).toHaveAttribute('href', '/discover')
+    await table.getByRole('link', { name: OWNER.name, exact: true }).click()
     await expect(page).toHaveURL(new RegExp(`/collectives/${OWNER.id}$`))
   })
 
