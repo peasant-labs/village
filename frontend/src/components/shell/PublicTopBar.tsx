@@ -6,6 +6,7 @@ import { Moon, Sun } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import PeasantWordmark from "@/components/online/PeasantWordmark";
 import { loginHref } from "@/lib/signIn";
+import { MARKETING_URL } from "@/lib/marketing";
 
 /**
  * The bar above a page somebody reads without being signed in: a shared
@@ -23,7 +24,13 @@ export default function PublicTopBar({ offerSignIn }: { offerSignIn: boolean }) 
   return (
     <header className="on-top" data-testid="public-top-bar">
       <div className="on-top-inner">
-        <PeasantWordmark href="/" label="peasant home" />
+        {/* Signed out, the product's home is the marketing site: a plain link
+            straight there, so nothing prefetches the app's own root. */}
+        {offerSignIn ? (
+          <PeasantWordmark href={MARKETING_URL} label="peasant home" external />
+        ) : (
+          <PeasantWordmark href="/" label="peasant home" />
+        )}
         <nav aria-label="site">
           <Link href="/privacy">privacy</Link>
           <button

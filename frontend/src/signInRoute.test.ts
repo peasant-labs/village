@@ -15,6 +15,7 @@ describe("the root proxy: who is sent to the marketing site", () => {
     it(c.name, () => {
       const headers = new Headers();
       if (c.cookie !== null) headers.set("cookie", `peasant_token=${c.cookie}`);
+      if (c.fetchDest !== null) headers.set("sec-fetch-dest", c.fetchDest);
       const response = proxy(new NextRequest("https://village.example/", { headers }));
       if (c.expect.status === null) {
         // Served: Next's pass-through answer carries no redirect.

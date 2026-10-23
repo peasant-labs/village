@@ -13,6 +13,8 @@ export interface ProxyCase {
   name: string;
   why: string;
   cookie: string | null;
+  /** The browser's `Sec-Fetch-Dest`, or null for a client that sends none. */
+  fetchDest: "document" | "empty" | null;
   expect: { status: number | null; location: string | null };
 }
 
@@ -25,8 +27,10 @@ export interface NextCase {
 
 const requiredProxyCases = [
   "no-cookie-goes-to-the-marketing-site",
+  "a-client-that-says-nothing-is-a-page-load",
   "an-empty-cookie-is-no-session",
   "a-session-cookie-is-served-the-home-page",
+  "an-in-app-fetch-of-the-root-is-served-the-app",
 ];
 
 const requiredNextCases = [
@@ -48,7 +52,7 @@ export function loadSignInRouteFixtures(): { proxyCases: ProxyCase[]; nextCases:
 
   assertNamesMatch(parsed.proxyCases.map((c) => c.name), requiredProxyCases, "sign-in-route proxyCases");
   for (const c of parsed.proxyCases) {
-    assertExactKeys(c, ["name", "why", "cookie", "expect"], `proxy case ${c.name}`);
+    assertExactKeys(c, ["name", "why", "cookie", "fetchDest", "expect"], `proxy case ${c.name}`);
     assertExactKeys(c.expect, ["status", "location"], `proxy case ${c.name} expect`);
     if (!c.why?.trim()) throw new Error(`proxy case ${c.name} states no reason it exists`);
   }

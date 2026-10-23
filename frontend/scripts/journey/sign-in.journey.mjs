@@ -38,7 +38,7 @@ async function recordOAuthStarts(page) {
 test.describe('sign-in', () => {
   test('a visitor with no session at the root is sent to the marketing site', async ({ request }) => {
     // The server decides before any page is served: no cookie, no app.
-    const response = await request.get('/', { maxRedirects: 0 })
+    const response = await request.get('/', { headers: { 'Sec-Fetch-Dest': 'document' }, maxRedirects: 0 })
     expect(response.status()).toBe(307)
     expect(response.headers()['location']).toBe(MARKETING)
   })
@@ -55,6 +55,80 @@ test.describe('sign-in', () => {
       await setScenario(request, 'default')
     }
   })
+
+  test('a signed-out page links home to the marketing site and fetches nothing cross-origin', async ({ page, request, theme }) => {
+    await setScenario(request, 'signed-out')
+    try {
+      const problems = []
+      page.on('console', (msg) => { if (msg.type() === 'error' && /peasantlabs\.org|CORS/i.test(msg.text())) problems.push(msg.text()) })
+      page.on('requestfailed', (req) => { if (req.url().includes('peasantlabs.org')) problems.push(`${req.url()} ${req.failure()?.errorText}`) })
+      // The app's own fetches of a route (prefetches and in-app navigations)
+      // must be answered by the app, never redirected to another origin.
+      page.on('response', (res) => {
+        const req = res.request()
+        if (req.resourceType() === 'fetch' && res.status() >= 300 && res.status() < 400 && (res.headers()['location'] ?? '').includes('peasantlabs.org')) {
+          problems.push(`${req.url()} answered ${res.status()} to ${res.headers()['location']}`)
+        }
+      })
+      await page.route(`${MARKETING}**`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>marketing</title>' }))
+      await page.goto('/privacy')
+      await expectTheme(page, theme)
+      const bar = page.getByTestId('public-top-bar')
+      await expect(bar.getByRole('link', { name: 'peasant home' })).toHaveAttribute('href', /^https:\/\/peasantlabs\.org\/?$/)
+      // Give Next the time it takes to prefetch the links in view, then follow
+      // the page's own link home the way a reader does, inside the app.
+      await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(500)
+      await page.getByRole('navigation', { name: 'breadcrumb' }).getByRole('link', { name: 'peasant' }).click()
+      // The root page sends a signed-out reader on to the marketing site itself.
+      await expect(page).toHaveURL(/^https:\/\/peasantlabs\.org\/?$/)
+      expect(problems).toEqual([])
+    } finally {
+      await setScenario(request, 'default')
+    }
+  })
+
+  test("the app's own fetch of the root is served, not sent to another origin", async ({ request }) => {
+    // What Next sends to prefetch or navigate to `/` inside the app. A redirect
+    // here would point a same-origin fetch at the marketing site, which the
+    // browser refuses as a cross-origin fetch.
+    const response = await request.get('/', { headers: { RSC: '1', 'Sec-Fetch-Dest': 'empty', 'Sec-Fetch-Mode': 'cors' }, maxRedirects: 0 })
+    expect(response.status()).toBe(200)
+    expect(response.headers()['location']).toBeUndefined()
+  })
+
+  for (const scheme of ['light', 'dark']) {
+    test(`with no stored choice the theme follows a ${scheme} system from the first paint`, async ({ browser, request }, testInfo) => {
+      await setScenario(request, 'signed-out')
+      // A fresh browser with nothing stored (the shared fixture pins a theme),
+      // and every change to the theme attribute recorded from the first byte,
+      // so a dark frame before the real theme would show.
+      const context = await browser.newContext({ colorScheme: scheme, baseURL: testInfo.project.use.baseURL })
+      const page = await context.newPage()
+      try {
+        await page.addInitScript(() => {
+          window.__themeChanges = []
+          // The document has no element yet when this runs, so watch it whole and
+          // keep the root element's changes.
+          new MutationObserver((records) => {
+            for (const r of records) {
+              if (r.target === document.documentElement) window.__themeChanges.push(document.documentElement.getAttribute('data-theme'))
+            }
+          }).observe(document, { attributes: true, subtree: true, attributeFilter: ['data-theme'] })
+        })
+        await page.goto('/login')
+        await expect(page.getByRole('heading', { level: 1, name: HEADLINE })).toBeVisible()
+        await expect(page.locator('html')).toHaveAttribute('data-theme', scheme)
+        const changes = await page.evaluate(() => window.__themeChanges)
+        // The server writes dark; a light system changes it once, before
+        // hydration, and nothing writes it back. A dark system never changes it.
+        expect(changes.filter((t) => t !== scheme)).toEqual([])
+      } finally {
+        await context.close()
+        await setScenario(request, 'default')
+      }
+    })
+  }
 
   test('the sign-in page is one github button', async ({ page, request, theme }, testInfo) => {
     await setScenario(request, 'signed-out')

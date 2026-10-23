@@ -27,7 +27,16 @@ export function PeasantStalk() {
   );
 }
 
-export default function PeasantWordmark({ href, label }: { href?: string; label?: string }) {
+export default function PeasantWordmark({
+  href,
+  label,
+  external = false,
+}: {
+  href?: string;
+  label?: string;
+  /** The link leaves this app (the marketing site): a plain link, never prefetched. */
+  external?: boolean;
+}) {
   const body = (
     <>
       <PeasantStalk />
@@ -36,6 +45,13 @@ export default function PeasantWordmark({ href, label }: { href?: string; label?
   );
   if (!href) {
     return <span className="on-brand">{body}</span>;
+  }
+  if (external) {
+    return (
+      <a href={href} className="on-brand" aria-label={label}>
+        {body}
+      </a>
+    );
   }
   return (
     <Link href={href} className="on-brand" aria-label={label}>

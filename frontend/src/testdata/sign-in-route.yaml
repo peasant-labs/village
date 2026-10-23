@@ -7,20 +7,40 @@
 # The proxy's answer at `/`, decided on the session cookie alone. A cookie
 # that turns out to be stale is the root page's to catch once `/auth/me`
 # answers; these cases are what the server decides before any page is served.
+# `fetchDest` is the browser's `Sec-Fetch-Dest`: `document` for a page load,
+# `empty` for a fetch the page makes (Next prefetching or navigating inside the
+# app), null for a client that sends none (curl, a crawler).
 proxyCases:
   - name: no-cookie-goes-to-the-marketing-site
     why: >-
       a signed-out visitor at the root is sent to the marketing site, which
       introduces the product and links back to the sign-in page.
     cookie: null
+    fetchDest: document
+    expect: { status: 307, location: "https://peasantlabs.org/" }
+  - name: a-client-that-says-nothing-is-a-page-load
+    why: curl and crawlers send no fetch metadata; a page load is the safe reading.
+    cookie: null
+    fetchDest: null
     expect: { status: 307, location: "https://peasantlabs.org/" }
   - name: an-empty-cookie-is-no-session
     why: a cookie with no value carries no session, so it is treated as none.
     cookie: ""
+    fetchDest: document
     expect: { status: 307, location: "https://peasantlabs.org/" }
   - name: a-session-cookie-is-served-the-home-page
     why: a browser holding a session is served the app, which reads the session itself.
     cookie: demo-token
+    fetchDest: document
+    expect: { status: null, location: null }
+  - name: an-in-app-fetch-of-the-root-is-served-the-app
+    why: >-
+      a prefetch or client-side navigation to the root is a same-origin fetch;
+      redirecting it to the marketing site would be refused by the browser as
+      a cross-origin fetch, so the app is served and the root page sends a
+      signed-out visitor on itself.
+    cookie: null
+    fetchDest: empty
     expect: { status: null, location: null }
 
 # The return address a sign-in follows, from the `next` query of `/login` to
