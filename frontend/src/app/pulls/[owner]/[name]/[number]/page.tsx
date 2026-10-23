@@ -28,7 +28,7 @@ import type {
 } from "@peasant-labs/schema";
 import type { TranscriptCollective, TranscriptDetailResponse } from "@/lib/types";
 import DocsLink from "@/components/online/DocsLink";
-import { DOCS_PULL_REQUESTS_URL } from "@/lib/appLinks";
+import { DOCS_ATTACH_URL, DOCS_PULL_REQUESTS_URL } from "@/lib/appLinks";
 import "@/app/online-pulls.css";
 
 /**
@@ -673,7 +673,7 @@ function AuthorBand({
       line = (
         <>
           <strong>you were asked to attach your transcripts.</strong>{" "}
-          <DocsLink href={DOCS_PULL_REQUESTS_URL}>how to attach them</DocsLink>
+          <DocsLink href={DOCS_ATTACH_URL}>how to attach them</DocsLink>
         </>
       );
       break;
@@ -681,7 +681,7 @@ function AuthorBand({
       line = (
         <>
           <strong>you detached your transcripts from this pull request.</strong>{" "}
-          <DocsLink href={DOCS_PULL_REQUESTS_URL}>how to attach them again</DocsLink>
+          <DocsLink href={DOCS_ATTACH_URL}>how to attach them again</DocsLink>
         </>
       );
       break;

@@ -13,3 +13,6 @@ export const DOCS_PUBLISH_URL = `${DOCS_URL}#publish`;
 
 /** How a pull request gets its transcripts: `/peasant attach`, automatic linking, and the waiting list. */
 export const DOCS_PULL_REQUESTS_URL = `${DOCS_URL}/guides/reviews`;
+
+/** Attaching transcripts to a pull request: `/peasant attach` and the automatic-linking setting. */
+export const DOCS_ATTACH_URL = `${DOCS_PULL_REQUESTS_URL}#attach`;
