@@ -1,10 +1,17 @@
+"use client";
+
+// A client module: the page frame is fairtrade's AppPage, and fairtrade's
+// /ui entry runs client-only code, so it is reached through this boundary
+// from server pages (the privacy notice, the not-found page) too.
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { collectiveTone } from "@/lib/collectiveTone";
+import { AppPage } from "@/lib/ft-ui";
 
 /**
- * The frame every online page body sits in: one column, generous air above and
- * below, and an even rhythm between its parts.
+ * The frame every online page body sits in: fairtrade's app page, which takes
+ * the full width beside the sidebar with the same padding on the left and the
+ * right, holding one column with an even rhythm between its parts.
  */
 export function OnPage({
   children,
@@ -19,9 +26,9 @@ export function OnPage({
   label?: string;
 }) {
   return (
-    <div className={tight ? "on-page is-tight" : "on-page"} data-testid={testId} aria-label={label}>
+    <AppPage className={tight ? "on-page is-tight" : "on-page"} data-testid={testId} aria-label={label}>
       {children}
-    </div>
+    </AppPage>
   );
 }
 

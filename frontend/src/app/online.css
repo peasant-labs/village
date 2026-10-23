@@ -8,8 +8,6 @@
    ============================================ */
 
 :root {
-  /* the widest a page body grows inside the app column */
-  --on-page-max: 75rem;
   /* press feedback and disclosure motion: transform and opacity only */
   --on-ease: cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -54,17 +52,13 @@
 
 /* ---------- page frame ---------- */
 
+/* fairtrade's app page (.asb-page) owns the frame: the full width, the same
+   padding on both sides. This sheet only sets the page's own rhythm. */
 .on-page {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: calc(var(--sp-5) + var(--sp-1));
   align-content: start;
-  width: 100%;
-  max-width: var(--on-page-max);
-  min-width: 0;
-  margin-inline: auto;
-  padding: var(--sp-8) var(--sp-6) calc(var(--sp-8) + var(--sp-4));
-  box-sizing: border-box;
 }
 .on-page > * {
   min-width: 0;
@@ -112,15 +106,6 @@
 .on-login-card h1,
 .on-keep-case {
   text-transform: none;
-}
-.on-page.is-tight {
-  padding-top: calc(var(--sp-7) + var(--sp-2));
-}
-@media (max-width: 767px) {
-  .on-page,
-  .on-page.is-tight {
-    padding: var(--sp-6) var(--sp-4) var(--sp-8);
-  }
 }
 
 .on-crumb {
@@ -1569,9 +1554,7 @@ textarea.on-input {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-3) var(--sp-5);
-  max-width: var(--on-page-max);
   min-height: var(--app-header-height);
-  margin-inline: auto;
   padding: calc(var(--sp-2) + 2px) var(--sp-6);
   box-sizing: border-box;
 }
