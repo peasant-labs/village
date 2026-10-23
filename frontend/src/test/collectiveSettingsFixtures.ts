@@ -10,8 +10,12 @@ import type { Group } from "@/lib/types";
 export type SettingsAction =
   | { kind: "edit-text"; label: string; value: string }
   | { kind: "toggle"; label: string }
+  | { kind: "choose"; group: string; label: string }
+  | { kind: "select"; label: string; value: string }
   | { kind: "role"; member: string; role: string }
   | { kind: "remove"; member: string }
+  | { kind: "invite"; value: string }
+  | { kind: "delete" }
   | { kind: "none" };
 
 export interface SettingsWrite {
@@ -31,13 +35,27 @@ export interface SettingsCase {
     shows: string[];
     alert: string | null;
     switchOn: boolean | null;
+    /** The card pressed afterwards in the chosen group (a `choose` action). */
+    pressed: string | null;
     notice: string | null;
     replaced: string | null;
+    pushed: string | null;
   };
+}
+
+/** Which section an address opens. */
+export interface SectionCase {
+  name: string;
+  why: string;
+  search: string;
+  expectSection: string;
+  expectTitle: string;
+  expectLede: string;
 }
 
 export interface CollectiveSettingsFixtures {
   cases: SettingsCase[];
+  sectionCases: SectionCase[];
   /** A fresh world for one case, and the ids `{id}` and `{member}` stand for. */
   worldFor(settingsCase: SettingsCase): CollectiveWorld;
   /** A path from the fixture with `{id}` and `{member}` filled in for this case. */
@@ -46,21 +64,64 @@ export interface CollectiveSettingsFixtures {
 
 const REQUIRED_CASES = [
   "a-text-field-saves-only-after-edit",
+  "the-description-saves-after-edit",
+  "a-choice-card-saves-the-moment-it-is-pressed",
+  "a-refused-choice-puts-the-held-card-back",
   "a-failed-switch-write-puts-the-value-back",
   "the-toggle-off-sends-exactly-that-field",
+  "when-a-member-leaves-saves-the-moment-it-changes",
   "a-role-change-uses-the-member-role-route",
   "a-member-removal-asks-first-then-uses-the-member-route",
+  "an-invite-by-username-uses-the-members-route",
   "the-check-mode-radios-are-absent",
+  "the-github-section-counts-the-linked-repositories",
   "github-installed-says-so-and-clears-the-parameter",
+  "delete-asks-for-consent-then-deletes-the-collective",
 ];
+
+const REQUIRED_SECTION_CASES = [
+  "no-section-opens-general",
+  "the-access-section",
+  "the-members-section-counts-the-people",
+  "the-github-section",
+  "the-pull-requests-section",
+  "the-danger-zone",
+  "an-unknown-section-opens-general",
+  "the-install-return-opens-github",
+];
+
+const SECTIONS = new Set(["general", "access", "members", "github", "pull-requests", "danger"]);
+
+/** The section each action's control lives in: a case must open that section to reach it. */
+const ACTION_SECTION: Partial<Record<SettingsAction["kind"], string>> = {
+  toggle: "pull-requests",
+  choose: "access",
+  select: "members",
+  role: "members",
+  remove: "members",
+  invite: "members",
+  delete: "danger",
+};
 
 const ACTION_FIELDS: Record<SettingsAction["kind"], string[]> = {
   "edit-text": ["kind", "label", "value"],
   toggle: ["kind", "label"],
+  choose: ["kind", "group", "label"],
+  select: ["kind", "label", "value"],
   role: ["kind", "member", "role"],
   remove: ["kind", "member"],
+  invite: ["kind", "value"],
+  delete: ["kind"],
   none: ["kind"],
 };
+
+/** The section an address opens, as the page reads it. */
+function sectionOf(search: string): string {
+  const params = new URLSearchParams(search);
+  if (params.get("github_installed") === "1") return "github";
+  const asked = params.get("section") ?? "";
+  return SECTIONS.has(asked) ? asked : "general";
+}
 
 function fail(where: string, reason: string): never {
   throw new Error(`collective-settings fixture ${where} ${reason}`);
@@ -71,7 +132,7 @@ export function loadCollectiveSettingsFixtures(): CollectiveSettingsFixtures {
     readFileSync(resolve(process.cwd(), "src/testdata/collective-settings.yaml"), "utf8"),
     { strict: true },
   ) as Record<string, never>;
-  assertExactKeys(root, ["collective", "viewer", "members", "cases"], "collective-settings root");
+  assertExactKeys(root, ["collective", "viewer", "members", "cases", "sectionCases"], "collective-settings root");
   const collective = root.collective as Partial<Group> & { id: string; name: string };
   const viewer = root.viewer as { id: string; username: string };
   const members = root.members as WorldMember[];
@@ -81,7 +142,7 @@ export function loadCollectiveSettingsFixtures(): CollectiveSettingsFixtures {
   assertNamesMatch(cases.map((c) => c.name), REQUIRED_CASES, "collective settings");
   for (const c of cases) {
     assertExactKeys(c, ["name", "why", "search", "fail", "action", "expect"], `case ${c.name}`);
-    assertExactKeys(c.expect, ["writes", "shows", "alert", "switchOn", "notice", "replaced"], `case ${c.name} expect`);
+    assertExactKeys(c.expect, ["writes", "shows", "alert", "switchOn", "pressed", "notice", "replaced", "pushed"], `case ${c.name} expect`);
     if (!c.why?.trim()) fail(`case "${c.name}"`, "states no reason it exists");
     const fields = ACTION_FIELDS[c.action.kind];
     if (!fields) fail(`case "${c.name}"`, `names an unknown action "${c.action.kind}"`);
@@ -91,6 +152,18 @@ export function loadCollectiveSettingsFixtures(): CollectiveSettingsFixtures {
     }
     if (c.fail && c.expect.alert !== c.fail.error) fail(`case "${c.name}"`, "fails a write but expects a different alert");
     for (const write of c.expect.writes) assertExactKeys(write, ["method", "path", "body"], `case ${c.name} write`);
+    const needs = ACTION_SECTION[c.action.kind];
+    if (needs && sectionOf(c.search) !== needs) fail(`case "${c.name}"`, `acts in the ${needs} section but opens ${sectionOf(c.search)}`);
+    if ((c.expect.pressed !== null) !== (c.action.kind === "choose")) fail(`case "${c.name}"`, "expects a pressed card without choosing one, or chooses one without saying which stays pressed");
+    if (c.expect.switchOn !== null && sectionOf(c.search) !== "pull-requests") fail(`case "${c.name}"`, "expects the switch outside the pull requests section");
+  }
+
+  const sectionCases = root.sectionCases as SectionCase[];
+  assertNamesMatch(sectionCases.map((c) => c.name), REQUIRED_SECTION_CASES, "collective settings sections");
+  for (const c of sectionCases) {
+    assertExactKeys(c, ["name", "why", "search", "expectSection", "expectTitle", "expectLede"], `section case ${c.name}`);
+    if (!c.why?.trim()) fail(`section case "${c.name}"`, "states no reason it exists");
+    if (!SECTIONS.has(c.expectSection)) fail(`section case "${c.name}"`, `expects an unknown section "${c.expectSection}"`);
   }
 
   const memberId = (c: SettingsCase) =>
@@ -98,6 +171,7 @@ export function loadCollectiveSettingsFixtures(): CollectiveSettingsFixtures {
 
   return {
     cases,
+    sectionCases,
     worldFor: (c) => ({
       viewer,
       group: makeGroup(collective),

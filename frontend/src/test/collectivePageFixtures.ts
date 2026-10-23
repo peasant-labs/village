@@ -11,6 +11,7 @@ import {
   type WorldTranscript,
 } from "@/test/mountedCollectivePages";
 import type { VisibleGroup } from "@/lib/types";
+import type { PendingShare } from "@/lib/review/types";
 
 /**
  * Typed loaders for `src/testdata/collective-page.yaml` (the collective page,
@@ -21,28 +22,47 @@ import type { VisibleGroup } from "@/lib/types";
 // ── the collective page ──────────────────────────────────────────────────────
 
 export interface PageCaseExpect {
-  whoCanRead: string;
   whoCanPublish: string;
+  whoCanRead: string;
   yourRole: string;
+  /** The head's action row, in order, by accessible name. */
+  actions: string[];
+  overflow: { label: string; route: string }[];
+  /** The tabs offered, in order, by label. */
+  tabs: string[];
+  statusColumn: boolean;
+  transcriptRows: number;
+  /** The stats tab's github org line. */
   orgLine: string;
   manage: boolean;
-  settings: boolean;
-  overflow: { label: string; route: string }[];
-  headerActions: string[];
-  transcriptRows: number;
-  memberBreakdown: string;
-  /** The members the rail and the stats line count: a pending request is not one. */
+  /** The members tab's summary, or null when the owner keeps the list private. */
+  memberBreakdown: string | null;
+  /** The members the stats count: a pending request is not one. */
   memberCount: number;
 }
 
 export interface PageCase {
   name: string;
   why: string;
+  signedIn: boolean;
   role: string;
   canRead: boolean;
-  group: { acceptance_mode: string; data_access: string; linked_github_org: string | null };
+  group: { acceptance_mode: string; data_access: string; linked_github_org: string | null; display_members: boolean };
   linked: string[];
   expect: PageCaseExpect;
+}
+
+/** One address and key sequence on the collective page's tablist. */
+export interface TabCase {
+  name: string;
+  why: string;
+  role: string;
+  acceptance_mode: string;
+  withPending: boolean;
+  search: string;
+  keys: string[];
+  expectSelected: string;
+  expectSearch: string;
 }
 
 export interface ListRowExpect {
@@ -70,22 +90,43 @@ export interface PullRequestCase {
 
 export interface CollectivePageFixtures {
   cases: PageCase[];
+  tabCases: TabCase[];
+  /** What waits for the owner's approval, as the queue route answers it. */
+  pending: PendingShare[];
   listCases: ListCase[];
   pullRequestCases: PullRequestCase[];
   /** A fresh world for one page case: every case gets its own copy to change. */
   worldFor(pageCase: PageCase): CollectiveWorld;
+  /** A fresh world for one tab case. */
+  tabWorld(tabCase: TabCase): CollectiveWorld;
   /** A fresh world for the collectives list. */
   listWorld(): CollectiveWorld;
 }
 
 const REQUIRED_PAGE_CASES = [
-  "the-owner-sees-the-boxes-the-org-total-and-both-overflow-items",
+  "the-owner-sees-the-chips-the-org-total-and-both-overflow-items",
   "an-owner-without-an-org-is-offered-connect-github",
   "a-member-sees-the-org-without-the-total-and-can-leave",
   "a-contributor-who-cannot-read-is-told-so",
   "a-non-member-of-an-open-collective-can-join",
   "a-non-member-of-a-curated-collective-is-offered-no-join",
+  "a-signed-out-reader-of-a-public-collective-reads-and-is-asked-to-sign-in-to-join",
+  "a-member-of-a-collective-with-a-private-member-list-sees-no-members",
 ];
+
+const REQUIRED_TAB_CASES = [
+  "no-tab-in-the-address-opens-transcripts",
+  "the-address-opens-the-stats-tab",
+  "an-unknown-tab-falls-back-to-transcripts",
+  "waiting-is-not-offered-to-a-member-of-a-curated-collective",
+  "the-curated-owner-opens-waiting-from-the-address",
+  "arrow-keys-move-between-tabs-and-keep-the-address",
+  "arrow-left-wraps-to-the-last-tab",
+  "home-and-end-jump-and-the-first-tab-clears-the-address",
+];
+
+const TAB_IDS = new Set(["transcripts", "waiting", "members", "stats"]);
+const TAB_KEYS = new Set(["ArrowRight", "ArrowLeft", "Home", "End"]);
 
 const REQUIRED_LIST_CASES = [
   "the-table-lists-every-visible-collective-with-its-org-and-joining",
@@ -115,7 +156,7 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
   const root = readYAML("collective-page.yaml") as Record<string, never>;
   assertExactKeys(
     root,
-    ["collective", "viewer", "members", "transcripts", "available", "cases", "listCases", "visible", "searchable", "pullRequestCases"],
+    ["collective", "viewer", "members", "transcripts", "available", "pending", "cases", "tabCases", "listCases", "visible", "searchable", "pullRequestCases"],
     "collective-page root",
   );
   const collective = root.collective as { id: string; name: string; description: string };
@@ -130,23 +171,75 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
   const cases = root.cases as PageCase[];
   assertNamesMatch(cases.map((c) => c.name), REQUIRED_PAGE_CASES, "collective page");
   for (const c of cases) {
-    assertExactKeys(c, ["name", "why", "role", "canRead", "group", "linked", "expect"], `case ${c.name}`);
-    assertExactKeys(c.group, ["acceptance_mode", "data_access", "linked_github_org"], `case ${c.name} group`);
+    assertExactKeys(c, ["name", "why", "signedIn", "role", "canRead", "group", "linked", "expect"], `case ${c.name}`);
+    assertExactKeys(c.group, ["acceptance_mode", "data_access", "linked_github_org", "display_members"], `case ${c.name} group`);
     assertExactKeys(
       c.expect,
-      ["whoCanRead", "whoCanPublish", "yourRole", "orgLine", "manage", "settings", "overflow", "headerActions", "transcriptRows", "memberBreakdown", "memberCount"],
+      ["whoCanPublish", "whoCanRead", "yourRole", "actions", "overflow", "tabs", "statusColumn", "transcriptRows", "orgLine", "manage", "memberBreakdown", "memberCount"],
       `case ${c.name} expect`,
     );
     if (!c.why?.trim()) fail(`case "${c.name}"`, "states no reason it exists");
     if (!ROLES.has(c.role)) fail(`case "${c.name}"`, `names an unknown role "${c.role}"`);
     // An expectation must follow from the case's own facts, so a case cannot
     // declare an outcome its inputs could never produce and then pass.
-    if (c.expect.settings !== (c.role === "owner")) fail(`case "${c.name}"`, "expects settings for a viewer who is not the owner, or none for the owner");
-    if (c.expect.manage && !(c.role === "owner" && c.group.linked_github_org)) {
+    const owner = c.role === "owner";
+    const curated = c.group.acceptance_mode === "curated";
+    if (!c.signedIn && c.role !== "") fail(`case "${c.name}"`, "gives a role to somebody who is not signed in");
+    if (c.expect.actions.includes("settings") !== owner) fail(`case "${c.name}"`, "expects settings for a viewer who is not the owner, or none for the owner");
+    if (c.expect.actions.includes("sign in to join") !== (!c.signedIn && !curated)) {
+      fail(`case "${c.name}"`, "offers a sign-in to join where joining needs no account, or withholds it where it does");
+    }
+    if (c.expect.manage && !(owner && c.group.linked_github_org)) {
       fail(`case "${c.name}"`, "expects manage without an owner and a linked org");
+    }
+    if (c.expect.tabs.includes("waiting for approval") !== (owner && curated)) {
+      fail(`case "${c.name}"`, "offers the waiting tab to somebody other than a curated collective's owner");
+    }
+    if (c.expect.statusColumn && !(curated && c.canRead)) fail(`case "${c.name}"`, "expects a status column where approval is not a step");
+    if ((c.expect.memberBreakdown === null) !== (!c.group.display_members && !owner)) {
+      fail(`case "${c.name}"`, "hides the members where the collective shows them, or shows them where it does not");
     }
     if (!c.canRead && c.expect.transcriptRows !== 0) fail(`case "${c.name}"`, "expects rows the server does not let the viewer read");
   }
+
+  const tabCases = root.tabCases as TabCase[];
+  assertNamesMatch(tabCases.map((c) => c.name), REQUIRED_TAB_CASES, "collective tabs");
+  for (const c of tabCases) {
+    assertExactKeys(
+      c,
+      ["name", "why", "role", "acceptance_mode", "withPending", "search", "keys", "expectSelected", "expectSearch"],
+      `tab case ${c.name}`,
+    );
+    if (!c.why?.trim()) fail(`tab case "${c.name}"`, "states no reason it exists");
+    if (!ROLES.has(c.role)) fail(`tab case "${c.name}"`, `names an unknown role "${c.role}"`);
+    if (!TAB_IDS.has(c.expectSelected)) fail(`tab case "${c.name}"`, `expects an unknown tab "${c.expectSelected}"`);
+    for (const key of c.keys) if (!TAB_KEYS.has(key)) fail(`tab case "${c.name}"`, `presses ${key}, which the tablist does not answer`);
+    if (c.expectSelected === "waiting" && !(c.role === "owner" && c.acceptance_mode === "curated")) {
+      fail(`tab case "${c.name}"`, "selects the waiting tab for somebody it is not offered to");
+    }
+    if (c.withPending && c.role !== "owner") fail(`tab case "${c.name}"`, "serves the queue to somebody who cannot read it");
+  }
+  const pending = (root.pending as { transcript_id: string; title: string; owner: string; provider: string; project: string; branch: string }[]).map(
+    (row): PendingShare => {
+      assertExactKeys(row, ["transcript_id", "title", "owner", "provider", "project", "branch"], `pending ${row.title}`);
+      const owner = members.find((m) => m.username === row.owner);
+      if (!owner) fail(`pending "${row.title}"`, `names ${row.owner}, who is not a member`);
+      return {
+        transcript_id: row.transcript_id,
+        title: row.title,
+        model_provider: row.provider,
+        owner_id: owner.id,
+        owner_username: owner.username,
+        owner_is_discoverable: true,
+        local_id: `local-${row.transcript_id}`,
+        parent_session_id: null,
+        project_hash: "a".repeat(64),
+        project_name: row.project,
+        branch: row.branch,
+        shared_at: "2026-01-04T00:00:00Z",
+      } as PendingShare;
+    },
+  );
 
   const listCases = root.listCases as ListCase[];
   assertNamesMatch(listCases.map((c) => c.name), REQUIRED_LIST_CASES, "collectives list");
@@ -196,14 +289,24 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
 
   return {
     cases,
+    tabCases,
+    pending,
     listCases,
     pullRequestCases,
     worldFor: (c) => ({
       ...baseWorld(),
+      viewer: c.signedIn ? viewer : null,
       group: makeGroup({ id: collective.id, name: collective.name, description: collective.description, ...c.group } as never),
       role: c.role,
       canRead: c.canRead,
       linked: [...c.linked],
+    }),
+    tabWorld: (c) => ({
+      ...baseWorld(),
+      group: makeGroup({ id: collective.id, name: collective.name, description: collective.description, acceptance_mode: c.acceptance_mode } as never),
+      role: c.role,
+      canRead: true,
+      pending: c.withPending ? pending.map((row) => ({ ...row })) : [],
     }),
     listWorld: () => ({ ...baseWorld(), visible, searchable }),
   };

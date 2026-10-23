@@ -77,6 +77,46 @@ cases:
     state: invite-search
     expectContent: [collective, githubUser]
 
+  - name: a-collective-page-for-a-signed-out-reader
+    surface: group-page
+    state: signed-out
+    expectContent: [collective]
+
+  - name: collective-settings-general
+    surface: collective-settings
+    state: general
+    expectContent: [collective]
+
+  - name: collective-settings-access
+    surface: collective-settings
+    state: access
+    expectContent: [collective]
+
+  - name: collective-settings-members
+    surface: collective-settings
+    state: members
+    expectContent: [collective, viewer]
+
+  - name: collective-settings-github
+    surface: collective-settings
+    state: github
+    expectContent: [collective]
+
+  - name: collective-settings-pull-requests
+    surface: collective-settings
+    state: pull-requests
+    expectContent: [collective]
+
+  - name: collective-settings-confirming-a-delete
+    surface: collective-settings
+    state: delete-confirm
+    expectContent: [collective]
+
+  - name: collective-settings-for-somebody-who-is-not-the-owner
+    surface: collective-settings
+    state: not-owner
+    expectContent: [collective]
+
   - name: the-publish-dashboard-with-a-transcript
     surface: publish-page
     state: with-transcripts

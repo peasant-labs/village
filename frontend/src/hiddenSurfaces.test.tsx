@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { SessionDetailPayload } from "@peasant-labs/schema";
 import { describe, expect, it } from "vitest";
 import {
@@ -24,11 +24,11 @@ installMountedRouteTeardown();
 
 const GROUP_ID = "55555555-5555-5555-5555-555555555555";
 
-/** The settings select's own labels, from the page's `whoCanReadChoices`. */
+/** The settings cards' own names, from the page's `whoCanReadChoices`. */
 const READ_LABELS: Record<string, string> = {
-  members_only: "members only",
+  members_only: "members",
   contributors: "members and contributors",
-  public: "anyone (public)",
+  public: "anyone",
 };
 
 describe("collective settings: the public data-access option", () => {
@@ -41,26 +41,30 @@ describe("collective settings: the public data-access option", () => {
         promptsCheckMode: "informational",
         dataAccess: c.savedDataAccess,
       });
+      // Who can read is chosen on the access section.
+      window.history.replaceState(null, "", `/collectives/${GROUP_ID}/settings?section=access`);
       await renderGroupSettingsRoute(GROUP_ID);
 
-      const select = (await screen.findByLabelText("who can read")) as HTMLSelectElement;
-      expect(Array.from(select.options).map((o) => o.value)).toEqual(c.expectOptions);
-      // The collective's own value is shown, with its own label: a select with
-      // no option for its value would silently display another one.
-      expect(select.value).toBe(c.savedDataAccess);
-      expect(select.selectedOptions[0]?.value).toBe(c.savedDataAccess);
-      expect(select.selectedOptions[0]?.textContent?.trim()).toBe(READ_LABELS[c.savedDataAccess]);
+      const group = await screen.findByRole("group", { name: "who can read" });
+      const cards = within(group).getAllByRole("button");
+      const name = (card: HTMLElement) => card.querySelector("b")?.textContent?.trim();
+      expect(cards.map(name)).toEqual(c.expectOptions.map((value) => READ_LABELS[value]));
+      // The collective's own value is shown, with its own name: a set of cards
+      // with no card for its value would silently show another one pressed.
+      const pressed = cards.filter((card) => card.getAttribute("aria-pressed") === "true");
+      expect(pressed.map(name)).toEqual([READ_LABELS[c.savedDataAccess]]);
 
       // One change writes one field; the server keeps every field the body
       // leaves out.
       const next = c.expectOptions.find((value) => value !== c.savedDataAccess)!;
-      fireEvent.change(select, { target: { value: next } });
+      fireEvent.click(cards.find((card) => name(card) === READ_LABELS[next])!);
       await waitFor(() => {
         expect(requests.some((r) => r.method === "PATCH")).toBe(true);
       });
       expect(requests.find((r) => r.method === "PATCH")?.body).toMatchObject({
         data_access: next,
       });
+      window.history.replaceState(null, "", "/");
     });
   }
 });

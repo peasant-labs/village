@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import type { VillageCollectiveSearchResult } from "@peasant-labs/schema";
+import type { PendingShare } from "@/lib/review/types";
 import { AuthProvider } from "@/providers/AuthProvider";
 import GroupsPage from "@/app/collectives/page";
 import GroupDetailPage from "@/app/collectives/[id]/page";
@@ -54,7 +55,8 @@ export interface WorldFailure {
 }
 
 export interface CollectiveWorld {
-  viewer: { id: string; username: string };
+  /** The signed-in viewer, or null for somebody reading signed out (`/auth/me` answers 401). */
+  viewer: { id: string; username: string } | null;
   group: Group;
   role: string;
   canRead: boolean;
@@ -66,6 +68,8 @@ export interface CollectiveWorld {
   failures?: WorldFailure[];
   visible?: VisibleGroup[];
   searchable?: VillageCollectiveSearchResult[];
+  /** `GET /collectives/{id}/pending`: what waits for the owner's approval. */
+  pending?: PendingShare[];
 }
 
 export interface RecordedRequest {
@@ -153,7 +157,7 @@ function linkedRow(world: CollectiveWorld, repo: string) {
     name,
     is_private: world.available.find((r) => r.repo === repo)?.private ?? false,
     installation_id: 4242,
-    linked_by: world.viewer.id,
+    linked_by: world.viewer?.id ?? "user-owner",
     created_at: "2026-01-03T00:00:00Z",
     last_synced_at: null,
   };
@@ -185,7 +189,10 @@ export function installCollectiveREST(world: CollectiveWorld): RecordedRequest[]
     );
     if (failure) return json({ error: failure.error }, failure.status);
 
-    if (path === "/auth/me") return json(makeViewer(world.viewer.id, world.viewer.username));
+    if (path === "/auth/me") {
+      if (!world.viewer) return json({ error: "not signed in" }, 401);
+      return json(makeViewer(world.viewer.id, world.viewer.username));
+    }
     if (path === "/auth/orgs") return json([]);
     if (path === "/collectives" && method === "POST") {
       return json({ ...world.group, ...(body as object) });
@@ -226,12 +233,19 @@ export function installCollectiveREST(world: CollectiveWorld): RecordedRequest[]
         your_role: world.role,
       });
     }
+    if (path === base && method === "DELETE") {
+      return json({ status: "deleted" });
+    }
     if (path === base && method === "PATCH") {
       world.group = { ...world.group, ...(body as Partial<Group>) };
       return json(world.group);
     }
     if (path === `${base}/my-shares`) return json(url.searchParams.get("view") === "grouped" ? { items: [], page: Number(url.searchParams.get("page") ?? 1), limit: Number(url.searchParams.get("limit") ?? 100), totalItems: 0, ordinarySessionTotal: 0, helperThreadTotal: 0 } : []);
     if (path === `${base}/join` && method === "POST") return json({ status: "joined", role: "contributor" });
+    if (path === `${base}/pending` && method === "GET") {
+      if (world.role !== "owner") return json({ error: "Owner access required" }, 403);
+      return json(world.pending ?? []);
+    }
     if (path === `${base}/repositories` && method === "GET") {
       return json({ repositories: world.linked.map((repo) => linkedRow(world, repo)) });
     }
@@ -299,12 +313,18 @@ export async function renderCollectivesList(): Promise<void> {
   await screen.findByRole("heading", { name: "collectives" });
 }
 
+/** Puts the address on `path` (keeping any query a test already set), as a browser on that page would. */
+function arriveAt(path: string): void {
+  if (window.location.pathname !== path) window.history.replaceState(null, "", `${path}${window.location.search}`);
+}
+
 /**
  * Renders the real `/collectives/{id}` route and waits until the collective and the
- * viewer have both arrived: the policy boxes are drawn from the one and the
+ * viewer have both arrived: the policy chips are drawn from the one and the
  * header actions from the other.
  */
 export async function renderCollectivePage(world: CollectiveWorld, expectReadFailure = false): Promise<void> {
+  arriveAt(`/collectives/${world.group.id}`);
   await act(async () => {
     render(
       <Providers>
@@ -318,12 +338,13 @@ export async function renderCollectivePage(world: CollectiveWorld, expectReadFai
   }
   await screen.findByRole("heading", { name: world.group.name });
   await waitFor(() => {
-    if (!document.querySelector(".cmg-policy")) throw new Error("the policy boxes have not rendered");
+    if (!document.querySelector(".on-rule")) throw new Error("the policy chips have not rendered");
   });
 }
 
 /** Renders the real `/collectives/{id}/settings` route and waits for its sections. */
 export async function renderCollectiveSettings(world: CollectiveWorld, expectReadFailure = false): Promise<void> {
+  arriveAt(`/collectives/${world.group.id}/settings`);
   await act(async () => {
     render(
       <Providers>
@@ -336,6 +357,18 @@ export async function renderCollectiveSettings(world: CollectiveWorld, expectRea
     return;
   }
   await screen.findByRole("navigation", { name: "settings sections" });
+}
+
+/** Renders the real `/collectives/{id}/settings` route and waits for nothing: for the states that draw no sections. */
+export async function mountCollectiveSettings(world: CollectiveWorld): Promise<void> {
+  arriveAt(`/collectives/${world.group.id}/settings`);
+  await act(async () => {
+    render(
+      <Providers>
+        <GroupSettingsPage params={Promise.resolve({ id: world.group.id })} />
+      </Providers>,
+    );
+  });
 }
 
 /** Shared teardown: unmount, drop the `fetch` stub, reset the URL and the recorded navigation. */

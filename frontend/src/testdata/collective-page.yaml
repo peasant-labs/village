@@ -1,12 +1,14 @@
 # Case corpus for `src/collectivePage.test.tsx`: the collective page and the
 # collectives list, each mounted through its real route with REST stubbed at
-# `fetch`, rendered by fairtrade's `CollectiveDetailView` and `CollectivesView`.
+# `fetch`. The collective page is composed from the online page patterns; the
+# list is rendered by fairtrade's `CollectivesView`.
 #
 # Each overflow item names the route it opens; `{id}` is the collective's id.
 #
-# The three boxes restate what the server decided (`data_access`,
-# `acceptance_mode`, `your_role`, `can_read`); they decide nothing. A case
-# states the server's answer and the words the page must show for it.
+# The three policy chips restate what the server decided (`data_access`,
+# `acceptance_mode`, `your_role`, `can_read`) from the viewer's side; they
+# decide nothing. A case states the server's answer and the words the page
+# must show for it.
 #
 # Deletion protection is the required-name manifest in
 # `src/test/collectivePageFixtures.ts`.
@@ -40,141 +42,304 @@ available:
   - { repo: acme/worker, private: false, publishers: 3 }
   - { repo: acme/cli, private: false, publishers: 1 }
 
+# What waits for the owner's approval in a curated collective
+# (`GET /collectives/{id}/pending`), for the cases that serve it.
+pending:
+  - { transcript_id: 7b000000-0000-4000-8000-000000000001, title: Add retries to the webhook, owner: dan-ops, provider: codex, project: ingest-api, branch: retries }
+  - { transcript_id: 7b000000-0000-4000-8000-000000000002, title: Trim the onboarding copy, owner: carol-ml, provider: claude-code, project: web, branch: main }
+
+# `signedIn: false` reads the page with no account (`/auth/me` answers 401).
+# `actions` are the controls in the head's action row, in order, by name.
+# `tabs` are the tabs offered, in order. `orgLine` is the stats tab's github
+# org line; `memberBreakdown: null` is a member list the owner keeps private.
 cases:
-  - name: the-owner-sees-the-boxes-the-org-total-and-both-overflow-items
+  - name: the-owner-sees-the-chips-the-org-total-and-both-overflow-items
     why: >-
-      the owner of a curated collective linked to acme: the boxes restate
-      members_only, curated and owner; the rail counts the linked repositories
-      against what the App offers; publish and review both move into more; the
-      members summary leaves out the pending request.
+      the owner of a curated collective linked to acme: the chips say they
+      approve each session, members read and they are the owner; the stats tab
+      counts the linked repositories against what the App offers; publish and
+      review both move into more; the waiting tab is theirs; the members
+      summary leaves out the pending request.
+    signedIn: true
     role: owner
     canRead: true
-    group: { acceptance_mode: curated, data_access: members_only, linked_github_org: acme }
+    group: { acceptance_mode: curated, data_access: members_only, linked_github_org: acme, display_members: true }
     linked: [acme/ingest-api, acme/web]
     expect:
-      whoCanRead: members of Acme Platform can read every transcript published here.
-      whoCanPublish: only people the owner invites can join. the owner approves each transcript before it appears.
-      yourRole: "owner: you manage settings and members."
-      orgLine: acme · 2 of 4 repos linked
-      manage: true
-      settings: true
+      whoCanPublish: you approve each session
+      whoCanRead: members read
+      yourRole: you are the owner
+      actions: [more, settings, invite people]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
         - { label: review transcripts, route: "/collectives/{id}/review" }
-      headerActions: []
+      tabs: [transcripts, waiting for approval, members, stats]
+      statusColumn: true
       transcriptRows: 2
-      memberBreakdown: 1 owner · 2 members · 1 contributor
+      orgLine: "acme: 2 of 4 repos linked"
+      manage: true
+      memberBreakdown: 1 owner, 2 members, 1 contributor
       memberCount: 4
 
   - name: an-owner-without-an-org-is-offered-connect-github
     why: >-
       a collective with no linked org shows "nothing linked" and gives its
-      owner the install handshake instead of a manage link; an open collective
-      has no review item.
+      owner the install handshake instead of a manage button; an open
+      collective has no review item, no waiting tab and no status column.
+    signedIn: true
     role: owner
     canRead: true
-    group: { acceptance_mode: open, data_access: members_only, linked_github_org: null }
+    group: { acceptance_mode: open, data_access: members_only, linked_github_org: null, display_members: true }
     linked: []
     expect:
-      whoCanRead: members of Acme Platform can read every transcript published here.
-      whoCanPublish: anyone can join and publish. transcripts are approved automatically.
-      yourRole: "owner: you manage settings and members."
-      orgLine: nothing linked
-      manage: false
-      settings: true
+      whoCanPublish: anyone who joins publishes
+      whoCanRead: members read
+      yourRole: you are the owner
+      actions: [more, connect github, settings, invite people]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      headerActions: [connect github]
+      tabs: [transcripts, members, stats]
+      statusColumn: false
       transcriptRows: 2
-      memberBreakdown: 1 owner · 2 members · 1 contributor
+      orgLine: nothing linked
+      manage: false
+      memberBreakdown: 1 owner, 2 members, 1 contributor
       memberCount: 4
 
   - name: a-member-sees-the-org-without-the-total-and-can-leave
     why: >-
       only the owner may read what the App offers, so a member sees the org
-      without the "of M" total and no manage link; members and contributors
+      without the "of M" total and no manage button; members and contributors
       both read under data access contributors.
+    signedIn: true
     role: member
     canRead: true
-    group: { acceptance_mode: verified_only, data_access: contributors, linked_github_org: acme }
+    group: { acceptance_mode: verified_only, data_access: contributors, linked_github_org: acme, display_members: true }
     linked: [acme/ingest-api, acme/web]
     expect:
-      whoCanRead: members and contributors of Acme Platform can read every transcript published here.
-      whoCanPublish: only members of the acme github org can join and publish.
-      yourRole: "member: you read and publish here."
-      orgLine: acme
-      manage: false
-      settings: false
+      whoCanPublish: members of the acme github org publish
+      whoCanRead: members and contributors read
+      yourRole: you are a member
+      actions: [more, leave]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      headerActions: [leave]
+      tabs: [transcripts, members, stats]
+      statusColumn: false
       transcriptRows: 2
-      memberBreakdown: 1 owner · 2 members · 1 contributor
+      orgLine: acme
+      manage: false
+      memberBreakdown: 1 owner, 2 members, 1 contributor
       memberCount: 4
 
   - name: a-contributor-who-cannot-read-is-told-so
     why: >-
-      under members_only a contributor publishes but does not read; the box
-      restates the server's can_read, and the table holds no rows.
+      under members_only a contributor publishes but does not read; the role
+      chip restates the server's can_read, and the transcripts tab says the
+      data access is restricted instead of drawing a table.
+    signedIn: true
     role: contributor
     canRead: false
-    group: { acceptance_mode: open, data_access: members_only, linked_github_org: acme }
+    group: { acceptance_mode: open, data_access: members_only, linked_github_org: acme, display_members: true }
     linked: [acme/ingest-api]
     expect:
-      whoCanRead: members of Acme Platform can read every transcript published here.
-      whoCanPublish: anyone can join and publish. transcripts are approved automatically.
-      yourRole: "contributor: you publish here. only members read the transcripts."
-      orgLine: acme
-      manage: false
-      settings: false
+      whoCanPublish: anyone who joins publishes
+      whoCanRead: members read
+      yourRole: you publish here but cannot read
+      actions: [more, leave]
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
-      headerActions: [leave]
+      tabs: [transcripts, members, stats]
+      statusColumn: false
       transcriptRows: 0
-      memberBreakdown: 1 owner · 2 members · 1 contributor
+      orgLine: acme
+      manage: false
+      memberBreakdown: 1 owner, 2 members, 1 contributor
       memberCount: 4
 
   - name: a-non-member-of-an-open-collective-can-join
     why: >-
-      someone who has not joined sees the policy boxes, no overflow and no
-      settings, and the one action open to them is join.
+      someone who has not joined sees the chips, no overflow and no settings,
+      and the one action open to them is join.
+    signedIn: true
     role: ""
     canRead: false
-    group: { acceptance_mode: open, data_access: members_only, linked_github_org: acme }
+    group: { acceptance_mode: open, data_access: members_only, linked_github_org: acme, display_members: true }
     linked: []
     expect:
-      whoCanRead: members of Acme Platform can read every transcript published here.
-      whoCanPublish: anyone can join and publish. transcripts are approved automatically.
-      yourRole: "not a member: join to publish here."
+      whoCanPublish: anyone who joins publishes
+      whoCanRead: members read
+      yourRole: you are not a member
+      actions: [join]
+      overflow: []
+      tabs: [transcripts, members, stats]
+      statusColumn: false
+      transcriptRows: 0
       orgLine: acme
       manage: false
-      settings: false
-      overflow: []
-      headerActions: [join]
-      transcriptRows: 0
-      memberBreakdown: 1 owner · 2 members · 1 contributor
+      memberBreakdown: 1 owner, 2 members, 1 contributor
       memberCount: 4
 
   - name: a-non-member-of-a-curated-collective-is-offered-no-join
     why: >-
       a curated collective is joined by invitation only (the join route refuses
       everyone else), so no join button is drawn.
+    signedIn: true
     role: ""
     canRead: false
-    group: { acceptance_mode: curated, data_access: members_only, linked_github_org: null }
+    group: { acceptance_mode: curated, data_access: members_only, linked_github_org: null, display_members: true }
     linked: []
     expect:
-      whoCanRead: members of Acme Platform can read every transcript published here.
-      whoCanPublish: only people the owner invites can join. the owner approves each transcript before it appears.
-      yourRole: "not a member: the owner invites people to join."
+      whoCanPublish: the owner approves each session
+      whoCanRead: members read
+      yourRole: the owner invites members
+      actions: []
+      overflow: []
+      tabs: [transcripts, members, stats]
+      statusColumn: false
+      transcriptRows: 0
       orgLine: nothing linked
       manage: false
-      settings: false
-      overflow: []
-      headerActions: []
-      transcriptRows: 0
-      memberBreakdown: 1 owner · 2 members · 1 contributor
+      memberBreakdown: 1 owner, 2 members, 1 contributor
       memberCount: 4
+
+  - name: a-signed-out-reader-of-a-public-collective-reads-and-is-asked-to-sign-in-to-join
+    why: >-
+      a public collective keeps working with no account: the transcripts are
+      read, and joining, which needs an account, is offered as a sign-in that
+      comes back to this page.
+    signedIn: false
+    role: ""
+    canRead: true
+    group: { acceptance_mode: open, data_access: public, linked_github_org: acme, display_members: true }
+    linked: []
+    expect:
+      whoCanPublish: anyone who joins publishes
+      whoCanRead: anyone can read
+      yourRole: you are not a member
+      actions: [sign in to join]
+      overflow: []
+      tabs: [transcripts, members, stats]
+      statusColumn: false
+      transcriptRows: 2
+      orgLine: acme
+      manage: false
+      memberBreakdown: 1 owner, 2 members, 1 contributor
+      memberCount: 4
+
+  - name: a-member-of-a-collective-with-a-private-member-list-sees-no-members
+    why: >-
+      when the owner keeps the member list private, the members tab says so to
+      everyone but the owner and counts nobody.
+    signedIn: true
+    role: member
+    canRead: true
+    group: { acceptance_mode: open, data_access: members_only, linked_github_org: null, display_members: false }
+    linked: []
+    expect:
+      whoCanPublish: anyone who joins publishes
+      whoCanRead: members read
+      yourRole: you are a member
+      actions: [more, leave]
+      overflow:
+        - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
+      tabs: [transcripts, members, stats]
+      statusColumn: false
+      transcriptRows: 2
+      orgLine: nothing linked
+      manage: false
+      memberBreakdown: null
+      memberCount: 4
+
+# The collective page's tabs: which one an address opens, and where the arrow
+# keys take the selection. `keys` are pressed in order on the selected tab;
+# `expectSearch` is the address's query afterwards. `withPending` serves the
+# root `pending` list on the owner's queue.
+tabCases:
+  - name: no-tab-in-the-address-opens-transcripts
+    why: the transcripts tab is where a collective opens.
+    role: member
+    acceptance_mode: open
+    withPending: false
+    search: ""
+    keys: []
+    expectSelected: transcripts
+    expectSearch: ""
+
+  - name: the-address-opens-the-stats-tab
+    why: a link can open a tab directly, so ?tab=stats lands on the numbers.
+    role: member
+    acceptance_mode: open
+    withPending: false
+    search: "?tab=stats"
+    keys: []
+    expectSelected: stats
+    expectSearch: "?tab=stats"
+
+  - name: an-unknown-tab-falls-back-to-transcripts
+    why: a tab the page does not have opens the first tab, never an empty page.
+    role: member
+    acceptance_mode: open
+    withPending: false
+    search: "?tab=pull-requests"
+    keys: []
+    expectSelected: transcripts
+    expectSearch: "?tab=pull-requests"
+
+  - name: waiting-is-not-offered-to-a-member-of-a-curated-collective
+    why: >-
+      the pending queue is the owner's alone on the server, so a member's link
+      to it opens the transcripts tab and no request for the queue is sent.
+    role: member
+    acceptance_mode: curated
+    withPending: false
+    search: "?tab=waiting"
+    keys: []
+    expectSelected: transcripts
+    expectSearch: "?tab=waiting"
+
+  - name: the-curated-owner-opens-waiting-from-the-address
+    why: the owner of a curated collective can be linked straight to what waits for them.
+    role: owner
+    acceptance_mode: curated
+    withPending: true
+    search: "?tab=waiting"
+    keys: []
+    expectSelected: waiting
+    expectSearch: "?tab=waiting"
+
+  - name: arrow-keys-move-between-tabs-and-keep-the-address
+    why: >-
+      the arrow keys move the selection along the tablist, and the address
+      follows, so a reload opens the same tab.
+    role: member
+    acceptance_mode: open
+    withPending: false
+    search: ""
+    keys: [ArrowRight, ArrowRight]
+    expectSelected: stats
+    expectSearch: "?tab=stats"
+
+  - name: arrow-left-wraps-to-the-last-tab
+    why: from the first tab, ArrowLeft wraps round to the last.
+    role: owner
+    acceptance_mode: curated
+    withPending: true
+    search: ""
+    keys: [ArrowLeft]
+    expectSelected: stats
+    expectSearch: "?tab=stats"
+
+  - name: home-and-end-jump-and-the-first-tab-clears-the-address
+    why: >-
+      End and Home jump to the ends; the first tab is the page's own address,
+      so choosing it drops the parameter.
+    role: owner
+    acceptance_mode: curated
+    withPending: true
+    search: "?tab=members"
+    keys: [End, Home]
+    expectSelected: transcripts
+    expectSearch: ""
 
 # The collectives list: a table of every collective the caller may see, and a
 # search that swaps the rows for the server's matches.
@@ -263,7 +428,7 @@ pullRequestCases:
     rows:
       - { id: t1, pullRequests: [acme/api#60, acme/api#51, acme/api#45], count: 5 }
     expect:
-      - { id: t1, labels: ["#60", "#51", "#45"], repo: acme/api · 5 pull requests }
+      - { id: t1, labels: ["#60", "#51", "#45"], repo: "acme/api, 5 pull requests" }
     hrefs:
       "#60": /pulls/acme/api/60
       "#51": /pulls/acme/api/51

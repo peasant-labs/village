@@ -18,6 +18,7 @@ import {
   installGroupSettingsREST,
   renderGroupSettingsRoute,
 } from "@/test/mountedAttachmentSurfaces";
+import { installCollectiveREST, makeGroup, mountCollectiveSettings } from "@/test/mountedCollectivePages";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import {
   loadLowercaseChromeFixtures,
@@ -271,6 +272,8 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
             return groupRoute(input, init);
           }),
         );
+        // The search sits in the settings page's members section.
+        window.history.replaceState(null, "", `/collectives/${GROUP_ID}/settings?section=members`);
         await renderGroupSettingsRoute(GROUP_ID);
         fireEvent.click(await screen.findByRole("button", { name: /find a github user to invite/i }));
         const dialog = await screen.findByRole("dialog", { name: /invite a github user/i });
@@ -282,9 +285,9 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
         return document.body;
       }
 
-      const owner = c.state !== "visitor";
+      const owner = c.state !== "visitor" && c.state !== "signed-out";
       installGroupRouteREST({
-        viewer: content.viewer,
+        viewer: c.state === "signed-out" ? null : content.viewer,
         groupId: GROUP_ID,
         groupName: content.collective,
         role: owner ? "owner" : null,
@@ -320,6 +323,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
       await waitFor(() => expect(document.body.textContent).toContain(content.collective));
       if (!owner) {
         await screen.findAllByText(/data access restricted/i);
+        if (c.state === "signed-out") await screen.findByRole("link", { name: "sign in to join" });
         return document.body;
       }
       await screen.findByTestId("my-contributions-panel");
@@ -332,6 +336,41 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
         fireEvent.click(await screen.findByRole("checkbox", { name: "select all" }));
         fireEvent.click(await screen.findByRole("button", { name: /remove selected/i }));
         await screen.findByText("remove from collective?");
+      }
+      return document.body;
+    }
+
+    case "collective-settings": {
+      // The owner's settings, one section at a time, through the real route.
+      const section = c.state === "delete-confirm" ? "danger" : c.state === "not-owner" ? "general" : c.state;
+      window.history.replaceState(null, "", `/collectives/${GROUP_ID}/settings?section=${section}`);
+      installCollectiveREST({
+        viewer: { id: `user-${content.viewer}`, username: content.viewer },
+        group: makeGroup({ id: GROUP_ID, name: content.collective, linked_github_org: "acme" }),
+        role: c.state === "not-owner" ? "member" : "owner",
+        canRead: true,
+        members: [
+          { id: `user-${content.viewer}`, username: content.viewer, name: null, role: "owner" },
+          { id: "user-bob", username: "bob-ai", name: null, role: "member" },
+          { id: "user-dan", username: "dan-ops", name: null, role: "contributor" },
+        ],
+        transcripts: [],
+        linked: ["acme/ingest-api"],
+        available: [
+          { repo: "acme/ingest-api", private: true, publishers: 1 },
+          { repo: "acme/web", private: false, publishers: 0 },
+        ],
+      });
+      await mountCollectiveSettings({ group: makeGroup({ id: GROUP_ID, name: content.collective }) } as never);
+      if (c.state === "not-owner") {
+        await screen.findByText("only the owner can change these settings");
+        return document.body;
+      }
+      await screen.findByRole("navigation", { name: "settings sections" });
+      if (c.state === "github") await screen.findByText(/1 of 2 repositories linked/);
+      if (c.state === "delete-confirm") {
+        fireEvent.click(screen.getByRole("button", { name: "delete collective" }));
+        await screen.findByRole("dialog");
       }
       return document.body;
     }

@@ -24,6 +24,8 @@ for (const testCase of loadCollectiveInviteSearchFixtures()) {
       }
       return delegate(input, init);
     }));
+    // The search lives in the members section, beside the invite field.
+    window.history.replaceState(null, "", `/collectives/${world.group.id}/settings?section=members`);
     await renderCollectiveSettings(world);
     fireEvent.click(screen.getByRole("button", { name: "find a github user to invite" }));
     const dialog = await screen.findByRole("dialog", { name: "invite a github user" });

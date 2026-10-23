@@ -1,19 +1,20 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { replacedRoutes } from "@/test/nextNavigationMock";
+import { pushedRoutes, replacedRoutes } from "@/test/nextNavigationMock";
 import { loadCollectiveSettingsFixtures, type SettingsCase } from "@/test/collectiveSettingsFixtures";
 import {
   installCollectivePagesTeardown,
   installCollectiveREST,
+  mountCollectiveSettings,
   renderCollectiveSettings,
   textOf,
 } from "@/test/mountedCollectivePages";
 
 /**
- * A collective's settings, mounted through the real route and rendered by
- * fairtrade's real `CollectiveSettingsView`, driven by
- * `src/testdata/collective-settings.yaml`. Each case asserts the writes the
- * page sent (route and exact body) and what the owner is shown.
+ * A collective's settings, mounted through the real route one section at a
+ * time (`?section=`), driven by `src/testdata/collective-settings.yaml`. Each
+ * case asserts the writes the page sent (route and exact body) and what the
+ * owner is shown.
  */
 
 installCollectivePagesTeardown();
@@ -33,6 +34,14 @@ async function perform(settingsCase: SettingsCase): Promise<void> {
     case "toggle":
       fireEvent.click(screen.getByRole("switch", { name: action.label }));
       return;
+    case "choose": {
+      const group = screen.getByRole("group", { name: action.group });
+      fireEvent.click(within(group).getByRole("button", { name: new RegExp(`^${action.label}`) }));
+      return;
+    }
+    case "select":
+      fireEvent.change(screen.getByRole("combobox", { name: action.label }), { target: { value: action.value } });
+      return;
     case "role":
       fireEvent.change(screen.getByRole("combobox", { name: `role for @${action.member}` }), {
         target: { value: action.role },
@@ -42,6 +51,20 @@ async function perform(settingsCase: SettingsCase): Promise<void> {
       fireEvent.click(screen.getByRole("button", { name: `remove @${action.member}` }));
       const dialog = await screen.findByRole("dialog");
       fireEvent.click(within(dialog).getByRole("button", { name: "remove" }));
+      return;
+    }
+    case "invite":
+      fireEvent.change(screen.getByRole("textbox", { name: "invite by github username" }), { target: { value: action.value } });
+      fireEvent.click(screen.getByRole("button", { name: "invite" }));
+      return;
+    case "delete": {
+      fireEvent.click(screen.getByRole("button", { name: "delete collective" }));
+      const dialog = await screen.findByRole("dialog");
+      const confirm = within(dialog).getByRole("button", { name: "delete collective" });
+      expect(confirm, "the delete waits for consent").toBeDisabled();
+      fireEvent.click(within(dialog).getByRole("checkbox", { name: "i understand this cannot be undone" }));
+      expect(confirm).toBeEnabled();
+      fireEvent.click(confirm);
       return;
     }
     case "none":
@@ -84,6 +107,17 @@ describe("the collective settings", () => {
         ),
       );
     }
+    if (expected.pressed !== null && settingsCase.action.kind === "choose") {
+      const group = screen.getByRole("group", { name: settingsCase.action.group });
+      await waitFor(() =>
+        expect(
+          within(group)
+            .getAllByRole("button")
+            .filter((card) => card.getAttribute("aria-pressed") === "true")
+            .map((card) => textOf(card.querySelector("b"))),
+        ).toEqual([expected.pressed]),
+      );
+    }
     if (expected.notice) {
       const notice = await screen.findByTestId("collective-notice");
       expect(textOf(notice.querySelector(".fb-toast-title"))).toBe(expected.notice);
@@ -92,6 +126,11 @@ describe("the collective settings", () => {
       await waitFor(() => expect(replacedRoutes).toContain(fixtures.pathFor(settingsCase, expected.replaced as string)));
     } else {
       expect(replacedRoutes).toEqual([]);
+    }
+    if (expected.pushed) {
+      await waitFor(() => expect(pushedRoutes).toEqual([expected.pushed]));
+    } else {
+      expect(pushedRoutes).toEqual([]);
     }
 
     // On every case: the check-mode radios are not drawn, and no write claims
@@ -102,5 +141,59 @@ describe("the collective settings", () => {
       expect(write.body ?? {}).not.toHaveProperty("linked_github_org");
       expect(write.body ?? {}).not.toHaveProperty("prompts_check_mode");
     }
+  });
+});
+
+describe("the collective settings sections", () => {
+  it.each(fixtures.sectionCases.map((c) => [c.name, c] as const))("%s", async (_name, sectionCase) => {
+    const world = fixtures.worldFor(fixtures.cases[0]);
+    window.history.replaceState(null, "", `/collectives/${world.group.id}/settings${sectionCase.search}`);
+    installCollectiveREST(world);
+    await renderCollectiveSettings(world);
+
+    expect(screen.getByRole("heading", { level: 1 }), sectionCase.why).toHaveTextContent(sectionCase.expectTitle);
+    expect(textOf(document.querySelector(".on-split p"))).toBe(sectionCase.expectLede);
+    const nav = screen.getByRole("navigation", { name: "settings sections" });
+    const current = within(nav)
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("aria-current") === "page");
+    expect(current.map((link) => textOf(link))).toEqual([sectionCase.expectTitle]);
+    expect(screen.getByTestId(`settings-${sectionCase.expectSection}`)).toBeInTheDocument();
+
+    // Every section is a link a sidebar could use; the back link returns to the collective.
+    const base = `/collectives/${world.group.id}/settings`;
+    expect(within(nav).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      `/collectives/${world.group.id}`,
+      base,
+      `${base}?section=access`,
+      `${base}?section=members`,
+      `${base}?section=github`,
+      `${base}?section=pull-requests`,
+      `${base}?section=danger`,
+    ]);
+    expect(within(nav).getByRole("link", { name: `back to ${world.group.name}` })).toBeInTheDocument();
+  });
+
+  it("tells somebody who is not the owner that only the owner can change these settings", async () => {
+    const world = { ...fixtures.worldFor(fixtures.cases[0]), role: "member" };
+    window.history.replaceState(null, "", `/collectives/${world.group.id}/settings?section=access`);
+    const requests = installCollectiveREST(world);
+    await mountCollectiveSettings(world);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "only the owner can change these settings" })).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: "back to the collective" })).toHaveAttribute("href", `/collectives/${world.group.id}`);
+    expect(screen.queryByRole("navigation", { name: "settings sections" })).toBeNull();
+    expect(requests.filter((r) => r.path.includes("/repositories"))).toEqual([]);
+  });
+
+  it("says when no collective answers at the address", async () => {
+    const world = fixtures.worldFor(fixtures.cases[0]);
+    world.failures = [{ method: "GET", path: `/collectives/${world.group.id}`, status: 404, error: "collective not found" }];
+    installCollectiveREST(world);
+    await mountCollectiveSettings(world);
+    // The read settles once the viewer is known; the state it lands on is the one to hold.
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "collective not found" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "back to collectives" })).toHaveAttribute("href", "/collectives");
+    });
   });
 });

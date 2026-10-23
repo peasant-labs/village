@@ -10,8 +10,8 @@ import {
 } from "@/test/mountedCollectivePages";
 
 /**
- * The repo picker opened from the collective page's `github orgs` rail, through
- * the real route and fairtrade's real `RepoPicker`, driven by
+ * The repo picker opened from the github org line on the collective page's
+ * stats tab, through the real route and fairtrade's real `RepoPicker`, driven by
  * `src/testdata/repo-picker.yaml`. Each case asserts the calls the save made,
  * in order, and the message the owner is shown.
  */
@@ -59,11 +59,9 @@ function repositoryWrites(requests: RecordedRequest[]): { method: string; repo: 
     });
 }
 
+/** The org line's words on the stats tab, without its manage button. */
 function orgLine(): string {
-  const rail = screen.getByRole("complementary", { name: "github orgs and members" });
-  const line = rail.querySelector(".cmg-rail-box .cmg-rail-line")?.cloneNode(true) as Element | undefined;
-  line?.querySelectorAll("button").forEach((button) => button.remove());
-  return textOf(line);
+  return textOf(screen.getByTestId("collective-org-line").querySelector(".on-orgline-text"));
 }
 
 describe("the repo picker", () => {
@@ -72,7 +70,8 @@ describe("the repo picker", () => {
     const requests = installCollectiveREST(world);
     await renderCollectivePage(world);
 
-    fireEvent.click(await screen.findByRole("button", { name: "manage" }));
+    fireEvent.click(screen.getByRole("tab", { name: /^stats/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "manage repositories" }));
     const dialog = await screen.findByRole("dialog", { name: "link repositories from acme" });
     for (const step of pickerCase.steps) perform(dialog, step);
     fireEvent.click(within(dialog).getByRole("button", { name: /^save/ }));

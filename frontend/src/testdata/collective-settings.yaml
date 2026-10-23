@@ -1,14 +1,13 @@
 # Case corpus for `src/collectiveSettings.test.tsx`: a collective's settings,
-# mounted through the real route and rendered by fairtrade's
-# `CollectiveSettingsView`.
+# mounted through the real route, one section at a time (`?section=`).
 #
 # Every change is its own write. A text field saves when the owner presses
-# edit, then save; a switch or a select saves the moment it changes. A settings
-# change sends exactly the one field it writes with `PATCH /collectives/{id}` (the
-# server keeps every field the body leaves out), and a failed write puts the
-# old value back and says why. A member's role and removal use the member
-# routes. `{id}` and `{member}` in a path stand for the collective's and the
-# named member's ids.
+# edit, then save; a switch, a select or a choice card saves the moment it
+# changes. A settings change sends exactly the one field it writes with
+# `PATCH /collectives/{id}` (the server keeps every field the body leaves out),
+# and a failed write puts the old value back and says why. A member's role and
+# removal use the member routes. `{id}` and `{member}` in a path stand for the
+# collective's and the named member's ids.
 #
 # Deletion protection is the required-name manifest in
 # `src/test/collectiveSettingsFixtures.ts`.
@@ -33,6 +32,9 @@ members:
   - { id: 5b0c9a1e-0000-4000-8000-0000000000b2, username: bob-ai, name: Bob Ainsley, role: member }
   - { id: 5b0c9a1e-0000-4000-8000-0000000000d4, username: dan-ops, name: Dan Okafor, role: contributor }
 
+# `search` is the address's query when the page opens. `pressed` names the
+# card that must be pressed afterwards in the group `action.group` names (a
+# `choose` action only). `pushed` is where the page navigated, if anywhere.
 cases:
   - name: a-text-field-saves-only-after-edit
     why: >-
@@ -47,14 +49,68 @@ cases:
       shows: [Acme Platform Team]
       alert: null
       switchOn: null
+      pressed: null
       notice: null
       replaced: null
+      pushed: null
+
+  - name: the-description-saves-after-edit
+    why: the description is written as the collective's description field, and only that.
+    search: "?section=general"
+    fail: null
+    action: { kind: edit-text, label: description, value: Every session behind the ingest service. }
+    expect:
+      writes:
+        - { method: PATCH, path: "/collectives/{id}", body: { description: Every session behind the ingest service. } }
+      shows: [Every session behind the ingest service.]
+      alert: null
+      switchOn: null
+      pressed: null
+      notice: null
+      replaced: null
+      pushed: null
+
+  - name: a-choice-card-saves-the-moment-it-is-pressed
+    why: >-
+      pressing a card writes that one field straight away, the card stays
+      pressed, and the group says it saved.
+    search: "?section=access"
+    fail: null
+    action: { kind: choose, group: who can publish, label: sessions you approve }
+    expect:
+      writes:
+        - { method: PATCH, path: "/collectives/{id}", body: { acceptance_mode: curated } }
+      shows: [saved]
+      alert: null
+      switchOn: null
+      pressed: sessions you approve
+      notice: null
+      replaced: null
+      pushed: null
+
+  - name: a-refused-choice-puts-the-held-card-back
+    why: >-
+      the server refuses the change; the card the collective still holds is
+      pressed again and the group shows the server's own words.
+    search: "?section=access"
+    fail: { method: PATCH, path: "/collectives/{id}", status: 400, error: the read setting could not be changed }
+    action: { kind: choose, group: who can read, label: members and contributors }
+    expect:
+      writes:
+        - { method: PATCH, path: "/collectives/{id}", body: { data_access: contributors } }
+      shows: [not saved]
+      alert: the read setting could not be changed
+      switchOn: null
+      pressed: members
+      notice: null
+      replaced: null
+      pushed: null
 
   - name: a-failed-switch-write-puts-the-value-back
     why: >-
       the server refuses the switch; the switch returns to on and the row
       says why.
-    search: ""
+    search: "?section=pull-requests"
     fail: { method: PATCH, path: "/collectives/{id}", status: 500, error: the collective could not be saved }
     action: { kind: toggle, label: show transcripts on pull requests }
     expect:
@@ -63,14 +119,16 @@ cases:
       shows: []
       alert: the collective could not be saved
       switchOn: true
+      pressed: null
       notice: null
       replaced: null
+      pushed: null
 
   - name: the-toggle-off-sends-exactly-that-field
     why: >-
       turning off "show transcripts on pull requests" sends
       post_prompts_check false and nothing else: no check mode, no org claim.
-    search: ""
+    search: "?section=pull-requests"
     fail: null
     action: { kind: toggle, label: show transcripts on pull requests }
     expect:
@@ -79,12 +137,30 @@ cases:
       shows: []
       alert: null
       switchOn: false
+      pressed: null
       notice: null
       replaced: null
+      pushed: null
+
+  - name: when-a-member-leaves-saves-the-moment-it-changes
+    why: the leave policy is a select that writes the deletion policy the moment it changes.
+    search: "?section=members"
+    fail: null
+    action: { kind: select, label: when a member leaves, value: mandatory }
+    expect:
+      writes:
+        - { method: PATCH, path: "/collectives/{id}", body: { transcript_deletion_policy: mandatory } }
+      shows: [saved]
+      alert: null
+      switchOn: null
+      pressed: null
+      notice: null
+      replaced: null
+      pushed: null
 
   - name: a-role-change-uses-the-member-role-route
     why: the role select changes one member's role through its own route.
-    search: ""
+    search: "?section=members"
     fail: null
     action: { kind: role, member: bob-ai, role: contributor }
     expect:
@@ -93,12 +169,14 @@ cases:
       shows: [role changed]
       alert: null
       switchOn: null
+      pressed: null
       notice: null
       replaced: null
+      pushed: null
 
   - name: a-member-removal-asks-first-then-uses-the-member-route
     why: remove opens a confirmation; confirming deletes that one member.
-    search: ""
+    search: "?section=members"
     fail: null
     action: { kind: remove, member: bob-ai }
     expect:
@@ -107,15 +185,35 @@ cases:
       shows: [member removed]
       alert: null
       switchOn: null
+      pressed: null
       notice: null
       replaced: null
+      pushed: null
+
+  - name: an-invite-by-username-uses-the-members-route
+    why: >-
+      the invite field sends the username without its @ to the members route,
+      and the owner is told who can now publish.
+    search: "?section=members"
+    fail: null
+    action: { kind: invite, value: "@New-Person" }
+    expect:
+      writes:
+        - { method: POST, path: "/collectives/{id}/members", body: { username: New-Person } }
+      shows: [member added, "@New-Person can now publish here."]
+      alert: null
+      switchOn: null
+      pressed: null
+      notice: member added
+      replaced: null
+      pushed: null
 
   - name: the-check-mode-radios-are-absent
     why: >-
       the check-mode radios promised a merge gate that does not exist, so they
       are not drawn; the stored mode is left as it is, and nothing is written
       by opening the page.
-    search: ""
+    search: "?section=pull-requests"
     fail: null
     action: { kind: none }
     expect:
@@ -123,21 +221,120 @@ cases:
       shows: [show transcripts on pull requests]
       alert: null
       switchOn: true
+      pressed: null
       notice: null
       replaced: null
+      pushed: null
+
+  - name: the-github-section-counts-the-linked-repositories
+    why: >-
+      the github section names the linked org and how many of the
+      repositories the App offers are linked.
+    search: "?section=github"
+    fail: null
+    action: { kind: none }
+    expect:
+      writes: []
+      shows: [acme, 1 of 1 repositories linked.]
+      alert: null
+      switchOn: null
+      pressed: null
+      notice: null
+      replaced: null
+      pushed: null
 
   - name: github-installed-says-so-and-clears-the-parameter
     why: >-
       the install handshake returns with ?github_installed=1; the page says
-      github is connected and drops the parameter, so a reload does not say it
-      again.
+      github is connected, opens the github section and drops the parameter,
+      so a reload does not say it again.
     search: "?github_installed=1"
     fail: null
     action: { kind: none }
     expect:
       writes: []
+      shows: [1 of 1 repositories linked.]
+      alert: null
+      switchOn: null
+      pressed: null
+      notice: github connected
+      replaced: "/collectives/{id}/settings?section=github"
+      pushed: null
+
+  - name: delete-asks-for-consent-then-deletes-the-collective
+    why: >-
+      delete opens a confirmation whose button waits for "i understand this
+      cannot be undone"; confirming deletes the collective and returns to the
+      collectives list.
+    search: "?section=danger"
+    fail: null
+    action: { kind: delete }
+    expect:
+      writes:
+        - { method: DELETE, path: "/collectives/{id}", body: null }
       shows: []
       alert: null
       switchOn: null
-      notice: github connected
-      replaced: "/collectives/{id}/settings"
+      pressed: null
+      notice: null
+      replaced: null
+      pushed: /collectives
+
+# Which section an address opens: its title, its one line, the section list's
+# current entry, and the body drawn. `{count}` is the number of members.
+sectionCases:
+  - name: no-section-opens-general
+    why: the settings page opens on the name and description.
+    search: ""
+    expectSection: general
+    expectTitle: general
+    expectLede: the name and description people see.
+
+  - name: the-access-section
+    why: ?section=access opens who can publish and who can read.
+    search: "?section=access"
+    expectSection: access
+    expectTitle: access
+    expectLede: who can add sessions here, and who can read them.
+
+  - name: the-members-section-counts-the-people
+    why: the members section's line counts the people in the collective.
+    search: "?section=members"
+    expectSection: members
+    expectTitle: members
+    expectLede: 3 people. invite by github username.
+
+  - name: the-github-section
+    why: ?section=github opens the org and its repositories.
+    search: "?section=github"
+    expectSection: github
+    expectTitle: github
+    expectLede: the organization and repositories this collective is linked to.
+
+  - name: the-pull-requests-section
+    why: ?section=pull-requests opens what shows on pull requests.
+    search: "?section=pull-requests"
+    expectSection: pull-requests
+    expectTitle: pull requests
+    expectLede: what shows up on pull requests in linked repositories.
+
+  - name: the-danger-zone
+    why: ?section=danger opens the actions that cannot be undone.
+    search: "?section=danger"
+    expectSection: danger
+    expectTitle: danger zone
+    expectLede: actions that cannot be undone.
+
+  - name: an-unknown-section-opens-general
+    why: a section the page does not have opens general, never an empty page.
+    search: "?section=tabs"
+    expectSection: general
+    expectTitle: general
+    expectLede: the name and description people see.
+
+  - name: the-install-return-opens-github
+    why: the GitHub App install handshake returns to the section where its repositories are picked.
+    search: "?github_installed=1"
+    expectSection: github
+    expectTitle: github
+    expectLede: the organization and repositories this collective is linked to.

@@ -1,5 +1,5 @@
 # Case corpus for `src/repoPicker.test.tsx`: the repo picker opened from the
-# collective page's `github orgs` rail, mounted through the real route.
+# collective page's stats tab (its github org line), mounted through the real route.
 #
 # Save sends one call per repository, one after another, links first:
 # `POST /collectives/{id}/repositories` and
@@ -27,7 +27,7 @@ cases:
         - { method: POST, repo: acme/cli }
       title: repositories saved
       message: linked acme/worker, acme/cli.
-      orgLine: acme · 4 of 4 repos linked
+      orgLine: "acme: 4 of 4 repos linked"
 
   - name: remove-one
     why: an unticked linked repository is unlinked with one DELETE.
@@ -39,7 +39,7 @@ cases:
         - { method: DELETE, repo: acme/web }
       title: repositories saved
       message: unlinked acme/web.
-      orgLine: acme · 1 of 4 repos linked
+      orgLine: "acme: 1 of 4 repos linked"
 
   - name: select-all
     why: select all ticks every repository shown, so only the unlinked ones are posted.
@@ -52,7 +52,7 @@ cases:
         - { method: POST, repo: acme/cli }
       title: repositories saved
       message: linked acme/worker, acme/cli.
-      orgLine: acme · 4 of 4 repos linked
+      orgLine: "acme: 4 of 4 repos linked"
 
   - name: clear
     why: clear unticks every repository shown, so each linked one is deleted.
@@ -65,7 +65,7 @@ cases:
         - { method: DELETE, repo: acme/web }
       title: repositories saved
       message: unlinked acme/ingest-api, acme/web.
-      orgLine: acme · 0 of 4 repos linked
+      orgLine: "acme: 0 of 4 repos linked"
 
   - name: search
     why: select all acts on the repositories the search shows, and on no other.
@@ -78,7 +78,7 @@ cases:
         - { method: POST, repo: acme/worker }
       title: repositories saved
       message: linked acme/worker.
-      orgLine: acme · 3 of 4 repos linked
+      orgLine: "acme: 3 of 4 repos linked"
 
   - name: an-error-on-the-second-call
     why: >-
@@ -97,4 +97,4 @@ cases:
       message: >-
         saved: linked acme/worker. could not link acme/cli: the github app
         cannot reach acme/cli. not tried: unlink acme/web.
-      orgLine: acme · 3 of 4 repos linked
+      orgLine: "acme: 3 of 4 repos linked"
