@@ -13,7 +13,7 @@
 }
 .on-plain-sections {
   display: grid;
-  gap: calc(var(--sp-5) + var(--sp-1));
+  gap: var(--sp-5);
   min-width: 0;
 }
 .on-plain-sections > * {

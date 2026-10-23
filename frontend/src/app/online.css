@@ -57,7 +57,7 @@
 .on-page {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: calc(var(--sp-5) + var(--sp-1));
+  gap: var(--sp-5);
   align-content: start;
 }
 .on-page > * {
@@ -967,7 +967,7 @@
 .on-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-1) calc(var(--sp-5) + var(--sp-1));
+  gap: var(--sp-1) var(--sp-5);
   border-bottom: 1px solid var(--rule);
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
@@ -1262,7 +1262,7 @@ textarea.on-input {
 .on-danger {
   display: grid;
   gap: var(--sp-4);
-  padding: calc(var(--sp-5) + var(--sp-1));
+  padding: var(--card-pad);
   border: 2px solid var(--clay);
   background: var(--surface);
 }
