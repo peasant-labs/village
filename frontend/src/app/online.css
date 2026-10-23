@@ -69,6 +69,24 @@
 .on-page > * {
   min-width: 0;
 }
+/* arriving on a page: the body rises a few pixels into place as it fades in,
+   once, when the page mounts. Opacity and transform only, ease-out, and
+   nothing at all for somebody who asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .on-page {
+    animation: on-enter var(--dur-3) var(--on-ease) both;
+  }
+}
+@keyframes on-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--sp-2));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 /* fairtrade's base frames every bare section as a centred band; inside a page
    body a section is just a group of parts */
 :where(.on-page) section {
@@ -1545,6 +1563,11 @@ textarea.on-input {
   display: grid;
   gap: calc(var(--sp-2) + 2px);
   padding: var(--sp-5) var(--sp-5) calc(var(--sp-4) + var(--sp-1));
+}
+.on-prcard-repo,
+.on-prcard-meta,
+.on-trow2-meta {
+  max-inline-size: none;
 }
 .on-prcard-repo {
   display: flex;
