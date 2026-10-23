@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Building2,
@@ -10,7 +10,6 @@ import {
   Search,
   ShieldCheck,
   Trash2,
-  TriangleAlert,
   UserMinus,
   UserPlus,
   Users,
@@ -29,11 +28,24 @@ import ChoiceCards from "./ChoiceCards";
 /** The one write per change; a rejection tells the control to put the old value back. */
 export type Commit = (key: CollectiveSettingKey, value: unknown) => Promise<unknown>;
 
+/**
+ * A section's one card: fairtrade's setting group frame, open, with no
+ * summary of its own because the page title already names the section, as the
+ * local app draws a section that holds one group.
+ */
+function Panel({ testId, children }: { testId: string; children: ReactNode }) {
+  return (
+    <div className="srow-group on-settings-panel" data-testid={testId}>
+      <div className="srow-rows">{children}</div>
+    </div>
+  );
+}
+
 // ── general ──────────────────────────────────────────────────────────────────
 
 export function GeneralSection({ group, commit }: { group: Group; commit: Commit }) {
   return (
-    <div className="on-rows" data-testid="settings-general">
+    <Panel testId="settings-general">
       <SettingRow label="name" control="text" value={group.name} onCommit={(next) => commit("name", next).then(() => undefined)} />
       <SettingRow
         label="description"
@@ -41,7 +53,7 @@ export function GeneralSection({ group, commit }: { group: Group; commit: Commit
         value={group.description ?? ""}
         onCommit={(next) => commit("purpose", next).then(() => undefined)}
       />
-    </div>
+    </Panel>
   );
 }
 
@@ -109,7 +121,7 @@ export function MembersSection({
     if (await onInvite(handle)) setHandle("");
   };
   return (
-    <div className="on-section" data-testid="settings-members" style={{ gap: "var(--sp-6)" }}>
+    <Panel testId="settings-members">
       <form className="on-invite" onSubmit={(event) => void submit(event)}>
         <div className="on-field">
           <label htmlFor="collective-invite-handle">invite by github username</label>
@@ -177,21 +189,19 @@ export function MembersSection({
         })}
       </ul>
 
-      <div className="on-rows">
-        <SettingRow
-          label="when a member leaves"
-          help="what happens to the transcripts they published here."
-          control="select"
-          value={MEMBER_LEAVES_CHOICES.some((c) => c.value === group.transcript_deletion_policy) ? group.transcript_deletion_policy : ""}
-          options={
-            MEMBER_LEAVES_CHOICES.some((c) => c.value === group.transcript_deletion_policy)
-              ? MEMBER_LEAVES_CHOICES
-              : [{ value: "", label: "not set", disabled: true }, ...MEMBER_LEAVES_CHOICES]
-          }
-          onCommit={(next) => commit("memberLeaves", next).then(() => undefined)}
-        />
-      </div>
-    </div>
+      <SettingRow
+        label="when a member leaves"
+        help="what happens to the transcripts they published here."
+        control="select"
+        value={MEMBER_LEAVES_CHOICES.some((c) => c.value === group.transcript_deletion_policy) ? group.transcript_deletion_policy : ""}
+        options={
+          MEMBER_LEAVES_CHOICES.some((c) => c.value === group.transcript_deletion_policy)
+            ? MEMBER_LEAVES_CHOICES
+            : [{ value: "", label: "not set", disabled: true }, ...MEMBER_LEAVES_CHOICES]
+        }
+        onCommit={(next) => commit("memberLeaves", next).then(() => undefined)}
+      />
+    </Panel>
   );
 }
 
@@ -208,42 +218,44 @@ export function GithubSection({
 }) {
   if (!github.configured) {
     return (
-      <div className="on-section" data-testid="settings-github">
-        <div className="on-notice">
-          <p>github connection isn&apos;t set up on this server.</p>
+      <Panel testId="settings-github">
+        <div className="srow">
+          <span className="srow-help">github connection isn&apos;t set up on this server.</span>
         </div>
-      </div>
+      </Panel>
     );
   }
   const org = github.org;
   return (
-    <div className="on-section" data-testid="settings-github">
-      <div className="on-opt on-org-card" data-testid="settings-org-card">
-        <span className="on-ico-tile" aria-hidden="true">
-          <Github />
+    <Panel testId="settings-github">
+      <div className="srow on-row-stack" data-testid="settings-org-card">
+        <span className="srow-text-col">
+          <span className="srow-label on-org-label">
+            <Github aria-hidden="true" />
+            <span className="normal-case">{org ? org.login : "no org linked"}</span>
+          </span>
+          <span className="srow-help">
+            {org
+              ? `${typeof org.total === "number" ? `${org.linked ?? 0} of ${org.total} repositories linked. ` : ""}pull requests in these repositories can show this collective's sessions.`
+              : "connect github to link an organization's repositories, so their pull requests can show this collective's sessions."}
+          </span>
         </span>
-        <b>{org ? org.login : "no org linked"}</b>
-        <p>
-          {org
-            ? `${typeof org.total === "number" ? `${org.linked ?? 0} of ${org.total} repositories linked. ` : ""}pull requests in these repositories can show this collective's sessions.`
-            : "connect github to link an organization's repositories, so their pull requests can show this collective's sessions."}
-        </p>
         {(onManage || onConnect) && (
-          <div className="on-row">
+          <span className="srow-control">
             {onManage && (
-              <button type="button" className="btn btn-secondary" onClick={onManage}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={onManage}>
                 manage repositories
               </button>
             )}
             {onConnect && (
-              <button type="button" className="btn btn-secondary" onClick={onConnect}>
-                <Github size={16} aria-hidden="true" /> connect github
+              <button type="button" className="btn btn-secondary btn-sm" onClick={onConnect}>
+                <Github aria-hidden="true" /> connect github
               </button>
             )}
-          </div>
+          </span>
         )}
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -251,7 +263,7 @@ export function GithubSection({
 
 export function PullRequestsSection({ group, commit }: { group: Group; commit: Commit }) {
   return (
-    <div className="on-rows" data-testid="settings-pull-requests">
+    <Panel testId="settings-pull-requests">
       <SettingRow
         label="show transcripts on pull requests"
         help="a check and one comment on each pull request. it never blocks merging."
@@ -272,7 +284,7 @@ export function PullRequestsSection({ group, commit }: { group: Group; commit: C
           </Link>
         </span>
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -280,16 +292,22 @@ export function PullRequestsSection({ group, commit }: { group: Group; commit: C
 
 export function DangerSection({ group, onDelete }: { group: Group; onDelete: () => void }) {
   return (
-    <div className="on-danger" data-testid="settings-danger">
-      <h2>
-        <TriangleAlert size={22} aria-hidden="true" /> delete <span className="on-keep-case">{group.name}</span>
-      </h2>
-      <p>this removes the collective and every member&apos;s access through it. it cannot be undone.</p>
-      <div>
-        <button type="button" className="btn on-btn-danger" onClick={onDelete}>
-          <Trash2 size={16} aria-hidden="true" /> delete collective
-        </button>
+    <Panel testId="settings-danger">
+      <div className="srow on-row-stack">
+        <span className="srow-text-col">
+          <span className="srow-label">
+            delete <span className="on-keep-case">{group.name}</span>
+          </span>
+          <span className="srow-help">
+            this removes the collective and every member&apos;s access through it. it cannot be undone.
+          </span>
+        </span>
+        <span className="srow-control">
+          <button type="button" className="btn btn-danger btn-sm" onClick={onDelete}>
+            <Trash2 aria-hidden="true" /> delete collective
+          </button>
+        </span>
       </div>
-    </div>
+    </Panel>
   );
 }

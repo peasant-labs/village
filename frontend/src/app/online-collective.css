@@ -372,21 +372,32 @@ section.on-choices {
   }
 }
 
-/* the org card wears a choice card's frame but is not a control */
-.on-org-card {
-  cursor: default;
+/* ---------- a collective's settings ----------
+   Each section is one fairtrade setting group card (`srow-group`), open and
+   without a summary of its own: the page title names the section. A part of
+   a section that is not a setting row (the invite form, the member list) sits
+   at the card's padding, divided from the next part like a row. */
+.on-settings-panel .on-invite {
+  padding: var(--sp-4) var(--card-pad);
+  border-bottom: var(--bd);
 }
-.on-opt.on-org-card:active:not(:disabled) {
-  transform: none;
+.on-settings-panel .on-mem-list {
+  border-top: 0;
 }
-@media (hover: hover) and (pointer: fine) {
-  .on-opt.on-org-card:hover:not(:disabled) {
-    border-color: var(--rule-strong);
-  }
+.on-settings-panel .on-mem {
+  padding-inline: var(--card-pad);
 }
-.on-org-card .on-row {
-  margin-top: var(--sp-1);
+.on-org-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
 }
+.on-org-label svg {
+  flex: none;
+  width: var(--ic-md);
+  height: var(--ic-md);
+}
+
 .on-danger .btn svg {
   flex: none;
 }

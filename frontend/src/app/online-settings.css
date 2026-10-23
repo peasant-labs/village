@@ -2,56 +2,13 @@
    peasant online: your settings.
 
    The account settings page in fairtrade's settings layout: its section bar
-   inside the page body, beside the sections or above them. Each section holds
-   fairtrade's own setting rows (`srow`), which keep their save-as-you-go
-   behaviour; this sheet only frames them. Every value reads a fairtrade token.
+   inside the page body, beside the sections or above them. Each section is
+   one of fairtrade's setting group cards holding its own setting rows
+   (`srow`), which keep their save-as-you-go behaviour. Every value reads a
+   fairtrade token.
    ============================================ */
 
-/* fairtrade's base sheet caps and centres every <section>; here a section is
-   one block of the settings column. */
-.on-acct-section,
-.on-acct-danger {
-  max-width: none;
-  margin-inline: 0;
-}
-.on-acct-section {
-  padding: 0;
-}
-
-.on-acct-section {
-  display: grid;
-  gap: var(--sp-3);
-  min-width: 0;
-  scroll-margin-top: calc(var(--app-header-height, 0px) + var(--sp-5));
-}
-.on-acct-section > header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-1) var(--sp-3);
-}
-
 .on-acct-alert {
-  margin: 0;
-  color: var(--ink);
-}
-
-/* the danger box keeps its delete control under its words */
-.on-acct-danger {
-  scroll-margin-top: calc(var(--app-header-height, 0px) + var(--sp-5));
-}
-.on-danger .on-acct-danger-row {
-  display: grid;
-  gap: var(--sp-3);
-  justify-items: start;
-}
-.on-danger h2 svg {
-  flex: none;
-  width: var(--ic-lg);
-  height: var(--ic-lg);
-}
-.on-acct-error {
   margin: 0;
   color: var(--ink);
 }

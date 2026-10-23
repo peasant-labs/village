@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -30,7 +30,7 @@ import {
 import { isApiErrorStatus } from "@/lib/api";
 import { handleTakenMessage } from "@/lib/handle";
 import { formatRelativeTime } from "@/lib/format";
-import { ConfirmInline, SettingRow, SettingsLayout } from "@/lib/ft-ui";
+import { ConfirmInline, SettingGroup, SettingRow, SettingsLayout } from "@/lib/ft-ui";
 import { OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 import RetryButton from "@/components/RetryButton";
 import { loginHref } from "@/lib/signIn";
@@ -153,7 +153,7 @@ function Settings({ user }: { user: User }) {
     <OnPage testId="settings-page">
       <OnHead title="your settings" />
       <SettingsLayout sections={NAV_SECTIONS} currentId={SECTIONS[0].id} spy bodyClassName="on-settings-body">
-          <Section id="profile" title="profile" testId="settings-profile">
+          <SettingGroup id="profile" label="profile" defaultOpen data-testid="settings-profile">
             <SettingRow
               label="handle"
               control="text"
@@ -170,7 +170,7 @@ function Settings({ user }: { user: User }) {
               }}
               data-testid="settings-discoverable"
             />
-          </Section>
+          </SettingGroup>
 
           {/*
            * GitHub organizations, one switch each. An organization is LINKED
@@ -180,15 +180,13 @@ function Settings({ user }: { user: User }) {
            * Organizations arrive from GitHub at sign-in only, so an empty list is
            * answered with how to refresh rather than a blank section.
            */}
-          <Section
+          <SettingGroup
             id="organizations"
-            title="organizations"
-            count={
-              myOrgs.data == null
-                ? null
-                : `${myOrgs.data.length} ${myOrgs.data.length === 1 ? "organization" : "organizations"}`
-            }
-            testId="settings-orgs"
+            label="organizations"
+            defaultOpen
+            count={myOrgs.data == null ? null : myOrgs.data.length}
+            noun={["organization", "organizations"]}
+            data-testid="settings-orgs"
           >
             {myOrgs.isError ? (
               <div className="srow" data-testid="settings-orgs-read-error">
@@ -238,9 +236,9 @@ function Settings({ user }: { user: User }) {
                 />
               ))
             )}
-          </Section>
+          </SettingGroup>
 
-          <Section id="pull-requests" title="pull requests" testId="settings-pull-requests">
+          <SettingGroup id="pull-requests" label="pull requests" defaultOpen count={1} data-testid="settings-pull-requests">
             <SettingRow
               label="link my transcripts to my pull requests automatically"
               control="switch"
@@ -264,12 +262,19 @@ function Settings({ user }: { user: User }) {
                 />
               </div>
             )}
-          </Section>
+          </SettingGroup>
 
-          <Section id="connections" title="connections" testId="settings-connections">
+          <SettingGroup
+            id="connections"
+            label="connections"
+            defaultOpen
+            count={2}
+            noun={["connection", "connections"]}
+            data-testid="settings-connections"
+          >
             <GitHubConnection user={user} />
             <PeasantConnection handle={handle} />
-          </Section>
+          </SettingGroup>
 
           <DangerZone />
       </SettingsLayout>
@@ -277,50 +282,12 @@ function Settings({ user }: { user: User }) {
   );
 }
 
-/** One section: its heading, an optional count, and its rows in one box. */
-function Section({
-  id,
-  title,
-  count = null,
-  testId,
-  children,
-}: {
-  id: string;
-  title: string;
-  count?: string | null;
-  testId: string;
-  children: ReactNode;
-}) {
-  const headingId = useId();
-  return (
-    <section id={id} className="on-acct-section" aria-labelledby={headingId} data-testid={testId}>
-      <header>
-        <h2 className="on-h2" id={headingId}>
-          {title}
-        </h2>
-        {count !== null && <span className="on-chrome is-n">{count}</span>}
-      </header>
-      <div className="on-rows">{children}</div>
-    </section>
-  );
-}
-
 /** The danger zone: deleting the account, behind its own confirmation. */
 function DangerZone() {
-  const headingId = useId();
   return (
-    <section
-      id="danger-zone"
-      className="on-danger on-acct-danger"
-      aria-labelledby={headingId}
-      data-testid="settings-danger"
-    >
-      <h2 id={headingId}>
-        <TriangleAlert aria-hidden="true" />
-        danger zone
-      </h2>
+    <SettingGroup id="danger-zone" label="danger zone" defaultOpen count={null} data-testid="settings-danger">
       <DeleteAccount />
-    </section>
+    </SettingGroup>
   );
 }
 
@@ -451,16 +418,18 @@ function DeleteAccount() {
   const deleteAccount = useDeleteAccount();
   const [error, setError] = useState<string | null>(null);
   return (
-    <div className="on-acct-danger-row" data-testid="settings-delete">
-      <p>
-        Deleting your account removes it from peasant online, with the transcripts you published and
-        the collectives you own. It cannot be undone.
-      </p>
-      {error && (
-        <p className="on-acct-error" role="alert">
-          your account was not deleted: {error}
-        </p>
-      )}
+    <div className="srow on-row-stack" data-testid="settings-delete">
+      <span className="srow-text-col">
+        <span className="srow-help">
+          Deleting your account removes it from peasant online, with the transcripts you published and
+          the collectives you own. It cannot be undone.
+        </span>
+        {error && (
+          <span className="srow-error" role="alert">
+            your account was not deleted: {error}
+          </span>
+        )}
+      </span>
       <ConfirmInline
         label="delete account"
         busy={deleteAccount.isPending}

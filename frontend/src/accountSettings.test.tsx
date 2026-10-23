@@ -170,12 +170,14 @@ describe("the settings page's frame", () => {
       "connections",
       "danger zone",
     ]);
-    // Each anchor names a section on the page, headed by the same words.
+    // Each anchor names a section on the page: one of fairtrade's setting
+    // group cards, open, its summary in the same words.
     for (const link of links) {
       const id = link.getAttribute("href")!.replace(/^#/, "");
       const section = document.getElementById(id);
       expect(section, `${id} is a section on the page`).not.toBeNull();
-      expect(text(section!.querySelector("h2"))).toBe(text(link));
+      expect(section!.matches("details.srow-group[open]"), `${id} is an open setting group`).toBe(true);
+      expect(text(section!.querySelector(".srow-summary-label"))).toBe(text(link));
     }
     // The first section is the one marked until the reader moves: a place on
     // this page, so its anchor is the current location.

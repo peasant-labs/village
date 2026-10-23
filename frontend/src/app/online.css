@@ -1067,6 +1067,15 @@
   margin: 0;
 }
 
+/* A setting row whose words run long beside a wide button (the danger zone,
+   the github org): on a phone the button takes its own line under the words,
+   at the right padding, as fairtrade drops a select there. */
+@media (max-width: 767px) {
+  .srow.on-row-stack > :not(:first-child) {
+    grid-column: 1 / -1;
+  }
+}
+
 /* a failure or notice box inside a page */
 .on-notice {
   display: flex;
