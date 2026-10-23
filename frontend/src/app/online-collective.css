@@ -141,11 +141,21 @@ section.on-choices {
 }
 .on-mem .on-handle {
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
   gap: 0 var(--sp-3);
+  min-width: 0;
+  overflow: hidden;
+}
+.on-mem-login,
+.on-mem-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .on-mem-login {
+  flex: none;
+  max-width: 100%;
   font-family: var(--font-mono);
   font-size: var(--fs-body);
   letter-spacing: 0;
@@ -154,19 +164,39 @@ section.on-choices {
 .on-mem-name {
   color: var(--ink-3);
 }
+.on-mem-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
 .on-mem .select-wrap {
   min-width: 9rem;
 }
+/* on a phone the row stays one line: avatar, handle, role, then the remove
+   action as an icon the height of the row; the display name gives way */
 @media (max-width: 559px) {
   .on-mem {
-    grid-template-columns: var(--sp-6) minmax(0, 1fr) auto;
+    gap: var(--sp-2);
   }
-  .on-mem > :nth-child(4) {
-    grid-column: 2 / -1;
-    justify-self: start;
-  }
-  .on-mem > :nth-child(4):empty {
+  .on-mem-name {
     display: none;
+  }
+  .on-mem .select-wrap {
+    min-width: 0;
+  }
+  .on-mem-remove {
+    width: var(--target-comfortable);
+    min-height: var(--target-comfortable);
+    justify-content: center;
+    padding: 0;
+  }
+  .on-mem-remove-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 

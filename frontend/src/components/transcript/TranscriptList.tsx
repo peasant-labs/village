@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Pencil, Trash2 } from "lucide-react";
@@ -412,14 +412,20 @@ function Row({
         <span className="font-[family-name:var(--font-body)] text-[length:var(--fs-body)] text-ink font-medium truncate">
           {displayTitle}
         </span>
-        <span className="font-[family-name:var(--font-mono)] text-[length:var(--fs-label)] text-ink-3 flex items-center gap-1.5 truncate">
+        {/* The facts wrap onto a second line on a narrow row rather than
+            clipping mid-date beside the owner. */}
+        <span className="font-[family-name:var(--font-mono)] text-[length:var(--fs-label)] text-ink-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
           {/* The separator falls BETWEEN facts, so a row that cannot state one
-              of them does not open with a stray mark or end with one. */}
+              of them does not open with a stray mark or end with one. It
+              travels with the fact before it, so a wrapped line never starts
+              with one. */}
           {statedFacts.map(({ fact, node }, i) => (
-            <Fragment key={`${fact}-${i}`}>
-              {i > 0 && <span className="text-rule">&middot;</span>}
+            <span key={`${fact}-${i}`} className="inline-flex items-center gap-1.5 whitespace-nowrap">
               {node}
-            </Fragment>
+              {(i < statedFacts.length - 1 || isAgentSession(t.session_origin)) && (
+                <span className="text-rule">&middot;</span>
+              )}
+            </span>
           ))}
           {/* The row says what it is wherever it appears, so a session that
               reached the page through a direct link or a collective list is
@@ -427,15 +433,14 @@ function Row({
               not a chosen fact: what a row IS cannot be turned off by the list
               it happens to sit in. */}
           {isAgentSession(t.session_origin) && (
-            <>
-              {statedFacts.length > 0 && <span className="text-rule">&middot;</span>}
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
               <span
                 data-testid="agent-session-badge"
                 className="font-mono text-[11px] text-ink-3 border border-rule px-1"
               >
                 agent session
               </span>
-            </>
+            </span>
           )}
         </span>
       </div>

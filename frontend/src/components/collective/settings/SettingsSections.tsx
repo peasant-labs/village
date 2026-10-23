@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Trash2,
   TriangleAlert,
+  UserMinus,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -160,8 +161,15 @@ export function MembersSection({
               {member.role === "owner" ? (
                 <span />
               ) : (
-                <button type="button" className="btn btn-ghost" aria-label={`remove ${at}`} onClick={() => onRemove(member)}>
-                  remove
+                <button
+                  type="button"
+                  className="btn btn-ghost on-mem-remove"
+                  aria-label={`remove ${at}`}
+                  title={`remove ${at}`}
+                  onClick={() => onRemove(member)}
+                >
+                  <UserMinus size={16} aria-hidden="true" />
+                  <span className="on-mem-remove-word">remove</span>
                 </button>
               )}
             </li>
