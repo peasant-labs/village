@@ -71,7 +71,7 @@ func (h *Handler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 	stateCookie, err := r.Cookie("oauth_state")
 	if err != nil || stateCookie.Value != r.URL.Query().Get("state") {
-		writeError(w, http.StatusBadRequest, "Invalid OAuth state")
+		h.failBrowser(w, r, http.StatusBadRequest, "Invalid OAuth state", h.signInFailed(detailSignInStateLost))
 		return
 	}
 
@@ -83,7 +83,11 @@ func (h *Handler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.exchangeGitHubUser(r.Context(), oauthCfg, code)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		page := h.signInFailed(providerDidNotFinish(r, "github"))
+		if cliErr == nil {
+			page = cliLoginFailed(providerDidNotFinish(r, "github"))
+		}
+		h.failBrowser(w, r, http.StatusInternalServerError, err.Error(), page)
 		return
 	}
 
@@ -98,7 +102,7 @@ func (h *Handler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 	userID, _ := uuid.FromBytes(user.ID.Bytes[:])
 	jwtToken, err := auth.CreateToken(h.cfg.JWTSecret, userID, user.GithubUsername)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to create session")
+		h.failBrowser(w, r, http.StatusInternalServerError, "Failed to create session", h.signInFailed(detailSignInSessionFail))
 		return
 	}
 	// Redirect to frontend with token — cookies don't work cross-domain
@@ -569,17 +573,17 @@ func (h *Handler) CLILogin(w http.ResponseWriter, r *http.Request) {
 	portStr := r.URL.Query().Get("port")
 	state := r.URL.Query().Get("state")
 	if portStr == "" || state == "" {
-		writeError(w, http.StatusBadRequest, "Missing port or state parameter")
+		h.failBrowser(w, r, http.StatusBadRequest, "Missing port or state parameter", cliLoginFailed(detailCLILinkIncomplete))
 		return
 	}
 
 	portNum, err := strconv.Atoi(portStr)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid port parameter")
+		h.failBrowser(w, r, http.StatusBadRequest, "Invalid port parameter", cliLoginFailed(detailCLILinkIncomplete))
 		return
 	}
 	if portNum < 1024 || portNum > 65535 {
-		writeError(w, http.StatusBadRequest, "Port must be between 1024 and 65535")
+		h.failBrowser(w, r, http.StatusBadRequest, "Port must be between 1024 and 65535", cliLoginFailed(detailCLILinkIncomplete))
 		return
 	}
 
@@ -596,7 +600,7 @@ func (h *Handler) CLILogin(w http.ResponseWriter, r *http.Request) {
 		CliPort:    int32(portNum),
 		CliState:   state,
 	}); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to create CLI session")
+		h.failBrowser(w, r, http.StatusInternalServerError, "Failed to create CLI session", cliLoginFailed(detailCLIStartFail))
 		return
 	}
 
@@ -624,7 +628,7 @@ func (h *Handler) handleCLICallback(w http.ResponseWriter, r *http.Request, user
 	// Generate 32-byte random hex exchange_code (same pattern as GenerateAPIKey).
 	exchangeCodeBytes := make([]byte, 32)
 	if _, err := rand.Read(exchangeCodeBytes); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to generate exchange code")
+		h.failBrowser(w, r, http.StatusInternalServerError, "Failed to generate exchange code", cliLoginFailed(detailCLIHandBackFail))
 		return
 	}
 	exchangeCode := hex.EncodeToString(exchangeCodeBytes)
@@ -637,7 +641,7 @@ func (h *Handler) handleCLICallback(w http.ResponseWriter, r *http.Request, user
 		UserID:       toPgUUID(userID),
 		Username:     toPgText(user.GithubUsername),
 	}); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to update CLI session")
+		h.failBrowser(w, r, http.StatusInternalServerError, "Failed to update CLI session", cliLoginFailed(detailCLIHandBackFail))
 		return
 	}
 

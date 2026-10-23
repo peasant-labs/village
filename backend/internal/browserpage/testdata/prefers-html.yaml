@@ -1,0 +1,16 @@
+# Accept headers and whether the failing browser route answers with the page.
+- name: browser-navigation
+  accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,*/*;q=0.8
+  html: true
+- name: xhtml-first
+  accept: application/xhtml+xml,text/html;q=0.9
+  html: true
+- name: json-first
+  accept: application/json, text/html;q=0.5
+  html: false
+- name: fetch-default
+  accept: "*/*"
+  html: false
+- name: no-accept
+  accept: ""
+  html: false

@@ -22,12 +22,12 @@ import (
 // GET /api/v1/integrations/github/install (AuthRequired)
 func (h *Handler) GitHubInstall(w http.ResponseWriter, r *http.Request) {
 	if h.gh == nil || strings.TrimSpace(h.cfg.GitHubAppSlug) == "" {
-		writeError(w, http.StatusNotImplemented, "GitHub App installation is not configured on this server")
+		h.failBrowser(w, r, http.StatusNotImplemented, "GitHub App installation is not configured on this server", h.installFailed(detailInstallUnavailable))
 		return
 	}
 	gid, err := uuid.Parse(strings.TrimSpace(r.URL.Query().Get("group_id")))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "group_id is required")
+		h.failBrowser(w, r, http.StatusBadRequest, "group_id is required", h.installFailed(detailInstallNoCollective))
 		return
 	}
 	groupID := pgtype.UUID{Bytes: gid, Valid: true}
@@ -38,7 +38,7 @@ func (h *Handler) GitHubInstall(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	state, err := auth.CreateInstallState(h.cfg.JWTSecret, user.ID.String(), gid.String())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not start the GitHub App installation")
+		h.failBrowser(w, r, http.StatusInternalServerError, "Could not start the GitHub App installation", h.installFailed(detailInstallTryAgain))
 		return
 	}
 
@@ -65,24 +65,24 @@ func (h *Handler) GitHubInstall(w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/integrations/github/callback (AuthRequired)
 func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) {
 	if h.gh == nil {
-		writeError(w, http.StatusNotImplemented, "GitHub App installation is not configured on this server")
+		h.failBrowser(w, r, http.StatusNotImplemented, "GitHub App installation is not configured on this server", h.installFailed(detailInstallUnavailable))
 		return
 	}
 	user := GetUser(r.Context())
 	if user == nil {
-		writeError(w, http.StatusUnauthorized, "Authentication required")
+		h.failBrowser(w, r, http.StatusUnauthorized, "Authentication required", h.installFailed(detailInstallSignedOut))
 		return
 	}
 
 	installationID, err := strconv.ParseInt(strings.TrimSpace(r.URL.Query().Get("installation_id")), 10, 64)
 	if err != nil || installationID <= 0 {
-		writeError(w, http.StatusBadRequest, "installation_id is required")
+		h.failBrowser(w, r, http.StatusBadRequest, "installation_id is required", h.installFailed(detailInstallUnread))
 		return
 	}
 
 	inst, err := h.gh.GetInstallation(r.Context(), installationID)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "Could not read the GitHub App installation")
+		h.failBrowser(w, r, http.StatusBadRequest, "Could not read the GitHub App installation", h.installFailed(detailInstallUnread))
 		return
 	}
 	if err := h.queries.UpsertGitHubAppInstallation(r.Context(), sqlc.UpsertGitHubAppInstallationParams{
@@ -91,7 +91,7 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 		AccountID:      inst.AccountID,
 		AccountType:    pgtype.Text{String: inst.AccountType, Valid: inst.AccountType != ""},
 	}); err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not record the GitHub App installation")
+		h.failBrowser(w, r, http.StatusInternalServerError, "Could not record the GitHub App installation", h.installFailed(detailInstallTryAgain))
 		return
 	}
 
@@ -99,7 +99,7 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 	// rules below rather than by a field the owner had to set first.
 	groups, err := h.queries.ListUserGroups(r.Context(), user.PgID())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not resolve the collective")
+		h.failBrowser(w, r, http.StatusInternalServerError, "Could not resolve the collective", h.installFailed(detailInstallTryAgain))
 		return
 	}
 	preferred := ""
@@ -161,7 +161,7 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 			// a collective to an installation its owner has no part in.
 			identity, err := h.loadViewerIdentity(r.Context(), user)
 			if err != nil {
-				writeError(w, http.StatusInternalServerError, "Could not resolve the GitHub account")
+				h.failBrowser(w, r, http.StatusInternalServerError, "Could not resolve the GitHub account", h.installFailed(detailInstallTryAgain))
 				return
 			}
 			if !identity.controlsAccount(inst.AccountID) {
@@ -188,7 +188,7 @@ func (h *Handler) GitHubInstallCallback(w http.ResponseWriter, r *http.Request) 
 						LinkedGithubOrg: pgtype.Text{String: account, Valid: true},
 					})
 				}); err != nil {
-					writeError(w, http.StatusInternalServerError, "Could not bind the collective to the installation")
+					h.failBrowser(w, r, http.StatusInternalServerError, "Could not bind the collective to the installation", h.installFailed(detailInstallTryAgain))
 					return
 				}
 			}

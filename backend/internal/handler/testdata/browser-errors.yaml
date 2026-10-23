@@ -1,0 +1,64 @@
+# A failing route a browser navigates to, asked twice: by a tab, whose Accept
+# puts text/html first, and by an API client. The status is the same; a tab
+# gets the styled page, every other client the JSON error it always got.
+- name: github-callback-lost-state-tab
+  route: github-callback
+  query: state=not-the-cookie
+  accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+  status: 400
+  html:
+    - "<title>sign-in failed | peasant</title>"
+    - "the sign-in did not finish"
+    - "the sign-in took too long, or it was started in another tab."
+    - "not signed in"
+    - '<a class="pg-action" href="https://app.example.com/login">sign in again</a>'
+- name: github-callback-lost-state-api
+  route: github-callback
+  query: state=not-the-cookie
+  accept: application/json
+  status: 400
+  jsonError: Invalid OAuth state
+- name: github-callback-lost-state-fetch
+  route: github-callback
+  query: state=not-the-cookie
+  accept: "*/*"
+  status: 400
+  jsonError: Invalid OAuth state
+- name: cli-login-incomplete-tab
+  route: cli-login
+  query: ""
+  accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+  status: 400
+  html:
+    - "<title>login failed | peasant</title>"
+    - "the login did not finish"
+    - "this login link is incomplete, so it cannot reach your terminal."
+    - "close this tab and log in again from peasant."
+- name: cli-login-incomplete-api
+  route: cli-login
+  query: ""
+  accept: ""
+  status: 400
+  jsonError: Missing port or state parameter
+- name: gitlab-callback-unconfigured-tab
+  route: gitlab-callback
+  query: state=x
+  accept: text/html
+  status: 503
+  html:
+    - "sign-in with gitlab is not available on this server."
+- name: install-callback-unconfigured-tab
+  route: github-install-callback
+  query: installation_id=1
+  accept: text/html,application/xhtml+xml
+  status: 501
+  html:
+    - "<title>github app not linked | peasant</title>"
+    - "the github app could not be linked"
+    - '<a class="pg-action" href="https://app.example.com/collectives">back to collectives</a>'
+- name: install-callback-unconfigured-api
+  route: github-install-callback
+  query: installation_id=1
+  accept: application/json
+  status: 501
+  jsonError: GitHub App installation is not configured on this server

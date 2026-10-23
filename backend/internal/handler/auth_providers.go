@@ -70,7 +70,7 @@ func (h *Handler) providerLogin(w http.ResponseWriter, r *http.Request, provider
 	callbackURL := fmt.Sprintf("%s/api/v1/auth/%s/callback", h.cfg.BaseURL, provider)
 	cfg, ok := h.providerOAuthConfig(provider, callbackURL)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, fmt.Sprintf("%s sign-in is not configured", provider))
+		h.failBrowser(w, r, http.StatusServiceUnavailable, fmt.Sprintf("%s sign-in is not configured", provider), h.signInFailed(providerUnavailable(provider)))
 		return
 	}
 	state := generateState()
@@ -90,30 +90,30 @@ func (h *Handler) providerCallback(w http.ResponseWriter, r *http.Request, provi
 	callbackURL := fmt.Sprintf("%s/api/v1/auth/%s/callback", h.cfg.BaseURL, provider)
 	cfg, ok := h.providerOAuthConfig(provider, callbackURL)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, fmt.Sprintf("%s sign-in is not configured", provider))
+		h.failBrowser(w, r, http.StatusServiceUnavailable, fmt.Sprintf("%s sign-in is not configured", provider), h.signInFailed(providerUnavailable(provider)))
 		return
 	}
 
 	stateCookie, err := r.Cookie("oauth_state")
 	if err != nil || stateCookie.Value != r.URL.Query().Get("state") {
-		writeError(w, http.StatusBadRequest, "Invalid OAuth state")
+		h.failBrowser(w, r, http.StatusBadRequest, "Invalid OAuth state", h.signInFailed(detailSignInStateLost))
 		return
 	}
 
 	code := r.URL.Query().Get("code")
 	token, err := cfg.Exchange(r.Context(), code)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "OAuth exchange failed")
+		h.failBrowser(w, r, http.StatusInternalServerError, "OAuth exchange failed", h.signInFailed(providerDidNotFinish(r, provider)))
 		return
 	}
 
 	profile, err := fetchProviderProfile(r.Context(), provider, cfg, token)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		h.failBrowser(w, r, http.StatusInternalServerError, err.Error(), h.signInFailed(providerDidNotFinish(r, provider)))
 		return
 	}
 	if profile.Username == "" || profile.ID == "" {
-		writeError(w, http.StatusInternalServerError, "Provider returned an empty profile")
+		h.failBrowser(w, r, http.StatusInternalServerError, "Provider returned an empty profile", h.signInFailed(providerDidNotFinish(r, provider)))
 		return
 	}
 
@@ -131,14 +131,14 @@ func (h *Handler) providerCallback(w http.ResponseWriter, r *http.Request, provi
 		ProviderUserID:   profile.ID,
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to create user")
+		h.failBrowser(w, r, http.StatusInternalServerError, "Failed to create user", h.signInFailed(detailSignInSessionFail))
 		return
 	}
 
 	userID, _ := uuid.FromBytes(user.ID.Bytes[:])
 	jwtToken, err := auth.CreateToken(h.cfg.JWTSecret, userID, user.GithubUsername)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to create session")
+		h.failBrowser(w, r, http.StatusInternalServerError, "Failed to create session", h.signInFailed(detailSignInSessionFail))
 		return
 	}
 	redirectURL := fmt.Sprintf("%s/auth/callback?token=%s", h.cfg.FrontendURL, url.QueryEscape(jwtToken))
