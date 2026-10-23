@@ -1,0 +1,321 @@
+/* ============================================
+   peasant online: a collective and its settings.
+
+   What online.css does not already carry for these two pages: the tab panels,
+   the transcripts table's title cell, the members list, the org line, and the
+   settings page's choice cards with their save state. Every value reads a
+   fairtrade token; motion is transform and opacity only.
+   ============================================ */
+
+/* ---------- the head ---------- */
+
+/* the actions arrive wrapped (for their test id); the row lays them out */
+.on-cactions {
+  display: contents;
+}
+.on-actions .btn svg,
+.on-cactions .btn svg {
+  flex: none;
+}
+
+/* ---------- tabs and their panels ---------- */
+
+.on-ctabs {
+  display: grid;
+  gap: var(--sp-5);
+  min-width: 0;
+}
+.on-ctabs .on-tab {
+  white-space: nowrap;
+}
+.on-tabpanel {
+  min-width: 0;
+}
+.on-tabpanel[hidden] {
+  display: none;
+}
+.on-cpanel {
+  gap: var(--sp-6);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .on-tabpanel:not([hidden]) {
+    animation: on-panel-in var(--dur-2) var(--on-ease);
+  }
+}
+@keyframes on-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- tables ---------- */
+
+.on-tbl caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.on-ctable .on-ctable-title {
+  min-width: 16rem;
+}
+.on-ctable .is-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--sp-2);
+  margin-top: var(--sp-1);
+}
+.on-pr-link {
+  color: var(--ink-2);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.on-pr-link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+@media (hover: hover) and (pointer: fine) {
+  .on-pr-link:hover {
+    color: var(--ink-strong);
+    text-decoration-style: solid;
+  }
+}
+.on-pr-repo {
+  color: var(--ink-4);
+}
+.on-handle-cell {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.on-tbl .on-when {
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.on-pager .on-n {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.on-waiting-head,
+.on-members-head {
+  justify-content: space-between;
+}
+.on-waiting-head p,
+.on-members-head p {
+  margin: 0;
+  max-width: 60ch;
+}
+
+/* ---------- members ---------- */
+
+.on-mem-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+.on-mem .on-handle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--sp-3);
+}
+.on-mem-login {
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  letter-spacing: 0;
+  color: var(--ink-strong);
+}
+.on-mem-name {
+  color: var(--ink-3);
+}
+.on-mem .select-wrap {
+  min-width: 9rem;
+}
+@media (max-width: 559px) {
+  .on-mem {
+    grid-template-columns: var(--sp-6) minmax(0, 1fr) auto;
+  }
+  .on-mem > :nth-child(4) {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+  .on-mem > :nth-child(4):empty {
+    display: none;
+  }
+}
+
+/* ---------- stats and the github org ---------- */
+
+.on-cstats {
+  gap: var(--sp-7);
+}
+.on-orgline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.on-orgline > svg {
+  flex: none;
+  width: var(--ic-lg);
+  height: var(--ic-lg);
+  color: var(--ink-strong);
+}
+.on-orgline-text {
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  letter-spacing: 0;
+  color: var(--ink-strong);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- loading ---------- */
+
+.on-cskel {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+/* ---------- settings ---------- */
+
+.on-settings > nav .on-settings-back {
+  margin-bottom: var(--sp-3);
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--rule);
+}
+.on-settings > nav .on-settings-back span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.on-settings > nav .on-cap {
+  margin: var(--sp-3) 0 0;
+  padding: 0 calc(var(--sp-2) + 2px);
+}
+.on-settings-body .srow-group,
+.on-settings-body .srow {
+  min-width: 0;
+}
+
+/* a group of choice cards: its heading, then the cards, then what happened */
+.on-choices {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.on-choices-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
+}
+.on-choices-head .on-h2 {
+  font-size: var(--fs-md);
+}
+.on-choice-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
+  color: var(--ink-3);
+  min-height: var(--sp-5);
+}
+.on-choice-status svg {
+  flex: none;
+  width: var(--ic-sm);
+  height: var(--ic-sm);
+}
+.on-choice-status[data-status="settled"] {
+  color: var(--olive);
+}
+.on-choice-status[data-status="failed"] {
+  color: var(--clay);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .on-choice-status[data-status="pending"] svg {
+    animation: on-spin 0.9s linear infinite;
+  }
+}
+@keyframes on-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.on-choices .on-error {
+  margin: 0;
+  color: var(--clay);
+}
+.on-opt[aria-busy="true"] {
+  cursor: progress;
+}
+.on-opt .on-ico-tile svg {
+  width: var(--ic-lg);
+  height: var(--ic-lg);
+}
+
+/* the invite row: a username, invite, and the search beside it */
+.on-invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-3);
+}
+.on-invite .on-field {
+  flex: 1 1 16rem;
+  max-width: 26rem;
+}
+.on-invite .btn {
+  height: auto;
+  min-height: var(--control-h);
+}
+@media (pointer: coarse) {
+  .on-invite .btn {
+    min-height: var(--target-comfortable);
+  }
+}
+
+/* the org card wears a choice card's frame but is not a control */
+.on-org-card {
+  cursor: default;
+}
+.on-opt.on-org-card:active:not(:disabled) {
+  transform: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .on-opt.on-org-card:hover:not(:disabled) {
+    border-color: var(--rule-strong);
+  }
+}
+.on-org-card .on-row {
+  margin-top: var(--sp-1);
+}
+.on-settings-note {
+  margin: 0;
+  color: var(--ink-3);
+  max-width: 60ch;
+}
+.on-danger .btn svg {
+  flex: none;
+}
+
+/* a retained list with nothing to show for this viewer takes no room */
+.on-cpanel > :empty {
+  display: none;
+}

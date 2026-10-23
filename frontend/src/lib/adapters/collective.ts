@@ -140,7 +140,7 @@ export function searchResultRows(
   );
 }
 
-// ── the three policy boxes ───────────────────────────────────────────────────
+// ── the three policy chips ───────────────────────────────────────────────────
 
 export interface PolicyInput {
   name: string;
@@ -151,29 +151,34 @@ export interface PolicyInput {
   canRead: boolean;
 }
 
-/** Who can read the transcripts published to the collective (`data_access`). */
-export function whoCanReadText({ name, dataAccess }: PolicyInput): string {
+/**
+ * Who can read the transcripts published to the collective (`data_access`), in
+ * the few words a policy chip holds.
+ */
+export function whoCanReadText({ dataAccess }: PolicyInput): string {
   switch (dataAccess) {
     case "public":
-      return "anyone can read the transcripts published here.";
+      return "anyone can read";
     case "contributors":
-      return `members and contributors of ${name} can read every transcript published here.`;
+      return "members and contributors read";
     default:
-      return `members of ${name} can read every transcript published here.`;
+      return "members read";
   }
 }
 
-/** Who can join and publish (`acceptance_mode`), as the join and share handlers decide it. */
-export function whoCanPublishText({ acceptanceMode, linkedOrg }: PolicyInput): string {
+/**
+ * Who can join and publish (`acceptance_mode`), as the join and share handlers
+ * decide it, written from the viewer's side: the owner of a curated collective
+ * is the one who approves.
+ */
+export function whoCanPublishText({ acceptanceMode, linkedOrg, role }: PolicyInput): string {
   switch (acceptanceMode) {
     case "verified_only":
-      return linkedOrg
-        ? `only members of the ${linkedOrg} github org can join and publish.`
-        : "only people with a verified github org can join and publish.";
+      return linkedOrg ? `members of the ${linkedOrg} github org publish` : "members of a verified github org publish";
     case "curated":
-      return "only people the owner invites can join. the owner approves each transcript before it appears.";
+      return role === "owner" ? "you approve each session" : "the owner approves each session";
     default:
-      return "anyone can join and publish. transcripts are approved automatically.";
+      return "anyone who joins publishes";
   }
 }
 
@@ -181,19 +186,15 @@ export function whoCanPublishText({ acceptanceMode, linkedOrg }: PolicyInput): s
 export function yourRoleText({ role, canRead, acceptanceMode }: PolicyInput): string {
   switch (role) {
     case "owner":
-      return "owner: you manage settings and members.";
+      return "you are the owner";
     case "member":
-      return "member: you read and publish here.";
+      return "you are a member";
     case "contributor":
-      return canRead
-        ? "contributor: you publish and read here."
-        : "contributor: you publish here. only members read the transcripts.";
+      return canRead ? "you are a contributor" : "you publish here but cannot read";
     case "pending":
-      return "pending: the owner has not accepted your request yet.";
+      return "your request is waiting for the owner";
     default:
-      return acceptanceMode === "curated"
-        ? "not a member: the owner invites people to join."
-        : "not a member: join to publish here.";
+      return acceptanceMode === "curated" ? "the owner invites members" : "you are not a member";
   }
 }
 
@@ -207,7 +208,7 @@ export function collectiveMembers(members: readonly GroupMember[]): GroupMember[
     .sort((a, b) => (order[a.role] ?? 3) - (order[b.role] ?? 3));
 }
 
-/** "1 owner · 7 members · 4 contributors", leaving out a role nobody holds. */
+/** "1 owner, 7 members, 4 contributors", leaving out a role nobody holds. */
 export function memberBreakdown(members: readonly GroupMember[]): string {
   const counts = { owner: 0, member: 0, contributor: 0 };
   for (const member of members) {
@@ -221,7 +222,7 @@ export function memberBreakdown(members: readonly GroupMember[]): string {
     part(counts.contributor, "contributor", "contributors"),
   ]
     .filter(Boolean)
-    .join(" · ");
+    .join(", ");
 }
 
 /** The stats line: transcripts, members, tokens, and the pull requests linked. */
@@ -284,7 +285,7 @@ export function pullRequestCells(transcripts: readonly GroupTranscript[]): PullR
       return label;
     });
     const more = t.pull_requests.count > recent.length ? `${t.pull_requests.count} pull requests` : null;
-    const repo = [short ? repos[0] : null, more].filter(Boolean).join(" · ") || null;
+    const repo = [short ? repos[0] : null, more].filter(Boolean).join(", ") || null;
     byTranscript.set(t.id, { labels, repo });
   }
   return { byTranscript, hrefs };
@@ -444,32 +445,60 @@ export function settingPatch(key: CollectiveSettingKey, value: unknown): Village
   }
 }
 
+/**
+ * One choice card on the settings page's access section: the value it writes,
+ * its name, one line on what it means, and (for the join choices) who it suits.
+ */
+export interface PolicyCard {
+  value: string;
+  label: string;
+  help: string;
+  note?: string;
+}
+
 /** The join choices, with the linked org named when there is one. */
-export function whoCanPublishChoices(linkedOrg: string | null): PolicyChoice[] {
+export function whoCanPublishChoices(linkedOrg: string | null): PolicyCard[] {
   return [
-    { value: "open", label: "open", help: "anyone can join and publish. transcripts are approved automatically." },
+    {
+      value: "open",
+      label: "anyone who joins",
+      help: "anyone can join and publish straight away.",
+      note: "good for open research",
+    },
     {
       value: "verified_only",
-      label: "verified only",
+      label: linkedOrg ? `the ${linkedOrg} github org` : "your github org",
       help: linkedOrg
         ? `only members of the ${linkedOrg} github org can join and publish.`
-        : "only people with a verified github org can join and publish.",
+        : "only members of your github organization can join and publish.",
+      note: "good for company teams",
     },
-    { value: "curated", label: "curated", help: "you approve each transcript before it appears." },
+    {
+      value: "curated",
+      label: "sessions you approve",
+      help: "people you invite publish, and each session waits for your approval.",
+      note: "good for evals and classes",
+    },
   ];
 }
 
 /**
  * The read choices. `public` is not offered: publishing is for collectives,
  * and the public commons is hidden. A collective that is already public still
- * sees its own value, so the select never shows a value it has no option for.
+ * sees its own value, so the cards never hide the value it holds.
  */
-export function whoCanReadChoices(current: string): PolicyChoice[] {
-  const choices: PolicyChoice[] = [
-    { value: "members_only", label: "members only" },
-    { value: "contributors", label: "members and contributors" },
+export function whoCanReadChoices(current: string): PolicyCard[] {
+  const choices: PolicyCard[] = [
+    { value: "members_only", label: "members", help: "only members read what is published here." },
+    {
+      value: "contributors",
+      label: "members and contributors",
+      help: "everyone who publishes here can also read the rest.",
+    },
   ];
-  if (current === "public") choices.push({ value: "public", label: "anyone (public)" });
+  if (current === "public") {
+    choices.push({ value: "public", label: "anyone", help: "anyone can read what is published here." });
+  }
   return choices;
 }
 

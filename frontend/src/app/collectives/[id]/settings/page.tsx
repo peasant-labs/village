@@ -4,9 +4,20 @@ import { use, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Github, Lock, Trash2, UserMinus, Users } from "lucide-react";
-import { CollectiveSettingsView } from "@peasant-labs/fairtrade/commons";
-import { ConsentDialog, Dialog, Toast } from "@/lib/ft-ui";
+import {
+  ArrowLeft,
+  Github,
+  GitPullRequest,
+  KeyRound,
+  Lock,
+  SlidersHorizontal,
+  Trash2,
+  TriangleAlert,
+  UserMinus,
+  Users,
+} from "lucide-react";
+import { ConsentDialog, Dialog, RepoPicker, Toast } from "@/lib/ft-ui";
+import { OnCrumb, OnEmpty, OnPage } from "@/components/online/Page";
 import {
   useAddGroupMember,
   useDeleteGroup,
@@ -15,31 +26,29 @@ import {
   useRemoveGroupMember,
   useUpdateGroup,
 } from "@/lib/queries/groups";
+import { collectiveMembers, settingPatch, type CollectiveSettingKey } from "@/lib/adapters/collective";
 import {
-  isNotConfigured,
-  useAvailableRepositories,
-  useLinkRepository,
-  useRepositories,
-  useUnlinkRepository,
-} from "@/lib/queries/repositories";
-import {
-  collectiveMembers,
-  linkedRepoIds,
-  MEMBER_LEAVES_CHOICES,
-  memberByHandle,
-  orgSummary,
-  repoPickerOwners,
-  settingPatch,
-  settingsCollective,
-  settingsMember,
-  whoCanPublishChoices,
-  whoCanReadChoices,
-  type CollectiveSettingKey,
-} from "@/lib/adapters/collective";
-import { applyRepoLinks, repoLinkMessage, repoLinkSteps, splitRepo } from "@/lib/repoLinks";
+  INSTALLED_PARAM,
+  SETTINGS_SECTIONS,
+  settingsSectionFrom,
+  settingsSectionHref,
+  type SettingsSectionId,
+} from "@/lib/collectiveSections";
 import { githubInstallURL } from "@/lib/githubInstall";
+import { isApiErrorStatus } from "@/lib/api";
 import GitHubUserSearch from "@/components/GitHubUserSearch";
+import { CollectiveNotFound, CollectiveReadError, CollectiveSkeleton } from "@/components/collective/page/CollectiveStates";
+import { useCollectiveGithub } from "@/components/collective/page/useCollectiveGithub";
+import {
+  AccessSection,
+  DangerSection,
+  GeneralSection,
+  GithubSection,
+  MembersSection,
+  PullRequestsSection,
+} from "@/components/collective/settings/SettingsSections";
 import type { GroupMember } from "@/lib/types";
+import "@/app/online-collective.css";
 
 /** One line the page tells the owner after an action: saved, or what went wrong. */
 interface Notice {
@@ -48,8 +57,16 @@ interface Notice {
   detail: string;
 }
 
-/** The query the GitHub App install handshake returns to this page with. */
-const INSTALLED_PARAM = "github_installed";
+const SECTION_ICONS: Record<SettingsSectionId, typeof Users> = {
+  general: SlidersHorizontal,
+  access: KeyRound,
+  members: Users,
+  github: Github,
+  "pull-requests": GitPullRequest,
+  danger: TriangleAlert,
+};
+
+const CRUMB_ROOT = { label: "collectives", href: "/collectives" };
 
 export default function GroupSettingsPage({
   params,
@@ -67,14 +84,13 @@ export default function GroupSettingsPage({
   const promoteMember = usePromoteMember();
   const removeMember = useRemoveGroupMember();
   const addMember = useAddGroupMember();
-  const linkRepository = useLinkRepository();
-  const unlinkRepository = useUnlinkRepository();
 
   const isOwner = data?.your_role === "owner";
   const linkedOrg = data?.group.linked_github_org ?? null;
-  const repositories = useRepositories(id, isOwner);
-  const available = useAvailableRepositories(id, isOwner && !!linkedOrg);
+  const github = useCollectiveGithub(id, { isOwner, canReadLinks: isOwner, linkedOrg });
+  const section = settingsSectionFrom(searchParams);
 
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteHandle, setInviteHandle] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -85,8 +101,8 @@ export default function GroupSettingsPage({
   const [membersVersion, setMembersVersion] = useState(0);
 
   // The install handshake returns here with `?github_installed=1`: say so,
-  // read the collective and its repositories again, and drop the parameter so
-  // a reload does not repeat it.
+  // read the collective and its repositories again, and land on the github
+  // section without the parameter, so a reload does not repeat it.
   const installedHandled = useRef(false);
   const installed = searchParams.get(INSTALLED_PARAM) === "1";
   useEffect(() => {
@@ -95,102 +111,60 @@ export default function GroupSettingsPage({
     setNotice({
       ok: true,
       title: "github connected",
-      detail: "the github app is installed. under github orgs, pick the repositories to link.",
+      detail: "the github app is installed. pick the repositories to link.",
     });
     void qc.invalidateQueries({ queryKey: ["group", id] });
     void qc.invalidateQueries({ queryKey: ["group-repositories", id] });
     void qc.invalidateQueries({ queryKey: ["group-repositories-available", id] });
-    router.replace(`/collectives/${id}/settings`);
+    router.replace(settingsSectionHref(id, "github"));
   }, [installed, id, qc, router]);
 
-  if (isLoading) {
+  if (isLoading) return <CollectiveSkeleton crumb={[CRUMB_ROOT, { label: "settings" }]} />;
+
+  // A 404 is the friendly not-found state below; other failures say what broke.
+  if (collective.isError && !isApiErrorStatus(collective.error, 404)) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        <div className="h-4 w-56 bg-surface-hover animate-shimmer" />
-        <div className="h-16 w-72 bg-surface-hover animate-shimmer" />
-        <div className="h-64 w-full bg-surface-hover animate-shimmer" />
-      </div>
+      <CollectiveReadError
+        crumb={[CRUMB_ROOT, { label: "settings" }]}
+        message={collective.error.message}
+        retrying={collective.isFetching}
+        onRetry={() => void collective.refetch()}
+      />
     );
   }
 
-  if (collective.isError) {
-    return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12">
-        <div role="alert" className="text-[var(--fs-body)] text-danger">
-          <p>could not read the collective: {collective.error.message}</p>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={collective.isFetching} onClick={() => void collective.refetch()}>try again</button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        <div className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center">
-          <Users size={28} className="text-ink-4" aria-hidden="true" />
-          <p className="text-sm font-medium text-ink">collective not found</p>
-          <Link
-            href="/collectives"
-            className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-          >
-            back to collectives
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  if (!data) return <CollectiveNotFound />;
 
   const { group } = data;
+  const crumb = [CRUMB_ROOT, { label: group.name, href: `/collectives/${id}` }, { label: "settings" }];
 
   if (!isOwner) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        <div className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center">
-          <Lock size={28} className="text-ink-4" aria-hidden="true" />
-          <p className="text-sm font-medium text-ink">only the owner can change these settings</p>
-          <Link
-            href={`/collectives/${id}`}
-            className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-          >
-            back to the collective
-          </Link>
-        </div>
-      </div>
+      <OnPage tight testId="collective-settings-not-owner">
+        <OnCrumb items={crumb} />
+        <OnEmpty
+          icon={<Lock />}
+          title="only the owner can change these settings"
+          body="ask the collective's owner if something here needs to change."
+          actions={
+            <Link href={`/collectives/${id}`} className="btn btn-secondary">
+              back to the collective
+            </Link>
+          }
+        />
+      </OnPage>
     );
   }
 
   const members = collectiveMembers(data.members ?? []);
-  const githubConfigured = !(repositories.isError && isNotConfigured(repositories.error));
-  const linked = repositories.data?.repositories ?? [];
-  const offered = available.data?.repositories ?? [];
-  const owners = repoPickerOwners(offered, linked, linkedOrg);
-  const canManageRepos = !!linkedOrg && githubConfigured && repositories.isSuccess;
-  const needsInstall =
-    githubConfigured &&
-    repositories.isSuccess &&
-    (!linkedOrg || (available.isSuccess && offered.length === 0 && linked.length === 0));
 
   // One field per change; the server keeps every field the body leaves out.
-  // A rejected promise is what tells the row to put the old value back.
+  // A rejected promise is what tells the control to put the old value back.
   const commit = (key: CollectiveSettingKey, value: unknown) =>
     updateGroup.mutateAsync({ id, body: settingPatch(key, value) });
 
-  const handleLinkRepos = async (diff: { add: string[]; remove: string[] }) => {
-    const outcome = await applyRepoLinks(repoLinkSteps(diff), (step) => {
-      const { owner, name } = splitRepo(step.repo);
-      return step.action === "link"
-        ? linkRepository.mutateAsync({ groupId: id, owner, name })
-        : unlinkRepository.mutateAsync({ groupId: id, owner, name });
-    });
-    await qc.invalidateQueries({ queryKey: ["group-repositories", id] });
-    await qc.invalidateQueries({ queryKey: ["group-repositories-available", id] });
-    setNotice(repoLinkMessage(outcome));
-  };
-
-  const handleRoleChange = (handle: string, role: string) => {
-    const member = memberByHandle(members, handle);
-    if (!member) return;
+  const handleRoleChange = (member: GroupMember, role: string) => {
+    const handle = `@${member.github_username}`;
     promoteMember.mutate(
       { groupId: id, userId: member.id, role },
       {
@@ -203,95 +177,155 @@ export default function GroupSettingsPage({
     );
   };
 
-  const handleInvite = (handle: string) => {
+  const handleInvite = (handle: string): Promise<boolean> => {
     const username = handle.trim().replace(/^@/, "");
-    if (!username) return;
-    addMember.mutate(
-      { groupId: id, username },
-      {
-        onSuccess: () => { setInviteOpen(false); setNotice({ ok: true, title: "member added", detail: `@${username} can now publish here.` }); },
-        onError: (error) => setNotice({ ok: false, title: "could not add a member", detail: `@${username}: ${error.message}` }),
-      },
+    if (!username) return Promise.resolve(false);
+    return new Promise((resolve) =>
+      addMember.mutate(
+        { groupId: id, username },
+        {
+          onSuccess: () => {
+            setInviteOpen(false);
+            setNotice({ ok: true, title: "member added", detail: `@${username} can now publish here.` });
+            resolve(true);
+          },
+          onError: (error) => {
+            setNotice({ ok: false, title: "could not add a member", detail: `@${username}: ${error.message}` });
+            resolve(false);
+          },
+        },
+      ),
     );
   };
 
-  const hrefFor = (kind: string, target?: string): string | undefined => {
-    switch (kind) {
-      case "collectives":
-        return "/collectives";
-      case "collective":
-        return target ? `/collectives/${target}` : undefined;
-      default:
-        return undefined;
-    }
+  const handleLinkRepos = async (diff: { add: string[]; remove: string[] }) => {
+    setNotice(await github.saveLinks(diff));
   };
 
-  return (
-    <div className="cmg-root max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-4 animate-fade-up">
-      {/* With no github org to manage, the way forward is the install
-          handshake. The view names no such action, so the page draws it on the
-          breadcrumb's line: static above it on a small screen, beside it from md
-          up. The box is the view's own content column (fairtrade's .iu-page:
-          1184px wide, 24px above and 16px beside its content), so the action
-          lines up with the breadcrumb. */}
-      <div className="relative mx-auto w-full max-w-[1184px]">
-        {needsInstall && (
-          <div
-            className="flex flex-wrap items-center justify-end gap-2 pt-3 md:absolute md:right-[var(--sp-4)] md:top-[calc(var(--sp-5)-4px)] md:z-[1] md:pt-0"
-            data-testid="collective-header-actions"
-          >
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => window.location.assign(githubInstallURL(id))}
-            >
-              <Github size={14} aria-hidden="true" /> connect github
-            </button>
-          </div>
-        )}
-        {notice && (
-          <div className="px-[var(--sp-4)] pt-[var(--sp-5)]" data-testid="collective-notice">
-            <Toast variant={notice.ok ? "ok" : "err"} title={notice.title} onClose={() => setNotice(null)}>
-              {notice.detail}
-            </Toast>
-          </div>
-        )}
-        <CollectiveSettingsView
+  const connect = () => window.location.assign(githubInstallURL(id));
+
+  let body;
+  switch (section.id) {
+    case "general":
+      body = <GeneralSection group={group} commit={commit} />;
+      break;
+    case "access":
+      body = <AccessSection group={group} commit={commit} />;
+      break;
+    case "members":
+      body = (
+        <MembersSection
           key={membersVersion}
-          data={{
-            collective: {
-              ...settingsCollective(group),
-              org: orgSummary(linkedOrg, repositories.data ? linked.length : undefined, available.data ? offered.length : undefined),
-              members: members.map(settingsMember),
-              memberCount: members.length,
-            },
-            owners,
-            linkedRepos: linkedRepoIds(linked, owners),
-            showOnPullRequests: group.post_prompts_check ?? false,
-            whoCanPublish: whoCanPublishChoices(linkedOrg),
-            whoCanRead: whoCanReadChoices(group.data_access),
-            memberLeavesChoices: MEMBER_LEAVES_CHOICES,
-            hrefFor,
+          group={group}
+          members={members}
+          inviting={addMember.isPending && !inviteOpen}
+          onInvite={handleInvite}
+          onOpenSearch={() => {
+            setInviteHandle("");
+            addMember.reset();
+            setInviteOpen(true);
           }}
-          actions={{
-            onCommit: commit,
-            onInvite: handleInvite,
-            onRoleChange: handleRoleChange,
-            onRemoveMember: (handle: string) => setRemoving(memberByHandle(members, handle) ?? null),
-            onLinkRepos: canManageRepos ? (diff) => void handleLinkRepos(diff) : undefined,
-            onDelete: () => setConfirmingDelete(true),
-          }}
+          onRoleChange={handleRoleChange}
+          onRemove={setRemoving}
+          commit={commit}
         />
+      );
+      break;
+    case "github":
+      body = (
+        <GithubSection
+          github={github}
+          onManage={github.canManage ? () => setPickerOpen(true) : undefined}
+          onConnect={github.needsInstall ? connect : undefined}
+        />
+      );
+      break;
+    case "pull-requests":
+      body = <PullRequestsSection group={group} commit={commit} />;
+      break;
+    case "danger":
+      body = <DangerSection group={group} onDelete={() => setConfirmingDelete(true)} />;
+      break;
+  }
+
+  return (
+    <OnPage tight testId="collective-settings">
+      <OnCrumb items={crumb} />
+      <div className="on-split">
+        <h1 className="on-title">{section.label}</h1>
+        <p>{section.lede(members.length)}</p>
+      </div>
+      {notice && (
+        <div data-testid="collective-notice">
+          <Toast variant={notice.ok ? "ok" : "err"} title={notice.title} onClose={() => setNotice(null)}>
+            {notice.detail}
+          </Toast>
+        </div>
+      )}
+      <div className="on-settings">
+        <nav aria-label="settings sections">
+          <Link href={`/collectives/${id}`} className="on-settings-back">
+            <ArrowLeft aria-hidden="true" />
+            <span>back to {group.name}</span>
+          </Link>
+          {SETTINGS_SECTIONS.map((entry) => {
+            const Icon = SECTION_ICONS[entry.id];
+            return (
+              <Link
+                key={entry.id}
+                href={settingsSectionHref(id, entry.id)}
+                aria-current={entry.id === section.id ? "page" : undefined}
+              >
+                <Icon aria-hidden="true" />
+                {entry.label}
+              </Link>
+            );
+          })}
+          <p className="on-cap">changes save right away.</p>
+        </nav>
+        <div className="on-settings-body">{body}</div>
       </div>
 
-      <div className="iu-page"><div className="iu-page-summary border border-rule bg-surface px-5 py-3">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setInviteHandle(""); addMember.reset(); setInviteOpen(true); }}>find a github user to invite</button>
-      </div></div>
-      <Dialog open={inviteOpen} onClose={() => setInviteOpen(false)} title="invite a github user" dismissible={!addMember.isPending} footer={<button type="button" className="btn btn-secondary btn-sm" disabled={!inviteHandle.trim() || addMember.isPending} onClick={() => handleInvite(inviteHandle)}>{addMember.isPending ? "inviting" : "invite"}</button>}>
+      {github.canManage && (
+        <RepoPicker
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          owners={github.owners}
+          initialSelected={github.linkedIds}
+          title={`link repositories from ${linkedOrg ?? "github"}`}
+          description={`pull requests in linked repos show the transcripts published to ${group.name}.`}
+          onSave={(diff) => {
+            setPickerOpen(false);
+            void handleLinkRepos(diff);
+          }}
+        />
+      )}
+
+      <Dialog
+        open={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        title="invite a github user"
+        dismissible={!addMember.isPending}
+        footer={
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!inviteHandle.trim() || addMember.isPending}
+            onClick={() => void handleInvite(inviteHandle)}
+          >
+            {addMember.isPending ? "inviting" : "invite"}
+          </button>
+        }
+      >
         <p className="text-[var(--fs-body)] text-ink-2">find their github handle, then invite them to this collective.</p>
-        <GitHubUserSearch value={inviteHandle} onChange={setInviteHandle} onSelect={setInviteHandle}/>
-        {addMember.isError && <p role="alert" className="text-[var(--fs-body)] text-danger">could not add a member: {addMember.error.message}. try again.</p>}
+        <GitHubUserSearch value={inviteHandle} onChange={setInviteHandle} onSelect={setInviteHandle} />
+        {addMember.isError && (
+          <p role="alert" className="text-[var(--fs-body)] text-danger">
+            could not add a member: {addMember.error.message}. try again.
+          </p>
+        )}
       </Dialog>
+
       <ConsentDialog
         open={removing !== null}
         labelId="cns-remove-member"
@@ -342,8 +376,8 @@ export default function GroupSettingsPage({
         }
         intro={
           <p>
-            the collective and all of its membership are deleted. published transcripts stay with their authors.
-            this cannot be undone.
+            {members.length === 1 ? "its one member loses" : `all ${members.length} members lose`} access through this
+            collective, and its settings are gone for good. published transcripts stay with their authors.
           </p>
         }
         consentLabel="i understand this cannot be undone"
@@ -361,6 +395,6 @@ export default function GroupSettingsPage({
           })
         }
       />
-    </div>
+    </OnPage>
   );
 }

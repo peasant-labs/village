@@ -1,0 +1,63 @@
+"use client";
+
+import { Github } from "lucide-react";
+import type { CollectiveGithub } from "./useCollectiveGithub";
+
+/** The org line's words: the org, and how many of its repositories are linked when that is known. */
+export function orgLineText(org: CollectiveGithub["org"]): string {
+  if (!org) return "nothing linked";
+  return typeof org.total === "number" ? `${org.login}: ${org.linked ?? 0} of ${org.total} repos linked` : org.login;
+}
+
+/**
+ * The collective in numbers (transcripts, members, tokens, pull requests
+ * linked), then its GitHub org: how many repositories are linked, and for the
+ * owner the picker that links them.
+ */
+export default function CollectiveStats({
+  name,
+  stats,
+  github,
+  onManage,
+}: {
+  name: string;
+  stats: { value: number | string; label: string }[];
+  github: CollectiveGithub;
+  /** Opens the repo picker; left out, no manage button is drawn. */
+  onManage?: () => void;
+}) {
+  return (
+    <div className="on-section on-cstats">
+      <dl className="on-stats" aria-label={`${name} in numbers`}>
+        {stats.map((stat) => (
+          <div key={stat.label} className="on-stat">
+            <dt>{stat.label}</dt>
+            <dd>{typeof stat.value === "number" ? stat.value.toLocaleString("en-US") : stat.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <section className="on-section" aria-labelledby="collective-github-heading">
+          <h3 className="on-h2" id="collective-github-heading">
+            github org
+          </h3>
+          {github.configured ? (
+            <div className="on-orgline" data-testid="collective-org-line">
+              <Github aria-hidden="true" />
+              <span className="on-orgline-text">{orgLineText(github.org)}</span>
+              {onManage && (
+                <button type="button" className="btn btn-secondary" onClick={onManage}>
+                  manage repositories
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="on-notice" data-testid="collective-github-not-configured">
+              <p>github connection isn&apos;t set up on this server.</p>
+            </div>
+          )}
+          <p className="on-cap">a collective links one github org today.</p>
+        </section>
+    </div>
+  );
+}

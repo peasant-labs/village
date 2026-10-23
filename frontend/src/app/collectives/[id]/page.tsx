@@ -1,48 +1,44 @@
 "use client";
 
 import { use, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Github, Lock, LogOut, Users, UserPlus } from "lucide-react";
-import { CollectiveDetailView } from "@peasant-labs/fairtrade/commons";
-import { Toast } from "@/lib/ft-ui";
-import {
-  useGroup,
-  useGroupTranscripts,
-  useJoinGroup,
-  useMyGroupShares,
-  useRemoveGroupMember,
-} from "@/lib/queries/groups";
-import {
-  isNotConfigured,
-  useAvailableRepositories,
-  useLinkRepository,
-  useRepositories,
-  useUnlinkRepository,
-} from "@/lib/queries/repositories";
+import { ClipboardCheck, FileStack, Github, Lock, LogIn, LogOut, MoreHorizontal, Settings, UserPlus } from "lucide-react";
+import { Menu, RepoPicker, Toast } from "@/lib/ft-ui";
+import { CollectiveSwatch, OnCrumb, OnEmpty, OnHead, OnPage } from "@/components/online/Page";
+import { useGroup, useGroupTranscripts, useJoinGroup, useMyGroupShares, useRemoveGroupMember } from "@/lib/queries/groups";
+import { usePendingShares } from "@/lib/queries/groupReview";
 import { githubInstallURL } from "@/lib/githubInstall";
 import { isApiErrorStatus } from "@/lib/api";
+import { loginHref } from "@/lib/signIn";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   collectiveMembers,
   collectiveStats,
   collectiveTranscriptRow,
   isMemberRole,
-  linkedRepoIds,
-  memberBreakdown,
-  orgSummary,
   pullRequestCells,
-  repoPickerOwners,
-  whoCanPublishText,
-  whoCanReadText,
-  yourRoleText,
   type PolicyInput,
 } from "@/lib/adapters/collective";
-import { applyRepoLinks, repoLinkMessage, repoLinkSteps, splitRepo } from "@/lib/repoLinks";
+import {
+  TAB_PARAM,
+  collectiveTabFrom,
+  collectiveTabsFor,
+  settingsSectionHref,
+  type CollectiveTabId,
+} from "@/lib/collectiveSections";
 import LeaveCollectiveDialog from "@/components/group/LeaveCollectiveDialog";
 import CollectiveTranscriptLibrary from "@/components/group/CollectiveTranscriptLibrary";
 import JoinConsentDialog from "@/components/group/JoinConsentDialog";
+import CollectiveTabs, { type CollectiveTab } from "@/components/collective/page/CollectiveTabs";
+import CollectiveTranscriptsTable from "@/components/collective/page/CollectiveTranscriptsTable";
+import CollectiveWaiting from "@/components/collective/page/CollectiveWaiting";
+import CollectiveMembers from "@/components/collective/page/CollectiveMembers";
+import CollectiveStats from "@/components/collective/page/CollectiveStats";
+import PolicyChips from "@/components/collective/page/PolicyChips";
+import { CollectiveNotFound, CollectiveReadError, CollectiveSkeleton } from "@/components/collective/page/CollectiveStates";
+import { useCollectiveGithub } from "@/components/collective/page/useCollectiveGithub";
+import "@/app/online-collective.css";
 
 /** How many transcripts the table shows first, and how many more each `show more` adds. */
 const PAGE_SIZE = 20;
@@ -54,6 +50,8 @@ interface Notice {
   detail: string;
 }
 
+const CRUMB_ROOT = { label: "collectives", href: "/collectives" };
+
 export default function GroupDetailPage({
   params,
 }: {
@@ -61,8 +59,9 @@ export default function GroupDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const qc = useQueryClient();
-  const { user } = useAuth();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { user, isLoading: authLoading } = useAuth();
   const collective = useGroup(id);
   const { data, isLoading } = collective;
 
@@ -71,6 +70,8 @@ export default function GroupDetailPage({
   const isMember = isMemberRole(role);
   const canRead = !!data?.can_read;
   const linkedOrg = data?.group.linked_github_org ?? null;
+  const acceptanceMode = data?.group.acceptance_mode ?? "open";
+  const reviews = isOwner && acceptanceMode === "curated";
 
   // The first page arrives with the collective; `show more` asks for a longer
   // first page, so the rows already shown stay in place.
@@ -78,10 +79,11 @@ export default function GroupDetailPage({
   const longer = useGroupTranscripts(id, 0, shown, canRead && shown > PAGE_SIZE);
 
   // Linked repositories are readable by members; what the App offers is the owner's alone.
-  const repositories = useRepositories(id, isMember);
-  const available = useAvailableRepositories(id, isOwner && !!linkedOrg);
-  const linkRepository = useLinkRepository();
-  const unlinkRepository = useUnlinkRepository();
+  const github = useCollectiveGithub(id, { isOwner, canReadLinks: isMember, linkedOrg });
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // The owner of a curated collective reads the queue the review page decides.
+  const pending = usePendingShares(id, reviews);
 
   const joinGroup = useJoinGroup();
   const removeMember = useRemoveGroupMember();
@@ -91,49 +93,41 @@ export default function GroupDetailPage({
   const [showJoinConsent, setShowJoinConsent] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  if (isLoading) {
-    return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        <div className="h-4 w-40 bg-surface-hover animate-shimmer" />
-        <div className="h-16 w-72 bg-surface-hover animate-shimmer" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 bg-surface-hover animate-shimmer" />
-          ))}
-        </div>
-        <div className="h-64 w-full bg-surface-hover animate-shimmer" />
-      </div>
-    );
+  // The open tab lives in the address, so a link can open one and a reload keeps it.
+  const offeredTabs = collectiveTabsFor({ role, acceptanceMode });
+  const askedTab = searchParams.get(TAB_PARAM);
+  const [chosenTab, setChosenTab] = useState<string | null>(askedTab);
+  // A link that changes the tab while the page is open (the sidebar, say) wins.
+  const [lastAsked, setLastAsked] = useState(askedTab);
+  if (lastAsked !== askedTab) {
+    setLastAsked(askedTab);
+    setChosenTab(askedTab);
   }
+  const tab = collectiveTabFrom(chosenTab, offeredTabs);
+  const selectTab = (next: CollectiveTabId) => {
+    setChosenTab(next);
+    const query = new URLSearchParams(window.location.search);
+    if (next === offeredTabs[0]?.id) query.delete(TAB_PARAM);
+    else query.set(TAB_PARAM, next);
+    const search = query.toString();
+    window.history.replaceState(null, "", `${pathname}${search ? `?${search}` : ""}`);
+  };
+
+  if (isLoading) return <CollectiveSkeleton crumb={[CRUMB_ROOT]} />;
 
   // A 404 is the friendly not-found state below; other failures say what broke.
   if (collective.isError && !isApiErrorStatus(collective.error, 404)) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12">
-        <div role="alert" className="text-[var(--fs-body)] text-danger">
-          <p>could not read the collective: {collective.error.message}</p>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={collective.isFetching} onClick={() => void collective.refetch()}>try again</button>
-        </div>
-      </div>
+      <CollectiveReadError
+        crumb={[CRUMB_ROOT]}
+        message={collective.error.message}
+        retrying={collective.isFetching}
+        onRetry={() => void collective.refetch()}
+      />
     );
   }
 
-  if (!data) {
-    return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        <div className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center">
-          <Users size={28} className="text-ink-4" aria-hidden="true" />
-          <p className="text-sm font-medium text-ink">collective not found</p>
-          <Link
-            href="/collectives"
-            className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-          >
-            back to collectives
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  if (!data) return <CollectiveNotFound />;
 
   const { group, stats } = data;
   const now = new Date();
@@ -154,22 +148,12 @@ export default function GroupDetailPage({
     canRead,
   };
 
-  // A 501 on the linked list is the server saying GitHub is not set up here:
-  // nothing can be linked, so nothing offers to.
-  const githubConfigured = !(repositories.isError && isNotConfigured(repositories.error));
-  const linked = repositories.data?.repositories ?? [];
-  const offered = available.data?.repositories ?? [];
-  const owners = repoPickerOwners(offered, linked, linkedOrg);
-  const canManageRepos = isOwner && !!linkedOrg && githubConfigured && repositories.isSuccess;
-  // No org yet, or an org the App is not installed on (it offers nothing and
-  // nothing is linked): the owner's way forward is the install handshake.
-  const needsInstall =
-    isOwner &&
-    githubConfigured &&
-    repositories.isSuccess &&
-    (!linkedOrg || (available.isSuccess && offered.length === 0 && linked.length === 0));
-
-  const canJoin = !!user && role === "" && group.acceptance_mode !== "curated";
+  const joinable = group.acceptance_mode !== "curated";
+  const canJoin = !!user && role === "" && joinable;
+  // Somebody reading without an account is asked to sign in where joining
+  // would need one, and comes back here afterwards.
+  const signInHere = loginHref(pathname);
+  const offerSignIn = !authLoading && !user;
 
   const handleJoin = () => {
     if (user && !user.is_discoverable) {
@@ -182,145 +166,198 @@ export default function GroupDetailPage({
   };
 
   const handleLinkRepos = async (diff: { add: string[]; remove: string[] }) => {
-    const outcome = await applyRepoLinks(repoLinkSteps(diff), (step) => {
-      const { owner, name } = splitRepo(step.repo);
-      return step.action === "link"
-        ? linkRepository.mutateAsync({ groupId: id, owner, name })
-        : unlinkRepository.mutateAsync({ groupId: id, owner, name });
-    });
-    await qc.invalidateQueries({ queryKey: ["group-repositories", id] });
-    await qc.invalidateQueries({ queryKey: ["group-repositories-available", id] });
-    setNotice(repoLinkMessage(outcome));
+    setNotice(await github.saveLinks(diff));
   };
 
-  const hrefFor = (kind: string, target?: string): string | undefined => {
-    switch (kind) {
-      case "collectives":
-        return "/collectives";
-      case "collective":
-        return target ? `/collectives/${target}` : undefined;
-      case "transcript":
-        return target ? `/transcripts/${target}` : undefined;
-      case "pull-request":
-        return target ? cells.hrefs.get(target) : undefined;
-      default:
-        return undefined;
-    }
-  };
+  const moreItems = [
+    ...(isMember
+      ? [{ label: "publish several transcripts", icon: FileStack, onSelect: () => router.push(`/collectives/${id}/contribute`) }]
+      : []),
+    ...(reviews
+      ? [{ label: "review transcripts", icon: ClipboardCheck, onSelect: () => router.push(`/collectives/${id}/review`) }]
+      : []),
+  ];
 
-  const headerActions = [
+  const actions = [
+    moreItems.length > 0 ? <Menu key="more" icon={MoreHorizontal} ariaLabel="more" align="end" items={moreItems} /> : null,
+    github.needsInstall ? (
+      <button
+        key="connect"
+        type="button"
+        className="btn btn-secondary"
+        onClick={() => window.location.assign(githubInstallURL(id))}
+      >
+        <Github size={16} aria-hidden="true" /> connect github
+      </button>
+    ) : null,
+    canLeave ? (
+      <button key="leave" type="button" className="btn btn-ghost" onClick={() => setConfirmingLeave(true)}>
+        <LogOut size={16} aria-hidden="true" /> leave
+      </button>
+    ) : null,
+    isOwner ? (
+      <Link key="settings" href={`/collectives/${id}/settings`} className="btn btn-secondary">
+        <Settings size={16} aria-hidden="true" /> settings
+      </Link>
+    ) : null,
+    isOwner ? (
+      <Link key="invite" href={settingsSectionHref(id, "members")} className="btn btn-primary">
+        <UserPlus size={16} aria-hidden="true" /> invite people
+      </Link>
+    ) : null,
     canJoin ? (
       <button
         key="join"
         type="button"
-        className="btn btn-primary btn-sm"
+        className="btn btn-primary"
         disabled={joinGroup.isPending}
         aria-busy={joinGroup.isPending || undefined}
         onClick={handleJoin}
       >
-        <UserPlus size={14} aria-hidden="true" /> {joinGroup.isPending ? "joining" : "join"}
+        <UserPlus size={16} aria-hidden="true" /> {joinGroup.isPending ? "joining" : "join"}
       </button>
     ) : null,
-    needsInstall ? (
-      <button
-        key="connect"
-        type="button"
-        className="btn btn-secondary btn-sm"
-        onClick={() => window.location.assign(githubInstallURL(id))}
-      >
-        <Github size={14} aria-hidden="true" /> connect github
-      </button>
-    ) : null,
-    canLeave ? (
-      <button key="leave" type="button" className="btn btn-ghost btn-sm" onClick={() => setConfirmingLeave(true)}>
-        <LogOut size={14} aria-hidden="true" /> leave
-      </button>
+    offerSignIn && joinable ? (
+      <Link key="sign-in" href={signInHere} className="btn btn-primary">
+        <LogIn size={16} aria-hidden="true" /> sign in to join
+      </Link>
     ) : null,
   ].filter(Boolean);
 
-  return (
-    <div className="cmg-root max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-4 animate-fade-up">
-      {/* The view names no join, leave or connect action, so the page draws
-          them on the breadcrumb's line, above the view's own settings and more
-          actions: static above it on a small screen, beside it from md up. The
-          box is the view's own content column (fairtrade's .iu-page: 1184px
-          wide, 24px above and 16px beside its content), so an action lines up
-          with the breadcrumb it sits beside. */}
-      <div className="relative mx-auto w-full max-w-[1184px]">
-        {headerActions.length > 0 && (
-          <div
-            className="flex flex-wrap items-center justify-end gap-2 pt-3 md:absolute md:right-[var(--sp-4)] md:top-[calc(var(--sp-5)-4px)] md:z-[1] md:pt-0"
-            data-testid="collective-header-actions"
-          >
-            {headerActions}
-          </div>
-        )}
-        {notice && (
-          <div className="px-[var(--sp-4)] pt-[var(--sp-5)]" data-testid="collective-notice">
-            <Toast variant={notice.ok ? "ok" : "err"} title={notice.title} onClose={() => setNotice(null)}>
-              {notice.detail}
-            </Toast>
-          </div>
-        )}
-        <CollectiveDetailView
-          data={{
-            collective: {
-              id: group.id,
-              name: group.name,
-              purpose: group.description,
-              role,
-              whoCanRead: whoCanReadText(policy),
-              whoCanPublish: whoCanPublishText(policy),
-              yourRole: yourRoleText(policy),
-              stats: collectiveStats(stats, members.length),
-              transcriptCount: total,
-              transcripts: rows,
-              org: orgSummary(linkedOrg, repositories.data ? linked.length : undefined, available.data ? offered.length : undefined),
-              memberBreakdown: membersVisible ? memberBreakdown(members) : "the owner keeps the member list private.",
-              members: membersVisible ? members.map((m) => ({ handle: `@${m.github_username}`, name: m.display_name ?? undefined, role: m.role })) : [],
-              memberCount: membersVisible ? members.length : undefined,
-            },
-            owners,
-            linkedRepos: linkedRepoIds(linked, owners),
-            hrefFor,
-          }}
-          actions={{
-            onSettings: isOwner ? () => router.push(`/collectives/${id}/settings`) : undefined,
-            onContribute: isMember ? () => router.push(`/collectives/${id}/contribute`) : undefined,
-            onReview: isOwner && group.acceptance_mode === "curated" ? () => router.push(`/collectives/${id}/review`) : undefined,
-            onOpenTranscript: (transcriptId: string) => router.push(`/transcripts/${transcriptId}`),
-            onOpenPullRequest: (label: string) => {
-              const href = cells.hrefs.get(label);
-              if (href) router.push(href);
-            },
-            onLinkRepos: canManageRepos ? (diff) => void handleLinkRepos(diff) : undefined,
-            onShowMore: canRead && total > rows.length ? () => setShown((count) => count + PAGE_SIZE) : undefined,
-          }}
+  const restricted = (
+    <OnEmpty
+      icon={<Lock />}
+      title="data access restricted"
+      body={
+        group.data_access === "members_only"
+          ? "only members can read this collective's transcripts."
+          : "only members and contributors can read this collective's transcripts."
+      }
+      headingLevel={3}
+      testId="collective-restricted"
+      actions={
+        offerSignIn ? (
+          <Link href={signInHere} className="btn btn-secondary">
+            <LogIn size={16} aria-hidden="true" /> sign in
+          </Link>
+        ) : undefined
+      }
+    />
+  );
+
+  const transcriptsPanel = (
+    <div className="on-section on-cpanel">
+      {!canRead ? (
+        restricted
+      ) : rows.length === 0 ? (
+        <OnEmpty
+          icon={<FileStack />}
+          title="no transcripts yet"
+          body="sessions published to this collective show up here."
+          headingLevel={3}
+          testId="collective-no-transcripts"
         />
-      </div>
+      ) : (
+        <CollectiveTranscriptsTable
+          rows={rows}
+          pullRequestHref={(label) => cells.hrefs.get(label)}
+          showStatus={group.acceptance_mode === "curated"}
+          total={total}
+          onShowMore={canRead && total > rows.length ? () => setShown((count) => count + PAGE_SIZE) : undefined}
+        />
+      )}
+      <CollectiveTranscriptLibrary
+        key={user?.id ?? "anonymous"}
+        groupID={id}
+        transcripts={readable}
+        canRead={canRead}
+        isOwner={isOwner}
+      />
+    </div>
+  );
 
-      <CollectiveTranscriptLibrary key={user?.id ?? "anonymous"} groupID={id} transcripts={readable} canRead={canRead} isOwner={isOwner} />
+  const tabs: CollectiveTab<CollectiveTabId>[] = offeredTabs.map((def) => {
+    switch (def.id) {
+      case "transcripts":
+        return { id: def.id, label: def.label, count: canRead ? total : undefined, panel: transcriptsPanel };
+      case "waiting":
+        return {
+          id: def.id,
+          label: def.label,
+          count: pending.data?.length,
+          panel: <CollectiveWaiting collectiveId={id} pending={pending} viewerId={user?.id} />,
+        };
+      case "members":
+        return {
+          id: def.id,
+          label: def.label,
+          count: membersVisible ? members.length : undefined,
+          panel: (
+            <CollectiveMembers
+              members={members}
+              visible={membersVisible}
+              manageHref={isOwner ? settingsSectionHref(id, "members") : undefined}
+            />
+          ),
+        };
+      case "stats":
+        return {
+          id: def.id,
+          label: def.label,
+          panel: (
+            <CollectiveStats
+              name={group.name}
+              stats={collectiveStats(stats, members.length)}
+              github={github}
+              onManage={github.canManage ? () => setPickerOpen(true) : undefined}
+            />
+          ),
+        };
+    }
+  });
 
-      {!canRead && (
-        <div className="iu-page">
-          <div className="iu-page-summary border border-rule bg-surface px-5 py-10 flex flex-col items-center gap-3 text-center">
-            <Lock size={28} className="text-ink-4" aria-hidden="true" />
-            <p className="text-sm font-medium text-ink">data access restricted</p>
-            <p className="text-[13px] text-ink-3 max-w-sm">
-              {group.data_access === "members_only"
-                ? "only full members can browse this collective's data."
-                : "only contributors and members can browse this collective's data."}
-            </p>
-          </div>
+  return (
+    <OnPage tight testId="collective-page">
+      <OnCrumb items={[CRUMB_ROOT, { label: group.name }]} />
+      <OnHead
+        title={
+          <span className="on-title-row">
+            <CollectiveSwatch id={group.id} />
+            {group.name}
+          </span>
+        }
+        lede={group.description || undefined}
+        actions={
+          actions.length > 0 ? (
+            <div className="on-cactions" data-testid="collective-header-actions">
+              {actions}
+            </div>
+          ) : undefined
+        }
+      />
+      {notice && (
+        <div data-testid="collective-notice">
+          <Toast variant={notice.ok ? "ok" : "err"} title={notice.title} onClose={() => setNotice(null)}>
+            {notice.detail}
+          </Toast>
         </div>
       )}
+      <PolicyChips policy={policy} />
+      <CollectiveTabs tabs={tabs} selected={tab} onSelect={selectTab} label="collective sections" />
 
-      {!githubConfigured && (
-        <div className="iu-page">
-          <div className="iu-page-summary border border-rule bg-surface px-5 py-3 text-[var(--fs-body)] text-ink-3">
-            github connection isn&apos;t set up on this server.
-          </div>
-        </div>
+      {github.canManage && (
+        <RepoPicker
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          owners={github.owners}
+          initialSelected={github.linkedIds}
+          title={`link repositories from ${linkedOrg ?? "github"}`}
+          description={`pull requests in linked repos show the transcripts published to ${group.name}.`}
+          onSave={(diff) => {
+            setPickerOpen(false);
+            void handleLinkRepos(diff);
+          }}
+        />
       )}
 
       {user && canLeave && (
@@ -361,6 +398,6 @@ export default function GroupDetailPage({
         collectiveName={group.name}
         isSubmitting={joinGroup.isPending}
       />
-    </div>
+    </OnPage>
   );
 }

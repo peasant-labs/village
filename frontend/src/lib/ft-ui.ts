@@ -432,6 +432,14 @@ export const SettingGroup = FtSettingGroup as ComponentType<
 export { CopyIconButton, AccessList, CollectivePicker } from "@peasant-labs/fairtrade/ui";
 
 /**
+ * RepoPicker — the dialog an owner links a collective's repositories in:
+ *   repositories grouped by owner, a search, select all / clear, and one save
+ *   that reports what to link and unlink as `{ add, remove }`. Re-exported as
+ *   shipped (its published type is precise).
+ */
+export { RepoPicker } from "@peasant-labs/fairtrade/ui";
+
+/**
  * fairtrade Dialog — a real modal: role=dialog, focus trapped, Escape and the
  * scrim close it, focus returns to the opener. Widened because the published
  * `.d.ts` types every prop as a required `any`, although `footer`,
