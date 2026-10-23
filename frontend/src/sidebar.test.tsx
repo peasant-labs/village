@@ -99,7 +99,7 @@ describe("mounted sidebar: the person's collectives", () => {
   });
 });
 
-describe("mounted sidebar: the other apps and the docs", () => {
+describe("mounted sidebar: the other apps", () => {
   it("switches to the local app and the docs, both marked as leaving this app", async () => {
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/");
@@ -113,18 +113,9 @@ describe("mounted sidebar: the other apps and the docs", () => {
     expect(local).toHaveAttribute("href", LOCAL_APP_URL);
     expect(docs).toHaveAttribute("href", DOCS_URL);
     for (const link of [local, docs]) expect(link).toHaveTextContent("opens outside this app");
-
-    const help = screen.getByRole("navigation", { name: "help" });
-    const docsHelp = within(help).getByRole("link", { name: /^docs/ });
-    expect(docsHelp).toHaveAttribute("href", "https://peasantlabs.org/docs");
-    expect(docsHelp).toHaveTextContent("opens outside this app");
-  });
-
-  it("drops both from a collective's settings, where the sidebar is that page's navigation", async () => {
-    installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [], collectives: [ACME] });
-    await renderHeaderAt(`/collectives/${ACME.id}/settings`);
-    await chromeSettled(true);
-    expect(screen.queryByRole("navigation", { name: "help" })).toBeNull();
+    expect(docs).toHaveAttribute("href", "https://peasantlabs.org/docs");
+    // The docs are offered once, in the switcher, not again among the sections.
+    expect(screen.getAllByRole("link", { name: /^docs/ })).toHaveLength(1);
   });
 });
 

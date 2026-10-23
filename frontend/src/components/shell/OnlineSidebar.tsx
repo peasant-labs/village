@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
-  BookOpen,
   Compass,
   GitPullRequest,
   Github,
@@ -124,11 +123,6 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
             depth: 1 as const,
           })),
         ],
-      },
-      {
-        id: "help",
-        ariaLabel: "help",
-        items: [{ id: "docs", label: "docs", href: DOCS_URL, icon: BookOpen, external: true }],
       },
     ];
     currentId = currentItemFor(pathname, ids);
