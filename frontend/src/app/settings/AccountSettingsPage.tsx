@@ -406,10 +406,6 @@ function PeasantConnection({ handle }: { handle: string }) {
       <div className="srow" data-testid="settings-peasant">
         <span className="srow-text-col">
           <span className="srow-label">peasant is not signed in on any computer</span>
-          <span className="srow-help">
-            run <code className="font-mono">peasant village login</code> on a computer to publish
-            from it.
-          </span>
           {revokeError && (
             <span className="srow-error" role="alert">
               {revokeError}

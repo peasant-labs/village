@@ -115,6 +115,8 @@ describe("mounted settings route", () => {
         expect(text(row("settings-peasant").querySelector(".srow-label"))).toBe(c.expectPeasant),
       );
       const help = text(row("settings-peasant").querySelector(".srow-help"));
+      // The row states where peasant is signed in; it gives no terminal command.
+      expect(row("settings-peasant").textContent).not.toContain("peasant village login");
       if (c.expectLastUsed === null) {
         expect(help).not.toContain("last used");
       } else {
