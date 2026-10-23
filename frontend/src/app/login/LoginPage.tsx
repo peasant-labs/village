@@ -2,11 +2,11 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { SignInProviders } from "@/lib/ft-ui";
 import { useAuth } from "@/providers/AuthProvider";
 import PeasantWordmark from "@/components/online/PeasantWordmark";
-import { NEXT_PARAM, SIGN_IN_PROVIDERS, rememberNextPath, safeNextPath, startSignIn } from "@/lib/signIn";
+import { SIGN_IN_PROVIDERS, rememberNextPath, safeNextPath, startSignIn } from "@/lib/signIn";
 
 /**
  * The one front door: the wordmark, the GitHub button, the terminal command that
@@ -16,11 +16,10 @@ import { NEXT_PARAM, SIGN_IN_PROVIDERS, rememberNextPath, safeNextPath, startSig
  * is remembered before leaving for GitHub, and `/auth/callback` returns there.
  * Somebody who is already signed in is sent on straight away.
  */
-export default function LoginPage() {
+export default function LoginPage({ next: asked }: { next: string | null }) {
   const router = useRouter();
-  const params = useSearchParams();
   const { isLoading, isLoggedIn } = useAuth();
-  const next = safeNextPath(params.get(NEXT_PARAM));
+  const next = safeNextPath(asked);
 
   useEffect(() => {
     if (!isLoading && isLoggedIn) router.replace(next ?? "/");
