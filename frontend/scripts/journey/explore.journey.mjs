@@ -22,7 +22,7 @@ test.describe('explore', () => {
 
     const body = page.locator('.cex-explore-body').first()
     await expect(body).toBeVisible()
-    await expect(page).toHaveTitle(/village/i)
+    await expect(page).toHaveTitle(/peasant/i)
     await expectTheme(page, theme)
 
     // Semantic surface: roles and names a screen reader exposes, not class strings.

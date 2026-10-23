@@ -299,7 +299,7 @@ export default function ExplorePage() {
   // (loading, error, and results) so a live region always exists before its
   // content changes, which reliable announcement requires.
   return (
-    <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12">
+    <div className="on-page">
       <p
         role="status"
         aria-live="polite"

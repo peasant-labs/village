@@ -21,11 +21,11 @@ const STEPS: ImportStep[] = [
     title: "install the peasant cli",
     command: "go install github.com/peasant-labs/peasant/cmd/peasant@latest",
     description:
-      "the cli scans your local agent transcript stores (claude code, opencode, codex, etc.) and pushes them to the village.",
+      "the cli scans your local agent transcript stores (claude code, opencode, codex, etc.) and pushes them to peasant online.",
   },
   {
-    title: "sign in to the village",
-    command: "peasant login",
+    title: "sign in to peasant online",
+    command: "peasant village login",
     description:
       "opens your browser, completes the github oauth flow, and stores credentials at ~/.config/peasant/credentials.json.",
   },
@@ -94,9 +94,9 @@ export default function PublishImportDialog({
 
         <div className="flex flex-col gap-5 p-5">
           <p className="text-[13px] text-ink-3 leading-relaxed">
-            transcripts are imported into the village via the peasant cli — not
-            through the web ui. the cli reads your local agent transcript
-            stores, redacts sensitive content, and pushes the result here.
+            transcripts reach peasant online through the peasant cli, not the
+            web app. the cli reads your local agent transcript stores, redacts
+            sensitive content, and pushes the result here.
           </p>
 
           <div className="flex flex-col gap-5">
