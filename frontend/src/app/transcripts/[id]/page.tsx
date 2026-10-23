@@ -9,8 +9,12 @@ import PendingApprovalBar, {
 } from "@/components/transcript/PendingApprovalBar";
 import { isSessionDetailPayload } from "@/lib/sessionDetailPayload";
 import type { SessionDetailPayload } from "@/types/messages";
-import { FileX2 } from "lucide-react";
+import Link from "next/link";
+import { Clock, FileX2, SearchX } from "lucide-react";
 import { isApiErrorStatus } from "@/lib/api";
+import { useAuth } from "@/providers/AuthProvider";
+import { loginHref } from "@/lib/signIn";
+import { OnEmpty, OnPage } from "@/components/online/Page";
 
 export default function TranscriptDetailPage({
   params,
@@ -22,6 +26,7 @@ export default function TranscriptDetailPage({
   const { data: content, isLoading: contentLoading, error: contentError } =
     useTranscriptContent(id, { knownHarness: data?.transcript.model_provider, enabled: !!data });
   const { data: myGroups } = useGroups();
+  const { isLoading: sessionLoading, isLoggedIn } = useAuth();
 
   const pendingReviews = useMemo<PendingReview[]>(() => {
     if (!data || !myGroups) return [];
@@ -50,30 +55,37 @@ export default function TranscriptDetailPage({
   // thing the throttle's answer exists to avoid.
   if (isApiErrorStatus(error, 429)) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12">
-        <div className="border border-rule bg-surface py-20 text-center flex flex-col gap-2">
-          <p className="font-[family-name:var(--font-display)] text-lg text-ink-2 tracking-tight">
-            Too many access checks just now
-          </p>
-          <p className="text-[13px] text-ink-3">
-            This transcript&apos;s repository is asked whether you may read it, and that has been
-            asked too often in the last few minutes. Try again shortly.
-          </p>
-        </div>
-      </div>
+      <OnPage>
+        <OnEmpty
+          icon={<Clock aria-hidden="true" />}
+          title="too many access checks just now"
+          body="This transcript's repository is asked whether you may read it, and that has been asked too often in the last few minutes. Try again shortly."
+        />
+      </OnPage>
     );
   }
 
-  // Transcript record not found.
+  // Transcript record not found. A transcript the reader may not open answers
+  // the same way, so somebody who is not signed in is offered the one thing
+  // that could change the answer, and returns here afterwards.
   if (!data) {
+    const signedOut = !sessionLoading && !isLoggedIn;
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12">
-        <div className="border border-rule bg-surface py-20 text-center">
-          <p className="font-[family-name:var(--font-display)] text-lg text-ink-3 tracking-tight">
-            Transcript not found
-          </p>
-        </div>
-      </div>
+      <OnPage>
+        <OnEmpty
+          icon={<SearchX aria-hidden="true" />}
+          title="transcript not found"
+          body={signedOut ? "If it was shared with you, sign in to read it." : undefined}
+          testId="transcript-not-found"
+          actions={
+            signedOut ? (
+              <Link href={loginHref(`/transcripts/${id}`)} className="btn btn-primary">
+                sign in
+              </Link>
+            ) : undefined
+          }
+        />
+      </OnPage>
     );
   }
 
@@ -86,21 +98,13 @@ export default function TranscriptDetailPage({
   // needs structured turns. Render a graceful fallback instead of crashing.
   if (!contentLoading && content != null && !isSessionDetailPayload(content)) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12">
-        <div className="border border-rule bg-surface py-16 text-center">
-          <FileX2
-            size={40}
-            strokeWidth={1.5}
-            className="mx-auto text-ink-4 mb-3"
-            aria-hidden
-          />
-          <p className="text-ink font-medium">Unsupported transcript format</p>
-          <p className="text-ink-3 text-sm mt-1 max-w-sm mx-auto">
-            This transcript was published in a legacy format the viewer can no
-            longer render. Re-publish it from the CLI to view it here.
-          </p>
-        </div>
-      </div>
+      <OnPage>
+        <OnEmpty
+          icon={<FileX2 aria-hidden="true" />}
+          title="unsupported transcript format"
+          body="This transcript was published in a format the viewer can no longer render. Publish it again from peasant to read it here."
+        />
+      </OnPage>
     );
   }
 

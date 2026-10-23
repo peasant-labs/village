@@ -61,9 +61,9 @@ describe("mounted transcript edit errors", () => {
       );
 
       await user.click(screen.getByRole("button", { name: "edit transcript" }));
-      const title = await screen.findByPlaceholderText("Untitled");
+      const title = await screen.findByPlaceholderText("untitled");
       fireEvent.change(title, { target: { value: fixture.title } });
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "save" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(fixture.expected);
       expect(fetchMock).toHaveBeenCalledOnce();

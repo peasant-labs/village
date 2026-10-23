@@ -73,7 +73,7 @@ function DialogBody({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-canvas/70 backdrop-blur-sm"
       role="dialog"
       aria-modal
-      aria-label="Edit transcript"
+      aria-label="edit transcript"
       onClick={onClose}
     >
       <form
@@ -82,12 +82,12 @@ function DialogBody({
         className="w-[min(520px,100%)] bg-surface-elev border border-rule-strong shadow-2xl flex flex-col"
       >
         <header className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-rule">
-          <h2 className="font-display text-[14px] font-semibold text-ink">Edit transcript</h2>
+          <h2 className="font-display text-[14px] font-semibold text-ink">edit transcript</h2>
           <button
             type="button"
             onClick={onClose}
             className="p-1 text-ink-3 hover:text-ink focus-mono cursor-pointer"
-            aria-label="Close"
+            aria-label="close"
           >
             <X size={14} strokeWidth={1.75} />
           </button>
@@ -95,13 +95,13 @@ function DialogBody({
 
         <div className="flex flex-col gap-3 p-4">
           <div>
-            <label className="block v2-eyebrow mb-1.5">Title</label>
+            <label className="block v2-eyebrow mb-1.5">title</label>
             <input
               ref={firstFieldRef}
               type="text"
               value={title}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
-              placeholder="Untitled"
+              placeholder="untitled"
               className={cn(
                 "w-full px-2 py-1.5 text-[13px]",
                 "bg-canvas border border-rule text-ink focus-mono",
@@ -110,26 +110,26 @@ function DialogBody({
           </div>
 
           <div>
-            <label className="block v2-eyebrow mb-1.5">Visibility</label>
+            <label className="block v2-eyebrow mb-1.5">visibility</label>
             <div className="flex items-stretch border border-rule">
               <VisibilityButton
                 active={visibility === "private"}
                 onClick={() => setVisibility("private")}
                 icon={<Lock size={12} strokeWidth={1.75} />}
-                label="Private"
-                desc="Only you can view"
+                label="private"
+                desc="only you can view it"
               />
               <VisibilityButton
                 active={visibility === "public"}
                 onClick={() => setVisibility("public")}
                 icon={<Globe size={12} strokeWidth={1.75} />}
-                label="Public"
-                desc="Anyone with the link"
+                label="public"
+                desc="anyone with the link"
               />
             </div>
             {initialVisibility === "shared" && visibility === "shared" && (
               <p className="mt-1.5 text-[11.5px] text-ink-3">
-                Shared with one or more collectives. Choose Private or Public to
+                shared with one or more collectives. choose private or public to
                 override.
               </p>
             )}
@@ -154,7 +154,7 @@ function DialogBody({
               "hover:bg-surface-hover focus-mono transition-colors cursor-pointer",
             )}
           >
-            Cancel
+            cancel
           </button>
           <button
             type="submit"
@@ -166,7 +166,7 @@ function DialogBody({
               "disabled:opacity-60 disabled:cursor-not-allowed",
             )}
           >
-            {update.isPending ? "Saving…" : "Save"}
+            {update.isPending ? "saving" : "save"}
           </button>
         </footer>
       </form>
