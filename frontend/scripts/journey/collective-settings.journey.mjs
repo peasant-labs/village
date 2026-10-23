@@ -47,13 +47,19 @@ test.describe('collective settings', () => {
     await setScenario(request, 'default')
   })
 
-  test('walks the sections from the section list, and draws no check-mode radios', async ({ page, theme }, testInfo) => {
+  test('walks the sections from the sidebar, and draws no check-mode radios', async ({ page, theme }, testInfo) => {
     await page.goto(SETTINGS)
     await expectTheme(page, theme)
 
-    const nav = page.getByRole('navigation', { name: 'settings sections' })
-    await expect(nav.getByRole('link')).toHaveText([`back to ${OWNER.name}`, ...SECTIONS.map((s) => s.label)])
-    await expect(nav.getByRole('link', { name: `back to ${OWNER.name}` })).toHaveAttribute('href', `/collectives/${OWNER.id}`)
+    // Beside the desktop sidebar the sections are the sidebar's own navigation:
+    // the way back to the collective, then the sections. The page's own list is
+    // for a phone, where the sidebar folds into a drawer.
+    const nav = page.getByRole('navigation', { name: 'collective settings' })
+    await expect(nav.getByRole('link')).toHaveText(SECTIONS.map((s) => s.label))
+    const back = page.getByRole('navigation', { name: 'back' }).getByRole('link')
+    await expect(back).toHaveText(OWNER.name)
+    await expect(back).toHaveAttribute('href', `/collectives/${OWNER.id}`)
+    await expect(page.getByRole('navigation', { name: 'settings sections' })).toBeHidden()
     await expectComputedTokens(page, '.on-settings', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })
     await still(page, testInfo, 'collective-settings')
     writeFileSync(testInfo.outputPath('settings-aria.yml'), await page.locator('.on-settings').ariaSnapshot())
@@ -76,6 +82,18 @@ test.describe('collective settings', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('members')
     // An invite in an earlier journey adds to the member list the mock's reset starts from, so the line counts whoever is there.
     await expect(page.locator('.on-split p')).toHaveText(/^\d+ people\. invite by github username\.$/)
+  })
+
+  test('keeps its own section list on a phone, where the sidebar is a drawer', async ({ page, theme }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(SETTINGS)
+    await expectTheme(page, theme)
+    const inline = page.getByRole('navigation', { name: 'settings sections' })
+    await expect(inline.getByRole('link')).toHaveText([`back to ${OWNER.name}`, ...SECTIONS.map((s) => s.label)])
+    await inline.getByRole('link', { name: 'members', exact: true }).click()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('members')
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(0)
   })
 
   test('edits a text field only after edit, and saves it', async ({ page, theme }, testInfo) => {

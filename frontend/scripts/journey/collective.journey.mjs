@@ -67,7 +67,7 @@ test.describe('collectives', () => {
     await still(page, testInfo, 'collectives-list')
     await record(page, testInfo, table, 'collectives-list')
 
-    await expect(page.getByRole('link', { name: 'discover', exact: true })).toHaveAttribute('href', '/discover')
+    await expect(page.getByTestId('collectives-page').getByRole('link', { name: 'discover', exact: true })).toHaveAttribute('href', '/discover')
     await table.getByRole('link', { name: OWNER.name, exact: true }).click()
     await expect(page).toHaveURL(new RegExp(`/collectives/${OWNER.id}$`))
   })

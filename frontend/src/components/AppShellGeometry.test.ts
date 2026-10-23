@@ -15,7 +15,7 @@ const fixture = YAML.parse(
 ) as GeometryFixture;
 
 describe('app shell geometry', () => {
-  it('uses one shell header height for the navbar, main offset, and transcript bound', () => {
+  it('uses one shell header height for the public bar, the signed-in shell, and the transcript bound', () => {
     expect(fixture.consumers).toHaveLength(3);
     const globals = readFileSync(resolve(process.cwd(), 'src/app/globals.css'), 'utf8');
     expect(globals).toContain(`${fixture.variable}: ${fixture.value}`);

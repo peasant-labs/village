@@ -144,7 +144,7 @@ manageAccessCases:
     collective: ML Reading Group
     answer: 200
     expectRequest: POST /transcripts/{transcriptId}/share {"group_ids":["44444444-4444-4444-8444-444444444444"]}
-    expectAccess: [Acme Platform, Acme Company, "ML Reading Group · adding · waits for approval"]
+    expectAccess: [Acme Platform, Acme Company, "ML Reading Group · adding, waits for approval"]
     expectAccessCaption: "who can read it: Acme Platform, Acme Company"
     expectMessage: null
 

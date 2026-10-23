@@ -265,7 +265,7 @@ export default function GroupSettingsPage({
         </div>
       )}
       <div className="on-settings">
-        <nav aria-label="settings sections">
+        <nav aria-label="settings sections" className="on-settings-inline">
           <Link href={`/collectives/${id}`} className="on-settings-back">
             <ArrowLeft aria-hidden="true" />
             <span>back to {group.name}</span>

@@ -425,7 +425,7 @@ export const SettingGroup = FtSettingGroup as ComponentType<
  *   a polite live region says "copied". It renders nothing without a clipboard
  *   (an insecure context), so the link beside it stays the way to copy by hand.
  * AccessList — who can read a transcript: one row per collective with a named
- *   remove button. A row can be marked pending ("adding · waits for approval").
+ *   remove button. A row can be marked pending ("adding, waits for approval").
  * CollectivePicker — search plus suggestions for adding a collective. The host
  *   searches and passes the results; the picker reports the query and the choice.
  */

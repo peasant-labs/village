@@ -4,7 +4,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import SettingsRoute from "@/app/settings/page";
-import Navbar from "@/components/layout/Navbar";
+import AppFrame from "@/components/shell/AppFrame";
 import { SETTINGS_VIEWER, type SettingsCase } from "@/test/accountSettingsFixtures";
 import type { User } from "@/lib/types";
 
@@ -208,9 +208,9 @@ export function renderSettingsRoute(): Promise<QueryClient> {
   return renderWithProviders(<SettingsRoute />);
 }
 
-/** Renders the real header, whose account menu leads to the settings route. */
+/** Renders the real app chrome, whose account menu leads to the settings route. */
 export function renderHeader(): Promise<QueryClient> {
-  return renderWithProviders(<Navbar />);
+  return renderWithProviders(<AppFrame>{null}</AppFrame>);
 }
 
 /** Shared teardown; call once at module scope in each mounted-settings test file. */

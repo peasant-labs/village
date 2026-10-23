@@ -16,6 +16,7 @@ const routePush = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: routePush, replace: vi.fn() }),
   usePathname: () => "/settings",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const { cases } = loadAccountSettingsFixtures();

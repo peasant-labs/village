@@ -28,7 +28,7 @@ for (const testCase of loadManageAccessAccountFixtures()) {
     const client = await renderProductionRoute(metadata.transcript.id, "", { signedIn: true });
     const earlierDialog = await openAccess();
     await within(earlierDialog).findByText(privateCollective);
-    await within(earlierDialog).findByText("adding · waits for approval");
+    await within(earlierDialog).findByText("adding, waits for approval");
     cleanup();
 
     const nextViewer = testCase.change === "actor" ? { ...viewer, id: "current-owner", github_username: "CurrentOwner" } : viewer;
