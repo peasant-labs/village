@@ -4,7 +4,7 @@ import { collectiveTone } from "@/lib/collectiveTone";
 
 /**
  * The frame every online page body sits in: one column, generous air above and
- * below, and the board's 28px rhythm between its parts.
+ * below, and an even rhythm between its parts.
  */
 export function OnPage({
   children,

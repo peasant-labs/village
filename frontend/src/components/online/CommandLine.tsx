@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 /**
  * One terminal command with a copy button beside it. The button says what
@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
  */
 export default function CommandLine({ command }: { command: string }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  const commandId = useId();
 
   useEffect(() => {
     if (state === "idle") return;
@@ -27,8 +28,9 @@ export default function CommandLine({ command }: { command: string }) {
 
   return (
     <div className="on-cmdline">
-      <code>{command}</code>
-      <button type="button" className="btn btn-secondary" onClick={() => void copy()} aria-label={`copy ${command}`}>
+      <code id={commandId}>{command}</code>
+      {/* The button says what it does; the command it copies is its description. */}
+      <button type="button" className="btn btn-secondary" onClick={() => void copy()} aria-describedby={commandId}>
         <span aria-live="polite">{state === "copied" ? "copied" : state === "failed" ? "copy failed" : "copy"}</span>
       </button>
     </div>

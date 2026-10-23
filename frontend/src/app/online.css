@@ -56,6 +56,7 @@
 
 .on-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: calc(var(--sp-5) + var(--sp-1));
   align-content: start;
   width: 100%;
@@ -67,6 +68,32 @@
 }
 .on-page > * {
   min-width: 0;
+}
+/* fairtrade's base frames every bare section as a centred band; inside a page
+   body a section is just a group of parts */
+:where(.on-page) section {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+/* fairtrade's base lowercases every h1 to h3. The headings here write their
+   chrome in lowercase already, and some carry user content (a collective's or a
+   pull request's name), which keeps its own case. */
+.on-title,
+.on-h2,
+.on-recent-label,
+.on-empty h2,
+.on-empty h3,
+.on-card h2,
+.on-card h3,
+.on-prcard h1,
+.on-prcard h2,
+.on-done h3,
+.on-danger h2,
+.on-danger h3,
+.on-login-card h1,
+.on-keep-case {
+  text-transform: none;
 }
 .on-page.is-tight {
   padding-top: calc(var(--sp-7) + var(--sp-2));
@@ -108,11 +135,29 @@
 }
 
 .on-head {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--sp-4) var(--sp-5);
+}
+.on-head > .on-title {
+  grid-column: 1;
+}
+.on-head > .on-actions {
+  grid-column: 2;
+  justify-self: end;
+}
+.on-head > .on-lede {
+  grid-column: 1 / -1;
+}
+@media (max-width: 767px) {
+  .on-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .on-head > .on-actions {
+    grid-column: 1;
+    justify-self: start;
+  }
 }
 .on-title {
   margin: 0;
@@ -175,6 +220,7 @@
 }
 .on-section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-4);
   min-width: 0;
 }
@@ -222,9 +268,12 @@
 .on-stat {
   display: grid;
   gap: var(--sp-1);
-  padding: calc(var(--sp-4) + var(--sp-1)) 0;
+  padding: calc(var(--sp-4) + var(--sp-1)) var(--sp-3) calc(var(--sp-4) + var(--sp-1)) 0;
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
+.on-stat b,
 .on-stat dd {
   margin: 0;
   order: -1;
@@ -235,6 +284,7 @@
   color: var(--ink-strong);
   font-variant-numeric: tabular-nums;
 }
+.on-stat > span,
 .on-stat dt {
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
@@ -317,6 +367,7 @@
 /* ---------- toolbar, search, view menus ---------- */
 
 .on-tools {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -394,11 +445,18 @@
   right: 0;
   transform-origin: top right;
 }
+/* on a phone a view menu opens under the whole toolbar, so it can never run
+   off the right edge whichever button opened it */
 @media (max-width: 767px) {
-  .on-ctl.is-end .on-menu {
+  .on-tools .on-ctl {
+    position: static;
+  }
+  .on-tools .on-menu,
+  .on-tools .on-ctl.is-end .on-menu {
     left: 0;
-    right: auto;
-    transform-origin: top left;
+    right: 0;
+    max-width: none;
+    transform-origin: top center;
   }
 }
 @keyframes on-pop {
@@ -674,6 +732,39 @@
     text-underline-offset: 3px;
   }
 }
+.on-cell-link {
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.on-cell-link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+@media (hover: hover) and (pointer: fine) {
+  .on-cell-link:hover {
+    color: var(--ink-strong);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+.on-sub {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
+  color: var(--ink-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* the home table's optional columns; the title takes what is left */
+.on-col-project { width: 15%; }
+.on-col-readers { width: 18%; }
+.on-col-agent { width: 11rem; }
+.on-col-pullRequests { width: 10rem; }
+.on-col-turns { width: 6rem; }
+.on-col-when { width: 9.5rem; }
 .on-agent {
   display: inline-flex;
   align-items: center;
@@ -938,12 +1029,14 @@
   background: var(--surface);
   box-sizing: border-box;
 }
+/* a long command wraps rather than scrolling, so the line is never a
+   keyboard-unreachable scroller; the copy button copies it whole */
 .on-cmdline code {
   flex: 1;
   min-width: 0;
   padding: calc(var(--sp-2) + 2px) 0;
-  overflow-x: auto;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   background: transparent;
   font-family: var(--font-mono);
   font-size: var(--fs-body);
@@ -974,6 +1067,23 @@
 }
 .on-notice[data-tone="danger"] {
   border-color: var(--clay);
+}
+.on-waiting {
+  display: grid;
+  justify-content: stretch;
+  gap: var(--sp-2);
+}
+.on-waiting h2 {
+  margin: 0;
+  text-transform: none;
+}
+.on-waiting ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--sp-1);
+  color: var(--ink-2);
 }
 
 /* ---------- choices, fields, settings ---------- */
@@ -1368,9 +1478,9 @@ textarea.on-input {
   list-style: none;
 }
 .on-card {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--sp-4);
-  align-content: start;
   height: 100%;
   box-sizing: border-box;
   padding: var(--sp-5);
@@ -1413,7 +1523,8 @@ textarea.on-input {
   justify-content: space-between;
   align-items: center;
   gap: var(--sp-3);
-  margin-top: var(--sp-1);
+  margin-top: auto;
+  padding-top: var(--sp-1);
 }
 .on-chrome {
   font-family: var(--font-mono);
@@ -1530,7 +1641,7 @@ textarea.on-input {
   align-items: center;
   gap: var(--sp-3) var(--sp-5);
   max-width: var(--on-page-max);
-  min-height: calc(var(--sp-8) + var(--sp-2));
+  min-height: var(--app-header-height);
   margin-inline: auto;
   padding: calc(var(--sp-2) + 2px) var(--sp-6);
   box-sizing: border-box;
@@ -1627,6 +1738,9 @@ textarea.on-input {
 .on-login-card {
   display: grid;
   width: min(27.5rem, 100%);
+  max-width: none;
+  margin: 0;
+  padding: 0;
   border: 1px solid var(--rule-strong);
   background: var(--surface);
 }
@@ -1659,6 +1773,16 @@ textarea.on-input {
   gap: calc(var(--sp-4) + var(--sp-1));
   padding: var(--sp-5);
 }
+.on-login-body .si-split,
+.on-login-body .si-split-row {
+  display: flex;
+  width: 100%;
+}
+.on-login-body .si-split-primary {
+  flex: 1;
+  justify-content: center;
+  min-height: var(--target-comfortable);
+}
 .on-login-body .btn {
   width: 100%;
   height: auto;
@@ -1670,8 +1794,80 @@ textarea.on-input {
   height: var(--ic-lg);
 }
 .on-login-body code {
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: var(--fs-sm);
   background: var(--surface-2);
   padding: 0 var(--sp-1);
+}
+
+/* ---------- the signed-in shell around fairtrade's sidebar ---------- */
+
+/* the transcript page bounds itself to the viewport below whatever bar sits
+   above it: none beside the desktop sidebar, the sidebar's own top bar on a
+   phone */
+.on-shell {
+  --app-header-height: 0px;
+}
+@media (width < 768px) {
+  .on-shell {
+    --app-header-height: var(--nav-h);
+  }
+}
+.on-me {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.on-me .menu-anchor {
+  flex: 1;
+  min-width: 0;
+}
+.on-me .menu-trigger {
+  width: 100%;
+  justify-content: flex-start;
+  border-color: transparent;
+  padding-inline: var(--sp-2);
+}
+/* the account row sits at the foot of the sidebar, so its menu opens upward */
+.on-me .menu-pop.menu-float {
+  top: auto;
+  bottom: calc(100% + var(--sp-1));
+}
+.on-me-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.on-me-handle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: none;
+}
+.asb[data-collapsed="true"] .on-me {
+  flex-direction: column;
+}
+.asb[data-collapsed="true"] .on-me-handle,
+.asb[data-collapsed="true"] .on-me .menu-caret {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.asb[data-collapsed="true"] .on-me .menu-trigger {
+  justify-content: center;
+  padding: 0;
+}
+/* a collective's settings sections live in the sidebar beside the page; the
+   page keeps its own list only where the sidebar folds into a drawer */
+@media (width >= 768px) {
+  .on-shell .on-settings > nav.on-settings-inline {
+    display: none;
+  }
 }

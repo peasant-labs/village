@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
 
 /**
@@ -48,10 +48,7 @@ export function ViewMenu({
       if (boxRef.current && !boxRef.current.contains(event.target as Node)) setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-        buttonRef.current?.focus();
-      }
+      if (event.key === "Escape") setOpen(false);
     };
     document.addEventListener("pointerdown", onDown);
     document.addEventListener("keydown", onKey);
@@ -61,10 +58,21 @@ export function ViewMenu({
     };
   }, [open]);
 
-  const close = () => {
-    setOpen(false);
-    buttonRef.current?.focus();
-  };
+  const close = useCallback(() => setOpen(false), []);
+
+  // Closing from inside the panel (a choice, or Escape) unmounts the row that
+  // had focus, so focus goes back to the button. A click elsewhere keeps the
+  // focus where the person put it.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !open) {
+      const active = document.activeElement;
+      if (active == null || active === document.body || boxRef.current?.contains(active)) {
+        buttonRef.current?.focus();
+      }
+    }
+    wasOpen.current = open;
+  }, [open]);
 
   return (
     <div className={align === "end" ? "on-ctl is-end" : "on-ctl"} ref={boxRef} data-testid={testId}>
