@@ -67,7 +67,7 @@ export function getAuthHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-const AUTH_COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+export const AUTH_COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
 /**
  * The auth cookie's `domain` attribute, or undefined for a host-only cookie.

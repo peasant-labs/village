@@ -1,0 +1,64 @@
+# Case corpus for `src/onlineHint.test.tsx`: the hint cookie that tells the
+# marketing site somebody is signed in to the online app. It holds the handle
+# only, on the domain the two sites share, and nowhere else.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/onlineHintFixtures.ts`.
+
+# Which domain the hint is set on, from the app's host and the marketing site's
+# address. null: the sites share no domain, so no hint is written.
+domainCases:
+  - name: the-hosted-app-shares-the-marketing-domain
+    why: the online app is a subdomain of the marketing site, so both read a cookie on the marketing domain.
+    appHost: village.peasantlabs.org
+    marketingUrl: https://peasantlabs.org
+    expect: peasantlabs.org
+  - name: a-www-marketing-site-shares-its-bare-domain
+    why: the marketing site served from www still shares its bare domain with the app.
+    appHost: village.peasantlabs.org
+    marketingUrl: https://www.peasantlabs.org
+    expect: peasantlabs.org
+  - name: a-look-alike-host-shares-nothing
+    why: a host that merely ends in the same letters is another site, and must never receive the hint.
+    appHost: villagepeasantlabs.org
+    marketingUrl: https://peasantlabs.org
+    expect: null
+  - name: a-local-app-shares-nothing
+    why: an app on this computer shares no domain with the hosted marketing site.
+    appHost: localhost
+    marketingUrl: https://peasantlabs.org
+    expect: null
+  - name: a-local-marketing-site-shares-nothing
+    why: a single-label host is no domain a cookie can be shared on.
+    appHost: localhost
+    marketingUrl: http://localhost:3200
+    expect: null
+
+# The cookie assignment for a handle, or for clearing the hint (handle null).
+cookieCases:
+  - name: a-handle-is-written-for-the-session-length
+    why: the hint names the person and lives as long as the session cookie, on the shared domain only.
+    handle: alice-dev
+    domain: peasantlabs.org
+    expect: "peasant_online=alice-dev; max-age=604800; path=/; domain=peasantlabs.org; secure; samesite=lax"
+  - name: no-handle-clears-the-hint
+    why: signing out, or a server that names nobody, clears the hint at once.
+    handle: null
+    domain: peasantlabs.org
+    expect: "peasant_online=; max-age=0; path=/; domain=peasantlabs.org; secure; samesite=lax"
+
+# What the app writes once `GET /auth/me` answers. `expectWrites` lists each
+# write in order: a handle sets the hint, null clears it.
+providerCases:
+  - name: a-signed-in-person-is-hinted
+    why: the server named the person, so the marketing site may show them as signed in.
+    meStatus: 200
+    expectWrites: [alice-dev]
+  - name: a-signed-out-answer-clears-the-hint
+    why: the server says nobody is signed in, so a hint left from before must go.
+    meStatus: 401
+    expectWrites: [null]
+  - name: a-failed-read-leaves-the-hint-alone
+    why: a failed read says nothing about who is signed in, so the hint is neither set nor cleared.
+    meStatus: 500
+    expectWrites: []

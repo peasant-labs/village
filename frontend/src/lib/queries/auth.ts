@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient, type MutateOptions } from "@tanstack/react-query";
 import { api, clearAuthTokenCookie, getAuthHeaders } from "../api";
 import { leaveForMarketingSite } from "../marketing";
+import { writeOnlineHint } from "../onlineHint";
 import type { User } from "../types";
 
 export function useMe() {
@@ -26,6 +27,7 @@ export function useLogout() {
     mutationFn: () => api("/auth/logout", { method: "POST" }),
     onSuccess: () => {
       clearAuthTokenCookie();
+      writeOnlineHint(null);
       qc.clear();
       // Signed out, the app has nothing to show: the marketing site is home.
       leaveForMarketingSite();
@@ -39,6 +41,7 @@ export function useDeleteAccount() {
     mutationFn: () => api("/auth/me", { method: "DELETE" }),
     onSuccess: () => {
       clearAuthTokenCookie();
+      writeOnlineHint(null);
       qc.clear();
       leaveForMarketingSite();
     },
