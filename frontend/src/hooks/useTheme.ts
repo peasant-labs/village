@@ -69,12 +69,15 @@ export function useTheme() {
     document.documentElement.setAttribute("data-theme", currentTheme());
   }, [theme]);
 
-  const toggle = useCallback(() => {
-    const next: Theme = currentTheme() === "light" ? "dark" : "light";
+  const setTheme = useCallback((next: Theme) => {
     storeTheme(next);
     document.documentElement.setAttribute("data-theme", next);
     window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }, []);
 
-  return { theme, toggle };
+  const toggle = useCallback(() => {
+    setTheme(currentTheme() === "light" ? "dark" : "light");
+  }, [setTheme]);
+
+  return { theme, setTheme, toggle };
 }

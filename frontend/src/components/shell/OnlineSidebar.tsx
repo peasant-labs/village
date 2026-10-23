@@ -5,18 +5,22 @@ import { usePathname } from "next/navigation";
 import { Compass, GitPullRequest, Home, Users } from "lucide-react";
 import { AppSidebar } from "@peasant-labs/fairtrade/ui";
 import { useGroups } from "@/lib/queries/groups";
+import { useTheme } from "@/hooks/useTheme";
 import { collectiveToneColor } from "@/lib/collectiveTone";
 import { DOCS_URL } from "@/lib/appLinks";
 import AccountMenu from "@/components/shell/AccountMenu";
 import type { User } from "@/lib/types";
 
 /**
- * The app switcher: only the docs, which open outside the app. The app does
- * not list itself (the sidebar already is this app), and the local app is not
- * offered from here: it runs on the person's own computer and is reached from
- * there.
+ * The app switcher: the docs, which open in a new tab, and the community,
+ * which is not open yet and says "soon". The app does not list itself (the
+ * sidebar already is this app), and the local app is not offered from here:
+ * it runs on the person's own computer and is reached from there.
  */
-const APPS = [{ id: "docs", label: "docs", href: DOCS_URL, target: "_blank", rel: "noopener noreferrer" }];
+const APPS = [
+  { id: "docs", label: "docs", href: DOCS_URL },
+  { id: "community", label: "community", tag: "soon" },
+];
 
 /** Where the sidebar marks you: the item for the page you are on, or none. */
 export function currentItemFor(pathname: string, collectiveIds: ReadonlySet<string>): string | undefined {
@@ -34,8 +38,9 @@ export function currentItemFor(pathname: string, collectiveIds: ReadonlySet<stri
 /**
  * The signed-in app's sidebar, from fairtrade: the sections, the collectives
  * the person belongs to (each with its colour), the app switcher and the
- * person's own corner. It is the same on every page: a settings page keeps its
- * sections in a bar of its own inside the page body, as `/settings` does.
+ * footer: the theme switch, then the person's own corner. It is the same on
+ * every page: a settings page keeps its sections in a bar of its own inside the
+ * page body, as `/settings` does.
  *
  * While the session read is in flight there is no person yet, so the corner
  * that names them is left out until it answers.
@@ -47,6 +52,7 @@ export function currentItemFor(pathname: string, collectiveIds: ReadonlySet<stri
  */
 export default function OnlineSidebar({ user }: { user: User | null }) {
   const pathname = usePathname();
+  const { theme, setTheme } = useTheme();
   const collectives = useGroups();
   const mine = collectives.data ?? [];
   const ids = new Set(mine.map((c) => c.id));
@@ -81,6 +87,8 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
       homeHref="/"
       LinkComponent={Link}
       storageKey="peasant-online.sidebar"
+      theme={theme}
+      onThemeChange={setTheme}
       accountSlot={user ? <AccountMenu user={user} /> : undefined}
     />
   );

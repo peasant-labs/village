@@ -2,15 +2,14 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Moon, Settings, Sun, UserRound } from "lucide-react";
+import { LogOut, Settings, UserRound } from "lucide-react";
 import { useLogout } from "@/lib/queries/auth";
-import { useTheme } from "@/hooks/useTheme";
 import { Avatar, Dialog, Menu } from "@/lib/ft-ui";
 
 /**
  * The signed-in person's corner of the chrome: their avatar and handle, which
- * opens a menu holding their profile, their settings and sign out, and the
- * theme switch beside it.
+ * opens a menu holding their profile, their settings and sign out. The theme
+ * switch is the sidebar's own, above this corner.
  *
  * The design system's `Menu` owns the trigger, the popout and the keyboard
  * behaviour; the trigger reads as the person rather than as a generic
@@ -20,7 +19,6 @@ import { Avatar, Dialog, Menu } from "@/lib/ft-ui";
 export default function AccountMenu({ user }: { user: { github_username: string; avatar_url: string | null } }) {
   const router = useRouter();
   const logout = useLogout();
-  const { theme, toggle } = useTheme();
   const handle = user.github_username;
   const logoutAdmission = useRef(false);
   const [logoutQueued, setLogoutQueued] = useState(false);
@@ -66,15 +64,6 @@ export default function AccountMenu({ user }: { user: { github_username: string;
           { label: "sign out", icon: LogOut, disabled: logoutQueued || logout.isPending, onSelect: beginLogout },
         ]}
       />
-      <button
-        type="button"
-        className="on-icon-btn on-me-theme"
-        onClick={toggle}
-        aria-label={`switch to ${theme === "light" ? "dark" : "light"} mode`}
-        title={`switch to ${theme === "light" ? "dark" : "light"} mode`}
-      >
-        {theme === "light" ? <Moon aria-hidden /> : <Sun aria-hidden />}
-      </button>
       <Dialog
         open={logoutOpen}
         onClose={() => setLogoutOpen(false)}

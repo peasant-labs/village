@@ -102,7 +102,7 @@ describe("mounted sidebar: the person's collectives", () => {
 });
 
 describe("mounted sidebar: the other apps", () => {
-  it("offers only the docs, in a new tab, and never lists this app or the local one", async () => {
+  it("offers the docs in a new tab and the community as soon, never this app or the local one", async () => {
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/");
     await chromeSettled("sections");
@@ -112,12 +112,14 @@ describe("mounted sidebar: the other apps", () => {
     // app runs on the person's own computer, so it is not offered from here.
     expect(within(apps).queryByText("online")).toBeNull();
     expect(within(apps).queryByText("local")).toBeNull();
+    // The docs are the one way out; the community is named but not open yet.
     expect(within(apps).getAllByRole("link")).toHaveLength(1);
     const docs = within(apps).getByRole("link", { name: /^docs/ });
     expect(docs).toHaveAttribute("href", DOCS_URL);
     expect(docs).toHaveAttribute("href", "https://peasantlabs.org/docs");
     expect(docs).toHaveAttribute("target", "_blank");
     expect(docs).toHaveTextContent("opens in a new tab");
+    expect(apps).toHaveTextContent(/community\s*soon/);
     // The docs are offered once, in the switcher, not again among the sections.
     expect(screen.getAllByRole("link", { name: /^docs/ })).toHaveLength(1);
   });
@@ -163,7 +165,7 @@ describe("mounted sidebar: the account menu", () => {
     });
   }
 
-  it("switches the theme from the account corner", async () => {
+  it("switches the theme from the sidebar's footer", async () => {
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/");
     await chromeSettled("sections");
