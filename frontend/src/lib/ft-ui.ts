@@ -99,8 +99,13 @@ export const Select = FtSelect as ComponentType<
  *  - `Toast` — the one-line result of an action on the collective pages
  *    (saved, or what went wrong), with its own status or alert role.
  *  - `Segmented` — one track of mutually exclusive options (aria-pressed).
+ *  - `AppPage` — the frame for one page beside the app sidebar: the full
+ *    width of the main column, the same padding on the left and the right.
+ *  - `SettingsLayout` — a settings page body: fairtrade's settings section
+ *    bar beside the sections on a wide page, above them on a narrow one.
  */
 export {
+  AppPage,
   Card,
   Chip,
   DataTable,
@@ -110,6 +115,7 @@ export {
   ProviderTag,
   Segmented,
   SessionGroupDisclosure,
+  SettingsLayout,
   Tag,
   Toast,
   Tooltip,

@@ -5,7 +5,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft,
   Github,
   GitPullRequest,
   KeyRound,
@@ -16,7 +15,7 @@ import {
   UserMinus,
   Users,
 } from "lucide-react";
-import { ConsentDialog, Dialog, RepoPicker, Toast } from "@/lib/ft-ui";
+import { ConsentDialog, Dialog, RepoPicker, SettingsLayout, Toast } from "@/lib/ft-ui";
 import { OnCrumb, OnEmpty, OnPage } from "@/components/online/Page";
 import {
   useAddGroupMember,
@@ -263,29 +262,19 @@ export default function GroupSettingsPage({
           </Toast>
         </div>
       )}
-      <div className="on-settings">
-        <nav aria-label="settings sections" className="on-settings-inline">
-          <Link href={`/collectives/${id}`} className="on-settings-back">
-            <ArrowLeft aria-hidden="true" />
-            <span>back to {group.name}</span>
-          </Link>
-          {SETTINGS_SECTIONS.map((entry) => {
-            const Icon = SECTION_ICONS[entry.id];
-            return (
-              <Link
-                key={entry.id}
-                href={settingsSectionHref(id, entry.id)}
-                aria-current={entry.id === section.id ? "page" : undefined}
-              >
-                <Icon aria-hidden="true" />
-                {entry.label}
-              </Link>
-            );
-          })}
-          <p className="on-cap">changes save right away.</p>
-        </nav>
-        <div className="on-settings-body">{body}</div>
-      </div>
+      <SettingsLayout
+        sections={SETTINGS_SECTIONS.map((entry) => ({
+          id: entry.id,
+          label: entry.label,
+          href: settingsSectionHref(id, entry.id),
+          icon: SECTION_ICONS[entry.id],
+        }))}
+        currentId={section.id}
+        LinkComponent={Link}
+        bodyClassName="on-settings-body"
+      >
+        {body}
+      </SettingsLayout>
 
       {github.canManage && (
         <RepoPicker

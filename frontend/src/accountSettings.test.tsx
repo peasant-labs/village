@@ -154,7 +154,7 @@ describe("the settings page's frame", () => {
     expect(backend.writes).toEqual([]);
   });
 
-  it("lists every section beside the page, each leading to its own anchor", async () => {
+  it("lists every section in fairtrade's section bar, each leading to its own anchor", async () => {
     installSettingsRouteREST(cases[0]);
     await renderSettingsRoute();
     const nav = await screen.findByRole("navigation", { name: "settings sections" });
@@ -175,8 +175,9 @@ describe("the settings page's frame", () => {
       expect(section, `${id} is a section on the page`).not.toBeNull();
       expect(text(section!.querySelector("h2"))).toBe(text(link));
     }
-    // The first section is the one marked until the reader moves.
-    expect(links[0].getAttribute("aria-current")).toBe("true");
+    // The first section is the one marked until the reader moves: a place on
+    // this page, so its anchor is the current location.
+    expect(links[0].getAttribute("aria-current")).toBe("location");
   });
 });
 

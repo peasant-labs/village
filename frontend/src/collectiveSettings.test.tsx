@@ -161,10 +161,10 @@ describe("the collective settings sections", () => {
     expect(current.map((link) => textOf(link))).toEqual([sectionCase.expectTitle]);
     expect(screen.getByTestId(`settings-${sectionCase.expectSection}`)).toBeInTheDocument();
 
-    // Every section is a link a sidebar could use; the back link returns to the collective.
+    // Every section is a link in fairtrade's section bar, inside the page body;
+    // the breadcrumb is the way back to the collective.
     const base = `/collectives/${world.group.id}/settings`;
     expect(within(nav).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
-      `/collectives/${world.group.id}`,
       base,
       `${base}?section=access`,
       `${base}?section=members`,
@@ -172,7 +172,9 @@ describe("the collective settings sections", () => {
       `${base}?section=pull-requests`,
       `${base}?section=danger`,
     ]);
-    expect(within(nav).getByRole("link", { name: `back to ${world.group.name}` })).toBeInTheDocument();
+    expect(nav.closest(".snav-layout")).not.toBeNull();
+    const crumb = screen.getByRole("navigation", { name: "breadcrumb" });
+    expect(within(crumb).getByRole("link", { name: world.group.name })).toHaveAttribute("href", `/collectives/${world.group.id}`);
   });
 
   it("tells somebody who is not the owner that only the owner can change these settings", async () => {

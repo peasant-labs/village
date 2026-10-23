@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -30,7 +30,7 @@ import {
 import { isApiErrorStatus } from "@/lib/api";
 import { handleTakenMessage } from "@/lib/handle";
 import { formatRelativeTime } from "@/lib/format";
-import { ConfirmInline, SettingRow } from "@/lib/ft-ui";
+import { ConfirmInline, SettingRow, SettingsLayout } from "@/lib/ft-ui";
 import { OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 import RetryButton from "@/components/RetryButton";
 import { loginHref } from "@/lib/signIn";
@@ -45,10 +45,11 @@ import "@/app/online-settings.css";
  * save. A write that fails puts the previous value back and says why beside the
  * control. Every read and write here is a route the server already serves.
  *
- * The sections sit in the online settings layout, with a list of them beside
- * (above, on a phone) so a person can go straight to one. Each section has an
- * anchor (`/settings#pull-requests`), so another page can link to the setting
- * it talks about.
+ * The sections sit in fairtrade's settings layout, with its section bar inside
+ * the page body: beside them on a wide page, a row above them on a narrow one,
+ * so a person can go straight to one. Each section has an anchor
+ * (`/settings#pull-requests`), so another page can link to the setting it
+ * talks about.
  */
 
 /** The page's sections, in order: the anchor each one has, and its icon. */
@@ -59,6 +60,12 @@ const SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "connections", label: "connections", icon: Plug },
   { id: "danger-zone", label: "danger zone", icon: TriangleAlert },
 ];
+
+/**
+ * The same sections as fairtrade's settings section bar takes them: each an
+ * anchor on this page, the one being read marked as the reader scrolls.
+ */
+const NAV_SECTIONS = SECTIONS.map(({ id, label, icon }) => ({ id, label, icon, href: `#${id}` }));
 
 export default function AccountSettingsPage() {
   const { user, isLoading, isLoggedIn } = useAuth();
@@ -145,9 +152,7 @@ function Settings({ user }: { user: User }) {
   return (
     <OnPage testId="settings-page">
       <OnHead title="your settings" />
-      <div className="on-settings">
-        <SectionNav />
-        <div className="on-settings-body">
+      <SettingsLayout sections={NAV_SECTIONS} currentId={SECTIONS[0].id} spy bodyClassName="on-settings-body">
           <Section id="profile" title="profile" testId="settings-profile">
             <SettingRow
               label="handle"
@@ -273,53 +278,8 @@ function Settings({ user }: { user: User }) {
           </Section>
 
           <DangerZone />
-        </div>
-      </div>
+      </SettingsLayout>
     </OnPage>
-  );
-}
-
-/**
- * The list of sections beside the page, each an anchor to its section. The one
- * the reader is in is marked as they scroll, where the browser can say which
- * that is; without that, the list still takes them to each section.
- */
-function SectionNav() {
-  const [active, setActive] = useState<string>(SECTIONS[0].id);
-  useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return;
-    const showing = new Map<string, boolean>();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) showing.set(entry.target.id, entry.isIntersecting);
-        const first = SECTIONS.find((section) => showing.get(section.id));
-        if (first) setActive(first.id);
-      },
-      // A section counts as the one being read while it crosses the upper
-      // part of the window, under the header.
-      { rootMargin: "-15% 0px -65% 0px" },
-    );
-    for (const { id } of SECTIONS) {
-      const section = document.getElementById(id);
-      if (section) observer.observe(section);
-    }
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <nav className="on-acct-nav" aria-label="settings sections">
-      {SECTIONS.map(({ id, label, icon: Icon }) => (
-        <a
-          key={id}
-          href={`#${id}`}
-          aria-current={active === id ? "true" : undefined}
-          onClick={() => setActive(id)}
-        >
-          <Icon aria-hidden="true" />
-          {label}
-        </a>
-      ))}
-    </nav>
   );
 }
 

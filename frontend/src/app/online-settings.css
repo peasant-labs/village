@@ -1,31 +1,11 @@
 /* ============================================
    peasant online: your settings.
 
-   The account settings page in the `on-settings` layout from online.css: an
-   in-page section list beside the sections themselves. Each section holds
+   The account settings page in fairtrade's settings layout: its section bar
+   inside the page body, beside the sections or above them. Each section holds
    fairtrade's own setting rows (`srow`), which keep their save-as-you-go
    behaviour; this sheet only frames them. Every value reads a fairtrade token.
    ============================================ */
-
-/* The section list follows the reader down the page on a wide screen. */
-@media (min-width: 768px) {
-  .on-settings > nav.on-acct-nav {
-    position: sticky;
-    top: calc(var(--app-header-height, 0px) + var(--sp-5));
-  }
-}
-/* On a phone the list wraps into a few short rows above the sections, rather
-   than a tall column the reader has to scroll past first. */
-@media (max-width: 767px) {
-  .on-settings > nav.on-acct-nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--sp-1);
-  }
-  .on-settings > nav.on-acct-nav a {
-    border: 1px solid var(--rule);
-  }
-}
 
 /* fairtrade's base sheet caps and centres every <section>; here a section is
    one block of the settings column. */
