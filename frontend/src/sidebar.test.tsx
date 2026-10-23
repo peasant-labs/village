@@ -117,7 +117,7 @@ describe("mounted sidebar: the other apps", () => {
     expect(docs).toHaveAttribute("href", DOCS_URL);
     expect(docs).toHaveAttribute("href", "https://peasantlabs.org/docs");
     expect(docs).toHaveAttribute("target", "_blank");
-    expect(docs).toHaveTextContent("opens outside this app");
+    expect(docs).toHaveTextContent("opens in a new tab");
     // The docs are offered once, in the switcher, not again among the sections.
     expect(screen.getAllByRole("link", { name: /^docs/ })).toHaveLength(1);
   });

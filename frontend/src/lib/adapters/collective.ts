@@ -15,11 +15,7 @@ import {
   type VillageCollectiveSearchResult,
   type VillageUpdateGroupRequest,
 } from "@peasant-labs/schema";
-import type {
-  CollectiveDetailView,
-  CollectiveSettingsView,
-  CollectivesView,
-} from "@peasant-labs/fairtrade/commons";
+import type { CollectiveDetailView, CollectivesView } from "@peasant-labs/fairtrade/commons";
 import { formatCompact, resolveAttribution } from "@/lib/format";
 import type {
   Group,
@@ -32,11 +28,12 @@ import type {
 
 type ListData = NonNullable<NonNullable<ComponentProps<typeof CollectivesView>>["data"]>;
 type DetailData = NonNullable<NonNullable<ComponentProps<typeof CollectiveDetailView>>["data"]>;
-type SettingsData = NonNullable<NonNullable<ComponentProps<typeof CollectiveSettingsView>>["data"]>;
 
 export type CollectiveRow = NonNullable<ListData["collectives"]>[number];
 export type CollectiveData = NonNullable<DetailData["collective"]>;
-export type PolicyChoice = NonNullable<SettingsData["whoCanPublish"]>[number];
+// The settings view's own data type is untyped from fairtrade 0.0.35; the
+// create form on the collectives view carries the same policy choice type.
+export type PolicyChoice = NonNullable<ListData["whoCanPublish"]>[number];
 export type CollectiveTranscriptRow = NonNullable<CollectiveData["transcripts"]>[number];
 
 /** The caller's standing in a collective, as `GET /collectives/{id}` states it. */
