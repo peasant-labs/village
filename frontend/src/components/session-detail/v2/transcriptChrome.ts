@@ -1,24 +1,12 @@
 import type { adaptTranscript } from '@peasant-labs/fairtrade/ui';
 import { HOME_SECTION } from '@/lib/nav/sections';
+import type { TranscriptContext } from '@/lib/transcriptContext';
 
 /** Same label the explore card (`TranscriptCard.tsx`) shows for a transcript
  *  with no stored title. The hero must show this — never the composite's own
  *  fallback chain, which derives a heading from the first `role: user` turn
  *  and can surface raw harness preamble (village#32). */
 export const UNTITLED_TRANSCRIPT_LABEL = 'Untitled transcript';
-
-/** Breadcrumb crumbs share one line in a fixed-height trail. A stored title
- *  is frequently a whole sentence, so bound it the way fairtrade bounds the
- *  hero title (`TranscriptViewer.jsx`'s `rawTitle`/`cut` guard), at a
- *  shorter, breadcrumb-appropriate length. The `codePointAt` check keeps the
- *  cut from landing inside a surrogate pair (no mojibake before the
- *  ellipsis). */
-export function truncateCrumbLabel(raw: string): string {
-  const MAX = 60;
-  if (raw.length <= MAX) return raw;
-  const cut = (raw.codePointAt(MAX - 2) ?? 0) > 0xffff ? MAX - 2 : MAX - 1;
-  return raw.slice(0, cut).trimEnd() + '…';
-}
 
 type TranscriptViewModel = ReturnType<typeof adaptTranscript>;
 
@@ -74,16 +62,12 @@ export interface TranscriptBreadcrumbInput {
   project: string;
   /** Href to the project page (`/users/{username}/projects/{projectHash}`),
    *  or `null` when the caller cannot build one (missing owner username or
-   *  project hash). When `null` the crumb renders as a label with no link,
-   *  the same degraded-but-visible behavior the crumb already had before a
-   *  project route existed. */
+   *  project hash). When `null` the crumb renders as a label with no link. */
   projectHref: string | null;
-  /** The transcript's raw stored title (untrimmed is fine; trimmed here). */
-  storedTitle: string | null | undefined;
-  /** The real village transcript id — the id in this page's own
-   *  `/transcripts/<id>` URL — used for the short-id fallback. Never
-   *  Peasant's local session id. */
-  transcriptId: string;
+  /** Where the transcript was opened from; home when absent. */
+  context?: TranscriptContext | null;
+  /** The collective's name, for a collective context. */
+  collectiveName?: string | null;
 }
 
 export interface TranscriptBreadcrumbCrumb {
@@ -93,13 +77,12 @@ export interface TranscriptBreadcrumbCrumb {
 
 /**
  * Builds the detail page's host trail through the app router (lowercase
- * chrome): (1) the nav registry's home section, where a transcript is shown
- * now that discovery has left the nav; (2) the resolved project name,
- * linking to `/users/{username}/projects/{projectHash}` when `projectHref`
- * is available; (3) the last crumb, reading the RAW stored title (trimmed,
- * truncated) — not the hero's overlaid "Untitled transcript" placeholder —
- * so an untitled transcript shows the short VILLAGE transcript id instead
- * of repeating "Untitled transcript" three words wide in a breadcrumb.
+ * chrome): the place the transcript was opened from, never the transcript's
+ * own title, which the heading under the trail already shows.
+ *
+ *   home          home, then the project (linking to its page when known)
+ *   a collective  collectives, then the collective
+ *   a pull        pull requests, then owner/repo#n
  *
  * The single call site both `SessionDetailV2` and the dev-only visual
  * harness use, so the two surfaces cannot drift onto independently
@@ -109,15 +92,24 @@ export function buildTranscriptBreadcrumb({
   project,
   projectHref,
   isLoggedIn = true,
-  storedTitle,
-  transcriptId,
+  context,
+  collectiveName,
 }: TranscriptBreadcrumbInput): TranscriptBreadcrumbCrumb[] {
-  const trimmedTitle = storedTitle?.trim() ?? '';
-  const shortVillageId = transcriptId.slice(0, 8);
-  const crumbTitle = trimmedTitle ? truncateCrumbLabel(trimmedTitle) : shortVillageId;
+  if (context?.kind === "collective") {
+    return [
+      { label: "collectives", href: "/collectives" },
+      { label: collectiveName?.trim() || "collective", href: `/collectives/${encodeURIComponent(context.id)}` },
+    ];
+  }
+  if (context?.kind === "pull") {
+    const path = [context.owner, context.name, String(context.number)].map(encodeURIComponent).join("/");
+    return [
+      { label: "pull requests", href: "/pulls" },
+      { label: `${context.owner}/${context.name}#${context.number}`, href: `/pulls/${path}` },
+    ];
+  }
   return [
     { label: HOME_SECTION.label, ...(isLoggedIn ? { href: HOME_SECTION.href } : {}) },
     { label: project, ...(projectHref ? { href: projectHref } : {}) },
-    { label: crumbTitle },
   ];
 }

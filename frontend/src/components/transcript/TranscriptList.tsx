@@ -19,6 +19,7 @@ import { isAgentSession } from "@/lib/sessionOrigin";
 import { useDeleteTranscript } from "@/lib/queries/transcripts";
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
+import { transcriptHref, type TranscriptContext } from "@/lib/transcriptContext";
 
 /**
  * One fact a row can state on the line under its title.
@@ -116,6 +117,9 @@ interface TranscriptListProps {
    *  a surface reading the grouped list response; omitted on a flat list, where
    *  there is nothing to disclose and no request is made. */
   helperGroupSlot?: (item: TranscriptRow) => React.ReactNode;
+  /** Where these rows are listed, carried by each row's link so the
+   *  transcript page marks that place in the sidebar and its trail. */
+  context?: TranscriptContext;
 }
 
 export default function TranscriptList({
@@ -133,6 +137,7 @@ export default function TranscriptList({
   viewerIsPrivileged = false,
   linkOwner = false,
   helperGroupSlot,
+  context,
 }: TranscriptListProps) {
   const { user } = useAuth();
   const viewerId = user?.id;
@@ -154,6 +159,7 @@ export default function TranscriptList({
               selection={selection}
               viewerIsPrivileged={viewerIsPrivileged}
               linkOwner={linkOwner}
+              context={context}
             />
           );
           // A row and the chip of sessions it started are ONE unit of the
@@ -179,6 +185,7 @@ export default function TranscriptList({
                 viewerIsPrivileged={viewerIsPrivileged}
                 linkOwner={linkOwner}
                 helperGroupSlot={helperGroupSlot}
+                context={context}
               />
             </div>
           );
@@ -289,6 +296,7 @@ function Row({
   selection,
   viewerIsPrivileged = false,
   linkOwner = false,
+  context,
 }: {
   item: TranscriptRow;
   canManage: boolean;
@@ -299,6 +307,7 @@ function Row({
   selection?: TranscriptRowSelection;
   viewerIsPrivileged?: boolean;
   linkOwner?: boolean;
+  context?: TranscriptContext;
 }) {
   const { transcript: t, owner, shares } = item;
   const { user: viewer } = useAuth();
@@ -384,7 +393,7 @@ function Row({
           area on the right. The link is absolutely positioned over the row
           and the action cluster sits in front with z-index. */}
       <Link
-        href={`/transcripts/${t.id}`}
+        href={transcriptHref(t.id, context)}
         className="absolute inset-0 focus-mono cursor-pointer"
         aria-label={`open transcript ${displayTitle}`}
       />

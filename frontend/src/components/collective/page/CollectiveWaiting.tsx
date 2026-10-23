@@ -7,6 +7,7 @@ import { relativeWhen } from "@/lib/adapters/collective";
 import { resolveAttribution } from "@/lib/format";
 import type { PendingShare } from "@/lib/review/types";
 import { AgentCell } from "./CollectiveTranscriptsTable";
+import { transcriptHref } from "@/lib/transcriptContext";
 
 /**
  * What waits for the owner's approval in a curated collective, read-only: the
@@ -107,7 +108,7 @@ export default function CollectiveWaiting({
               return (
                 <tr key={row.transcript_id}>
                   <td className="on-ctable-title">
-                    <Link className="is-title" href={`/transcripts/${row.transcript_id}`}>
+                    <Link className="is-title" href={transcriptHref(row.transcript_id, { kind: "collective", id: collectiveId })}>
                       {row.title || "untitled"}
                     </Link>
                     {(row.project_name || row.branch) && (

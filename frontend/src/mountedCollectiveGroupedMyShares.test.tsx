@@ -179,7 +179,7 @@ for (const testCase of fixtures.cases) {
       // The flat contribution this helper belongs to is still its own unshareable
       // row: the grouped exit adds the disclosure, it does not replace the row.
       const flatRowLink = document.querySelector(
-        `a[href="/transcripts/${row.id}"]`,
+        `a[href="/transcripts/${row.id}?in=collective:${GROUP_ID}"]`,
       );
       expect(flatRowLink, "the flat contribution keeps its own row").not.toBeNull();
 
@@ -199,7 +199,7 @@ for (const testCase of fixtures.cases) {
     ).toBeNull();
     const contribution = await waitFor(() => contributionRow(row.id));
     expect(
-      contribution.querySelector(`a[href="/transcripts/${row.id}"]`),
+      contribution.querySelector(`a[href="/transcripts/${row.id}?in=collective:${GROUP_ID}"]`),
       "the contribution still links to its own transcript",
     ).not.toBeNull();
     if (row.status === "pending") {

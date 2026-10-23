@@ -5,6 +5,7 @@ import TranscriptList from "./TranscriptList";
 import { SessionGroupDisclosure } from "@/lib/ft-ui";
 import { childSessionGroupSelectionLabel } from "@/lib/childSessions";
 import type { TranscriptRowFact, TranscriptRowSelection } from "./TranscriptList";
+import type { TranscriptContext } from "@/lib/transcriptContext";
 import type { TranscriptRow } from "@/lib/types";
 
 interface ChildSessionDisclosureProps {
@@ -35,6 +36,8 @@ interface ChildSessionDisclosureProps {
   /** Carried through so a revealed row can disclose the helper groups the
    *  grouped response attached to it, exactly like a top-level row. */
   helperGroupSlot?: (item: TranscriptRow) => React.ReactNode;
+  /** Carried through so a revealed row's link names the same place. */
+  context?: TranscriptContext;
 }
 
 /**
@@ -67,6 +70,7 @@ export default function ChildSessionDisclosure({
   viewerIsPrivileged = false,
   linkOwner = false,
   helperGroupSlot,
+  context,
 }: ChildSessionDisclosureProps) {
   const [expanded, setExpanded] = useState(false);
   // How many of the rows behind this control the viewer has picked out.
@@ -122,6 +126,7 @@ export default function ChildSessionDisclosure({
             viewerIsPrivileged={viewerIsPrivileged}
             linkOwner={linkOwner}
             helperGroupSlot={helperGroupSlot}
+            context={context}
             bare
           />
         </div>

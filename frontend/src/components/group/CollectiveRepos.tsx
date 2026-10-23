@@ -13,6 +13,7 @@ import { ScopedOwnerHelperGroups } from "@/components/transcript/ScopedHelperGro
 import type { GroupTranscript } from "@/lib/types";
 import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
 import { collectiveTranscriptRow, formatCompact, groupByRepo } from "@/lib/format";
+import type { TranscriptContext } from "@/lib/transcriptContext";
 import TranscriptList, {
   type TranscriptRowFact,
 } from "@/components/transcript/TranscriptList";
@@ -27,6 +28,8 @@ interface CollectiveReposProps {
   viewerIsOwner?: boolean;
   helperGroups?: ReadonlyMap<string, HelperGroupSummary[]>;
   onRefreshOrigin?: () => void;
+  /** Where these rows are listed, carried by each row's link. */
+  context?: TranscriptContext;
 }
 
 /**
@@ -66,6 +69,7 @@ export default function CollectiveRepos({
   viewerIsOwner = false,
   helperGroups,
   onRefreshOrigin,
+  context,
 }: CollectiveReposProps) {
   const repoGroups = useMemo(() => groupByRepo(transcripts), [transcripts]);
   // One fold per repository, computed once rather than at each render of an
@@ -197,6 +201,7 @@ export default function CollectiveRepos({
                     facts={REPO_TRANSCRIPT_FACTS}
                     viewerIsPrivileged={viewerIsOwner}
                     hideVisibility
+                    context={context}
                     helperGroupSlot={helperGroups && onRefreshOrigin ? (item) => <ScopedOwnerHelperGroups groups={helperGroups.get(item.transcript.id)} onRefreshOrigin={onRefreshOrigin} /> : undefined}
                     bare
                   />

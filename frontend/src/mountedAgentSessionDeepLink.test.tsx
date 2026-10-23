@@ -98,16 +98,8 @@ describe("mounted transcript route: a direct link opens every session origin", (
         expect(document.body.textContent, `${testCase.name}: turn content`).toContain(content);
       }
 
-      const chip = document.querySelector('[data-testid="agent-session-chip"]');
-      if (testCase.expectChip) {
-        expect(chip, `${testCase.name}: an agent-driven session says so on its own page`).not.toBeNull();
-        expect(chip!.textContent).toBe("agent session");
-      } else {
-        expect(
-          chip,
-          `${testCase.name}: only agent-driven sessions are labelled, so an unclassified one reads like a user session`,
-        ).toBeNull();
-      }
+      // The header carries no origin chip, for any origin.
+      expect(document.querySelector('[data-testid="agent-session-chip"]'), testCase.name).toBeNull();
     });
   }
 });

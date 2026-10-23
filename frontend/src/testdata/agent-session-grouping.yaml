@@ -62,12 +62,12 @@ cases:
     originProvenance: declared
 
 # Cases for the mounted transcript detail route. A direct link opens every
-# transcript whatever its origin; an agent-driven one is labelled rather than
-# hidden, so a viewer who arrived by link sees what the list group told them.
+# transcript whatever its origin. The page's header carries no origin chip:
+# the heading and the turns say what the session is.
 detailCases:
-  - name: agent-session-detail-opens-and-is-labelled
+  - name: agent-session-detail-opens
     sessionOrigin: agent
-    expectChip: true
+    expectChip: false
   - name: user-session-detail-carries-no-label
     sessionOrigin: user
     expectChip: false

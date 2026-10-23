@@ -17,11 +17,17 @@ import type { ChildSessionGroupingCase } from "@/test/childSessionGroupingFixtur
  * invented its own control would fail rather than quietly assert nothing.
  */
 
-/** Every transcript id the given root currently links to, in document order. */
+/** Every transcript id the given root currently links to, in document order.
+ *  A link's query (the turn, the place it is opened from) is not part of the id. */
 export function linkedIDs(root: ParentNode = document): string[] {
   return [...root.querySelectorAll<HTMLAnchorElement>('a[href^="/transcripts/"]')].map((anchor) =>
-    anchor.getAttribute("href")!.replace("/transcripts/", ""),
+    anchor.getAttribute("href")!.replace("/transcripts/", "").split("?")[0],
   );
+}
+
+/** A selector for the links to one transcript, with or without a query. */
+export function transcriptLinkSelector(transcriptID: string): string {
+  return `a[href="/transcripts/${transcriptID}"], a[href^="/transcripts/${transcriptID}?"]`;
 }
 
 /** The expandable control hanging under one row. Not exported: every surface
@@ -51,7 +57,7 @@ export function chippedParentIDs(root: ParentNode = document): string[] {
  * is the element to scope an action lookup to.
  */
 export function rowFor(root: ParentNode, transcriptID: string): HTMLElement {
-  const link = root.querySelector<HTMLAnchorElement>(`a[href^="/transcripts/${transcriptID}"]`);
+  const link = root.querySelector<HTMLAnchorElement>(transcriptLinkSelector(transcriptID));
   if (link == null) throw new Error(`no row links to ${transcriptID}`);
   const row = link.closest("li") ?? link.parentElement;
   if (row == null) throw new Error(`the row linking to ${transcriptID} has no element to scope to`);

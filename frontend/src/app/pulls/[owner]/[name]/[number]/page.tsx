@@ -29,6 +29,7 @@ import type {
 import type { TranscriptCollective, TranscriptDetailResponse } from "@/lib/types";
 import DocsLink from "@/components/online/DocsLink";
 import { DOCS_ATTACH_URL, DOCS_PULL_REQUESTS_URL } from "@/lib/appLinks";
+import { transcriptHref, type TranscriptContext } from "@/lib/transcriptContext";
 import "@/app/online-pulls.css";
 
 /**
@@ -56,15 +57,17 @@ import "@/app/online-pulls.css";
  */
 const GITHUB_HOST = "https://github.com";
 
-/** One chain item's destination: the turn, the transcript, or the commit. */
-function itemHref(item: PromptDigestItem, owner: string, name: string): string {
+/** One chain item's destination: the turn, the transcript, or the commit. A
+ *  transcript link names this pull request as the place it was opened from. */
+function itemHref(item: PromptDigestItem, owner: string, name: string, number: number): string {
   if (item.kind === "commit") {
     return `${GITHUB_HOST}/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/commit/${encodeURIComponent(item.commitSha ?? item.text)}`;
   }
+  const context: TranscriptContext = { kind: "pull", owner, name, number };
   if ((item.kind === "prompt" || item.kind === "skill") && item.turnIndex != null) {
-    return `/transcripts/${item.transcriptId}?turn=${item.turnIndex}`;
+    return transcriptHref(item.transcriptId, context, item.turnIndex);
   }
-  return `/transcripts/${item.transcriptId}`;
+  return transcriptHref(item.transcriptId, context);
 }
 
 /** The transcripts a digest names, once each, in chain order. */
@@ -457,6 +460,12 @@ export default function PullRequestPage({
                   detail={details.get(row.transcriptId) ?? null}
                   audience={rowAudience.get(row.transcriptId) ?? null}
                   onJump={hasSplit ? () => jumpTo(row.splitIndex) : null}
+                  href={transcriptHref(row.transcriptId, {
+                    kind: "pull",
+                    owner: data.attachment.owner,
+                    name: data.attachment.name,
+                    number: data.attachment.number,
+                  })}
                 />
               ))}
             </ul>
@@ -518,7 +527,7 @@ export default function PullRequestPage({
             layout="split"
             selected={selected}
             onSelect={(index) => setSelected(index)}
-            itemHref={(item) => itemHref(item, data.attachment.owner, data.attachment.name)}
+            itemHref={(item) => itemHref(item, data.attachment.owner, data.attachment.name, data.attachment.number)}
             className="border border-rule"
           />
         </section>
@@ -539,11 +548,14 @@ function TranscriptRow({
   detail,
   audience,
   onJump,
+  href,
 }: {
   row: TranscriptRowData;
   detail: TranscriptDetailResponse | null;
   audience: string | null;
   onJump: (() => void) | null;
+  /** The whole transcript, opened from this pull request. */
+  href: string;
 }) {
   const titleId = useId();
   const parts: ReactNode[] = [];
@@ -590,7 +602,7 @@ function TranscriptRow({
     <li className="on-trow2" data-testid="pull-request-transcript" data-transcript-id={row.transcriptId}>
       <span className="on-rail" aria-hidden="true" />
       <div className="on-pr-rowmain">
-        <Link className="is-title" id={titleId} href={`/transcripts/${row.transcriptId}`}>
+        <Link className="is-title" id={titleId} href={href}>
           {row.label}
         </Link>
         {parts.length > 0 && (

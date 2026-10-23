@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Compass, GitPullRequest, Home, Users } from "lucide-react";
 import { AppSidebar } from "@peasant-labs/fairtrade/ui";
 import { useGroups } from "@/lib/queries/groups";
@@ -9,6 +9,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { collectiveToneColor } from "@/lib/collectiveTone";
 import { DOCS_URL } from "@/lib/appLinks";
 import AccountMenu from "@/components/shell/AccountMenu";
+import { CONTEXT_PARAM, parseTranscriptContext, type TranscriptContext } from "@/lib/transcriptContext";
 import type { User } from "@/lib/types";
 
 /**
@@ -22,13 +23,22 @@ const APPS = [
   { id: "community", label: "community", tag: "soon" },
 ];
 
-/** Where the sidebar marks you: the item for the page you are on, or none. */
-export function currentItemFor(pathname: string, collectiveIds: ReadonlySet<string>): string | undefined {
+/** Where the sidebar marks you: the item for the page you are on, or none.
+ *  A transcript marks the place it was opened from (its address's context):
+ *  the collective, pull requests, or home. */
+export function currentItemFor(
+  pathname: string,
+  collectiveIds: ReadonlySet<string>,
+  context: TranscriptContext | null = null,
+): string | undefined {
   if (pathname === "/") return "home";
   if (pathname === "/discover") return "discover";
   if (pathname === "/pulls" || pathname.startsWith("/pulls/")) return "pulls";
-  // A transcript is read from home, so home stays marked under it.
-  if (pathname.startsWith("/transcripts/")) return "home";
+  if (pathname.startsWith("/transcripts/")) {
+    if (context?.kind === "collective") return collectiveIds.has(context.id) ? `collective:${context.id}` : "collectives";
+    if (context?.kind === "pull") return "pulls";
+    return "home";
+  }
   if (pathname === "/collectives") return "collectives";
   const collective = pathname.match(/^\/collectives\/([^/]+)/);
   if (collective) return collectiveIds.has(collective[1]) ? `collective:${collective[1]}` : "collectives";
@@ -52,6 +62,7 @@ export function currentItemFor(pathname: string, collectiveIds: ReadonlySet<stri
  */
 export default function OnlineSidebar({ user }: { user: User | null }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { theme, setTheme } = useTheme();
   const collectives = useGroups();
   const mine = collectives.data ?? [];
@@ -76,7 +87,7 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
       ],
     },
   ];
-  const currentId = currentItemFor(pathname, ids);
+  const currentId = currentItemFor(pathname, ids, parseTranscriptContext(searchParams.get(CONTEXT_PARAM)));
 
   return (
     <AppSidebar

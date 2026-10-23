@@ -283,7 +283,7 @@ describe("a collective's contributions read a started session under the session 
       expect(
         rowElement.querySelector('a[aria-label^="open transcript"]')!.getAttribute("href"),
         `${where} links to the transcript`,
-      ).toBe(`/transcripts/${row.name}`);
+      ).toBe(`/transcripts/${row.name}?in=collective:${GROUP_ID}`);
       expect(
         rowElement.querySelector(`a[href="/users/${row.ownerID}"]`),
         `${where} links the contributor's handle`,

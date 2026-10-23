@@ -12,6 +12,7 @@ import { renderProfileRoute } from "@/test/mountedProfileRoute";
 import { renderProjectRoute } from "@/test/mountedProjectRoute";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import { memberUUID } from "@/test/groupedHelperMountFixtures";
+import { transcriptLinkSelector } from "@/test/childSessionDom";
 import {
   exploreGroupedPayload,
   groupedSurfacePage,
@@ -237,7 +238,7 @@ for (const testCase of fixtures.continuationCases) {
     // The route's own list still renders its row; the grouped read supplements
     // it and removes nothing.
     await waitFor(() =>
-      expect(document.querySelector(`a[href="/transcripts/${ordinaryOwnerUUID(0)}"]`)).not.toBeNull(),
+      expect(document.querySelector(transcriptLinkSelector(ordinaryOwnerUUID(0)))).not.toBeNull(),
     );
 
     // One grouped page was read, on the stated page size, for this owner.

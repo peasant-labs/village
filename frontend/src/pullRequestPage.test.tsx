@@ -298,8 +298,9 @@ describe("the pull request page", () => {
     expect(spoken(first.querySelector(".on-pr-rowmeta"))).toMatch(
       /^@alice-dev, claude-code, 2 turns, 1 commit, \S/,
     );
+    // The title opens the whole transcript from this pull request.
     expect(first.querySelector(".is-title")?.getAttribute("href")).toBe(
-      "/transcripts/11111111-1111-1111-1111-111111111111",
+      `/transcripts/11111111-1111-1111-1111-111111111111?in=pull:${OWNER}/${NAME}/${NUMBER}`,
     );
   });
 
@@ -440,13 +441,19 @@ describe("the pull request page", () => {
 
     // The pane opens the whole transcript on village.
     const open = [...document.querySelectorAll(".pd a")].find((a) => spoken(a) === "open the transcript");
-    expect(open?.getAttribute("href")).toBe("/transcripts/11111111-1111-1111-1111-111111111111");
-    // A prompt opens its exact turn.
+    expect(open?.getAttribute("href")).toBe(
+      `/transcripts/11111111-1111-1111-1111-111111111111?in=pull:${OWNER}/${NAME}/${NUMBER}`,
+    );
+    // A prompt opens its exact turn, from this pull request.
     const turnLinks = [...document.querySelectorAll('.pd a[href*="?turn="]')].map((a) =>
       a.getAttribute("href"),
     );
-    expect(turnLinks).toContain("/transcripts/11111111-1111-1111-1111-111111111111?turn=0");
-    expect(turnLinks).toContain("/transcripts/11111111-1111-1111-1111-111111111111?turn=1");
+    expect(turnLinks).toContain(
+      `/transcripts/11111111-1111-1111-1111-111111111111?turn=0&in=pull:${OWNER}/${NAME}/${NUMBER}`,
+    );
+    expect(turnLinks).toContain(
+      `/transcripts/11111111-1111-1111-1111-111111111111?turn=1&in=pull:${OWNER}/${NAME}/${NUMBER}`,
+    );
     // The commit anchor is the only chain link that leaves village, and it
     // resolves through the attachment's repository.
     const commit = document.querySelector('.pd a[href*="/commit/"]');

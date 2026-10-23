@@ -77,6 +77,37 @@ navCases:
     expectLabels: [home, discover, pull requests, collectives, Acme Platform]
     expectActiveLabel: home
     expectBackHref: null
+  # A transcript marks the place it was opened from, which its address carries
+  # (`?in=`): the person's collective, collectives for one they are not in,
+  # pull requests, or home.
+  - name: a-transcript-opened-from-their-collective-highlights-it
+    isLoggedIn: true
+    pathname: "/transcripts/abc123?in=collective:c011ec71-0000-4000-8000-000000000001"
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
+    expectActiveLabel: Acme Platform
+    expectBackHref: null
+  - name: a-transcript-opened-from-another-collective-highlights-collectives
+    isLoggedIn: true
+    pathname: "/transcripts/abc123?in=collective:acme-elsewhere"
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
+    expectActiveLabel: collectives
+    expectBackHref: null
+  - name: a-transcript-opened-from-a-pull-request-highlights-pull-requests
+    isLoggedIn: true
+    pathname: "/transcripts/abc123?in=pull:acme/app/42&turn=3"
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
+    expectActiveLabel: pull requests
+    expectBackHref: null
+  - name: a-transcript-opened-from-home-highlights-home
+    isLoggedIn: true
+    pathname: "/transcripts/abc123?in=home"
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
+    expectActiveLabel: home
+    expectBackHref: null
   - name: a-pull-request-page-highlights-pull-requests
     isLoggedIn: true
     pathname: "/pulls/acme/app/42"

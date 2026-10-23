@@ -172,7 +172,7 @@ it("home attaches the grouped helper group to its owner row and expands it in pl
   const panel = await screen.findByTestId("home-transcripts");
   // The flat owner row is still the row on screen.
   await waitFor(() =>
-    expect(panel.querySelector(`a[href="/transcripts/${OWNER_ID}"]`)).not.toBeNull(),
+    expect(panel.querySelector(`a[href="/transcripts/${OWNER_ID}?in=home"]`)).not.toBeNull(),
   );
   expect(calls.grouped).toHaveLength(1);
 

@@ -1,0 +1,161 @@
+# Cases for `src/lib/transcriptContext.test.ts`: where a transcript was opened
+# from, as its address carries it (`?in=`), and the trail the transcript page
+# draws for it.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/transcriptContextFixtures.ts`.
+
+# `raw` is the address value; `expect` is the context it names, or null for an
+# address that names none or names it wrongly. A named context also checks
+# that writing it back gives `raw` again.
+parseCases:
+  - name: home
+    raw: home
+    expect: { kind: home }
+  - name: a-collective
+    raw: "collective:c011ec71-0000-4000-8000-000000000001"
+    expect: { kind: collective, id: c011ec71-0000-4000-8000-000000000001 }
+  - name: a-pull-request
+    raw: "pull:acme/app.web/42"
+    expect: { kind: pull, owner: acme, name: app.web, number: 42 }
+  - name: nothing
+    raw: ""
+    expect: null
+  - name: an-unknown-place
+    raw: discover
+    expect: null
+  - name: a-collective-id-with-a-slash
+    raw: "collective:../settings"
+    expect: null
+  - name: a-pull-request-without-a-number
+    raw: "pull:acme/app"
+    expect: null
+  - name: a-pull-request-with-a-zero-number
+    raw: "pull:acme/app/0"
+    expect: null
+  - name: a-pull-request-with-an-extra-segment
+    raw: "pull:acme/app/42/files"
+    expect: null
+
+# A transcript's address: the turn first, then the place, its `:` and `/`
+# left readable.
+hrefCases:
+  - name: no-place-no-turn
+    transcriptId: t-1
+    context: null
+    turn: null
+    expect: /transcripts/t-1
+  - name: a-collective
+    transcriptId: t-1
+    context: { kind: collective, id: c-1 }
+    turn: null
+    expect: /transcripts/t-1?in=collective:c-1
+  - name: a-pull-request-turn
+    transcriptId: t-1
+    context: { kind: pull, owner: acme, name: app, number: 42 }
+    turn: 3
+    expect: /transcripts/t-1?turn=3&in=pull:acme/app/42
+
+# A transcript opened with no place is given one: the ONE collective of the
+# person's that holds it as an approved contribution, else home. `shares` are
+# the transcript's shares (`enriched_shares`), `mine` the person's collectives.
+inferCases:
+  - name: one-of-mine-holds-it
+    shares: [{ group_id: c-1, status: approved }, { group_id: c-9, status: approved }]
+    mine: [c-1, c-2]
+    expect: { kind: collective, id: c-1 }
+  - name: two-of-mine-hold-it
+    shares: [{ group_id: c-1, status: approved }, { group_id: c-2, status: approved }]
+    mine: [c-1, c-2]
+    expect: { kind: home }
+  - name: none-of-mine-holds-it
+    shares: [{ group_id: c-9, status: approved }]
+    mine: [c-1]
+    expect: { kind: home }
+  - name: mine-only-has-it-waiting
+    shares: [{ group_id: c-1, status: pending }]
+    mine: [c-1]
+    expect: { kind: home }
+  - name: it-is-in-no-collective
+    shares: []
+    mine: [c-1]
+    expect: { kind: home }
+
+# The trail above the transcript's title: the place, never the title.
+# `expect` lists each crumb as `label -> href`, or the bare label for one with
+# no link.
+breadcrumbCases:
+  - name: from-home-signed-in
+    context: { kind: home }
+    isLoggedIn: true
+    collectiveName: null
+    expect: ["home -> /", "village -> /users/alice/projects/abc"]
+  - name: from-nowhere-signed-out
+    context: null
+    isLoggedIn: false
+    collectiveName: null
+    expect: ["home", "village -> /users/alice/projects/abc"]
+  - name: from-a-collective
+    context: { kind: collective, id: c-1 }
+    isLoggedIn: true
+    collectiveName: EnCUCA
+    expect: ["collectives -> /collectives", "EnCUCA -> /collectives/c-1"]
+  - name: from-a-collective-not-yet-named
+    context: { kind: collective, id: c-1 }
+    isLoggedIn: true
+    collectiveName: null
+    expect: ["collectives -> /collectives", "collective -> /collectives/c-1"]
+  - name: from-a-pull-request
+    context: { kind: pull, owner: acme, name: app, number: 42 }
+    isLoggedIn: true
+    collectiveName: null
+    expect: ["pull requests -> /pulls", "acme/app#42 -> /pulls/acme/app/42"]
+
+# The mounted transcript page, opened at `/transcripts/{id}{search}`. The trail
+# it draws is `expectCrumbs` (the place, then the title once in the hero).
+# A signed-in person whose link names no place gets one written into the
+# address in place (`expectReplace`, or null when the address is left as it
+# is). `myCollectives` are the person's own; `shares` the transcript's.
+routeCases:
+  - name: opened-from-their-collective-names-it
+    signedIn: true
+    search: "?in=collective:c-acme"
+    myCollectives: [{ id: c-acme, name: Acme Platform }]
+    shares: []
+    expectCrumbs: [collectives, Acme Platform]
+    expectReplace: null
+  - name: opened-from-a-collective-they-are-not-in-names-it-from-the-share
+    signedIn: true
+    search: "?in=collective:c-guild"
+    myCollectives: []
+    shares: [{ group_id: c-guild, group_name: Infra Guild, status: approved }]
+    expectCrumbs: [collectives, Infra Guild]
+    expectReplace: null
+  - name: opened-from-a-pull-request-names-it
+    signedIn: true
+    search: "?turn=1&in=pull:acme/widgets/7"
+    myCollectives: []
+    shares: []
+    expectCrumbs: [pull requests, "acme/widgets#7"]
+    expectReplace: null
+  - name: a-direct-link-in-one-of-theirs-is-given-that-collective
+    signedIn: true
+    search: ""
+    myCollectives: [{ id: c-acme, name: Acme Platform }]
+    shares: [{ group_id: c-acme, group_name: Acme Platform, status: approved }]
+    expectCrumbs: [collectives, Acme Platform]
+    expectReplace: "/transcripts/{transcriptId}?in=collective:c-acme"
+  - name: a-direct-link-in-none-of-theirs-is-given-home-and-keeps-its-turn
+    signedIn: true
+    search: "?turn=1"
+    myCollectives: [{ id: c-acme, name: Acme Platform }]
+    shares: []
+    expectCrumbs: [home, village]
+    expectReplace: "/transcripts/{transcriptId}?turn=1&in=home"
+  - name: a-signed-out-reader-is-left-at-home
+    signedIn: false
+    search: ""
+    myCollectives: []
+    shares: []
+    expectCrumbs: [home, village]
+    expectReplace: null

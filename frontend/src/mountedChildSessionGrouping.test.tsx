@@ -31,6 +31,7 @@ import {
   chippedParentIDs,
   flush,
   linkedIDs,
+  transcriptLinkSelector,
 } from "@/test/childSessionDom";
 
 /**
@@ -155,7 +156,7 @@ async function assertChips(
   // changing every list in the app.
   const chipParents = new Set(shownGroups.map((group) => group.parent));
   for (const row of visibleRows.filter((name) => !chipParents.has(name))) {
-    const anchor = listRoot.querySelector<HTMLAnchorElement>(`a[href="/transcripts/${row}"]`);
+    const anchor = listRoot.querySelector<HTMLAnchorElement>(transcriptLinkSelector(row));
     if (anchor == null) throw new Error(`${testCase.name}: ${row} is not on screen`);
     expect(
       anchor.parentElement!.className,

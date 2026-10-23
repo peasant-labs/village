@@ -262,6 +262,7 @@ export default function GroupDetailPage({
         />
       ) : (
         <CollectiveTranscriptsTable
+          collectiveId={id}
           rows={rows}
           pullRequestHref={(label) => cells.hrefs.get(label)}
           showStatus={group.acceptance_mode === "curated"}

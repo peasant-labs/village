@@ -122,27 +122,19 @@ describe("mounted production transcript route: routable breadcrumb", () => {
         expect(href?.startsWith("/projects")).toBe(false);
       }
 
-      // These fixtures are signed out: their home crumb is a label because
-      // the root becomes the sign-in page. The project remains a real exit.
-      const crumbAnchors = [...nav!.querySelectorAll("a")];
-      expect(crumbAnchors).toHaveLength(1);
-      expect(crumbAnchors[0]?.getAttribute("href")).toBe(expectedProjectHref);
-      expect(crumbAnchors[0]?.textContent).toBe(c.expectedProjectCrumbLabel);
-      expect(nav!.textContent).toContain("home");
+      // These fixtures are signed out and open the transcript with no
+      // context, in no collective: the trail is home (a label, because the
+      // root becomes the sign-in page), then the project.
+      const crumbs = [...nav!.querySelectorAll(".link, .cur")].map((crumb) => crumb.textContent);
+      expect(crumbs).toEqual(["home", c.expectedProjectCrumbLabel]);
       expect(nav!.querySelector('a[href="/"]')).toBeNull();
+      const projectLink = nav!.querySelector("a");
+      if (projectLink) expect(projectLink.getAttribute("href")).toBe(expectedProjectHref);
 
-      // The sole label-only navigation crumb is the signed-out home label.
-      const labelCrumbs = [...nav!.querySelectorAll("span.link")];
-      expect(labelCrumbs.map((crumb) => crumb.textContent)).toEqual(["home"]);
-
-      // Last crumb reads the RAW stored title (trimmed, truncated) — not
-      // the hero's overlaid "Untitled transcript" placeholder — falling
-      // back to the short VILLAGE transcript id only when the stored title
-      // is empty.
-      const lastCrumbs = [...nav!.querySelectorAll("span.cur")];
-      expect(lastCrumbs).toHaveLength(1);
-      const expectedLast = c.expectedCrumbUsesShortId ? transcriptID.slice(0, 8) : c.expectedCrumbLastLabel;
-      expect(lastCrumbs[0]?.textContent).toBe(expectedLast);
+      // The title shows once, in the hero, and never in the trail.
+      const title = c.storedTitle?.trim();
+      if (title) expect(nav!.textContent).not.toContain(title);
+      expect(nav!.textContent).not.toContain(transcriptID.slice(0, 8));
     });
   }
 });

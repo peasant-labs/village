@@ -34,7 +34,7 @@ import {
   useCreateTranscriptAnnotation,
 } from '@/lib/queries/transcripts';
 import { buildSavedLabelsByEntry } from '@/lib/annotations';
-import { isAgentSession, type SessionOrigin } from '@/lib/sessionOrigin';
+import type { TranscriptContext } from '@/lib/transcriptContext';
 import TranscriptEditDialog from '@/components/transcript/TranscriptEditDialog';
 import TurnLabelPopover from '@/components/transcript/TurnLabelPopover';
 import ContributePicker from '@/components/transcript/ContributePicker';
@@ -59,9 +59,8 @@ interface SessionDetailV2Props {
   /** Backend transcript record id — the village identity of this page's own
    *  `/transcripts/<id>` route. Required: the one production caller
    *  (`app/transcripts/[id]/page.tsx`) always has it by the time this
-   *  component renders past its loading/error states, and the breadcrumb's
-   *  short-id fallback depends on it being the real village id, never
-   *  Peasant's local `sessionId`. */
+   *  component renders past its loading/error states, and the copied link
+   *  must be the real village id, never Peasant's local `sessionId`. */
   transcriptId: string;
   /** The transcript's real, stored visibility. */
   transcriptVisibility?: TranscriptVisibility;
@@ -71,10 +70,10 @@ interface SessionDetailV2Props {
   transcriptDescription?: string | null;
   /** Owner user id — gates owner-only actions. */
   transcriptOwnerId?: string;
-  /** Who drove the session, as served by the API. An agent-driven session is
-   *  labelled here so a viewer who arrived by direct link sees the same thing
-   *  the collapsed list group told them. */
-  sessionOrigin?: SessionOrigin;
+  /** Where the transcript was opened from: the breadcrumb leads back there. */
+  context?: TranscriptContext | null;
+  /** The collective's name, for a collective context. */
+  collectiveName?: string | null;
   /** The one server-resolved project display name (`Transcript.project_display_name`)
    *  — the single name every surface renders. */
   projectName: string;
@@ -111,7 +110,7 @@ interface SessionDetailV2Props {
  * Thin adapter around fairtrade's `<TranscriptViewer>` composite, the same
  * surface the design-system demo renders. Village owns the *app glue*: the
  * REST data layer (React Query `useTranscriptContent`), auth/ownership, the
- * header's link, copy and `more` actions with their dialogs, the pull request
+ * header's copy-link and `more` actions with their dialogs, the pull request
  * list, and the downloads, and feeds the composite via props/callbacks; the
  * composite owns all rendering + view state. The
  * trajectory-graph engine is fairtrade's own `/graph` entry, mounted through
@@ -124,7 +123,8 @@ export function SessionDetailV2({
   transcriptTitle,
   transcriptDescription,
   transcriptOwnerId,
-  sessionOrigin,
+  context,
+  collectiveName,
   projectName,
   projectHash,
   ownerUsername,
@@ -311,8 +311,8 @@ export function SessionDetailV2({
     if (href) router.push(href);
   }
 
-  // The transcript's own village link: the header shows it, the copy button
-  // copies it, and the markdown download names it. The header renders only
+  // The transcript's own village link: the copy button copies it and the
+  // markdown download names it. The header renders only
   // once the content has loaded in the browser, so the origin is known there.
   const transcriptUrl =
     typeof window === 'undefined'
@@ -429,11 +429,6 @@ export function SessionDetailV2({
           headerActions={
             isPreview ? undefined : (
               <span className="inline-flex items-center gap-2">
-                {isAgentSession(sessionOrigin) && (
-                  <span className="chip" data-testid="agent-session-chip">
-                    agent session
-                  </span>
-                )}
                 {transcriptId && (
                   <TranscriptHeaderActions
                     url={transcriptUrl}
@@ -498,8 +493,8 @@ export function SessionDetailV2({
             project,
             projectHref,
             isLoggedIn: !!user,
-            storedTitle: transcriptTitle,
-            transcriptId,
+            context,
+            collectiveName,
           })}
           LinkComponent={Link}
           // A verified branch point opens the target there (one-time position);

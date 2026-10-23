@@ -9,17 +9,6 @@ type MenuItems = NonNullable<ComponentProps<typeof Menu>["items"]>;
 /** How many collective names the menu spells out before it counts the rest. */
 const ACCESS_NAMES_SHOWN = 2;
 
-/** The link as it reads in the header: no scheme, and a long transcript id
- *  shortened to its first and last four characters. The full link is the
- *  anchor's `href` and its tooltip, and it is what the copy button copies. */
-export function displayTranscriptLink(url: string): string {
-  const bare = url.replace(/^https?:\/\//, "");
-  const cut = bare.lastIndexOf("/");
-  const id = bare.slice(cut + 1);
-  if (cut < 0 || id.length <= 12) return bare;
-  return `${bare.slice(0, cut + 1)}${id.slice(0, 4)}…${id.slice(-4)}`;
-}
-
 /** Who can read it now, as the menu states it: the first names, then a count
  *  of the rest. Null while the collectives are loading or when there are none. */
 export function accessNamesLine(names: string[] | undefined): string | null {
@@ -30,7 +19,7 @@ export function accessNamesLine(names: string[] | undefined): string | null {
 }
 
 interface TranscriptHeaderActionsProps {
-  /** The transcript's own village link. */
+  /** The transcript's own link, which the copy button copies. */
   url: string;
   /** The owner's rows. Absent for everyone else, who gets only the download. */
   owner?: {
@@ -46,8 +35,8 @@ interface TranscriptHeaderActionsProps {
 }
 
 /**
- * The transcript page's header actions, as the fairtrade in-use demo composes
- * them: the link, an icon-only copy button, and a `more` menu. The menu holds
+ * The transcript page's header actions: an icon-only copy-link button and a
+ * `more` menu. The address itself is not spelled out; the button copies it. The menu holds
  * `manage access` and `edit title` for the owner, and markdown, JSON and JSONL downloads for
  * every reader.
  *
@@ -79,12 +68,6 @@ export default function TranscriptHeaderActions({ url, owner, onDownloadMarkdown
 
   return (
     <span className="cmg-transcript-actions" data-testid="transcript-header-actions">
-      {/* The composite keeps its action row whole and lets the breadcrumb
-          give way, so on a phone the link's text would squeeze the crumb to a
-          sliver. Below `sm` the link hides and the copy button carries it. */}
-      <a className="cmg-transcript-link mono max-sm:hidden" href={url} title={url} data-testid="transcript-link">
-        {displayTranscriptLink(url)}
-      </a>
       <CopyIconButton value={url} label="copy link" />
       <Menu icon={MoreHorizontal} ariaLabel="more" size="sm" align="end" items={items} caption={caption} />
     </span>

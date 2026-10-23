@@ -429,12 +429,12 @@ describe("mounted home route: your transcripts, their totals and your collective
       }
 
       expect(tableTitles()).toEqual(c.expectRowTitles);
-      // Every title leads to its transcript.
+      // Every title leads to its transcript, opened from home.
       for (const tr of tableRows()) {
         const id = tr.querySelector('[data-testid="home-transcript-row"]')!.getAttribute("data-transcript-id");
         expect(
           tr.querySelector('[data-testid="home-transcript-row"] > a')!.getAttribute("href"),
-        ).toBe(`/transcripts/${id}`);
+        ).toBe(`/transcripts/${id}?in=home`);
       }
 
       for (const link of c.expectProjectLinks) {
@@ -491,7 +491,7 @@ describe("mounted home route: your transcripts, their totals and your collective
           // transcript page, which lists them all; N is still the true count.
           expect(more!.tagName).toBe("A");
           expect(text(more)).toBe(`+${count - cell.shown.length}`);
-          expect(more!.getAttribute("href")).toBe(`/transcripts/${row.id}`);
+          expect(more!.getAttribute("href")).toBe(`/transcripts/${row.id}?in=home`);
         }
       }
 

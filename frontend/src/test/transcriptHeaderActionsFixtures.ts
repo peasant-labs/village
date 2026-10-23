@@ -6,7 +6,6 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 /** Loader for `src/testdata/transcript-header-actions.yaml`. */
 
 export type HeaderEntry =
-  | "link"
   | "copy link"
   | "more"
   | "manage access"
@@ -79,7 +78,6 @@ export interface TranscriptHeaderActionsFixtures {
 /** The closed set of header entries. The fixture restates it; a drift is a
  *  loader failure, so an entry cannot be added to the page without a case. */
 const HEADER_ENTRIES: readonly HeaderEntry[] = [
-  "link",
   "copy link",
   "more",
   "manage access",

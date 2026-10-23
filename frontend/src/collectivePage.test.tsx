@@ -228,7 +228,7 @@ describe("the collective page", () => {
     }
     expect(within(table).getByRole("link", { name: world.transcripts[0].title })).toHaveAttribute(
       "href",
-      `/transcripts/${world.transcripts[0].id}`,
+      `/transcripts/${world.transcripts[0].id}?in=collective:${world.group.id}`,
     );
   });
 });

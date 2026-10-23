@@ -178,13 +178,12 @@ function menuLabels(menu: HTMLElement): string[] {
     .map((item) => item.textContent?.trim() ?? "");
 }
 
-/** Every header entry on screen, read the way a person meets them: the link,
- *  the copy button, the `more` trigger, and the rows the menu opens. */
+/** Every header entry on screen, read the way a person meets them: the copy
+ *  button, the `more` trigger, and the rows the menu opens. */
 async function readHeaderEntries(): Promise<string[]> {
   const entries: string[] = [];
   const actions = document.querySelector<HTMLElement>('[data-testid="transcript-header-actions"]');
   if (!actions) return entries;
-  if (within(actions).queryByTestId("transcript-link")) entries.push("link");
   if (within(actions).queryByRole("button", { name: "copy link" })) entries.push("copy link");
   if (within(actions).queryByRole("button", { name: "more" })) {
     entries.push("more");
@@ -252,10 +251,11 @@ describe("mounted transcript route: header actions per viewer", () => {
         expect(screen.queryByTestId("transcript-access-caption")).toBeNull();
       }
 
+      // The address is copied, never spelled out in the header.
+      expect(document.querySelector('[data-testid="transcript-header-actions"] a')).toBeNull();
+
       if (c.expectEntries.includes("copy link")) {
-        const link = screen.getByTestId("transcript-link");
         const url = `${window.location.origin}/transcripts/${content.transcriptId}`;
-        expect(link.getAttribute("href")).toBe(url);
         fireEvent.click(screen.getByRole("button", { name: "copy link" }));
         await waitFor(() => expect(writeText).toHaveBeenCalledWith(url));
       }

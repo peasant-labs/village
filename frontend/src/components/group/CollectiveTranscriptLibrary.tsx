@@ -16,6 +16,7 @@ import { collectiveTranscriptRow, resolveAttribution } from "@/lib/format";
 import { type SessionIdentity, childSessionGroupLabel, childSessionsByParentID, childSessionsByRowID, groupChildSessions, groupSessionRows } from "@/lib/childSessions";
 import TranscriptList, { type TranscriptRowFact } from "@/components/transcript/TranscriptList";
 import CollectiveRepos from "@/components/group/CollectiveRepos";
+import { transcriptHref } from "@/lib/transcriptContext";
 import ProviderBadge from "@/components/transcript/ProviderBadge";
 import { ScopedOwnerHelperGroups, ScopedUnownedHelperGroups, helperGroupsByTranscript, unownedGroupedItems } from "@/components/transcript/ScopedHelperGroups";
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
@@ -35,7 +36,7 @@ function MyContributionRow({ share, groupID, onUnshare, unsharing, helperGroups,
 }) {
     const row = (<div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5 hover:bg-surface-hover transition-colors">
       <ProviderBadge provider={share.model_provider}/>
-      <Link href={`/transcripts/${share.id}`} className="text-[var(--fs-body)] text-ink truncate min-w-0 flex-1 basis-[12rem] hover:underline focus-mono cursor-pointer">
+      <Link href={transcriptHref(share.id, { kind: "collective", id: groupID })} className="text-[var(--fs-body)] text-ink truncate min-w-0 flex-1 basis-[12rem] hover:underline focus-mono cursor-pointer">
         {share.title || "untitled"}
       </Link>
       {share.status === "pending" && (<span className="text-sm font-mono text-ink-3 tracking-wider shrink-0">
@@ -229,11 +230,11 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
             } return next; })}>select all</Checkbox><ConfirmInline aria-label={`remove selected (${selected.size})`} label={`remove selected (${selected.size})`} confirmLabel="remove from collective" disabled={selected.size === 0} busy={removing} onConfirm={removeSelected}/></div>}
           </div>}
           {removeError && <p role="alert" className="text-[var(--fs-body)] text-danger px-5 py-3">could not remove all selected contributions: {removeError}. failed rows remain selected; try again.</p>}
-          {view === "repos" ? <CollectiveRepos transcripts={visible} viewerIsOwner={isOwner} helperGroups={helpers} onRefreshOrigin={grouped.refreshOrigin}/> : <TranscriptList items={folded.rootItems} childSessions={children} facts={COLLECTIVE_BROWSE_FACTS} selection={isOwner ? { selectedIDs: selected, onToggle: (id) => { if (removing)
+          {view === "repos" ? <CollectiveRepos transcripts={visible} viewerIsOwner={isOwner} helperGroups={helpers} onRefreshOrigin={grouped.refreshOrigin} context={{ kind: "collective", id: groupID }}/> : <TranscriptList items={folded.rootItems} childSessions={children} facts={COLLECTIVE_BROWSE_FACTS} selection={isOwner ? { selectedIDs: selected, onToggle: (id) => { if (removing)
                 return; changeSelection((current) => { const next = new Set(current); if (next.has(id))
                 next.delete(id);
             else
-                next.add(id); return next; }); } } : undefined} viewerIsPrivileged={isOwner} linkOwner hideVisibility bare helperGroupSlot={(item) => <ScopedOwnerHelperGroups groups={helpers.get(item.transcript.id)} onRefreshOrigin={grouped.refreshOrigin}/>}/>}
+                next.add(id); return next; }); } } : undefined} viewerIsPrivileged={isOwner} linkOwner hideVisibility bare context={{ kind: "collective", id: groupID }} helperGroupSlot={(item) => <ScopedOwnerHelperGroups groups={helpers.get(item.transcript.id)} onRefreshOrigin={grouped.refreshOrigin}/>}/>}
           {grouped.isError && retry(grouped)}
           {(fallback.length > 0 || grouped.remainingItems > 0) && <div data-testid="grouped-helper-fallback" className="border-t border-rule"><ScopedUnownedHelperGroups items={grouped.items} representedOwnerIds={represented} onRefreshOrigin={grouped.refreshOrigin}/><ScopedGroupedContinuation remaining={grouped.remainingItems} busy={grouped.isFetchingNextPage} onLoadMore={() => void grouped.fetchNextPage()}/></div>}
         </div>

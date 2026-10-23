@@ -10,8 +10,6 @@ export type TitleHeroAndBreadcrumbCase = {
   project: string;
   expectedProjectCrumbLabel: string;
   expectedHeroTitle: string;
-  expectedCrumbUsesShortId: boolean;
-  expectedCrumbLastLabel: string | null;
 };
 
 export type TitleHeroAndBreadcrumbFixtures = {
@@ -22,7 +20,7 @@ const requiredCaseNames = [
   "stored-title-present",
   "stored-title-null-harness-markup",
   "stored-title-whitespace-only",
-  "stored-title-long-truncates-crumb-not-hero",
+  "stored-title-long-shows-in-full-in-the-hero",
 ] as const;
 
 const caseKeys = [
@@ -32,8 +30,6 @@ const caseKeys = [
   "project",
   "expectedProjectCrumbLabel",
   "expectedHeroTitle",
-  "expectedCrumbUsesShortId",
-  "expectedCrumbLastLabel",
 ];
 
 export function loadTitleHeroAndBreadcrumbFixtures(): TitleHeroAndBreadcrumbFixtures {
@@ -57,16 +53,6 @@ export function loadTitleHeroAndBreadcrumbFixtures(): TitleHeroAndBreadcrumbFixt
   }
   for (const c of fixtures.cases) {
     assertExactKeys(c, caseKeys, `case ${c.name}`);
-    if (c.expectedCrumbUsesShortId === (c.expectedCrumbLastLabel != null)) {
-      throw new Error(
-        `case ${c.name}: expectedCrumbUsesShortId and expectedCrumbLastLabel must disagree — exactly one of "falls back to the short id" or "shows a literal label" applies per case`,
-      );
-    }
-    if ((c.storedTitle ?? "").trim() === "" && !c.expectedCrumbUsesShortId) {
-      throw new Error(
-        `case ${c.name}: a null or whitespace-only storedTitle must fall back to the short id in the breadcrumb`,
-      );
-    }
   }
   return fixtures;
 }

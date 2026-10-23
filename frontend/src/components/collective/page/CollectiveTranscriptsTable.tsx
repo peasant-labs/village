@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ProviderName } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import type { CollectiveTranscriptRow } from "@/lib/adapters/collective";
+import { transcriptHref } from "@/lib/transcriptContext";
 
 /** The agent that recorded a session: its brand mark and name, or the raw value when it has no mark. */
 export function AgentCell({ provider }: { provider: string | null | undefined }) {
@@ -19,12 +20,15 @@ export function AgentCell({ provider }: { provider: string | null | undefined })
  * is what the server's list holds.
  */
 export default function CollectiveTranscriptsTable({
+  collectiveId,
   rows,
   pullRequestHref,
   showStatus,
   total,
   onShowMore,
 }: {
+  /** The collective listing them: each title opens its transcript from here. */
+  collectiveId: string;
   rows: CollectiveTranscriptRow[];
   /** Where a pull request label leads. */
   pullRequestHref: (label: string) => string | undefined;
@@ -56,7 +60,7 @@ export default function CollectiveTranscriptsTable({
             {rows.map((row) => (
               <tr key={row.id}>
                 <td className="on-ctable-title">
-                  <Link className="is-title" href={`/transcripts/${row.id}`}>
+                  <Link className="is-title" href={transcriptHref(row.id, { kind: "collective", id: collectiveId })}>
                     {row.title}
                   </Link>
                   {(row.pullRequests?.length ?? 0) > 0 && (

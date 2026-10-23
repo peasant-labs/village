@@ -4,6 +4,7 @@ import { isHarness } from "@/lib/harness";
 import { formatRelativeTime } from "@/lib/format";
 import { agentLabel } from "@/lib/homeView";
 import type { TranscriptListItem } from "@/lib/types";
+import { transcriptHref } from "@/lib/transcriptContext";
 
 /** How many of the newest transcripts the strip above the table shows. */
 export const RECENT_SHOWN = 3;
@@ -24,7 +25,7 @@ export default function HomeRecent({ rows, now }: { rows: TranscriptListItem[]; 
           const t = item.transcript;
           return (
             <li key={t.id}>
-              <Link href={`/transcripts/${t.id}`} className="on-rcard">
+              <Link href={transcriptHref(t.id, { kind: "home" })} className="on-rcard">
                 <span className="on-rcard-title">{t.title || "untitled"}</span>
                 <span className="on-rcard-meta">
                   <span className="on-agent">

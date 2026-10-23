@@ -83,7 +83,6 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
       transcriptTitle={t.title}
       transcriptDescription={t.description}
       transcriptOwnerId={data.owner?.id}
-      sessionOrigin={t.session_origin}
       projectName={t.project_display_name}
       projectHash={t.project_hash}
       ownerUsername={data.owner?.github_username}

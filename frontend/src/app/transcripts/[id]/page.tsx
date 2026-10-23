@@ -1,8 +1,10 @@
 "use client";
 
-import { use, useMemo } from "react";
+import { use, useEffect, useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranscript, useTranscriptContent } from "@/lib/queries/transcripts";
-import { useGroups } from "@/lib/queries/groups";
+import { useGroup, useGroups } from "@/lib/queries/groups";
+import { CONTEXT_PARAM, inferTranscriptContext, parseTranscriptContext, withTranscriptContext } from "@/lib/transcriptContext";
 import { SessionDetailV2 } from "@/components/session-detail/v2/SessionDetailV2";
 import PendingApprovalBar, {
   type PendingReview,
@@ -25,8 +27,37 @@ export default function TranscriptDetailPage({
   const { data, isLoading, error } = useTranscript(id);
   const { data: content, isLoading: contentLoading, error: contentError } =
     useTranscriptContent(id, { knownHarness: data?.transcript.model_provider, enabled: !!data });
-  const { data: myGroups } = useGroups();
+  const { data: myGroups, isError: myGroupsFailed } = useGroups();
   const { isLoading: sessionLoading, isLoggedIn } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Where the transcript was opened from. A link from a list carries it; one
+  // with none is given the one collective of the person's that holds the
+  // transcript, or home, written into the address so the sidebar follows and
+  // Back and Forward keep it.
+  const context = parseTranscriptContext(searchParams.get(CONTEXT_PARAM));
+  const inferred = useMemo(() => {
+    if (context || !data || !isLoggedIn) return null;
+    if (!myGroups && !myGroupsFailed) return null;
+    return inferTranscriptContext(data.enriched_shares ?? [], new Set((myGroups ?? []).map((g) => g.id)));
+  }, [context, data, isLoggedIn, myGroups, myGroupsFailed]);
+  useEffect(() => {
+    if (!inferred) return;
+    router.replace(`${pathname}?${withTranscriptContext(searchParams.toString(), inferred)}`, { scroll: false });
+  }, [inferred, pathname, router, searchParams]);
+  const shown = context ?? inferred;
+
+  // The collective's name for the trail: from the person's own collectives,
+  // from the transcript's shares, or from the collective itself when the
+  // person reached it without belonging to it.
+  const collectiveId = shown?.kind === "collective" ? shown.id : "";
+  const knownName =
+    myGroups?.find((g) => g.id === collectiveId)?.name ??
+    data?.enriched_shares?.find((s) => s.group_id === collectiveId)?.group_name;
+  const { data: collective } = useGroup(collectiveId && !knownName && data ? collectiveId : "");
+  const collectiveName = knownName ?? collective?.group.name ?? null;
 
   const pendingReviews = useMemo<PendingReview[]>(() => {
     if (!data || !myGroups) return [];
@@ -129,7 +160,8 @@ export default function TranscriptDetailPage({
         transcriptTitle={t.title}
         transcriptDescription={t.description}
         transcriptOwnerId={data.owner?.id}
-        sessionOrigin={t.session_origin}
+        context={shown}
+        collectiveName={collectiveName}
         projectName={projectName}
         projectHash={t.project_hash}
         ownerUsername={data.owner?.github_username}

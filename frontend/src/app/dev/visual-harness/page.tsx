@@ -35,10 +35,6 @@ type Theme = "dark" | "light";
  * `transcriptChrome` builders instead of a hand-copied second rule.
  */
 const SAMPLE_TRANSCRIPT_TITLE = "Port the transcript canvas into the shared package";
-/** Stands in for the village transcript id (never Peasant's local
- *  `sampleSession.id`) — mirrors `transcriptId` in `SessionDetailV2`, fed
- *  into `buildTranscriptBreadcrumb`'s short-id fallback parameter below. */
-const SAMPLE_TRANSCRIPT_ID = "transcript-sess-demo-0001";
 /** Stands in for the owner's `github_username` and the transcript's
  *  `project_hash` — mirrors `ownerUsername`/`projectHash` in
  *  `SessionDetailV2`, fed into `buildProjectHref` below so the harness
@@ -188,8 +184,6 @@ export default function VisualHarnessPage() {
           breadcrumb={buildTranscriptBreadcrumb({
             project,
             projectHref,
-            storedTitle: SAMPLE_TRANSCRIPT_TITLE,
-            transcriptId: SAMPLE_TRANSCRIPT_ID,
           })}
           graphSlot={() => (
             <TrajectoryGraph

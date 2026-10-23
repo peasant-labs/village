@@ -993,7 +993,7 @@ itemLinks:
     kind: skill
     turnIndex: 8
     commitSha: null
-    expected: /transcripts/11111111-1111-1111-1111-111111111111?turn=8
+    expected: /transcripts/11111111-1111-1111-1111-111111111111?turn=8&in=pull:acme/widgets/7
   - name: commit reference is a single encoded path segment
     kind: commit
     turnIndex: null

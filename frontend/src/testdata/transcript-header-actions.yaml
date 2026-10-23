@@ -3,8 +3,8 @@
 # the preview column, through the real contribute-page preview), with only the
 # REST layer faked.
 #
-# The header is the fairtrade in-use demo's: the link, an icon-only copy
-# button, and a `more` menu. `manage access` and `edit title` are the owner's;
+# The header holds an icon-only copy-link button and a `more` menu; the address
+# itself is not spelled out. `manage access` and `edit title` are the owner's;
 # every reader can download the markdown. Each case lists the EXACT set of
 # header entries that must show, drawn from `entries`: an entry a case does not
 # list must be absent.
@@ -15,7 +15,6 @@
 # Every header entry a viewer can meet. Closed set: a case naming anything else
 # fails the loader.
 entries:
-  - link
   - copy link
   - more
   - manage access
@@ -77,26 +76,26 @@ content:
 cases:
   - name: the-owner-sees-every-entry
     viewer: owner
-    expectEntries: [link, copy link, more, manage access, edit title, download markdown, download json, download jsonl]
+    expectEntries: [copy link, more, manage access, edit title, download markdown, download json, download jsonl]
     expectAccessCaption: "who can read it: Acme Platform, Acme Company"
     readsCollectives: true
 
   - name: a-public-owner-sees-everyone-in-the-audience-caption
     viewer: owner
     visibility: public
-    expectEntries: [link, copy link, more, manage access, edit title, download markdown, download json, download jsonl]
+    expectEntries: [copy link, more, manage access, edit title, download markdown, download json, download jsonl]
     expectAccessCaption: "who can read it: anyone with the link"
     readsCollectives: true
 
   - name: a-signed-in-reader-can-copy-and-download-only
     viewer: reader
-    expectEntries: [link, copy link, more, download markdown, download json, download jsonl]
+    expectEntries: [copy link, more, download markdown, download json, download jsonl]
     expectAccessCaption: null
     readsCollectives: false
 
   - name: a-signed-out-reader-can-copy-and-download-only
     viewer: signed-out
-    expectEntries: [link, copy link, more, download markdown, download json, download jsonl]
+    expectEntries: [copy link, more, download markdown, download json, download jsonl]
     expectAccessCaption: null
     readsCollectives: false
 

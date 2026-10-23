@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { assertExactKeys } from "@/test/fixtureAssertions";
-import { AGENT_ORIGIN, SESSION_ORIGINS, type SessionOrigin } from "@/lib/sessionOrigin";
+import { SESSION_ORIGINS, type SessionOrigin } from "@/lib/sessionOrigin";
 
 export type AgentSessionGroupingSurface = "explore" | "profile";
 
@@ -133,10 +133,10 @@ export function loadAgentSessionGroupingFixtures(): AgentSessionGroupingFixtures
       throw new Error(`detail case ${c.name}: origin ${c.sessionOrigin} is covered twice`);
     }
     detailOrigins.add(c.sessionOrigin);
-    if (c.expectChip !== (c.sessionOrigin === AGENT_ORIGIN)) {
+    if (c.expectChip) {
       throw new Error(
-        `detail case ${c.name}: only an agent-driven session is labelled; unclassified sessions are presented like ` +
-          `user sessions, so expectChip must be true for agent and false otherwise`,
+        `detail case ${c.name}: the transcript header carries no origin chip, whatever the origin, so expectChip ` +
+          `must be false`,
       );
     }
   }

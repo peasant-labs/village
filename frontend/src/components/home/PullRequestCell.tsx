@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { VillagePullRequestRef, VillagePullRequestsSummary } from "@peasant-labs/schema";
 import { OverflowList } from "@/lib/ft-ui";
+import { transcriptHref } from "@/lib/transcriptContext";
 
 /** How many pull request numbers a row shows before the rest fold behind `+N`. */
 export const PULL_REQUESTS_SHOWN = 2;
@@ -71,7 +72,7 @@ export default function PullRequestCell({
     <span className="inline-flex flex-wrap items-baseline gap-[var(--sp-2)]" data-testid="home-pull-requests">
       <OverflowList items={shown} limit={PULL_REQUESTS_SHOWN} label={NOUN[1]} noun={NOUN} />
       <Link
-        href={`/transcripts/${transcriptID}`}
+        href={transcriptHref(transcriptID, { kind: "home" })}
         className="ovl-more tnum"
         aria-label={`${more} more ${more === 1 ? NOUN[0] : NOUN[1]} on the transcript page`}
       >

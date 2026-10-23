@@ -18,6 +18,7 @@ import {
   type HomeGroup,
 } from "@/lib/homeView";
 import type { TranscriptListItem, TranscriptRow } from "@/lib/types";
+import { transcriptHref } from "@/lib/transcriptContext";
 
 /**
  * The facts a session another session started states when its chip is opened.
@@ -148,7 +149,7 @@ export default function HomeTable({
       <tr key={t.id} className={inGroup ? "is-row is-in" : "is-row"} data-testid="home-row">
         <td>
           <div className="on-cell-title" data-testid="home-transcript-row" data-transcript-id={t.id}>
-            <Link href={`/transcripts/${t.id}`}>{t.title || "untitled"}</Link>
+            <Link href={transcriptHref(t.id, { kind: "home" })}>{t.title || "untitled"}</Link>
             {helperGroupSlot(item)}
             {started !== undefined && started.length > 0 && (
               <ChildSessionDisclosure
@@ -157,6 +158,7 @@ export default function HomeTable({
                 hideOwner
                 facts={HOME_STARTED_SESSION_FACTS}
                 helperGroupSlot={helperGroupSlot}
+                context={{ kind: "home" }}
               />
             )}
           </div>
