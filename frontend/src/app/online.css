@@ -1036,19 +1036,21 @@
   width: var(--sp-5);
   height: var(--sp-5);
 }
+/* every command line in a group spans the same full width, so a long command
+   sits on one line beside the short ones instead of wrapping in a narrow box */
 .on-cmdline {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
   width: 100%;
-  max-width: 35rem;
   padding-left: var(--sp-4);
   border: 1px solid var(--rule-strong);
   background: var(--surface);
   box-sizing: border-box;
 }
-/* a long command wraps rather than scrolling, so the line is never a
-   keyboard-unreachable scroller; the copy button copies it whole */
+/* a command too long for a phone wraps rather than scrolling, so the line is
+   never a keyboard-unreachable scroller and never wider than the page; the
+   copy button copies it whole */
 .on-cmdline code {
   flex: 1;
   min-width: 0;
