@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   installHomeRouteREST,
   installHomeRouteTeardown,
@@ -8,6 +8,7 @@ import {
 import { loadHomePageFixtures, type HomeCollectiveCase } from "@/test/homePageFixtures";
 import { pushedRoutes, resetNextNavigation } from "@/test/nextNavigationMock";
 import { DOCS_URL } from "@/lib/appLinks";
+import { leaveForSignIn } from "@/lib/marketing";
 
 // Mounts the REAL app chrome (`AppFrame`: fairtrade's sidebar for somebody
 // signed in, the public bar for anybody else) inside the real `AuthProvider`,
@@ -20,17 +21,23 @@ const fixtures = loadHomePageFixtures();
 
 installHomeRouteTeardown();
 
+beforeEach(() => {
+  vi.mocked(leaveForSignIn).mockClear();
+});
+
 /** The one collective every signed-in case belongs to. */
 const ACME: HomeCollectiveCase = { id: "c011ec71-0000-4000-8000-000000000001", name: "Acme Platform", role: "owner", members: 12 };
 
-const NAV_NAMES = { sections: "peasant sections" } as const;
+const SECTIONS_NAV = "peasant sections";
 
-async function chromeSettled(isLoggedIn: boolean): Promise<void> {
+async function chromeSettled(expectNav: "sections" | "public" | "none"): Promise<void> {
   // Signed in, the account trigger means the session has answered and the
-  // sidebar has drawn; signed out, the public bar's way in.
+  // sidebar has drawn; on the privacy notice, the public bar's way in; anywhere
+  // else signed out, the frame's word that it is taking the visitor to sign in.
   await waitFor(() => {
-    if (isLoggedIn) expect(screen.getByTestId("account-menu-trigger")).toBeInTheDocument();
-    else expect(screen.getByRole("link", { name: "sign in" })).toBeInTheDocument();
+    if (expectNav === "sections") expect(screen.getByTestId("account-menu-trigger")).toBeInTheDocument();
+    else if (expectNav === "public") expect(screen.getByRole("link", { name: "sign in" })).toBeInTheDocument();
+    else expect(screen.getByTestId("leaving-for-sign-in")).toBeInTheDocument();
   });
 }
 
@@ -43,18 +50,20 @@ describe("mounted sidebar: which entries are offered, and which one is current",
         collectives: c.isLoggedIn ? [ACME] : [],
       });
       await renderHeaderAt(c.pathname);
-      await chromeSettled(c.isLoggedIn);
+      await chromeSettled(c.expectNav);
 
-      if (c.expectNav === "none") {
+      if (c.expectNav !== "sections") {
         // No sidebar at all, rather than an empty one a screen reader would
-        // still announce; the public bar is the chrome instead.
-        expect(screen.queryByRole("navigation", { name: NAV_NAMES.sections })).toBeNull();
-        expect(screen.getByTestId("public-top-bar")).toBeInTheDocument();
+        // still announce. The public bar is the chrome on the privacy notice;
+        // anywhere else the visitor is on their way to sign in.
+        expect(screen.queryByRole("navigation", { name: SECTIONS_NAV })).toBeNull();
+        expect(screen.queryByTestId("public-top-bar") !== null).toBe(c.expectNav === "public");
+        expect(vi.mocked(leaveForSignIn).mock.calls.length).toBe(c.expectNav === "none" ? 1 : 0);
         return;
       }
       expect(screen.queryByTestId("public-top-bar")).toBeNull();
 
-      const nav = await screen.findByRole("navigation", { name: NAV_NAMES[c.expectNav] });
+      const nav = await screen.findByRole("navigation", { name: SECTIONS_NAV });
       // The person's collectives arrive with their own read.
       await waitFor(() =>
         expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(c.expectLabels),
@@ -82,8 +91,8 @@ describe("mounted sidebar: the person's collectives", () => {
     ];
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [], collectives: mine });
     await renderHeaderAt("/");
-    await chromeSettled(true);
-    const nav = screen.getByRole("navigation", { name: NAV_NAMES.sections });
+    await chromeSettled("sections");
+    const nav = screen.getByRole("navigation", { name: SECTIONS_NAV });
     await waitFor(() => expect(within(nav).getByRole("link", { name: "Solo Circle" })).toBeInTheDocument());
     const listed = within(nav).getAllByRole("link").slice(4);
     // User content keeps its case, and each row leads to its collective.
@@ -96,7 +105,7 @@ describe("mounted sidebar: the other apps", () => {
   it("offers only the docs, in a new tab, and never lists this app or the local one", async () => {
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/");
-    await chromeSettled(true);
+    await chromeSettled("sections");
 
     const apps = screen.getByRole("navigation", { name: "apps" });
     // The sidebar is this app, so the switcher does not name it, and the local
@@ -118,7 +127,7 @@ describe("mounted sidebar: the account menu", () => {
   it("names the signed-in person and holds exactly the fixture's items, in order", async () => {
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/");
-    await chromeSettled(true);
+    await chromeSettled("sections");
 
     const trigger = screen.getByRole("button", { name: "account menu for @alice-dev" });
     expect(trigger).toHaveAttribute("aria-haspopup", "menu");
@@ -139,7 +148,7 @@ describe("mounted sidebar: the account menu", () => {
       resetNextNavigation();
       const backend = installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
       await renderHeaderAt("/");
-      await chromeSettled(true);
+      await chromeSettled("sections");
 
       fireEvent.click(screen.getByRole("button", { name: "account menu for @alice-dev" }));
       fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: c.item }));
@@ -157,7 +166,7 @@ describe("mounted sidebar: the account menu", () => {
   it("switches the theme from the account corner", async () => {
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/");
-    await chromeSettled(true);
+    await chromeSettled("sections");
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
     fireEvent.click(screen.getByRole("button", { name: "switch to light mode" }));
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");

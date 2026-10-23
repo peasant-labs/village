@@ -1,46 +1,99 @@
 # Case corpus for `src/signInRoute.test.ts`: where a visitor with no session
-# is sent at `/`, and which return addresses the sign-in step follows.
+# is sent, and which return addresses the sign-in step follows.
 #
 # Deletion protection is the required-NAME manifest in
 # `src/test/signInRouteFixtures.ts`.
 
-# The proxy's answer at `/`, decided on the session cookie alone. A cookie
-# that turns out to be stale is the root page's to catch once `/auth/me`
-# answers; these cases are what the server decides before any page is served.
+# The proxy's answer to a page load, decided on the address and the session
+# cookie alone. A cookie that turns out to be stale is the app frame's to
+# catch once `/auth/me` answers; these cases are what the server decides
+# before any page is served. `path` is the address asked for (with its query).
 # `fetchDest` is the browser's `Sec-Fetch-Dest`: `document` for a page load,
 # `empty` for a fetch the page makes (Next prefetching or navigating inside the
 # app), null for a client that sends none (curl, a crawler).
 proxyCases:
   - name: no-cookie-goes-to-the-marketing-site
     why: >-
-      a signed-out visitor at the root is sent to the marketing site, which
-      introduces the product and links back to the sign-in page.
+      a signed-out visitor at the root is sent to the marketing site with its
+      log-in popup open; signing in there lands on home.
+    path: /
     cookie: null
     fetchDest: document
-    expect: { status: 307, location: "https://peasantlabs.org/" }
+    expect: { status: 307, location: "https://peasantlabs.org/?login" }
   - name: a-client-that-says-nothing-is-a-page-load
     why: curl and crawlers send no fetch metadata; a page load is the safe reading.
+    path: /
     cookie: null
     fetchDest: null
-    expect: { status: 307, location: "https://peasantlabs.org/" }
+    expect: { status: 307, location: "https://peasantlabs.org/?login" }
   - name: an-empty-cookie-is-no-session
     why: a cookie with no value carries no session, so it is treated as none.
+    path: /
     cookie: ""
     fetchDest: document
-    expect: { status: 307, location: "https://peasantlabs.org/" }
+    expect: { status: 307, location: "https://peasantlabs.org/?login" }
   - name: a-session-cookie-is-served-the-home-page
     why: a browser holding a session is served the app, which reads the session itself.
+    path: /
     cookie: demo-token
     fetchDest: document
     expect: { status: null, location: null }
   - name: an-in-app-fetch-of-the-root-is-served-the-app
     why: >-
-      a prefetch or client-side navigation to the root is a same-origin fetch;
-      redirecting it to the marketing site would be refused by the browser as
-      a cross-origin fetch, so the app is served and the root page sends a
+      a prefetch or client-side navigation is a same-origin fetch; redirecting
+      it to the marketing site would be refused by the browser as a
+      cross-origin fetch, so the app is served and its frame sends a
       signed-out visitor on itself.
+    path: /
     cookie: null
     fetchDest: empty
+    expect: { status: null, location: null }
+  - name: a-signed-out-deep-link-comes-back-to-its-page
+    why: >-
+      the app keeps no signed-out view: a link to any page sends a signed-out
+      visitor to the log-in popup, which returns them to that page, query and
+      all, once signed in.
+    path: /collectives/abc?tab=members
+    cookie: null
+    fetchDest: document
+    expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Fcollectives%2Fabc%3Ftab%3Dmembers" }
+  - name: a-shared-transcript-link-signs-in-first
+    why: a shared transcript is read signed in, like every other page, and the reader comes back to it.
+    path: /transcripts/7f1d2c3b
+    cookie: null
+    fetchDest: document
+    expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: the-sign-in-page-hands-over-its-return-address
+    why: >-
+      the sign-in page itself is not a destination; the popup returns to the
+      address the sign-in page was asked to return to.
+    path: /login?next=/pulls
+    cookie: null
+    fetchDest: document
+    expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Fpulls" }
+  - name: the-sign-in-page-drops-a-foreign-return-address
+    why: an address on another host would turn the sign-in into an open redirect, so it is not carried.
+    path: /login?next=//example.com/steal
+    cookie: null
+    fetchDest: document
+    expect: { status: 307, location: "https://peasantlabs.org/?login" }
+  - name: the-sign-in-start-is-served-signed-out
+    why: the popup's github button lands here to start the sign-in, so it is served without a session.
+    path: /auth/start?provider=github&next=/pulls
+    cookie: null
+    fetchDest: document
+    expect: { status: null, location: null }
+  - name: the-oauth-landing-is-served-signed-out
+    why: the provider returns here with the new session; it cannot already hold one.
+    path: /auth/callback?token=x
+    cookie: null
+    fetchDest: document
+    expect: { status: null, location: null }
+  - name: the-privacy-notice-is-served-signed-out
+    why: the log-in popup links to the privacy notice, which must be readable before signing in.
+    path: /privacy
+    cookie: null
+    fetchDest: document
     expect: { status: null, location: null }
 
 # The return address a sign-in follows, from the `next` query of `/login` to

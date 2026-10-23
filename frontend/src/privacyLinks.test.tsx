@@ -90,6 +90,13 @@ describe("the privacy notice link", () => {
           <div data-testid="page-body" />
         </LayoutShell>,
       );
+      if (c.viewerUsername === null) {
+        // Signed out, no page of the app is drawn: the frame sends the visitor
+        // to the marketing site's log-in popup, which links the notice itself.
+        await screen.findByTestId("leaving-for-sign-in");
+        expect(screen.queryByTestId("page-body")).toBeNull();
+        return;
+      }
       const link = await screen.findByRole("link", { name: "privacy" });
       expect(link).toHaveAttribute("href", "/privacy");
       expect(screen.getByTestId("page-body")).toBeInTheDocument();

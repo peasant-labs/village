@@ -14,8 +14,55 @@ export const SIGN_IN_PROVIDERS: { id: string; label: string }[] = [
   { id: "github", label: "github" },
 ];
 
-/** The sign-in page. Every "sign in" link in the app leads here. */
+/**
+ * The sign-in page's address. Every "sign in" link in the app leads here, and
+ * it hands the visitor to the marketing site's log-in popup, where signing in
+ * now starts.
+ */
 export const LOGIN_PATH = "/login";
+
+/**
+ * Where the marketing site's log-in popup starts a sign-in:
+ * `/auth/start?provider=github&next=/somewhere`. It remembers `next` in this
+ * tab and leaves for the provider, exactly as the sign-in page's button did.
+ */
+export const SIGN_IN_START_PATH = "/auth/start";
+
+/** The query parameter that names the provider `/auth/start` signs in with. */
+export const PROVIDER_PARAM = "provider";
+
+/**
+ * The pages served to somebody without a session: the steps of signing in, and
+ * the privacy notice the log-in popup links to. The development-only routes are
+ * left alone too; a production build answers them 404. Every other page sends
+ * a signed-out visitor to the marketing site's log-in popup.
+ */
+const OPEN_SIGNED_OUT = new Set(["/auth/callback", SIGN_IN_START_PATH, "/privacy"]);
+
+/** Whether a page is served to somebody without a session. */
+export function isOpenSignedOut(pathname: string): boolean {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  return OPEN_SIGNED_OUT.has(path) || path.startsWith("/dev/");
+}
+
+/**
+ * Where a signed-out visitor to a page was headed, as the return address the
+ * log-in popup carries: the page itself, or, on the sign-in page, the address
+ * that page was asked to return to. Null when there is nothing to come back to
+ * but home.
+ */
+export function returnAddressFor(pathname: string, search: string): string | null {
+  const next =
+    (pathname.replace(/\/+$/, "") || "/") === LOGIN_PATH
+      ? safeNextPath(new URLSearchParams(search).get(NEXT_PARAM))
+      : safeNextPath(`${pathname}${search}`);
+  return next === "/" ? null : next;
+}
+
+/** The provider `/auth/start` signs in with: the one asked for when offered, else the first. */
+export function signInProvider(asked: string | null | undefined): string {
+  return (SIGN_IN_PROVIDERS.find((provider) => provider.id === asked) ?? SIGN_IN_PROVIDERS[0]).id;
+}
 
 /** The query parameter that carries where to go once signed in. */
 export const NEXT_PARAM = "next";

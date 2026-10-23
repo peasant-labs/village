@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   installHomeRouteREST,
@@ -6,14 +6,14 @@ import {
   renderAppRoute,
 } from "@/test/mountedHomeRoute";
 import { loadSignInPageFixtures } from "@/test/signInPageFixtures";
-import { SIGN_IN_PROVIDERS, startSignIn } from "@/lib/signIn";
+import { SIGN_IN_PROVIDERS, startSignIn, takeNextPath } from "@/lib/signIn";
+import { leaveForSignIn } from "@/lib/marketing";
 
-// Mounts the REAL app chrome around the REAL route and reads which providers
-// each sign-in button on the screen actually leads to, and where the chrome's
-// own sign-in link goes. Leaving the app for a provider is the one boundary
-// stubbed: `startSignIn` would navigate the whole document away, so it records
-// the provider id instead, and the provider set is the ids the buttons hand it,
-// not the labels they print.
+// Mounts the REAL app chrome around the REAL route and reads where each step
+// of signing in sends the visitor. Leaving the app is the boundary stubbed:
+// `startSignIn` would navigate the whole document to the provider, so it
+// records the provider id instead, and leaving for the marketing site's log-in
+// popup is recorded the same way (vitest.setup.ts).
 vi.mock("@/lib/signIn", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/signIn")>();
   return { ...actual, startSignIn: vi.fn() };
@@ -25,37 +25,9 @@ installHomeRouteTeardown();
 
 beforeEach(() => {
   vi.mocked(startSignIn).mockClear();
+  vi.mocked(leaveForSignIn).mockClear();
+  sessionStorage.clear();
 });
-
-/** Every provider one fairtrade split button leads to: its primary action, and
- *  each row behind its chevron when it has one. */
-function providersBehind(split: HTMLElement): string[] {
-  const reached: string[] = [];
-  const record = () => {
-    const calls = vi.mocked(startSignIn).mock.calls;
-    reached.push(String(calls[calls.length - 1]?.[0]));
-  };
-  const primary = split.querySelector<HTMLButtonElement>(".si-split-primary");
-  if (primary == null) throw new Error("a sign-in button with no primary action");
-  fireEvent.click(primary);
-  record();
-  const caret = within(split).queryByRole("button", { name: "more sign-in providers" });
-  if (caret != null) {
-    fireEvent.click(caret);
-    const rows = within(split).getAllByRole("menuitem");
-    for (let i = 0; i < rows.length; i += 1) {
-      // Choosing a row closes the menu, so reopen it for each one.
-      if (i > 0) fireEvent.click(caret);
-      fireEvent.click(within(split).getAllByRole("menuitem")[i]);
-      record();
-    }
-  }
-  return reached;
-}
-
-function offeredOnScreen(): string[] {
-  return Array.from(document.querySelectorAll<HTMLElement>(".si-split")).flatMap(providersBehind);
-}
 
 describe("the providers peasant online offers", () => {
   it("is exactly the corpus's closed set", () => {
@@ -63,29 +35,32 @@ describe("the providers peasant online offers", () => {
   });
 });
 
-describe("mounted sign-in buttons: which providers each screen leads to", () => {
+describe("mounted sign-in steps: where each screen sends the visitor", () => {
   for (const c of fixtures.cases) {
     it(c.name, async () => {
       installHomeRouteREST({ viewerUsername: c.signedIn ? "alice-dev" : null, transcripts: [] });
       await renderAppRoute(c.path, { header: true });
 
-      // Settled when the chrome's placeholder is gone and the page has drawn.
+      // Settled once the session has answered: the frame and the page have
+      // drawn their answer, and any step that leaves has left.
       await waitFor(() => {
-        expect(document.querySelector("header .animate-shimmer")).toBeNull();
         expect(document.querySelector('[data-testid="root-route-pending"]')).toBeNull();
+        if (c.expectStart !== null) expect(vi.mocked(startSignIn)).toHaveBeenCalled();
+        if (c.expectLeaving) expect(vi.mocked(leaveForSignIn)).toHaveBeenCalled();
+        if (c.expectSignInLink !== null) expect(screen.getByRole("link", { name: "sign in" })).toBeInTheDocument();
+        if (c.signedIn && c.path === "/") expect(screen.getByTestId("account-menu-trigger")).toBeInTheDocument();
       });
-      if (c.path === "/login") {
-        await screen.findByTestId("sign-in-page");
-        expect(screen.getByRole("heading", { level: 1, name: "log in to peasant" })).toBeInTheDocument();
-        // The terminal sign-in and the privacy notice sit beside the button.
-        expect(screen.getByText("peasant village login")).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: "privacy notice" })).toHaveAttribute("href", "/privacy");
-      }
-      if (c.expectSignInLink !== null) {
-        await waitFor(() => expect(screen.getByRole("link", { name: "sign in" })).toBeInTheDocument());
-      }
 
-      expect(offeredOnScreen()).toEqual(c.expectPageProviders);
+      expect(vi.mocked(startSignIn).mock.calls.map(([provider]) => provider)).toEqual(
+        c.expectStart === null ? [] : [c.expectStart],
+      );
+      expect(takeNextPath()).toBe(c.expectRemembered);
+      expect(vi.mocked(leaveForSignIn).mock.calls.length).toBe(c.expectLeaving ? 1 : 0);
+      if (c.expectLeaving) expect(screen.getByTestId("leaving-for-sign-in")).toBeInTheDocument();
+
+      // No screen offers a provider button of its own any more: signing in
+      // starts on the marketing site's popup.
+      expect(document.querySelector(".si-split")).toBeNull();
       const links = screen.queryAllByRole("link", { name: "sign in" });
       expect(links.map((link) => link.getAttribute("href"))).toEqual(
         c.expectSignInLink === null ? [] : [c.expectSignInLink],

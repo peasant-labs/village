@@ -7,6 +7,15 @@ import { vi } from "vitest";
 // file-level `vi.mock("next/navigation", ...)`.
 vi.mock("next/navigation", () => import("./src/test/nextNavigationMock"));
 
+// Leaving for the marketing site navigates the whole document to another
+// origin, which jsdom cannot do. The stand-ins record the call instead; the
+// address they would go to is built by the real `marketingLoginURL` and
+// `signedOutDestination`, which stay unmocked.
+vi.mock("@/lib/marketing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/marketing")>();
+  return { ...actual, leaveForSignIn: vi.fn(), leaveForMarketingSite: vi.fn() };
+});
+
 // jsdom implements no layout and no scrolling. Fairtrade restores an active
 // turn by scrolling it into view, so a test that mounts a restored selection
 // needs these two no-ops instead of "not implemented" throws.

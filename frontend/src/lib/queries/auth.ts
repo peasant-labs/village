@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient, type MutateOptions } from "@tanstack/react-query";
 import { api, clearAuthTokenCookie, getAuthHeaders } from "../api";
-import { LOGIN_PATH } from "../signIn";
+import { leaveForMarketingSite } from "../marketing";
 import type { User } from "../types";
 
 export function useMe() {
@@ -27,7 +27,8 @@ export function useLogout() {
     onSuccess: () => {
       clearAuthTokenCookie();
       qc.clear();
-      window.location.href = LOGIN_PATH;
+      // Signed out, the app has nothing to show: the marketing site is home.
+      leaveForMarketingSite();
     },
   });
 }
@@ -39,7 +40,7 @@ export function useDeleteAccount() {
     onSuccess: () => {
       clearAuthTokenCookie();
       qc.clear();
-      window.location.href = "/";
+      leaveForMarketingSite();
     },
   });
 }

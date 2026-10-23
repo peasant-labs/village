@@ -5,6 +5,8 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import RootPage from "@/app/page";
 import ExploreRoute from "@/app/explore/page";
 import LoginPage from "@/app/login/LoginPage";
+import SignInStart from "@/app/auth/start/SignInStart";
+import { PrivacyNotice } from "@/app/privacy/PrivacyNotice";
 import AppFrame from "@/components/shell/AppFrame";
 import type {
   HomeCollectiveCase,
@@ -346,9 +348,11 @@ function routeElement(path: string): React.ReactElement {
   if (path === "/explore") return <ExploreRoute />;
   // The route reads `next` on the server and hands it to this page; the test
   // hands it the same value from the address it mounts at.
-  if (path.split("?")[0] === "/login") {
-    return <LoginPage next={new URLSearchParams(path.split("?")[1] ?? "").get("next")} />;
-  }
+  const [route, query = ""] = path.split("?");
+  const params = new URLSearchParams(query);
+  if (route === "/login") return <LoginPage next={params.get("next")} />;
+  if (route === "/auth/start") return <SignInStart provider={params.get("provider")} next={params.get("next")} />;
+  if (route === "/privacy") return <PrivacyNotice />;
   throw new Error(`mounted home route fixture has no route registered at ${path}`);
 }
 

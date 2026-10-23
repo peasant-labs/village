@@ -1,29 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
 import { useAuth } from "@/providers/AuthProvider";
-import { MARKETING_URL, leaveForMarketingSite } from "@/lib/marketing";
 import HomePage from "./HomePage";
 
 /**
- * The root route decides WHOSE page `/` is.
+ * The root route: the signed-in person's own home, their transcripts and who
+ * can read each one.
  *
- * A signed-in visitor lands on their own home: their transcripts, and who can
- * read each one. A signed-out visitor is sent to the marketing site, which
- * introduces the product and links to `/login`. The proxy already sends a
- * visitor with no session cookie there before this page is served; this branch
- * covers a cookie that turned out to be stale once `GET /auth/me` answered.
+ * Nobody without a session is served it. The proxy sends a visitor with no
+ * session cookie to the marketing site's log-in popup before the page is
+ * served, and the app's frame does the same for a cookie that turned out to be
+ * stale once `GET /auth/me` answered.
  *
- * Neither branch renders until the session is known, so a signed-in person is
- * never shown a flash of the redirect.
+ * Nothing renders until the session is known, so a signed-in person is never
+ * shown a flash of anything else.
  */
 export default function RootPage() {
   const { isLoading, isLoggedIn } = useAuth();
-  const signedOut = !isLoading && !isLoggedIn;
-
-  useEffect(() => {
-    if (signedOut) leaveForMarketingSite();
-  }, [signedOut]);
 
   if (isLoading) {
     return (
@@ -34,15 +27,7 @@ export default function RootPage() {
     );
   }
 
-  if (signedOut) {
-    return (
-      <div className="on-page" data-testid="root-route-leaving">
-        <p className="on-muted" role="status">
-          taking you to <a className="on-link" href={MARKETING_URL}>{MARKETING_URL.replace(/^https?:\/\//, "")}</a>
-        </p>
-      </div>
-    );
-  }
+  if (!isLoggedIn) return null;
 
   return <HomePage />;
 }

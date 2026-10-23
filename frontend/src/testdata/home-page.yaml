@@ -6,20 +6,20 @@
 # `src/test/homePageFixtures.ts`. A removed or renamed case fails the loader
 # because its name goes missing from the declared set.
 
-# Which surface each (path, viewer) pair must land on. `/` is the only route
-# whose answer depends on who is asking: the signed-in person's home, or, for
-# anybody else, the marketing site (the page says where it is taking them and
-# leaves). Signing in starts at `/login`. Discovery left the root and the nav,
-# and keeps its own address, so `/explore` still lands on it for both viewers.
+# Which surface each (path, viewer) pair must land on. The app keeps no
+# signed-out view: anybody without a session is sent to the marketing site's
+# log-in popup (the frame says where it is taking them and leaves), `/login`
+# included. A signed-in visitor gets the page: home at `/`, discovery at
+# `/explore`, which left the root and the nav and keeps its own address.
 routeCases:
   - name: signed-out-visitor-at-the-root-leaves-for-the-marketing-site
     path: "/"
     viewerUsername: null
     expectSurface: marketing
-  - name: signed-out-visitor-at-login-gets-sign-in
+  - name: signed-out-visitor-at-login-leaves-for-the-marketing-site
     path: "/login"
     viewerUsername: null
-    expectSurface: sign-in
+    expectSurface: marketing
   - name: signed-in-visitor-at-the-root-gets-their-own-home
     path: "/"
     viewerUsername: alice-dev
@@ -28,25 +28,26 @@ routeCases:
     path: "/explore"
     viewerUsername: alice-dev
     expectSurface: explore
-  - name: signed-out-visitor-at-explore-gets-explore
+  - name: signed-out-visitor-at-explore-leaves-for-the-marketing-site
     path: "/explore"
     viewerUsername: null
-    expectSurface: explore
+    expectSurface: marketing
 
 # What the MOUNTED sidebar offers for a (signed-in, address) pair. Every
 # signed-in case is served one collective the viewer belongs to, Acme Platform
 # (c011ec71-0000-4000-8000-000000000001), so its row follows the sections.
-#   expectNav          which navigation the sidebar draws: `sections` (home,
+#   expectNav          which navigation the chrome draws: `sections` (home,
 #                      discover, pull requests, collectives and the viewer's
 #                      collectives, on every signed-in page, a collective's
-#                      settings page included), or `none` (a signed-out reader
-#                      gets the public bar, not the sidebar).
+#                      settings page included), `public` (the public bar, on
+#                      the one page a signed-out reader is served), or `none`
+#                      (a signed-out visitor anywhere else is sent to sign in
+#                      and gets no chrome at all).
 #   expectLabels       that navigation's entries, in order.
 #   expectActiveLabel  the one entry marked current, or null for none.
-#   expectBackHref     always null: the sidebar has no way back of its own; a
-#                      settings page keeps its sections and its way back in a
-#                      bar inside the page body. Written on every case so none
-#                      is read as "no link" by omission.
+#   expectBackHref     where the settings navigation's way back leads, or null
+#                      when there is none. Written on every case so none is
+#                      read as "no link" by omission.
 navCases:
   - name: signed-in-visitor-at-the-root-highlights-home
     isLoggedIn: true
@@ -129,11 +130,20 @@ navCases:
     expectActiveLabel: null
     expectBackHref: null
   - name: a-signed-out-transcript-reader-gets-no-sidebar
-    # A shared link's reader is not signed in: the public bar, with a way in,
-    # and no sidebar of sections that would all ask them to sign in.
+    # A shared link's reader who is not signed in is sent to sign in first,
+    # with no sidebar of sections drawn on the way.
     isLoggedIn: false
     pathname: "/transcripts/abc123"
     expectNav: none
+    expectLabels: []
+    expectActiveLabel: null
+    expectBackHref: null
+  - name: a-signed-out-privacy-reader-gets-the-public-bar
+    # The privacy notice is the one page served without a session (the log-in
+    # popup links to it): the public bar, with one way in.
+    isLoggedIn: false
+    pathname: "/privacy"
+    expectNav: public
     expectLabels: []
     expectActiveLabel: null
     expectBackHref: null

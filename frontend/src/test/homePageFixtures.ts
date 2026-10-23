@@ -17,7 +17,7 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
  * move with the code it is supposed to hold still.
  */
 
-export type HomeRouteSurface = "home" | "marketing" | "sign-in" | "explore";
+export type HomeRouteSurface = "home" | "marketing" | "explore";
 
 export type HomeRouteCase = {
   name: string;
@@ -166,7 +166,7 @@ export type HomeNavCase = {
   name: string;
   isLoggedIn: boolean;
   pathname: string;
-  expectNav: "sections" | "none";
+  expectNav: "sections" | "public" | "none";
   expectLabels: string[];
   expectActiveLabel: string | null;
   expectBackHref: string | null;
@@ -204,10 +204,10 @@ export type HomePageFixtures = {
 
 const requiredRouteCaseNames = [
   "signed-out-visitor-at-the-root-leaves-for-the-marketing-site",
-  "signed-out-visitor-at-login-gets-sign-in",
+  "signed-out-visitor-at-login-leaves-for-the-marketing-site",
   "signed-in-visitor-at-the-root-gets-their-own-home",
   "signed-in-visitor-at-explore-gets-explore",
-  "signed-out-visitor-at-explore-gets-explore",
+  "signed-out-visitor-at-explore-leaves-for-the-marketing-site",
 ] as const;
 
 const requiredNavCaseNames = [
@@ -223,6 +223,7 @@ const requiredNavCaseNames = [
   "signed-out-visitor-at-the-root-is-offered-no-entries",
   "signed-out-visitor-at-explore-is-offered-no-entries",
   "a-signed-out-transcript-reader-gets-no-sidebar",
+  "a-signed-out-privacy-reader-gets-the-public-bar",
 ] as const;
 
 const navCaseKeys = [
@@ -360,7 +361,7 @@ function newestFirstTitles(rows: HomeTranscriptCase[]): string[] {
     .map((t) => t.title);
 }
 
-const surfaces: readonly HomeRouteSurface[] = ["home", "marketing", "sign-in", "explore"];
+const surfaces: readonly HomeRouteSurface[] = ["home", "marketing", "explore"];
 
 const requiredSortCaseNames = [
   "newest-first-among-parseable-timestamps",
@@ -403,27 +404,25 @@ export function loadHomePageFixtures(): HomePageFixtures {
           `${surfaces.join(", ")}.`,
       );
     }
-    // The rule the routes exist to express: `/` is home for somebody signed in
-    // and the marketing site for everybody else, signing in starts at `/login`,
-    // and `/explore` is discovery for both. A case claiming otherwise would
-    // invert the boundary rather than test it.
+    // The rule the routes exist to express: the app keeps no signed-out view.
+    // Every page sends a visitor without a session to the marketing site's
+    // log-in popup, `/login` included; a signed-in visitor gets the page itself.
+    // A case claiming otherwise would invert the boundary rather than test it.
     const want: HomeRouteSurface =
-      c.path === "/"
-        ? c.viewerUsername !== null ? "home" : "marketing"
-        : c.path === "/login" ? "sign-in" : "explore";
+      c.viewerUsername === null ? "marketing" : c.path === "/" ? "home" : "explore";
     if (c.expectSurface !== want) {
       throw new Error(
         `route case ${c.name}: expectSurface is ${c.expectSurface} for path ${c.path} viewed by ` +
-          `${c.viewerUsername ?? "an anonymous visitor"}. "/" is home to a signed-in visitor and ` +
-          `the marketing site to anybody else, "/login" is the sign-in page, and "/explore" is ` +
-          `discovery to both; fix the expectation rather than the rule.`,
+          `${c.viewerUsername ?? "an anonymous visitor"}. Every page sends an anonymous visitor to ` +
+          `the marketing site; "/" is home to a signed-in visitor and "/explore" is discovery; ` +
+          `fix the expectation rather than the rule.`,
       );
     }
   }
   // Both answers at `/` must be present, or the corpus proves only one branch
   // and a page that ignored the session entirely would still pass. `/explore`
-  // must be visited both ways too: its address is the only way left to reach
-  // discovery, for either viewer.
+  // must be visited both ways too: a page other than the root must send an
+  // anonymous visitor away just the same.
   for (const path of ["/", "/explore"]) {
     const atPath = fixtures.routeCases.filter((c) => c.path === path);
     if (!atPath.some((c) => c.viewerUsername === null) || !atPath.some((c) => c.viewerUsername !== null)) {
@@ -448,14 +447,18 @@ export function loadHomePageFixtures(): HomePageFixtures {
           `case expects (${c.expectLabels.join(", ")})`,
       );
     }
-    // The sidebar belongs to somebody who is signed in; a signed-out reader
-    // gets the public bar. A signed-out case listing an entry would assert the
-    // opposite of the rule the sidebar exists to express.
-    if (!["sections", "none"].includes(c.expectNav)) {
-      throw new Error(`nav case ${c.name}: ${c.expectNav} is not a navigation the sidebar draws`);
+    // The sidebar belongs to somebody who is signed in. A signed-out visitor
+    // gets the public bar on the privacy notice, the one page served to them,
+    // and no chrome anywhere else. A signed-out case listing an entry would
+    // assert the opposite of the rule the sidebar exists to express.
+    if (!["sections", "public", "none"].includes(c.expectNav)) {
+      throw new Error(`nav case ${c.name}: ${c.expectNav} is not a navigation the chrome draws`);
     }
-    if ((c.expectNav === "none") !== !c.isLoggedIn) {
+    if ((c.expectNav === "sections") !== c.isLoggedIn) {
       throw new Error(`nav case ${c.name}: the sidebar is drawn exactly for somebody signed in`);
+    }
+    if ((c.expectNav === "public") !== (!c.isLoggedIn && c.pathname === "/privacy")) {
+      throw new Error(`nav case ${c.name}: the public bar is drawn only on the privacy notice, signed out`);
     }
     // The sidebar is the same on every page, a settings page included: it has
     // no way back of its own.
@@ -487,9 +490,14 @@ export function loadHomePageFixtures(): HomePageFixtures {
     );
   }
   // A settings page must be exercised, or a sidebar that went back to taking
-  // over a settings page would pass.
+  // over a settings page would pass; and every chrome answer must appear.
   if (!fixtures.navCases.some((c) => /\/settings(\?|$)/.test(c.pathname) && c.expectNav === "sections")) {
     throw new Error("home-page navCases must hold a collective settings page drawn with the sections");
+  }
+  for (const nav of ["sections", "public", "none"] as const) {
+    if (!fixtures.navCases.some((c) => c.expectNav === nav)) {
+      throw new Error(`home-page navCases must hold a case where the chrome draws ${nav}`);
+    }
   }
 
   assertNamesMatch(

@@ -1,54 +1,40 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SignInProviders } from "@/lib/ft-ui";
 import { useAuth } from "@/providers/AuthProvider";
-import PeasantWordmark from "@/components/online/PeasantWordmark";
-import { SIGN_IN_PROVIDERS, rememberNextPath, safeNextPath, startSignIn } from "@/lib/signIn";
+import { MARKETING_URL, leaveForSignIn, marketingLoginURL } from "@/lib/marketing";
+import { safeNextPath } from "@/lib/signIn";
 
 /**
- * The one front door: the wordmark, the GitHub button, the terminal command that
- * uses the same sign-in, and the privacy notice.
+ * The sign-in page's address, kept for every "sign in" link and bookmark. Signing
+ * in happens in the marketing site's log-in popup now, so this page hands the
+ * visitor there with the address it was asked to return to.
  *
- * A `next` address (set by a page that asked a signed-out visitor to sign in)
- * is remembered before leaving for GitHub, and `/auth/callback` returns there.
- * Somebody who is already signed in is sent on straight away.
+ * A page load without a session never reaches it: the proxy sends that visitor
+ * to the popup first. What arrives here is a link followed inside the app, or a
+ * session cookie that turned out to be stale. Somebody who is signed in is sent
+ * on straight away.
  */
 export default function LoginPage({ next: asked }: { next: string | null }) {
   const router = useRouter();
   const { isLoading, isLoggedIn } = useAuth();
   const next = safeNextPath(asked);
+  const destination = marketingLoginURL(next);
 
   useEffect(() => {
-    if (!isLoading && isLoggedIn) router.replace(next ?? "/");
+    if (isLoading) return;
+    if (isLoggedIn) router.replace(next ?? "/");
+    else leaveForSignIn(next);
   }, [isLoading, isLoggedIn, next, router]);
 
-  const signIn = (providerId: string) => {
-    rememberNextPath(next);
-    startSignIn(providerId);
-  };
-
   return (
-    <div className="on-login" data-testid="sign-in-page">
-      <section className="on-login-card" aria-labelledby="login-heading">
-        <header>
-          <PeasantWordmark />
-          <h1 id="login-heading">log in to peasant</h1>
-        </header>
-        <div className="on-login-body">
-          <SignInProviders providers={SIGN_IN_PROVIDERS} onSignIn={signIn} />
-          <p className="on-chrome">
-            in the terminal: <code>peasant village login</code>
-          </p>
-        </div>
-        <footer>
-          <Link href="/privacy" className="on-link on-chrome">
-            privacy notice
-          </Link>
-        </footer>
-      </section>
+    <div className="on-login" data-testid="leaving-for-sign-in">
+      {!isLoading && !isLoggedIn && (
+        <p className="on-muted" role="status">
+          taking you to log in on <a className="on-link" href={destination}>{MARKETING_URL.replace(/^https?:\/\//, "")}</a>
+        </p>
+      )}
     </div>
   );
 }

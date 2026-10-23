@@ -8,19 +8,24 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
  * `src/signInPage.test.tsx`.
  *
  * Deletion protection is the required-NAME manifest below, never a count. Every
- * consistency rule reads the fixture's own data: a case may only expect
- * providers from the corpus's own `offeredProviders`, and the corpus must
- * exercise both places a sign-in button can appear.
+ * consistency rule reads the fixture's own data: a case may only expect a
+ * provider from the corpus's own `offeredProviders`, and the corpus must
+ * exercise every answer a sign-in step can give.
  */
 
 export type SignInPageCase = {
   name: string;
   why: string;
-  path: "/" | "/login" | "/explore";
+  path: string;
   signedIn: boolean;
-  expectPageProviders: string[];
+  /** The provider `/auth/start` leaves for, or null when it leaves for none. */
+  expectStart: string | null;
+  /** The return address remembered for `/auth/callback`, or null. */
+  expectRemembered: string | null;
   /** Where the chrome's "sign in" link leads, or null when it offers none. */
   expectSignInLink: string | null;
+  /** The visitor is sent to the marketing site's log-in popup. */
+  expectLeaving: boolean;
 };
 
 export type SignInPageFixtures = {
@@ -29,8 +34,13 @@ export type SignInPageFixtures = {
 };
 
 const requiredCaseNames = [
-  "the-sign-in-page-is-one-github-button",
-  "a-signed-out-deep-link-signs-in-and-comes-back",
+  "the-sign-in-start-leads-to-github",
+  "an-unknown-provider-starts-the-first-offered",
+  "a-foreign-return-address-is-not-remembered",
+  "a-good-session-skips-the-provider",
+  "the-sign-in-page-hands-over-to-the-marketing-site",
+  "a-signed-out-deep-link-leaves-for-the-log-in-popup",
+  "the-privacy-notice-offers-one-way-in",
   "a-signed-in-root-offers-no-sign-in",
 ] as const;
 
@@ -39,11 +49,14 @@ const caseKeys = [
   "why",
   "path",
   "signedIn",
-  "expectPageProviders",
+  "expectStart",
+  "expectRemembered",
   "expectSignInLink",
+  "expectLeaving",
 ];
 
-const paths = ["/", "/login", "/explore"];
+/** The routes the mounted fixture registers (`routeElement` in mountedHomeRoute). */
+const routes = ["/", "/login", "/explore", "/auth/start", "/privacy"];
 
 export function loadSignInPageFixtures(): SignInPageFixtures {
   const fixturePath = resolve(process.cwd(), "src/testdata/sign-in-page.yaml");
@@ -65,34 +78,43 @@ export function loadSignInPageFixtures(): SignInPageFixtures {
   for (const c of fixtures.cases) {
     assertExactKeys(c, caseKeys, `sign-in-page case ${c.name}`);
     if (!c.why?.trim()) throw new Error(`sign-in-page case ${c.name} has no why`);
-    if (!paths.includes(c.path)) {
-      throw new Error(`sign-in-page case ${c.name}: no route is mounted at ${c.path}`);
+    const route = c.path.split("?")[0];
+    if (!routes.includes(route)) {
+      throw new Error(`sign-in-page case ${c.name}: no route is mounted at ${route}`);
     }
-    for (const id of c.expectPageProviders) {
-      if (!fixtures.offeredProviders.includes(id)) {
-        throw new Error(
-          `sign-in-page case ${c.name}: ${id} is not among the offered providers ` +
-            `(${fixtures.offeredProviders.join(", ")})`,
-        );
-      }
+    if (c.expectStart !== null && !fixtures.offeredProviders.includes(c.expectStart)) {
+      throw new Error(
+        `sign-in-page case ${c.name}: ${c.expectStart} is not among the offered providers ` +
+          `(${fixtures.offeredProviders.join(", ")})`,
+      );
     }
-    // A signed-in visitor has nothing to sign in to. A case expecting a button
-    // for one would assert the opposite of the rule.
-    if (c.signedIn && (c.expectPageProviders.length > 0 || c.expectSignInLink !== null)) {
+    // Only the sign-in start leaves for a provider, and only for somebody who
+    // is not signed in already.
+    if (c.expectStart !== null && (route !== "/auth/start" || c.signedIn)) {
+      throw new Error(`sign-in-page case ${c.name}: only /auth/start, signed out, leaves for a provider`);
+    }
+    if (c.expectRemembered !== null && c.expectStart === null) {
+      throw new Error(`sign-in-page case ${c.name}: a return address is remembered only on the way to a provider`);
+    }
+    // A signed-in visitor has nothing to sign in to, and is never sent away.
+    if (c.signedIn && (c.expectSignInLink !== null || c.expectLeaving)) {
       throw new Error(`sign-in-page case ${c.name}: a signed-in visitor is offered no sign-in`);
     }
-    // A link back to the sign-in page from the sign-in page would be a loop.
-    if (c.path === "/login" && c.expectSignInLink !== null) {
-      throw new Error(`sign-in-page case ${c.name}: the sign-in page links to no sign-in`);
+    // The sign-in steps and the privacy notice are served signed out; every
+    // other page sends the visitor to the popup.
+    const open = route === "/auth/start" || route === "/privacy";
+    if (!c.signedIn && c.expectLeaving === open) {
+      throw new Error(`sign-in-page case ${c.name}: a signed-out visitor leaves exactly where no page is served`);
     }
   }
-  // Both ways in must be exercised: the page's own button, and the chrome's
-  // link from another page.
-  if (!fixtures.cases.some((c) => c.expectPageProviders.length > 0)) {
-    throw new Error("sign-in-page corpus must hold a case where the page offers a provider");
+  if (!fixtures.cases.some((c) => c.expectStart !== null)) {
+    throw new Error("sign-in-page corpus must hold a case that leaves for a provider");
   }
   if (!fixtures.cases.some((c) => c.expectSignInLink !== null)) {
     throw new Error("sign-in-page corpus must hold a case where the chrome links to sign in");
+  }
+  if (!fixtures.cases.some((c) => c.expectLeaving)) {
+    throw new Error("sign-in-page corpus must hold a case that leaves for the marketing site");
   }
   return fixtures;
 }

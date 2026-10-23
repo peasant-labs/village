@@ -9,24 +9,21 @@ import {
 import { loadHomePageFixtures } from "@/test/homePageFixtures";
 import { mostRecentGroupFirst } from "@/app/HomePage";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
-import { leaveForMarketingSite } from "@/lib/marketing";
+import { leaveForSignIn } from "@/lib/marketing";
 import type { TranscriptListItem } from "@/lib/types";
 
 // Mounts the REAL production routes: the root route (`/`), which serves the
-// signed-in person's home page or sends anybody else to the marketing site,
-// the sign-in route (`/login`), and the explore route (`/explore`). Every
-// assertion is on what lands in the DOM and on the requests the routes actually
-// issue, so a regression cannot hide behind a prop snapshot.
+// signed-in person's home page, the sign-in route (`/login`), and the explore
+// route (`/explore`), inside the real app frame, which sends anybody without a
+// session to the marketing site's log-in popup. Every assertion is on what
+// lands in the DOM and on the requests the routes actually issue, so a
+// regression cannot hide behind a prop snapshot.
 //
-// Leaving for the marketing site is the one boundary stubbed: it would navigate
-// the whole document away, so it records the call instead.
-vi.mock("@/lib/marketing", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/marketing")>();
-  return { ...actual, leaveForMarketingSite: vi.fn() };
-});
-
+// Leaving for the marketing site is the one boundary stubbed (in
+// vitest.setup.ts): it would navigate the whole document away, so it records
+// the call instead.
 beforeEach(() => {
-  vi.mocked(leaveForMarketingSite).mockClear();
+  vi.mocked(leaveForSignIn).mockClear();
 });
 
 const fixtures = loadHomePageFixtures();
@@ -41,12 +38,8 @@ function exploreSurface(): Element | null {
   return document.querySelector('[data-testid="session-list-results"]');
 }
 
-function signInSurface(): Element | null {
-  return document.querySelector('[data-testid="sign-in-page"]');
-}
-
 function marketingSurface(): Element | null {
-  return document.querySelector('[data-testid="root-route-leaving"]');
+  return document.querySelector('[data-testid="leaving-for-sign-in"]');
 }
 
 function homeErrorSurface(): Element | null {
@@ -81,7 +74,6 @@ async function settled(): Promise<void> {
     expect(
       homeSurface() ??
         exploreSurface() ??
-        signInSurface() ??
         marketingSurface() ??
         homeErrorSurface() ??
         noHandleSurface(),
@@ -93,16 +85,21 @@ describe("mounted routes: which surface each visitor lands on", () => {
   for (const c of fixtures.routeCases) {
     it(c.name, async () => {
       installHomeRouteREST({ viewerUsername: c.viewerUsername, transcripts: [] });
-      await renderAppRoute(c.path);
+      await renderAppRoute(c.path, { header: true });
       await settled();
 
       expect(homeSurface() !== null).toBe(c.expectSurface === "home");
-      expect(signInSurface() !== null).toBe(c.expectSurface === "sign-in");
       expect(exploreSurface() !== null).toBe(c.expectSurface === "explore");
-      // Sent to the marketing site exactly when the surface says so, and only
-      // once the session read has answered.
+      // Sent to the marketing site exactly when the surface says so, once,
+      // and only once the session read has answered.
       expect(marketingSurface() !== null).toBe(c.expectSurface === "marketing");
-      expect(vi.mocked(leaveForMarketingSite).mock.calls.length).toBe(c.expectSurface === "marketing" ? 1 : 0);
+      expect(vi.mocked(leaveForSignIn).mock.calls.length).toBe(c.expectSurface === "marketing" ? 1 : 0);
+      if (c.expectSurface === "marketing") {
+        // The popup brings the visitor back to the page they asked for; home,
+        // and the sign-in page itself, carry nothing to come back to.
+        const comesBackTo = c.path === "/" || c.path === "/login" ? null : c.path;
+        expect(vi.mocked(leaveForSignIn).mock.calls[0]?.[0]).toBe(comesBackTo);
+      }
     });
   }
 

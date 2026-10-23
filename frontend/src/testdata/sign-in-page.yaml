@@ -3,40 +3,107 @@
 #
 # Every case mounts the REAL app chrome (`AppFrame`) around the REAL route at
 # `path`, inside the real `AuthProvider`, with the session answered by
-# `GET /auth/me`. A provider is "offered" when a fairtrade sign-in button on
-# the screen leads to it: the split button's primary action plus every row
-# behind its chevron. The chrome itself offers no provider button: a
-# signed-out reader of another page gets one "sign in" link to `/login` that
-# returns to the page they were on.
+# `GET /auth/me`. Signing in starts on the marketing site's log-in popup; its
+# github button lands on `/auth/start`, which remembers where to come back to
+# and leaves for the provider. The app keeps no signed-out view: anywhere but
+# the sign-in steps and the privacy notice, a signed-out visitor is sent to the
+# popup (`expectLeaving`). The privacy notice keeps the public bar's one "sign
+# in" link, which returns to it.
+#
+#   expectStart       the provider `/auth/start` leaves for, or null when it
+#                     leaves for none.
+#   expectRemembered  the return address remembered for `/auth/callback`, or
+#                     null when none is.
+#   expectSignInLink  where the chrome's "sign in" link leads, or null.
+#   expectLeaving     the visitor is sent to the marketing site's log-in popup.
 #
 # Deletion protection is the required-NAME manifest in
 # `src/test/signInPageFixtures.ts`.
 
 # The closed set of providers the whole app offers, asserted as exact
-# membership against what the sign-in page renders. GitHub only; the other
-# providers are hidden, and their server routes stay.
+# membership. GitHub only; the other providers are hidden, and their server
+# routes stay.
 offeredProviders: [github]
 
 cases:
-  - name: the-sign-in-page-is-one-github-button
+  - name: the-sign-in-start-leads-to-github
     why: >
-      The front door. `/login` is the sign-in page, its one button is GitHub,
-      and it is drawn with no chrome around it, so there is no second way in on
-      the screen.
+      The popup's github button lands here. It remembers the page the visitor
+      was headed to and leaves for github, exactly as the old sign-in page's
+      button did.
+    path: "/auth/start?provider=github&next=%2Fcollectives%2Fabc"
+    signedIn: false
+    expectStart: github
+    expectRemembered: /collectives/abc
+    expectSignInLink: null
+    expectLeaving: false
+
+  - name: an-unknown-provider-starts-the-first-offered
+    why: >
+      A provider the app does not offer is never started; the first offered one
+      is, so an old or hand-edited link still signs the visitor in.
+    path: "/auth/start?provider=gitlab"
+    signedIn: false
+    expectStart: github
+    expectRemembered: null
+    expectSignInLink: null
+    expectLeaving: false
+
+  - name: a-foreign-return-address-is-not-remembered
+    why: >
+      An address on another host would turn the sign-in into an open redirect,
+      so the visitor lands on home instead.
+    path: "/auth/start?provider=github&next=https%3A%2F%2Fexample.com%2Fsteal"
+    signedIn: false
+    expectStart: github
+    expectRemembered: null
+    expectSignInLink: null
+    expectLeaving: false
+
+  - name: a-good-session-skips-the-provider
+    why: >
+      Somebody whose session is already good is sent on to the page, not round
+      the provider again.
+    path: "/auth/start?provider=github&next=%2Fpulls"
+    signedIn: true
+    expectStart: null
+    expectRemembered: null
+    expectSignInLink: null
+    expectLeaving: false
+
+  - name: the-sign-in-page-hands-over-to-the-marketing-site
+    why: >
+      `/login` stays the address every "sign in" link leads to, but signing in
+      happens in the marketing site's popup now, so the page offers no button
+      of its own and hands the visitor over.
     path: "/login"
     signedIn: false
-    expectPageProviders: [github]
+    expectStart: null
+    expectRemembered: null
     expectSignInLink: null
+    expectLeaving: true
 
-  - name: a-signed-out-deep-link-signs-in-and-comes-back
+  - name: a-signed-out-deep-link-leaves-for-the-log-in-popup
     why: >
-      A signed-out visitor who arrives by a link to another page still has a
-      way in, from the public bar, and it brings them back to the page they
-      were reading once they have signed in.
+      A signed-out visitor who arrives by a link to another page is sent to the
+      log-in popup, which brings them back to that page once signed in.
     path: "/explore"
     signedIn: false
-    expectPageProviders: []
-    expectSignInLink: "/login?next=%2Fexplore"
+    expectStart: null
+    expectRemembered: null
+    expectSignInLink: null
+    expectLeaving: true
+
+  - name: the-privacy-notice-offers-one-way-in
+    why: >
+      The privacy notice is read before signing in, so it is served signed out,
+      in the public bar with one way in that returns to it.
+    path: "/privacy"
+    signedIn: false
+    expectStart: null
+    expectRemembered: null
+    expectSignInLink: "/login?next=%2Fprivacy"
+    expectLeaving: false
 
   - name: a-signed-in-root-offers-no-sign-in
     why: >
@@ -44,5 +111,7 @@ cases:
       or in the chrome.
     path: "/"
     signedIn: true
-    expectPageProviders: []
+    expectStart: null
+    expectRemembered: null
     expectSignInLink: null
+    expectLeaving: false

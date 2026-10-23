@@ -12,6 +12,8 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 export interface ProxyCase {
   name: string;
   why: string;
+  /** The address asked for, with its query. */
+  path: string;
   cookie: string | null;
   /** The browser's `Sec-Fetch-Dest`, or null for a client that sends none. */
   fetchDest: "document" | "empty" | null;
@@ -31,6 +33,13 @@ const requiredProxyCases = [
   "an-empty-cookie-is-no-session",
   "a-session-cookie-is-served-the-home-page",
   "an-in-app-fetch-of-the-root-is-served-the-app",
+  "a-signed-out-deep-link-comes-back-to-its-page",
+  "a-shared-transcript-link-signs-in-first",
+  "the-sign-in-page-hands-over-its-return-address",
+  "the-sign-in-page-drops-a-foreign-return-address",
+  "the-sign-in-start-is-served-signed-out",
+  "the-oauth-landing-is-served-signed-out",
+  "the-privacy-notice-is-served-signed-out",
 ];
 
 const requiredNextCases = [
@@ -52,7 +61,7 @@ export function loadSignInRouteFixtures(): { proxyCases: ProxyCase[]; nextCases:
 
   assertNamesMatch(parsed.proxyCases.map((c) => c.name), requiredProxyCases, "sign-in-route proxyCases");
   for (const c of parsed.proxyCases) {
-    assertExactKeys(c, ["name", "why", "cookie", "fetchDest", "expect"], `proxy case ${c.name}`);
+    assertExactKeys(c, ["name", "why", "path", "cookie", "fetchDest", "expect"], `proxy case ${c.name}`);
     assertExactKeys(c.expect, ["status", "location"], `proxy case ${c.name} expect`);
     if (!c.why?.trim()) throw new Error(`proxy case ${c.name} states no reason it exists`);
   }

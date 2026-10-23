@@ -191,7 +191,8 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
         transcripts: [],
         collectives: signedIn ? [{ id: GROUP_ID, name: content.collective, role: "owner", members: 3 }] : [],
       });
-      await renderHeaderAt(signedIn ? "/collectives" : "/explore");
+      // Signed out, the public bar is drawn only on the privacy notice.
+      await renderHeaderAt(signedIn ? "/collectives" : "/privacy");
       if (!signedIn) {
         await screen.findByRole("link", { name: "sign in" });
         return screen.getByTestId("public-top-bar");
@@ -207,7 +208,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
     case "sign-in-page": {
       installHomeRouteREST({ viewerUsername: null, transcripts: [] });
       await renderAppRoute("/login", { header: true });
-      return await screen.findByTestId("sign-in-page");
+      return await screen.findByTestId("leaving-for-sign-in");
     }
 
     case "home-page": {
