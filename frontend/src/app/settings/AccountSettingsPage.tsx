@@ -163,7 +163,6 @@ function Settings({ user }: { user: User }) {
             />
             <SettingRow
               label="discoverable profile"
-              help="on: your handle shows on your transcripts and in member lists. off: you show as anon."
               control="switch"
               value={user.is_discoverable}
               onCommit={async (next) => {
@@ -226,11 +225,7 @@ function Settings({ user }: { user: User }) {
                       {org.org_login}
                     </span>
                   }
-                  help={
-                    org.visible
-                      ? "shown on your profile. collectives check your membership either way."
-                      : "not shown on your profile. collectives check your membership either way."
-                  }
+                  help="show on your profile"
                   control="switch"
                   value={org.visible}
                   onCommit={async (next) => {
@@ -248,7 +243,6 @@ function Settings({ user }: { user: User }) {
           <Section id="pull-requests" title="pull requests" testId="settings-pull-requests">
             <SettingRow
               label="link my transcripts to my pull requests automatically"
-              help="off: comment /peasant attach on a pull request. on: when you open a pull request in a repo that one of your collectives links, your transcripts that trace its commits are linked. who can read them does not change."
               control="switch"
               value={settings.data?.auto_attach_pull_requests ?? false}
               disabled={settings.data == null || settings.isFetching}
@@ -340,7 +334,6 @@ function GitHubConnection({ user }: { user: User }) {
         <span className="srow-label">
           signed in with {provider} as <span className="normal-case">{login}</span>
         </span>
-        <span className="srow-help">this is the account you sign in to peasant online with.</span>
         {logout.isError && (
           <span role="alert" style={{ fontSize: "var(--fs-body)", color: "var(--error)" }}>
             could not sign out: {errorMessage(logout.error)}. try again.
@@ -424,7 +417,6 @@ function PeasantConnection({ handle }: { handle: string }) {
           {active.length === 1 ? "computer" : "computers"}
         </span>
         <span className="srow-help">
-          it can publish as you.{" "}
           {lastUsed == null ? (
             "not used yet."
           ) : (

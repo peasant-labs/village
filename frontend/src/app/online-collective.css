@@ -240,7 +240,6 @@ section.on-choices {
 /* a long name or description wraps beside its edit button instead of pushing it off the page */
 .on-settings-body .srow {
   flex-wrap: wrap;
-  padding-inline: 0;
 }
 .on-settings-body .srow-text {
   flex-wrap: wrap;
