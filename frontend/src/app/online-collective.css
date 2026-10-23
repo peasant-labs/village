@@ -366,11 +366,6 @@ section.on-choices {
   height: auto;
   min-height: var(--control-h);
 }
-@media (pointer: coarse) {
-  .on-invite .btn {
-    min-height: var(--target-comfortable);
-  }
-}
 
 /* ---------- a collective's settings ----------
    Each section is one fairtrade setting group card (`srow-group`), open and

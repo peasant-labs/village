@@ -79,9 +79,13 @@ async function mount(c: RouteCase): Promise<void> {
   await waitFor(() => expect(document.querySelector(".txn-title")).not.toBeNull());
 }
 
+/** The trail's crumbs, each `label -> href`, or the bare label for one with no link. */
 function crumbs(): string[] {
   const nav = document.querySelector('nav[aria-label="breadcrumb"]');
-  return [...(nav?.querySelectorAll(".link, .cur") ?? [])].map((crumb) => crumb.textContent ?? "");
+  return [...(nav?.querySelectorAll(".link, .cur") ?? [])].map((crumb) => {
+    const href = crumb.getAttribute("href");
+    return href ? `${crumb.textContent ?? ""} -> ${href}` : crumb.textContent ?? "";
+  });
 }
 
 installMountedRouteTeardown();

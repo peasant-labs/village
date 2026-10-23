@@ -112,7 +112,9 @@ breadcrumbCases:
     expect: ["pull requests -> /pulls", "acme/app#42 -> /pulls/acme/app/42"]
 
 # The mounted transcript page, opened at `/transcripts/{id}{search}`. The trail
-# it draws is `expectCrumbs` (the place, then the title once in the hero).
+# it draws is `expectCrumbs`, each crumb `label -> href` or the bare label for
+# one with no link: the place, every crumb a way back to it, and the title
+# once, in the hero.
 # A signed-in person whose link names no place gets one written into the
 # address in place (`expectReplace`, or null when the address is left as it
 # is). `myCollectives` are the person's own; `shares` the transcript's.
@@ -122,40 +124,40 @@ routeCases:
     search: "?in=collective:c-acme"
     myCollectives: [{ id: c-acme, name: Acme Platform }]
     shares: []
-    expectCrumbs: [collectives, Acme Platform]
+    expectCrumbs: ["collectives -> /collectives", "Acme Platform -> /collectives/c-acme"]
     expectReplace: null
   - name: opened-from-a-collective-they-are-not-in-names-it-from-the-share
     signedIn: true
     search: "?in=collective:c-guild"
     myCollectives: []
     shares: [{ group_id: c-guild, group_name: Infra Guild, status: approved }]
-    expectCrumbs: [collectives, Infra Guild]
+    expectCrumbs: ["collectives -> /collectives", "Infra Guild -> /collectives/c-guild"]
     expectReplace: null
   - name: opened-from-a-pull-request-names-it
     signedIn: true
     search: "?turn=1&in=pull:acme/widgets/7"
     myCollectives: []
     shares: []
-    expectCrumbs: [pull requests, "acme/widgets#7"]
+    expectCrumbs: ["pull requests -> /pulls", "acme/widgets#7 -> /pulls/acme/widgets/7"]
     expectReplace: null
   - name: a-direct-link-in-one-of-theirs-is-given-that-collective
     signedIn: true
     search: ""
     myCollectives: [{ id: c-acme, name: Acme Platform }]
     shares: [{ group_id: c-acme, group_name: Acme Platform, status: approved }]
-    expectCrumbs: [collectives, Acme Platform]
+    expectCrumbs: ["collectives -> /collectives", "Acme Platform -> /collectives/c-acme"]
     expectReplace: "/transcripts/{transcriptId}?in=collective:c-acme"
   - name: a-direct-link-in-none-of-theirs-is-given-home-and-keeps-its-turn
     signedIn: true
     search: "?turn=1"
     myCollectives: [{ id: c-acme, name: Acme Platform }]
     shares: []
-    expectCrumbs: [home, village]
+    expectCrumbs: ["home -> /", "village -> /users/fixture-owner/projects/0000000000000000000000000000000000000000000000000000000000000000"]
     expectReplace: "/transcripts/{transcriptId}?turn=1&in=home"
   - name: a-signed-out-reader-is-left-at-home
     signedIn: false
     search: ""
     myCollectives: []
     shares: []
-    expectCrumbs: [home, village]
+    expectCrumbs: ["home", "village -> /users/fixture-owner/projects/0000000000000000000000000000000000000000000000000000000000000000"]
     expectReplace: null

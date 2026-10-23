@@ -40,16 +40,6 @@
     transform: none;
   }
 }
-/* a finger needs a bigger target than a pointer */
-@media (pointer: coarse) {
-  .on-page .btn,
-  .on-login .btn,
-  .on-top .btn {
-    height: auto;
-    min-height: var(--target-comfortable);
-  }
-}
-
 /* ---------- page frame ---------- */
 
 /* fairtrade's app page (.asb-page) owns the frame: the full width, the same
@@ -538,11 +528,6 @@
   color: var(--ink-2);
   text-align: left;
   cursor: pointer;
-}
-@media (pointer: coarse) {
-  .on-mi {
-    min-height: var(--target-comfortable);
-  }
 }
 .on-mi:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring);
@@ -1237,11 +1222,6 @@
   font-family: var(--font-body);
   font-size: var(--fs-body);
   box-sizing: border-box;
-}
-@media (pointer: coarse) {
-  .on-input {
-    min-height: var(--target-comfortable);
-  }
 }
 .on-input:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring);

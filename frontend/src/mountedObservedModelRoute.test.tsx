@@ -59,6 +59,14 @@ function installFixture(transcriptID: string, detail: SessionDetailPayload) {
   return installRESTFixture(transcriptID, metadata, detail, "mounted observed-model route");
 }
 
+/** An element's text as assistive technology reads it: hidden parts left out, spaces collapsed. */
+function spokenText(element: Element | null): string | null {
+  if (!element) return null;
+  const copy = element.cloneNode(true) as Element;
+  for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) hidden.remove();
+  return (copy.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
 installMountedRouteTeardown();
 
 describe("mounted production transcript route observed-model compatibility", () => {
@@ -75,7 +83,9 @@ describe("mounted production transcript route observed-model compatibility", () 
       expect(renderedTurns.map((turn) => turn.querySelector(".txn-turnmodel")?.textContent)).toEqual(
         fixture.turns.map(({ expectedEffectiveModel }) => expectedEffectiveModel),
       );
-      expect(renderedTurns.map((turn) => turn.querySelector(".txn-modelchange")?.textContent ?? null)).toEqual(
+      // The transition as a reader hears it: the arrow is drawn for the eye and
+      // spoken as "to".
+      expect(renderedTurns.map((turn) => spokenText(turn.querySelector(".txn-modelchange")))).toEqual(
         fixture.turns.map(({ expectedTransition }) => expectedTransition),
       );
       expect(document.querySelectorAll(".txn-modelchange")).toHaveLength(fixture.expectedTransitionCount);

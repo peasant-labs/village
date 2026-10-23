@@ -128,8 +128,11 @@ describe("mounted production transcript route: routable breadcrumb", () => {
       const crumbs = [...nav!.querySelectorAll(".link, .cur")].map((crumb) => crumb.textContent);
       expect(crumbs).toEqual(["home", c.expectedProjectCrumbLabel]);
       expect(nav!.querySelector('a[href="/"]')).toBeNull();
-      const projectLink = nav!.querySelector("a");
-      if (projectLink) expect(projectLink.getAttribute("href")).toBe(expectedProjectHref);
+      // The project is the trail's last crumb and a real exit to its page.
+      const crumbAnchors = [...nav!.querySelectorAll("a")];
+      expect(crumbAnchors).toHaveLength(1);
+      expect(crumbAnchors[0]?.getAttribute("href")).toBe(expectedProjectHref);
+      expect(crumbAnchors[0]?.textContent).toBe(c.expectedProjectCrumbLabel);
 
       // The title shows once, in the hero, and never in the trail.
       const title = c.storedTitle?.trim();

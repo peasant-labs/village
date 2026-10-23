@@ -55,7 +55,7 @@ observedModelSessions:
         content: Third assistant response records the switch to Opus.
         sourceObservation: anthropic/claude-opus-4-8
         expectedEffectiveModel: anthropic/claude-opus-4-8
-        expectedTransition: 'model changed: anthropic/claude-fable-5 -> anthropic/claude-opus-4-8'
+        expectedTransition: 'model changed: claude-fable-5 to claude-opus-4-8'
       - name: sticky-inherited-opus
         content: Fourth assistant response inherits Opus.
         sourceObservation: null
