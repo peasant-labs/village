@@ -12,9 +12,22 @@
    column, the way the design system's own in-use pages lift the cap. */
 .on-pr-card section,
 .on-pr-prompts,
-.on-pr-prompts section {
+.on-pr-prompts section,
+.on-pr-day {
   max-width: none;
   margin-inline: 0;
+}
+.on-pr-day {
+  padding: 0;
+}
+
+/* The same base sheet holds every <p> to a prose measure. A line that runs the
+   card's width (the coverage line, a note, a meta line) is not prose. */
+.on-pr-coverage,
+.on-pr-note,
+.on-pr-card .on-prcard-meta,
+.on-pr-list .on-prcard-meta {
+  max-inline-size: none;
 }
 
 /* A pull request's title is user content: it keeps its own case, where the
@@ -87,11 +100,6 @@
   letter-spacing: 0;
   color: var(--ink);
 }
-@media (max-width: 767px) {
-  .on-pr-band {
-    padding-inline: var(--sp-4);
-  }
-}
 
 /* ---------- transcript rows ---------- */
 
@@ -118,6 +126,10 @@
 }
 .on-pr-rowmeta .on-agent {
   vertical-align: bottom;
+}
+/* a row's facts wrap between one another, never inside "40 turns" */
+.on-pr-rowmeta > span {
+  white-space: nowrap;
 }
 .on-pr-audience {
   margin: var(--sp-1) 0 0;
@@ -260,6 +272,13 @@
 }
 .on-pr-list .on-prcard > header {
   padding-bottom: var(--sp-4);
+}
+.on-pr-cardfoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 var(--sp-4);
 }
 .on-pr-cardhead {
   display: flex;

@@ -257,19 +257,17 @@ function RequestCard({ request, now }: { request: VillagePromptRequest; now: num
           </h3>
           <PullStateTag state={request.state} />
         </div>
-        {(asked || fork) && (
+        <div className="on-pr-cardfoot">
           <p className="on-prcard-meta">
             {asked && <span>asked {asked}</span>}{" "}
             {fork && <span className="on-pr-repo-name">from {fork}</span>}
           </p>
-        )}
+          <a className="on-pr-gh" href={githubHref} target="_blank" rel="noreferrer">
+            view on github
+            <ExternalLink aria-hidden="true" />
+          </a>
+        </div>
       </header>
-      <footer>
-        <a className="on-pr-gh" href={githubHref} target="_blank" rel="noreferrer">
-          view on github
-          <ExternalLink aria-hidden="true" />
-        </a>
-      </footer>
     </article>
   );
 }

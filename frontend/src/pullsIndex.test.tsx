@@ -102,7 +102,7 @@ describe("the pull requests route", () => {
           // And each card offers its pull request on GitHub.
           const github = screen
             .getAllByTestId("pulls-request")
-            .map((card) => card.querySelector("footer a")?.getAttribute("href"));
+            .map((card) => card.querySelector(".on-pr-gh")?.getAttribute("href"));
           expect(github).toEqual(
             c.expectDays.flatMap((day) =>
               day.cards.map((card) => `https://github.com${card.href.replace(/^\/pulls\/([^/]+)\/([^/]+)\/(\d+)$/, "/$1/$2/pull/$3")}`),

@@ -401,7 +401,7 @@ export default function PullRequestPage({
     <OnPage tight testId="pull-request-page">
       <article className="on-prcard on-pr-card" aria-labelledby={titleId}>
         <header>
-          <p className="on-prcard-repo">
+          <div className="on-prcard-repo">
             <GitPullRequest aria-hidden="true" />
             <span className="on-pr-repo-name">{repoLabel}</span>{" "}
             <span className="on-pr-num">#{data.attachment.number}</span>
@@ -414,7 +414,7 @@ export default function PullRequestPage({
                 </span>
               )}
             </span>
-          </p>
+          </div>
           <h1 className="on-pr-title" id={titleId} data-testid="pull-request-title">
             {pullTitle ?? `${repoLabel} #${data.attachment.number}`}
           </h1>
@@ -593,12 +593,7 @@ function TranscriptRow({
         </Link>
         {parts.length > 0 && (
           <p className="on-trow2-meta on-pr-rowmeta">
-            {parts.map((part, index) => (
-              <span key={index}>
-                {index > 0 && ", "}
-                {part}
-              </span>
-            ))}
+            {parts.flatMap((part, index) => (index > 0 ? [", ", part] : [part]))}
           </p>
         )}
         {audience !== null && (
