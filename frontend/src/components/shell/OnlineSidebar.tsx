@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
+  BookOpen,
   Compass,
   GitPullRequest,
   Github,
@@ -16,6 +17,7 @@ import {
 import { AppSidebar } from "@peasant-labs/fairtrade/ui";
 import { useGroup, useGroups } from "@/lib/queries/groups";
 import { collectiveToneColor } from "@/lib/collectiveTone";
+import { DOCS_URL, LOCAL_APP_URL } from "@/lib/appLinks";
 import { SETTINGS_SECTIONS, settingsSectionFrom, settingsSectionHref } from "@/lib/collectiveSections";
 import AccountMenu from "@/components/shell/AccountMenu";
 import type { User } from "@/lib/types";
@@ -28,6 +30,13 @@ const SECTION_ICONS = {
   "pull-requests": GitPullRequest,
   danger: TriangleAlert,
 } as const;
+
+/** The app switcher: this app, and the two that open outside it. */
+const APPS = [
+  { id: "online", label: "online" },
+  { id: "local", label: "local", href: LOCAL_APP_URL },
+  { id: "docs", label: "docs", href: DOCS_URL },
+];
 
 /** Where the sidebar marks you: the item for the page you are on, or none. */
 export function currentItemFor(pathname: string, collectiveIds: ReadonlySet<string>): string | undefined {
@@ -116,6 +125,11 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
           })),
         ],
       },
+      {
+        id: "help",
+        ariaLabel: "help",
+        items: [{ id: "docs", label: "docs", href: DOCS_URL, icon: BookOpen, external: true }],
+      },
     ];
     currentId = currentItemFor(pathname, ids);
   }
@@ -123,6 +137,7 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
   return (
     <AppSidebar
       app="online"
+      apps={APPS}
       groups={groups}
       currentId={currentId}
       homeHref="/"

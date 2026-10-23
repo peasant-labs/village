@@ -7,6 +7,7 @@ import {
 } from "@/test/mountedHomeRoute";
 import { loadHomePageFixtures, type HomeCollectiveCase } from "@/test/homePageFixtures";
 import { pushedRoutes, resetNextNavigation } from "@/test/nextNavigationMock";
+import { DOCS_URL, LOCAL_APP_URL } from "@/lib/appLinks";
 
 // Mounts the REAL app chrome (`AppFrame`: fairtrade's sidebar for somebody
 // signed in, the public bar for anybody else) inside the real `AuthProvider`,
@@ -95,6 +96,35 @@ describe("mounted sidebar: the person's collectives", () => {
     // User content keeps its case, and each row leads to its collective.
     expect(listed.map((a) => a.textContent)).toEqual(mine.map((c) => c.name));
     expect(listed.map((a) => a.getAttribute("href"))).toEqual(mine.map((c) => `/collectives/${c.id}`));
+  });
+});
+
+describe("mounted sidebar: the other apps and the docs", () => {
+  it("switches to the local app and the docs, both marked as leaving this app", async () => {
+    installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
+    await renderHeaderAt("/");
+    await chromeSettled(true);
+
+    const apps = screen.getByRole("navigation", { name: "apps" });
+    // This app is the current one and has nowhere to go; the others leave it.
+    expect(within(apps).getByText("online").closest("[aria-current]")).toHaveAttribute("aria-current", "true");
+    const local = within(apps).getByRole("link", { name: /^local/ });
+    const docs = within(apps).getByRole("link", { name: /^docs/ });
+    expect(local).toHaveAttribute("href", LOCAL_APP_URL);
+    expect(docs).toHaveAttribute("href", DOCS_URL);
+    for (const link of [local, docs]) expect(link).toHaveTextContent("opens outside this app");
+
+    const help = screen.getByRole("navigation", { name: "help" });
+    const docsHelp = within(help).getByRole("link", { name: /^docs/ });
+    expect(docsHelp).toHaveAttribute("href", "https://peasantlabs.org/docs");
+    expect(docsHelp).toHaveTextContent("opens outside this app");
+  });
+
+  it("drops both from a collective's settings, where the sidebar is that page's navigation", async () => {
+    installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [], collectives: [ACME] });
+    await renderHeaderAt(`/collectives/${ACME.id}/settings`);
+    await chromeSettled(true);
+    expect(screen.queryByRole("navigation", { name: "help" })).toBeNull();
   });
 });
 
