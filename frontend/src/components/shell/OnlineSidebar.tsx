@@ -13,15 +13,12 @@ import { CONTEXT_PARAM, parseTranscriptContext, type TranscriptContext } from "@
 import type { User } from "@/lib/types";
 
 /**
- * The app switcher: the docs, which open in a new tab, and the community,
- * which is not open yet and says "soon". The app does not list itself (the
+ * The app switcher: the docs, which open in a new tab. fairtrade adds the
+ * community, not open yet, as "soon". The app does not list itself (the
  * sidebar already is this app), and the local app is not offered from here:
  * it runs on the person's own computer and is reached from there.
  */
-const APPS = [
-  { id: "docs", label: "docs", href: DOCS_URL },
-  { id: "community", label: "community", tag: "soon" },
-];
+const APPS = [{ id: "docs", label: "docs", href: DOCS_URL }];
 
 /** Where the sidebar marks you: the item for the page you are on, or none.
  *  A transcript marks the place it was opened from (its address's context):

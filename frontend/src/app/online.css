@@ -1066,27 +1066,6 @@
 .on-rows p[role="alert"] {
   margin: 0;
 }
-/* A long value wraps inside the card instead of running past it: the control
-   may shrink, the value breaks anywhere, and when it does not fit beside its
-   label the control drops to its own line at the label's left edge, value
-   first and its edit button under it. An empty save-status slot takes no
-   room there. Kept here only until fairtrade's row grid does the same. */
-.on-rows .srow-control {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 100%;
-}
-.on-rows .srow-text {
-  min-width: 0;
-  max-width: 100%;
-}
-.on-rows .srow-text-value {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.on-rows .srow-status:empty {
-  display: none;
-}
 
 /* a failure or notice box inside a page */
 .on-notice {
