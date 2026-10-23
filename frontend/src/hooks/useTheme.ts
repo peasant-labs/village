@@ -4,9 +4,9 @@ import { useEffect, useCallback, useSyncExternalStore } from "react";
 
 type Theme = "light" | "dark";
 
-export const THEME_STORAGE_KEY = "peasant-theme";
+import { LIGHT_SCHEME, THEME_STORAGE_KEY } from "@/lib/themeBoot";
+
 const THEME_CHANGE_EVENT = "peasant-theme-change";
-const LIGHT_SCHEME = "(prefers-color-scheme: light)";
 
 function storedTheme(): Theme | null {
   try {
@@ -52,17 +52,10 @@ function subscribeToTheme(onStoreChange: () => void) {
   };
 }
 
-/**
- * The script the root layout runs in the document head, before the page
- * paints or hydrates: it applies the same rule as {@link currentTheme} so the
- * first frame is already in the right theme. Kept beside the hook so the two
- * cannot drift.
- */
-export const THEME_BOOT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});if(t!=="light"&&t!=="dark"){t=window.matchMedia&&window.matchMedia(${JSON.stringify(LIGHT_SCHEME)}).matches?"light":"dark"}document.documentElement.setAttribute("data-theme",t)}catch(e){}})();`;
-
 export function useTheme() {
-  // The server cannot know the theme and renders dark; the head script has
-  // already set the real one before hydration, and this read agrees with it.
+  // The server cannot know the theme and renders dark; the head script
+  // (lib/themeBoot.ts) has already set the real one before the first paint,
+  // and this read agrees with it.
   const theme = useSyncExternalStore<Theme>(
     subscribeToTheme,
     currentTheme,

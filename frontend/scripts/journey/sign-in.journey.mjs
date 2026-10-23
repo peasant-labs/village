@@ -130,6 +130,36 @@ test.describe('sign-in', () => {
     })
   }
 
+  for (const scheme of ['light', 'dark']) {
+    test(`the signed-out pages hydrate without an error on a ${scheme} system`, async ({ browser, request }, testInfo) => {
+      await setScenario(request, 'signed-out')
+      // Every load in a fresh browser with nothing stored and nothing cached,
+      // so the theme comes from the system and the scripts arrive cold. A
+      // mismatch between the served markup and the first client render shows
+      // up as a page error; it was intermittent, so each page is loaded several
+      // times at both widths.
+      const errors = []
+      try {
+        for (let round = 0; round < 3; round += 1) {
+          for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+            for (const path of ['/login', '/privacy']) {
+              const context = await browser.newContext({ colorScheme: scheme, viewport, baseURL: testInfo.project.use.baseURL })
+              const page = await context.newPage()
+              page.on('pageerror', (error) => errors.push(`${path} at ${viewport.width}: ${error.message.split('\n')[0]}`))
+              await page.goto(path)
+              await page.waitForLoadState('networkidle')
+              await expect(page.locator('html')).toHaveAttribute('data-theme', scheme)
+              await context.close()
+            }
+          }
+        }
+        expect(errors).toEqual([])
+      } finally {
+        await setScenario(request, 'default')
+      }
+    })
+  }
+
   test('the sign-in page is one github button', async ({ page, request, theme }, testInfo) => {
     await setScenario(request, 'signed-out')
     try {

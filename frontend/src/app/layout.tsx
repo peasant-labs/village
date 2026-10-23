@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { LayoutShell } from "@/components/LayoutShell";
 import { atkinsonHyperlegible, atkinsonHyperlegibleMono } from "@/app/fonts";
-import { THEME_BOOT_SCRIPT } from "@/hooks/useTheme";
+import { THEME_BOOT_SCRIPT } from "@/lib/themeBoot";
 // CSS import order: fairtrade components.css (tokens + base + component
 // styles) FIRST, then the fairtrade analytics per-surface bundle (nothing
 // auto-loads it — the dashboard ships unstyled without the explicit import),
@@ -52,9 +51,12 @@ export default function RootLayout({
       className={`${atkinsonHyperlegible.variable} ${atkinsonHyperlegibleMono.variable}`}
     >
       <head>
-        <Script id="peasant-theme" strategy="beforeInteractive">
-          {THEME_BOOT_SCRIPT}
-        </Script>
+        {/* A plain inline script, run by the browser as it parses the head,
+            before the body paints. (next/script's beforeInteractive queues
+            inline code and inserts it into the head later, which both misses
+            the first paint and changes the head under hydration.) The text is
+            the fixed constant above, never anything a person supplied. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>
       <body className="min-h-screen bg-canvas text-ink antialiased">
         <LayoutShell>{children}</LayoutShell>
