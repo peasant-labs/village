@@ -6,7 +6,6 @@ import { Boxes, ChevronDown } from "lucide-react";
 import { DataState, TeachingEmptyState } from "@/lib/ft-ui";
 import { useMyCollectiveContributions } from "@/lib/queries/collectives";
 import {
-  CONTRIBUTION_COUNTER_EXPLANATION,
   CONTRIBUTION_COUNTER_LABELS,
 } from "@/lib/shareEvents";
 import { cn } from "@/lib/utils";
@@ -17,9 +16,8 @@ import CollectiveSubmissions from "./CollectiveSubmissions";
  * One counter: its label and its value.
  *
  * The four counters do not all measure the same unit — two count transcripts,
- * two count submission attempts — but that distinction is stated once, in the
- * units sentence above the counters ({@link CONTRIBUTION_COUNTER_EXPLANATION}),
- * not repeated per counter. See that constant for why the distinction matters.
+ * two count submission attempts — so each label names its own unit (see
+ * {@link CONTRIBUTION_COUNTER_LABELS} for why the distinction matters).
  */
 function ContributionCounter({
   testId,
@@ -186,9 +184,6 @@ export default function ProfileCollectives({ isOwnProfile }: { isOwnProfile: boo
           <Boxes size={14} className="text-ink-3" />
           collectives you contribute to
         </span>
-        <p className="font-mono text-xs text-ink-3 leading-relaxed">
-          {CONTRIBUTION_COUNTER_EXPLANATION}
-        </p>
       </div>
 
       {isError ? (

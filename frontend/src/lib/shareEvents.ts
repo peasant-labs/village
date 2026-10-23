@@ -7,26 +7,17 @@ import {
 } from "@/lib/types";
 
 /**
- * The sentence that states the asymmetry once, above the counters, so the
- * units beneath each number are explained rather than merely present.
- *
- * Four counters now render; TWO count distinct transcripts (approved,
- * awaiting review) and TWO count events (rejected, withdrawn). This sentence
- * has to keep saying that correctly, or it becomes exactly the defect class
- * this feature exists to fix: a copy line that stops matching its own
- * numbers.
+ * The lowercase chrome label shown above each counter. Each names its own
+ * unit, because the four do not count the same thing: TWO count distinct
+ * transcripts (approved, awaiting review) and TWO count submission attempts
+ * (rejected, withdrawn), so one transcript refused three times counts three.
+ * A label that stopped naming its unit would let the numbers read alike.
  */
-export const CONTRIBUTION_COUNTER_EXPLANATION =
-  "approved and awaiting review count transcripts. rejected and withdrawn count submission " +
-  "attempts, so one transcript refused three times counts three, and one transcript withdrawn " +
-  "twice counts two.";
-
-/** The lowercase chrome label shown above each counter. */
 export const CONTRIBUTION_COUNTER_LABELS = {
-  approved: "approved",
-  pending: "awaiting review",
-  rejectedAttempts: "rejected",
-  withdrawnAttempts: "withdrawn",
+  approved: "approved transcripts",
+  pending: "transcripts awaiting review",
+  rejectedAttempts: "rejected attempts",
+  withdrawnAttempts: "withdrawn attempts",
 } as const;
 
 /**

@@ -478,8 +478,8 @@ export interface TranscriptDetailResponse {
  *    one transcript withdrawn and resubmitted twice is two withdrawals.
  * Any surface rendering these numbers side by side has to say which unit each
  * one measures, or they read as comparable when they are not. See
- * {@link CONTRIBUTION_COUNTER_EXPLANATION} in `@/lib/shareEvents` for the one
- * place that wording is declared.
+ * {@link CONTRIBUTION_COUNTER_LABELS} in `@/lib/shareEvents`, where each label
+ * names its unit.
  *
  * `withdrawn_attempt_count` groups the two withdrawal outcomes (`retracted`,
  * the owner's own act; `revoked`, the collective's) into ONE counter. That

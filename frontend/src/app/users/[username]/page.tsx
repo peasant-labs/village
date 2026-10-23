@@ -283,14 +283,7 @@ export default function UserProfilePage({
       <>
         <RailSection title="privacy" icon={EyeOff} meta={undefined}>
           <div className="flex flex-col gap-4">
-            <div>
-              <p className="text-sm font-medium text-ink">discoverable profile</p>
-              <p className="text-[13px] text-ink-3 mt-1 leading-relaxed">
-                when off, you do not appear in collective member or contributor
-                lists, and your shared transcripts are attributed to{" "}
-                <span className="font-mono">anon</span> instead of your handle.
-              </p>
-            </div>
+            <p className="text-sm font-medium text-ink">discoverable profile</p>
             <label
               className={cn(
                 "inline-flex items-center gap-2 cursor-pointer select-none",

@@ -118,17 +118,21 @@ describe("mounted profile route: every contributed collective is listed", () => 
   }
 });
 
-describe("mounted profile route: the units sentence stays accurate for four counters", () => {
-  it("states both the transcript-counting pair and the event-counting pair", async () => {
+describe("mounted profile route: each of the four counters names its own unit", () => {
+  it("labels the transcript-counting pair and the attempt-counting pair apart", async () => {
     await mount({
       profileUsername: OWNER,
       viewerUsername: OWNER,
       contributions: [toWire(fixtures.contributionCases[0].collectives[0])],
     });
     await waitFor(() => expect(section()).not.toBeNull());
-    const explanation = section()!.querySelector("p")!.textContent!;
-    expect(explanation).toMatch(/approved and awaiting review count transcripts/);
-    expect(explanation).toMatch(/rejected and withdrawn count submission/);
+    const label = (id: string) => section()!.querySelector(`[data-testid="${id}"]`)!.textContent!;
+    expect(label("counter-approved")).toMatch(/approved transcripts/);
+    expect(label("counter-pending")).toMatch(/transcripts awaiting review/);
+    expect(label("counter-rejected-attempts")).toMatch(/rejected attempts/);
+    expect(label("counter-withdrawn")).toMatch(/withdrawn attempts/);
+    // No sentence explains the units under the heading; the labels carry them.
+    expect(section()!.textContent).not.toMatch(/count submission attempts/);
   });
 });
 
