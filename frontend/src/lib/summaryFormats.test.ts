@@ -2,11 +2,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { formatRecordedDuration, formatRelativeTime } from "@/lib/format";
+import { formatCompact, formatRecordedDuration, formatRelativeTime } from "@/lib/format";
 import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 
 type RelativeTimeCase = { name: string; now: string; at: string; expect: string };
 type DurationCase = { name: string; ms: number; expect: string };
+type CompactCase = { name: string; n: number; expect: string };
 
 const requiredRelativeTimeNames = [
   "under-a-minute-is-just-now",
@@ -29,12 +30,23 @@ const requiredDurationNames = [
   "thousands-of-hours-are-grouped",
 ] as const;
 
-function load(): { relativeTimeCases: RelativeTimeCase[]; durationCases: DurationCase[] } {
+const requiredCompactNames = [
+  "below-a-thousand-is-the-number",
+  "thousands",
+  "a-round-thousand-drops-its-decimal",
+  "rounding-up-to-a-thousand-thousand-is-a-million",
+  "millions",
+  "billions",
+  "rounding-up-to-a-thousand-million-is-a-billion",
+  "trillions",
+] as const;
+
+function load(): { relativeTimeCases: RelativeTimeCase[]; durationCases: DurationCase[]; compactCases: CompactCase[] } {
   const parsed = parse(
     readFileSync(resolve(process.cwd(), "src/testdata/summary-formats.yaml"), "utf8"),
     { strict: true },
-  ) as { relativeTimeCases: RelativeTimeCase[]; durationCases: DurationCase[] };
-  assertExactKeys(parsed, ["relativeTimeCases", "durationCases"], "summary-formats root");
+  ) as { relativeTimeCases: RelativeTimeCase[]; durationCases: DurationCase[]; compactCases: CompactCase[] };
+  assertExactKeys(parsed, ["relativeTimeCases", "durationCases", "compactCases"], "summary-formats root");
   assertNamesMatch(
     parsed.relativeTimeCases.map((c) => c.name),
     requiredRelativeTimeNames,
@@ -47,10 +59,12 @@ function load(): { relativeTimeCases: RelativeTimeCase[]; durationCases: Duratio
   );
   for (const c of parsed.relativeTimeCases) assertExactKeys(c, ["name", "now", "at", "expect"], c.name);
   for (const c of parsed.durationCases) assertExactKeys(c, ["name", "ms", "expect"], c.name);
+  assertNamesMatch(parsed.compactCases.map((c) => c.name), requiredCompactNames, "summary-formats compactCases");
+  for (const c of parsed.compactCases) assertExactKeys(c, ["name", "n", "expect"], c.name);
   return parsed;
 }
 
-const { relativeTimeCases, durationCases } = load();
+const { relativeTimeCases, durationCases, compactCases } = load();
 
 describe("how long ago, for a list column", () => {
   for (const c of relativeTimeCases) {
@@ -64,6 +78,14 @@ describe("a recorded duration, for the summary line", () => {
   for (const c of durationCases) {
     it(c.name, () => {
       expect(formatRecordedDuration(c.ms)).toBe(c.expect);
+    });
+  }
+});
+
+describe("a count shortened for a glance", () => {
+  for (const c of compactCases) {
+    it(c.name, () => {
+      expect(formatCompact(c.n)).toBe(c.expect);
     });
   }
 });

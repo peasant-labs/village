@@ -23,3 +23,16 @@ durationCases:
   - { name: minutes-below-an-hour, ms: 2700000, expect: 45m }
   - { name: whole-hours-rounded-down, ms: 111600000, expect: 31h }
   - { name: thousands-of-hours-are-grouped, ms: 4320000000, expect: "1,200h" }
+
+# A count shortened for a glance (`formatCompact`): the unit grows with the
+# number, and a value that rounds up to a thousand of one unit reads as one of
+# the next.
+compactCases:
+  - { name: below-a-thousand-is-the-number, n: 999, expect: "999" }
+  - { name: thousands, n: 1234, expect: 1.2K }
+  - { name: a-round-thousand-drops-its-decimal, n: 12000, expect: 12K }
+  - { name: rounding-up-to-a-thousand-thousand-is-a-million, n: 999950, expect: 1M }
+  - { name: millions, n: 3400000, expect: 3.4M }
+  - { name: billions, n: 66731500000, expect: 66.7B }
+  - { name: rounding-up-to-a-thousand-million-is-a-billion, n: 999960000, expect: 1B }
+  - { name: trillions, n: 2500000000000, expect: 2.5T }
