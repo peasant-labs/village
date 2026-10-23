@@ -1029,6 +1029,18 @@
   height: var(--sp-5);
 }
 
+/* fairtrade's setting rows, framed as one box per section, on every settings
+   page; the rows keep fairtrade's own padding and grid */
+.on-rows {
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  min-width: 0;
+}
+.on-rows .srow-error[role="alert"],
+.on-rows p[role="alert"] {
+  margin: 0;
+}
+
 /* a failure or notice box inside a page */
 .on-notice {
   display: flex;

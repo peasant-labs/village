@@ -300,7 +300,7 @@ function Section({
         </h2>
         {count !== null && <span className="on-chrome is-n">{count}</span>}
       </header>
-      <div className="on-acct-rows">{children}</div>
+      <div className="on-rows">{children}</div>
     </section>
   );
 }

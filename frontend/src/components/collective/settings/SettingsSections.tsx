@@ -32,11 +32,10 @@ export type Commit = (key: CollectiveSettingKey, value: unknown) => Promise<unkn
 
 export function GeneralSection({ group, commit }: { group: Group; commit: Commit }) {
   return (
-    <div className="on-section on-stack-rows" data-testid="settings-general">
+    <div className="on-rows" data-testid="settings-general">
       <SettingRow label="name" control="text" value={group.name} onCommit={(next) => commit("name", next).then(() => undefined)} />
       <SettingRow
         label="description"
-        help="shown under the name on the collective's page."
         control="text"
         value={group.description ?? ""}
         onCommit={(next) => commit("purpose", next).then(() => undefined)}
@@ -69,18 +68,13 @@ export function AccessSection({ group, commit }: { group: Group; commit: Commit 
         icons={PUBLISH_ICONS}
         onCommit={(next) => commit("mode", next)}
       />
-      <div className="on-section">
-        <ChoiceCards
-          label="who can read"
-          value={group.data_access}
-          choices={whoCanReadChoices(group.data_access)}
-          icons={READ_ICONS}
-          onCommit={(next) => commit("access", next)}
-        />
-        <p className="on-settings-note">
-          members read and publish. contributors publish, and read only when members and contributors read.
-        </p>
-      </div>
+      <ChoiceCards
+        label="who can read"
+        value={group.data_access}
+        choices={whoCanReadChoices(group.data_access)}
+        icons={READ_ICONS}
+        onCommit={(next) => commit("access", next)}
+      />
     </div>
   );
 }
@@ -175,18 +169,20 @@ export function MembersSection({
         })}
       </ul>
 
-      <SettingRow
-        label="when a member leaves"
-        help="what happens to the transcripts they published here."
-        control="select"
-        value={MEMBER_LEAVES_CHOICES.some((c) => c.value === group.transcript_deletion_policy) ? group.transcript_deletion_policy : ""}
-        options={
-          MEMBER_LEAVES_CHOICES.some((c) => c.value === group.transcript_deletion_policy)
-            ? MEMBER_LEAVES_CHOICES
-            : [{ value: "", label: "not set", disabled: true }, ...MEMBER_LEAVES_CHOICES]
-        }
-        onCommit={(next) => commit("memberLeaves", next).then(() => undefined)}
-      />
+      <div className="on-rows">
+        <SettingRow
+          label="when a member leaves"
+          help="what happens to the transcripts they published here."
+          control="select"
+          value={MEMBER_LEAVES_CHOICES.some((c) => c.value === group.transcript_deletion_policy) ? group.transcript_deletion_policy : ""}
+          options={
+            MEMBER_LEAVES_CHOICES.some((c) => c.value === group.transcript_deletion_policy)
+              ? MEMBER_LEAVES_CHOICES
+              : [{ value: "", label: "not set", disabled: true }, ...MEMBER_LEAVES_CHOICES]
+          }
+          onCommit={(next) => commit("memberLeaves", next).then(() => undefined)}
+        />
+      </div>
     </div>
   );
 }
@@ -239,7 +235,6 @@ export function GithubSection({
           </div>
         )}
       </div>
-      <p className="on-settings-note">a collective links one github org today.</p>
     </div>
   );
 }
@@ -248,21 +243,27 @@ export function GithubSection({
 
 export function PullRequestsSection({ group, commit }: { group: Group; commit: Commit }) {
   return (
-    <div className="on-section" data-testid="settings-pull-requests">
+    <div className="on-rows" data-testid="settings-pull-requests">
       <SettingRow
         label="show transcripts on pull requests"
-        help="adds a peasant / prompts check and one comment on pull requests in linked repositories. it never blocks merging."
+        help="a check and one comment on each pull request. it never blocks merging."
         control="switch"
         value={group.post_prompts_check ?? false}
         onCommit={(next) => commit("showOnPullRequests", next).then(() => undefined)}
       />
-      <p className="on-settings-note">
-        automatic linking is a personal setting, in{" "}
-        <Link href="/settings" className="on-link">
-          your settings
-        </Link>
-        .
-      </p>
+      {/* Linking a person's transcripts to their pull requests is their own
+          setting, not the collective's: a row that leads there. */}
+      <div className="srow" data-testid="settings-auto-link-pointer">
+        <span className="srow-text-col">
+          <span className="srow-label">link transcripts automatically</span>
+          <span className="srow-help">each member chooses it in their own settings.</span>
+        </span>
+        <span className="srow-control">
+          <Link href="/settings#pull-requests" className="btn btn-secondary btn-sm">
+            your settings
+          </Link>
+        </span>
+      </div>
     </div>
   );
 }

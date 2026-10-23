@@ -233,42 +233,6 @@ section.on-choices {
 
 /* ---------- settings ---------- */
 
-.on-settings-body .srow-group,
-.on-settings-body .srow {
-  min-width: 0;
-}
-/* a long name or description wraps beside its edit button instead of pushing it off the page */
-.on-settings-body .srow {
-  flex-wrap: wrap;
-}
-.on-settings-body .srow-text {
-  flex-wrap: wrap;
-  min-width: 0;
-}
-.on-settings-body .srow-text-value {
-  min-width: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.on-settings-body .srow-control,
-.on-settings-body .srow-text-col {
-  min-width: 0;
-}
-.on-settings-body .srow-control {
-  flex-shrink: 1;
-  max-width: 100%;
-}
-
-/* a text setting reads like a field: its name, its help, then the value and its edit button */
-.on-stack-rows .srow {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--sp-2);
-}
-.on-stack-rows .srow-text-col {
-  flex: none;
-}
-
 /* a group of choice cards: its heading, then the cards, then what happened */
 .on-choices {
   display: grid;
@@ -363,11 +327,6 @@ section.on-choices {
 }
 .on-org-card .on-row {
   margin-top: var(--sp-1);
-}
-.on-settings-note {
-  margin: 0;
-  color: var(--ink-3);
-  max-width: 60ch;
 }
 .on-danger .btn svg {
   flex: none;
