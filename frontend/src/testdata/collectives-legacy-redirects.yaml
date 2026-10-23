@@ -20,20 +20,21 @@ cases:
     role: heading
     assertions:
       - { role: table, name: transcripts 248, text: Fix flaky ingest test }
-      - { role: button, name: settings }
+      - { role: link, name: settings }
+      - { role: tab, name: transcripts 248 }
     back: { name: back, href: /collectives, role: table, body: collectives 3 }
   - name: settings
     suffix: /c011ec71-0000-4000-8000-000000000001/settings
     query: "tab=members&next=%2Fhome"
-    body: Acme Platform
+    body: general
     role: heading
     nameEdits:
       - { name: save-published-contract-name, value: Acme Platform Published }
       - { name: restore-original-collective-name, value: Acme Platform }
     assertions:
       - { role: button, name: edit name }
-      - { role: combobox, name: "role for @bob-ai" }
-      - { role: button, name: delete collective }
+      - { role: navigation, name: settings sections }
+      - { role: link, name: danger zone }
     back: { name: back, href: /collectives/c011ec71-0000-4000-8000-000000000001, role: heading, body: Acme Platform }
   - name: contribute
     suffix: /c011ec71-0000-4000-8000-000000000001/contribute

@@ -1,20 +1,33 @@
 /* Journey: the collectives list and a collective.
  *
  * Opens the collectives list (a table with a search), a collective as its
- * owner and as a member, and the repo picker the owner opens from the
- * `github orgs` rail, all through the real routes against the composed mock's
- * collective fixtures (lib/collective-fixtures.mjs). It asserts roles, names
- * and computed tokens rather than class strings, records the accessible tree
- * and the axe report, and attaches the still a reviewer reads first.
+ * owner, as a member, as the owner of a curated collective with sessions
+ * waiting, and as a signed-out reader of a public one, and the repo picker the
+ * owner opens from the stats tab, all through the real routes against the
+ * composed mock's collective fixtures (lib/collective-fixtures.mjs). It asserts
+ * roles, names and computed tokens rather than class strings, records the
+ * accessible tree and the axe report, and attaches the still a reviewer reads
+ * first.
  */
 import { writeFileSync } from 'node:fs'
 import { test, expect } from './lib/fixtures.mjs'
 import { setScenario } from './lib/scenario.mjs'
 import { scanAxe, seriousViolations, expectTheme, expectComputedTokens } from './lib/assertions.mjs'
-import { JOURNEY_COLLECTIVES, RETAINED_CONTRIBUTIONS, RETAINED_GROUPED } from './lib/collective-fixtures.mjs'
+import { JOURNEY_COLLECTIVES, JOURNEY_PENDING, RETAINED_CONTRIBUTIONS, RETAINED_GROUPED } from './lib/collective-fixtures.mjs'
 
 const OWNER = JOURNEY_COLLECTIVES.owner
 const MEMBER = JOURNEY_COLLECTIVES.member
+const VISITOR = JOURNEY_COLLECTIVES.visitor
+
+/** Opens a tab by its label and returns its panel, which must then be shown. */
+async function openTab(page, label) {
+  const tab = page.getByRole('tab', { name: new RegExp(`^${label}`) })
+  await tab.click()
+  await expect(tab).toHaveAttribute('aria-selected', 'true')
+  const panel = page.locator(`#${await tab.getAttribute('aria-controls')}`)
+  await expect(panel).toBeVisible()
+  return panel
+}
 
 async function still(page, testInfo, name) {
   const path = testInfo.outputPath(`${name}.png`)
@@ -61,22 +74,25 @@ test.describe('collectives', () => {
     await expect(page).toHaveURL(new RegExp(`/collectives/${OWNER.id}$`))
   })
 
-  test('shows the owner the boxes, the stats, the table and the github orgs rail', async ({ page, theme }, testInfo) => {
+  test('shows the owner the chips, the tabs, the table and the github org', async ({ page, theme }, testInfo) => {
     await page.goto(`/collectives/${OWNER.id}`)
     await expectTheme(page, theme)
 
-    await expect(page.getByRole('heading', { name: OWNER.name })).toBeVisible()
-    const boxes = page.getByRole('list', { name: 'how this collective works' })
-    await expect(boxes.getByRole('listitem')).toHaveText([
-      /who can read\s*members of Acme Platform can read every transcript published here\./,
-      /who can publish\s*anyone can join and publish\. transcripts are approved automatically\./,
-      /your role\s*owner: you manage settings and members\./,
+    await expect(page.getByRole('heading', { level: 1, name: OWNER.name })).toBeVisible()
+    // The name is user content: it keeps its case although headings are lowercase chrome.
+    expect(await page.getByRole('heading', { level: 1 }).evaluate((h1) => h1.innerText.trim())).toBe(OWNER.name)
+    const chips = page.getByRole('list', { name: 'how this collective works' })
+    await expect(chips.getByRole('listitem')).toHaveText([
+      /who can publish:\s*anyone who joins publishes/,
+      /who can read:\s*members read/,
+      /your role:\s*you are the owner/,
     ])
-    const rail = page.getByRole('complementary', { name: 'github orgs and members' })
-    await expect(rail).toContainText('acme · 2 of 14 repos linked')
-    await expect(rail.getByRole('button', { name: 'manage' })).toBeVisible()
+    // An invite in an earlier journey adds to the member list the mock's reset starts from, so the tab counts whoever is there.
+    await expect(page.getByRole('tab')).toHaveText(['transcripts 248', /^members \d+$/, 'stats'])
     await expect(page.getByRole('table', { name: 'transcripts 248' })).toContainText('Fix flaky ingest test')
-    await expect(page.getByRole('button', { name: 'settings' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'settings' })).toHaveAttribute('href', `/collectives/${OWNER.id}/settings`)
+    await expect(page.getByRole('link', { name: 'invite people' })).toHaveAttribute('href', `/collectives/${OWNER.id}/settings?section=members`)
+    await expectComputedTokens(page, '.on-page', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })
 
     await page.getByRole('button', { name: 'more', exact: true }).click()
     await expect(page.getByRole('menuitem')).toHaveText(['publish several transcripts'])
@@ -87,6 +103,45 @@ test.describe('collectives', () => {
 
     await still(page, testInfo, 'collective-owner')
     await record(page, testInfo, page.getByRole('main'), 'collective-owner')
+
+    // The arrow keys move along the tablist, and the address keeps the tab.
+    await page.getByRole('tab', { name: /^transcripts/ }).focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(page.getByRole('tab', { name: /^members/ })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('tab', { name: /^members/ })).toBeFocused()
+    await expect(page).toHaveURL(new RegExp(`/collectives/${OWNER.id}\\?tab=members$`))
+    await expect(page.getByRole('list', { name: 'members' })).toContainText('@bob-ai')
+
+    const stats = await openTab(page, 'stats')
+    await expect(stats.getByTestId('collective-org-line')).toContainText('acme: 2 of 14 repos linked')
+    await expect(stats.getByRole('button', { name: 'manage repositories' })).toBeVisible()
+    await still(page, testInfo, 'collective-owner-stats')
+  })
+
+  test('shows the owner of a curated collective what waits for approval', async ({ page, request, theme }, testInfo) => {
+    await setScenario(request, 'curated-owner')
+    await page.goto(`/collectives/${OWNER.id}`)
+    await expectTheme(page, theme)
+
+    await expect(page.getByRole('list', { name: 'how this collective works' })).toContainText('you approve each session')
+    // Every listed transcript has been approved: in a curated collective that is a step, so it is shown.
+    const table = page.getByRole('table', { name: 'transcripts 248' })
+    await expect(table.getByRole('columnheader')).toHaveText(['transcript', 'contributor', 'agent', 'turns', 'status', 'when'])
+    await expect(table.locator('tbody .on-tag').first()).toHaveText('approved')
+    await page.getByRole('button', { name: 'more', exact: true }).click()
+    await expect(page.getByRole('menuitem')).toHaveText(['publish several transcripts', 'review transcripts'])
+    await page.keyboard.press('Escape')
+
+    const waiting = await openTab(page, 'waiting for approval')
+    await expect(page.getByRole('tab', { name: /^waiting/ })).toHaveText(`waiting for approval ${JOURNEY_PENDING.length}`)
+    const queue = waiting.getByRole('table', { name: `waiting for approval ${JOURNEY_PENDING.length}` })
+    await expect(queue.locator('tbody a.is-title')).toHaveText(JOURNEY_PENDING.map((row) => row.title))
+    await expect(queue.locator('tbody .on-handle-cell')).toHaveText(JOURNEY_PENDING.map((row) => `@${row.login}`))
+    await expect(queue.locator('tbody .on-tag')).toHaveText(JOURNEY_PENDING.map(() => 'waiting'))
+    await expect(waiting.getByRole('link', { name: 'review transcripts' })).toHaveAttribute('href', `/collectives/${OWNER.id}/review`)
+    await expect(page).toHaveURL(new RegExp(`\\?tab=waiting$`))
+    await still(page, testInfo, 'collective-waiting')
+    await record(page, testInfo, waiting, 'collective-waiting')
   })
 
   test('retains transcript grouping and private contribution withdrawal on the mounted detail page', async ({ page, theme }, testInfo) => {
@@ -147,24 +202,51 @@ test.describe('collectives', () => {
     await page.goto(`/collectives/${MEMBER.id}`)
     await expectTheme(page, theme)
 
-    await expect(page.getByRole('heading', { name: MEMBER.name })).toBeVisible()
-    await expect(page.getByRole('list', { name: 'how this collective works' })).toContainText('member: you read and publish here.')
-    const rail = page.getByRole('complementary', { name: 'github orgs and members' })
-    await expect(rail).toContainText('acme')
-    await expect(rail.getByRole('button', { name: 'manage' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'settings' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { level: 1, name: MEMBER.name })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'how this collective works' })).toContainText('you are a member')
+    await expect(page.getByRole('link', { name: 'settings' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'invite people' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'leave' })).toBeVisible()
 
     await still(page, testInfo, 'collective-member')
     await record(page, testInfo, page.getByRole('main'), 'collective-member')
+
+    const stats = await openTab(page, 'stats')
+    await expect(stats.getByTestId('collective-org-line')).toHaveText('acme')
+    await expect(stats.getByRole('button', { name: 'manage repositories' })).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'leave' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText(`leave ${MEMBER.name}?`)
+    await expect(dialog.getByRole('button', { name: 'leave collective' })).toBeDisabled()
+    await dialog.getByRole('button', { name: 'cancel' }).click()
+    await expect(dialog).toHaveCount(0)
+  })
+
+  test('lets a signed-out reader read a public collective and sign in to join it', async ({ page, request, theme }, testInfo) => {
+    await setScenario(request, 'signed-out-public-collective')
+    await page.goto(`/collectives/${VISITOR.id}`)
+    await expectTheme(page, theme)
+
+    await expect(page.getByRole('heading', { level: 1, name: VISITOR.name })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'how this collective works' })).toContainText('anyone can read')
+    await expect(page.getByRole('table', { name: /^transcripts/ })).toContainText('Paginate the collectives list')
+    const signIn = page.getByRole('link', { name: 'sign in to join' })
+    await expect(signIn).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/collectives/${VISITOR.id}`)}`)
+    await expect(page.getByRole('button', { name: 'join' })).toHaveCount(0)
+    await still(page, testInfo, 'collective-signed-out')
+    await record(page, testInfo, page.getByRole('main'), 'collective-signed-out')
+
+    await signIn.click()
+    await expect(page).toHaveURL(new RegExp(`/login\\?next=${encodeURIComponent(`/collectives/${VISITOR.id}`)}$`))
   })
 
   test('opens the repo picker, links a repository and says what it saved', async ({ page, theme }, testInfo) => {
-    await page.goto(`/collectives/${OWNER.id}`)
+    await page.goto(`/collectives/${OWNER.id}?tab=stats`)
     await expectTheme(page, theme)
 
-    const rail = page.getByRole('complementary', { name: 'github orgs and members' })
-    await rail.getByRole('button', { name: 'manage' }).click()
+    const stats = page.getByRole('tabpanel')
+    await stats.getByRole('button', { name: 'manage repositories' }).click()
     const picker = page.getByRole('dialog', { name: 'link repositories from acme' })
     await expect(picker).toBeVisible()
     await expect(picker).toContainText('2 of 14 selected')
@@ -178,6 +260,6 @@ test.describe('collectives', () => {
 
     await picker.getByRole('button', { name: 'save: link 1 repository' }).click()
     await expect(page.getByRole('status').filter({ hasText: 'repositories saved' })).toContainText('linked acme/cli.')
-    await expect(rail).toContainText('acme · 3 of 14 repos linked')
+    await expect(stats.getByTestId('collective-org-line')).toContainText('acme: 3 of 14 repos linked')
   })
 })

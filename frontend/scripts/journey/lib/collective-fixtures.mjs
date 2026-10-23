@@ -379,3 +379,69 @@ export function handleCollectiveRequest(req, res) {
   }
   return false
 }
+
+// ── a collective's own page: its waiting queue and its public reading ───────
+//
+// Kept apart from the list world above. Two scenarios reshape the world after
+// `resetCollectiveWorld` (scripts/journey/mock.mjs calls `applyCollectivePageScenario`):
+//   curated-owner                - the viewer's own collective is curated, and two
+//                                  sessions wait for their approval
+//   signed-out-public-collective - the collective the viewer has not joined is
+//                                  public, so a reader with no account reads it
+
+/** What waits for the owner of the curated collective, as `GET /collectives/{id}/pending` answers it. */
+export const JOURNEY_PENDING = [
+  { transcript_id: '7b000000-0000-4000-8000-000000000001', title: 'Add retries to the webhook', owner: 'user-dan', login: 'dan-ops', provider: 'codex', project: 'ingest-api', branch: 'retries', minutes: 40 },
+  { transcript_id: '7b000000-0000-4000-8000-000000000002', title: 'Trim the onboarding copy', owner: 'user-carol', login: 'carol-ml', provider: 'claude-code', project: 'web', branch: 'main', minutes: 60 * 5 },
+]
+
+/** Reshape the world for a collective-page scenario; any other scenario leaves it as it started. */
+export function applyCollectivePageScenario(name) {
+  const { owner, visitor } = JOURNEY_COLLECTIVES
+  if (name === 'curated-owner') {
+    const entry = world.collectives[owner.id]
+    entry.group.acceptance_mode = 'curated'
+    entry.pending = JOURNEY_PENDING.map((row) => ({
+      transcript_id: row.transcript_id,
+      title: row.title,
+      model_provider: row.provider,
+      owner_id: row.owner,
+      owner_username: row.login,
+      owner_is_discoverable: true,
+      local_id: `local-${row.transcript_id.slice(-4)}`,
+      parent_session_id: null,
+      project_hash: 'b'.repeat(64),
+      project_name: row.project,
+      branch: row.branch,
+      shared_at: ago(row.minutes),
+    }))
+  }
+  if (name === 'signed-out-public-collective') {
+    const entry = world.collectives[visitor.id]
+    entry.group.data_access = 'public'
+    entry.transcripts = PLATFORM_TRANSCRIPTS.slice(2, 5)
+  }
+}
+
+/** The owner's pending queue, and the settings page's removals; false leaves the request to the next handler. */
+export function handleCollectivePageRequest(req, res) {
+  const url = new URL(req.url, 'http://localhost')
+  const path = url.pathname.replace(/^\/api\/v1/, '')
+  const match = path.match(/^\/collectives\/([^/]+)(\/.*)?$/)
+  if (!match) return false
+  const entry = world.collectives[match[1]]
+  if (!entry) return false
+  const rest = match[2] || ''
+  if (rest === '/pending' && req.method === 'GET') {
+    if (entry.role !== 'owner') { send(res, 403, { error: 'Owner access required' }); return true }
+    send(res, 200, entry.pending || [])
+    return true
+  }
+  const member = rest.match(/^\/members\/([^/]+)$/)
+  if (member && req.method === 'DELETE') {
+    entry.members = entry.members.filter((m) => m.id !== decodeURIComponent(member[1]))
+    send(res, 200, { status: 'removed' })
+    return true
+  }
+  return false
+}

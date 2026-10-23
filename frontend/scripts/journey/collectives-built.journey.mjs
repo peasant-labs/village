@@ -61,7 +61,8 @@ test('built collective navigation and every legacy inbound link', async ({ page,
         const response = await saved
         expect(response.ok()).toBe(true)
         expect(response.request().postDataJSON()).toEqual({ name: value })
-        await expect(page.getByRole('heading', { name: new RegExp(value) }).first()).toBeVisible()
+        // The settings page's title is its section; the collective's name is in the breadcrumb.
+        await expect(page.getByRole('navigation', { name: 'breadcrumb' })).toContainText(value)
       }
     }
     await expectComputedTokens(page, 'main', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })

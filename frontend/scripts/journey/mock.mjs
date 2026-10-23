@@ -18,6 +18,10 @@
  *   no-keys              - peasant is signed in on no computer (the settings page)
  *   pull-request-reader  - the pull request page is served to a reviewer once
  *                          attached, rather than to its author as a preview
+ *   curated-owner        - the viewer's own collective is curated and two sessions
+ *                          wait for their approval (lib/collective-fixtures.mjs)
+ *   signed-out-public-collective - signed out, and the collective the viewer has
+ *                          not joined is public, so it reads with no account
  *
  * Setting any scenario also puts the collectives world back as it started.
  *   default           - the composed fixtures as-is
@@ -37,7 +41,12 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { handleExploreRequest } from '../visual/mock-rest-explore.mjs'
 import { handleProjectRequest } from './lib/project-fixtures.mjs'
-import { handleCollectiveRequest, resetCollectiveWorld } from './lib/collective-fixtures.mjs'
+import {
+  applyCollectivePageScenario,
+  handleCollectivePageRequest,
+  handleCollectiveRequest,
+  resetCollectiveWorld,
+} from './lib/collective-fixtures.mjs'
 import { handleHomeRequest } from './lib/home-fixtures.mjs'
 import {
   OWNED_TRANSCRIPT,
@@ -137,11 +146,12 @@ const server = createServer(async (req, res) => {
       // Setting a scenario starts the collectives over, so one journey's
       // links and settings writes never reach the next.
       resetCollectiveWorld()
+      applyCollectivePageScenario(scenario)
       return send(res, 200, { scenario })
     }
   }
 
-  if (scenario === 'signed-out' && req.method === 'GET' && path === '/auth/me') {
+  if ((scenario === 'signed-out' || scenario === 'signed-out-public-collective') && req.method === 'GET' && path === '/auth/me') {
     return send(res, 401, { error: 'not signed in' })
   }
 
@@ -162,6 +172,7 @@ const server = createServer(async (req, res) => {
 
   // Retained contribution withdrawals belong to the collective fixture,
   // before the generic transcript proxy claims that route.
+  if (handleCollectivePageRequest(req, res)) return
   if (handleCollectiveRequest(req, res)) return
 
   // The pull request fixture owns its pull request and the reads of its own

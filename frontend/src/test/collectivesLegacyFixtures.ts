@@ -10,7 +10,7 @@ export interface LegacyCollectiveCase {
   role: "table" | "heading";
   nameEdits?: Array<{ name: string; value: string }>;
   assertions: Array<{
-    role?: "table" | "button" | "searchbox" | "combobox";
+    role?: "table" | "button" | "searchbox" | "combobox" | "link" | "tab" | "navigation";
     name?: string;
     testId?: string;
     text?: string;
@@ -37,7 +37,7 @@ export function loadLegacyCollectiveFixtures(): LegacyCollectiveCase[] {
     }
     if (!Array.isArray(row.assertions) || row.assertions.length === 0 || row.assertions.some((assertion) =>
       assertion.testId ? typeof assertion.testId !== "string" || typeof assertion.text !== "string" :
-        !["table", "button", "searchbox", "combobox"].includes(assertion.role ?? "") || typeof assertion.name !== "string")) {
+        !["table", "button", "searchbox", "combobox", "link", "tab", "navigation"].includes(assertion.role ?? "") || typeof assertion.name !== "string")) {
       throw new Error(`Missing meaningful mounted body/control expectations for ${row.name}`);
     }
     if (row.name !== "list" && (!row.back || !row.back.href.startsWith("/collectives") || !row.back.name || !row.back.body)) {
