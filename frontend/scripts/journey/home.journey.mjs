@@ -1,11 +1,11 @@
 /* Journey: the signed-in home.
  *
  * Lands on `/` as a signed-in person and checks what the home page owes them:
- * their transcripts in a table with who can read each one and the pull requests
- * it is attached to, the totals line above it, and their collectives and what
- * is waiting for approval beside it. Then it searches, and it opens the page
- * for a person who has published nothing. Each test records its still frame,
- * the accessible tree and an axe report.
+ * the totals line, the newest transcripts as cards, what is waiting for a
+ * collective's approval, and the table of their transcripts, grouped and with
+ * the columns they choose, remembered on this device. Then it searches, fits a
+ * phone, and opens the page for a person who has published nothing. Each test
+ * records its still frame, the accessible tree and an axe report.
  */
 import { writeFileSync } from 'node:fs'
 import { test, expect } from './lib/fixtures.mjs'
@@ -30,49 +30,65 @@ async function expectNoSeriousAxe(page, testInfo) {
   expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([])
 }
 
+/** Shows every row as one flat list, the way a person who chose it sees it. */
+async function groupByNothing(page) {
+  await page.getByTestId('home-group-by').getByRole('button').first().click()
+  await page.getByRole('radio', { name: 'nothing' }).click()
+}
+
 test.describe('home', () => {
-  test('lists your transcripts, their totals and your collectives', async ({ page, theme }, testInfo) => {
+  test('lists your transcripts, their totals and the newest as cards', async ({ page, theme }, testInfo) => {
     await page.goto('/')
     const home = page.getByTestId('home-page')
     await expect(home).toBeVisible()
     await expectTheme(page, theme)
 
     await expect(page.getByRole('heading', { level: 1, name: 'your transcripts' })).toBeVisible()
-    // Every row the server listed, newest first, each leading to its transcript.
-    const rows = page.getByTestId('home-transcript-row')
-    await expect(rows).toHaveCount(HOME_ROWS.length)
-    for (const [i, row] of HOME_ROWS.entries()) {
-      await expect(rows.nth(i).getByRole('link', { name: row.title, exact: true })).toHaveAttribute(
-        'href',
-        `/transcripts/${row.id}`,
-      )
-    }
 
     // The totals line, from the person's own stats and memberships.
     const stats = page.getByRole('list', { name: 'your transcripts in numbers' })
     await expect(stats).toContainText('38 transcripts')
     await expect(stats).toContainText('3 collectives')
-    await expect(stats).toContainText('9 pull requests')
-    await expect(stats).toContainText('19.1M tokens')
-    await expect(stats).toContainText('31h recorded')
+    await expect(stats).toContainText('9 pull requests linked')
+    await expect(stats).toContainText('19.1M tokens recorded')
 
-    // Two pull request numbers, then the true count of the rest. Known
-    // received harnesses lead with their mark, without a provider fact line.
-    const first = page.locator('tr.tbl-row').first()
-    await expect(first.getByRole('list', { name: 'pull requests' })).toContainText('#45')
-    await expect(first.getByRole('link', { name: '2 more pull requests on the transcript page' })).toHaveText('+2')
-    for (const [i] of HOME_ROWS.entries()) {
-      const mark = rows.nth(i).locator('.iu-session > .pv-icon > svg[data-brand]')
-      await expect(mark).toHaveAttribute('data-brand', 'claude')
-      await expect(mark).toHaveAttribute('role', 'img')
-      await expect(mark).toHaveAttribute('aria-label', 'Claude Code')
-      await expect(rows.nth(i).locator('.iu-session-sub')).not.toContainText('Claude Code')
+    // The newest three as cards, each leading to its transcript.
+    const recent = page.getByRole('region', { name: 'recent' })
+    await expect(recent.getByRole('link')).toHaveCount(Math.min(3, HOME_ROWS.length))
+    await expect(recent.getByRole('link').first()).toHaveAttribute('href', `/transcripts/${HOME_ROWS[0].id}`)
+
+    // The table opens grouped by project with every group closed; one control
+    // opens them all.
+    const groups = page.locator('[data-testid="home-table"] tr.is-group button')
+    await expect(groups.first()).toHaveAttribute('aria-expanded', 'false')
+    await expect(page.getByTestId('home-transcript-row')).toHaveCount(0)
+    await page.getByRole('button', { name: 'expand all' }).click()
+    const rows = page.getByTestId('home-transcript-row')
+    await expect(rows).toHaveCount(HOME_ROWS.length)
+    for (const row of HOME_ROWS) {
+      await expect(page.getByTestId('home-table').getByRole('link', { name: row.title, exact: true })).toHaveAttribute(
+        'href',
+        `/transcripts/${row.id}`,
+      )
     }
 
-    // The rail: the collectives this person belongs to, and what is waiting.
-    await expect(page.getByTestId('home-rail-collective')).toHaveCount(3)
-    await expect(page.getByTestId('home-rail-waiting')).toContainText('ML Reading Group')
-    await expect(page.getByTestId('home-rail-waiting')).toContainText('1 transcript waiting')
+    // The agent column leads with the provider's mark beside its name.
+    const agent = page.locator('[data-testid="home-table"] td[data-col="agent"]').first()
+    await expect(agent.locator('svg[data-brand]')).toHaveAttribute('data-brand', 'claude')
+    await expect(agent).toHaveText('claude-code')
+
+    // The pull requests column is one the person turns on: two numbers, then
+    // the true count of the rest.
+    await page.getByTestId('home-columns').getByRole('button', { name: 'columns' }).click()
+    await page.getByRole('checkbox', { name: 'pull requests' }).click()
+    await page.keyboard.press('Escape')
+    const first = page.locator('[data-testid="home-table"] td[data-col="pullRequests"]').first()
+    await expect(first.getByRole('list', { name: 'pull requests' })).toContainText('#45')
+    await expect(first.getByRole('link', { name: '2 more pull requests on the transcript page' })).toHaveText('+2')
+
+    // What is waiting for a collective's approval.
+    await expect(page.getByTestId('home-waiting')).toContainText('ML Reading Group')
+    await expect(page.getByTestId('home-waiting')).toContainText('1 transcript waiting')
 
     await expectComputedTokens(page, '[data-testid="home-page"]', {
       fontFamilyIncludes: 'atkinson',
@@ -83,15 +99,28 @@ test.describe('home', () => {
     await evidence(page, testInfo, 'home-rows', home)
   })
 
+  test('remembers how the table is arranged', async ({ page, theme }) => {
+    await page.goto('/')
+    await expect(page.getByTestId('home-page')).toBeVisible()
+    await expectTheme(page, theme)
+    await groupByNothing(page)
+    await expect(page.getByTestId('home-transcript-row')).toHaveCount(HOME_ROWS.length)
+    await page.reload()
+    await expect(page.getByTestId('home-transcript-row')).toHaveCount(HOME_ROWS.length)
+    await expect(page.getByTestId('home-group-by')).toContainText('group by: nothing')
+  })
+
   test('searches your transcripts', async ({ page, theme }, testInfo) => {
     await page.goto('/')
-    await expect(page.getByTestId('home-transcript-row')).toHaveCount(HOME_ROWS.length)
+    await expect(page.getByTestId('home-page')).toBeVisible()
     await expectTheme(page, theme)
+    await groupByNothing(page)
+    await expect(page.getByTestId('home-transcript-row')).toHaveCount(HOME_ROWS.length)
 
     const search = page.getByRole('searchbox', { name: 'search your transcripts' })
     await search.fill('fix')
     await expect(page.getByTestId('home-transcript-row')).toHaveCount(1)
-    await expect(page.getByRole('link', { name: 'Fix flaky ingest test', exact: true })).toBeVisible()
+    await expect(page.getByTestId('home-table').getByRole('link', { name: 'Fix flaky ingest test', exact: true })).toBeVisible()
     await expect(page.getByTestId('home-count')).toHaveText('1 of 1 transcript')
 
     await expectNoSeriousAxe(page, testInfo)
@@ -104,6 +133,17 @@ test.describe('home', () => {
     await expect(page.getByTestId('home-transcript-row')).toHaveCount(HOME_ROWS.length)
   })
 
+  test('fits a phone, with the table scrolling in its own box', async ({ page, theme }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+    await expect(page.getByTestId('home-page')).toBeVisible()
+    await expectTheme(page, theme)
+    await page.getByRole('button', { name: 'expand all' }).click()
+    await expect(page.getByTestId('home-transcript-row')).toHaveCount(HOME_ROWS.length)
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(0)
+  })
+
   test('teaches publishing when nothing is published yet', async ({ page, request, theme }, testInfo) => {
     await setScenario(request, 'empty')
     try {
@@ -112,7 +152,8 @@ test.describe('home', () => {
       await expect(empty).toBeVisible()
       await expectTheme(page, theme)
       await expect(empty).toContainText('nothing published yet')
-      await expect(empty).toContainText('peasant village login')
+      await expect(empty).toContainText('curl -fsSL https://peasantlabs.org/install | bash')
+      await expect(empty).toContainText('peasant kickstart')
       await expect(page.getByTestId('home-transcript-row')).toHaveCount(0)
       await expect(page.getByRole('searchbox')).toHaveCount(0)
 

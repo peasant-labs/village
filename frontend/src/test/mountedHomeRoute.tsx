@@ -4,7 +4,8 @@ import { afterEach, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import RootPage from "@/app/page";
 import ExploreRoute from "@/app/explore/page";
-import Navbar from "@/components/layout/Navbar";
+import LoginRoute from "@/app/login/page";
+import AppFrame from "@/components/shell/AppFrame";
 import type {
   HomeCollectiveCase,
   HomeContributionCase,
@@ -13,12 +14,14 @@ import type {
   HomeTranscriptCase,
 } from "@/test/homePageFixtures";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import { DEFAULT_HOME_VIEW, HOME_COLUMNS, HOME_VIEW_STORAGE_KEY } from "@/lib/homeView";
 import type { TranscriptListItem, User } from "@/lib/types";
 
 /**
- * Support for tests that mount the REAL root route (`/`) and the REAL explore
- * route (`/explore`), each inside the real `AuthProvider`, optionally under the
- * REAL header (`Navbar`) the app shell mounts above every page.
+ * Support for tests that mount the REAL root route (`/`), the REAL sign-in
+ * route (`/login`) and the REAL explore route (`/explore`), each inside the
+ * real `AuthProvider`, optionally inside the REAL app chrome (`AppFrame`: the
+ * signed-in sidebar, the public bar, or none).
  *
  * The signed-in identity comes from the same `GET /auth/me` the app calls, so
  * WHICH surface `/` serves is decided by the production code under test rather
@@ -218,6 +221,21 @@ export function installHomeRouteREST(fixture: MountedHomeFixture): MountedHomeBa
       });
     }
     if (path === "/collectives") return json((fixture.collectives ?? []).map(groupRow));
+    // One of the viewer's collectives, as its own page reads it: the sidebar
+    // shares that read on a collective's settings page.
+    const collective = (fixture.collectives ?? []).find((c) => path === `/collectives/${c.id}`);
+    if (collective) {
+      return json({
+        group: groupRow(collective),
+        members: [],
+        transcripts: [],
+        stats: null,
+        models: [],
+        contributors: [],
+        can_read: true,
+        your_role: collective.role,
+      });
+    }
     if (path === "/users/me/collectives/contributions") {
       return json({ collectives: (fixture.contributions ?? []).map(contributionRow) });
     }
@@ -326,14 +344,16 @@ async function renderRoute(element: React.ReactElement): Promise<void> {
 function routeElement(path: string): React.ReactElement {
   if (path === "/") return <RootPage />;
   if (path === "/explore") return <ExploreRoute />;
+  if (path === "/login") return <LoginRoute />;
   throw new Error(`mounted home route fixture has no route registered at ${path}`);
 }
 
 /**
- * Renders the real route registered at `path`. With `header`, the real
- * `Navbar` is mounted above it exactly as the app shell mounts it, and the
- * jsdom location is moved to `path` first so the header reads the same
- * pathname a real navigation would leave behind.
+ * Renders the real route registered at `path`. With `header`, the real app
+ * chrome (`AppFrame`, which picks the signed-in navigation, the public bar or
+ * none by route and session) is mounted around it exactly as the layout mounts
+ * it, and the jsdom location is moved to `path` first so the chrome reads the
+ * same pathname a real navigation would leave behind.
  */
 export async function renderAppRoute(
   path: string,
@@ -342,21 +362,31 @@ export async function renderAppRoute(
   const page = routeElement(path);
   if (!options.header) return renderRoute(page);
   window.history.replaceState({}, "", path);
-  return renderRoute(
-    <>
-      <Navbar />
-      <main>{page}</main>
-    </>,
-  );
+  return renderRoute(<AppFrame>{page}</AppFrame>);
 }
 
 /**
- * Renders the real header alone at `pathname`, for a test about the chrome
- * rather than the page beneath it.
+ * Renders the real app chrome alone at `pathname`, around an empty page, for a
+ * test about the chrome rather than the page inside it.
  */
 export async function renderHeaderAt(pathname: string): Promise<void> {
   window.history.replaceState({}, "", pathname);
-  return renderRoute(<Navbar />);
+  return renderRoute(<AppFrame>{null}</AppFrame>);
+}
+
+/**
+ * Arranges the home table as one flat list with every column, the way a person
+ * who chose "group by: nothing" and ticked every column sees it. Tests about
+ * the rows read that view; how grouping and the column picker arrange the same
+ * rows is covered by `homeView.test.tsx`. The choice lives where the page reads
+ * it, in this browser's storage, so the page is mounted unchanged.
+ */
+export function showHomeAsFlatList(): void {
+  const columns = Object.fromEntries(HOME_COLUMNS.map((key) => [key, true]));
+  globalThis.localStorage.setItem(
+    HOME_VIEW_STORAGE_KEY,
+    JSON.stringify({ ...DEFAULT_HOME_VIEW, groupBy: "none", columns }),
+  );
 }
 
 /** Shared teardown; call once at module scope in each mounted-home test file. */

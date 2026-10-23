@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FolderOpen, Search } from "lucide-react";
+import { FileText, Layers, Search, SlidersHorizontal, Terminal } from "lucide-react";
 import { useTranscriptPages } from "@/lib/queries/transcripts";
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
@@ -15,26 +15,42 @@ import {
   helperGroupsByTranscript,
 } from "@/components/transcript/ScopedHelperGroups";
 import { useAuth } from "@/providers/AuthProvider";
-import HomeTranscriptTable from "@/components/home/HomeTranscriptTable";
-import HomeRail from "@/components/home/HomeRail";
-import { Input, StatsStrip, TeachingEmptyState } from "@/lib/ft-ui";
+import HomeTable from "@/components/home/HomeTable";
+import HomeRecent from "@/components/home/HomeRecent";
+import HomeWaiting from "@/components/home/HomeWaiting";
+import CommandLine from "@/components/online/CommandLine";
+import { OnEmpty, OnHead, OnPage } from "@/components/online/Page";
+import { CheckRow, RadioRow, ViewMenu } from "@/components/online/ViewMenu";
 import RequestFailureState from "@/components/RequestFailureState";
 import MalformedProjectNotice from "@/components/MalformedProjectNotice";
 import RetryButton from "@/components/RetryButton";
-import { formatCompact, formatRecordedDuration, publishedAtDescending } from "@/lib/format";
+import { formatCompact, publishedAtDescending } from "@/lib/format";
+import {
+  GROUP_BYS,
+  GROUP_BY_LABELS,
+  HOME_COLUMNS,
+  HOME_COLUMN_LABELS,
+  groupRows,
+  loadHomeView,
+  projectKey,
+  projectOptions,
+  saveHomeView,
+  type HomeView,
+} from "@/lib/homeView";
 import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
 import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
 import type { TranscriptListItem } from "@/lib/types";
 
 /**
- * The signed-in landing surface: the caller's own transcripts in a table, with
- * their totals above it and their collectives beside it.
+ * The signed-in landing surface: the caller's own transcripts, their totals,
+ * the newest few as cards, and a table the person can filter by project, group
+ * and trim to the columns they want.
  *
  * Every read is the caller's own and already served: the owner-scoped
  * transcript list (a page at a time, with search), `GET /users/me/stats` for
  * the totals, `GET /collectives` for the collectives they belong to, and
  * `GET /users/me/collectives/contributions` for what is still waiting for a
- * collective's approval.
+ * collective's approval. The collectives themselves are listed in the sidebar.
  */
 
 /**
@@ -112,13 +128,11 @@ export default function HomePage() {
 
   if (handleState === "choosing") {
     return (
-      <div className="iu-view">
-        <div className="iu-page animate-fade-up">
-          <div className="h-8 w-64 animate-shimmer" />
-          <div className="h-48 animate-shimmer" />
-          <div className="h-48 animate-shimmer" />
-        </div>
-      </div>
+      <OnPage>
+        <div className="h-10 w-72 animate-shimmer" />
+        <div className="h-48 animate-shimmer" />
+        <div className="h-48 animate-shimmer" />
+      </OnPage>
     );
   }
 
@@ -126,21 +140,17 @@ export default function HomePage() {
   // handle does not fire for an account that records having chosen one.
   if (handleState === "missing") {
     return (
-      <div className="iu-view">
-        <div className="iu-page" data-testid="home-page-no-handle">
-          <div
-            role="alert"
-            className="border border-danger/40 bg-danger-soft px-4 py-3 text-danger"
-          >
-            <p className="font-medium">your account has no handle</p>
-            <p className="mt-1">
-              your transcripts are stored under your handle, and this account is recorded as having
-              chosen one while carrying none, so they cannot be looked up. nothing has been lost.
-              sign out and back in; if the page still says this, the account needs a maintainer.
-            </p>
-          </div>
+      <OnPage testId="home-page-no-handle">
+        <OnHead title="your transcripts" />
+        <div role="alert" className="on-notice" data-tone="danger">
+          <p>
+            <strong>your account has no handle.</strong> your transcripts are stored under your
+            handle, and this account is recorded as having chosen one while carrying none, so they
+            cannot be looked up. nothing has been lost. sign out and back in; if the page still says
+            this, the account needs a maintainer.
+          </p>
         </div>
-      </div>
+      </OnPage>
     );
   }
 
@@ -158,6 +168,19 @@ function HomeBody({ username }: { username: string }) {
     const timer = setTimeout(() => setQuery(settled), SEARCH_SETTLE_MS);
     return () => clearTimeout(timer);
   }, [draft, query]);
+
+  // How the table is arranged on this device, read when the body first mounts
+  // and written back on every change. The body only ever mounts in the browser
+  // (the root route renders nothing of it until the session is known), so the
+  // stored view never disagrees with a server render.
+  const [view, setView] = useState<HomeView>(loadHomeView);
+  const updateView = (next: HomeView) => {
+    setView(next);
+    saveHomeView(next);
+  };
+  // The projects this visit hides. Not remembered: a project hidden last week
+  // must never make a newly published session look missing.
+  const [hiddenProjects, setHiddenProjects] = useState<ReadonlySet<string>>(() => new Set());
 
   const listParams: Record<string, string> =
     query === "" ? { owner: username } : { owner: username, q: query };
@@ -239,6 +262,13 @@ function HomeBody({ username }: { username: string }) {
   const rows = mostRecentGroupFirst(grouping.rootItems, childSessions);
   const malformed = loaded.filter((item) => !item.transcript.project_hash).length;
 
+  const projects = projectOptions(rows);
+  const visibleRows = hiddenProjects.size === 0 ? rows : rows.filter((item) => !hiddenProjects.has(projectKey(item)));
+  const groups = groupRows(visibleRows, view.groupBy);
+  const isGrouped = view.groupBy !== "none";
+  const openSet = new Set(view.open);
+  const allOpen = isGrouped && groups.length > 0 && groups.every((g) => openSet.has(g.id));
+
   const [now] = useState(() => Date.now());
 
   // Mounted on every branch below, not inside one of them: a polite region has
@@ -259,12 +289,30 @@ function HomeBody({ username }: { username: string }) {
           ...(collectives.data != null
             ? [counted(collectives.data.length, "collective", "collectives")]
             : []),
-          counted(stats.data.pull_request_count, "pull request", "pull requests"),
-          { label: "tokens", value: formatCompact(stats.data.total_tokens) },
-          { label: "recorded", value: formatRecordedDuration(stats.data.total_duration_ms) },
+          counted(stats.data.pull_request_count, "pull request linked", "pull requests linked"),
+          { label: "tokens recorded", value: formatCompact(stats.data.total_tokens) },
         ];
   const libraryEmpty = own != null && total === 0 && query === "";
   const showStats = statItems.length > 0 && stats.data!.total_transcripts > 0;
+
+  const toggleGroup = (id: string) => {
+    const open = new Set(view.open);
+    if (open.has(id)) open.delete(id);
+    else open.add(id);
+    updateView({ ...view, open: [...open] });
+  };
+  const toggleAllGroups = () => {
+    updateView({ ...view, open: allOpen ? [] : groups.map((g) => g.id) });
+  };
+  const toggleProject = (key: string) => {
+    const next = new Set(hiddenProjects);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setHiddenProjects(next);
+  };
+  const shownProjects = projects.filter((p) => !hiddenProjects.has(p.key)).length;
+  const projectsLabel =
+    shownProjects === projects.length ? "all" : shownProjects === 0 ? "none" : `${shownProjects} of ${projects.length}`;
 
   let listRegion: React.ReactNode;
   if (failed && own == null && !searching) {
@@ -291,34 +339,46 @@ function HomeBody({ username }: { username: string }) {
   } else if (list.data == null) {
     listRegion = (
       <div className="flex flex-col gap-[var(--sp-2)]" data-testid="home-list-loading" aria-hidden="true">
-        <div className="h-10 animate-shimmer" />
+        <div className="h-11 w-full max-w-[40rem] animate-shimmer" />
+        <div className="h-14 animate-shimmer" />
         <div className="h-14 animate-shimmer" />
         <div className="h-14 animate-shimmer" />
       </div>
     );
   } else if (libraryEmpty) {
     listRegion = (
-      <div data-testid="home-empty-state" className="border border-rule bg-surface">
-        <TeachingEmptyState
-          icon={FolderOpen}
+      <div className="on-section" data-testid="home-empty-state">
+        <OnEmpty
+          icon={<Terminal />}
           title="nothing published yet"
-          body="sessions you publish from peasant appear here, with who can read each one. sign peasant in to village on your computer, then publish a session from it."
-          command="peasant village login"
-          privacy={null}
-          style={{ border: "none", background: "transparent" }}
-        />
-        <div className="px-6 pb-6">
-          <Link href="/publish" className="cmg-pr-link">
-            how to publish from peasant
-          </Link>
-        </div>
+          body="install peasant and run kickstart. sessions you publish show up here."
+          actions={
+            <Link href="/publish" className="on-link">
+              how to publish from peasant
+            </Link>
+          }
+        >
+          <CommandLine command="curl -fsSL https://peasantlabs.org/install | bash" />
+          <CommandLine command="peasant kickstart" />
+        </OnEmpty>
+        {collectives.data != null && collectives.data.length === 0 && (
+          <div className="on-row" data-testid="home-no-collective">
+            <span className="on-muted">not in a collective yet?</span>
+            <Link href="/collectives" className="btn btn-primary">
+              new collective
+            </Link>
+            <Link href="/discover" className="btn btn-secondary">
+              discover
+            </Link>
+          </div>
+        )}
       </div>
     );
   } else if (rows.length === 0) {
     listRegion = (
-      <div data-testid="home-no-match" className="flex flex-col items-start gap-[var(--sp-2)] border border-rule bg-surface p-[var(--sp-4)]">
-        <p className="m-0">no transcript you published matches &ldquo;{query}&rdquo;.</p>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDraft("")}>
+      <div data-testid="home-no-match" className="on-nomatch">
+        <b>no transcript you published matches &ldquo;{query}&rdquo;</b>
+        <button type="button" className="btn btn-secondary" onClick={() => setDraft("")}>
           clear search
         </button>
       </div>
@@ -326,19 +386,16 @@ function HomeBody({ username }: { username: string }) {
   } else {
     const more = Math.min(HOME_PAGE_SIZE, Math.max(total - loaded.length, 0));
     listRegion = (
-      <div className="flex flex-col gap-[var(--sp-3)]" data-testid="home-transcripts" aria-busy={searching || undefined}>
+      <div className="on-section" data-testid="home-transcripts" aria-busy={searching || undefined}>
         {failed && (
           // The rows below are the last ones the server confirmed. They are
           // kept deliberately: a failed refresh is not news that the library
           // shrank.
-          <div
-            data-testid="home-stale-notice"
-            className="border border-rule bg-surface px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-          >
+          <div data-testid="home-stale-notice" className="on-notice">
             {/* Only the sentence is the alert. The control sits outside it
                 because its label changes while a retry is in flight, and an
                 atomic alert re-announces the whole notice on that change. */}
-            <p role="alert" className="m-0 text-ink-2">
+            <p role="alert">
               these transcripts could not be refreshed, so they are the ones last loaded and may be
               out of date. the request reported: {failureCause}.
             </p>
@@ -356,18 +413,31 @@ function HomeBody({ username }: { username: string }) {
           consequence="They are still listed below, without a link to a project page."
         />
         <div className={searching ? "opacity-60 transition-opacity" : undefined}>
-          <HomeTranscriptTable
-            rows={rows}
-            childSessions={childSessions}
-            viewerUsername={username}
-            now={now}
-            helperGroupSlot={(item) => (
-              <ScopedOwnerHelperGroups
-                groups={helperGroups.get(item.transcript.id)}
-                onRefreshOrigin={refreshGrouped}
-              />
-            )}
-          />
+          {visibleRows.length === 0 ? (
+            <div className="on-nomatch" data-testid="home-no-project-match">
+              <b>no transcripts match these projects</b>
+              <button type="button" className="btn btn-secondary" onClick={() => setHiddenProjects(new Set())}>
+                show all projects
+              </button>
+            </div>
+          ) : (
+            <HomeTable
+              groups={groups}
+              grouped={isGrouped}
+              isOpen={(id) => openSet.has(id)}
+              onToggle={toggleGroup}
+              columns={view.columns}
+              childSessions={childSessions}
+              viewerUsername={username}
+              now={now}
+              helperGroupSlot={(item) => (
+                <ScopedOwnerHelperGroups
+                  groups={helperGroups.get(item.transcript.id)}
+                  onRefreshOrigin={refreshGrouped}
+                />
+              )}
+            />
+          )}
           <ScopedContextContainerList items={groupedItems} onRefreshOrigin={refreshGrouped} />
           <ScopedGroupedContinuation
             remaining={grouped.remainingItems}
@@ -375,16 +445,16 @@ function HomeBody({ username }: { username: string }) {
             onLoadMore={() => void grouped.fetchNextPage()}
           />
         </div>
-        <div className="iu-page-foot">
-          <span className="iu-page-count" data-testid="home-count">
-            <span className="tnum">{loaded.length.toLocaleString("en-US")}</span> of{" "}
-            <span className="tnum">{total.toLocaleString("en-US")}</span>{" "}
+        <div className="on-pager">
+          <span data-testid="home-count">
+            <span className="tabular-nums">{loaded.length.toLocaleString("en-US")}</span> of{" "}
+            <span className="tabular-nums">{total.toLocaleString("en-US")}</span>{" "}
             {total === 1 ? "transcript" : "transcripts"}
           </span>
           {list.hasNextPage && !searching && (
-            <span className="inline-flex items-center gap-[var(--sp-2)]">
+            <span className="on-row">
               {list.isFetchNextPageError && (
-                <span role="alert" className="cmg-note" data-testid="home-load-more-failed">
+                <span role="alert" className="on-muted" data-testid="home-load-more-failed">
                   the next transcripts could not be loaded:{" "}
                   {list.error instanceof Error ? list.error.message : "an unknown error"}.
                 </span>
@@ -402,60 +472,123 @@ function HomeBody({ username }: { username: string }) {
     );
   }
 
+  const showTools = !libraryEmpty && list.data != null && !(failed && own == null && !searching);
+
   return (
-    <div className="iu-view">
-      <div className="iu-page animate-fade-up" data-testid="home-page">
-        <p role="status" aria-live="polite" className="sr-only" data-testid="home-status">
-          {statusText}
+    <OnPage testId="home-page">
+      <p role="status" aria-live="polite" className="sr-only" data-testid="home-status">
+        {statusText}
+      </p>
+
+      <OnHead title="your transcripts" lede="what you published, and who can read each one." />
+
+      {showStats ? (
+        <ul className="on-stats" data-testid="home-stats" aria-label="your transcripts in numbers">
+          {statItems.map((item) => (
+            <li key={item.label} className="on-stat">
+              <b className="tabular-nums">{item.value.toLocaleString("en-US")}</b> <span>{item.label}</span>
+            </li>
+          ))}
+        </ul>
+      ) : stats.isError ? (
+        <p className="on-muted" data-testid="home-stats-failed">
+          your totals could not be loaded.
         </p>
+      ) : null}
 
-        <header className="iu-page-head">
-          <h1 className="iu-page-title">your transcripts</h1>
-          <p className="iu-page-sub">sessions you published from peasant, and who can read each one.</p>
-        </header>
+      <HomeWaiting
+        contributions={{
+          data: contributions.data,
+          isError: contributions.isError,
+          isFetching: contributions.isFetching,
+          refetch: contributions.refetch,
+        }}
+      />
 
-        {showStats ? (
-          <div data-testid="home-stats">
-            <StatsStrip items={statItems} label="your transcripts in numbers" />
+      {query === "" && !searching && own != null && <HomeRecent rows={rows} now={now} />}
+
+      {showTools && (
+        <div className="on-tools" role="toolbar" aria-label="view">
+          <div className="on-search" role="search">
+            <Search aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="search your transcripts"
+              placeholder="search transcripts"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+            />
           </div>
-        ) : stats.isError ? (
-          <p className="cmg-note" data-testid="home-stats-failed">
-            your totals could not be loaded.
-          </p>
-        ) : null}
-
-        <div className="cmg-home">
-          <div className="cmg-home-main">
-            {!libraryEmpty && (
-              <div className="iu-page-search" role="search">
-                <Input
-                  label="search your transcripts"
-                  type="search"
-                  iconLeft={Search}
-                  placeholder="search your transcripts"
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                />
-              </div>
-            )}
-            {listRegion}
-          </div>
-          <HomeRail
-            collectives={{
-              data: collectives.data,
-              isError: collectives.isError,
-              isFetching: collectives.isFetching,
-              refetch: collectives.refetch,
-            }}
-            contributions={{
-              data: contributions.data,
-              isError: contributions.isError,
-              isFetching: contributions.isFetching,
-              refetch: contributions.refetch,
-            }}
-          />
+          {projects.length > 1 && (
+            <ViewMenu icon={<FileText aria-hidden="true" />} label="projects" value={projectsLabel} title="projects" testId="home-projects">
+              {() => (
+                <>
+                  <div className="on-menu-acts">
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setHiddenProjects(new Set())}>
+                      select all
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => setHiddenProjects(new Set(projects.map((p) => p.key)))}
+                    >
+                      clear
+                    </button>
+                  </div>
+                  {projects.map((p) => (
+                    <CheckRow key={p.key} checked={!hiddenProjects.has(p.key)} onToggle={() => toggleProject(p.key)} count={p.count}>
+                      {p.label}
+                    </CheckRow>
+                  ))}
+                </>
+              )}
+            </ViewMenu>
+          )}
+          <ViewMenu
+            icon={<Layers aria-hidden="true" />}
+            label="group by"
+            value={GROUP_BY_LABELS[view.groupBy]}
+            title="group by"
+            kind="radiogroup"
+            testId="home-group-by"
+          >
+            {(close) =>
+              GROUP_BYS.map((key) => (
+                <RadioRow
+                  key={key}
+                  checked={view.groupBy === key}
+                  onPick={() => {
+                    updateView({ ...view, groupBy: key });
+                    close();
+                  }}
+                >
+                  {GROUP_BY_LABELS[key]}
+                </RadioRow>
+              ))
+            }
+          </ViewMenu>
+          <ViewMenu icon={<SlidersHorizontal aria-hidden="true" />} label="columns" title="show columns" align="end" testId="home-columns">
+            {() =>
+              HOME_COLUMNS.map((key) => (
+                <CheckRow
+                  key={key}
+                  checked={view.columns[key]}
+                  onToggle={() => updateView({ ...view, columns: { ...view.columns, [key]: !view.columns[key] } })}
+                >
+                  {HOME_COLUMN_LABELS[key]}
+                </CheckRow>
+              ))
+            }
+          </ViewMenu>
+          {isGrouped && groups.length > 0 && (
+            <button type="button" className="btn btn-ghost" onClick={toggleAllGroups} data-testid="home-toggle-groups">
+              {allOpen ? "collapse all" : "expand all"}
+            </button>
+          )}
         </div>
-      </div>
-    </div>
+      )}
+
+      {listRegion}
+    </OnPage>
   );
 }

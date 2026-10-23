@@ -7,6 +7,7 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import {
   installHomeRouteREST,
   renderAppRoute,
+  showHomeAsFlatList,
 } from "@/test/mountedHomeRoute";
 import {
   installProjectRouteREST,
@@ -370,6 +371,7 @@ function homeRows(testCase: ChildSessionGroupingCase): HomeTranscriptCase[] {
 describe("the home page lists a started session inside its parent's chip", () => {
   for (const testCase of casesFor("home")) {
     it(testCase.name, async () => {
+      showHomeAsFlatList();
       installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: homeRows(testCase) });
       await renderAppRoute("/");
       await flush();

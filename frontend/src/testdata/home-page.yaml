@@ -1,17 +1,23 @@
-# Case corpus for `src/homePage.test.tsx` — the root route (`/`), the explore
-# route (`/explore`), and the top nav the header mounts over them.
+# Case corpus for `src/homePage.test.tsx`: the root route (`/`), the sign-in
+# route (`/login`), the explore route (`/explore`), and the nav the app chrome
+# mounts around them.
 #
 # Deletion protection is the required-NAME manifest in
 # `src/test/homePageFixtures.ts`. A removed or renamed case fails the loader
 # because its name goes missing from the declared set.
 
 # Which surface each (path, viewer) pair must land on. `/` is the only route
-# whose answer depends on who is asking: the signed-in person's home, or the
-# GitHub sign-in page. Discovery left the root and the nav, and keeps its own
-# address, so `/explore` still lands on it for both viewers.
+# whose answer depends on who is asking: the signed-in person's home, or, for
+# anybody else, the marketing site (the page says where it is taking them and
+# leaves). Signing in starts at `/login`. Discovery left the root and the nav,
+# and keeps its own address, so `/explore` still lands on it for both viewers.
 routeCases:
-  - name: signed-out-visitor-at-the-root-lands-on-sign-in
+  - name: signed-out-visitor-at-the-root-leaves-for-the-marketing-site
     path: "/"
+    viewerUsername: null
+    expectSurface: marketing
+  - name: signed-out-visitor-at-login-gets-sign-in
+    path: "/login"
     viewerUsername: null
     expectSurface: sign-in
   - name: signed-in-visitor-at-the-root-gets-their-own-home
@@ -27,73 +33,111 @@ routeCases:
     viewerUsername: null
     expectSurface: explore
 
-# Which top-nav entries the MOUNTED header offers for a (signed-in, pathname)
-# pair, which one is marked active, and where its "< back" link leads. The nav
-# is `home` and `collectives`, for somebody signed in only; explore and publish
-# are hidden from it, so a page under neither entry marks none
-# (`expectActiveLabel: null`). `expectBackHref` is null where the header shows
-# no back link; it is written on every case so none is read as "no link" by
-# omission.
+# What the MOUNTED sidebar offers for a (signed-in, address) pair. Every
+# signed-in case is served one collective the viewer belongs to, Acme Platform
+# (c011ec71-0000-4000-8000-000000000001), so its row follows the sections.
+#   expectNav          which navigation the sidebar draws: `sections` (home,
+#                      discover, pull requests, collectives and the viewer's
+#                      collectives), `settings` (on a collective's settings
+#                      page: the way back and its sections), or `none` (a
+#                      signed-out reader gets the public bar, not the sidebar).
+#   expectLabels       that navigation's entries, in order.
+#   expectActiveLabel  the one entry marked current, or null for none.
+#   expectBackHref     where the settings navigation's way back leads, or null
+#                      when there is none. Written on every case so none is
+#                      read as "no link" by omission.
 navCases:
   - name: signed-in-visitor-at-the-root-highlights-home
     isLoggedIn: true
     pathname: "/"
-    expectLabels: [home, collectives]
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
     expectActiveLabel: home
     expectBackHref: null
-  - name: signed-in-visitor-at-a-collective-highlights-collectives
+  - name: signed-in-visitor-at-their-collective-highlights-it
     isLoggedIn: true
-    pathname: "/collectives/acme-platform"
-    expectLabels: [home, collectives]
+    pathname: "/collectives/c011ec71-0000-4000-8000-000000000001"
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
+    expectActiveLabel: Acme Platform
+    expectBackHref: null
+  - name: signed-in-visitor-at-another-collective-highlights-collectives
+    isLoggedIn: true
+    pathname: "/collectives/acme-elsewhere"
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
     expectActiveLabel: collectives
-    expectBackHref: "/collectives"
+    expectBackHref: null
   - name: a-transcript-page-highlights-home
     isLoggedIn: true
     pathname: "/transcripts/abc123"
-    expectLabels: [home, collectives]
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
     expectActiveLabel: home
-    expectBackHref: "/"
-  - name: a-pull-request-page-highlights-home
+    expectBackHref: null
+  - name: a-pull-request-page-highlights-pull-requests
     isLoggedIn: true
     pathname: "/pulls/acme/app/42"
-    expectLabels: [home, collectives]
-    expectActiveLabel: home
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
+    expectActiveLabel: pull requests
+    expectBackHref: null
+  - name: discover-highlights-discover
+    isLoggedIn: true
+    pathname: "/discover"
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
+    expectActiveLabel: discover
     expectBackHref: null
   - name: signed-in-visitor-at-explore-highlights-nothing
     isLoggedIn: true
     pathname: "/explore"
-    expectLabels: [home, collectives]
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
     expectActiveLabel: null
     expectBackHref: null
   - name: signed-in-visitor-at-publish-highlights-nothing
     isLoggedIn: true
     pathname: "/publish"
-    expectLabels: [home, collectives]
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
     expectActiveLabel: null
     expectBackHref: null
+  - name: a-collectives-settings-page-lists-its-sections
+    # The sidebar becomes the settings page's own navigation: the way back to
+    # the collective, and the section the address names marked current.
+    isLoggedIn: true
+    pathname: "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=members"
+    expectNav: settings
+    expectLabels: [general, access, members, github, pull requests, danger zone]
+    expectActiveLabel: members
+    expectBackHref: "/collectives/c011ec71-0000-4000-8000-000000000001"
   - name: signed-out-visitor-at-the-root-is-offered-no-entries
     isLoggedIn: false
     pathname: "/"
+    expectNav: none
     expectLabels: []
     expectActiveLabel: null
     expectBackHref: null
   - name: signed-out-visitor-at-explore-is-offered-no-entries
     isLoggedIn: false
     pathname: "/explore"
+    expectNav: none
     expectLabels: []
     expectActiveLabel: null
     expectBackHref: null
-  - name: a-signed-out-transcript-reader-gets-no-back-link
-    # Their `/` is the sign-in page, which is not where a shared link's reader
-    # came from, so the header offers no way "back" to it.
+  - name: a-signed-out-transcript-reader-gets-no-sidebar
+    # A shared link's reader is not signed in: the public bar, with a way in,
+    # and no sidebar of sections that would all ask them to sign in.
     isLoggedIn: false
     pathname: "/transcripts/abc123"
+    expectNav: none
     expectLabels: []
     expectActiveLabel: null
     expectBackHref: null
 
-# The account menu, the only way to the signed-in person's profile and the only
-# way to sign out. Each row names the item as it is read and what choosing it
+# The account menu at the foot of the sidebar, the only way to the signed-in
+# person's profile and the only way to sign out from the chrome. Each row names the item as it is read and what choosing it
 # must do: `navigate` pushes `target`; `sign-out` posts to the logout route.
 # The rows are the menu's whole item set, in order.
 accountMenuCases:
@@ -111,8 +155,9 @@ accountMenuCases:
     target: null
 
 # What the home surface renders for a given owner-scoped transcript list: the
-# table of the person's own transcripts, the totals above it, and the rail of
-# their collectives beside it.
+# table of the person's own transcripts, the totals above it, the newest few as
+# cards, and what is waiting for a collective's approval. The person's
+# collectives are listed in the sidebar (`src/sidebar.test.tsx`).
 #
 # Three fields describe the REQUEST rather than the rows, and each is written on
 # every case, never defaulted, so a case can never be silently read as the happy
@@ -140,10 +185,10 @@ accountMenuCases:
 # the mock serves no totals, no collectives and nothing waiting.
 #
 #   stats / expectStats            GET /users/me/stats, and the summary line.
-#   collectives                    GET /collectives (the caller's memberships).
-#   expectRailCollectives          what the rail names for each, in order.
+#   collectives                    GET /collectives (the caller's memberships),
+#                                  which the totals count.
 #   contributions / expectWaiting  GET /users/me/collectives/contributions, and
-#                                  the collectives the waiting section names.
+#                                  the collectives the waiting notice names.
 #   search                         a query typed into the search box, and the
 #                                  titles the table lists for it.
 #   loadMore                       the titles after pressing `show N more` once.
@@ -162,9 +207,9 @@ homeCases:
     expectRowTitles: [Claude recorded work, Codex recorded work, Earlier recorded work]
     expectProjectLinks: []
     expectProviderMarks:
-      - { title: Claude recorded work, brand: claude, label: Claude Code }
-      - { title: Codex recorded work, brand: openai, label: Codex }
-      - { title: Earlier recorded work, brand: null, label: null }
+      - { title: Claude recorded work, brand: claude, name: claude-code }
+      - { title: Codex recorded work, brand: openai, name: codex }
+      - { title: Earlier recorded work, brand: null, name: earlier-agent }
   - name: recent-sessions-lead-and-projects-follow
     # Newest first, whatever order the rows arrive in, and each row's project
     # name leads to that project's page.
@@ -435,16 +480,11 @@ homeCases:
       - { id: 11111111-1111-4111-8111-111111111111, name: Acme Platform, role: owner, members: 12 }
       - { id: 22222222-2222-4222-8222-222222222222, name: Acme Company, role: member, members: 87 }
       - { id: 33333333-3333-4333-8333-333333333333, name: ML Reading Group, role: contributor, members: 21 }
-    expectRailCollectives:
-      - { name: Acme Platform, meta: owner · 12 members }
-      - { name: Acme Company, meta: member · 87 members }
-      - { name: ML Reading Group, meta: contributor · 21 members }
     expectStats:
       - 38 transcripts
       - 3 collectives
-      - 9 pull requests
-      - 19.1M tokens
-      - 31h recorded
+      - 9 pull requests linked
+      - 19.1M tokens recorded
 
   - name: a-search-lists-only-the-matching-transcripts
     # The query is sent to the list as `q`; the table lists what the server
@@ -536,7 +576,7 @@ homeCases:
 
   - name: transcripts-waiting-for-approval-are-listed-by-collective
     # A curated collective holds each transcript until its owner approves it.
-    # The rail names every collective holding something of the viewer's, from
+    # The waiting notice names every collective holding something of the viewer's, from
     # the pending counts GET /users/me/collectives/contributions already serves.
     viewerUsername: alice-dev
     transcripts:
@@ -554,7 +594,7 @@ homeCases:
       - ML Reading Group
 
   - name: nothing-waiting-draws-no-waiting-section
-    # Contributions that are all approved leave nothing to wait for, so the rail
+    # Contributions that are all approved leave nothing to wait for, so the page
     # draws no waiting section at all rather than an empty one.
     viewerUsername: alice-dev
     transcripts:
@@ -568,25 +608,6 @@ homeCases:
     contributions:
       - { id: 11111111-1111-4111-8111-111111111111, name: Acme Platform, pending: 0 }
     expectWaiting: []
-
-  - name: the-rail-lists-your-collectives
-    # The collectives the viewer belongs to, each with their role and its size,
-    # linking to the collective's page; `view all` leads to the full list.
-    viewerUsername: alice-dev
-    transcripts:
-      - { id: t-rail, title: Fix flaky ingest test, projectHash: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", projectDisplayName: ingest-api, publishedAt: "2026-08-14T10:00:00Z" }
-    usernameChosen: true
-    requestFailure: never
-    expectHomeSurface: rows
-    expectRowTitles:
-      - Fix flaky ingest test
-    expectProjectLinks: []
-    collectives:
-      - { id: 11111111-1111-4111-8111-111111111111, name: Acme Platform, role: owner, members: 12 }
-      - { id: 44444444-4444-4444-8444-444444444444, name: Solo Circle, role: member, members: 1 }
-    expectRailCollectives:
-      - { name: Acme Platform, meta: owner · 12 members }
-      - { name: Solo Circle, meta: member · 1 member }
 
 # Ordering cases for the exported sort itself, including timestamps that do NOT
 # parse. The mounted corpus above rejects an unparseable timestamp on purpose (a

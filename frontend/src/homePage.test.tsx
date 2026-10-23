@@ -1,25 +1,33 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   installHomeRouteREST,
   installHomeRouteTeardown,
   renderAppRoute,
+  showHomeAsFlatList,
 } from "@/test/mountedHomeRoute";
 import { loadHomePageFixtures } from "@/test/homePageFixtures";
 import { mostRecentGroupFirst } from "@/app/HomePage";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import { leaveForMarketingSite } from "@/lib/marketing";
 import type { TranscriptListItem } from "@/lib/types";
 
 // Mounts the REAL production routes: the root route (`/`), which serves the
-// signed-in person's home page or the GitHub sign-in page depending on who is
-// asking, and the explore route (`/explore`), under the REAL header for the nav
-// cases. Every assertion is on what
-// lands in the DOM and on the requests the routes actually issue, so a
-// regression cannot hide behind a prop snapshot.
+// signed-in person's home page or sends anybody else to the marketing site,
+// the sign-in route (`/login`), and the explore route (`/explore`). Every
+// assertion is on what lands in the DOM and on the requests the routes actually
+// issue, so a regression cannot hide behind a prop snapshot.
+//
+// Leaving for the marketing site is the one boundary stubbed: it would navigate
+// the whole document away, so it records the call instead.
+vi.mock("@/lib/marketing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/marketing")>();
+  return { ...actual, leaveForMarketingSite: vi.fn() };
+});
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
-}));
+beforeEach(() => {
+  vi.mocked(leaveForMarketingSite).mockClear();
+});
 
 const fixtures = loadHomePageFixtures();
 
@@ -35,6 +43,10 @@ function exploreSurface(): Element | null {
 
 function signInSurface(): Element | null {
   return document.querySelector('[data-testid="sign-in-page"]');
+}
+
+function marketingSurface(): Element | null {
+  return document.querySelector('[data-testid="root-route-leaving"]');
 }
 
 function homeErrorSurface(): Element | null {
@@ -70,6 +82,7 @@ async function settled(): Promise<void> {
       homeSurface() ??
         exploreSurface() ??
         signInSurface() ??
+        marketingSurface() ??
         homeErrorSurface() ??
         noHandleSurface(),
     ).not.toBeNull(),
@@ -86,6 +99,10 @@ describe("mounted routes: which surface each visitor lands on", () => {
       expect(homeSurface() !== null).toBe(c.expectSurface === "home");
       expect(signInSurface() !== null).toBe(c.expectSurface === "sign-in");
       expect(exploreSurface() !== null).toBe(c.expectSurface === "explore");
+      // Sent to the marketing site exactly when the surface says so, and only
+      // once the session read has answered.
+      expect(marketingSurface() !== null).toBe(c.expectSurface === "marketing");
+      expect(vi.mocked(leaveForMarketingSite).mock.calls.length).toBe(c.expectSurface === "marketing" ? 1 : 0);
     });
   }
 
@@ -93,16 +110,21 @@ describe("mounted routes: which surface each visitor lands on", () => {
 
 /** The top-level rows of the transcripts table, as the reader sees them. */
 function tableRows(): HTMLTableRowElement[] {
-  return [...document.querySelectorAll<HTMLTableRowElement>('[data-testid="home-transcripts"] tr.tbl-row')];
+  return [...document.querySelectorAll<HTMLTableRowElement>('[data-testid="home-transcripts"] tr[data-testid="home-row"]')];
 }
 
 /** The title a table row leads with. */
 function rowTitle(tr: Element): string {
-  return (
-    tr.querySelector('[data-testid="home-transcript-row"] .iu-session-text > a.iu-session-title')
-      ?.textContent ?? ""
-  );
+  return tr.querySelector('[data-testid="home-transcript-row"] > a')?.textContent ?? "";
 }
+
+/** A row's cell for one of the table's columns. */
+function cellOf(tr: Element, column: string): Element {
+  const td = tr.querySelector(`td[data-col="${column}"]`);
+  if (td == null) throw new Error(`the row has no ${column} cell`);
+  return td;
+}
+
 
 function tableTitles(): string[] {
   return tableRows().map(rowTitle);
@@ -121,6 +143,7 @@ function text(el: Element | null | undefined): string {
 describe("mounted home route: your transcripts, their totals and your collectives", () => {
   for (const c of fixtures.homeCases) {
     it(c.name, async () => {
+      showHomeAsFlatList();
       const backend = installHomeRouteREST({
         viewerUsername: c.viewerUsername,
         transcripts: c.transcripts,
@@ -407,37 +430,36 @@ describe("mounted home route: your transcripts, their totals and your collective
       for (const tr of tableRows()) {
         const id = tr.querySelector('[data-testid="home-transcript-row"]')!.getAttribute("data-transcript-id");
         expect(
-          tr.querySelector("a.iu-session-title")!.getAttribute("href"),
+          tr.querySelector('[data-testid="home-transcript-row"] > a')!.getAttribute("href"),
         ).toBe(`/transcripts/${id}`);
       }
 
       for (const link of c.expectProjectLinks) {
-        const sub = rowTitled(link.title).querySelector(
-          '[data-testid="home-transcript-row"] .iu-session-text > .iu-session-sub',
-        );
-        expect(sub, `${link.title} names its project`).not.toBeNull();
-        expect(sub!.querySelector("a")?.getAttribute("href") ?? null).toBe(link.href);
+        const project = cellOf(rowTitled(link.title), "project");
+        expect(text(project), `${link.title} names its project`).not.toBe("");
+        expect(project.querySelector("a")?.getAttribute("href") ?? null).toBe(link.href);
       }
 
       for (const cell of c.expectSharedWithCells ?? []) {
-        const td = rowTitled(cell.title).querySelectorAll("td")[1];
-        const named = [...td.querySelectorAll(".cmg-shared > span")].map(text);
+        const td = cellOf(rowTitled(cell.title), "readers");
+        const named = [...td.querySelectorAll(".on-readers > span")].map(text);
         expect(named.length > 0 ? named : [text(td)]).toEqual(cell.text);
       }
       for (const mark of c.expectProviderMarks ?? []) {
-        const row = rowTitled(mark.title);
-        const icons = [...row.querySelectorAll<SVGElement>('[data-testid="home-transcript-row"] svg[data-brand]')];
+        const agent = cellOf(rowTitled(mark.title), "agent");
+        const icons = [...agent.querySelectorAll<SVGElement>("svg[data-brand]")];
         expect(icons.map((icon) => icon.dataset.brand)).toEqual(mark.brand === null ? [] : [mark.brand]);
-        if (mark.label !== null) {
-          expect(icons[0]).toHaveAttribute("role", "img");
-          expect(icons[0]).toHaveAttribute("aria-label", mark.label);
-          expect(row.querySelector(".iu-session-sub")).not.toHaveTextContent(mark.label);
-        }
+        // The mark leads the name and is decorative beside it: the name is
+        // what is read, so the mark is not announced a second time.
+        expect(text(agent)).toBe(mark.name);
+        for (const icon of icons) expect(icon).not.toHaveAttribute("role", "img");
+        // And the title cell names no provider: the agent has its own column.
+        expect(rowTitled(mark.title).querySelector('[data-testid="home-transcript-row"] svg[data-brand]')).toBeNull();
       }
 
       for (const cell of c.expectPullRequestCells ?? []) {
         const tr = rowTitled(cell.title);
-        const td = tr.querySelectorAll("td")[2];
+        const td = cellOf(tr, "pullRequests");
         const numbers = () => [...td.querySelectorAll(".ovl-item a")].map(text);
         if (cell.shown.length === 0) {
           expect(text(td)).toBe("none");
@@ -475,24 +497,7 @@ describe("mounted home route: your transcripts, their totals and your collective
         await waitFor(() =>
           expect([...strip.querySelectorAll("li")].map(text)).toEqual(c.expectStats),
         );
-      }
-
-      if (c.expectRailCollectives !== undefined) {
-        await waitFor(() =>
-          expect(document.querySelectorAll('[data-testid="home-rail-collective"]')).toHaveLength(
-            c.expectRailCollectives!.length,
-          ),
-        );
-        const listed = [...document.querySelectorAll('[data-testid="home-rail-collective"]')];
-        expect(
-          listed.map((li) => ({ name: text(li.querySelector("a")), meta: text(li.querySelector(".cmg-rail-meta")) })),
-        ).toEqual(c.expectRailCollectives);
-        expect(listed.map((li) => li.querySelector("a")!.getAttribute("href"))).toEqual(
-          c.collectives!.map((collective) => `/collectives/${collective.id}`),
-        );
-        expect(
-          screen.getByRole("link", { name: "view all" }).getAttribute("href"),
-        ).toBe("/collectives");
+        expect(strip).toHaveAccessibleName("your transcripts in numbers");
       }
 
       if (c.expectWaiting !== undefined) {
@@ -501,11 +506,11 @@ describe("mounted home route: your transcripts, their totals and your collective
           expect(requested).toContain("/users/me/collectives/contributions"),
         );
         if (c.expectWaiting.length === 0) {
-          expect(document.querySelector('[data-testid="home-rail-waiting"]')).toBeNull();
+          expect(document.querySelector('[data-testid="home-waiting"]')).toBeNull();
         } else {
-          const section = await screen.findByTestId("home-rail-waiting");
+          const section = await screen.findByTestId("home-waiting");
           expect(
-            [...section.querySelectorAll('[data-testid="home-rail-waiting-collective"] a')].map(text),
+            [...section.querySelectorAll('[data-testid="home-waiting-collective"] a')].map(text),
           ).toEqual(c.expectWaiting);
           for (const name of c.expectWaiting) {
             const pending = c.contributions!.find((x) => x.name === name)!.pending;

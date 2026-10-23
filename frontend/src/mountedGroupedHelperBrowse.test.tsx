@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import RootPage from "@/app/page";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import { showHomeAsFlatList } from "@/test/mountedHomeRoute";
 import {
   loadGroupedHelperMountFixtures,
   memberItem,
@@ -164,6 +165,7 @@ function groupTrigger(groupId: string): HTMLButtonElement {
 }
 
 it("home attaches the grouped helper group to its owner row and expands it in place", async () => {
+  showHomeAsFlatList();
   const calls = installREST();
   await renderHome();
 

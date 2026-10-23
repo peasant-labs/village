@@ -1,0 +1,157 @@
+# Case corpus for `src/homeView.test.tsx`: how the home table is arranged in
+# one browser. Grouping, open groups, the columns shown and the projects shown
+# change what is drawn, never what the server is asked or holds.
+#
+# Every case mounts the REAL root route for `alice-dev` over the same rows
+# below, starting from `stored` (what this browser remembered, or null for a
+# first visit), then performs `steps` in order and checks `expect`.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/homeViewFixtures.ts`.
+
+# Newest first, as the page ranks them. Two projects, two agents, three
+# audiences: a row two collectives read, a public row, and a private one.
+rows:
+  - { id: v-1, title: Fix flaky ingest test, projectHash: "1111111111111111111111111111111111111111111111111111111111111111", projectDisplayName: ingest-api, publishedAt: "2026-08-21T12:00:00Z", modelProvider: claude-code, sharedWith: [Acme Platform, Acme Company] }
+  - { id: v-2, title: Paginate the collectives list, projectHash: "2222222222222222222222222222222222222222222222222222222222222222", projectDisplayName: web, publishedAt: "2026-08-21T11:00:00Z", modelProvider: codex, sharedWith: [Acme Platform] }
+  - { id: v-3, title: Guard empty turns, projectHash: "1111111111111111111111111111111111111111111111111111111111111111", projectDisplayName: ingest-api, publishedAt: "2026-08-21T10:00:00Z", modelProvider: codex, visibility: public }
+  - { id: v-4, title: Reproduce the benchmark, projectHash: "2222222222222222222222222222222222222222222222222222222222222222", projectDisplayName: web, publishedAt: "2026-08-21T09:00:00Z", modelProvider: claude-code }
+
+# Steps, each one of:
+#   { open: <menu> }            press a toolbar menu: projects | group by | columns
+#   { pick: <label> }           choose a radio row in the open menu
+#   { toggle: <label> }         tick or untick a check row in the open menu
+#   { press: <button label> }   press a page button (expand all, a group row, ...)
+# `expect`:
+#   groups      the group rows, as "label count", in order ([] when ungrouped)
+#   rows        the transcript rows on screen, by title, in order
+#   columns     the table's column headers, in order
+#   stored      the view this browser remembers afterwards: groupBy, the hidden
+#               columns, and how many groups are open
+cases:
+  - name: a-first-visit-groups-by-project-with-every-group-closed
+    why: >-
+      the table opens grouped by project, every group closed, so a long library
+      reads as its projects first; the newest transcripts are the cards above.
+    stored: null
+    steps: []
+    expect:
+      groups: [ingest-api 2 transcripts, web 2 transcripts]
+      rows: []
+      columns: [transcript, project, who can read, agent, when]
+      stored: null
+
+  - name: opening-a-group-shows-its-rows-and-is-remembered
+    why: a group a person opens stays open on their next visit to this page.
+    stored: null
+    steps:
+      - { press: "web 2 transcripts" }
+    expect:
+      groups: [ingest-api 2 transcripts, web 2 transcripts]
+      rows: [Paginate the collectives list, Reproduce the benchmark]
+      columns: [transcript, project, who can read, agent, when]
+      stored: { groupBy: project, hiddenColumns: [pullRequests, turns], openGroups: 1 }
+
+  - name: expand-all-then-collapse-all
+    why: one control opens every group and the same control closes them again.
+    stored: null
+    steps:
+      - { press: expand all }
+      - { press: collapse all }
+      - { press: expand all }
+    expect:
+      groups: [ingest-api 2 transcripts, web 2 transcripts]
+      rows: [Fix flaky ingest test, Guard empty turns, Paginate the collectives list, Reproduce the benchmark]
+      columns: [transcript, project, who can read, agent, when]
+      stored: { groupBy: project, hiddenColumns: [pullRequests, turns], openGroups: 2 }
+
+  - name: grouping-by-collective-files-a-row-under-every-reader
+    why: >-
+      a row two collectives read sits under both; a public row sits under
+      anyone with the link; a row no collective reads says so in the same words
+      its readers cell uses.
+    stored: null
+    steps:
+      - { open: group by }
+      - { pick: collective }
+      - { press: expand all }
+    expect:
+      groups: [Acme Platform 2 transcripts, Acme Company 1 transcript, anyone with the link 1 transcript, not shared with collective members 1 transcript]
+      rows: [Fix flaky ingest test, Paginate the collectives list, Fix flaky ingest test, Guard empty turns, Reproduce the benchmark]
+      columns: [transcript, project, who can read, agent, when]
+      stored: { groupBy: collective, hiddenColumns: [pullRequests, turns], openGroups: 4 }
+
+  - name: grouping-by-agent-uses-the-harness-name
+    why: the agent groups are named by the harness each row was recorded with.
+    stored: null
+    steps:
+      - { open: group by }
+      - { pick: agent }
+    expect:
+      groups: [claude-code 2 transcripts, codex 2 transcripts]
+      rows: []
+      columns: [transcript, project, who can read, agent, when]
+      stored: { groupBy: agent, hiddenColumns: [pullRequests, turns], openGroups: 0 }
+
+  - name: grouping-by-nothing-is-one-flat-list
+    why: with no grouping every row shows in recency order and no group row is drawn.
+    stored: null
+    steps:
+      - { open: group by }
+      - { pick: nothing }
+    expect:
+      groups: []
+      rows: [Fix flaky ingest test, Paginate the collectives list, Guard empty turns, Reproduce the benchmark]
+      columns: [transcript, project, who can read, agent, when]
+      stored: { groupBy: none, hiddenColumns: [pullRequests, turns], openGroups: 0 }
+
+  - name: the-column-picker-shows-and-hides-columns
+    why: >-
+      a column a person turns on or off changes the header and every row, and
+      the title column is always there.
+    stored: { groupBy: none, columns: { project: true, readers: true, agent: true, pullRequests: false, turns: false, when: true }, open: [] }
+    steps:
+      - { open: columns }
+      - { toggle: who can read }
+      - { toggle: turns }
+    expect:
+      groups: []
+      rows: [Fix flaky ingest test, Paginate the collectives list, Guard empty turns, Reproduce the benchmark]
+      columns: [transcript, project, agent, turns, when]
+      stored: { groupBy: none, hiddenColumns: [readers, pullRequests], openGroups: 0 }
+
+  - name: hiding-a-project-hides-its-rows-for-this-visit-only
+    why: >-
+      the projects filter narrows what is drawn, and is not remembered, so a
+      project hidden once never makes a new session look missing later.
+    stored: { groupBy: none, columns: { project: true, readers: true, agent: true, pullRequests: false, turns: false, when: true }, open: [] }
+    steps:
+      - { open: projects }
+      - { toggle: web }
+    expect:
+      groups: []
+      rows: [Fix flaky ingest test, Guard empty turns]
+      columns: [transcript, project, who can read, agent, when]
+      stored: { groupBy: none, hiddenColumns: [pullRequests, turns], openGroups: 0 }
+
+  - name: hiding-every-project-says-so-and-offers-them-back
+    why: an empty filter is not an empty library, so it says what is hiding the rows.
+    stored: { groupBy: none, columns: { project: true, readers: true, agent: true, pullRequests: false, turns: false, when: true }, open: [] }
+    steps:
+      - { open: projects }
+      - { press: clear }
+    expect:
+      groups: []
+      rows: []
+      columns: []
+      stored: { groupBy: none, hiddenColumns: [pullRequests, turns], openGroups: 0 }
+
+  - name: an-unreadable-remembered-view-falls-back-to-the-default
+    why: a view stored by an older page, or damaged, never breaks the page.
+    stored: "{not json"
+    steps: []
+    expect:
+      groups: [ingest-api 2 transcripts, web 2 transcripts]
+      rows: []
+      columns: [transcript, project, who can read, agent, when]
+      stored: null

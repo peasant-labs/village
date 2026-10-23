@@ -17,7 +17,7 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
  * move with the code it is supposed to hold still.
  */
 
-export type HomeRouteSurface = "home" | "sign-in" | "explore";
+export type HomeRouteSurface = "home" | "marketing" | "sign-in" | "explore";
 
 export type HomeRouteCase = {
   name: string;
@@ -118,14 +118,14 @@ export type HomeCase = {
   stats?: HomeStatsCase;
   expectStats?: string[];
   collectives?: HomeCollectiveCase[];
-  expectRailCollectives?: { name: string; meta: string }[];
   contributions?: HomeContributionCase[];
   expectWaiting?: string[];
   search?: { query: string; expectRowTitles: string[] };
   loadMore?: { expectRowTitles: string[] };
   expectPullRequestCells?: HomePullRequestCellCase[];
   expectSharedWithCells?: { title: string; text: string[] }[];
-  expectProviderMarks?: { title: string; brand: string | null; label: string | null }[];
+  /** The agent cell: the brand mark drawn (or none) and the agent name beside it. */
+  expectProviderMarks?: { title: string; brand: string | null; name: string }[];
 };
 
 /**
@@ -166,10 +166,9 @@ export type HomeNavCase = {
   name: string;
   isLoggedIn: boolean;
   pathname: string;
+  expectNav: "sections" | "settings" | "none";
   expectLabels: string[];
-  /** The one entry marked active, or null when the page is under none. */
   expectActiveLabel: string | null;
-  /** Where the header's back link leads, or null when it shows none. */
   expectBackHref: string | null;
 };
 
@@ -204,7 +203,8 @@ export type HomePageFixtures = {
 };
 
 const requiredRouteCaseNames = [
-  "signed-out-visitor-at-the-root-lands-on-sign-in",
+  "signed-out-visitor-at-the-root-leaves-for-the-marketing-site",
+  "signed-out-visitor-at-login-gets-sign-in",
   "signed-in-visitor-at-the-root-gets-their-own-home",
   "signed-in-visitor-at-explore-gets-explore",
   "signed-out-visitor-at-explore-gets-explore",
@@ -212,20 +212,24 @@ const requiredRouteCaseNames = [
 
 const requiredNavCaseNames = [
   "signed-in-visitor-at-the-root-highlights-home",
-  "signed-in-visitor-at-a-collective-highlights-collectives",
+  "signed-in-visitor-at-their-collective-highlights-it",
+  "signed-in-visitor-at-another-collective-highlights-collectives",
   "a-transcript-page-highlights-home",
-  "a-pull-request-page-highlights-home",
+  "a-pull-request-page-highlights-pull-requests",
+  "discover-highlights-discover",
   "signed-in-visitor-at-explore-highlights-nothing",
   "signed-in-visitor-at-publish-highlights-nothing",
+  "a-collectives-settings-page-lists-its-sections",
   "signed-out-visitor-at-the-root-is-offered-no-entries",
   "signed-out-visitor-at-explore-is-offered-no-entries",
-  "a-signed-out-transcript-reader-gets-no-back-link",
+  "a-signed-out-transcript-reader-gets-no-sidebar",
 ] as const;
 
 const navCaseKeys = [
   "name",
   "isLoggedIn",
   "pathname",
+  "expectNav",
   "expectLabels",
   "expectActiveLabel",
   "expectBackHref",
@@ -260,7 +264,6 @@ const requiredHomeCaseNames = [
   "the-pull-request-column-with-none-one-and-several",
   "transcripts-waiting-for-approval-are-listed-by-collective",
   "nothing-waiting-draws-no-waiting-section",
-  "the-rail-lists-your-collectives",
 ] as const;
 
 const routeCaseKeys = ["name", "path", "viewerUsername", "expectSurface"];
@@ -280,7 +283,6 @@ const optionalHomeCaseKeys = [
   "stats",
   "expectStats",
   "collectives",
-  "expectRailCollectives",
   "contributions",
   "expectWaiting",
   "search",
@@ -358,7 +360,7 @@ function newestFirstTitles(rows: HomeTranscriptCase[]): string[] {
     .map((t) => t.title);
 }
 
-const surfaces: readonly HomeRouteSurface[] = ["home", "sign-in", "explore"];
+const surfaces: readonly HomeRouteSurface[] = ["home", "marketing", "sign-in", "explore"];
 
 const requiredSortCaseNames = [
   "newest-first-among-parseable-timestamps",
@@ -402,17 +404,19 @@ export function loadHomePageFixtures(): HomePageFixtures {
       );
     }
     // The rule the routes exist to express: `/` is home for somebody signed in
-    // and the sign-in page for everybody else, and `/explore` is discovery for
-    // both. A case claiming otherwise would invert the boundary rather than
-    // test it.
+    // and the marketing site for everybody else, signing in starts at `/login`,
+    // and `/explore` is discovery for both. A case claiming otherwise would
+    // invert the boundary rather than test it.
     const want: HomeRouteSurface =
-      c.path === "/" ? (c.viewerUsername !== null ? "home" : "sign-in") : "explore";
+      c.path === "/"
+        ? c.viewerUsername !== null ? "home" : "marketing"
+        : c.path === "/login" ? "sign-in" : "explore";
     if (c.expectSurface !== want) {
       throw new Error(
         `route case ${c.name}: expectSurface is ${c.expectSurface} for path ${c.path} viewed by ` +
           `${c.viewerUsername ?? "an anonymous visitor"}. "/" is home to a signed-in visitor and ` +
-          `the sign-in page to anybody else, and "/explore" is discovery to both; fix the ` +
-          `expectation rather than the rule.`,
+          `the marketing site to anybody else, "/login" is the sign-in page, and "/explore" is ` +
+          `discovery to both; fix the expectation rather than the rule.`,
       );
     }
   }
@@ -444,9 +448,19 @@ export function loadHomePageFixtures(): HomePageFixtures {
           `case expects (${c.expectLabels.join(", ")})`,
       );
     }
-    // Every entry belongs to somebody who is signed in; a signed-out visitor's
-    // `/` is the sign-in page. A signed-out case listing an entry would assert
-    // the opposite of the rule the nav exists to express.
+    // The sidebar belongs to somebody who is signed in; a signed-out reader
+    // gets the public bar. A signed-out case listing an entry would assert the
+    // opposite of the rule the sidebar exists to express.
+    if (!["sections", "settings", "none"].includes(c.expectNav)) {
+      throw new Error(`nav case ${c.name}: ${c.expectNav} is not a navigation the sidebar draws`);
+    }
+    if ((c.expectNav === "none") !== !c.isLoggedIn) {
+      throw new Error(`nav case ${c.name}: the sidebar is drawn exactly for somebody signed in`);
+    }
+    // Only the settings navigation has a way back.
+    if ((c.expectBackHref !== null) !== (c.expectNav === "settings")) {
+      throw new Error(`nav case ${c.name}: a way back belongs to the settings navigation alone`);
+    }
     if (!c.isLoggedIn && c.expectLabels.length > 0) {
       throw new Error(
         `nav case ${c.name}: a signed-out visitor is offered no nav entries, got ` +
@@ -471,7 +485,7 @@ export function loadHomePageFixtures(): HomePageFixtures {
       `home-page navCases: "/" must be exercised BOTH signed in and signed out`,
     );
   }
-  // A back link and its absence must both be exercised, or a header that
+  // A way back and its absence must both be exercised, or a sidebar that
   // always (or never) drew one would pass.
   if (
     !fixtures.navCases.some((c) => c.expectBackHref !== null) ||
@@ -562,11 +576,16 @@ export function loadHomePageFixtures(): HomePageFixtures {
     if (c.expectProviderMarks !== undefined) {
       assertNamesMatch(c.expectProviderMarks.map((m) => m.title), titles, `home case ${c.name} provider marks`);
       for (const mark of c.expectProviderMarks) {
-        assertExactKeys(mark, ["title", "brand", "label"], `home case ${c.name} provider mark`);
-        if (!c.transcripts.find((t) => t.title === mark.title)?.modelProvider ||
-            (mark.brand === null) !== (mark.label === null) ||
-            (mark.brand !== null && (typeof mark.brand !== "string" || !mark.brand || typeof mark.label !== "string" || !mark.label))) {
+        assertExactKeys(mark, ["title", "brand", "name"], `home case ${c.name} provider mark`);
+        const received = c.transcripts.find((t) => t.title === mark.title)?.modelProvider;
+        if (!received || typeof mark.name !== "string" || !mark.name ||
+            (mark.brand !== null && (typeof mark.brand !== "string" || !mark.brand))) {
           throw new Error(`home case ${c.name}: each provider mark must state a received input and complete expected identity`);
+        }
+        // The name beside the mark is the harness the row arrived with, never
+        // a display name invented for it.
+        if (mark.name !== received) {
+          throw new Error(`home case ${c.name}: ${mark.title} arrived as ${received}, so its agent cell names ${received}; got ${mark.name}`);
         }
       }
     }
@@ -640,9 +659,6 @@ export function loadHomePageFixtures(): HomePageFixtures {
             `without the other is a served input nothing checks, or an expectation nothing serves`,
         );
       }
-    }
-    if ("expectRailCollectives" in c && !("collectives" in c)) {
-      throw new Error(`home case ${c.name}: expectRailCollectives needs the collectives it names`);
     }
 
     // The table lists the case's OWN rows newest first, truncated to the length
@@ -772,19 +788,6 @@ export function loadHomePageFixtures(): HomePageFixtures {
         assertExactKeys(collective, ["id", "name", "role", "members"], `home case ${c.name} collective`);
       }
     }
-    if (c.expectRailCollectives !== undefined) {
-      const names = (c.collectives ?? []).map((collective) => collective.name);
-      const listed = c.expectRailCollectives.map((row) => {
-        assertExactKeys(row, ["name", "meta"], `home case ${c.name} rail collective`);
-        return row.name;
-      });
-      if (JSON.stringify(listed) !== JSON.stringify(names)) {
-        throw new Error(
-          `home case ${c.name}: the rail names the collectives in the order served ` +
-            `(${names.join(", ")}); got ${listed.join(", ")}`,
-        );
-      }
-    }
     if (c.contributions !== undefined) {
       for (const contribution of c.contributions) {
         assertExactKeys(contribution, ["id", "name", "pending"], `home case ${c.name} contribution`);
@@ -888,9 +891,6 @@ export function loadHomePageFixtures(): HomePageFixtures {
   }
   if (!loadedHomeCases.some((c) => c.expectStats !== undefined)) {
     throw new Error("home-page homeCases: no case states the stats line");
-  }
-  if (!loadedHomeCases.some((c) => (c.expectRailCollectives ?? []).length > 0)) {
-    throw new Error("home-page homeCases: no case lists the collectives rail");
   }
 
   assertNamesMatch(
