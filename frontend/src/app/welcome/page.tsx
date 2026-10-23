@@ -7,6 +7,7 @@ import { useSetUsername } from "@/lib/queries/auth";
 import { HandleClaim } from "@/lib/ft-ui";
 import { handleTakenMessage } from "@/lib/handle";
 import { LOGIN_PATH } from "@/lib/signIn";
+import { OnPage } from "@/components/online/Page";
 
 // Mirror the backend handle rules: 3–30 chars, lowercase alphanumeric with
 // single internal hyphens, starting/ending alphanumeric.
@@ -84,14 +85,24 @@ export default function WelcomePage() {
     return null;
   }
 
+  // The claim card is the design system's. Its own note names the design
+  // system rather than this product, so the line under it says what the
+  // handle is here: the address of the person's profile.
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-6 animate-fade-up">
-      <HandleClaim
-        initialValue={seeded}
-        suggestedFrom={user?.provider_username ?? user?.github_username ?? ""}
-        validate={validate}
-        onSubmit={handleSubmit}
-      />
-    </div>
+    <OnPage>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-[var(--sp-5)]">
+        <HandleClaim
+          initialValue={seeded}
+          suggestedFrom={user?.provider_username ?? user?.github_username ?? ""}
+          validate={validate}
+          onSubmit={handleSubmit}
+        />
+        <p className="on-muted m-0 max-w-[44ch] text-center" data-testid="welcome-handle-note">
+          Your handle names your profile on peasant online, at{" "}
+          <span className="font-mono">/users/your-handle</span>. You can change it later in your
+          settings.
+        </p>
+      </div>
+    </OnPage>
   );
 }
