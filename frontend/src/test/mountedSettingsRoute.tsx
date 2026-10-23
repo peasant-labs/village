@@ -65,7 +65,7 @@ export interface MountedSettingsOrgs {
   write?: "ok" | "failed";
 }
 
-export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: boolean; read: "ok" | "failed"; write: "ok" | "failed" }, controls?: { deferProfile?: "handle" | "discoverable"; failLogout?: boolean; deferLogout?: boolean }, orgs: MountedSettingsOrgs = { items: [] }): MountedSettingsBackend {
+export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: boolean; read: "ok" | "failed"; write: "ok" | "failed" }, controls?: { deferProfile?: "handle" | "discoverable"; failLogout?: boolean; deferLogout?: boolean; signedOut?: boolean }, orgs: MountedSettingsOrgs = { items: [] }): MountedSettingsBackend {
   const writes: string[] = [];
   let accountID = "user-alice";
   let handle = SETTINGS_VIEWER;
@@ -100,7 +100,10 @@ export function installSettingsRouteREST(c: SettingsCase, prompt?: { initial: bo
         writes.push(`${method} ${path}${body}`);
       }
 
-      if (method === "GET" && path === "/auth/me") return json(userFor(handle, discoverable, accountID));
+      if (method === "GET" && path === "/auth/me") {
+        if (controls?.signedOut) return json({ error: "Authentication required" }, 401);
+        return json(userFor(handle, discoverable, accountID));
+      }
       if (method === "GET" && path === "/auth/orgs") {
         orgReads += 1;
         // Only the first read fails, so the retry control has an answer to

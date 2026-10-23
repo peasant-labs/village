@@ -2,8 +2,8 @@
  *
  * Reaches `/settings` the way a person does, from the account menu, and checks
  * the page's rows: the handle, the discoverable switch, the automatic pull
- * request row (shown, and not yet available), the account village signs in
- * with, where peasant is signed in, and the danger zone. Then it opens the page
+ * request row, the account peasant signs in with, where peasant is signed in,
+ * and the danger zone, and that the section list beside them leads to each. Then it opens the page
  * for a person whose peasant is signed in nowhere, and tries a handle somebody
  * else holds. Each test records its still frame, the accessible tree and an axe
  * report.
@@ -53,7 +53,14 @@ test.describe('account settings', () => {
     // Two working sign-ins; the revoked one is not counted.
     await expect(page.getByTestId('settings-peasant')).toContainText('peasant on 2 computers')
     await expect(page.getByTestId('settings-peasant')).toContainText('last used 12m ago')
-    await expect(page.getByTestId('settings-delete')).toContainText('this cannot be undone')
+    await expect(page.getByTestId('settings-delete')).toContainText('It cannot be undone.')
+
+    // The section list leads to each section by its anchor.
+    const sections = page.getByRole('navigation', { name: 'settings sections' })
+    await expect(sections.getByRole('link')).toHaveText(['profile', 'organizations', 'pull requests', 'connections', 'danger zone'])
+    await sections.getByRole('link', { name: 'danger zone' }).click()
+    await expect(page).toHaveURL(/\/settings#danger-zone$/)
+    await expect(page.getByTestId('settings-danger')).toBeInViewport()
 
     await expectComputedTokens(page, '[data-testid="settings-page"]', {
       fontFamilyIncludes: 'atkinson',

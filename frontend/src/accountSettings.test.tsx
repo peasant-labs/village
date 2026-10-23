@@ -129,15 +129,51 @@ describe("mounted settings route", () => {
     });
   }
 
-  it("names the account village signs in with and signs it out", async () => {
+  it("names the account peasant signs in with and signs it out", async () => {
     const backend = installSettingsRouteREST(cases[0]);
     await renderSettingsRoute();
     const account = await screen.findByTestId("settings-sign-in-account");
-    expect(text(account.querySelector(".srow-label"))).toBe("github · alice-dev");
+    expect(text(account.querySelector(".srow-label"))).toBe("signed in with github as alice-dev");
     await act(async () => {
       fireEvent.click(within(account).getByRole("button", { name: "sign out" }));
     });
     await waitFor(() => expect(backend.writes).toEqual(["POST /auth/logout"]));
+  });
+});
+
+describe("the settings page's frame", () => {
+  it("asks a signed-out visitor to sign in and come back to settings", async () => {
+    const backend = installSettingsRouteREST(cases[0], undefined, { signedOut: true });
+    await renderSettingsRoute();
+    const signIn = await screen.findByTestId("settings-sign-in");
+    expect(text(signIn)).toBe("sign in");
+    // Signing in returns to this page, never to the root.
+    expect(signIn.getAttribute("href")).toBe(`/login?next=${encodeURIComponent("/settings")}`);
+    expect(screen.queryByTestId("settings-page")).toBeNull();
+    expect(backend.writes).toEqual([]);
+  });
+
+  it("lists every section beside the page, each leading to its own anchor", async () => {
+    installSettingsRouteREST(cases[0]);
+    await renderSettingsRoute();
+    const nav = await screen.findByRole("navigation", { name: "settings sections" });
+    const links = within(nav).getAllByRole("link");
+    expect(links.map((link) => text(link))).toEqual([
+      "profile",
+      "organizations",
+      "pull requests",
+      "connections",
+      "danger zone",
+    ]);
+    // Each anchor names a section on the page, headed by the same words.
+    for (const link of links) {
+      const id = link.getAttribute("href")!.replace(/^#/, "");
+      const section = document.getElementById(id);
+      expect(section, `${id} is a section on the page`).not.toBeNull();
+      expect(text(section!.querySelector("h2"))).toBe(text(link));
+    }
+    // The first section is the one marked until the reader moves.
+    expect(links[0].getAttribute("aria-current")).toBe("true");
   });
 });
 

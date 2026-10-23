@@ -1,8 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import {
+  Building2,
+  GitPullRequest,
+  LogIn,
+  Plug,
+  TriangleAlert,
+  UserRound,
+  type LucideIcon,
+} from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   useDeleteAccount,
@@ -21,9 +30,12 @@ import {
 import { isApiErrorStatus } from "@/lib/api";
 import { handleTakenMessage } from "@/lib/handle";
 import { formatRelativeTime } from "@/lib/format";
-import { ConfirmInline, SettingGroup, SettingRow } from "@/lib/ft-ui";
+import { ConfirmInline, SettingRow } from "@/lib/ft-ui";
+import { OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 import RetryButton from "@/components/RetryButton";
+import { loginHref } from "@/lib/signIn";
 import type { User } from "@/lib/types";
+import "@/app/online-settings.css";
 
 /**
  * `/settings`: the signed-in person's own account, one saved field at a time.
@@ -31,34 +43,51 @@ import type { User } from "@/lib/types";
  * Every control saves on its own through fairtrade's `SettingRow`: a switch
  * applies the moment it changes, and the handle saves when the person presses
  * save. A write that fails puts the previous value back and says why beside the
- * control. Every read and write here is a route village already serves.
+ * control. Every read and write here is a route the server already serves.
+ *
+ * The sections sit in the online settings layout, with a list of them beside
+ * (above, on a phone) so a person can go straight to one. Each section has an
+ * anchor (`/settings#pull-requests`), so another page can link to the setting
+ * it talks about.
  */
+const LEDE = "Switches save as soon as you flip them. Your handle saves when you press save.";
+
+/** The page's sections, in order: the anchor each one has, and its icon. */
+const SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: "profile", label: "profile", icon: UserRound },
+  { id: "organizations", label: "organizations", icon: Building2 },
+  { id: "pull-requests", label: "pull requests", icon: GitPullRequest },
+  { id: "connections", label: "connections", icon: Plug },
+  { id: "danger-zone", label: "danger zone", icon: TriangleAlert },
+];
+
 export default function AccountSettingsPage() {
   const { user, isLoading, isLoggedIn } = useAuth();
 
   if (isLoading) {
     return (
-      <div className="iu-view">
-        <div className="iu-page" data-testid="settings-pending">
-          <div className="h-8 w-64 animate-shimmer" />
-          <div className="h-48 animate-shimmer" />
-        </div>
-      </div>
+      <OnPage testId="settings-pending">
+        <OnHead title="your settings" lede={LEDE} />
+        <div className="h-48 animate-shimmer" />
+      </OnPage>
     );
   }
 
   if (!isLoggedIn || user == null) {
     return (
-      <div className="iu-view">
-        <div className="iu-page" data-testid="settings-signed-out">
-          <header className="iu-page-head">
-            <h1 className="iu-page-title">your settings</h1>
-            <p className="iu-page-sub">
-              sign in to change your settings. <Link href="/" className="cmg-pr-link">go to sign-in</Link>
-            </p>
-          </header>
-        </div>
-      </div>
+      <OnPage testId="settings-signed-out">
+        <OnHead title="your settings" />
+        <OnEmpty
+          icon={<LogIn aria-hidden="true" />}
+          title="sign in to change your settings"
+          body="Your profile, organizations and connections are here once you sign in."
+          actions={
+            <Link href={loginHref("/settings")} className="btn btn-primary" data-testid="settings-sign-in">
+              sign in
+            </Link>
+          }
+        />
+      </OnPage>
     );
   }
 
@@ -115,133 +144,230 @@ function Settings({ user }: { user: User }) {
   }
 
   return (
-    <div className="iu-view">
-      <div className="iu-page cmg-settings" data-testid="settings-page">
-        <header className="iu-page-head">
-          <h1 className="iu-page-title">your settings</h1>
-          <p className="iu-page-sub">switches apply right away. text changes when you press edit.</p>
-        </header>
+    <OnPage testId="settings-page">
+      <OnHead title="your settings" lede={LEDE} />
+      <div className="on-settings">
+        <SectionNav />
+        <div className="on-settings-body">
+          <Section id="profile" title="profile" testId="settings-profile">
+            <SettingRow
+              label="handle"
+              control="text"
+              value={handle}
+              onCommit={commitHandle}
+              data-testid="settings-handle"
+            />
+            <SettingRow
+              label="discoverable profile"
+              help="on: your handle shows on your transcripts and in member lists. off: you show as anon."
+              control="switch"
+              value={user.is_discoverable}
+              onCommit={async (next) => {
+                await updateSettings.mutateAsync({ is_discoverable: Boolean(next) });
+              }}
+              data-testid="settings-discoverable"
+            />
+          </Section>
 
-        <SettingGroup label="profile" defaultOpen data-testid="settings-profile">
-          <SettingRow
-            label="handle"
-            control="text"
-            value={handle}
-            onCommit={commitHandle}
-            data-testid="settings-handle"
-          />
-          <SettingRow
-            label="discoverable profile"
-            help="on: your handle shows on your transcripts and in member lists. off: you show as anon."
-            control="switch"
-            value={user.is_discoverable}
-            onCommit={async (next) => {
-              await updateSettings.mutateAsync({ is_discoverable: Boolean(next) });
-            }}
-            data-testid="settings-discoverable"
-          />
-        </SettingGroup>
-
-        {/*
-         * GitHub organizations, one switch each. An organization is LINKED
-         * when `visible` is on: it then shows on the profile and can verify the
-         * person to a collective that requires members of it. The list is the
-         * caller's own, linked or not, so unlinking is switching one off.
-         * Organizations arrive from GitHub at sign-in only, so an empty list is
-         * answered with how to refresh rather than a blank section.
-         */}
-        <SettingGroup
-          label="organizations"
-          defaultOpen
-          count={myOrgs.data == null ? null : myOrgs.data.length}
-          noun={["organization", "organizations"]}
-          description="showing it here is optional. collectives use your membership, not this switch."
-          data-testid="settings-orgs"
-        >
-          {myOrgs.isError ? (
-            <div className="srow" data-testid="settings-orgs-read-error">
-              <p role="alert" style={{ fontSize: "var(--fs-body)", color: "var(--error)" }}>
-                your github organizations could not be read: {errorMessage(myOrgs.error)}
-              </p>
-              <RetryButton
-                label={myOrgs.isFetching ? "retrying" : "retry"}
-                busy={myOrgs.isFetching}
-                onRetry={() => myOrgs.refetch()}
-                testId="settings-orgs-retry"
-              />
-            </div>
-          ) : myOrgs.data == null ? null : myOrgs.data.length === 0 ? (
-            <div className="srow" data-testid="settings-orgs-empty">
-              <span className="srow-text-col">
-                <span className="srow-help">
-                  no github organizations found. make one public on github, then
-                  sign out and sign in again.
-                </span>
-              </span>
-            </div>
-          ) : (
-            myOrgs.data.map((org) => (
-              <SettingRow
-                key={org.org_login}
-                label={
-                  <span className="inline-flex items-center gap-2">
-                    <OrgAvatar url={org.avatar_url} />
-                    {org.org_login}
+          {/*
+           * GitHub organizations, one switch each. An organization is LINKED
+           * when `visible` is on: it then shows on the profile and can verify the
+           * person to a collective that requires members of it. The list is the
+           * caller's own, linked or not, so unlinking is switching one off.
+           * Organizations arrive from GitHub at sign-in only, so an empty list is
+           * answered with how to refresh rather than a blank section.
+           */}
+          <Section
+            id="organizations"
+            title="organizations"
+            count={
+              myOrgs.data == null
+                ? null
+                : `${myOrgs.data.length} ${myOrgs.data.length === 1 ? "organization" : "organizations"}`
+            }
+            description="showing it here is optional. collectives use your membership, not this switch."
+            testId="settings-orgs"
+          >
+            {myOrgs.isError ? (
+              <div className="srow" data-testid="settings-orgs-read-error">
+                <p role="alert" className="on-acct-alert">
+                  your github organizations could not be read: {errorMessage(myOrgs.error)}
+                </p>
+                <RetryButton
+                  label={myOrgs.isFetching ? "retrying" : "retry"}
+                  busy={myOrgs.isFetching}
+                  onRetry={() => myOrgs.refetch()}
+                  testId="settings-orgs-retry"
+                />
+              </div>
+            ) : myOrgs.data == null ? (
+              <div className="srow">
+                <span className="srow-help">checking your github organizations</span>
+              </div>
+            ) : myOrgs.data.length === 0 ? (
+              <div className="srow" data-testid="settings-orgs-empty">
+                <span className="srow-text-col">
+                  <span className="srow-help">
+                    no github organizations found. make one public on github, then
+                    sign out and sign in again.
                   </span>
-                }
-                help={org.visible ? "shown on your profile" : "not shown on your profile"}
-                control="switch"
-                value={org.visible}
-                onCommit={async (next) => {
-                  await setOrgVisibility.mutateAsync({
-                    orgLogin: org.org_login,
-                    visible: Boolean(next),
-                  });
-                }}
-                data-testid={`settings-org-${org.org_login}`}
-              />
-            ))
-          )}
-        </SettingGroup>
+                </span>
+              </div>
+            ) : (
+              myOrgs.data.map((org) => (
+                <SettingRow
+                  key={org.org_login}
+                  label={
+                    <span className="inline-flex items-center gap-2">
+                      <OrgAvatar url={org.avatar_url} />
+                      {org.org_login}
+                    </span>
+                  }
+                  help={org.visible ? "shown on your profile" : "not shown on your profile"}
+                  control="switch"
+                  value={org.visible}
+                  onCommit={async (next) => {
+                    await setOrgVisibility.mutateAsync({
+                      orgLogin: org.org_login,
+                      visible: Boolean(next),
+                    });
+                  }}
+                  data-testid={`settings-org-${org.org_login}`}
+                />
+              ))
+            )}
+          </Section>
 
-        <SettingGroup label="pull requests" defaultOpen data-testid="settings-pull-requests">
-          <SettingRow
-            label="link my transcripts to my pull requests automatically"
-            help="off: comment /peasant attach on a pull request. on: when you open a pull request in a repo that one of your collectives links, your transcripts that trace its commits are linked. who can read them does not change."
-            control="switch"
-            value={settings.data?.auto_attach_pull_requests ?? false}
-            disabled={settings.data == null || settings.isFetching}
-            onCommit={async (next) => {
-              await updateAutoAttach.mutateAsync(Boolean(next));
-            }}
-            data-testid="settings-auto-link"
-          />
-          {settings.isError && (
-            <div className="srow" data-testid="settings-auto-link-read-error">
-              <p role="alert" style={{ fontSize: "var(--fs-body)", color: "var(--error)" }}>
-                your automatic pull request setting could not be read: {errorMessage(settings.error)}
-              </p>
-              <RetryButton label={settings.isFetching ? "retrying" : "retry"} busy={settings.isFetching} onRetry={() => settings.refetch()} testId="settings-auto-link-retry" />
-            </div>
-          )}
-        </SettingGroup>
+          <Section id="pull-requests" title="pull requests" testId="settings-pull-requests">
+            <SettingRow
+              label="link my transcripts to my pull requests automatically"
+              help="off: comment /peasant attach on a pull request. on: when you open a pull request in a repo that one of your collectives links, your transcripts that trace its commits are linked. who can read them does not change."
+              control="switch"
+              value={settings.data?.auto_attach_pull_requests ?? false}
+              disabled={settings.data == null || settings.isFetching}
+              onCommit={async (next) => {
+                await updateAutoAttach.mutateAsync(Boolean(next));
+              }}
+              data-testid="settings-auto-link"
+            />
+            {settings.isError && (
+              <div className="srow" data-testid="settings-auto-link-read-error">
+                <p role="alert" className="on-acct-alert">
+                  your automatic pull request setting could not be read: {errorMessage(settings.error)}
+                </p>
+                <RetryButton
+                  label={settings.isFetching ? "retrying" : "retry"}
+                  busy={settings.isFetching}
+                  onRetry={() => settings.refetch()}
+                  testId="settings-auto-link-retry"
+                />
+              </div>
+            )}
+          </Section>
 
-        <SettingGroup
-          label="connections"
-          defaultOpen
-          count={2}
-          noun={["connection", "connections"]}
-          data-testid="settings-connections"
-        >
-          <GitHubConnection user={user} />
-          <PeasantConnection handle={handle} />
-        </SettingGroup>
+          <Section id="connections" title="connections" testId="settings-connections">
+            <GitHubConnection user={user} />
+            <PeasantConnection handle={handle} />
+          </Section>
 
-        <SettingGroup label="danger zone" defaultOpen count={null} data-testid="settings-danger">
-          <DeleteAccount />
-        </SettingGroup>
+          <DangerZone />
+        </div>
       </div>
-    </div>
+    </OnPage>
+  );
+}
+
+/**
+ * The list of sections beside the page, each an anchor to its section. The one
+ * the reader is in is marked as they scroll, where the browser can say which
+ * that is; without that, the list still takes them to each section.
+ */
+function SectionNav() {
+  const [active, setActive] = useState<string>(SECTIONS[0].id);
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const showing = new Map<string, boolean>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) showing.set(entry.target.id, entry.isIntersecting);
+        const first = SECTIONS.find((section) => showing.get(section.id));
+        if (first) setActive(first.id);
+      },
+      // A section counts as the one being read while it crosses the upper
+      // part of the window, under the header.
+      { rootMargin: "-15% 0px -65% 0px" },
+    );
+    for (const { id } of SECTIONS) {
+      const section = document.getElementById(id);
+      if (section) observer.observe(section);
+    }
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <nav className="on-acct-nav" aria-label="settings sections">
+      {SECTIONS.map(({ id, label, icon: Icon }) => (
+        <a
+          key={id}
+          href={`#${id}`}
+          aria-current={active === id ? "true" : undefined}
+          onClick={() => setActive(id)}
+        >
+          <Icon aria-hidden="true" />
+          {label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+/** One section: its heading, an optional count and line, and its rows in one box. */
+function Section({
+  id,
+  title,
+  count = null,
+  description,
+  testId,
+  children,
+}: {
+  id: string;
+  title: string;
+  count?: string | null;
+  description?: string;
+  testId: string;
+  children: ReactNode;
+}) {
+  const headingId = useId();
+  return (
+    <section id={id} className="on-acct-section" aria-labelledby={headingId} data-testid={testId}>
+      <header>
+        <h2 className="on-h2" id={headingId}>
+          {title}
+        </h2>
+        {count !== null && <span className="on-chrome is-n">{count}</span>}
+        {description && <p className="on-acct-desc">{description}</p>}
+      </header>
+      <div className="on-acct-rows">{children}</div>
+    </section>
+  );
+}
+
+/** The danger zone: deleting the account, behind its own confirmation. */
+function DangerZone() {
+  const headingId = useId();
+  return (
+    <section
+      id="danger-zone"
+      className="on-danger on-acct-danger"
+      aria-labelledby={headingId}
+      data-testid="settings-danger"
+    >
+      <h2 id={headingId}>
+        <TriangleAlert aria-hidden="true" />
+        danger zone
+      </h2>
+      <DeleteAccount />
+    </section>
   );
 }
 
@@ -253,9 +379,9 @@ function GitHubConnection({ user }: { user: User }) {
     <div className="srow" data-testid="settings-sign-in-account">
       <span className="srow-text-col">
         <span className="srow-label">
-          {provider} · <span className="normal-case">{login}</span>
+          signed in with {provider} as <span className="normal-case">{login}</span>
         </span>
-        <span className="srow-help">you sign in to village with this account.</span>
+        <span className="srow-help">this is the account you sign in to peasant online with.</span>
         {logout.isError && (
           <span role="alert" style={{ fontSize: "var(--fs-body)", color: "var(--error)" }}>
             could not sign out: {errorMessage(logout.error)}. try again.
@@ -378,18 +504,16 @@ function DeleteAccount() {
   const deleteAccount = useDeleteAccount();
   const [error, setError] = useState<string | null>(null);
   return (
-    <div className="srow" data-testid="settings-delete">
-      <span className="srow-text-col">
-        <span className="srow-help">
-          delete your village account, with the transcripts you published and the collectives you
-          own. this cannot be undone.
-        </span>
-        {error && (
-          <span className="srow-error" role="alert">
-            your account was not deleted: {error}
-          </span>
-        )}
-      </span>
+    <div className="on-acct-danger-row" data-testid="settings-delete">
+      <p>
+        Deleting your account removes it from peasant online, with the transcripts you published and
+        the collectives you own. It cannot be undone.
+      </p>
+      {error && (
+        <p className="on-acct-error" role="alert">
+          your account was not deleted: {error}
+        </p>
+      )}
       <ConfirmInline
         label="delete account"
         busy={deleteAccount.isPending}

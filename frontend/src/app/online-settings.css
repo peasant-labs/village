@@ -1,0 +1,93 @@
+/* ============================================
+   peasant online: your settings.
+
+   The account settings page in the `on-settings` layout from online.css: an
+   in-page section list beside the sections themselves. Each section holds
+   fairtrade's own setting rows (`srow`), which keep their save-as-you-go
+   behaviour; this sheet only frames them. Every value reads a fairtrade token.
+   ============================================ */
+
+/* The section list follows the reader down the page on a wide screen. */
+@media (min-width: 768px) {
+  .on-settings > nav.on-acct-nav {
+    position: sticky;
+    top: calc(var(--app-header-height, 0px) + var(--sp-5));
+  }
+}
+/* On a phone the list wraps into a few short rows above the sections, rather
+   than a tall column the reader has to scroll past first. */
+@media (max-width: 767px) {
+  .on-settings > nav.on-acct-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+  }
+  .on-settings > nav.on-acct-nav a {
+    border: 1px solid var(--rule);
+  }
+}
+
+/* fairtrade's base sheet caps and centres every <section>; here a section is
+   one block of the settings column. */
+.on-acct-section,
+.on-acct-danger {
+  max-width: none;
+  margin-inline: 0;
+}
+.on-acct-section {
+  padding: 0;
+}
+
+.on-acct-section {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+  scroll-margin-top: calc(var(--app-header-height, 0px) + var(--sp-5));
+}
+.on-acct-section > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-3);
+}
+.on-acct-desc {
+  flex-basis: 100%;
+  margin: 0;
+  max-width: 62ch;
+  color: var(--ink-3);
+}
+
+/* fairtrade's setting rows, framed as one box per section */
+.on-acct-rows {
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  min-width: 0;
+}
+.on-acct-rows .srow-error[role="alert"],
+.on-acct-rows p[role="alert"] {
+  margin: 0;
+}
+.on-acct-alert {
+  margin: 0;
+  color: var(--ink);
+}
+
+/* the danger box keeps its delete control under its words */
+.on-acct-danger {
+  scroll-margin-top: calc(var(--app-header-height, 0px) + var(--sp-5));
+}
+.on-danger .on-acct-danger-row {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+}
+.on-danger h2 svg {
+  flex: none;
+  width: var(--ic-lg);
+  height: var(--ic-lg);
+}
+.on-acct-error {
+  margin: 0;
+  color: var(--ink);
+}
