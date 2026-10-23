@@ -2,6 +2,10 @@
 
 import { use, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
+import { Lock } from "lucide-react";
+import { useAuth } from "@/providers/AuthProvider";
+import { loginHref } from "@/lib/signIn";
+import { OnCrumb, OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 import type { VillageSessionListItem } from "@peasant-labs/schema";
 import { useGroup } from "@/lib/queries/groups";
 import { usePendingShares, useBatchReview } from "@/lib/queries/groupReview";
@@ -46,6 +50,7 @@ export default function GroupReviewPage({
 }) {
   const { id } = use(params);
   const { data: group, isLoading: groupLoading } = useGroup(id);
+  const { isLoading: sessionLoading, isLoggedIn } = useAuth();
   const isOwner = group?.your_role === "owner";
   const { data: pending, isLoading: pendingLoading } = usePendingShares(id, isOwner);
   const review = useBatchReview(id);
@@ -154,34 +159,53 @@ export default function GroupReviewPage({
 
   if (groupLoading || (isOwner && pendingLoading)) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
+      <OnPage tight>
         <div className="h-4 w-40 bg-surface-hover animate-shimmer" />
         <div className="h-16 w-72 bg-surface-hover animate-shimmer" />
         <div className="h-64 w-full bg-surface-hover animate-shimmer" />
-      </div>
+      </OnPage>
     );
   }
 
   if (!group || !isOwner) {
+    // Somebody who is not signed in is offered the one thing that could change
+    // the answer, and returns to this page afterwards.
+    const signedOut = !sessionLoading && !isLoggedIn;
     return (
-      <div
-        className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up"
-        data-testid="review-non-owner-notice"
-      >
-        <div className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center">
-          <p className="text-sm font-medium text-ink">
-            {group
-              ? "only an owner of this collective can review contributions"
-              : "collective not found"}
-          </p>
-          <Link
-            href={group ? `/collectives/${id}` : "/collectives"}
-            className="text-sm text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-          >
-            back to {group ? group.group.name : "collectives"}
-          </Link>
-        </div>
-      </div>
+      <OnPage tight>
+        {group && (
+          <OnCrumb
+            items={[
+              { label: "collectives", href: "/collectives" },
+              { label: <span className="normal-case">{group.group.name}</span>, href: `/collectives/${id}` },
+              { label: "review" },
+            ]}
+          />
+        )}
+        <OnEmpty
+          icon={<Lock aria-hidden="true" />}
+          title={
+            signedOut
+              ? "sign in to review contributions to this collective"
+              : group
+                ? "only an owner of this collective can review contributions"
+                : "collective not found"
+          }
+          testId="review-non-owner-notice"
+          actions={
+            <>
+              {signedOut && (
+                <Link href={loginHref(`/collectives/${id}/review`)} className="btn btn-primary">
+                  sign in
+                </Link>
+              )}
+              <Link href={group ? `/collectives/${id}` : "/collectives"} className="btn btn-secondary">
+                back to <span className="normal-case">{group ? group.group.name : "collectives"}</span>
+              </Link>
+            </>
+          }
+        />
+      </OnPage>
     );
   }
 
@@ -222,26 +246,24 @@ export default function GroupReviewPage({
   const deciding = review.isPending;
 
   return (
-    <div className="cmg-root max-w-[1600px] mx-auto px-6 pt-6 pb-24 flex flex-col gap-6 animate-fade-up">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-4">
-          {/* `normal-case` is load-bearing: the design system lowercases
-              h1/h2/h3 as UI chrome, and the collective's name is USER
-              CONTENT, which is never lowercased. */}
-          <h1 className="text-xl font-semibold text-ink normal-case">
-            review contributions to {group.group.name}
-          </h1>
-          <Link
-            href={`/collectives/${id}`}
-            className="shrink-0 text-sm text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-          >
-            back to {group.group.name}
-          </Link>
-        </div>
-        <p className="text-sm text-ink-3">
-          choose the contributions to approve or reject, then decide them together.
-        </p>
-      </div>
+    <OnPage tight>
+      <OnCrumb
+        items={[
+          { label: "collectives", href: "/collectives" },
+          { label: <span className="normal-case">{group.group.name}</span>, href: `/collectives/${id}` },
+          { label: "review" },
+        ]}
+      />
+      {/* The collective's name is USER CONTENT, so it keeps its case inside
+          the lowercase heading. */}
+      <OnHead
+        title={
+          <>
+            review contributions to <span className="normal-case">{group.group.name}</span>
+          </>
+        }
+        lede="choose the contributions to approve or reject, then decide them together."
+      />
 
       {tree.length === 0 && !hasGroupedExit ? (
         <div className="border border-rule bg-surface px-5 py-12 text-center" data-testid="review-empty-queue">
@@ -312,7 +334,7 @@ export default function GroupReviewPage({
       )}
 
       <div className="fixed bottom-0 left-0 right-0 border-t border-rule bg-surface z-10">
-        <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
+        <div className="max-w-[var(--on-page-max)] mx-auto px-6 max-sm:px-4 py-3 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-col gap-1 min-w-0">
             <p className="text-xs font-mono text-ink-3 tabular-nums" data-testid="review-selection-count">
               {selectedCount} selected
@@ -347,6 +369,6 @@ export default function GroupReviewPage({
           </div>
         </div>
       </div>
-    </div>
+    </OnPage>
   );
 }

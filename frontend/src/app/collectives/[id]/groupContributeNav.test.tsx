@@ -38,7 +38,9 @@ describe("groups contribute navigation", () => {
     await renderGroupContributeRoute("grp-nav-3");
 
     expect(await screen.findByTestId("contribute-member-panel")).toBeInTheDocument();
-    expect(screen.getByText("contribute to acme collective")).toBeInTheDocument();
+    // The heading keeps the collective's name in its own case, so the name is
+    // a separate element inside it: the heading's accessible name is asserted.
+    expect(screen.getByRole("heading", { level: 1, name: "contribute to acme collective" })).toBeInTheDocument();
     expect(screen.queryByTestId("contribute-non-member-notice")).not.toBeInTheDocument();
   });
 
@@ -54,7 +56,10 @@ describe("groups contribute navigation", () => {
     await renderGroupContributeRoute("grp-nav-4");
 
     expect(await screen.findByTestId("contribute-non-member-notice")).toBeInTheDocument();
-    expect(screen.getByText(/back to acme collective/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /back to acme collective/ })).toHaveAttribute(
+      "href",
+      "/collectives/grp-nav-4",
+    );
     expect(screen.queryByTestId("contribute-member-panel")).not.toBeInTheDocument();
   });
 });
