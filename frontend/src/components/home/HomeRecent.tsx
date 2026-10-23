@@ -29,8 +29,8 @@ export default function HomeRecent({ rows, now }: { rows: TranscriptListItem[]; 
                 <span className="on-rcard-title">{t.title || "untitled"}</span>
                 <span className="on-rcard-meta">
                   <span className="on-agent">
-                    {t.project_display_name},{" "}
-                    {isHarness(t.model_provider) ? <ProviderName harness={t.model_provider} /> : agentLabel(item)}
+                    <span className="on-rcard-project">{t.project_display_name},</span>
+                    {isHarness(t.model_provider) ? <ProviderName harness={t.model_provider} /> : <span>{agentLabel(item)}</span>}
                   </span>
                   <time className="on-n" dateTime={t.published_at}>
                     {formatRelativeTime(t.published_at, now)}

@@ -384,8 +384,16 @@
 .on-rcard-meta > :first-child {
   min-width: 0;
   overflow: hidden;
+}
+/* a long project name gives way with an ellipsis; the agent stays whole */
+.on-rcard-project {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.on-rcard-meta .on-agent > :not(.on-rcard-project) {
+  flex: none;
 }
 .on-rcard-meta .on-n {
   white-space: nowrap;
