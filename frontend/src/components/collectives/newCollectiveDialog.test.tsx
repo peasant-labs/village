@@ -224,7 +224,7 @@ describe("the dialog's own checks", () => {
       if (c.step === "access") {
         const publish = within(dialog()).getByRole("radiogroup", { name: "who can publish" });
         fireEvent.click(within(publish).getByRole("radio", { name: "your github org" }));
-        expect(within(dialog()).getByText(/No GitHub org is linked to your profile/)).toBeInTheDocument();
+        expect(within(dialog()).getByText(/no github org is linked to your profile/)).toBeInTheDocument();
         expect(within(dialog()).queryByRole("combobox")).not.toBeInTheDocument();
         press("next");
         expect(await within(dialog()).findByRole("alert")).toHaveTextContent(c.expect);

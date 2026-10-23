@@ -26,7 +26,7 @@ import "@/app/online-pulls.css";
  * requests belong here is the server's answer.
  */
 const LEDE =
-  "Your pull requests waiting for transcripts. Publish the session behind one of a pull request's commits and it is attached.";
+  "your pull requests waiting for transcripts. publish the session behind one of a pull request's commits and it is attached.";
 
 const GITHUB_HOST = "https://github.com";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -50,7 +50,7 @@ export default function PullRequestsPage() {
         <OnEmpty
           icon={<LogIn aria-hidden="true" />}
           title="sign in to see your pull requests"
-          body="The pull requests waiting for your transcripts are listed here once you sign in."
+          body="the pull requests waiting for your transcripts are listed here once you sign in."
           actions={
             <Link href={loginHref("/pulls")} className="btn btn-primary" data-testid="pulls-sign-in">
               sign in

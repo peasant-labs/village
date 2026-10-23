@@ -285,8 +285,8 @@ export default function PullRequestPage({
           title="no attachment here"
           body={
             signedOut
-              ? "This pull request has no prompts on peasant that you can open signed out."
-              : "This pull request has no prompts on peasant that you can open."
+              ? "this pull request has no prompts on peasant that you can open signed out."
+              : "this pull request has no prompts on peasant that you can open."
           }
           actions={
             <>

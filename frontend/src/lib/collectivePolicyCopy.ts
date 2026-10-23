@@ -54,12 +54,12 @@ export function readyLine(mode: AcceptanceMode, linkedOrg: string | null): strin
   switch (mode) {
     case "verified_only":
       return linkedOrg
-        ? `Members of the ${linkedOrg} GitHub org can join it and publish from peasant.`
-        : "Members of a GitHub org can join it and publish from peasant.";
+        ? `members of the ${linkedOrg} github org can join it and publish from peasant.`
+        : "members of a github org can join it and publish from peasant.";
     case "curated":
-      return "Members publish to it from peasant, and you approve each session.";
+      return "members publish to it from peasant, and you approve each session.";
     default:
-      return "Anyone can join it and publish from peasant.";
+      return "anyone can join it and publish from peasant.";
   }
 }
 

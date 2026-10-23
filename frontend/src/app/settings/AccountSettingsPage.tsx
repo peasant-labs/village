@@ -50,7 +50,7 @@ import "@/app/online-settings.css";
  * anchor (`/settings#pull-requests`), so another page can link to the setting
  * it talks about.
  */
-const LEDE = "Switches save as soon as you flip them. Your handle saves when you press save.";
+const LEDE = "switches save as soon as you flip them. your handle saves when you press save.";
 
 /** The page's sections, in order: the anchor each one has, and its icon. */
 const SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
@@ -80,7 +80,7 @@ export default function AccountSettingsPage() {
         <OnEmpty
           icon={<LogIn aria-hidden="true" />}
           title="sign in to change your settings"
-          body="Your profile, organizations and connections are here once you sign in."
+          body="your profile, organizations and connections are here once you sign in."
           actions={
             <Link href={loginHref("/settings")} className="btn btn-primary" data-testid="settings-sign-in">
               sign in

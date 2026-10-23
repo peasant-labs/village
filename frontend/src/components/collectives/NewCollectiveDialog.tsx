@@ -24,29 +24,29 @@ const PUBLISH_CHOICES: Choice<AcceptanceMode>[] = [
   {
     value: "open",
     label: "anyone who joins",
-    help: "Anyone can join and publish straight away.",
+    help: "anyone can join and publish straight away.",
     icon: <DoorOpen />,
   },
   {
     value: "verified_only",
     label: "your github org",
-    help: "Only members of your GitHub organization join and publish.",
+    help: "only members of your github organization join and publish.",
     icon: <Building2 />,
   },
   {
     value: "curated",
     label: "sessions you approve",
-    help: "People you invite publish; each session waits for you.",
+    help: "people you invite publish; each session waits for you.",
     icon: <ShieldCheck />,
   },
 ];
 
 const READ_CHOICES: Choice<NewCollectiveAccess>[] = [
-  { value: "members_only", label: "members", help: "Only members read what is published.", icon: <Eye /> },
+  { value: "members_only", label: "members", help: "only members read what is published.", icon: <Eye /> },
   {
     value: "contributors",
     label: "members and contributors",
-    help: "Everyone who publishes can also read the rest.",
+    help: "everyone who publishes can also read the rest.",
     icon: <Users />,
   },
 ];
@@ -338,7 +338,7 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
                 ) : visibleOrgs.length === 0 ? (
                   <div className="on-notice">
                     <p>
-                      No GitHub org is linked to your profile, so there is no org to choose. Link one in{" "}
+                      no github org is linked to your profile, so there is no org to choose. link one in{" "}
                       <Link className="on-link" href="/settings">
                         settings
                       </Link>
@@ -439,7 +439,7 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
               </ul>
             ) : null}
             <p className="on-muted" style={{ margin: 0 }}>
-              They become members as soon as the collective exists. You can invite more people later from settings.
+              they become members as soon as the collective exists. you can invite more people later from settings.
             </p>
             {createError ? (
               <div className="on-notice" data-tone="danger" role="alert">

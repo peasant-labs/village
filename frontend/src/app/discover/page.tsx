@@ -158,7 +158,7 @@ export default function DiscoverPage() {
   const head = (
     <header className="on-split">
       <h1 className="on-title">discover</h1>
-      <p>Collectives you can join. Search by name or GitHub org.</p>
+      <p>collectives you can join. search by name or github org.</p>
     </header>
   );
 
@@ -170,7 +170,7 @@ export default function DiscoverPage() {
           testId="discover-signed-out"
           icon={<Compass />}
           title="sign in to discover collectives"
-          body="Find the teams, labs and classes you can join."
+          body="find the teams, labs and classes you can join."
           actions={
             <Link className="btn btn-primary" href={loginHref("/discover")}>
               sign in
@@ -210,7 +210,7 @@ export default function DiscoverPage() {
         testId="discover-no-match"
         icon={<Search />}
         title="no collective matches"
-        body={<>Nothing is named or linked to “{query}”. Try another name or GitHub org.</>}
+        body={<>nothing is named or linked to “{query}”. try another name or github org.</>}
         actions={
           <button type="button" className="btn btn-secondary" onClick={clearSearch}>
             clear search
@@ -224,7 +224,7 @@ export default function DiscoverPage() {
         testId="discover-empty"
         icon={<Compass />}
         title="nothing to discover yet"
-        body="You belong to every collective you can see. Search by name or GitHub org, or start your own."
+        body="you belong to every collective you can see. search by name or github org, or start your own."
         actions={
           <>
             <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>

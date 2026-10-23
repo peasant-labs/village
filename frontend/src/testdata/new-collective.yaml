@@ -30,7 +30,7 @@ createCases:
       create: { name: Eval Crowd, description: Agent evaluation runs for the spring term., acceptance_mode: curated, data_access: contributors }
       memberRequests: [Tomas-R, jun-li]
       ready: Eval Crowd is ready
-      summary: 2 people added as members. Members publish to it from peasant, and you approve each session.
+      summary: 2 people added as members. members publish to it from peasant, and you approve each session.
       notAdded: []
 
   - name: a-refused-invitation-is-reported-and-never-counted
@@ -49,7 +49,7 @@ createCases:
       create: { name: Night Shift, description: "", acceptance_mode: open, data_access: members_only }
       memberRequests: [carol-ml, nobody-here]
       ready: Night Shift is ready
-      summary: 1 person added as a member. Anyone can join it and publish from peasant.
+      summary: 1 person added as a member. anyone can join it and publish from peasant.
       notAdded: ["@nobody-here hasn't joined the platform yet. They need to sign in first."]
 
   - name: an-org-collective-sends-the-chosen-org-and-nobody-to-add
@@ -69,7 +69,7 @@ createCases:
       create: { name: Acme Reviews, description: "", acceptance_mode: verified_only, data_access: members_only, linked_github_org: acme }
       memberRequests: []
       ready: Acme Reviews is ready
-      summary: Members of the acme GitHub org can join it and publish from peasant.
+      summary: members of the acme github org can join it and publish from peasant.
       notAdded: []
 
 # A create the server refuses: each refusal is shown on the step that owns it.

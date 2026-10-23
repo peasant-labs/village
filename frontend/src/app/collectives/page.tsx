@@ -13,7 +13,7 @@ import { CollectiveSwatch, OnEmpty, OnHead, OnPage } from "@/components/online/P
 import NewCollectiveDialog from "@/components/collectives/NewCollectiveDialog";
 import "../online-collectives.css";
 
-const LEDE = "Your teams, labs and classes. Each one decides who publishes and who reads.";
+const LEDE = "your teams, labs and classes. each one decides who publishes and who reads.";
 
 /**
  * The collectives the signed-in person belongs to.
@@ -46,7 +46,7 @@ export default function CollectivesPage() {
           testId="collectives-signed-out"
           icon={<Users />}
           title="sign in to see your collectives"
-          body="A collective is a group that reads the transcripts its members publish to it."
+          body="a collective is a group that reads the transcripts its members publish to it."
           actions={
             <Link className="btn btn-primary" href={loginHref("/collectives")}>
               sign in

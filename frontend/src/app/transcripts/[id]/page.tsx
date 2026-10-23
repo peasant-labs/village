@@ -59,7 +59,7 @@ export default function TranscriptDetailPage({
         <OnEmpty
           icon={<Clock aria-hidden="true" />}
           title="too many access checks just now"
-          body="This transcript's repository is asked whether you may read it, and that has been asked too often in the last few minutes. Try again shortly."
+          body="this transcript's repository is asked whether you may read it, and that has been asked too often in the last few minutes. try again shortly."
         />
       </OnPage>
     );
@@ -75,7 +75,7 @@ export default function TranscriptDetailPage({
         <OnEmpty
           icon={<SearchX aria-hidden="true" />}
           title="transcript not found"
-          body={signedOut ? "If it was shared with you, sign in to read it." : undefined}
+          body={signedOut ? "if it was shared with you, sign in to read it." : undefined}
           testId="transcript-not-found"
           actions={
             signedOut ? (
@@ -102,7 +102,7 @@ export default function TranscriptDetailPage({
         <OnEmpty
           icon={<FileX2 aria-hidden="true" />}
           title="unsupported transcript format"
-          body="This transcript was published in a format the viewer can no longer render. Publish it again from peasant to read it here."
+          body="this transcript was published in a format the viewer can no longer render. publish it again from peasant to read it here."
         />
       </OnPage>
     );
