@@ -89,6 +89,7 @@ export interface CollectivePageFixtures {
 const REQUIRED_PAGE_CASES = [
   "the-owner-sees-the-chips-the-org-total-and-both-overflow-items",
   "an-owner-without-an-org-is-offered-connect-github",
+  "the-org-line-counts-only-the-orgs-repositories",
   "a-member-sees-the-org-without-the-total-and-can-leave",
   "a-contributor-who-cannot-read-is-told-so",
   "a-non-member-of-an-open-collective-can-join",

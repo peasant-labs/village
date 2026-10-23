@@ -70,7 +70,7 @@ export function useCollectiveGithub(
 
   return {
     configured,
-    org: orgSummary(linkedOrg, repositories.data ? linked.length : undefined, available.data ? offered.length : undefined) ?? null,
+    org: orgSummary(linkedOrg, repositories.data ? linked : undefined, available.data ? owners : undefined) ?? null,
     owners,
     linkedIds: linkedRepoIds(linked, owners),
     canManage: isOwner && !!linkedOrg && configured && repositories.isSuccess,

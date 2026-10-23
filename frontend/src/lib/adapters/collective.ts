@@ -387,20 +387,26 @@ export function linkedRepoIds(linked: readonly LinkedRepository[], owners: reado
 }
 
 /**
- * The github org line. `null` says nothing is linked. The `of M` total is the
- * owner's alone: only the owner may read what the App offers, so a member sees
- * the org without it.
+ * The github org line. `null` says nothing is linked. It counts the org's own
+ * repositories: how many are linked, of every one the picker lists under the
+ * org (what the App offers, and any linked one it no longer offers), so the
+ * count can never pass the total. A repository linked from another owner is
+ * not the org's and is left out of both. The `of M` total is the owner's
+ * alone: only the owner may read what the App offers, so a member sees the org
+ * without it.
  */
 export function orgSummary(
   linkedOrg: string | null,
-  linkedCount: number | undefined,
-  availableCount: number | undefined,
+  linked: readonly LinkedRepository[] | undefined,
+  owners: readonly RepoPickerOwner[] | undefined,
 ): CollectiveData["org"] {
   if (!linkedOrg) return null;
+  const org = linkedOrg.toLowerCase();
+  const total = owners?.find((owner) => owner.id === org)?.repos.length;
   return {
     login: linkedOrg,
-    linked: linkedCount,
-    total: availableCount && availableCount > 0 ? availableCount : undefined,
+    linked: linked?.filter((repo) => repo.owner.toLowerCase() === org).length,
+    total: total && total > 0 ? total : undefined,
   };
 }
 

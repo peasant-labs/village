@@ -80,6 +80,31 @@ cases:
       memberBreakdown: 1 owner, 2 members, 1 contributor
       memberCount: 4
 
+  - name: the-org-line-counts-only-the-orgs-repositories
+    why: >-
+      a linked repository the App no longer offers (acme/archive) still counts
+      as one of the org's, and one linked from another owner (bob/side) is not
+      the org's at all, so the line never claims more linked than there are:
+      3 of acme's 5, not 4 of the 4 the App offers.
+    signedIn: true
+    role: owner
+    canRead: true
+    group: { acceptance_mode: open, data_access: members_only, linked_github_org: acme, display_members: true }
+    linked: [acme/ingest-api, acme/web, acme/archive, bob/side]
+    expect:
+      whoCanPublish: anyone who joins publishes
+      whoCanRead: members read
+      yourRole: you are the owner
+      actions: [more, settings, invite people]
+      overflow:
+        - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
+      tabs: [transcripts, members, stats]
+      transcriptRows: 2
+      orgLine: "acme: 3 of 5 repos linked"
+      manage: true
+      memberBreakdown: 1 owner, 2 members, 1 contributor
+      memberCount: 4
+
   - name: an-owner-without-an-org-is-offered-connect-github
     why: >-
       a collective with no linked org shows "nothing linked" and gives its
