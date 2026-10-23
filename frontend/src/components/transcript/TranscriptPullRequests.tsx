@@ -59,7 +59,7 @@ export default function TranscriptPullRequests({ pullRequests, failed = false, o
                 </Link>
                 <span className="cmg-none">
                   {pr.state}
-                  {pr.title ? ` · ${pr.title}` : ""}
+                  {pr.title ? `, ${pr.title}` : ""}
                 </span>
               </li>
             ))}

@@ -16,7 +16,7 @@ type Suggestion = ComponentProps<typeof CollectivePicker>["suggestions"][number]
 /** A note on a suggested collective that takes submissions differently from
  *  an open one, so the owner knows what `add` will do before pressing it. */
 const ACCEPTANCE_NOTE: Record<string, string | undefined> = {
-  curated: "curated · waits for the collective owner’s approval",
+  curated: "curated: waits for the collective owner’s approval",
   verified_only: "verified members only",
 };
 

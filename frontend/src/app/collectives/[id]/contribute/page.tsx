@@ -253,7 +253,7 @@ export default function GroupContributePage({
           UI" does not need to know which body variant is mounted. */}
       {tree.length === 0 && !hasGroupedExit ? (
         <div className="border border-rule bg-surface px-5 py-12 text-center" data-testid="contribute-member-panel">
-          <p className="text-sm text-ink-3">
+          <p className="mx-auto text-sm text-ink-3">
             all your transcripts are already shared with this collective, or you have no
             published transcripts.
           </p>
