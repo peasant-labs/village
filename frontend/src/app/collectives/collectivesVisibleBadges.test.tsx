@@ -1,103 +1,88 @@
-import { describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { cleanup } from "@testing-library/react";
 import {
   collectiveNameFor,
-  collectiveRows,
   installCollectivesRouteREST,
   installCollectivesRouteTeardown,
-  listedCollectiveCount,
+  listedNames,
   loadCollectiveBadgeFixtures,
-  renderCollectivesRoute,
+  pageFor,
+  renderCollectivePage,
   standingTextFor,
 } from "@/test/mountedCollectivesRoute";
 
 /**
- * Mounts the REAL `/collectives` collectives route, with the design system's real
- * `CollectivesView` rendering the table, to prove three things a person on that
- * page depends on:
+ * Mounts the REAL `/collectives` and `/discover` routes to prove four things a
+ * person depends on:
  *
- *  1. Every collective they may SEE is listed, not only the ones they belong
- *     to. Before this change the page asked the membership-only list, so a
- *     person in one collective saw exactly one row however many were open to
- *     them.
- *  2. A row they belong to says so, and says which role they hold.
- *  3. A row this collective currently holds or is still reviewing something of
- *     theirs says "contributed", whether or not they are a member.
+ *  1. Every collective they may SEE is reachable: the list shows the ones they
+ *     belong to, discover shows the rest, and no collective is on both or on
+ *     neither. The list used to hold every visible collective; splitting it
+ *     must not lose one.
+ *  2. A collective they belong to says so on the list, with their role.
+ *  3. A collective that currently holds or is still reviewing something of
+ *     theirs says "contributed", on whichever page lists it.
+ *  4. A collective they merely see claims nothing about them.
  *
- * Nothing here is stubbed above the network: the page, its hooks, the payload
- * shaping, and the table rendering are all the production path.
+ * Nothing here is stubbed above the network: the pages, their hooks and the
+ * rendering are all the production path.
  */
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
-}));
 
 installCollectivesRouteTeardown();
 
 const { rows } = loadCollectiveBadgeFixtures();
 
-describe("the mounted collectives route", () => {
-  it("lists every collective the caller may see, not only their memberships", async () => {
+describe("the mounted collectives and discover routes", () => {
+  it("split every collective the caller may see between them, each exactly once", async () => {
     installCollectivesRouteREST(rows);
-    await renderCollectivesRoute();
+    await renderCollectivePage("collectives");
+    const onList = listedNames("collectives");
+    cleanup();
+
+    installCollectivesRouteREST(rows);
+    await renderCollectivePage("discover");
+    const onDiscover = listedNames("discover");
 
     for (const row of rows) {
-      expect(
-        screen.getByText(collectiveNameFor(row)),
-        `${row.name} must be listed: ${row.why}`,
-      ).toBeInTheDocument();
+      const name = collectiveNameFor(row);
+      const expected = pageFor(row);
+      expect(onList.includes(name), `${row.name} on the list: ${row.why}`).toBe(expected === "collectives");
+      expect(onDiscover.includes(name), `${row.name} on discover: ${row.why}`).toBe(expected === "discover");
     }
-
-    // The page shows ONE list. A split into "yours" and "others" would still
-    // pass the per-row checks above, so the row count is asserted against the
-    // fixture the page was served, not against a fixed number.
-    expect(collectiveRows()).toHaveLength(rows.length);
-
-    // Non-membership is the whole point of the change: at least one listed row
-    // must be a collective the caller does not belong to, or this test could
-    // pass against the old membership-only list.
+    // Between them, the two pages show exactly the visible set, once each.
+    expect([...onList, ...onDiscover].sort()).toEqual(rows.map(collectiveNameFor).sort());
+    // The split is the point: the corpus must exercise both sides of it.
     expect(rows.some((r) => r.role === null)).toBe(true);
+    expect(rows.some((r) => r.role !== null)).toBe(true);
   });
 
-  it.each(rows.map((row) => [row.name, row] as const))(
-    "shows the right badges on the %s row",
-    async (_name, row) => {
-      installCollectivesRouteREST(rows);
-      await renderCollectivesRoute();
+  it.each(rows.map((row) => [row.name, row] as const))("shows the right badges on the %s row", async (_name, row) => {
+    installCollectivesRouteREST(rows);
+    await renderCollectivePage(pageFor(row));
 
-      const standing = standingTextFor(row);
+    const standing = standingTextFor(row);
 
-      if (row.expect.member_badge === null) {
-        expect(standing, `${row.name} must claim no membership: ${row.why}`).not.toContain("member");
-        expect(standing, `${row.name} must claim no membership: ${row.why}`).not.toContain("owner");
-      } else {
-        expect(standing, `${row.name} must show the caller's role: ${row.why}`).toContain(
-          row.expect.member_badge,
-        );
-      }
+    if (row.expect.member_badge === null) {
+      expect(standing, `${row.name} must claim no membership: ${row.why}`).not.toContain("member");
+      expect(standing, `${row.name} must claim no membership: ${row.why}`).not.toContain("owner");
+    } else {
+      expect(standing, `${row.name} must show the caller's role: ${row.why}`).toContain(row.expect.member_badge);
+    }
 
-      if (row.expect.contributed_badge) {
-        expect(standing, `${row.name} must say it holds a contribution: ${row.why}`).toContain(
-          "contributed",
-        );
-      } else {
-        expect(standing, `${row.name} must not claim a contribution: ${row.why}`).not.toContain(
-          "contributed",
-        );
-      }
-    },
-  );
+    if (row.expect.contributed_badge) {
+      expect(standing, `${row.name} must say it holds a contribution: ${row.why}`).toContain("contributed");
+    } else {
+      expect(standing, `${row.name} must not claim a contribution: ${row.why}`).not.toContain("contributed");
+    }
+  });
 
   it("says nothing at all about a collective the caller only sees", async () => {
     installCollectivesRouteREST(rows);
-    await renderCollectivesRoute();
+    await renderCollectivePage("discover");
 
     const bare = rows.find((r) => r.role === null && !r.expect.contributed_badge);
     if (!bare) throw new Error("the corpus no longer carries a row with neither badge");
 
-    expect(
-      standingTextFor(bare),
-      "a collective the caller can merely see must make no claim about them",
-    ).toBe("");
+    expect(standingTextFor(bare), "a collective the caller can merely see must make no claim about them").toBe("");
   });
 });

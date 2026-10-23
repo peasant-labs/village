@@ -341,40 +341,9 @@ tabCases:
     expectSelected: transcripts
     expectSearch: ""
 
-# The collectives list: a table of every collective the caller may see, and a
-# search that swaps the rows for the server's matches.
-listCases:
-  - name: the-table-lists-every-visible-collective-with-its-org-and-joining
-    why: >-
-      one row per collective the caller may see, member or not, with the role
-      they hold, the linked github org (or nothing linked) and how it is joined.
-    query: ""
-    expectCaption: collectives 3
-    expectRows:
-      - { name: Acme Platform, role: owner, org: acme, joining: open }
-      - { name: Acme Company, role: member, org: acme, joining: verified only }
-      - { name: ML Reading Group, role: "", org: nothing linked, joining: curated }
-
-  - name: a-search-shows-only-the-server-matches
-    why: >-
-      a submitted search asks GET /collectives/search and shows only what it
-      answered; a match the list already holds keeps its role and joining.
-    query: acme
-    expectCaption: search results 2
-    expectRows:
-      - { name: Acme Platform, role: owner, org: acme, joining: open }
-      - { name: Acme Company, role: member, org: acme, joining: verified only }
-
-  - name: a-match-the-list-does-not-hold-claims-no-role
-    why: >-
-      a search can answer a collective the list does not carry; its row states
-      only what the search said, so it claims no role and no way of joining.
-    query: night
-    expectCaption: search results 1
-    expectRows:
-      - { name: Night Shift, role: "", org: nothing linked, joining: "" }
-
 # The list world: what GET /collectives/visible and GET /collectives/search answer.
+# The list's own cases are in collectives-list.yaml; this world serves the read
+# and create recovery cases in collective-recovery.yaml.
 visible:
   - { id: 1c000000-0000-4000-8000-000000000001, name: Acme Platform, role: owner, org: acme, mode: open }
   - { id: 1c000000-0000-4000-8000-000000000002, name: Acme Company, role: member, org: acme, mode: verified_only }

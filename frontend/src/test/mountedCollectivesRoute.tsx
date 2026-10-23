@@ -6,18 +6,19 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { parse } from "yaml";
 import { AuthProvider } from "@/providers/AuthProvider";
-import GroupsPage from "@/app/collectives/page";
+import CollectivesPage from "@/app/collectives/page";
+import DiscoverPage from "@/app/discover/page";
 import type { ContributedCollective, User, VisibleGroup } from "@/lib/types";
 import { AllVillageCollectiveRoles, type VillageCollectiveRole } from "@peasant-labs/schema";
 
 /**
- * Mount support for the REAL `/collectives` collectives route, with REST stubbed at
- * `fetch`, mirroring `src/test/mountedGroupRoute.tsx`.
+ * Mount support for the REAL `/collectives` and `/discover` routes, with REST
+ * stubbed at `fetch`, mirroring `src/test/mountedGroupRoute.tsx`.
  *
- * The route mounts inside the `AuthProvider` the page's signed-in gate reads,
- * and the design system's real `CollectivesView` renders the table, so a test
- * asserts what a signed-in person actually sees on the page rather than the
- * props the page computed.
+ * Both routes read the same visible-collectives answer: the list draws the
+ * rows the caller belongs to and discover draws the rest. Each mounts inside
+ * the `AuthProvider` its signed-in gate reads, so a test asserts what a
+ * signed-in person actually sees rather than the props the page computed.
  */
 
 // ── Fixture rows ─────────────────────────────────────────────────────────
@@ -279,12 +280,12 @@ const json = (body: unknown, status = 200) =>
   });
 
 /**
- * Stubs `fetch` for the collectives route: `/auth/me`, `/auth/orgs`,
+ * Stubs `fetch` for the two routes: `/auth/me`, `/auth/orgs`,
  * `/collectives/visible`, and `/users/me/collectives/contributions`.
  *
- * Every fixture row is served in ONE `/collectives/visible` body, because the page
- * shows one list and the point of the change is that a person sees collectives
- * they do not belong to beside ones they do.
+ * Every fixture row is served in ONE `/collectives/visible` body, the answer
+ * both pages read: the list keeps the memberships and discover the rest, so
+ * between them a person reaches every collective they may see.
  *
  * The contributions body carries a row for every collective this caller ever
  * OFFERED something to, which is what the real endpoint does: a collective
@@ -307,10 +308,10 @@ export function installCollectivesRouteREST(rows: readonly CollectiveBadgeRow[])
     if (url.endsWith("/auth/orgs")) return json([]);
     if (url.endsWith("/collectives/visible")) return json(groups);
     if (url.endsWith("/users/me/collectives/contributions")) return json({ collectives: contributions });
-    // A request to the membership-only list is a real failure here: the page
-    // must ask the visible-collectives route, and answering both would let a
-    // regression to the old hook pass unnoticed.
-    throw new Error(`the collectives route made an unexpected ${method} request to ${url}`);
+    // A request to the membership-only list is a real failure here: both
+    // pages split the visible-collectives answer, and answering a second list
+    // would let the two drift apart unnoticed.
+    throw new Error(`a collectives route made an unexpected ${method} request to ${url}`);
   });
   vi.stubGlobal("fetch", fetchMock);
 }
@@ -328,65 +329,69 @@ function Providers({ children }: { children: ReactNode }) {
   );
 }
 
-/** Every rendered table row carrying this collective's name. */
-function rowsNamed(name: string): HTMLTableRowElement[] {
-  return [...document.querySelectorAll<HTMLTableRowElement>(".tbl tbody tr.tbl-row")].filter(
-    (tr) => tr.querySelector(".cmg-table-link")?.textContent === name,
-  );
+/** Which page lists a collective: the list holds memberships, discover the rest. */
+export type CollectivePage = "collectives" | "discover";
+
+/** The page a fixture row belongs on: a row with a role is a membership. */
+export function pageFor(row: CollectiveBadgeRow): CollectivePage {
+  return row.role ? "collectives" : "discover";
 }
 
-/** Every collective row the design system's table rendered. */
-export function collectiveRows(): HTMLTableRowElement[] {
-  return [...document.querySelectorAll<HTMLTableRowElement>(".tbl tbody tr.tbl-row")];
+/** The names the mounted page lists, in the order it draws them. */
+export function listedNames(page: CollectivePage): string[] {
+  if (page === "collectives") {
+    return [...document.querySelectorAll("table tbody tr td:first-child a")].map((a) => a.textContent ?? "");
+  }
+  return [...document.querySelectorAll(".on-cards.is-collectives > li > article h2")].map((h) => h.textContent ?? "");
 }
 
 /**
- * The table row the design system rendered for one fixture row.
+ * The element the mounted page draws for one fixture row: its table row on
+ * the list, its card on discover.
  *
  * ONE way to reach a row, shared by the render helper's wait condition and by
- * the assertions, so a change to the table markup breaks in one place instead
- * of being fixed in one file and silently missed in the other. Two matches is a
- * failure, not a coin toss: the page shows one list, and a duplicated row would
- * otherwise be read as the row the test meant.
+ * the assertions. Two matches is a failure, not a coin toss: each page lists
+ * a collective once, and a duplicate would otherwise be read as the row the
+ * test meant.
  */
-export function collectiveRow(row: CollectiveBadgeRow): HTMLTableRowElement {
+export function drawnFor(row: CollectiveBadgeRow, page: CollectivePage): HTMLElement {
   const name = collectiveNameFor(row);
-  const found = rowsNamed(name);
-  if (found.length === 0) {
-    throw new Error(`the collectives page shows no row named "${name}"`);
-  }
-  if (found.length > 1) {
-    throw new Error(`the collectives page shows ${found.length} rows named "${name}"; it must show one`);
-  }
+  const found =
+    page === "collectives"
+      ? [...document.querySelectorAll<HTMLElement>("table tbody tr")].filter(
+          (tr) => tr.querySelector("td:first-child a")?.textContent === name,
+        )
+      : [...document.querySelectorAll<HTMLElement>(".on-cards.is-collectives > li > article")].filter(
+          (card) => card.querySelector("h2")?.textContent === name,
+        );
+  if (found.length === 0) throw new Error(`the ${page} page shows nothing named "${name}"`);
+  if (found.length > 1) throw new Error(`the ${page} page shows ${found.length} entries named "${name}"; it must show one`);
   return found[0];
 }
 
-/** How many collectives the table lists. */
-export function listedCollectiveCount(): number {
-  return document.querySelectorAll("tbody tr .cmg-table-link").length;
-}
-
 /**
- * What one row claims about the caller: the first line of its "your role"
- * cell.
+ * What the page claims about the caller's standing in one collective: on the
+ * list, the "your role" cell (the role, then "contributed" when it holds one);
+ * on discover, the card's standing tags.
  *
- * Read from that line alone rather than the whole row, because the row's
- * member COUNT would otherwise be mistaken for a member badge, and the join
- * date under the role is not a claim about standing.
+ * Read from that place alone rather than the whole row or card, because the
+ * member COUNT would otherwise be mistaken for a member badge.
  */
-export function standingTextFor(row: CollectiveBadgeRow): string {
-  const cells = collectiveRow(row).querySelectorAll("td");
-  const headers = [...document.querySelectorAll(".tbl thead th")].map((th) => th.textContent?.trim());
-  const roleColumn = headers.indexOf("your role");
-  if (roleColumn < 0) {
-    throw new Error(`the collectives table has no "your role" column; its columns are ${headers.join(", ")}`);
+export function standingTextFor(row: CollectiveBadgeRow, page: CollectivePage = pageFor(row)): string {
+  const drawn = drawnFor(row, page);
+  if (page === "collectives") {
+    const headers = [...document.querySelectorAll("table thead th")].map((th) => th.textContent?.trim());
+    const roleColumn = headers.indexOf("your role");
+    if (roleColumn < 0) {
+      throw new Error(`the collectives table has no "your role" column; its columns are ${headers.join(", ")}`);
+    }
+    return (drawn.querySelectorAll("td")[roleColumn]?.textContent ?? "").replace(/\s+/g, " ").trim();
   }
-  const stack = cells[roleColumn]?.querySelector(".cmg-cell-stack");
-  return (stack?.firstElementChild?.textContent ?? "").trim();
+  return [...drawn.querySelectorAll(".on-card-tags .on-tag")].map((tag) => tag.textContent?.trim()).join(" ");
 }
 
 /**
- * Renders the real `/collectives` route and waits until BOTH of its requests have
+ * Renders one of the two real routes and waits until BOTH of its requests have
  * landed and been rendered.
  *
  * The viewer's identity and the contribution counters arrive over the same
@@ -397,33 +402,33 @@ export function standingTextFor(row: CollectiveBadgeRow): string {
  * at all.
  *
  * So the wait is on a POSITIVE signal that can only be true after the counters
- * are rendered: the one row the corpus guarantees must say "contributed". A
- * page that never asks for the counters, or ignores them, times out here rather
- * than passing.
+ * are rendered: a row the corpus guarantees must say "contributed" on this
+ * page. A page that never asks for the counters, or ignores them, times out
+ * here rather than passing.
  */
-export async function renderCollectivesRoute(): Promise<void> {
-  const contributing = servedRows.find((row) => row.expect.contributed_badge);
+export async function renderCollectivePage(page: CollectivePage): Promise<void> {
+  const contributing = servedRows.find((row) => row.expect.contributed_badge && pageFor(row) === page);
   if (!contributing) {
     throw new Error(
-      "the served corpus has no row expecting a contributed badge, so there is no signal that the " +
-        "contribution counters were ever rendered; restore that case rather than waiting on nothing",
+      `the served corpus has no row on the ${page} page expecting a contributed badge, so there is no signal ` +
+        "that the contribution counters were ever rendered; restore that case rather than waiting on nothing",
     );
   }
+  const Page = page === "collectives" ? CollectivesPage : DiscoverPage;
   await act(async () => {
     render(
       <Providers>
-        <GroupsPage />
+        <Page />
       </Providers>,
     );
   });
   await waitFor(() => {
     // standingTextFor throws while the row is absent, which waitFor treats as
-    // "not ready yet" and retries. Going through it rather than a second inline
-    // lookup is what makes collectiveRow the ONE way to reach a row.
-    const standing = standingTextFor(contributing);
+    // "not ready yet" and retries.
+    const standing = standingTextFor(contributing, page);
     if (!standing.includes("contributed")) {
       throw new Error(
-        `the contribution counters have not reached the page: "${collectiveNameFor(contributing)}" ` +
+        `the contribution counters have not reached the ${page} page: "${collectiveNameFor(contributing)}" ` +
           `has ${contributing.approved} approved and ${contributing.pending} pending contributions but its ` +
           `standing reads "${standing}"`,
       );

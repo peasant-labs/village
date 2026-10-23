@@ -1,7 +1,8 @@
-# What each row of the collectives page says about the caller's own standing.
+# What each collective says about the caller's own standing.
 #
-# The page lists every collective the caller may SEE, so a row is one of several
-# kinds. The two axes are independent: belonging to a collective and having
+# Every collective the caller may SEE is listed once: on /collectives when the
+# caller belongs to it (its role is not null), on /discover otherwise. A row is
+# one of several kinds. The two axes are independent: belonging to a collective and having
 # offered it something are different facts, and each combination renders
 # differently.
 #

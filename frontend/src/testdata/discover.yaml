@@ -1,0 +1,107 @@
+# The discover page (/discover): collectives a person can join.
+#
+# `visible` is what GET /collectives/visible answers (a null role: not joined).
+# `searchable` is what GET /collectives/search can match, by id from `visible`
+# or as a row of its own, which the visible list does not hold. `refusals` are
+# the server's answers to writes it refuses. `contributed` names collectives
+# holding a live contribution of the person's.
+#
+# A card reads: its name (a link to the collective), the member count, who can
+# join, its standing tags, the transcript count, and one action.
+
+visible:
+  - { id: d1000000-0000-4000-8000-000000000001, name: Acme Platform, role: owner, mode: open, org: acme, members: 6, transcripts: 248 }
+  - { id: d1000000-0000-4000-8000-000000000002, name: Open Evals 2026, role: null, mode: open, org: null, members: 12, transcripts: 1940, description: Shared evaluation runs for agent benchmarks. }
+  - { id: d1000000-0000-4000-8000-000000000003, name: Rust Review Club, role: null, mode: verified_only, org: rust-club, members: 4, transcripts: 310 }
+  - { id: d1000000-0000-4000-8000-000000000004, name: Agents In Class, role: null, mode: curated, org: null, members: 1, transcripts: 1 }
+  - { id: d1000000-0000-4000-8000-000000000005, name: Any Org Guild, role: null, mode: verified_only, org: null, members: 9, transcripts: 0 }
+
+contributed:
+  - d1000000-0000-4000-8000-000000000004
+
+searchable:
+  - d1000000-0000-4000-8000-000000000001
+  - d1000000-0000-4000-8000-000000000003
+  - { id: d1000000-0000-4000-8000-000000000009, name: Acme Archive, role: null, mode: open, org: acme, members: 2, transcripts: 5 }
+
+refusals:
+  - { method: POST, path: /collectives/d1000000-0000-4000-8000-000000000003/join, status: 403, error: This collective requires membership of @rust-club }
+
+# What the page lists, for an empty search and for a query.
+listCases:
+  - name: an-empty-search-lists-the-collectives-you-have-not-joined
+    why: >-
+      every visible collective without a role, in the server's order; the one
+      the person owns is on /collectives instead. Open collectives offer a
+      primary join, verified ones a secondary join, and a curated one (invite
+      only, with no request-to-join flow) a view link and no join at all. A
+      verified collective with no linked org takes members of any org.
+    query: ""
+    expect:
+      cards:
+        - { name: Open Evals 2026, href: /collectives/d1000000-0000-4000-8000-000000000002, members: 12 members, who: anyone can join and publish, tags: [], transcripts: "1,940 transcripts", action: { label: join, href: null, primary: true } }
+        - { name: Rust Review Club, href: /collectives/d1000000-0000-4000-8000-000000000003, members: 4 members, who: members of the rust-club github org, tags: [], transcripts: 310 transcripts, action: { label: join, href: null, primary: false } }
+        - { name: Agents In Class, href: /collectives/d1000000-0000-4000-8000-000000000004, members: 1 member, who: invite only; each session approved, tags: [contributed], transcripts: 1 transcript, action: { label: view, href: /collectives/d1000000-0000-4000-8000-000000000004, primary: false } }
+        - { name: Any Org Guild, href: /collectives/d1000000-0000-4000-8000-000000000005, members: 9 members, who: members of any github org, tags: [], transcripts: 0 transcripts, action: { label: join, href: null, primary: false } }
+
+  - name: a-search-shows-what-the-server-matched
+    why: >-
+      a query asks GET /collectives/search and shows only its matches. A match
+      the person belongs to says their role and opens it; a match the visible
+      list does not hold claims no way of joining and offers only a view.
+    query: acme
+    expect:
+      request: /collectives/search?q=acme
+      cards:
+        - { name: Acme Platform, href: /collectives/d1000000-0000-4000-8000-000000000001, members: 6 members, who: anyone can join and publish, tags: [owner], transcripts: 248 transcripts, action: { label: open, href: /collectives/d1000000-0000-4000-8000-000000000001, primary: false } }
+        - { name: Acme Archive, href: /collectives/d1000000-0000-4000-8000-000000000009, members: 2 members, who: "", tags: [], transcripts: 5 transcripts, action: { label: view, href: /collectives/d1000000-0000-4000-8000-000000000009, primary: false } }
+
+  - name: a-search-with-no-match-says-so
+    why: >-
+      a query the server matches nothing for draws the no-match state, whose
+      clear-search button brings the full list back.
+    query: zzz
+    expect:
+      request: /collectives/search?q=zzz
+      noMatch: true
+
+# Joining from a card.
+joinCases:
+  - name: joining-an-open-collective-uses-the-join-route
+    why: >-
+      join sends POST /collectives/{id}/join; the card stays where it was and
+      says joined, with a primary link into the collective.
+    card: Open Evals 2026
+    discoverable: true
+    expect:
+      request: /collectives/d1000000-0000-4000-8000-000000000002/join
+      consent: false
+      tags: [joined]
+      action: { label: open, href: /collectives/d1000000-0000-4000-8000-000000000002, primary: true }
+      message: ""
+
+  - name: a-refused-join-shows-the-server-reason
+    why: >-
+      the server checks the org and may refuse; the card shows its reason and
+      keeps the join button, never claiming the person joined.
+    card: Rust Review Club
+    discoverable: true
+    expect:
+      request: /collectives/d1000000-0000-4000-8000-000000000003/join
+      consent: false
+      tags: []
+      action: { label: join, href: null, primary: false }
+      message: "could not join: This collective requires membership of @rust-club"
+
+  - name: a-person-who-is-not-discoverable-consents-before-joining
+    why: >-
+      joining reveals a hidden profile to the owners, so the collective page's
+      consent dialog comes first and the join is sent only after it.
+    card: Open Evals 2026
+    discoverable: false
+    expect:
+      request: /collectives/d1000000-0000-4000-8000-000000000002/join
+      consent: true
+      tags: [joined]
+      action: { label: open, href: /collectives/d1000000-0000-4000-8000-000000000002, primary: true }
+      message: ""

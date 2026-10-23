@@ -15,7 +15,7 @@ import type { PendingShare } from "@/lib/review/types";
 
 /**
  * Typed loaders for `src/testdata/collective-page.yaml` (the collective page,
- * the collectives list and the pull request cells) and
+ * the pull request cells and the world the collectives list recovers in) and
  * `src/testdata/repo-picker.yaml` (the repo picker's saves).
  */
 
@@ -65,21 +65,6 @@ export interface TabCase {
   expectSearch: string;
 }
 
-export interface ListRowExpect {
-  name: string;
-  role: string;
-  org: string;
-  joining: string;
-}
-
-export interface ListCase {
-  name: string;
-  why: string;
-  query: string;
-  expectCaption: string;
-  expectRows: ListRowExpect[];
-}
-
 export interface PullRequestCase {
   name: string;
   why: string;
@@ -93,7 +78,6 @@ export interface CollectivePageFixtures {
   tabCases: TabCase[];
   /** What waits for the owner's approval, as the queue route answers it. */
   pending: PendingShare[];
-  listCases: ListCase[];
   pullRequestCases: PullRequestCase[];
   /** A fresh world for one page case: every case gets its own copy to change. */
   worldFor(pageCase: PageCase): CollectiveWorld;
@@ -128,12 +112,6 @@ const REQUIRED_TAB_CASES = [
 const TAB_IDS = new Set(["transcripts", "waiting", "members", "stats"]);
 const TAB_KEYS = new Set(["ArrowRight", "ArrowLeft", "Home", "End"]);
 
-const REQUIRED_LIST_CASES = [
-  "the-table-lists-every-visible-collective-with-its-org-and-joining",
-  "a-search-shows-only-the-server-matches",
-  "a-match-the-list-does-not-hold-claims-no-role",
-];
-
 const REQUIRED_PULL_REQUEST_CASES = [
   "one-repository-reads-as-numbers-under-the-repository",
   "two-repositories-in-one-row-carry-their-repository",
@@ -156,7 +134,7 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
   const root = readYAML("collective-page.yaml") as Record<string, never>;
   assertExactKeys(
     root,
-    ["collective", "viewer", "members", "transcripts", "available", "pending", "cases", "tabCases", "listCases", "visible", "searchable", "pullRequestCases"],
+    ["collective", "viewer", "members", "transcripts", "available", "pending", "cases", "tabCases", "visible", "searchable", "pullRequestCases"],
     "collective-page root",
   );
   const collective = root.collective as { id: string; name: string; description: string };
@@ -241,13 +219,6 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
     },
   );
 
-  const listCases = root.listCases as ListCase[];
-  assertNamesMatch(listCases.map((c) => c.name), REQUIRED_LIST_CASES, "collectives list");
-  for (const c of listCases) {
-    assertExactKeys(c, ["name", "why", "query", "expectCaption", "expectRows"], `list case ${c.name}`);
-    if (!c.why?.trim()) fail(`list case "${c.name}"`, "states no reason it exists");
-    for (const row of c.expectRows) assertExactKeys(row, ["name", "role", "org", "joining"], `list case ${c.name} row`);
-  }
   const visible = (root.visible as { id: string; name: string; role: string | null; org: string | null; mode: string }[]).map(
     (row): VisibleGroup =>
       ({
@@ -291,7 +262,6 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
     cases,
     tabCases,
     pending,
-    listCases,
     pullRequestCases,
     worldFor: (c) => ({
       ...baseWorld(),

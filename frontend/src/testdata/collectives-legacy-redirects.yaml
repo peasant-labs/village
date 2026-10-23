@@ -8,11 +8,11 @@ cases:
   - name: list
     suffix: ""
     query: "q=Acme+Platform&tag=first&tag=second&empty=&return=%2Fhome%3Fx%3D1"
-    body: collectives 3
+    body: collectives you belong to
     role: table
     assertions:
-      - { role: button, name: Acme Platform }
-      - { role: searchbox, name: collective or github org }
+      - { role: table, name: collectives you belong to, text: Acme Platform }
+      - { role: button, name: new collective }
   - name: detail
     suffix: /c011ec71-0000-4000-8000-000000000001
     query: "view=grouped&page=2&tag=a&tag=b"
@@ -22,7 +22,7 @@ cases:
       - { role: table, name: transcripts 248, text: Fix flaky ingest test }
       - { role: link, name: settings }
       - { role: tab, name: transcripts 248 }
-    back: { name: back, href: /collectives, role: table, body: collectives 3 }
+    back: { name: back, href: /collectives, role: table, body: collectives you belong to }
   - name: settings
     suffix: /c011ec71-0000-4000-8000-000000000001/settings
     query: "tab=members&next=%2Fhome"

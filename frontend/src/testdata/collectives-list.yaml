@@ -1,0 +1,55 @@
+# The collectives list (/collectives): the collectives the signed-in person
+# BELONGS to, one table row each.
+#
+# `visible` is what GET /collectives/visible answers. A row with a null role is
+# a collective the person may see but has not joined; the list leaves it to
+# /discover. `contributed` names the collectives holding a live contribution of
+# the person's (GET /users/me/collectives/contributions).
+#
+# Each case serves the rows named in `show` (every row when omitted), signed in
+# or not, and states what the page must draw.
+
+visible:
+  - { id: 1c000000-0000-4000-8000-000000000001, name: Acme Platform, role: owner, mode: curated, org: acme, members: 6, transcripts: 248 }
+  - { id: 1c000000-0000-4000-8000-000000000002, name: Acme Company, role: member, mode: verified_only, org: acme, members: 3, transcripts: 1904 }
+  - { id: 1c000000-0000-4000-8000-000000000003, name: Night Shift, role: contributor, mode: open, org: null, members: 31, transcripts: 460 }
+  - { id: 1c000000-0000-4000-8000-000000000004, name: Unlinked Guild, role: member, mode: verified_only, org: null, members: 1, transcripts: 0 }
+  - { id: 1c000000-0000-4000-8000-000000000005, name: Other Lab, role: pending, mode: curated, org: null, members: 12, transcripts: 30 }
+  - { id: 1c000000-0000-4000-8000-000000000006, name: ML Reading Group, role: null, mode: open, org: null, members: 2, transcripts: 54 }
+
+contributed:
+  - 1c000000-0000-4000-8000-000000000003
+
+cases:
+  - name: the-table-lists-only-the-collectives-you-belong-to
+    why: >-
+      one row per membership, in the server's order, with the role, how
+      publishing works in a few words (the owner of a curated collective reads
+      "sessions you approve", anybody else "sessions the owner approves"; a
+      verified collective names its org when it has one) and both counts. The
+      collective the person only sees is not here: /discover lists it.
+    signedIn: true
+    expect:
+      rows:
+        - { name: Acme Platform, role: owner, contributed: false, publish: sessions you approve, members: "6", transcripts: "248" }
+        - { name: Acme Company, role: member, contributed: false, publish: acme org members, members: "3", transcripts: "1,904" }
+        - { name: Night Shift, role: contributor, contributed: true, publish: anyone who joins, members: "31", transcripts: "460" }
+        - { name: Unlinked Guild, role: member, contributed: false, publish: github org members, members: "1", transcripts: "0" }
+        - { name: Other Lab, role: pending, contributed: false, publish: sessions the owner approves, members: "12", transcripts: "30" }
+
+  - name: a-person-in-no-collective-sees-the-empty-state
+    why: >-
+      a person who belongs to nothing gets the empty state with both ways
+      forward, even when collectives they could join exist.
+    signedIn: true
+    show: [1c000000-0000-4000-8000-000000000006]
+    expect:
+      empty: { title: no collectives yet, newCollective: true, discoverHref: /discover }
+
+  - name: a-signed-out-visitor-is-offered-sign-in
+    why: >-
+      the page reads nothing without an account, so it offers the sign-in page
+      and asks it to come back here.
+    signedIn: false
+    expect:
+      signIn: /login?next=%2Fcollectives

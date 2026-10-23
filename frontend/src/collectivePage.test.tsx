@@ -15,8 +15,10 @@ import {
 } from "@/test/mountedCollectivePages";
 
 /**
- * The collective page and the collectives list, each mounted through its real
- * route, driven by `src/testdata/collective-page.yaml`. Only HTTP is stubbed.
+ * The collective page, mounted through its real route, driven by
+ * `src/testdata/collective-page.yaml`, and the read and create recovery of the
+ * collective pages. The collectives list's own cases are in
+ * `src/app/collectives/collectivesList.test.tsx`. Only HTTP is stubbed.
  */
 
 installCollectivePagesTeardown();
@@ -280,38 +282,6 @@ describe("the collective page's tabs", () => {
   });
 });
 
-describe("the collectives list", () => {
-  it.each(fixtures.listCases.map((c) => [c.name, c] as const))("%s", async (_name, listCase) => {
-    const world = fixtures.listWorld();
-    const requests = installCollectiveREST(world);
-    await renderCollectivesList();
-
-    if (listCase.query) {
-      fireEvent.change(screen.getByRole("searchbox", { name: "collective or github org" }), {
-        target: { value: listCase.query },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "search" }));
-    }
-
-    const table = await screen.findByRole("table", { name: listCase.expectCaption });
-    await waitFor(() => {
-      const rows = [...table.querySelectorAll("tbody tr")].map((tr) => {
-        const cells = tr.querySelectorAll("td");
-        return {
-          name: textOf(cells[0]?.querySelector(".cmg-table-link")),
-          role: textOf(cells[1]?.querySelector(".cmg-cell-stack > span:first-child")),
-          org: textOf(cells[4]),
-          joining: textOf(cells[5]),
-        };
-      });
-      expect(rows, listCase.why).toEqual(listCase.expectRows);
-    });
-    if (listCase.query) {
-      expect(requests.map((r) => r.path)).toContain(`/collectives/search?q=${listCase.query}`);
-    }
-  });
-});
-
 describe("the pull request cells", () => {
   it.each(fixtures.pullRequestCases.map((c) => [c.name, c] as const))("%s", (_name, prCase) => {
     const transcripts = prCase.rows.map(
@@ -370,18 +340,32 @@ describe("collective read and create recovery", () => {
       return;
     }
 
+    // The new-collective dialog: name, then access, then create on the invite step.
     fireEvent.click(screen.getByRole("button", { name: "new collective" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "name" }), { target: { value: world.group.name } });
-    fireEvent.click(screen.getByRole("button", { name: "create collective" }));
+    const dialog = await screen.findByRole("dialog", { name: "new collective" });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "name" }), { target: { value: world.group.name } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "next" }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: "next" }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: "create collective" }));
     if (c.operation === "create-retry") {
-      expect(await screen.findByRole("alert")).toHaveTextContent(c.error!);
-      expect(pushedRoutes).toEqual([]);
-      expect(screen.getByRole("textbox", { name: "name" })).toHaveValue(world.group.name);
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(c.error!);
+      expect(within(dialog).queryByRole("link", { name: `open ${world.group.name}` })).not.toBeInTheDocument();
       expect(requests.filter((r) => r.method === "POST" && r.path === "/collectives")).toHaveLength(1);
+      // The form is kept: back to the first step, the name is still there.
+      fireEvent.click(within(dialog).getByRole("button", { name: "back" }));
+      fireEvent.click(await within(dialog).findByRole("button", { name: "back" }));
+      expect(await within(dialog).findByRole("textbox", { name: "name" })).toHaveValue(world.group.name);
+      fireEvent.click(within(dialog).getByRole("button", { name: "next" }));
+      fireEvent.click(await within(dialog).findByRole("button", { name: "next" }));
       world.failures = [];
-      fireEvent.click(screen.getByRole("button", { name: "create collective" }));
+      fireEvent.click(await within(dialog).findByRole("button", { name: "create collective" }));
     }
-    await waitFor(() => expect(pushedRoutes).toEqual([`/collectives/${world.group.id}`]));
+    // The returned identifier is where "open" leads; nothing navigates on its own.
+    expect(await within(dialog).findByRole("link", { name: `open ${world.group.name}` })).toHaveAttribute(
+      "href",
+      `/collectives/${world.group.id}`,
+    );
+    expect(pushedRoutes).toEqual([]);
     const writes = requests.filter((r) => r.method === "POST" && r.path === "/collectives");
     expect(writes).toHaveLength(c.operation === "create-retry" ? 2 : 1);
     expect(writes[0].body).toMatchObject({ name: world.group.name });
