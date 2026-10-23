@@ -1,7 +1,8 @@
 "use client";
 
+import { useCallback } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Compass, GitPullRequest, Home, Users } from "lucide-react";
 import { AppSidebar } from "@peasant-labs/fairtrade/ui";
 import { useGroups } from "@/lib/queries/groups";
@@ -9,6 +10,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { collectiveToneColor } from "@/lib/collectiveTone";
 import { DOCS_URL } from "@/lib/appLinks";
 import AccountMenu from "@/components/shell/AccountMenu";
+import { openExploreSearch, useSearchShortcut } from "@/lib/exploreSearch";
 import { CONTEXT_PARAM, parseTranscriptContext, type TranscriptContext } from "@/lib/transcriptContext";
 import type { User } from "@/lib/types";
 
@@ -63,6 +65,10 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
   const { theme, setTheme } = useTheme();
   const collectives = useGroups();
   const mine = collectives.data ?? [];
+  // The search is /explore's transcript search, its box taking the cursor.
+  const router = useRouter();
+  const openSearch = useCallback(() => openExploreSearch(router.push, pathname), [router, pathname]);
+  useSearchShortcut(openSearch);
   const ids = new Set(mine.map((c) => c.id));
 
   const groups = [
@@ -98,6 +104,7 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
       theme={theme}
       onThemeChange={setTheme}
       accountSlot={user ? <AccountMenu user={user} /> : undefined}
+      search={{ onOpen: openSearch, shortcut: "⌘k", keyShortcuts: "Meta+K Control+K" }}
     />
   );
 }

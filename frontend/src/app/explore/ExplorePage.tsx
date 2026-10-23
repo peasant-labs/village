@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTranscripts } from "@/lib/queries/transcripts";
@@ -20,6 +20,7 @@ import ScopedGroupedHelperSection from "@/components/transcript/ScopedGroupedHel
 import { groupChildSessions, visibleTranscriptTotal } from "@/lib/childSessions";
 import RequestFailureState from "@/components/RequestFailureState";
 import RetryButton from "@/components/RetryButton";
+import { useExploreSearchFocus } from "@/lib/exploreSearch";
 
 const DEFAULT_FILTERS: ExploreFilters = {
   query: "",
@@ -32,6 +33,9 @@ const DEFAULT_FILTERS: ExploreFilters = {
 export default function ExplorePage() {
   const router = useRouter();
   const [filters, setFilters] = useState<ExploreFilters>(DEFAULT_FILTERS);
+  // The app's search lands here: its box takes the cursor when asked.
+  const resultsRef = useRef<HTMLDivElement>(null);
+  useExploreSearchFocus(resultsRef);
 
   const params = useMemo(() => buildTranscriptListParams(filters), [filters]);
 
@@ -264,7 +268,7 @@ export default function ExplorePage() {
             <span className="mono tnum">{busyMessage}</span>
           </div>
         )}
-        <div aria-busy={busy} data-testid="session-list-results">
+        <div ref={resultsRef} aria-busy={busy} data-testid="session-list-results">
           <Explore
             data={payload}
             onFiltersChange={setFilters}

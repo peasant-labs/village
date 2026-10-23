@@ -1,8 +1,9 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   installHomeRouteREST,
   installHomeRouteTeardown,
+  renderAppRoute,
   renderHeaderAt,
 } from "@/test/mountedHomeRoute";
 import { loadHomePageFixtures, type HomeCollectiveCase } from "@/test/homePageFixtures";
@@ -122,6 +123,62 @@ describe("mounted sidebar: the other apps", () => {
     expect(apps).toHaveTextContent(/community\s*soon/);
     // The docs are offered once, in the switcher, not again among the sections.
     expect(screen.getAllByRole("link", { name: /^docs/ })).toHaveLength(1);
+  });
+});
+
+describe("mounted sidebar: the search", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // The app's search is /explore's transcript search: the sidebar item and
+  // the keyboard both go there, and its box takes the cursor on arrival.
+  it("opens explore from the sidebar's search item", async () => {
+    resetNextNavigation();
+    installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
+    await renderHeaderAt("/");
+    await chromeSettled("sections");
+    fireEvent.click(screen.getByRole("button", { name: /^search/ }));
+    expect(pushedRoutes).toEqual(["/explore"]);
+  });
+
+  it("opens explore with command or control and k", async () => {
+    resetNextNavigation();
+    installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
+    await renderHeaderAt("/collectives");
+    await chromeSettled("sections");
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.keyDown(window, { key: "K", ctrlKey: true });
+    expect(pushedRoutes).toEqual(["/explore", "/explore"]);
+  });
+
+  it("puts the cursor in explore's search box when it arrives there", async () => {
+    resetNextNavigation();
+    installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
+    await renderHeaderAt("/");
+    await chromeSettled("sections");
+    fireEvent.click(screen.getByRole("button", { name: /^search/ }));
+    cleanup();
+    await renderAppRoute("/explore", { header: true });
+    // The page redraws its box as it settles; the box drawn last holds the cursor.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("textbox", { name: /^search transcripts/ })),
+    );
+  });
+
+  it("puts the cursor in the box at once when explore is already open", async () => {
+    // Long after any earlier request to focus the box on arrival.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 60_000);
+    resetNextNavigation();
+    installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
+    await renderAppRoute("/explore", { header: true });
+    await chromeSettled("sections");
+    const box = await screen.findByRole("textbox", { name: /^search transcripts/ });
+    expect(document.activeElement).not.toBe(box);
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    expect(document.activeElement).toBe(box);
+    expect(pushedRoutes).toEqual([]);
   });
 });
 
