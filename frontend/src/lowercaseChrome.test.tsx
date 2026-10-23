@@ -80,6 +80,8 @@ function chromeStrings(root: Element): ChromeString[] {
     if (el.closest("script, style")) continue;
     // A command is data: it is written the way the terminal needs it.
     if (el.closest("code")) continue;
+    // A key cap is written the way the keyboard prints it ("⌘K").
+    if (el.closest("kbd")) continue;
     const tag = el.tagName.toLowerCase();
     const own = Array.from(el.childNodes)
       .filter((n) => n.nodeType === Node.TEXT_NODE)
@@ -105,12 +107,15 @@ function chromeStrings(root: Element): ChromeString[] {
 /** The chrome strings that still carry a capital once user content, the
  *  design system's brand-case provider names, initials and dates are set
  *  aside. */
+/** A key chord as the keyboard prints it, inside a tooltip ("search (⌘K)"). */
+const KEY_CHORD = /[⌘⌃⌥⇧]+[A-Z0-9]\b/g;
+
 function capitalizedChrome(root: Element): string[] {
   const setAside = [...Object.values(content), providerDisplayName(HARNESS)];
   return chromeStrings(root)
     .map(({ where, text, shownUppercase, avatarTile }) => {
       if (INITIALS.has(text) || (avatarTile && AVATAR_INITIALS.test(text))) return null;
-      let rest = text.replace(FORMATTED_DATE, "");
+      let rest = text.replace(FORMATTED_DATE, "").replace(KEY_CHORD, "");
       for (const value of setAside) rest = rest.split(value).join("");
       if (shownUppercase) rest = rest.toUpperCase();
       return /[A-Z]/.test(rest) ? `${where} ${JSON.stringify(text)}${shownUppercase ? " (uppercase)" : ""}` : null;

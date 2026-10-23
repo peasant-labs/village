@@ -106,7 +106,7 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
       theme={theme}
       onThemeChange={setTheme}
       accountSlot={user ? <AccountMenu user={user} /> : undefined}
-      search={{ onOpen: openSearch, shortcut: "⌘k", keyShortcuts: "Meta+K Control+K" }}
+      search={{ onOpen: openSearch, shortcut: "⌘K", keyShortcuts: "Meta+K Control+K" }}
       settingsHref="/settings"
     />
   );
