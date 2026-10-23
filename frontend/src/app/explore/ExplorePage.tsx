@@ -21,6 +21,7 @@ import { groupChildSessions, visibleTranscriptTotal } from "@/lib/childSessions"
 import RequestFailureState from "@/components/RequestFailureState";
 import RetryButton from "@/components/RetryButton";
 import { useExploreSearchFocus } from "@/lib/exploreSearch";
+import { OnPage } from "@/components/online/Page";
 
 const DEFAULT_FILTERS: ExploreFilters = {
   query: "",
@@ -303,7 +304,7 @@ export default function ExplorePage() {
   // (loading, error, and results) so a live region always exists before its
   // content changes, which reliable announcement requires.
   return (
-    <div className="on-page">
+    <OnPage>
       <p
         role="status"
         aria-live="polite"
@@ -313,6 +314,6 @@ export default function ExplorePage() {
         {statusMessage}
       </p>
       {content}
-    </div>
+    </OnPage>
   );
 }
