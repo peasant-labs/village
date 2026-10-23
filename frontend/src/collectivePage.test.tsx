@@ -84,7 +84,8 @@ describe("the collective page", () => {
     const table = screen.queryByRole("table", { name: /^transcripts/ });
     if (table) {
       const headers = within(table).getAllByRole("columnheader").map((th) => textOf(th));
-      expect(headers).toEqual(["transcript", "contributor", "agent", "turns", ...(expected.statusColumn ? ["status"] : []), "when"]);
+      // No status column: the list holds only approved transcripts.
+      expect(headers).toEqual(["transcript", "contributor", "agent", "turns", "when"]);
     }
     if (!pageCase.canRead) expect(screen.getByRole("heading", { name: "data access restricted" })).toBeInTheDocument();
 

@@ -30,7 +30,6 @@ export interface PageCaseExpect {
   overflow: { label: string; route: string }[];
   /** The tabs offered, in order, by label. */
   tabs: string[];
-  statusColumn: boolean;
   transcriptRows: number;
   /** The stats tab's github org line. */
   orgLine: string;
@@ -153,7 +152,7 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
     assertExactKeys(c.group, ["acceptance_mode", "data_access", "linked_github_org", "display_members"], `case ${c.name} group`);
     assertExactKeys(
       c.expect,
-      ["whoCanPublish", "whoCanRead", "yourRole", "actions", "overflow", "tabs", "statusColumn", "transcriptRows", "orgLine", "manage", "memberBreakdown", "memberCount"],
+      ["whoCanPublish", "whoCanRead", "yourRole", "actions", "overflow", "tabs", "transcriptRows", "orgLine", "manage", "memberBreakdown", "memberCount"],
       `case ${c.name} expect`,
     );
     if (!c.why?.trim()) fail(`case "${c.name}"`, "states no reason it exists");
@@ -173,7 +172,6 @@ export function loadCollectivePageFixtures(): CollectivePageFixtures {
     if (c.expect.tabs.includes("waiting for approval") !== (owner && curated)) {
       fail(`case "${c.name}"`, "offers the waiting tab to somebody other than a curated collective's owner");
     }
-    if (c.expect.statusColumn && !(curated && c.canRead)) fail(`case "${c.name}"`, "expects a status column where approval is not a step");
     if ((c.expect.memberBreakdown === null) !== (!c.group.display_members && !owner)) {
       fail(`case "${c.name}"`, "hides the members where the collective shows them, or shows them where it does not");
     }

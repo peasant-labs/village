@@ -15,15 +15,14 @@ export function AgentCell({ provider }: { provider: string | null | undefined })
 /**
  * A collective's transcripts: the title (and the pull requests it is attached
  * to, each a link to its prompts page), who contributed it, the agent, turns,
- * and when. The status column is drawn only for a curated collective, where
- * approval is a step: every row the collective lists has been approved, which
- * is what the server's list holds.
+ * and when. There is no status column: the server lists only approved
+ * transcripts, so every row would say the same thing; the ones still waiting
+ * are the waiting tab's.
  */
 export default function CollectiveTranscriptsTable({
   collectiveId,
   rows,
   pullRequestHref,
-  showStatus,
   total,
   onShowMore,
 }: {
@@ -32,7 +31,6 @@ export default function CollectiveTranscriptsTable({
   rows: CollectiveTranscriptRow[];
   /** Where a pull request label leads. */
   pullRequestHref: (label: string) => string | undefined;
-  showStatus: boolean;
   total: number;
   /** Shows the next page; left out, no button is drawn. */
   onShowMore?: () => void;
@@ -50,7 +48,6 @@ export default function CollectiveTranscriptsTable({
               <th scope="col" className="is-n">
                 turns
               </th>
-              {showStatus && <th scope="col">status</th>}
               <th scope="col" className="is-n">
                 when
               </th>
@@ -86,13 +83,6 @@ export default function CollectiveTranscriptsTable({
                   </span>
                 </td>
                 <td className="is-n">{row.turns ?? ""}</td>
-                {showStatus && (
-                  <td>
-                    <span className="on-tag" data-tone="ok">
-                      approved
-                    </span>
-                  </td>
-                )}
                 <td className="is-n on-when">{row.when ?? ""}</td>
               </tr>
             ))}

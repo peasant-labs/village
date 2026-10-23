@@ -74,7 +74,6 @@ cases:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
         - { label: review transcripts, route: "/collectives/{id}/review" }
       tabs: [transcripts, waiting for approval, members, stats]
-      statusColumn: true
       transcriptRows: 2
       orgLine: "acme: 2 of 4 repos linked"
       manage: true
@@ -85,7 +84,7 @@ cases:
     why: >-
       a collective with no linked org shows "nothing linked" and gives its
       owner the install handshake instead of a manage button; an open
-      collective has no review item, no waiting tab and no status column.
+      collective has no review item and no waiting tab.
     signedIn: true
     role: owner
     canRead: true
@@ -99,7 +98,6 @@ cases:
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
       tabs: [transcripts, members, stats]
-      statusColumn: false
       transcriptRows: 2
       orgLine: nothing linked
       manage: false
@@ -124,7 +122,6 @@ cases:
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
       tabs: [transcripts, members, stats]
-      statusColumn: false
       transcriptRows: 2
       orgLine: acme
       manage: false
@@ -149,7 +146,6 @@ cases:
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
       tabs: [transcripts, members, stats]
-      statusColumn: false
       transcriptRows: 0
       orgLine: acme
       manage: false
@@ -172,7 +168,6 @@ cases:
       actions: [join]
       overflow: []
       tabs: [transcripts, members, stats]
-      statusColumn: false
       transcriptRows: 0
       orgLine: acme
       manage: false
@@ -195,7 +190,6 @@ cases:
       actions: []
       overflow: []
       tabs: [transcripts, members, stats]
-      statusColumn: false
       transcriptRows: 0
       orgLine: nothing linked
       manage: false
@@ -219,7 +213,6 @@ cases:
       actions: [sign in to join]
       overflow: []
       tabs: [transcripts, members, stats]
-      statusColumn: false
       transcriptRows: 2
       orgLine: acme
       manage: false
@@ -243,7 +236,6 @@ cases:
       overflow:
         - { label: publish several transcripts, route: "/collectives/{id}/contribute" }
       tabs: [transcripts, members, stats]
-      statusColumn: false
       transcriptRows: 2
       orgLine: nothing linked
       manage: false
