@@ -20,10 +20,12 @@ installCollectivePagesTeardown();
 
 const fixtures = loadRepoPickerFixtures();
 
-/** A repository's checkbox, found by the name its row shows. */
+/** A repository's checkbox, found by the name its row shows: the repository
+ *  alone, since the row sits under its owner (every case has one owner). */
 function checkboxFor(dialog: HTMLElement, repo: string): HTMLInputElement {
+  const name = repo.slice(repo.indexOf("/") + 1);
   const row = [...dialog.querySelectorAll(".rpk-repo-row")].find(
-    (label) => textOf(label.querySelector(".rpk-repo-name")) === repo,
+    (label) => textOf(label.querySelector(".rpk-repo-name")) === name,
   );
   const box = row?.querySelector<HTMLInputElement>('input[type="checkbox"]');
   if (!box) throw new Error(`the picker shows no repository named ${repo}`);

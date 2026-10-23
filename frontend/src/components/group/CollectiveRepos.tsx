@@ -134,12 +134,14 @@ export default function CollectiveRepos({
                     <GitBranch className="size-4 shrink-0 text-ink-3" />
                   )}
                   <div className="min-w-0 flex-1 flex flex-col">
-                    <span className="font-[family-name:var(--font-display)] text-[var(--fs-body)] text-ink tracking-tight truncate">
+                    {/* A long repository name wraps rather than clipping; on a
+                        phone the remote, which repeats it, gives way. */}
+                    <span className="font-[family-name:var(--font-display)] text-[var(--fs-body)] text-ink tracking-tight [overflow-wrap:anywhere]">
                       {repo.unattributed ? "unattributed" : repo.name}
                     </span>
                     {repo.remote ? (
                       <span
-                        className="text-sm font-mono text-ink-3 truncate"
+                        className="hidden sm:block text-sm font-mono text-ink-3 truncate"
                         title={repo.remote}
                       >
                         {repo.remote}
@@ -149,17 +151,22 @@ export default function CollectiveRepos({
                         no git remote
                       </span>
                     )}
+                    {/* On a phone the count sits under the name, which keeps the row's width. */}
+                    <span className="sm:hidden text-sm font-mono text-ink-3 tabular-nums">
+                      {repo.transcriptCount} transcript
+                      {repo.transcriptCount !== 1 ? "s" : ""}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-4 shrink-0 text-sm font-mono text-ink-3 tabular-nums">
+                  <div className="hidden sm:flex items-center gap-4 shrink-0 text-sm font-mono text-ink-3 tabular-nums">
                     <span title="transcripts">
                       {repo.transcriptCount} transcript
                       {repo.transcriptCount !== 1 ? "s" : ""}
                     </span>
-                    <span title="contributors" className="hidden sm:inline">
+                    <span title="contributors">
                       {repo.contributorCount} contributor
                       {repo.contributorCount !== 1 ? "s" : ""}
                     </span>
-                    <span title="total tokens" className="hidden sm:inline">
+                    <span title="total tokens">
                       {formatCompact(repo.totalTokens)} tok
                     </span>
                   </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Github } from "lucide-react";
+import { Github, SlidersHorizontal } from "lucide-react";
 import type { CollectiveGithub } from "./useCollectiveGithub";
 
 /** The org line's words: the org, and how many of its repositories are linked when that is known. */
@@ -46,8 +46,15 @@ export default function CollectiveStats({
               <Github aria-hidden="true" />
               <span className="on-orgline-text">{orgLineText(github.org)}</span>
               {onManage && (
-                <button type="button" className="btn btn-secondary" onClick={onManage}>
-                  manage repositories
+                <button
+                  type="button"
+                  className="btn btn-secondary on-orgline-manage"
+                  aria-label="manage repositories"
+                  title="manage repositories"
+                  onClick={onManage}
+                >
+                  <SlidersHorizontal aria-hidden="true" />
+                  <span className="on-orgline-manage-word">manage repositories</span>
                 </button>
               )}
             </div>

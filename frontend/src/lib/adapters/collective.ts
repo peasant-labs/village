@@ -361,11 +361,12 @@ export function repoPickerOwners(
   };
   for (const repo of available) {
     const id = repoKey(repo.owner, repo.name);
-    add(repo.owner, { id, name: id, private: repo.is_private, note: publisherNote(repo.publisher_count) });
+    // The row sits under its owner, so it names the repository alone.
+    add(repo.owner, { id, name: repo.name, private: repo.is_private, note: publisherNote(repo.publisher_count) });
   }
   for (const repo of linked) {
     const id = repoKey(repo.owner, repo.name);
-    add(repo.owner, { id, name: id, private: repo.is_private });
+    add(repo.owner, { id, name: repo.name, private: repo.is_private });
   }
   const orgKey = linkedOrg?.toLowerCase();
   return [...owners.values()].sort((a, b) => {

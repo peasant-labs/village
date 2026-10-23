@@ -205,12 +205,41 @@ section.on-choices {
 .on-cstats {
   gap: var(--sp-7);
 }
+/* the org line is one row: the mark, the org and its count (wrapping beside
+   the mark when long), and the manage action at the right */
 .on-orgline {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--sp-3);
   min-width: 0;
+}
+.on-orgline-manage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.on-orgline-manage svg {
+  flex: none;
+  width: var(--ic-sm);
+  height: var(--ic-sm);
+}
+/* on a phone the action is its icon, the row's height; its words stay its name */
+@media (max-width: 559px) {
+  .on-orgline-manage {
+    width: var(--target-comfortable);
+    min-height: var(--target-comfortable);
+    justify-content: center;
+    padding: 0;
+  }
+  .on-orgline-manage-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 .on-orgline > svg {
   flex: none;
