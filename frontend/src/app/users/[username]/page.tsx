@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Image from "next/image";
 import { useTranscripts } from "@/lib/queries/transcripts";
 import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
@@ -17,6 +17,7 @@ import TranscriptList from "@/components/transcript/TranscriptList";
 import AgentSessionGroup from "@/components/transcript/AgentSessionGroup";
 import {
   Button,
+  ConsentDialog,
   DataState,
   RailSection,
   RailShell,
@@ -94,15 +95,10 @@ export default function UserProfilePage({
   const displayName = effectiveProfile?.display_name ?? username;
   const avatarUrl = effectiveProfile?.avatar_url ?? undefined;
 
-  function deleteAccount() {
-    if (
-      confirm(
-        "Permanently delete your account? This also removes your published transcripts and the collectives you own. This cannot be undone."
-      )
-    ) {
-      deleteAccountMutation.mutate();
-    }
-  }
+  // Deleting the account is asked in fairtrade's consent dialog: what goes,
+  // and a tick that the person understands it cannot be undone, before the
+  // same request the settings page sends.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (isProfileError && !isOwnProfile) {
     return (
@@ -330,10 +326,15 @@ export default function UserProfilePage({
               size="sm"
               icon={Trash2}
               disabled={deleteAccountMutation.isPending}
-              onClick={deleteAccount}
+              onClick={() => setConfirmingDelete(true)}
             >
               {deleteAccountMutation.isPending ? "deleting" : "delete account"}
             </Button>
+            {deleteAccountMutation.isError && (
+              <p role="alert" className="text-[13px] text-ink">
+                your account was not deleted: {deleteAccountMutation.error.message}
+              </p>
+            )}
           </div>
         </RailSection>
       </>
@@ -458,6 +459,28 @@ export default function UserProfilePage({
         </RailShell>
       ) : (
         libraryPanel
+      )}
+      {isOwnProfile && (
+        <ConsentDialog
+          open={confirmingDelete}
+          labelId="cns-delete-account"
+          tone="danger"
+          title="delete your account?"
+          intro={
+            <p>
+              your account is removed from peasant online, with the transcripts you published and the
+              collectives you own.
+            </p>
+          }
+          consentLabel="i understand this cannot be undone"
+          confirmLabel="delete account"
+          confirmIcon={Trash2}
+          busy={deleteAccountMutation.isPending}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={() =>
+            deleteAccountMutation.mutate(undefined, { onError: () => setConfirmingDelete(false) })
+          }
+        />
       )}
     </OnPage>
   );
