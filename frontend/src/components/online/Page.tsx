@@ -64,7 +64,9 @@ export function OnCrumb({ items }: { items: { label: ReactNode; href?: string }[
         return (
           <span key={index} className="on-row" style={{ gap: "var(--sp-2)" }}>
             {item.href && !last ? (
-              <Link href={item.href}>{item.label}</Link>
+              <Link href={item.href} title={typeof item.label === "string" ? item.label : undefined}>
+                {item.label}
+              </Link>
             ) : (
               <span aria-current={last ? "page" : undefined}>{item.label}</span>
             )}

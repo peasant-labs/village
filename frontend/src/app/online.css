@@ -136,6 +136,21 @@
 .on-crumb [aria-current="page"] {
   color: var(--ink-2);
 }
+/* a step stays on one line with its separator; a long name ends in an
+   ellipsis (the full name is the page's own title) rather than breaking the
+   trail into stray lines */
+.on-crumb > .on-row {
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
+}
+.on-crumb > .on-row > a,
+.on-crumb > .on-row > [aria-current] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .on-head {
   display: grid;
@@ -184,10 +199,13 @@
   gap: var(--sp-3);
   min-width: 0;
 }
+/* a collective's own description can hold an address with no spaces: it
+   breaks anywhere rather than running past the page */
 .on-lede {
   flex-basis: 100%;
   margin: 0;
   max-width: 60ch;
+  overflow-wrap: anywhere;
   font-size: var(--fs-md);
   line-height: var(--lh-body);
   color: var(--ink-3);
@@ -1039,6 +1057,27 @@
 .on-rows .srow-error[role="alert"],
 .on-rows p[role="alert"] {
   margin: 0;
+}
+/* A long value wraps inside the card instead of running past it: the control
+   may shrink, the value breaks anywhere, and when it does not fit beside its
+   label the control drops to its own line at the label's left edge, value
+   first and its edit button under it. An empty save-status slot takes no
+   room there. Kept here only until fairtrade's row grid does the same. */
+.on-rows .srow-control {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+.on-rows .srow-text {
+  min-width: 0;
+  max-width: 100%;
+}
+.on-rows .srow-text-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.on-rows .srow-status:empty {
+  display: none;
 }
 
 /* a failure or notice box inside a page */

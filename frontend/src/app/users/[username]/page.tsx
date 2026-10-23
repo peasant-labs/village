@@ -229,10 +229,12 @@ export default function UserProfilePage({
                   </span>
                   <div className="flex-1" />
                 </div>
+                {/* Every row is this person's, so no row names them again. */}
                 <TranscriptList
                   items={grouping.rootItems}
                   childSessions={childSessions}
                   showOwnerActions={isOwnProfile}
+                  hideOwner
                   bare
                   helperGroupSlot={(item) => (
                     <ScopedOwnerHelperGroups

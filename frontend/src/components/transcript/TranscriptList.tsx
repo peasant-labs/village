@@ -339,15 +339,15 @@ function Row({
     linkOwner && !attribution.anonymous ? (
       <Link
         href={`/users/${encodeURIComponent(owner.github_username)}`}
-        className="inline-flex items-center gap-2 focus-mono cursor-pointer hover:underline"
+        className="inline-flex min-w-0 items-center gap-2 focus-mono cursor-pointer hover:underline"
       >
         {ownerFace}
-        <span className="font-[family-name:var(--font-mono)] text-[length:var(--fs-label)] text-ink-3">{attribution.label}</span>
+        <span className="font-[family-name:var(--font-mono)] text-[length:var(--fs-label)] text-ink-3 truncate max-w-[6.5rem] sm:max-w-[14rem]" title={attribution.label}>{attribution.label}</span>
       </Link>
     ) : (
       <>
         {ownerFace}
-        <span className="font-[family-name:var(--font-mono)] text-[length:var(--fs-label)] text-ink-3">{attribution.label}</span>
+        <span className="font-[family-name:var(--font-mono)] text-[length:var(--fs-label)] text-ink-3 truncate max-w-[6.5rem] sm:max-w-[14rem]" title={attribution.label}>{attribution.label}</span>
       </>
     );
 
@@ -445,7 +445,10 @@ function Row({
         </span>
       </div>
 
-      <div className="relative z-10 flex items-center gap-2 shrink-0">
+      {/* The owner keeps to its width: a long handle ends in an ellipsis
+          (named in full on hover) rather than pushing the title and its facts
+          out of the row. */}
+      <div className="relative z-10 flex min-w-0 items-center gap-2 shrink-0">
         {!hideOwner && <>{ownerPill}</>}
         {!hideVisibility && (
           <VisibilityEye
