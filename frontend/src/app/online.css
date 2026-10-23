@@ -1271,6 +1271,9 @@ textarea.on-input {
   flex: 1 1 12rem;
   max-width: 15rem;
   display: grid;
+  /* one column no wider than the list: a long collective name in the way back
+     shortens with an ellipsis instead of running under the settings */
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
 }
 .on-settings > nav a,
@@ -1884,11 +1887,4 @@ textarea.on-input {
 .asb[data-collapsed="true"] .on-me .menu-trigger {
   justify-content: center;
   padding: 0;
-}
-/* a collective's settings sections live in the sidebar beside the page; the
-   page keeps its own list only where the sidebar folds into a drawer */
-@media (width >= 768px) {
-  .on-shell .on-settings > nav.on-settings-inline {
-    display: none;
-  }
 }

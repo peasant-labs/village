@@ -166,7 +166,7 @@ export type HomeNavCase = {
   name: string;
   isLoggedIn: boolean;
   pathname: string;
-  expectNav: "sections" | "settings" | "none";
+  expectNav: "sections" | "none";
   expectLabels: string[];
   expectActiveLabel: string | null;
   expectBackHref: string | null;
@@ -219,7 +219,7 @@ const requiredNavCaseNames = [
   "discover-highlights-discover",
   "signed-in-visitor-at-explore-highlights-nothing",
   "signed-in-visitor-at-publish-highlights-nothing",
-  "a-collectives-settings-page-lists-its-sections",
+  "a-collectives-settings-page-keeps-the-sections",
   "signed-out-visitor-at-the-root-is-offered-no-entries",
   "signed-out-visitor-at-explore-is-offered-no-entries",
   "a-signed-out-transcript-reader-gets-no-sidebar",
@@ -451,15 +451,16 @@ export function loadHomePageFixtures(): HomePageFixtures {
     // The sidebar belongs to somebody who is signed in; a signed-out reader
     // gets the public bar. A signed-out case listing an entry would assert the
     // opposite of the rule the sidebar exists to express.
-    if (!["sections", "settings", "none"].includes(c.expectNav)) {
+    if (!["sections", "none"].includes(c.expectNav)) {
       throw new Error(`nav case ${c.name}: ${c.expectNav} is not a navigation the sidebar draws`);
     }
     if ((c.expectNav === "none") !== !c.isLoggedIn) {
       throw new Error(`nav case ${c.name}: the sidebar is drawn exactly for somebody signed in`);
     }
-    // Only the settings navigation has a way back.
-    if ((c.expectBackHref !== null) !== (c.expectNav === "settings")) {
-      throw new Error(`nav case ${c.name}: a way back belongs to the settings navigation alone`);
+    // The sidebar is the same on every page, a settings page included: it has
+    // no way back of its own.
+    if (c.expectBackHref !== null) {
+      throw new Error(`nav case ${c.name}: the sidebar has no way back; a settings page keeps its own`);
     }
     if (!c.isLoggedIn && c.expectLabels.length > 0) {
       throw new Error(
@@ -485,13 +486,10 @@ export function loadHomePageFixtures(): HomePageFixtures {
       `home-page navCases: "/" must be exercised BOTH signed in and signed out`,
     );
   }
-  // A way back and its absence must both be exercised, or a sidebar that
-  // always (or never) drew one would pass.
-  if (
-    !fixtures.navCases.some((c) => c.expectBackHref !== null) ||
-    !fixtures.navCases.some((c) => c.expectBackHref === null)
-  ) {
-    throw new Error("home-page navCases must hold a case with a back link and one without");
+  // A settings page must be exercised, or a sidebar that went back to taking
+  // over a settings page would pass.
+  if (!fixtures.navCases.some((c) => /\/settings(\?|$)/.test(c.pathname) && c.expectNav === "sections")) {
+    throw new Error("home-page navCases must hold a collective settings page drawn with the sections");
   }
 
   assertNamesMatch(

@@ -7,7 +7,7 @@ import {
 } from "@/test/mountedHomeRoute";
 import { loadHomePageFixtures, type HomeCollectiveCase } from "@/test/homePageFixtures";
 import { pushedRoutes, resetNextNavigation } from "@/test/nextNavigationMock";
-import { DOCS_URL, LOCAL_APP_URL } from "@/lib/appLinks";
+import { DOCS_URL } from "@/lib/appLinks";
 
 // Mounts the REAL app chrome (`AppFrame`: fairtrade's sidebar for somebody
 // signed in, the public bar for anybody else) inside the real `AuthProvider`,
@@ -23,7 +23,7 @@ installHomeRouteTeardown();
 /** The one collective every signed-in case belongs to. */
 const ACME: HomeCollectiveCase = { id: "c011ec71-0000-4000-8000-000000000001", name: "Acme Platform", role: "owner", members: 12 };
 
-const NAV_NAMES = { sections: "peasant sections", settings: "collective settings" } as const;
+const NAV_NAMES = { sections: "peasant sections" } as const;
 
 async function chromeSettled(isLoggedIn: boolean): Promise<void> {
   // Signed in, the account trigger means the session has answered and the
@@ -49,7 +49,6 @@ describe("mounted sidebar: which entries are offered, and which one is current",
         // No sidebar at all, rather than an empty one a screen reader would
         // still announce; the public bar is the chrome instead.
         expect(screen.queryByRole("navigation", { name: NAV_NAMES.sections })).toBeNull();
-        expect(screen.queryByRole("navigation", { name: NAV_NAMES.settings })).toBeNull();
         expect(screen.getByTestId("public-top-bar")).toBeInTheDocument();
         return;
       }
@@ -69,14 +68,8 @@ describe("mounted sidebar: which entries are offered, and which one is current",
         c.expectActiveLabel === null ? [] : [c.expectActiveLabel],
       );
 
-      const back = screen.queryByRole("navigation", { name: "back" });
-      if (c.expectBackHref === null) {
-        expect(back).toBeNull();
-      } else {
-        expect(within(back!).getByRole("link")).toHaveAttribute("href", c.expectBackHref);
-        // The way back names the collective it leads to.
-        expect(within(back!).getByRole("link")).toHaveTextContent(ACME.name);
-      }
+      // The sidebar has no way back of its own on any page.
+      expect(screen.queryByRole("navigation", { name: "back" })).toBeNull();
     });
   }
 });
@@ -100,20 +93,22 @@ describe("mounted sidebar: the person's collectives", () => {
 });
 
 describe("mounted sidebar: the other apps", () => {
-  it("switches to the local app and the docs, both marked as leaving this app", async () => {
+  it("offers only the docs, in a new tab, and never lists this app or the local one", async () => {
     installHomeRouteREST({ viewerUsername: "alice-dev", transcripts: [] });
     await renderHeaderAt("/");
     await chromeSettled(true);
 
     const apps = screen.getByRole("navigation", { name: "apps" });
-    // This app is the current one and has nowhere to go; the others leave it.
-    expect(within(apps).getByText("online").closest("[aria-current]")).toHaveAttribute("aria-current", "true");
-    const local = within(apps).getByRole("link", { name: /^local/ });
+    // The sidebar is this app, so the switcher does not name it, and the local
+    // app runs on the person's own computer, so it is not offered from here.
+    expect(within(apps).queryByText("online")).toBeNull();
+    expect(within(apps).queryByText("local")).toBeNull();
+    expect(within(apps).getAllByRole("link")).toHaveLength(1);
     const docs = within(apps).getByRole("link", { name: /^docs/ });
-    expect(local).toHaveAttribute("href", LOCAL_APP_URL);
     expect(docs).toHaveAttribute("href", DOCS_URL);
-    for (const link of [local, docs]) expect(link).toHaveTextContent("opens outside this app");
     expect(docs).toHaveAttribute("href", "https://peasantlabs.org/docs");
+    expect(docs).toHaveAttribute("target", "_blank");
+    expect(docs).toHaveTextContent("opens outside this app");
     // The docs are offered once, in the switcher, not again among the sections.
     expect(screen.getAllByRole("link", { name: /^docs/ })).toHaveLength(1);
   });

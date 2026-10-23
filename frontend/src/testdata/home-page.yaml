@@ -38,14 +38,15 @@ routeCases:
 # (c011ec71-0000-4000-8000-000000000001), so its row follows the sections.
 #   expectNav          which navigation the sidebar draws: `sections` (home,
 #                      discover, pull requests, collectives and the viewer's
-#                      collectives), `settings` (on a collective's settings
-#                      page: the way back and its sections), or `none` (a
-#                      signed-out reader gets the public bar, not the sidebar).
+#                      collectives, on every signed-in page, a collective's
+#                      settings page included), or `none` (a signed-out reader
+#                      gets the public bar, not the sidebar).
 #   expectLabels       that navigation's entries, in order.
 #   expectActiveLabel  the one entry marked current, or null for none.
-#   expectBackHref     where the settings navigation's way back leads, or null
-#                      when there is none. Written on every case so none is
-#                      read as "no link" by omission.
+#   expectBackHref     always null: the sidebar has no way back of its own; a
+#                      settings page keeps its sections and its way back in a
+#                      bar inside the page body. Written on every case so none
+#                      is read as "no link" by omission.
 navCases:
   - name: signed-in-visitor-at-the-root-highlights-home
     isLoggedIn: true
@@ -103,15 +104,16 @@ navCases:
     expectLabels: [home, discover, pull requests, collectives, Acme Platform]
     expectActiveLabel: null
     expectBackHref: null
-  - name: a-collectives-settings-page-lists-its-sections
-    # The sidebar becomes the settings page's own navigation: the way back to
-    # the collective, and the section the address names marked current.
+  - name: a-collectives-settings-page-keeps-the-sections
+    # The sidebar stays the app's own on a settings page, the collective marked
+    # current; the settings sections are a bar inside the page body, as on
+    # `/settings`.
     isLoggedIn: true
     pathname: "/collectives/c011ec71-0000-4000-8000-000000000001/settings?section=members"
-    expectNav: settings
-    expectLabels: [general, access, members, github, pull requests, danger zone]
-    expectActiveLabel: members
-    expectBackHref: "/collectives/c011ec71-0000-4000-8000-000000000001"
+    expectNav: sections
+    expectLabels: [home, discover, pull requests, collectives, Acme Platform]
+    expectActiveLabel: Acme Platform
+    expectBackHref: null
   - name: signed-out-visitor-at-the-root-is-offered-no-entries
     isLoggedIn: false
     pathname: "/"
