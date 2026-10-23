@@ -269,10 +269,6 @@
 .on-swatch[data-tone="clay"] { background: var(--clay); }
 .on-swatch[data-tone="teal"] { background: var(--teal); }
 .on-swatch[data-tone="mauve"] { background: var(--mauve); }
-.on-title .on-swatch {
-  width: var(--sp-4);
-  height: var(--sp-4);
-}
 
 /* ---------- numbers ---------- */
 

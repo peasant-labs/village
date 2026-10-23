@@ -492,3 +492,32 @@ describe("the contribute tree nests a started session under the session that sta
     });
   }
 });
+
+// ── the transcript groups' toolbar ───────────────────────────────────────────
+
+describe("the transcript groups' one toolbar", () => {
+  it("lists or groups by repository, filters by contributor, and picks rows out only in the list", async () => {
+    const testCase = casesFor("collective-repos")[0];
+    await renderCollectiveDetail(testCase.rows);
+    await waitFor(() => expect(linkedIDs(library()).length).toBeGreaterThan(0));
+
+    const tools = within(library()).getByRole("group", { name: "view and select transcripts" });
+    const views = within(tools).getByRole("group", { name: "show transcripts as" });
+    expect(within(views).getByRole("button", { name: "list" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(views).getByRole("button", { name: "repos" })).toHaveAttribute("aria-pressed", "false");
+    // The contributor filter is fairtrade's select, not a bare native one.
+    const contributor = within(tools).getByRole("combobox", { name: "filter transcripts by contributor" });
+    expect(contributor).toHaveClass("select");
+    expect(contributor.closest(".select-wrap")).not.toBeNull();
+    // The owner picks rows out of the list.
+    expect(within(tools).getByRole("checkbox", { name: "select all" })).toBeInTheDocument();
+    // Every row here is shared with this collective, so no row says so again.
+    expect(library().querySelector(".vc-eye")).toBeNull();
+
+    await showRepositories();
+    expect(within(views).getByRole("button", { name: "repos" })).toHaveAttribute("aria-pressed", "true");
+    // Grouped by repository, rows carry no boxes, so there is nothing to select.
+    expect(within(tools).queryByRole("checkbox", { name: "select all" })).toBeNull();
+    expect(library().querySelector(".vc-eye")).toBeNull();
+  });
+});

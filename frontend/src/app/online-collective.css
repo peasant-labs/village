@@ -204,6 +204,33 @@ section.on-choices {
   gap: var(--sp-5);
 }
 
+/* ---------- the transcript groups' toolbar ---------- */
+
+/* one bar: how the groups are listed and whose, then (for the owner) picking
+   rows out to remove. The two halves wrap apart on a narrow screen. */
+.on-lib-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3) var(--sp-5);
+  padding: var(--sp-3) var(--sp-5);
+  border-bottom: 1px solid var(--rule);
+}
+.on-lib-tools-view,
+.on-lib-tools-select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.on-lib-tools .is-field {
+  margin: 0;
+  min-width: 12rem;
+  max-width: 100%;
+}
+
 /* ---------- settings ---------- */
 
 .on-settings > nav .on-settings-back {

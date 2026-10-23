@@ -3,10 +3,10 @@ import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAuthHeaders } from "@/lib/api";
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
+import { FolderGit2, List, Trash2 } from "lucide-react";
 import type { HelperGroupSummary } from "@peasant-labs/schema";
 import type { GroupTranscript, UserGroupShare, User } from "@/lib/types";
-import { Checkbox, ConfirmInline, SessionGroupDisclosure } from "@/lib/ft-ui";
+import { Checkbox, ConfirmInline, Segmented, Select, SessionGroupDisclosure } from "@/lib/ft-ui";
 import { useAuth } from "@/providers/AuthProvider";
 import { useMyGroupShares, useRemoveGroupTranscript } from "@/lib/queries/groups";
 import { useUnshareTranscript } from "@/lib/queries/transcripts";
@@ -110,6 +110,11 @@ function myShareIdentity(share: UserGroupShare): SessionIdentity {
  * What a row states on a collective's browse list: everything its table stated
  * as a column, in the order every other transcript list in this app reads.
  */
+/** The two ways the transcript groups are listed: one list, or by repository. */
+const LIBRARY_VIEWS = [
+    { value: "list", label: "list", icon: List },
+    { value: "repos", label: "repos", icon: FolderGit2 },
+];
 const COLLECTIVE_BROWSE_FACTS: readonly TranscriptRowFact[] = [
     "provider",
     "date",
@@ -211,22 +216,24 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
     {canRead && (transcripts.length > 0 || fallback.length > 0 || grouped.remainingItems > 0 || grouped.isError) && <div className="border border-rule bg-surface">
       <SessionGroupDisclosure label="transcript groups" collapsedLabel="transcript groups" expanded={expanded} onToggle={() => setExpanded((open) => !open)} rowsID={`collective-library-${groupID}`} testID="collective-library-disclosure" bare>
         <div id={`collective-library-${groupID}`}>
-          {transcripts.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-rule">
-            <label className="text-sm font-mono text-ink-3">contributor <select aria-label="filter transcripts by contributor" value={contributor} onChange={(event) => setContributor(event.target.value)} className="bg-surface border border-rule text-sm text-ink ml-2"><option value="">all contributors</option>{[...contributors].map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
-            <div className="flex items-center gap-2"><button type="button" className="btn btn-ghost btn-sm" aria-pressed={view === "list"} onClick={() => setView("list")}>list</button><button type="button" className="btn btn-ghost btn-sm" aria-pressed={view === "repos"} onClick={() => setView("repos")}>repos</button></div>
-            {isOwner && <><Checkbox checked={visible.length > 0 && visible.every((row) => selected.has(row.id))} disabled={removing} onChange={(checked) => changeSelection((current) => { const next = new Set(current); for (const row of visible) {
+          {transcripts.length > 0 && <div className="on-lib-tools" role="group" aria-label="view and select transcripts">
+            <div className="on-lib-tools-view">
+              <Segmented label="show transcripts as" options={LIBRARY_VIEWS} value={view} onChange={(next) => setView(next === "repos" ? "repos" : "list")}/>
+              <Select aria-label="filter transcripts by contributor" value={contributor} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setContributor(event.target.value)}><option value="">all contributors</option>{[...contributors].map(([id, label]) => <option key={id} value={id}>{label}</option>)}</Select>
+            </div>
+            {isOwner && view === "list" && <div className="on-lib-tools-select"><Checkbox checked={visible.length > 0 && visible.every((row) => selected.has(row.id))} disabled={removing} onChange={(checked) => changeSelection((current) => { const next = new Set(current); for (const row of visible) {
                 if (checked)
                     next.add(row.id);
                 else
                     next.delete(row.id);
-            } return next; })}>select all</Checkbox><ConfirmInline aria-label={`remove selected (${selected.size})`} label={`remove selected (${selected.size})`} confirmLabel="remove from collective" disabled={selected.size === 0} busy={removing} onConfirm={removeSelected}/></>}
+            } return next; })}>select all</Checkbox><ConfirmInline aria-label={`remove selected (${selected.size})`} label={`remove selected (${selected.size})`} confirmLabel="remove from collective" disabled={selected.size === 0} busy={removing} onConfirm={removeSelected}/></div>}
           </div>}
           {removeError && <p role="alert" className="text-[var(--fs-body)] text-danger px-5 py-3">could not remove all selected contributions: {removeError}. failed rows remain selected; try again.</p>}
           {view === "repos" ? <CollectiveRepos transcripts={visible} viewerIsOwner={isOwner} helperGroups={helpers} onRefreshOrigin={grouped.refreshOrigin}/> : <TranscriptList items={folded.rootItems} childSessions={children} facts={COLLECTIVE_BROWSE_FACTS} selection={isOwner ? { selectedIDs: selected, onToggle: (id) => { if (removing)
                 return; changeSelection((current) => { const next = new Set(current); if (next.has(id))
                 next.delete(id);
             else
-                next.add(id); return next; }); } } : undefined} viewerIsPrivileged={isOwner} linkOwner bare helperGroupSlot={(item) => <ScopedOwnerHelperGroups groups={helpers.get(item.transcript.id)} onRefreshOrigin={grouped.refreshOrigin}/>}/>}
+                next.add(id); return next; }); } } : undefined} viewerIsPrivileged={isOwner} linkOwner hideVisibility bare helperGroupSlot={(item) => <ScopedOwnerHelperGroups groups={helpers.get(item.transcript.id)} onRefreshOrigin={grouped.refreshOrigin}/>}/>}
           {grouped.isError && retry(grouped)}
           {(fallback.length > 0 || grouped.remainingItems > 0) && <div data-testid="grouped-helper-fallback" className="border-t border-rule"><ScopedUnownedHelperGroups items={grouped.items} representedOwnerIds={represented} onRefreshOrigin={grouped.refreshOrigin}/><ScopedGroupedContinuation remaining={grouped.remainingItems} busy={grouped.isFetchingNextPage} onLoadMore={() => void grouped.fetchNextPage()}/></div>}
         </div>

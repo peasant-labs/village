@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ClipboardCheck, FileStack, Github, Lock, LogIn, LogOut, MoreHorizontal, Settings, UserPlus } from "lucide-react";
 import { Menu, RepoPicker, Toast } from "@/lib/ft-ui";
-import { CollectiveSwatch, OnCrumb, OnEmpty, OnHead, OnPage } from "@/components/online/Page";
+import { OnCrumb, OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 import { useGroup, useGroupTranscripts, useJoinGroup, useMyGroupShares, useRemoveGroupMember } from "@/lib/queries/groups";
 import { usePendingShares } from "@/lib/queries/groupReview";
 import { githubInstallURL } from "@/lib/githubInstall";
@@ -323,12 +323,7 @@ export default function GroupDetailPage({
     <OnPage tight testId="collective-page">
       <OnCrumb items={[CRUMB_ROOT, { label: group.name }]} />
       <OnHead
-        title={
-          <span className="on-title-row">
-            <CollectiveSwatch id={group.id} />
-            <span className="on-keep-case">{group.name}</span>
-          </span>
-        }
+        title={<span className="on-keep-case">{group.name}</span>}
         lede={group.description || undefined}
         actions={
           actions.length > 0 ? (

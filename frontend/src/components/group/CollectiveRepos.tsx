@@ -189,6 +189,7 @@ export default function CollectiveRepos({
                     childSessions={childSessionsByParentID(fold)}
                     facts={REPO_TRANSCRIPT_FACTS}
                     viewerIsPrivileged={viewerIsOwner}
+                    hideVisibility
                     helperGroupSlot={helperGroups && onRefreshOrigin ? (item) => <ScopedOwnerHelperGroups groups={helperGroups.get(item.transcript.id)} onRefreshOrigin={onRefreshOrigin} /> : undefined}
                     bare
                   />

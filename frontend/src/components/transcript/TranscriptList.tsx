@@ -83,6 +83,9 @@ interface TranscriptListProps {
   /** When true, hide the owner avatar + username pill (e.g. on /publish where
    *  everything is the viewer's own). The visibility eye still renders. */
   hideOwner?: boolean;
+  /** When true, leave the visibility eye out. A collective's list says nothing
+   *  with it: every row there is shared with that collective. */
+  hideVisibility?: boolean;
   /** The sessions each row started, keyed by that row's `transcript.id`.
    *
    *  A row named here renders an expandable chip beneath it holding those
@@ -123,6 +126,7 @@ export default function TranscriptList({
   emptyState,
   bare = false,
   hideOwner = false,
+  hideVisibility = false,
   childSessions,
   facts = DEFAULT_TRANSCRIPT_ROW_FACTS,
   selection,
@@ -144,6 +148,7 @@ export default function TranscriptList({
               item={item}
               canManage={showOwnerActions && viewerId === item.owner.id}
               hideOwner={hideOwner}
+              hideVisibility={hideVisibility}
               bottomSpace={carriesChip ? "tight" : "default"}
               facts={facts}
               selection={selection}
@@ -168,6 +173,7 @@ export default function TranscriptList({
                 childSessions={started}
                 showOwnerActions={showOwnerActions}
                 hideOwner={hideOwner}
+                hideVisibility={hideVisibility}
                 facts={facts}
                 selection={selection}
                 viewerIsPrivileged={viewerIsPrivileged}
@@ -277,6 +283,7 @@ function Row({
   item,
   canManage,
   hideOwner,
+  hideVisibility = false,
   bottomSpace = "default",
   facts = DEFAULT_TRANSCRIPT_ROW_FACTS,
   selection,
@@ -286,6 +293,7 @@ function Row({
   item: TranscriptRow;
   canManage: boolean;
   hideOwner: boolean;
+  hideVisibility?: boolean;
   bottomSpace?: RowBottomSpace;
   facts?: readonly TranscriptRowFact[];
   selection?: TranscriptRowSelection;
@@ -434,14 +442,16 @@ function Row({
 
       <div className="relative z-10 flex items-center gap-2 shrink-0">
         {!hideOwner && <>{ownerPill}</>}
-        <VisibilityEye
-          visibility={t.visibility}
-          sharedWith={
-            shares && shares.length > 0
-              ? shares.map((s) => s.group_name).join(", ")
-              : undefined
-          }
-        />
+        {!hideVisibility && (
+          <VisibilityEye
+            visibility={t.visibility}
+            sharedWith={
+              shares && shares.length > 0
+                ? shares.map((s) => s.group_name).join(", ")
+                : undefined
+            }
+          />
+        )}
       </div>
 
       {canManage && (

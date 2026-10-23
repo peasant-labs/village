@@ -18,6 +18,8 @@ interface ChildSessionDisclosureProps {
   showOwnerActions?: boolean;
   /** Hide the owner pill, on a list where every row is the same person's. */
   hideOwner?: boolean;
+  /** Hide the visibility eye, on a list where every row is shared alike. */
+  hideVisibility?: boolean;
   /** The facts each revealed row states, so a child reads exactly like the row
    *  it hangs under rather than like a row from some other list. */
   facts?: readonly TranscriptRowFact[];
@@ -59,6 +61,7 @@ export default function ChildSessionDisclosure({
   childSessions,
   showOwnerActions = false,
   hideOwner = false,
+  hideVisibility = false,
   facts,
   selection,
   viewerIsPrivileged = false,
@@ -113,6 +116,7 @@ export default function ChildSessionDisclosure({
             items={childSessions}
             showOwnerActions={showOwnerActions}
             hideOwner={hideOwner}
+            hideVisibility={hideVisibility}
             facts={facts}
             selection={selection}
             viewerIsPrivileged={viewerIsPrivileged}

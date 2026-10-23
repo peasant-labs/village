@@ -206,7 +206,10 @@ describe("the collective page", () => {
     expect(screen.getByTestId("collective-loading")).toBeInTheDocument();
     expect(screen.queryByText("collective not found")).toBeNull();
     await act(async () => { release(); });
-    expect(await screen.findByRole("heading", { level: 1, name: world.group.name })).toBeInTheDocument();
+    const title = await screen.findByRole("heading", { level: 1, name: world.group.name });
+    expect(title).toBeInTheDocument();
+    // The title is the collective's name alone; its colour lives in the sidebar.
+    expect(title.querySelector(".on-swatch")).toBeNull();
     expect(screen.queryByText("collective not found")).toBeNull();
   });
 
