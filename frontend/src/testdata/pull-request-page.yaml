@@ -340,8 +340,8 @@ cases:
     confirm_status: null
     expect_title: Add the picker
     expect_sub: feat/picker
-    expect_state_line: none of your transcripts match this pull request yet. publish
-      the session behind one of its commits and it is attached.
+    expect_state_line: none of your transcripts match this pull request yet. how transcripts
+      attach, opens in a new tab
     expect_controls:
       - detach-attachment
     expect_confirm_label: null
@@ -373,8 +373,8 @@ cases:
     confirm_status: null
     expect_title: Add the picker
     expect_sub: feat/picker
-    expect_state_line: you were asked to attach your transcripts. comment /peasant
-      attach on the pull request to review them here.
+    expect_state_line: you were asked to attach your transcripts. how to attach them,
+      opens in a new tab
     expect_controls: []
     expect_confirm_label: null
     expect_audience_form: none
@@ -408,8 +408,8 @@ cases:
     confirm_status: null
     expect_title: Add the picker
     expect_sub: feat/picker 2 commits
-    expect_state_line: you detached your transcripts from this pull request. comment
-      /peasant attach on it to attach them again.
+    expect_state_line: you detached your transcripts from this pull request. how to attach
+      them again, opens in a new tab
     expect_controls: []
     expect_confirm_label: null
     expect_audience_form: none

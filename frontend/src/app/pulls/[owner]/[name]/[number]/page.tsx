@@ -27,6 +27,8 @@ import type {
   VillagePullRequestAttachmentState,
 } from "@peasant-labs/schema";
 import type { TranscriptCollective, TranscriptDetailResponse } from "@/lib/types";
+import DocsLink from "@/components/online/DocsLink";
+import { DOCS_PULL_REQUESTS_URL } from "@/lib/appLinks";
 import "@/app/online-pulls.css";
 
 /**
@@ -662,24 +664,24 @@ function AuthorBand({
     case "waiting":
       line = (
         <>
-          <strong>none of your transcripts match this pull request yet.</strong> publish the session
-          behind one of its commits and it is attached.
+          <strong>none of your transcripts match this pull request yet.</strong>{" "}
+          <DocsLink href={DOCS_PULL_REQUESTS_URL}>how transcripts attach</DocsLink>
         </>
       );
       break;
     case "requested":
       line = (
         <>
-          <strong>you were asked to attach your transcripts.</strong> comment{" "}
-          <code>/peasant attach</code> on the pull request to review them here.
+          <strong>you were asked to attach your transcripts.</strong>{" "}
+          <DocsLink href={DOCS_PULL_REQUESTS_URL}>how to attach them</DocsLink>
         </>
       );
       break;
     case "detached":
       line = (
         <>
-          <strong>you detached your transcripts from this pull request.</strong> comment{" "}
-          <code>/peasant attach</code> on it to attach them again.
+          <strong>you detached your transcripts from this pull request.</strong>{" "}
+          <DocsLink href={DOCS_PULL_REQUESTS_URL}>how to attach them again</DocsLink>
         </>
       );
       break;

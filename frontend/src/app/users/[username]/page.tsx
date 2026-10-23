@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use } from "react";
 import Image from "next/image";
 import { useTranscripts } from "@/lib/queries/transcripts";
 import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
@@ -23,7 +23,8 @@ import {
   StatGrid,
   TeachingEmptyState,
 } from "@/lib/ft-ui";
-import PublishImportDialog from "@/app/publish/PublishImportDialog";
+import DocsLink from "@/components/online/DocsLink";
+import { DOCS_PUBLISH_URL } from "@/lib/appLinks";
 import ProfileCollectives from "@/components/collective/ProfileCollectives";
 import MalformedProjectNotice from "@/components/MalformedProjectNotice";
 import { groupByProject } from "@/lib/format";
@@ -35,9 +36,7 @@ import {
   FileText,
   FolderOpen,
   Library,
-  Plus,
   Trash2,
-  Upload,
 } from "lucide-react";
 import Link from "next/link";
 import { OnCrumb, OnEmpty, OnPage } from "@/components/online/Page";
@@ -79,7 +78,6 @@ export default function UserProfilePage({
   const refreshGrouped = grouped.refreshOrigin;
   const deleteAccountMutation = useDeleteAccount();
   const updateSettingsMutation = useUpdateMySettings();
-  const [importOpen, setImportOpen] = useState(false);
 
   const isOwnProfile =
     !!user && user.github_username.toLowerCase() === username.toLowerCase();
@@ -141,10 +139,7 @@ export default function UserProfilePage({
         style={{ border: "none", background: "transparent" }}
       />
       <div className="px-6 pb-6">
-        <Link href="/publish" className="on-link inline-flex items-center gap-1.5">
-          <Plus size={14} aria-hidden="true" />
-          how to publish from peasant
-        </Link>
+        <DocsLink href={DOCS_PUBLISH_URL}>how to publish</DocsLink>
       </div>
     </div>
   ) : (
@@ -167,16 +162,6 @@ export default function UserProfilePage({
           <Library size={16} className="text-ink-3" aria-hidden="true" />
           published library
         </span>
-        {isOwnProfile && (
-          <button
-            type="button"
-            onClick={() => setImportOpen(true)}
-            className="btn btn-secondary btn-sm"
-          >
-            <Upload className="size-3.5" aria-hidden="true" />
-            import
-          </button>
-        )}
       </div>
 
       {isLoading ? (
@@ -474,11 +459,6 @@ export default function UserProfilePage({
       ) : (
         libraryPanel
       )}
-
-      <PublishImportDialog
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-      />
     </OnPage>
   );
 }

@@ -2,19 +2,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LayoutShell } from "@/components/LayoutShell";
-import PublishPage from "@/app/publish/page";
 import { AuthProvider } from "@/providers/AuthProvider";
 import type { User } from "@/lib/types";
 import { loadPrivacyNoticeFixtures } from "@/test/privacyNoticeFixtures";
 
-// The privacy notice is reachable from two production places: the persistent
-// chrome every page renders through LayoutShell, and the publish page, where
-// a person is about to grant a license. Both are mounted here for real, with
-// the same GET /auth/me the app uses deciding who the visitor is.
+// The privacy notice is reachable from the persistent chrome every page renders
+// through LayoutShell (and, before signing in, from the landing page's log-in
+// popup; how publishing licenses a session is in the docs). The chrome is
+// mounted here for real, with the same GET /auth/me the app uses deciding who
+// the visitor is.
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  usePathname: () => "/publish",
+  usePathname: () => "/settings",
   // The signed-out bar reads the query so its sign-in link returns here.
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -48,7 +48,7 @@ function userFixture(username: string): User {
   };
 }
 
-/** Stubs every request the shell and the publish page make; anything else throws. */
+/** Stubs every request the shell makes; anything else throws. */
 function installBackend(viewerUsername: string | null): void {
   vi.stubGlobal(
     "fetch",
@@ -100,13 +100,6 @@ describe("the privacy notice link", () => {
       const link = await screen.findByRole("link", { name: "privacy" });
       expect(link).toHaveAttribute("href", "/privacy");
       expect(screen.getByTestId("page-body")).toBeInTheDocument();
-    });
-
-    it(`is on the publish page (${c.name})`, async () => {
-      installBackend(c.viewerUsername);
-      await mount(<PublishPage />);
-      const link = await screen.findByRole("link", { name: "privacy notice" });
-      expect(link).toHaveAttribute("href", "/privacy");
     });
   }
 });

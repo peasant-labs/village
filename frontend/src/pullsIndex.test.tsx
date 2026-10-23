@@ -56,10 +56,11 @@ describe("the pull requests route", () => {
         case "empty": {
           const empty = await screen.findByTestId("pulls-empty");
           expect(spoken(empty.querySelector("h2"))).toBe("nothing is waiting on you");
-          // One line on how a pull request comes to wait here, naming the real command.
-          expect(spoken(empty.querySelector("p"))).toBe(
-            "A pull request waits here when you comment /peasant attach on it before you publish a session that matches it.",
-          );
+          // How a pull request comes to wait here is in the docs, one link away.
+          const docs = within(empty).getByRole("link", { name: /how pull requests get transcripts/ });
+          expect(docs).toHaveAttribute("href", "https://peasantlabs.org/docs/guides/reviews");
+          expect(docs).toHaveAttribute("target", "_blank");
+          expect(empty.textContent).not.toContain("/peasant attach");
           expect(screen.queryAllByTestId("pulls-request")).toEqual([]);
           expect(screen.queryByTestId("pulls-failure")).toBeNull();
           return;

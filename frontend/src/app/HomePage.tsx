@@ -18,7 +18,8 @@ import { useAuth } from "@/providers/AuthProvider";
 import HomeTable from "@/components/home/HomeTable";
 import HomeRecent from "@/components/home/HomeRecent";
 import HomeWaiting from "@/components/home/HomeWaiting";
-import CommandLine from "@/components/online/CommandLine";
+import DocsLink from "@/components/online/DocsLink";
+import { DOCS_PUBLISH_URL } from "@/lib/appLinks";
 import { OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 import { CheckRow, RadioRow, ViewMenu } from "@/components/online/ViewMenu";
 import RequestFailureState from "@/components/RequestFailureState";
@@ -351,16 +352,8 @@ function HomeBody({ username }: { username: string }) {
         <OnEmpty
           icon={<Terminal />}
           title="nothing published yet"
-          body="install peasant and run kickstart. sessions you publish show up here."
-          actions={
-            <Link href="/publish" className="on-link">
-              how to publish from peasant
-            </Link>
-          }
-        >
-          <CommandLine command="curl -fsSL https://peasantlabs.org/install | bash" />
-          <CommandLine command="peasant kickstart" />
-        </OnEmpty>
+          actions={<DocsLink href={DOCS_PUBLISH_URL}>how to publish</DocsLink>}
+        />
         {collectives.data != null && collectives.data.length === 0 && (
           <div className="on-row" data-testid="home-no-collective">
             <span className="on-muted">not in a collective yet?</span>

@@ -11,6 +11,8 @@ import { loginHref } from "@/lib/signIn";
 import { pullPath, useMyPromptRequests } from "@/lib/queries/pulls";
 import { useAuth } from "@/providers/AuthProvider";
 import type { VillagePromptRequest } from "@peasant-labs/schema";
+import DocsLink from "@/components/online/DocsLink";
+import { DOCS_PULL_REQUESTS_URL } from "@/lib/appLinks";
 import "@/app/online-pulls.css";
 
 /**
@@ -181,12 +183,7 @@ function WaitingPullRequests({ handle }: { handle: string }) {
           testId="pulls-empty"
           icon={<GitPullRequest aria-hidden="true" />}
           title="nothing is waiting on you"
-          body={
-            <>
-              A pull request waits here when you comment <code>/peasant attach</code> on it before you
-              publish a session that matches it.
-            </>
-          }
+          actions={<DocsLink href={DOCS_PULL_REQUESTS_URL}>how pull requests get transcripts</DocsLink>}
         />
       </OnPage>
     );

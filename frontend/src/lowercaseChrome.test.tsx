@@ -4,7 +4,6 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { providerDisplayName } from "@peasant-labs/fairtrade/ui";
-import PublishPage from "@/app/publish/page";
 import LinkedRepositories from "@/components/group/LinkedRepositories";
 import ContributePicker from "@/components/transcript/ContributePicker";
 import PendingApprovalBar from "@/components/transcript/PendingApprovalBar";
@@ -412,62 +411,6 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
       if (c.state === "delete-confirm") {
         fireEvent.click(screen.getByRole("button", { name: "delete collective" }));
         await screen.findByRole("dialog");
-      }
-      return document.body;
-    }
-
-    case "publish-page": {
-      const viewer = {
-        id: `user-${content.viewer}`,
-        github_id: 1,
-        github_username: content.viewer,
-        display_name: content.viewer,
-        avatar_url: null,
-        created_at: WHEN,
-        updated_at: WHEN,
-        is_discoverable: true,
-        username_chosen: true,
-        provider_username: content.viewer,
-      };
-      vi.stubGlobal(
-        "fetch",
-        vi.fn(async (input: RequestInfo | URL) => {
-          const url = String(input);
-          if (url.endsWith("/auth/me")) return json(viewer);
-          if (url.includes("/transcripts?") && url.includes(`owner=${content.viewer}`)) {
-            // The list echoes the page and limit it was asked for; the client
-            // refuses an answer to a different question.
-            const query = new URL(url, "https://village.test").searchParams;
-            return json({
-              transcripts: [
-                {
-                  transcript: makeTranscriptFixture({
-                    id: TRANSCRIPT_ID,
-                    owner_id: viewer.id,
-                    title: content.transcript,
-                    project_name: "village",
-                    project_display_name: "village",
-                    session_start: WHEN,
-                    published_at: WHEN,
-                  }),
-                  tags: [],
-                  owner: viewer,
-                },
-              ],
-              total: 1,
-              agent_total: 0,
-              page: Number(query.get("page") ?? 1),
-              limit: Number(query.get("limit") ?? 24),
-            });
-          }
-          throw new Error(`publish-page fixture received an unexpected request to ${url}`);
-        }),
-      );
-      await mount(<PublishPage />, true);
-      await waitFor(() => expect(document.body.textContent).toContain(content.transcript));
-      if (c.state === "import-dialog-open") {
-        fireEvent.click(screen.getByRole("button", { name: "import" }));
-        await screen.findByText("how to import transcripts");
       }
       return document.body;
     }

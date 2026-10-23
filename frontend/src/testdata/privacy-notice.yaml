@@ -32,7 +32,8 @@ licenseChoices:
     heading: no license
     controlLabel: Publish without a license
 
-# The publish page must link the notice in every auth state it renders.
+# The chrome links the notice for a signed-in person; a signed-out visitor is
+# sent to the landing page's log-in popup, which links it.
 linkCases:
   - name: publish-signed-out
     viewerUsername: null

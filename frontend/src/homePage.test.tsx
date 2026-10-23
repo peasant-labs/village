@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   installHomeRouteREST,
@@ -266,7 +266,13 @@ describe("mounted home route: your transcripts, their totals and your collective
         await waitFor(() => expect(homeErrorSurface()).toBeNull());
         // This person really has published nothing, so the answered list is
         // the empty library, now that it is an answer.
-        expect(document.querySelector('[data-testid="home-empty-state"]')).not.toBeNull();
+        const empty = document.querySelector<HTMLElement>('[data-testid="home-empty-state"]');
+        expect(empty).not.toBeNull();
+        // How to publish is in the docs: one link out, no commands restated here.
+        const docs = within(empty!).getByRole("link", { name: /how to publish/ });
+        expect(docs).toHaveAttribute("href", "https://peasantlabs.org/docs#publish");
+        expect(docs).toHaveAttribute("target", "_blank");
+        expect(empty!.textContent).not.toMatch(/curl|kickstart/);
         return;
       }
 

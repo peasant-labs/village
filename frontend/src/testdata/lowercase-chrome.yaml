@@ -140,16 +140,6 @@ cases:
     state: not-owner
     expectContent: [collective]
 
-  - name: the-publish-dashboard-with-a-transcript
-    surface: publish-page
-    state: with-transcripts
-    expectContent: [transcript]
-
-  - name: the-publish-dashboard-with-the-import-dialog-open
-    surface: publish-page
-    state: import-dialog-open
-    expectContent: [transcript]
-
   - name: the-contribute-picker-open
     surface: contribute-picker
     state: open
