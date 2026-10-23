@@ -11,7 +11,9 @@ import PendingApprovalBar from "@/components/transcript/PendingApprovalBar";
 import {
   installHomeRouteREST,
   installHomeRouteTeardown,
+  renderAppRoute,
   renderHeaderAt,
+  showHomeAsFlatList,
 } from "@/test/mountedHomeRoute";
 import { installGroupRouteREST, renderGroupDetailRoute } from "@/test/mountedGroupRoute";
 import {
@@ -77,6 +79,8 @@ function chromeStrings(root: Element): ChromeString[] {
   const out: ChromeString[] = [];
   for (const el of [root, ...Array.from(root.querySelectorAll("*"))]) {
     if (el.closest("script, style")) continue;
+    // A command is data: it is written the way the terminal needs it.
+    if (el.closest("code")) continue;
     const tag = el.tagName.toLowerCase();
     const own = Array.from(el.childNodes)
       .filter((n) => n.nodeType === Node.TEXT_NODE)
@@ -180,18 +184,53 @@ function myShare(id: string, status: "approved" | "pending"): UserGroupShare {
  *  it has drawn. */
 async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
   switch (c.surface) {
-    case "navbar": {
-      const signedIn = c.state !== "signed-out";
-      installHomeRouteREST({ viewerUsername: signedIn ? content.viewer : null, transcripts: [] });
+    case "chrome": {
+      const signedIn = c.state !== "public-bar";
+      installHomeRouteREST({
+        viewerUsername: signedIn ? content.viewer : null,
+        transcripts: [],
+        collectives: signedIn ? [{ id: GROUP_ID, name: content.collective, role: "owner", members: 3 }] : [],
+      });
       await renderHeaderAt(signedIn ? "/collectives" : "/explore");
-      await waitFor(() => expect(document.querySelector("header .animate-shimmer")).toBeNull());
+      if (!signedIn) {
+        await screen.findByRole("link", { name: "sign in" });
+        return screen.getByTestId("public-top-bar");
+      }
+      await screen.findByRole("link", { name: content.collective });
       if (c.state === "account-menu-open") {
         fireEvent.click(await screen.findByRole("button", { name: `account menu for @${content.viewer}` }));
         await screen.findByRole("menu");
-      } else {
-        await screen.findByText(/continue with/);
       }
-      return document.querySelector("header")!;
+      return document.body;
+    }
+
+    case "sign-in-page": {
+      installHomeRouteREST({ viewerUsername: null, transcripts: [] });
+      await renderAppRoute("/login", { header: true });
+      return await screen.findByTestId("sign-in-page");
+    }
+
+    case "home-page": {
+      showHomeAsFlatList();
+      installHomeRouteREST({
+        viewerUsername: content.viewer,
+        transcripts:
+          c.state === "rows"
+            ? [
+                {
+                  id: TRANSCRIPT_ID,
+                  title: content.transcript,
+                  projectHash: "a".repeat(64),
+                  projectDisplayName: "village-project",
+                  publishedAt: WHEN,
+                  sharedWith: [content.collective],
+                },
+              ]
+            : [],
+      });
+      await renderAppRoute("/");
+      await screen.findByTestId(c.state === "rows" ? "home-transcripts" : "home-empty-state");
+      return screen.getByTestId("home-page");
     }
 
     case "linked-repositories": {

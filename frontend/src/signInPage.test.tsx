@@ -8,11 +8,12 @@ import {
 import { loadSignInPageFixtures } from "@/test/signInPageFixtures";
 import { SIGN_IN_PROVIDERS, startSignIn } from "@/lib/signIn";
 
-// Mounts the REAL header over the REAL route and reads which providers each
-// sign-in button on the screen actually leads to. Leaving the app for a
-// provider is the one boundary stubbed: `startSignIn` would navigate the whole
-// document away, so it records the provider id instead, and the provider set is
-// the ids the buttons hand it, not the labels they print.
+// Mounts the REAL app chrome around the REAL route and reads which providers
+// each sign-in button on the screen actually leads to, and where the chrome's
+// own sign-in link goes. Leaving the app for a provider is the one boundary
+// stubbed: `startSignIn` would navigate the whole document away, so it records
+// the provider id instead, and the provider set is the ids the buttons hand it,
+// not the labels they print.
 vi.mock("@/lib/signIn", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/signIn")>();
   return { ...actual, startSignIn: vi.fn() };
@@ -52,14 +53,11 @@ function providersBehind(split: HTMLElement): string[] {
   return reached;
 }
 
-function offeredIn(region: "header" | "page"): string[] {
-  const splits = Array.from(document.querySelectorAll<HTMLElement>(".si-split")).filter(
-    (el) => (el.closest("header") != null) === (region === "header"),
-  );
-  return splits.flatMap(providersBehind);
+function offeredOnScreen(): string[] {
+  return Array.from(document.querySelectorAll<HTMLElement>(".si-split")).flatMap(providersBehind);
 }
 
-describe("the providers village offers", () => {
+describe("the providers peasant online offers", () => {
   it("is exactly the corpus's closed set", () => {
     expect(SIGN_IN_PROVIDERS.map((p) => p.id).sort()).toEqual([...fixtures.offeredProviders].sort());
   });
@@ -71,23 +69,27 @@ describe("mounted sign-in buttons: which providers each screen leads to", () => 
       installHomeRouteREST({ viewerUsername: c.signedIn ? "alice-dev" : null, transcripts: [] });
       await renderAppRoute(c.path, { header: true });
 
-      // Settled when the header's placeholder is gone and the page has drawn.
+      // Settled when the chrome's placeholder is gone and the page has drawn.
       await waitFor(() => {
         expect(document.querySelector("header .animate-shimmer")).toBeNull();
         expect(document.querySelector('[data-testid="root-route-pending"]')).toBeNull();
       });
-      if (c.path === "/" && !c.signedIn) {
+      if (c.path === "/login") {
         await screen.findByTestId("sign-in-page");
-        expect(
-          screen.getByRole("heading", {
-            level: 1,
-            name: "the agent sessions behind your team's pull requests",
-          }),
-        ).toBeInTheDocument();
+        expect(screen.getByRole("heading", { level: 1, name: "log in to peasant" })).toBeInTheDocument();
+        // The terminal sign-in and the privacy notice sit beside the button.
+        expect(screen.getByText("peasant village login")).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "privacy notice" })).toHaveAttribute("href", "/privacy");
+      }
+      if (c.expectSignInLink !== null) {
+        await waitFor(() => expect(screen.getByRole("link", { name: "sign in" })).toBeInTheDocument());
       }
 
-      expect(offeredIn("page")).toEqual(c.expectPageProviders);
-      expect(offeredIn("header")).toEqual(c.expectHeaderProviders);
+      expect(offeredOnScreen()).toEqual(c.expectPageProviders);
+      const links = screen.queryAllByRole("link", { name: "sign in" });
+      expect(links.map((link) => link.getAttribute("href"))).toEqual(
+        c.expectSignInLink === null ? [] : [c.expectSignInLink],
+      );
     });
   }
 });

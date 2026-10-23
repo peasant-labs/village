@@ -16,10 +16,11 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 export type SignInPageCase = {
   name: string;
   why: string;
-  path: "/" | "/explore";
+  path: "/" | "/login" | "/explore";
   signedIn: boolean;
   expectPageProviders: string[];
-  expectHeaderProviders: string[];
+  /** Where the chrome's "sign in" link leads, or null when it offers none. */
+  expectSignInLink: string | null;
 };
 
 export type SignInPageFixtures = {
@@ -28,8 +29,8 @@ export type SignInPageFixtures = {
 };
 
 const requiredCaseNames = [
-  "a-signed-out-root-is-one-github-button",
-  "a-signed-out-deep-link-signs-in-with-github-from-the-header",
+  "the-sign-in-page-is-one-github-button",
+  "a-signed-out-deep-link-signs-in-and-comes-back",
   "a-signed-in-root-offers-no-sign-in",
 ] as const;
 
@@ -39,10 +40,10 @@ const caseKeys = [
   "path",
   "signedIn",
   "expectPageProviders",
-  "expectHeaderProviders",
+  "expectSignInLink",
 ];
 
-const paths = ["/", "/explore"];
+const paths = ["/", "/login", "/explore"];
 
 export function loadSignInPageFixtures(): SignInPageFixtures {
   const fixturePath = resolve(process.cwd(), "src/testdata/sign-in-page.yaml");
@@ -67,7 +68,7 @@ export function loadSignInPageFixtures(): SignInPageFixtures {
     if (!paths.includes(c.path)) {
       throw new Error(`sign-in-page case ${c.name}: no route is mounted at ${c.path}`);
     }
-    for (const id of [...c.expectPageProviders, ...c.expectHeaderProviders]) {
+    for (const id of c.expectPageProviders) {
       if (!fixtures.offeredProviders.includes(id)) {
         throw new Error(
           `sign-in-page case ${c.name}: ${id} is not among the offered providers ` +
@@ -77,17 +78,21 @@ export function loadSignInPageFixtures(): SignInPageFixtures {
     }
     // A signed-in visitor has nothing to sign in to. A case expecting a button
     // for one would assert the opposite of the rule.
-    if (c.signedIn && (c.expectPageProviders.length > 0 || c.expectHeaderProviders.length > 0)) {
+    if (c.signedIn && (c.expectPageProviders.length > 0 || c.expectSignInLink !== null)) {
       throw new Error(`sign-in-page case ${c.name}: a signed-in visitor is offered no sign-in`);
     }
+    // A link back to the sign-in page from the sign-in page would be a loop.
+    if (c.path === "/login" && c.expectSignInLink !== null) {
+      throw new Error(`sign-in-page case ${c.name}: the sign-in page links to no sign-in`);
+    }
   }
-  // Both places a button can appear must be exercised, or a corpus could pass
-  // while the other one still offered every provider.
+  // Both ways in must be exercised: the page's own button, and the chrome's
+  // link from another page.
   if (!fixtures.cases.some((c) => c.expectPageProviders.length > 0)) {
     throw new Error("sign-in-page corpus must hold a case where the page offers a provider");
   }
-  if (!fixtures.cases.some((c) => c.expectHeaderProviders.length > 0)) {
-    throw new Error("sign-in-page corpus must hold a case where the header offers a provider");
+  if (!fixtures.cases.some((c) => c.expectSignInLink !== null)) {
+    throw new Error("sign-in-page corpus must hold a case where the chrome links to sign in");
   }
   return fixtures;
 }

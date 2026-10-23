@@ -1,0 +1,61 @@
+# Case corpus for `src/signInRoute.test.ts`: where a visitor with no session
+# is sent at `/`, and which return addresses the sign-in step follows.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/signInRouteFixtures.ts`.
+
+# The proxy's answer at `/`, decided on the session cookie alone. A cookie
+# that turns out to be stale is the root page's to catch once `/auth/me`
+# answers; these cases are what the server decides before any page is served.
+proxyCases:
+  - name: no-cookie-goes-to-the-marketing-site
+    why: >-
+      a signed-out visitor at the root is sent to the marketing site, which
+      introduces the product and links back to the sign-in page.
+    cookie: null
+    expect: { status: 307, location: "https://peasantlabs.org/" }
+  - name: an-empty-cookie-is-no-session
+    why: a cookie with no value carries no session, so it is treated as none.
+    cookie: ""
+    expect: { status: 307, location: "https://peasantlabs.org/" }
+  - name: a-session-cookie-is-served-the-home-page
+    why: a browser holding a session is served the app, which reads the session itself.
+    cookie: demo-token
+    expect: { status: null, location: null }
+
+# The return address a sign-in follows, from the `next` query of `/login` to
+# where `/auth/callback` lands. `expect: null` means the address is refused and
+# the visitor lands on home.
+nextCases:
+  - name: a-page-on-this-site-is-followed
+    why: a page that asked a signed-out visitor to sign in is where they come back to.
+    next: /collectives/abc/settings?section=members
+    expect: /collectives/abc/settings?section=members
+  - name: no-address-lands-on-home
+    why: a sign-in with nothing to come back to lands on home.
+    next: null
+    expect: null
+  - name: another-host-is-refused
+    why: an absolute address would turn the sign-in into an open redirect.
+    next: https://example.com/steal
+    expect: null
+  - name: a-protocol-relative-address-is-refused
+    why: a browser reads two leading slashes as another host.
+    next: //example.com/steal
+    expect: null
+  - name: a-backslash-address-is-refused
+    why: some browsers read a backslash after the first slash as another host.
+    next: /\example.com
+    expect: null
+  - name: the-sign-in-page-itself-is-refused
+    why: returning to the sign-in page would send the visitor round in a loop.
+    next: /login?next=/collectives
+    expect: null
+  - name: the-oauth-landing-is-refused
+    why: the OAuth landing is a step of the sign-in, never a destination.
+    next: /auth/callback?token=x
+    expect: null
+  - name: surrounding-space-is-trimmed
+    why: an address copied with stray space still names the same page.
+    next: "  /pulls  "
+    expect: /pulls

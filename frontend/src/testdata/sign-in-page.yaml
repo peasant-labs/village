@@ -1,44 +1,48 @@
-# Case corpus for `src/signInPage.test.tsx` — which sign-in providers village
-# offers, and where.
+# Case corpus for `src/signInPage.test.tsx`: which sign-in providers peasant
+# online offers, and where a way to sign in appears.
 #
-# Every case mounts the REAL header (`Navbar`) over the REAL route at `path`,
-# inside the real `AuthProvider`, with the session answered by `GET /auth/me`.
-# A provider is "offered" when a fairtrade sign-in button on the screen leads to
-# it: the split button's primary action plus every row behind its chevron.
+# Every case mounts the REAL app chrome (`AppFrame`) around the REAL route at
+# `path`, inside the real `AuthProvider`, with the session answered by
+# `GET /auth/me`. A provider is "offered" when a fairtrade sign-in button on
+# the screen leads to it: the split button's primary action plus every row
+# behind its chevron. The chrome itself offers no provider button: a
+# signed-out reader of another page gets one "sign in" link to `/login` that
+# returns to the page they were on.
 #
 # Deletion protection is the required-NAME manifest in
 # `src/test/signInPageFixtures.ts`.
 
 # The closed set of providers the whole app offers, asserted as exact
-# membership against what the header and the sign-in page render. GitHub only;
-# the other providers are hidden, and their server routes stay.
+# membership against what the sign-in page renders. GitHub only; the other
+# providers are hidden, and their server routes stay.
 offeredProviders: [github]
 
 cases:
-  - name: a-signed-out-root-is-one-github-button
+  - name: the-sign-in-page-is-one-github-button
     why: >
-      The front door. A signed-out `/` is the sign-in page, its one button is
-      GitHub, and the header adds no second button beside it.
-    path: "/"
+      The front door. `/login` is the sign-in page, its one button is GitHub,
+      and it is drawn with no chrome around it, so there is no second way in on
+      the screen.
+    path: "/login"
     signedIn: false
     expectPageProviders: [github]
-    expectHeaderProviders: []
+    expectSignInLink: null
 
-  - name: a-signed-out-deep-link-signs-in-with-github-from-the-header
+  - name: a-signed-out-deep-link-signs-in-and-comes-back
     why: >
       A signed-out visitor who arrives by a link to another page still has a
-      way in, from the header, and it is GitHub only: no chevron, no menu of
-      other providers.
+      way in, from the public bar, and it brings them back to the page they
+      were reading once they have signed in.
     path: "/explore"
     signedIn: false
     expectPageProviders: []
-    expectHeaderProviders: [github]
+    expectSignInLink: "/login?next=%2Fexplore"
 
   - name: a-signed-in-root-offers-no-sign-in
     why: >
-      Somebody already signed in is never asked to sign in again, at `/` or in
-      the header.
+      Somebody already signed in is never asked to sign in again, on the page
+      or in the chrome.
     path: "/"
     signedIn: true
     expectPageProviders: []
-    expectHeaderProviders: []
+    expectSignInLink: null

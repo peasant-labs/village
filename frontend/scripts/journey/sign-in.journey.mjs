@@ -1,66 +1,88 @@
-/* Journey: the village front door.
+/* Journey: the front door.
  *
- * A signed-out `/` is one GitHub sign-in page; a signed-in visitor gets the
- * `home | collectives` nav and an account menu holding profile and sign out.
- * Each test ends on the state its evidence screenshot shows, in both themes:
- * the sign-in page (desktop and phone), the signed-in nav, and the account menu
- * open. Assertions are on roles, names and computed tokens, not class strings,
- * and the sign-in page's ARIA tree and axe report are kept as artifacts.
+ * A visitor with no session at `/` is sent to the marketing site; signing in
+ * starts at `/login`, one GitHub button, and a page that asked a signed-out
+ * reader to sign in is where they come back to. A signed-in visitor gets the
+ * sidebar and an account menu holding profile, settings and sign out. Each test
+ * ends on the state its evidence screenshot shows, in both themes. Assertions
+ * are on roles, names and computed tokens, and the sign-in page's ARIA tree and
+ * axe report are kept as artifacts.
  */
 import { writeFileSync } from 'node:fs'
 import { test, expect } from './lib/fixtures.mjs'
 import { setScenario } from './lib/scenario.mjs'
 import { scanAxe, seriousViolations, expectTheme, expectComputedTokens } from './lib/assertions.mjs'
 
-const HEADLINE = "the agent sessions behind your team's pull requests"
+const HEADLINE = 'log in to peasant'
+const MARKETING = 'https://peasantlabs.org/'
 
 async function attachJSON(testInfo, name, value) {
   writeFileSync(testInfo.outputPath(name), JSON.stringify(value, null, 2))
   await testInfo.attach(name, { path: testInfo.outputPath(name), contentType: 'application/json' })
 }
 
+/** Answers every OAuth start route with 204 so the browser stays on the page,
+ *  and records which provider each one was. `/auth/me` passes through. */
+async function recordOAuthStarts(page) {
+  const starts = []
+  await page.route(
+    (url) => /\/api\/v1\/auth\/[a-z]+$/.test(url.pathname) && url.pathname !== '/api/v1/auth/me',
+    (route) => {
+      starts.push(new URL(route.request().url()).pathname)
+      return route.fulfill({ status: 204 })
+    },
+  )
+  return starts
+}
+
 test.describe('sign-in', () => {
-  test('a signed-out root is one github sign-in', async ({ page, request, theme }, testInfo) => {
+  test('a visitor with no session at the root is sent to the marketing site', async ({ request }) => {
+    // The server decides before any page is served: no cookie, no app.
+    const response = await request.get('/', { maxRedirects: 0 })
+    expect(response.status()).toBe(307)
+    expect(response.headers()['location']).toBe(MARKETING)
+  })
+
+  test('a stale session at the root also leaves for the marketing site', async ({ page, request }) => {
     await setScenario(request, 'signed-out')
     try {
-      // Leaving for GitHub is answered 204 so the browser stays on the page:
-      // the journey proves where the button leads without leaving the app.
-      // Every provider start route is `/api/v1/auth/<provider>`; `/auth/me`
-      // is the session read and passes through to the mock.
-      const oauthStarts = []
-      await page.route(
-        (url) => /\/api\/v1\/auth\/[a-z]+$/.test(url.pathname) && url.pathname !== '/api/v1/auth/me',
-        (route) => {
-          oauthStarts.push(new URL(route.request().url()).pathname)
-          return route.fulfill({ status: 204 })
-        },
-      )
-
+      // The browser holds a cookie the API no longer accepts: the page asks
+      // /auth/me, hears no session, and leaves.
+      await page.route(`${MARKETING}**`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>marketing</title>' }))
       await page.goto('/')
+      await expect(page).toHaveURL(MARKETING)
+    } finally {
+      await setScenario(request, 'default')
+    }
+  })
+
+  test('the sign-in page is one github button', async ({ page, request, theme }, testInfo) => {
+    await setScenario(request, 'signed-out')
+    try {
+      const oauthStarts = await recordOAuthStarts(page)
+      await page.goto('/login')
       await expectTheme(page, theme)
 
       const signIn = page.getByTestId('sign-in-page')
-      await expect(signIn.locator('.cmg-signin-brand')).toHaveText('village')
-      await expectComputedTokens(page, '.cmg-signin-card', { borderRadius: '0px' })
-      expect(await signIn.locator('.cmg-signin-card').evaluate((card) => getComputedStyle(card).borderTopWidth)).toBe('1px')
       await expect(signIn.getByRole('heading', { level: 1, name: HEADLINE })).toBeVisible()
+      await expect(signIn.getByText('peasant', { exact: true })).toBeVisible()
+      await expectComputedTokens(page, '.on-login-card', { borderRadius: '0px' })
 
       // One front door: one GitHub button, nothing behind a chevron, and no
-      // second button in the header.
+      // chrome around the page to offer a second.
       const button = signIn.getByRole('button', { name: /continue with github/i })
       await expect(button).toBeVisible()
       await expect(page.getByRole('button', { name: 'more sign-in providers' })).toHaveCount(0)
-      await expect(page.locator('header').getByRole('button', { name: /continue with/i })).toHaveCount(0)
-      // A signed-out visitor is offered no nav entries.
-      await expect(page.getByRole('navigation', { name: 'main navigation' })).toHaveCount(0)
+      await expect(page.getByTestId('public-top-bar')).toHaveCount(0)
+      await expect(page.getByRole('navigation', { name: 'peasant sections' })).toHaveCount(0)
 
-      // The handle note and the CLI note are the two things a newcomer asks next.
-      await expect(signIn.getByText('first time here? your handle is your github login.', { exact: false })).toBeVisible()
+      // The terminal sign-in and the privacy notice sit beside it.
       await expect(signIn.getByText('peasant village login')).toBeVisible()
+      await expect(signIn.getByRole('link', { name: 'privacy notice' })).toHaveAttribute('href', '/privacy')
 
       await expectComputedTokens(page, '[data-testid="sign-in-page"] p', {
         fontFamilyIncludes: 'atkinson',
-        minFontSize: 16,
+        minFontSize: 14,
       })
       await expectComputedTokens(page, '[data-testid="sign-in-page"] .si-split-primary', {
         borderRadius: '0px',
@@ -85,11 +107,32 @@ test.describe('sign-in', () => {
     }
   })
 
+  test('signing in from a page comes back to it', async ({ page, request, theme }) => {
+    await setScenario(request, 'signed-out')
+    try {
+      const oauthStarts = await recordOAuthStarts(page)
+      // A signed-out reader of a page is offered a way in that returns to it.
+      await page.goto('/privacy')
+      await expectTheme(page, theme)
+      const signInLink = page.getByTestId('public-top-bar').getByRole('link', { name: 'sign in' })
+      await expect(signInLink).toHaveAttribute('href', '/login?next=%2Fprivacy')
+      await signInLink.click()
+      await expect(page).toHaveURL(/\/login\?next=%2Fprivacy$/)
+      await page.getByRole('button', { name: /continue with github/i }).click()
+      await expect.poll(() => oauthStarts).toEqual(['/api/v1/auth/github'])
+    } finally {
+      await setScenario(request, 'default')
+    }
+    // GitHub answers, and the API sends the browser to the callback with a token.
+    await page.goto('/auth/callback?token=demo-token')
+    await expect(page).toHaveURL(/\/privacy$/)
+  })
+
   test('the sign-in page fits a phone', async ({ page, request, theme }) => {
     await setScenario(request, 'signed-out')
     try {
       await page.setViewportSize({ width: 390, height: 844 })
-      await page.goto('/')
+      await page.goto('/login')
       await expectTheme(page, theme)
       const signIn = page.getByTestId('sign-in-page')
       await expect(signIn.getByRole('heading', { level: 1, name: HEADLINE })).toBeVisible()
@@ -104,35 +147,47 @@ test.describe('sign-in', () => {
     }
   })
 
-  test('a signed-in nav is home and collectives', async ({ page, theme }) => {
+  test('a signed-in sidebar is home, discover, pull requests and collectives', async ({ page, theme }) => {
     await page.goto('/')
     await expectTheme(page, theme)
 
-    const nav = page.getByRole('navigation', { name: 'main navigation' })
-    await expect(nav.getByRole('link')).toHaveText(['home', 'collectives'])
+    const nav = page.getByRole('navigation', { name: 'peasant sections' })
+    const links = nav.getByRole('link')
+    await expect(links.nth(0)).toHaveText('home')
+    await expect(links.nth(1)).toHaveText('discover')
+    await expect(links.nth(2)).toHaveText('pull requests')
+    await expect(links.nth(3)).toHaveText('collectives')
     await expect(nav.getByRole('link', { name: 'home' })).toHaveAttribute('aria-current', 'page')
     await expect(nav.getByRole('link', { name: 'collectives' })).not.toHaveAttribute('aria-current', 'page')
-    // Explore and publish keep their routes but leave the nav.
+    // The person's collectives follow, each leading to its page.
+    await expect(nav.getByRole('link', { name: 'Acme Platform' })).toHaveAttribute('href', /^\/collectives\//)
+    // Explore and publish keep their routes but stay out of the sidebar.
     await expect(nav.getByRole('link', { name: 'explore' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'publish' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'account menu for @alice-dev' })).toBeVisible()
     // Signed in, the page never offers sign-in.
     await expect(page.getByRole('button', { name: /continue with/i })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'sign in' })).toHaveCount(0)
   })
 
-  test('the account menu holds profile and sign out', async ({ page, theme }) => {
+  test('the account menu holds profile, settings and sign out', async ({ page, theme }) => {
     await page.goto('/')
     await expectTheme(page, theme)
 
     const trigger = page.getByRole('button', { name: 'account menu for @alice-dev' })
     await trigger.click()
     const menu = page.getByRole('menu')
-    await expect(menu.getByRole('menuitem')).toHaveText(['profile', 'sign out'])
+    await expect(menu.getByRole('menuitem')).toHaveText(['profile', 'settings', 'sign out'])
     await expect(trigger).toHaveAttribute('aria-expanded', 'true')
     // Opening moves focus to the first row one frame later (fairtrade's Menu
     // defers it to the next animation frame). Keys go to the row, not the
     // trigger, only once it has arrived.
     await expect(menu.getByRole('menuitem').first()).toBeFocused()
+    // The menu opens upward from the foot of the sidebar and stays on screen.
+    const box = await menu.boundingBox()
+    const viewport = page.viewportSize()
+    expect(box.y).toBeGreaterThanOrEqual(0)
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height)
 
     // Escape closes it and gives focus back to the trigger.
     await page.keyboard.press('Escape')
@@ -143,7 +198,7 @@ test.describe('sign-in', () => {
     await page.keyboard.press('ArrowDown')
     await expect(menu.getByRole('menuitem').first()).toBeFocused()
   })
-  test('header sign-out announces pending and failed requests with retry', async ({ page, theme }, testInfo) => {
+  test('sign-out announces pending and failed requests with retry', async ({ page, theme }, testInfo) => {
     let posts = 0
     let pendingRoute
     await page.route(/\/api\/v1\/auth\/logout$/, async (route) => {

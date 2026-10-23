@@ -10,3 +10,8 @@ export const DEFAULT_MARKETING_URL = "https://peasantlabs.org";
 
 export const MARKETING_URL: string =
   process.env.NEXT_PUBLIC_MARKETING_URL?.trim() || DEFAULT_MARKETING_URL;
+
+/** Leaves the app for the marketing site, replacing this entry in the history. */
+export function leaveForMarketingSite(): void {
+  window.location.replace(MARKETING_URL);
+}

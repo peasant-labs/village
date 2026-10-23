@@ -15,7 +15,9 @@ import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 
 /** Each surface the lowercase pass covers, and the states it can be mounted in. */
 export const SURFACE_STATES = {
-  navbar: ["account-menu-open", "signed-out"],
+  chrome: ["sidebar", "account-menu-open", "public-bar"],
+  "sign-in-page": ["sign-in"],
+  "home-page": ["rows", "empty"],
   "linked-repositories": ["owner-with-repositories", "not-configured"],
   "group-page": ["owner", "visitor", "signed-out", "not-found", "confirm-remove", "invite-search"],
   "collective-settings": ["general", "access", "members", "github", "pull-requests", "delete-confirm", "not-owner"],
@@ -47,8 +49,12 @@ export type LowercaseChromeFixtures = {
 };
 
 const requiredCaseNames = [
-  "the-header-with-the-account-menu-open",
-  "the-header-for-a-signed-out-visitor",
+  "the-sidebar-with-the-persons-collectives",
+  "the-sidebar-with-the-account-menu-open",
+  "the-public-bar-for-a-signed-out-reader",
+  "the-sign-in-page",
+  "the-home-page-with-rows",
+  "the-home-page-with-nothing-published",
   "linked-repositories-for-an-owner",
   "linked-repositories-when-github-is-not-set-up",
   "a-collective-page-for-its-owner",

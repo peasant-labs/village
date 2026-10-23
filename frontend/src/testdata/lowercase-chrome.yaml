@@ -15,6 +15,9 @@
 # fairtrade owns ("Claude Code", from `providerDisplayName`), and a formatted
 # date such as "Jan 2, 2026", data in the form the design system formats it.
 #
+# A command line (`code`) is set aside too: a command is data, written the way
+# the terminal needs it, never chrome.
+#
 # Text inside an element with the `uppercase` class is read as it renders,
 # capitalized, so chrome styled into capitals fails like chrome typed in them.
 #
@@ -32,14 +35,34 @@ content:
   githubUser: Octo-Cat
 
 cases:
-  - name: the-header-with-the-account-menu-open
-    surface: navbar
-    state: account-menu-open
-    expectContent: [viewer]
+  - name: the-sidebar-with-the-persons-collectives
+    surface: chrome
+    state: sidebar
+    expectContent: [viewer, collective]
 
-  - name: the-header-for-a-signed-out-visitor
-    surface: navbar
-    state: signed-out
+  - name: the-sidebar-with-the-account-menu-open
+    surface: chrome
+    state: account-menu-open
+    expectContent: [viewer, collective]
+
+  - name: the-public-bar-for-a-signed-out-reader
+    surface: chrome
+    state: public-bar
+    expectContent: []
+
+  - name: the-sign-in-page
+    surface: sign-in-page
+    state: sign-in
+    expectContent: []
+
+  - name: the-home-page-with-rows
+    surface: home-page
+    state: rows
+    expectContent: [transcript, collective]
+
+  - name: the-home-page-with-nothing-published
+    surface: home-page
+    state: empty
     expectContent: []
 
   - name: linked-repositories-for-an-owner

@@ -416,20 +416,29 @@ column) layout and that connector are proven by
 `frontend/scripts/visual/probe-contribute-narrow.mjs` plus the
 `manage-contribute` captures, not in jsdom, because both are computed geometry.
 
-### The home page and the explore route: one frontend fixture for both
+### The home page, the sign-in route and the explore route: one frontend fixture
 
 `frontend/src/testdata/home-page.yaml` +
 `frontend/src/test/homePageFixtures.ts` hold every case for the root of the
-app and the route beside it: `/` is the signed-in person's home page and the
-GitHub sign-in page for everybody else, and the public discovery list keeps
-its own address at `/explore` for both. The file carries five groups.
+app and the routes beside it: `/` is the signed-in person's home page and, for
+everybody else, a hand-off to the marketing site; signing in starts at
+`/login`; and the public discovery list keeps its own address at `/explore` for
+both. The file carries five groups.
 `routeCases` pin WHICH surface each (path, visitor) pair lands on, and are
 consumed by `frontend/src/homePage.test.tsx`, which mounts the REAL routes
 inside the real `AuthProvider` with `fetch` stubbed, so the session decides the
-answer rather than a stubbed hook. `homeCases` pin what
-the home surface renders for a given owner-scoped transcript list - the recent
-sessions in order, the project rows, their session counts and their hash-keyed
-links - and are consumed by the same file. `sortCases` pin the exported
+answer rather than a stubbed hook. Leaving for the marketing site is the one
+boundary stubbed (`leaveForMarketingSite`), because it navigates the document
+away. `homeCases` pin what
+the home surface renders for a given owner-scoped transcript list - the rows in
+order, their project, readers, agent and pull request cells, the totals, and
+what is waiting for a collective's approval - and are consumed by the same
+file, which reads the table as one flat list with every column (the view a
+person who chose "group by: nothing" sees). How grouping, open groups, the
+column picker and the projects filter arrange those rows, and what this
+browser remembers of them, is its own corpus: `frontend/src/testdata/home-view.yaml`
+with `frontend/src/homeView.test.tsx`, which also checks that arranging the
+table asks the server nothing. `sortCases` pin the exported
 recent-first sort on its own, including timestamps that do not parse, which the
 mounted corpus rejects by design and so cannot reach. `viewerChangeCases` pin
 that a remembered failure belongs to the handle it came from: the session query
@@ -438,17 +447,25 @@ at that moment the next person's list has no rows of its own, so the memory's
 clear condition cannot fire. Only the owner-keyed read stops the previous
 person's failure being shown over a request that has not failed - and when the
 new handle's own request fails with the same words, that failure is its own and
-must still be announced. `navCases` pin which
-top-nav entries are offered (`home` and `collectives`, to somebody signed in
-only), which one is marked active (or none, on a page under neither), and where
-the header's back link leads (or that it shows none, as for a signed-out reader
-of a transcript link), and are consumed by `frontend/src/navbar.test.tsx`, which
-mounts the REAL header at each pathname and reads the rendered links, their
-`aria-current` and the back link's `href`. `accountMenuCases` are the account
-menu's whole item set, each with the effect choosing it must have (`navigate`
-to a pushed route, or `sign-out`, a `POST /auth/logout`); the same test clicks
-each item and asserts the effect, because the menu is the only way to one's own
-profile and the only way to sign out.
+must still be announced. `navCases` pin what the signed-in sidebar offers at
+each address: which navigation it draws (the sections and the person's
+collectives, a collective's settings sections with a way back, or none for a
+signed-out reader, who gets the public bar), which entry it marks current, and
+where the way back leads. They are consumed by `frontend/src/sidebar.test.tsx`,
+which mounts the REAL app chrome (`AppFrame` around fairtrade's `AppSidebar`) at
+each address and reads the rendered links and their `aria-current`.
+`accountMenuCases` are the account menu's whole item set, each with the effect
+choosing it must have (`navigate` to a pushed route, or `sign-out`, a
+`POST /auth/logout`); the same test clicks each item and asserts the effect,
+because the menu is the only way to one's own profile and the chrome's only way
+to sign out.
+
+The server half of the front door is `frontend/src/testdata/sign-in-route.yaml`
+with `frontend/src/signInRoute.test.ts`: the proxy's answer at `/` (a visitor
+with no session cookie is redirected to the marketing site before any page is
+served; a stale cookie is the root page's to catch), and the return addresses a
+sign-in follows from `/login?next=` through `/auth/callback` (only a path on
+this site, never another host, never a step of the sign-in itself).
 
 ### The front door: sign-in, hidden surfaces, and lowercase chrome
 
@@ -458,10 +475,11 @@ required-NAME loader in `frontend/src/test/` and a mounted test in
 
 - `sign-in-page.yaml` (`signInPage.test.tsx`): which providers each screen's
   sign-in buttons lead to, by the provider id each button hands `startSignIn`
-  (the one boundary stubbed, because it navigates the document away). The
-  corpus's `offeredProviders` is the closed set, asserted as exact membership
-  against `SIGN_IN_PROVIDERS`; a signed-out `/` offers one GitHub button and the
-  header adds none beside it.
+  (the one boundary stubbed, because it navigates the document away), and
+  where the chrome's own "sign in" link leads. The corpus's `offeredProviders`
+  is the closed set, asserted as exact membership against `SIGN_IN_PROVIDERS`;
+  `/login` offers one GitHub button with no chrome around it, and a signed-out
+  reader of another page gets one link to `/login` that returns to that page.
 - `hidden-surfaces.yaml` (`hiddenSurfaces.test.tsx`): controls hidden while
   publishing is for collectives only, on the real routes that drew them. The
   `public` data-access option is listed only for a collective that is already

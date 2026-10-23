@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useAuth } from "@/providers/AuthProvider";
-import { MARKETING_URL } from "@/lib/marketing";
+import { MARKETING_URL, leaveForMarketingSite } from "@/lib/marketing";
 import HomePage from "./HomePage";
 
 /**
@@ -22,7 +22,7 @@ export default function RootPage() {
   const signedOut = !isLoading && !isLoggedIn;
 
   useEffect(() => {
-    if (signedOut) window.location.replace(MARKETING_URL);
+    if (signedOut) leaveForMarketingSite();
   }, [signedOut]);
 
   if (isLoading) {
