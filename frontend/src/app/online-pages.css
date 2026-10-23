@@ -1,0 +1,21 @@
+/* ============================================
+   peasant online: the pages that only took the online frame.
+
+   fairtrade's base sheet caps every <section> at its documentation column,
+   centres it and pads it with the page gutter. Inside an online page body a
+   design-system section is only grouping, so it fills its column; without
+   this, the gutter widens a bordered section past a phone's screen.
+   ============================================ */
+.on-plain-sections section {
+  max-width: none;
+  margin-inline: 0;
+  padding-inline: 0;
+}
+.on-plain-sections {
+  display: grid;
+  gap: calc(var(--sp-5) + var(--sp-1));
+  min-width: 0;
+}
+.on-plain-sections > * {
+  min-width: 0;
+}

@@ -11,6 +11,7 @@ import { useTranscripts } from "@/lib/queries/transcripts";
 import TranscriptList from "@/components/transcript/TranscriptList";
 import PublishImportDialog from "./PublishImportDialog";
 import { GettingStarted, TeachingEmptyState, DataState } from "@/lib/ft-ui";
+import "@/app/online-pages.css";
 
 const LS_KEY = "peasant:publish:getting-started-dismissed";
 
@@ -100,43 +101,45 @@ export default function PublishPage() {
         }
       />
 
-      {/* Getting Started — dismissible; persists via storageKey */}
-      <GettingStarted
-        title="getting started"
-        steps={PUBLISH_STEPS}
-        storageKey={LS_KEY}
-      />
+      <div className="on-plain-sections">
+        {/* Getting started: dismissible, and remembered through storageKey */}
+        <GettingStarted
+          title="getting started"
+          steps={PUBLISH_STEPS}
+          storageKey={LS_KEY}
+        />
 
-      {/* Recent Publishes */}
-      <TranscriptList
-        items={recentData?.transcripts ?? []}
-        title="recent publishes"
-        showOwnerActions
-        hideOwner
-        headerAside={
-          <button
-            type="button"
-            onClick={() => setImportOpen(true)}
-            className="btn btn-secondary btn-sm"
-          >
-            <Upload className="size-3.5" aria-hidden="true" />
-            import
-          </button>
-        }
-        emptyState={
-          <DataState
-            status="live"
-            empty
-            emptyState={
-              <TeachingEmptyState
-                title="no transcripts published yet"
-                body="run the setup wizard and the push command above to get your first transcript onto peasant online."
-                command="peasant village push"
-              />
-            }
-          />
-        }
-      />
+        {/* Recent Publishes */}
+        <TranscriptList
+          items={recentData?.transcripts ?? []}
+          title="recent publishes"
+          showOwnerActions
+          hideOwner
+          headerAside={
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="btn btn-secondary btn-sm"
+            >
+              <Upload className="size-3.5" aria-hidden="true" />
+              import
+            </button>
+          }
+          emptyState={
+            <DataState
+              status="live"
+              empty
+              emptyState={
+                <TeachingEmptyState
+                  title="no transcripts published yet"
+                  body="run the setup wizard and the push command above to get your first transcript onto peasant online."
+                  command="peasant village push"
+                />
+              }
+            />
+          }
+        />
+      </div>
 
       <PublishImportDialog
         open={importOpen}
