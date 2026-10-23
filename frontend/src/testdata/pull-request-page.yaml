@@ -29,7 +29,7 @@ cases:
         status: null
     confirm_status: null
     expect_title: Fix flaky ingest test
-    expect_sub: fix/flaky-ingest · 4 commits
+    expect_sub: fix/flaky-ingest 4 commits
     expect_state_line: 2 of your transcripts match this pull request. attach them so
       reviewers can read them next to the code.
     expect_controls:
@@ -80,7 +80,7 @@ cases:
         status: null
     confirm_status: null
     expect_title: Fix flaky ingest test
-    expect_sub: fix/flaky-ingest · 4 commits
+    expect_sub: fix/flaky-ingest 4 commits
     expect_state_line: 2 of your transcripts match this pull request. attach them so
       reviewers can read them next to the code.
     expect_controls:
@@ -131,7 +131,7 @@ cases:
         status: null
     confirm_status: null
     expect_title: Fix flaky ingest test
-    expect_sub: fix/flaky-ingest · 4 commits
+    expect_sub: fix/flaky-ingest 4 commits
     expect_state_line: 2 of your transcripts match this pull request. attach them so
       reviewers can read them next to the code.
     expect_controls:
@@ -175,7 +175,7 @@ cases:
         status: null
     confirm_status: null
     expect_title: Add the picker
-    expect_sub: feat/picker · 1 commit
+    expect_sub: feat/picker 1 commit
     expect_state_line: 1 of your transcripts matches this pull request. attach it so
       reviewers can read it next to the code.
     expect_controls:
@@ -260,7 +260,7 @@ cases:
         status: null
     confirm_status: 409
     expect_title: Add the picker
-    expect_sub: feat/picker · 2 commits
+    expect_sub: feat/picker 2 commits
     expect_state_line: 1 of your transcripts matches this pull request. attach it so
       reviewers can read it next to the code.
     expect_controls:
@@ -305,7 +305,7 @@ cases:
         status: null
     confirm_status: null
     expect_title: Add the picker
-    expect_sub: feat/picker · 2 commits
+    expect_sub: feat/picker 2 commits
     expect_state_line: 1 of your transcripts is attached to this pull request.
     expect_controls:
       - detach-attachment
@@ -407,7 +407,7 @@ cases:
     transcript_reads: []
     confirm_status: null
     expect_title: Add the picker
-    expect_sub: feat/picker · 2 commits
+    expect_sub: feat/picker 2 commits
     expect_state_line: you detached your transcripts from this pull request. comment
       /peasant attach on it to attach them again.
     expect_controls: []
@@ -443,7 +443,7 @@ cases:
     transcript_reads: []
     confirm_status: null
     expect_title: "acme/widgets #7"
-    expect_sub: feat/picker · 2 commits
+    expect_sub: feat/picker 2 commits
     expect_state_line: null
     expect_controls: []
     expect_confirm_label: null
@@ -481,7 +481,7 @@ cases:
     transcript_reads: []
     confirm_status: null
     expect_title: Fix flaky ingest test
-    expect_sub: fix/flaky-ingest · 4 commits
+    expect_sub: fix/flaky-ingest 4 commits
     expect_state_line: null
     expect_controls: []
     expect_confirm_label: null
@@ -519,13 +519,13 @@ cases:
     transcript_reads: []
     confirm_status: null
     expect_title: Add the picker
-    expect_sub: feat/picker · 2 commits
+    expect_sub: feat/picker 2 commits
     expect_state_line: null
     expect_controls: []
     expect_confirm_label: null
     expect_audience_form: none
     expect_audience_lines: []
-    expect_coverage: 1 of 2 commits traced · 1 attached transcript is not listed here.
+    expect_coverage: 1 of 2 commits traced. 1 attached transcript is not listed here.
     expect_digest_block: split
     expect_split_labels:
       - picker work
@@ -586,13 +586,13 @@ cases:
     transcript_reads: []
     confirm_status: null
     expect_title: Add the picker
-    expect_sub: feat/picker · 2 commits
+    expect_sub: feat/picker 2 commits
     expect_state_line: null
     expect_controls: []
     expect_confirm_label: null
     expect_audience_form: none
     expect_audience_lines: []
-    expect_coverage: 0 of 2 commits traced · 2 attached transcripts are not listed here.
+    expect_coverage: 0 of 2 commits traced. 2 attached transcripts are not listed here.
     expect_digest_block: empty
     expect_split_labels: []
     detach_status: null
@@ -659,7 +659,7 @@ cases:
         status: null
     confirm_status: null
     expect_title: Add the picker
-    expect_sub: feat/picker · 1 commit
+    expect_sub: feat/picker 1 commit
     expect_state_line: 1 of your transcripts matches this pull request. attach it so
       reviewers can read it next to the code.
     expect_controls:
@@ -702,7 +702,7 @@ cases:
         status: null
     confirm_status: null
     expect_title: Add the picker
-    expect_sub: feat/picker · 1 commit
+    expect_sub: feat/picker 1 commit
     expect_state_line: 1 of your transcripts matches this pull request. attach it so
       reviewers can read it next to the code.
     expect_controls:
@@ -751,7 +751,7 @@ cases:
         status: null
     confirm_status: null
     expect_title: Fix flaky ingest test
-    expect_sub: fix/flaky-ingest · 4 commits
+    expect_sub: fix/flaky-ingest 4 commits
     expect_state_line: 2 of your transcripts match this pull request. attach them so
       reviewers can read them next to the code.
     expect_controls:
@@ -805,7 +805,7 @@ cases:
         status: null
     confirm_status: null
     expect_title: Fix flaky ingest test
-    expect_sub: fix/flaky-ingest · 4 commits
+    expect_sub: fix/flaky-ingest 4 commits
     expect_state_line: 2 of your transcripts match this pull request. attach them so
       reviewers can read them next to the code.
     expect_controls:
@@ -852,7 +852,7 @@ cases:
         status: null
     confirm_status: null
     expect_title: Add the picker
-    expect_sub: feat/picker · 2 commits
+    expect_sub: feat/picker 2 commits
     expect_state_line: 1 of your transcripts is attached to this pull request.
     expect_controls:
       - detach-attachment
@@ -889,7 +889,7 @@ cases:
     transcript_reads: []
     confirm_status: null
     expect_title: "acme/widgets #7"
-    expect_sub: feat/picker · 2 commits
+    expect_sub: feat/picker 2 commits
     expect_state_line: null
     expect_controls: []
     expect_confirm_label: null
@@ -924,7 +924,7 @@ cases:
     transcript_reads: []
     confirm_status: null
     expect_title: "acme/widgets #7"
-    expect_sub: feat/picker · 2 commits
+    expect_sub: feat/picker 2 commits
     expect_state_line: null
     expect_controls: []
     expect_confirm_label: null
@@ -959,7 +959,7 @@ cases:
     transcript_reads: []
     confirm_status: null
     expect_title: "acme/widgets #7"
-    expect_sub: feat/picker · 2 commits
+    expect_sub: feat/picker 2 commits
     expect_state_line: null
     expect_controls: []
     expect_confirm_label: null

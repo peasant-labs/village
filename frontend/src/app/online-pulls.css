@@ -1,0 +1,285 @@
+/* ============================================
+   peasant online: pull requests.
+
+   One pull request's prompts page and the list of the signed-in person's pull
+   requests that are waiting for transcripts. The card, row and tag patterns
+   are online.css's (`on-prcard`, `on-trow2`, `on-tag`); this sheet only adds
+   what these two pages need on top. Every value reads a fairtrade token.
+   ============================================ */
+
+/* fairtrade's base sheet caps every <section> at its documentation column and
+   centres it. On these pages a section is only grouping, so it fills its
+   column, the way the design system's own in-use pages lift the cap. */
+.on-pr-card section,
+.on-pr-prompts,
+.on-pr-prompts section {
+  max-width: none;
+  margin-inline: 0;
+}
+
+/* A pull request's title is user content: it keeps its own case, where the
+   base sheet lowercases every heading. */
+.on-pr-title {
+  text-transform: none;
+}
+.on-prcard h1.on-pr-title {
+  font-size: var(--fs-xl);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+@media (max-width: 767px) {
+  .on-prcard h1.on-pr-title {
+    font-size: var(--fs-lg);
+  }
+}
+
+.on-pr-num,
+.on-pr-n {
+  font-variant-numeric: tabular-nums;
+}
+.on-pr-repo-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.on-pr-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--sp-1) + 2px);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.on-pr-ref svg,
+.on-pr-gh svg,
+.on-pr-error svg {
+  flex: none;
+  width: var(--ic-sm);
+  height: var(--ic-sm);
+}
+
+/* ---------- the author's band ---------- */
+
+/* What state the attachment is in, and who can read what it names. It sits
+   between the pull request and its transcripts, so the consent is read before
+   the rows and the buttons that act on them. */
+.on-pr-band {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-5);
+  border-top: 1px solid var(--rule);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  line-height: var(--lh-body);
+}
+.on-pr-band p {
+  margin: 0;
+  max-width: 70ch;
+}
+.on-pr-band strong {
+  font-weight: 700;
+  color: var(--ink-strong);
+}
+.on-pr-band code,
+.on-pr-note code {
+  padding: 0 var(--sp-1);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
+  color: var(--ink);
+}
+@media (max-width: 767px) {
+  .on-pr-band {
+    padding-inline: var(--sp-4);
+  }
+}
+
+/* ---------- transcript rows ---------- */
+
+.on-pr-rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.on-pr-rowmain {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.on-pr-rowmain a.is-title:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+@media (hover: hover) and (pointer: fine) {
+  .on-pr-rowmain a.is-title:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+.on-pr-rowmeta .on-agent {
+  vertical-align: bottom;
+}
+.on-pr-audience {
+  margin: var(--sp-1) 0 0;
+  color: var(--ink-2);
+}
+.on-pr-jump.btn {
+  white-space: nowrap;
+}
+.on-pr-jump svg {
+  width: var(--ic-sm);
+  height: var(--ic-sm);
+}
+@media (max-width: 767px) {
+  /* a phone puts the jump under the row's words rather than squeezing them */
+  .on-pr-rows .on-trow2 {
+    grid-template-columns: 3px minmax(0, 1fr);
+  }
+  .on-pr-rows .on-pr-jump {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+.on-pr-coverage,
+.on-pr-note {
+  margin: 0;
+  border-top: 1px solid var(--rule);
+}
+.on-pr-coverage {
+  padding: var(--sp-3) 0 var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+.on-pr-note {
+  padding: var(--sp-4) 0 calc(var(--sp-3) + 2px);
+  color: var(--ink-2);
+}
+
+/* ---------- the card's foot ---------- */
+
+.on-pr-gh {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--sp-1) + 2px);
+  min-height: var(--target-comfortable);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
+  color: var(--amber);
+  text-decoration: none;
+}
+.on-pr-gh:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+@media (hover: hover) and (pointer: fine) {
+  .on-pr-gh:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+.on-pr-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2) var(--sp-3);
+  margin-left: auto;
+}
+.on-pr-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ink);
+}
+.on-pr-error svg {
+  margin-top: 0.3em;
+  color: var(--clay);
+}
+
+.on-pr-fail {
+  display: grid;
+  gap: var(--sp-1);
+}
+.on-pr-fail-title {
+  font-weight: 700;
+  color: var(--ink-strong);
+}
+
+/* ---------- the prompts ---------- */
+
+.on-pr-prompts {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+  padding: 0;
+  scroll-margin-top: var(--sp-6);
+}
+
+/* ---------- the list of pull requests waiting on you ---------- */
+
+.on-pr-feed {
+  display: grid;
+  gap: var(--sp-6);
+  min-width: 0;
+  max-width: 55rem;
+}
+.on-pr-day {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.on-pr-day > h2 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+.on-pr-list {
+  display: grid;
+  gap: var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.on-pr-list .on-prcard h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-lg);
+  line-height: 1.25;
+  color: var(--ink-strong);
+  overflow-wrap: anywhere;
+}
+.on-pr-list .on-prcard > header {
+  padding-bottom: var(--sp-4);
+}
+.on-pr-open {
+  color: var(--ink-strong);
+  text-decoration: none;
+}
+.on-pr-open:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+@media (hover: hover) and (pointer: fine) {
+  .on-pr-open:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+.on-pr-skeleton {
+  display: grid;
+  gap: var(--sp-4);
+}
+.on-pr-skeleton > div {
+  height: calc(var(--sp-8) * 2 + var(--sp-4));
+  border: 1px solid var(--rule);
+}

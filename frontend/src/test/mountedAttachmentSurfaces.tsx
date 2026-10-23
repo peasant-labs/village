@@ -13,7 +13,9 @@ import type { PromptDigest, VillagePullRequestAttachmentResponse } from "@peasan
  * hit rather than inspecting a mutation object.
  *
  * The pull request page reads everything it needs from its own payload, so it
- * mounts without an auth provider. The collective settings page mounts through
+ * mounts without an auth provider; only its not-found answer asks whether the
+ * reader is signed in, and `renderSignedOutPullRequestRoute` mounts it inside
+ * the real provider for that. The collective settings page mounts through
  * `src/test/mountedCollectivePages.tsx`.
  */
 
@@ -73,6 +75,11 @@ export interface PullRequestFixture {
   confirmMessage?: string;
   /** Status the attachment read answers; unset (or 200) serves the attachment. */
   attachmentStatus?: number;
+  /**
+   * Only the FIRST attachment read answers `attachmentStatus`; every later read
+   * serves the attachment, so a retry has an answer to reach.
+   */
+  attachmentFailsOnce?: boolean;
   /**
    * What `GET /transcripts/{id}` and `GET /transcripts/{id}/collectives` answer
    * for each transcript the author's page reads. A read with a `status` of 400
@@ -199,6 +206,7 @@ export function makeAttachmentResponse(fixture: PullRequestFixture): VillagePull
 export function installPullRequestREST(fixture: PullRequestFixture): RecordedRequest[] {
   const requests: RecordedRequest[] = [];
   let attachment = { ...fixture.attachment };
+  let attachmentReads = 0;
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = (init?.method ?? "GET").toUpperCase();
@@ -235,8 +243,15 @@ export function installPullRequestREST(fixture: PullRequestFixture): RecordedReq
       }
       return json(transcriptRead[2] ? transcriptCollectivesResponse(read) : transcriptReadResponse(read));
     }
+    // Only a route mounted inside the auth provider asks who is signed in, and
+    // these fixtures read the page as somebody who is not.
+    if (method === "GET" && url.endsWith("/auth/me")) {
+      return json({ error: "Authentication required" }, 401);
+    }
     if (method === "GET" && url.includes(`/pulls/`)) {
-      if (fixture.attachmentStatus && fixture.attachmentStatus >= 400) {
+      attachmentReads += 1;
+      const failing = !fixture.attachmentFailsOnce || attachmentReads === 1;
+      if (failing && fixture.attachmentStatus && fixture.attachmentStatus >= 400) {
         return json({ error: "No attachment exists for this pull request" }, fixture.attachmentStatus);
       }
       return json(makeAttachmentResponse({ ...fixture, attachment }));
@@ -253,6 +268,20 @@ export async function renderPullRequestRoute(owner: string, name: string, number
       <QueryOnly>
         <PullRequestPage params={Promise.resolve({ owner, name, number: String(number) })} />
       </QueryOnly>,
+    );
+  });
+}
+
+/**
+ * The same route inside the real auth provider, as the app mounts it, read by
+ * somebody who is not signed in (the fixture answers `/auth/me` with 401).
+ */
+export async function renderSignedOutPullRequestRoute(owner: string, name: string, number: number | string): Promise<void> {
+  await act(async () => {
+    render(
+      <WithAuth>
+        <PullRequestPage params={Promise.resolve({ owner, name, number: String(number) })} />
+      </WithAuth>,
     );
   });
 }

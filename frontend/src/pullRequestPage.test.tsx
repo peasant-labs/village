@@ -13,6 +13,7 @@ import {
   installPullRequestREST,
   makeDigest,
   renderPullRequestRoute,
+  renderSignedOutPullRequestRoute,
   type PullRequestFixture,
 } from "@/test/mountedAttachmentSurfaces";
 
@@ -148,9 +149,20 @@ describe("the pull request page", () => {
       if (row.expect_audience_form === "sentence") {
         expect(audienceText).toContain(row.expect_audience_sentence);
       } else if (row.expect_audience_form === "list") {
-        expect(audienceText).toContain("who can read them (attaching does not change that):");
-        const listed = row.transcript_reads.map((read, index) => `${read.title?.trim() ? read.title : `session ${index + 1}`}: ${row.expect_audience_lines[index]}`);
-        for (const line of listed) expect(audienceText).toContain(line);
+        // The band says each row carries its own audience, and each row does:
+        // the row named by the transcript's title (or its session label) says
+        // who can read that transcript.
+        expect(audienceText).toContain("who can read each one is on its row. attaching does not change that.");
+        const shownRows = screen.getAllByTestId("pull-request-transcript");
+        row.transcript_reads.forEach((read, index) => {
+          const shown = shownRows.find((node) => node.getAttribute("data-transcript-id") === read.id);
+          expect(spoken(shown?.querySelector(".is-title") ?? null)).toBe(
+            read.title?.trim() ? read.title : `session ${index + 1}`,
+          );
+          expect(spoken(shown?.querySelector(".on-pr-audience") ?? null)).toBe(
+            `who can read it: ${row.expect_audience_lines[index]}`,
+          );
+        });
       } else if (row.expect_audience_form === "fallback") {
         expect(audienceText).toContain("attaching does not change who can read them.");
       } else {
@@ -158,7 +170,23 @@ describe("the pull request page", () => {
         expect(audienceText).not.toContain("attaching does not change");
       }
 
+      // Only the list form puts an audience on a row; every other form says it
+      // once, or not at all.
+      if (row.expect_audience_form !== "list") {
+        expect(document.querySelector(".on-pr-audience")).toBeNull();
+      }
+
       expect(spoken(screen.queryByTestId("pull-request-coverage")) || null).toBe(row.expect_coverage);
+
+      // The repository line carries the attachment's own state, in its own word.
+      expect(spoken(screen.getByTestId("pull-request-state"))).toBe(row.state);
+
+      // The card lists one row per session the split list offers, in the same
+      // order and by the same names, and no rows when there is no digest to list.
+      const rowLabels = screen
+        .queryAllByTestId("pull-request-transcript")
+        .map((node) => spoken(node.querySelector(".is-title")));
+      expect(rowLabels).toEqual(row.expect_digest_block === "split" ? row.expect_split_labels : []);
 
       if (row.expect_digest_block === "split") {
         await waitFor(() => expect(document.querySelector(".pd.pd-layout-split")).toBeTruthy());
@@ -181,8 +209,8 @@ describe("the pull request page", () => {
         expect(screen.getByTestId(row.action)).toBeTruthy();
       }
 
-      // The attach-state list and its per-row marks are gone: the split list
-      // is the one list of transcripts on this page.
+      // The old attach-state list and its per-row marks stay gone: the card's
+      // rows name the same sessions the split list does, and nothing else.
       expect(screen.queryByLabelText("attached transcripts")).toBeNull();
       expect(document.body.textContent ?? "").not.toContain("visibility before attach");
       expect(document.body.textContent ?? "").not.toContain("not available");
@@ -227,6 +255,80 @@ describe("the pull request page", () => {
     const back = screen.getByTestId("pull-request-back-link");
     expect(back.getAttribute("href")).toBe("/collectives");
     expect(spoken(back)).toBe("back to collectives");
+    // Nobody is asked to sign in before the page knows they are signed out.
+    expect(screen.queryByTestId("pull-request-sign-in")).toBeNull();
+  });
+
+  it("offers a signed-out reader sign-in back to this same pull request", async () => {
+    // A private repository's attachment opens to its readers once they sign
+    // in, so the one refusal offers that, and returns to this page after.
+    installPullRequestREST({ ...fixtureFor(pullRequestPageCase("missing attachment")) });
+    await renderSignedOutPullRequestRoute(OWNER, NAME, NUMBER);
+
+    const signIn = await screen.findByTestId("pull-request-sign-in");
+    expect(spoken(signIn)).toBe("sign in");
+    expect(signIn.getAttribute("href")).toBe(
+      `/login?next=${encodeURIComponent(`/pulls/${OWNER}/${NAME}/${NUMBER}`)}`,
+    );
+    expect(screen.getByTestId("pull-request-back-link").getAttribute("href")).toBe("/collectives");
+  });
+
+  it("reads the attachment again from the failure's retry", async () => {
+    const requests = installPullRequestREST({
+      ...fixtureFor(pullRequestPageCase("attachment read fails")),
+      attachmentFailsOnce: true,
+    });
+    await renderPullRequestRoute(OWNER, NAME, NUMBER);
+    await screen.findByText("this pull request page could not be loaded");
+
+    fireEvent.click(screen.getByTestId("pull-request-retry"));
+
+    await screen.findByTestId("pull-request-title");
+    const reads = requests.filter(
+      (r) => r.method === "GET" && r.url.endsWith(`/pulls/${OWNER}/${NAME}/${NUMBER}`),
+    );
+    expect(reads).toHaveLength(2);
+  });
+
+  it("names who ran each of the author's sessions, its agent and its turns", async () => {
+    // The author's page already reads each matching transcript to say who can
+    // read it, so its rows also carry what those reads say about the session.
+    await mountSettled(pullRequestPageCase("author previewing two transcripts with one audience"));
+    const [first] = screen.getAllByTestId("pull-request-transcript");
+    expect(spoken(first.querySelector(".on-pr-rowmeta"))).toMatch(
+      /^@alice-dev, claude-code, 2 turns, 1 commit, \S/,
+    );
+    expect(first.querySelector(".is-title")?.getAttribute("href")).toBe(
+      "/transcripts/11111111-1111-1111-1111-111111111111",
+    );
+  });
+
+  it("tells a reader only what the digest itself says about each session", async () => {
+    // A reader's page makes no transcript reads of its own, so a row says the
+    // digest's counts and when the session started, and nothing about its owner.
+    await mountSettled(pullRequestPageCase("reader of an attached digest"));
+    const [first] = screen.getAllByTestId("pull-request-transcript");
+    const meta = spoken(first.querySelector(".on-pr-rowmeta"));
+    expect(meta).toMatch(/^1 commit, \S/);
+    expect(meta).not.toContain("@");
+    expect(meta).not.toContain("turn");
+  });
+
+  it("selects a row's session in the split list from the row's prompts control", async () => {
+    await mountSettled(pullRequestPageCase("reader moving through two transcripts"));
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(2));
+    const jumps = screen.getAllByTestId("pull-request-jump");
+    expect(jumps.map((jump) => spoken(jump))).toEqual(["read 2 prompts", "read 2 prompts"]);
+
+    fireEvent.click(jumps[1]);
+
+    await waitFor(() =>
+      expect(
+        spoken(document.querySelector('[role="option"][aria-selected="true"] .pd-split-option-label')),
+      ).toBe("Guard empty turns in the digest"),
+    );
+    // Focus lands on the list, so j, k and the arrow keys carry on from there.
+    expect(document.activeElement?.classList.contains("pd-split-list")).toBe(true);
   });
 
   it("shows the server's message when a confirm is refused with a conflict", async () => {
@@ -257,8 +359,11 @@ describe("the pull request page", () => {
     expect(screen.getByTestId("detach-attachment")).toBeTruthy();
   });
 
-  it("declines a preview with not now through the detach route", async () => {
+  it("declines a preview through the detach route, and says it does not attach", async () => {
     const requests = await mountSettled(pullRequestPageCase("author previewing two transcripts with one audience"));
+    // Declining detaches, so the control says what it does rather than "not
+    // now", which read as if the question would come back by itself.
+    expect(spoken(screen.getByTestId("not-now-attachment"))).toBe("don't attach");
 
     fireEvent.click(screen.getByTestId("not-now-attachment"));
 

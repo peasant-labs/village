@@ -65,8 +65,17 @@ test.describe('pull request page', () => {
     await expect(page.getByTestId('attachment-state-line')).toHaveText(
       '2 of your transcripts match this pull request. attach them so reviewers can read them next to the code.',
     )
+    await expect(page.getByTestId('pull-request-state')).toHaveText('preview')
     await expect(page.getByRole('button', { name: 'attach 2 transcripts' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'not now' })).toBeVisible()
+    // Declining a preview detaches it, and the control says so.
+    await expect(page.getByRole('button', { name: "don't attach" })).toBeVisible()
+    // The card lists the two matching transcripts by title, each with what the
+    // author's own reads say about its session.
+    const rows = page.getByTestId('pull-request-transcript')
+    await expect(rows).toHaveCount(2)
+    await expect(rows.nth(0).locator('.is-title')).toHaveText(FIX.title)
+    await expect(rows.nth(1).locator('.is-title')).toHaveText(GUARD.title)
+    await expect(rows.nth(0).locator('.on-pr-rowmeta')).toContainText('@alice-dev, claude-code, 40 turns, 2 commits')
     // Who can read them comes from each transcript's own reads, once both answer.
     await expect(page.getByTestId('pull-request-actions')).toContainText(
       'who can read them: members of Acme Platform and Acme Company. attaching does not change that.',
@@ -112,6 +121,8 @@ test.describe('pull request page', () => {
 
       // A reviewer is shown no author controls and no audience statement.
       await expect(page.getByTestId('pull-request-actions')).toHaveCount(0)
+      await expect(page.getByTestId('pull-request-state')).toHaveText('attached')
+      await expect(page.getByTestId('pull-request-transcript')).toHaveCount(2)
       await expect(page.getByTestId('pull-request-coverage')).toHaveText('3 of 4 commits traced')
       await expect(page.getByRole('option')).toHaveCount(2)
       await expect(selectedOption(page)).toHaveText(FIX.title)
@@ -139,6 +150,11 @@ test.describe('pull request page', () => {
 
       await page.keyboard.press('k')
       await expect(selectedOption(page)).toHaveText(FIX.title)
+
+      // A row's prompts control selects its session and hands the keys to the list.
+      await page.getByTestId('pull-request-jump').nth(1).click()
+      await expect(selectedOption(page)).toHaveText(GUARD.title)
+      await expect(page.locator('.pd-split-list')).toBeFocused()
     })
   })
 })
