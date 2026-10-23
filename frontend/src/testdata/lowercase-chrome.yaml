@@ -146,3 +146,18 @@ cases:
     surface: pending-approval-bar
     state: pending
     expectContent: [collective]
+
+  - name: a-profile-its-owner-reads
+    surface: profile-page
+    state: own
+    expectContent: [viewer]
+
+  - name: a-profile-a-visitor-reads
+    surface: profile-page
+    state: visitor
+    expectContent: [viewer]
+
+  - name: a-profile-that-does-not-exist
+    surface: profile-page
+    state: not-found
+    expectContent: [viewer]

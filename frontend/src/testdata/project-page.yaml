@@ -175,27 +175,57 @@ profileLinkCases:
     projectDisplayName: "second project"
     expectedHref: "/users/a%20b/projects/4444444444444444444444444444444444444444444444444444444444444444"
 
-# Every link labelled for the commons, on both routes, in both the ordinary and
-# the not-found state. The root of the app now serves the signed-in person their
-# own home page, so a link that SAYS commons must not lead there. Each case
-# names every such link the state renders, so a second one added later without a
-# destination is caught rather than skipped.
-commonsCrumbCases:
-  - name: the-profile-route-breadcrumb-leads-to-the-commons
+# The way back from both routes, in both the ordinary and the not-found state,
+# for a signed-in reader and a signed-out visitor. The discovery list is
+# hidden, so no link here may lead to it: a signed-in reader's trail starts at
+# their own home, and a signed-out visitor has no home here, so their trail
+# starts at the person (and a profile, which IS the person, draws none).
+# Each case names every link the trail and the not-found action render, in
+# order, so a link added later without a destination is caught.
+wayBackCases:
+  - name: a-signed-in-reader-starts-the-profile-trail-at-home
     route: profile
     state: found
-    expectedLabels: [Commons]
+    viewer: alice-dev
+    expectedCrumbs:
+      - { label: home, href: / }
+    expectedActions: []
+  - name: a-signed-out-visitor-reads-a-profile-with-no-trail
+    route: profile
+    state: found
+    viewer: null
+    expectedCrumbs: []
+    expectedActions: []
   - name: a-profile-that-does-not-exist-still-offers-the-way-back
     route: profile
     state: missing
-    expectedLabels: [Commons, Back to Commons]
-  - name: the-project-route-breadcrumb-leads-to-the-commons
+    viewer: someone-else
+    expectedCrumbs:
+      - { label: home, href: / }
+    expectedActions:
+      - { label: back to home, href: / }
+  - name: a-signed-in-reader-starts-the-project-trail-at-home
     route: project
     state: found
-    expectedLabels: [Commons]
+    viewer: alice-dev
+    expectedCrumbs:
+      - { label: home, href: / }
+      - { label: "@alice-dev", href: /users/alice-dev }
+    expectedActions: []
+  - name: a-signed-out-visitor-starts-the-project-trail-at-the-person
+    route: project
+    state: found
+    viewer: null
+    expectedCrumbs:
+      - { label: "@alice-dev", href: /users/alice-dev }
+    expectedActions: []
   - name: a-project-that-does-not-exist-still-offers-the-way-back
     route: project
     state: missing
-    # This state keeps its breadcrumb AND adds an explicit way back, so both
-    # have to lead to the same place.
-    expectedLabels: [Commons, back to commons]
+    viewer: alice-dev
+    # This state keeps its trail AND adds an explicit way back.
+    expectedCrumbs:
+      - { label: home, href: / }
+      - { label: "@alice-dev", href: /users/alice-dev }
+    expectedActions:
+      - { label: back to home, href: / }

@@ -72,18 +72,24 @@ export type ProjectPageProfileLinkCase = {
   expectedHref: string;
 };
 
-export type CommonsCrumbRoute = "profile" | "project";
+export type WayBackRoute = "profile" | "project";
 
 /** Whether the route renders its ordinary state or its not-found state. Both
- *  render a way back to the commons, and both have to point at the same place. */
-export type CommonsCrumbState = "found" | "missing";
+ *  render a way back, and neither may lead to the hidden discovery list. */
+export type WayBackState = "found" | "missing";
 
-export type ProjectPageCommonsCrumbCase = {
+export type WayBackLink = { label: string; href: string };
+
+export type ProjectPageWayBackCase = {
   name: string;
-  route: CommonsCrumbRoute;
-  state: CommonsCrumbState;
-  /** Every commons-labelled link this state renders, in render order. */
-  expectedLabels: string[];
+  route: WayBackRoute;
+  state: WayBackState;
+  /** The signed-in reader, or null for a signed-out visitor. */
+  viewer: string | null;
+  /** Every link in the breadcrumb, in order. The current step is not a link. */
+  expectedCrumbs: WayBackLink[];
+  /** Every link the not-found state offers as its way back, in order. */
+  expectedActions: WayBackLink[];
 };
 
 export type ProjectPageFixtures = {
@@ -93,7 +99,7 @@ export type ProjectPageFixtures = {
   renameCases: ProjectPageRenameCase[];
   headerCases: ProjectPageHeaderCase[];
   profileLinkCases: ProjectPageProfileLinkCase[];
-  commonsCrumbCases: ProjectPageCommonsCrumbCase[];
+  wayBackCases: ProjectPageWayBackCase[];
 };
 
 const requiredViewerCaseNames = [
@@ -131,16 +137,19 @@ const requiredProfileLinkCaseNames = [
   "profile-project-card-href-encodes-a-reserved-username",
 ] as const;
 
-const requiredCommonsCrumbCaseNames = [
-  "the-profile-route-breadcrumb-leads-to-the-commons",
+const requiredWayBackCaseNames = [
+  "a-signed-in-reader-starts-the-profile-trail-at-home",
+  "a-signed-out-visitor-reads-a-profile-with-no-trail",
   "a-profile-that-does-not-exist-still-offers-the-way-back",
-  "the-project-route-breadcrumb-leads-to-the-commons",
+  "a-signed-in-reader-starts-the-project-trail-at-home",
+  "a-signed-out-visitor-starts-the-project-trail-at-the-person",
   "a-project-that-does-not-exist-still-offers-the-way-back",
 ] as const;
 
-const commonsCrumbCaseKeys = ["name", "route", "state", "expectedLabels"];
-const commonsCrumbRoutes: readonly CommonsCrumbRoute[] = ["profile", "project"];
-const commonsCrumbStates: readonly CommonsCrumbState[] = ["found", "missing"];
+const wayBackCaseKeys = ["name", "route", "state", "viewer", "expectedCrumbs", "expectedActions"];
+const wayBackLinkKeys = ["label", "href"];
+const wayBackRoutes: readonly WayBackRoute[] = ["profile", "project"];
+const wayBackStates: readonly WayBackState[] = ["found", "missing"];
 
 const viewerCaseKeys = ["name", "ownerUsername", "viewerUsername", "expectRenameControl"];
 const notFoundCaseKeys = ["name", "serverMessage"];
@@ -193,7 +202,7 @@ export function loadProjectPageFixtures(): ProjectPageFixtures {
       "renameCases",
       "headerCases",
       "profileLinkCases",
-      "commonsCrumbCases",
+      "wayBackCases",
     ],
     "fixture root",
   );
@@ -347,50 +356,45 @@ export function loadProjectPageFixtures(): ProjectPageFixtures {
   }
 
   assertNamesMatch(
-    fixtures.commonsCrumbCases.map((c) => c.name),
-    requiredCommonsCrumbCaseNames,
-    "project-page commonsCrumbCases",
+    fixtures.wayBackCases.map((c) => c.name),
+    requiredWayBackCaseNames,
+    "project-page wayBackCases",
   );
-  for (const c of fixtures.commonsCrumbCases) {
-    assertExactKeys(c, commonsCrumbCaseKeys, `commons-crumb case ${c.name}`);
-    if (!commonsCrumbRoutes.includes(c.route)) {
+  for (const c of fixtures.wayBackCases) {
+    assertExactKeys(c, wayBackCaseKeys, `way-back case ${c.name}`);
+    if (!wayBackRoutes.includes(c.route)) {
       throw new Error(
-        `commons-crumb case ${c.name}: ${c.route} is not a route. The closed set is ` +
-          `${commonsCrumbRoutes.join(", ")}.`,
+        `way-back case ${c.name}: ${c.route} is not a route. The closed set is ${wayBackRoutes.join(", ")}.`,
       );
     }
-    if (!commonsCrumbStates.includes(c.state)) {
+    if (!wayBackStates.includes(c.state)) {
       throw new Error(
-        `commons-crumb case ${c.name}: ${c.state} is not a state. The closed set is ` +
-          `${commonsCrumbStates.join(", ")}.`,
+        `way-back case ${c.name}: ${c.state} is not a state. The closed set is ${wayBackStates.join(", ")}.`,
       );
     }
-    if (c.expectedLabels.length === 0) {
-      throw new Error(
-        `commons-crumb case ${c.name}: a case that names no link asserts nothing. Name every ` +
-          `commons-labelled link the state renders.`,
-      );
-    }
-    for (const label of c.expectedLabels) {
-      if (!/^(commons|back to commons)$/i.test(label)) {
+    for (const link of [...c.expectedCrumbs, ...c.expectedActions]) {
+      assertExactKeys(link, wayBackLinkKeys, `way-back case ${c.name} link`);
+      if (link.href.startsWith("/explore")) {
         throw new Error(
-          `commons-crumb case ${c.name}: ${label} does not read as a link to the commons, so a ` +
-            `case about commons links cannot be about it`,
+          `way-back case ${c.name}: ${link.label} leads to the hidden discovery list, which no way back may do`,
         );
       }
+    }
+    if (c.state === "found" && c.expectedActions.length > 0) {
+      throw new Error(`way-back case ${c.name}: only a not-found state offers a way-back action`);
     }
   }
-  // Both routes and BOTH states must appear. The not-found states carry three of
-  // the five links, so a corpus covering only the ordinary render would leave
-  // most of them free to regress.
-  for (const route of commonsCrumbRoutes) {
-    for (const state of commonsCrumbStates) {
-      if (!fixtures.commonsCrumbCases.some((c) => c.route === route && c.state === state)) {
-        throw new Error(
-          `project-page commonsCrumbCases: the ${route} route's ${state} state has no case. Every ` +
-            `state that renders a way back to the commons has to pin where it leads.`,
-        );
+  // Both routes, both states, and both kinds of reader must appear: the trail
+  // is drawn differently for a signed-out visitor, and the not-found states
+  // carry their own way back.
+  for (const route of wayBackRoutes) {
+    for (const state of wayBackStates) {
+      if (!fixtures.wayBackCases.some((c) => c.route === route && c.state === state)) {
+        throw new Error(`project-page wayBackCases: the ${route} route's ${state} state has no case.`);
       }
+    }
+    if (!fixtures.wayBackCases.some((c) => c.route === route && c.viewer === null)) {
+      throw new Error(`project-page wayBackCases: the ${route} route has no signed-out case.`);
     }
   }
 

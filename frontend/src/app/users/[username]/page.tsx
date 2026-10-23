@@ -31,7 +31,6 @@ import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
-  ChevronRight,
   EyeOff,
   FileText,
   FolderOpen,
@@ -41,7 +40,20 @@ import {
   Upload,
 } from "lucide-react";
 import Link from "next/link";
-import { EXPLORE_SECTION } from "@/lib/nav/sections";
+import { OnCrumb, OnEmpty, OnPage } from "@/components/online/Page";
+import { HOME_SECTION } from "@/lib/nav/sections";
+
+/**
+ * The trail above a profile. A signed-in reader starts it at their own home;
+ * a signed-out visitor has no home here, so the profile stands on its own.
+ * Nothing on this page leads to the discovery list, which is hidden.
+ */
+function ProfileCrumb({ username, signedIn }: { username: string; signedIn: boolean }) {
+  if (!signedIn) return null;
+  return (
+    <OnCrumb items={[{ label: HOME_SECTION.label, href: HOME_SECTION.href }, { label: `@${username}` }]} />
+  );
+}
 
 export default function UserProfilePage({
   params,
@@ -49,7 +61,7 @@ export default function UserProfilePage({
   params: Promise<{ username: string }>;
 }) {
   const { username } = use(params);
-  const { user } = useAuth();
+  const { user, isLoggedIn } = useAuth();
   const { data: profile, isError: isProfileError } = usePublicProfile(username);
   // The organizations this person has linked. The server sends only the
   // visible ones, and answers the same way for an owner and a visitor.
@@ -96,28 +108,22 @@ export default function UserProfilePage({
 
   if (isProfileError && !isOwnProfile) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        <nav className="flex items-center gap-1.5 text-xs">
-          <Link
-            href={EXPLORE_SECTION.href}
-            className="text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-          >
-            Commons
-          </Link>
-          <ChevronRight size={12} strokeWidth={2} className="text-ink-4" />
-          <span className="text-ink font-medium">@{username}</span>
-        </nav>
-        <div className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center">
-          <EyeOff size={28} className="text-ink-4" />
-          <p className="text-sm font-medium text-ink">User not found</p>
-          <Link
-            href={EXPLORE_SECTION.href}
-            className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-          >
-            Back to Commons
-          </Link>
-        </div>
-      </div>
+      <OnPage tight={isLoggedIn}>
+        <ProfileCrumb username={username} signedIn={isLoggedIn} />
+        <OnEmpty
+          icon={<EyeOff aria-hidden="true" />}
+          title="user not found"
+          body="there is no profile here that you can open."
+          testId="profile-not-found"
+          actions={
+            isLoggedIn ? (
+              <Link href={HOME_SECTION.href} className="btn btn-secondary">
+                back to home
+              </Link>
+            ) : undefined
+          }
+        />
+      </OnPage>
     );
   }
 
@@ -130,17 +136,14 @@ export default function UserProfilePage({
       <TeachingEmptyState
         icon={FolderOpen}
         title="your library is empty"
-        body="publish a redacted transcript to share your work with the commons."
+        body="the sessions you publish from peasant show up here."
         privacy={null}
         style={{ border: "none", background: "transparent" }}
       />
       <div className="px-6 pb-6">
-        <Link
-          href="/publish"
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink hover:text-ink-2 transition-colors focus-mono cursor-pointer"
-        >
-          <Plus size={14} />
-          Publish your first transcript
+        <Link href="/publish" className="on-link inline-flex items-center gap-1.5">
+          <Plus size={14} aria-hidden="true" />
+          how to publish from peasant
         </Link>
       </div>
     </div>
@@ -148,7 +151,7 @@ export default function UserProfilePage({
     <TeachingEmptyState
       icon={FolderOpen}
       title="nothing published yet"
-      body="this contributor has no public transcripts in the commons."
+      body={`@${username} has published nothing here that you can open.`}
       privacy={null}
       style={{ border: "none", background: "transparent" }}
     />
@@ -160,22 +163,18 @@ export default function UserProfilePage({
   const libraryPanel = (
     <div className="border border-rule bg-surface">
       <div className="flex items-center justify-between px-5 py-3 border-b border-rule">
-        <span className="inline-flex items-center gap-2 text-sm font-medium text-ink">
-          <Library size={14} className="text-ink-3" />
-          Published library
+        <span className="inline-flex items-center gap-2 font-mono text-[length:var(--fs-sm)] font-semibold text-[color:var(--ink-strong)]">
+          <Library size={16} className="text-ink-3" aria-hidden="true" />
+          published library
         </span>
         {isOwnProfile && (
           <button
             type="button"
             onClick={() => setImportOpen(true)}
-            className={cn(
-              "inline-flex items-center gap-1.5 border border-rule bg-surface px-2.5 h-8",
-              "text-[13px] font-medium text-ink",
-              "hover:bg-surface-hover focus-mono transition-colors cursor-pointer",
-            )}
+            className="btn btn-secondary btn-sm"
           >
-            <Upload className="size-3.5" />
-            Import
+            <Upload className="size-3.5" aria-hidden="true" />
+            import
           </button>
         )}
       </div>
@@ -304,9 +303,9 @@ export default function UserProfilePage({
         <RailSection title="privacy" icon={EyeOff} meta={undefined}>
           <div className="flex flex-col gap-4">
             <div>
-              <p className="text-sm font-medium text-ink">Discoverable profile</p>
+              <p className="text-sm font-medium text-ink">discoverable profile</p>
               <p className="text-[13px] text-ink-3 mt-1 leading-relaxed">
-                When off, you do not appear in collective member or contributor
+                when off, you do not appear in collective member or contributor
                 lists, and your shared transcripts are attributed to{" "}
                 <span className="font-mono">anon</span> instead of your handle.
               </p>
@@ -318,7 +317,7 @@ export default function UserProfilePage({
               )}
             >
               <span className="font-mono text-xs text-ink-3 tabular-nums">
-                {user.is_discoverable ? "ON" : "OFF"}
+                {user.is_discoverable ? "on" : "off"}
               </span>
               <input
                 type="checkbox"
@@ -338,8 +337,8 @@ export default function UserProfilePage({
         <RailSection title="account" icon={AlertTriangle} meta={undefined}>
           <div className="flex flex-col gap-3">
             <p className="text-[13px] text-ink-3 leading-relaxed">
-              Permanently delete your account. This also removes your published
-              transcripts and the collectives you own. This cannot be undone.
+              permanently delete your account. this also removes your published
+              transcripts and the collectives you own. this cannot be undone.
             </p>
             <Button
               variant="danger"
@@ -348,7 +347,7 @@ export default function UserProfilePage({
               disabled={deleteAccountMutation.isPending}
               onClick={deleteAccount}
             >
-              {deleteAccountMutation.isPending ? "Deleting…" : "Delete account"}
+              {deleteAccountMutation.isPending ? "deleting" : "delete account"}
             </Button>
           </div>
         </RailSection>
@@ -356,46 +355,39 @@ export default function UserProfilePage({
     ) : null;
 
   return (
-    <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs">
-        <Link
-          href={EXPLORE_SECTION.href}
-          className="text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-        >
-          Commons
-        </Link>
-        <ChevronRight size={12} strokeWidth={2} className="text-ink-4" />
-        <span className="text-ink font-medium">@{username}</span>
-      </nav>
+    <OnPage tight={isLoggedIn} testId="profile-page">
+      <ProfileCrumb username={username} signedIn={isLoggedIn} />
 
-      {/* Profile hero — square avatar, display name, @handle */}
-      <section className="flex items-start gap-4">
-        {avatarUrl ? (
-          // unoptimized: a provider-supplied avatar host (see the images note
-          // in next.config.ts).
-          <Image
-            src={avatarUrl}
-            alt=""
-            width={64}
-            height={64}
-            unoptimized
-            className="h-16 w-16 shrink-0 border border-rule object-cover"
-          />
-        ) : (
-          <div className="h-16 w-16 shrink-0 border border-rule bg-surface flex items-center justify-center font-[family-name:var(--font-display)] text-2xl font-semibold text-ink-3">
-            {username[0].toUpperCase()}
+      {/* Profile hero: square avatar, display name, @handle */}
+      <header className="on-head">
+        <div className="on-title-row">
+          {avatarUrl ? (
+            // unoptimized: a provider-supplied avatar host (see the images note
+            // in next.config.ts).
+            <Image
+              src={avatarUrl}
+              alt=""
+              width={64}
+              height={64}
+              unoptimized
+              className="h-16 w-16 shrink-0 border border-rule object-cover"
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="h-16 w-16 shrink-0 border border-rule bg-surface flex items-center justify-center font-[family-name:var(--font-display)] text-2xl font-semibold text-ink-3"
+            >
+              {username[0].toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0 flex flex-col gap-1.5">
+            {/* A person's display name is USER CONTENT. `normal-case` overrides the
+                design system's h1/h2/h3 lowercasing, which is a chrome rule. */}
+            <h1 className="on-title normal-case">{displayName}</h1>
+            <p className="on-chrome m-0">@{username}</p>
           </div>
-        )}
-        <div className="min-w-0 flex flex-col gap-1.5">
-          {/* A person's display name is USER CONTENT. `normal-case` overrides the
-              design system's h1/h2/h3 lowercasing, which is a chrome rule. */}
-          <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-ink truncate normal-case">
-            {displayName}
-          </h1>
-          <p className="font-mono text-sm text-ink-3">@{username}</p>
         </div>
-      </section>
+      </header>
 
       {/*
        * Linked GitHub organizations. Only the organizations a person has linked
@@ -405,7 +397,7 @@ export default function UserProfilePage({
        */}
       {publicOrgs.length > 0 && (
         <section className="flex flex-col gap-2" data-testid="profile-orgs">
-          <h2 className="font-mono text-[13px] text-ink-3">organizations</h2>
+          <h2 className="on-label">organizations</h2>
           <ul className="flex flex-wrap items-center gap-2">
             {publicOrgs.map((org) => (
               <li
@@ -487,6 +479,6 @@ export default function UserProfilePage({
         open={importOpen}
         onClose={() => setImportOpen(false)}
       />
-    </div>
+    </OnPage>
   );
 }

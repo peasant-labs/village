@@ -20,6 +20,7 @@ import {
 } from "@/test/mountedAttachmentSurfaces";
 import { installCollectiveREST, makeGroup, mountCollectiveSettings } from "@/test/mountedCollectivePages";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import { installProfileRESTFixture, renderProfileRoute } from "@/test/mountedProfileRoute";
 import {
   loadLowercaseChromeFixtures,
   type LowercaseChromeCase,
@@ -486,6 +487,29 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
         fireEvent.click(screen.getByRole("button", { name: "contribute" }));
         await screen.findByText(`contributed to ${content.collective}.`);
         expect(shared).toEqual([JSON.stringify({ group_ids: [GROUP_ID] })]);
+      }
+      return document.body;
+    }
+
+    case "profile-page": {
+      // The profile of the viewer's own handle: their own page when they are
+      // signed in as it, somebody else's when a visitor reads it, and the
+      // route's not-found state when the server has no such profile.
+      installProfileRESTFixture({
+        profileUsername: content.viewer,
+        viewerUsername: c.state === "own" ? content.viewer : "bob",
+        contributions: [],
+        library: [["transcript-flaky-ingest", "village-project"]],
+        profileStatus: c.state === "not-found" ? 404 : undefined,
+      });
+      await renderProfileRoute(content.viewer);
+      if (c.state === "not-found") {
+        await screen.findByTestId("profile-not-found");
+        await screen.findByText("back to home");
+      } else {
+        await screen.findByText("published library");
+        await waitFor(() => expect(document.body.textContent).toContain("transcript-flaky-ingest"));
+        if (c.state === "own") await screen.findAllByText("discoverable profile");
       }
       return document.body;
     }

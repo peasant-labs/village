@@ -1,12 +1,10 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
-  ChevronRight,
   EyeOff,
   FileText,
-  FolderOpen,
   Library,
   Pencil,
   Users,
@@ -38,7 +36,8 @@ import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
 import { describeNameSource } from "@/lib/format";
 import { childSessionsByParentID, groupProjectSessions } from "@/lib/childSessions";
 import { isApiErrorStatus } from "@/lib/api";
-import { EXPLORE_SECTION } from "@/lib/nav/sections";
+import { HOME_SECTION } from "@/lib/nav/sections";
+import { OnCrumb, OnEmpty, OnPage } from "@/components/online/Page";
 import type {
   ProjectCollectiveRollupEntry,
   Transcript,
@@ -63,7 +62,7 @@ export default function UserProjectPage({
   params: Promise<{ username: string; projectHash: string }>;
 }) {
   const { username, projectHash } = use(params);
-  const { user } = useAuth();
+  const { user, isLoggedIn } = useAuth();
   const { data, isLoading, error } = useUserProject(username, projectHash);
   // The server's own helper-group fold, scoped to this project and owner. It
   // rides beside the flat project list, whose rows, child chip and pagination
@@ -99,55 +98,50 @@ export default function UserProjectPage({
   // friendlier, case-specific message.
   if (isApiErrorStatus(error, 404)) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        <Crumbs username={username} current={null} />
-        {/* The design system's own zero-state block, the same component the
-            transcript and collectives panels use, with the way back in its
-            action slot. Its wording stays lowercase chrome like its siblings
-            and says nothing about WHICH refusal produced it. */}
-        <div data-testid="project-page-not-found">
-          <EmptyState
-            icon={EyeOff}
-            as="h3"
-            title="project not found"
-            message="Village has no project page here that you can open."
-            action={
-              <Link
-                href={EXPLORE_SECTION.href}
-                className="text-[13px] text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-              >
-                back to commons
+      <OnPage tight>
+        <Crumbs username={username} current={null} signedIn={isLoggedIn} />
+        {/* One zero state for every refusal, with the way back in its action
+            slot. Its wording says nothing about WHICH refusal produced it. */}
+        <OnEmpty
+          icon={<EyeOff aria-hidden="true" />}
+          title="project not found"
+          body="peasant has no project page here that you can open."
+          testId="project-page-not-found"
+          actions={
+            isLoggedIn ? (
+              <Link href={HOME_SECTION.href} className="btn btn-secondary">
+                back to home
               </Link>
-            }
-          />
-        </div>
-      </div>
+            ) : undefined
+          }
+        />
+      </OnPage>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        <Crumbs username={username} current={null} />
-        <div className="border border-danger/40 bg-danger-soft px-5 py-6 text-sm text-danger">
-          <p className="font-medium">This project page could not be loaded</p>
-          <p className="mt-1 text-[13px]">
-            The request to Village failed before the project could be read, so nothing is
-            shown rather than showing a partial page. Reload to try again.
+      <OnPage tight>
+        <Crumbs username={username} current={null} signedIn={isLoggedIn} />
+        <div className="on-notice" data-tone="danger" role="alert">
+          <p>
+            <strong className="text-[color:var(--ink-strong)]">this project page could not be loaded.</strong>{" "}
+            The request to peasant failed before the project could be read, so nothing is
+            shown rather than a partial page. Reload to try again.
           </p>
         </div>
-      </div>
+      </OnPage>
     );
   }
 
   if (isLoading || !data) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6">
+      <OnPage tight>
         <div className="h-4 w-40 animate-shimmer" />
         <div className="h-8 w-2/3 animate-shimmer" />
         <div className="h-24 w-full animate-shimmer" />
         <div className="h-96 w-full animate-shimmer" />
-      </div>
+      </OnPage>
     );
   }
 
@@ -203,7 +197,7 @@ export default function UserProjectPage({
               icon={Library}
               as="h3"
               title="no transcripts to show"
-              message="This project has no published sessions you can open."
+              message="this project has no published sessions you can open."
             />
           </div>
         }
@@ -285,7 +279,7 @@ export default function UserProjectPage({
               icon={Users}
               as="h3"
               title="no collectives to show"
-              message="No collective you can see holds a transcript from this project."
+              message="no collective you can see holds a transcript from this project."
             />
           </div>
         }
@@ -373,8 +367,8 @@ export default function UserProjectPage({
         </div>
         <p className="text-[13px] text-ink-3 leading-relaxed">
           {hasOverride
-            ? "Resetting removes your name and returns the project to the name Village resolves from its transcripts."
-            : "This project uses the name Village resolves from its transcripts. There is nothing to reset."}
+            ? "Resetting removes your name and returns the project to the name peasant resolves from its transcripts."
+            : "This project uses the name peasant resolves from its transcripts. There is nothing to reset."}
         </p>
         {mutationError && (
           <p role="alert" className="text-[13px] text-danger leading-relaxed">
@@ -393,32 +387,28 @@ export default function UserProjectPage({
   );
 
   return (
-    <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-      <Crumbs username={username} current={resolvedName} />
+    <OnPage tight testId="project-page">
+      <Crumbs username={username} current={resolvedName} signedIn={isLoggedIn} />
 
       {/* Header: the project's name, and the repository it came from as its one
-          subtitle. Both are USER CONTENT and are rendered exactly as stored —
+          subtitle. Both are USER CONTENT and are rendered exactly as stored:
           never lowercased, never re-derived on the client. The repository label
           carries no port, so two forges on the same host read alike by design. */}
-      <div className="flex flex-col gap-1.5">
-        {/* `normal-case` is load-bearing: the design system lowercases h1/h2/h3
-            as UI chrome, and a project's display name is USER CONTENT, which is
-            never lowercased. */}
-        <h1
-          data-testid="project-display-name"
-          className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight text-ink normal-case"
-        >
-          {resolvedName}
-        </h1>
-        {remoteLabel && (
-          <p
-            data-testid="project-remote-label"
-            className="font-mono text-sm text-ink-3"
-          >
-            {remoteLabel}
-          </p>
-        )}
-      </div>
+      <header className="on-head">
+        <div className="min-w-0 flex flex-col gap-1.5">
+          {/* `normal-case` is load-bearing: the design system lowercases
+              h1/h2/h3 as UI chrome, and a project's display name is USER
+              CONTENT, which is never lowercased. */}
+          <h1 data-testid="project-display-name" className="on-title normal-case">
+            {resolvedName}
+          </h1>
+          {remoteLabel && (
+            <p data-testid="project-remote-label" className="on-chrome m-0">
+              {remoteLabel}
+            </p>
+          )}
+        </div>
+      </header>
 
       <StatGrid
         tiles={[
@@ -454,40 +444,30 @@ export default function UserProjectPage({
         // leaves the rows centred inside their own panel.
         <div style={{ maxWidth: "var(--maxw)" }}>{canvas}</div>
       )}
-    </div>
+    </OnPage>
   );
 }
 
 /**
- * The path back. fairtrade's own Breadcrumb emits bare anchors, which would drop
- * client-side navigation on every crumb, so this mirrors the profile page's
- * next/link trail instead — the same markup, tokens and chevron, one route up.
+ * The path back: the reader's own home when they are signed in, then the
+ * person whose project this is, then the project. A signed-out visitor has no
+ * home here, so their trail starts at the person. Nothing here leads to the
+ * discovery list, which is hidden.
  */
-function Crumbs({ username, current }: { username: string; current: string | null }) {
-  return (
-    <nav aria-label="breadcrumb" className="flex items-center gap-1.5 text-xs">
-      <Link
-        href={EXPLORE_SECTION.href}
-        className="text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-      >
-        Commons
-      </Link>
-      <ChevronRight size={12} strokeWidth={2} className="text-ink-4" />
-      <Link
-        href={`/users/${encodeURIComponent(username)}`}
-        className="text-ink-3 hover:text-ink transition-colors focus-mono cursor-pointer"
-      >
-        @{username}
-      </Link>
-      {current !== null && (
-        <>
-          <ChevronRight size={12} strokeWidth={2} className="text-ink-4" />
-          <span className="text-ink font-medium inline-flex items-center gap-1.5">
-            <FolderOpen size={12} className="text-ink-4" />
-            {current}
-          </span>
-        </>
-      )}
-    </nav>
-  );
+function Crumbs({
+  username,
+  current,
+  signedIn,
+}: {
+  username: string;
+  current: string | null;
+  signedIn: boolean;
+}) {
+  const items: { label: ReactNode; href?: string }[] = [];
+  if (signedIn) items.push({ label: HOME_SECTION.label, href: HOME_SECTION.href });
+  items.push({ label: `@${username}`, href: `/users/${encodeURIComponent(username)}` });
+  // The project's name is user content: it keeps its case. A project the page
+  // could not open has no name to show, so the step is named generically.
+  items.push({ label: current === null ? "project" : <span className="normal-case">{current}</span> });
+  return <OnCrumb items={items} />;
 }

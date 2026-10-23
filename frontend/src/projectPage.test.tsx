@@ -9,7 +9,6 @@ import {
   type ProjectRouteFixture,
 } from "@/test/mountedProjectRoute";
 import { loadProjectPageFixtures } from "@/test/projectPageFixtures";
-import { EXPLORE_SECTION } from "@/lib/nav/sections";
 
 // Mounts the REAL production routes: the project page
 // (`/users/{username}/projects/{projectHash}`) and the profile page whose
@@ -290,45 +289,64 @@ describe("mounted profile page: project cards link into the project page", () =>
   }
 });
 
-describe("mounted routes: every commons link leads to the commons", () => {
-  // The root of the app serves the signed-in person their own home page, so a
-  // link labelled for the commons can no longer point at "/": for the very
-  // people who see these pages most, that address is their home, not
-  // discovery. The label and the destination only agree if both come from the
-  // one exported constant. The not-found states carry most of these links, so
-  // they are exercised too.
-  for (const c of fixtures.commonsCrumbCases) {
+describe("mounted routes: the way back never leads to the hidden discovery list", () => {
+  // The discovery list is hidden, so a breadcrumb or a not-found state that
+  // still pointed at it would send a person somewhere the product no longer
+  // offers. A signed-in reader's trail starts at their own home; a signed-out
+  // visitor's starts at the person. The not-found states carry most of these
+  // links, so they are exercised too.
+  for (const c of fixtures.wayBackCases) {
     it(c.name, async () => {
       const missing = c.state === "missing";
       if (c.route === "profile") {
         installProfileRouteREST(
           "alice-dev",
-          // A viewer looking at somebody else's profile: the route shows its
-          // own not-found state only to someone who does not own it.
-          missing ? "someone-else" : "alice-dev",
+          c.viewer,
           [{ projectHash: HASH, projectDisplayName: "village" }],
           missing ? 404 : undefined,
         );
         await renderProfileRoute("alice-dev");
+        await waitFor(() =>
+          expect(
+            document.querySelector(missing ? '[data-testid="profile-not-found"]' : '[data-testid="profile-page"]'),
+          ).not.toBeNull(),
+        );
       } else {
         installProjectRouteREST(
-          baseFixture(missing ? { errorStatus: 404, errorMessage: "no such project" } : {}),
+          baseFixture({
+            viewer: c.viewer,
+            ...(missing ? { errorStatus: 404, errorMessage: "no such project" } : {}),
+          }),
         );
         await renderProjectRoute("alice-dev", HASH);
+        await waitFor(() =>
+          expect(
+            document.querySelector(
+              missing ? '[data-testid="project-page-not-found"]' : '[data-testid="project-display-name"]',
+            ),
+          ).not.toBeNull(),
+        );
       }
 
-      const links = await waitFor(() => {
-        const found = [...document.querySelectorAll("a")].filter((a) =>
-          /^(commons|back to commons)$/i.test((a.textContent ?? "").trim()),
-        );
-        expect(found.map((a) => (a.textContent ?? "").trim())).toEqual(c.expectedLabels);
-        return found;
-      });
+      const links = (root: Element | null) =>
+        [...(root?.querySelectorAll("a") ?? [])].map((a) => ({
+          label: (a.textContent ?? "").trim(),
+          href: a.getAttribute("href"),
+        }));
 
-      for (const link of links) {
-        expect(link.getAttribute("href")).toBe(EXPLORE_SECTION.href);
-        // Not the bare root: that is somebody's home page now.
-        expect(link.getAttribute("href")).not.toBe("/");
+      // The session read decides whether the trail starts at home, so the
+      // answer is awaited rather than read mid-load.
+      await waitFor(() =>
+        expect(links(document.querySelector('nav[aria-label="breadcrumb"]'))).toEqual(c.expectedCrumbs),
+      );
+      const notFound = document.querySelector(
+        c.route === "profile" ? '[data-testid="profile-not-found"]' : '[data-testid="project-page-not-found"]',
+      );
+      expect(links(notFound)).toEqual(c.expectedActions);
+
+      for (const a of document.querySelectorAll("a")) {
+        expect(a.getAttribute("href") ?? "").not.toMatch(/^\/explore/);
+        expect((a.textContent ?? "").trim().toLowerCase()).not.toContain("commons");
       }
     });
   }

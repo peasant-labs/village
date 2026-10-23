@@ -71,6 +71,11 @@ export interface MountedProfileFixture {
    * only those; there is deliberately no "hidden org" to model here.
    */
   publicOrgs?: Array<{ org_login: string; avatar_url: string | null }>;
+  /**
+   * When set, `GET /users/{username}` answers this status instead of the
+   * profile, which is how the route's own not-found state is reached.
+   */
+  profileStatus?: number;
 }
 
 function userFixture(username: string): User {
@@ -196,6 +201,7 @@ export function installProfileRESTFixture(fixture: MountedProfileFixture): strin
       // The profile's linked organizations answer as their own list; they are
       // not a user, so the catch-all below would hand back the wrong shape.
       if (/\/orgs$/.test(path)) return json(fixture.publicOrgs ?? []);
+      if (fixture.profileStatus != null) return json({ error: "not found" }, fixture.profileStatus);
       return json(userFixture(fixture.profileUsername));
     }
     throw new Error(`mounted profile route fixture received an unexpected request to ${url}`);
