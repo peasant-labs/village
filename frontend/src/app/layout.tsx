@@ -25,10 +25,12 @@ import "@peasant-labs/fairtrade/components.css";
 import "@peasant-labs/fairtrade/analytics.css";
 import "@peasant-labs/fairtrade/graph.css";
 import "./globals.css";
+// The online page patterns (on-*): layout only, every value a fairtrade token.
+import "./online.css";
 
 export const metadata: Metadata = {
-  title: "village | peasant labs",
-  description: "A commons for AI agent transcripts",
+  title: "peasant",
+  description: "The agent sessions behind your pull requests, shared with the people who review them.",
 };
 
 export default function RootLayout({
@@ -44,10 +46,8 @@ export default function RootLayout({
       data-theme="dark"
       className={`${atkinsonHyperlegible.variable} ${atkinsonHyperlegibleMono.variable}`}
     >
-      <body className="min-h-screen bg-surface text-ink antialiased">
-        <LayoutShell>
-          <main className="min-h-screen pt-[var(--app-header-height)]">{children}</main>
-        </LayoutShell>
+      <body className="min-h-screen bg-canvas text-ink antialiased">
+        <LayoutShell>{children}</LayoutShell>
       </body>
     </html>
   );

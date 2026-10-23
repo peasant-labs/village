@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient, type MutateOptions } from "@tanstack/react-query";
 import { api, clearAuthTokenCookie, getAuthHeaders } from "../api";
+import { LOGIN_PATH } from "../signIn";
 import type { User } from "../types";
 
 export function useMe() {
@@ -26,7 +27,7 @@ export function useLogout() {
     onSuccess: () => {
       clearAuthTokenCookie();
       qc.clear();
-      window.location.href = "/";
+      window.location.href = LOGIN_PATH;
     },
   });
 }

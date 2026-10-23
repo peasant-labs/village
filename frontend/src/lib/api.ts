@@ -1,6 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://localhost/api/v1";
+import { AUTH_COOKIE } from "./authCookieName";
 
-const AUTH_COOKIE = "peasant_token";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://localhost/api/v1";
 
 /**
  * Error thrown by {@link api} for any non-2xx response. Carries the HTTP
@@ -55,6 +55,11 @@ export async function api<T>(
   }
 
   return res.json();
+}
+
+/** Whether this browser holds a session cookie at all (it may still be stale). */
+export function hasAuthTokenCookie(): boolean {
+  return getToken() !== null;
 }
 
 export function getAuthHeaders(): Record<string, string> {

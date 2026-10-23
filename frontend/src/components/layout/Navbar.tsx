@@ -10,6 +10,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Avatar, GraphSectionNav, Menu, Dialog, SignInProviders } from "@/lib/ft-ui";
 import { HOME_SECTION, navSections, isSectionActive, backTarget } from "@/lib/nav/sections";
 import { SIGN_IN_PROVIDERS, startSignIn } from "@/lib/signIn";
+import PeasantWordmark from "@/components/online/PeasantWordmark";
 
 /**
  * The account menu: the signed-in person's handle, and the actions they take
@@ -118,11 +119,7 @@ export default function Navbar() {
     <header className="fixed top-0 left-0 right-0 z-50 h-[var(--app-header-height)] border-b border-rule bg-surface">
       <div className="flex h-full items-center justify-between px-8">
         <div className="flex items-center gap-6">
-          <Link href="/" className="focus-mono cursor-pointer" aria-label="village home">
-            <span className="font-[family-name:var(--font-display)] text-xl font-semibold text-ink">
-              village
-            </span>
-          </Link>
+          <PeasantWordmark href="/" label="peasant home" />
 
           {back && (
             <Link href={back.href} className="iu-subnav-back">

@@ -6,6 +6,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useSetUsername } from "@/lib/queries/auth";
 import { HandleClaim } from "@/lib/ft-ui";
 import { handleTakenMessage } from "@/lib/handle";
+import { LOGIN_PATH } from "@/lib/signIn";
 
 // Mirror the backend handle rules: 3–30 chars, lowercase alphanumeric with
 // single internal hyphens, starting/ending alphanumeric.
@@ -38,7 +39,7 @@ export default function WelcomePage() {
   useEffect(() => {
     if (isLoading) return;
     if (!isLoggedIn) {
-      router.replace("/");
+      router.replace(LOGIN_PATH);
     } else if (user?.username_chosen) {
       router.replace("/");
     }

@@ -1,35 +1,48 @@
 "use client";
 
+import { useEffect } from "react";
 import { useAuth } from "@/providers/AuthProvider";
+import { MARKETING_URL } from "@/lib/marketing";
 import HomePage from "./HomePage";
-import SignInPage from "./SignInPage";
 
 /**
  * The root route decides WHOSE page `/` is.
  *
- * A signed-in visitor lands on their own home: their recent sessions and the
- * projects those sessions belong to. A signed-out visitor lands on the GitHub
- * sign-in page. The public discovery list is no longer offered here or in the
- * nav; it keeps its own address at `/explore` for anyone who has the link.
+ * A signed-in visitor lands on their own home: their transcripts, and who can
+ * read each one. A signed-out visitor is sent to the marketing site, which
+ * introduces the product and links to `/login`. The proxy already sends a
+ * visitor with no session cookie there before this page is served; this branch
+ * covers a cookie that turned out to be stale once `GET /auth/me` answered.
  *
- * Neither branch renders until the session is known. Rendering the sign-in page
- * while `GET /auth/me` is still in flight would show a signed-in person the
- * front door and then swap it out under them.
+ * Neither branch renders until the session is known, so a signed-in person is
+ * never shown a flash of the redirect.
  */
 export default function RootPage() {
   const { isLoading, isLoggedIn } = useAuth();
+  const signedOut = !isLoading && !isLoggedIn;
+
+  useEffect(() => {
+    if (signedOut) window.location.replace(MARKETING_URL);
+  }, [signedOut]);
 
   if (isLoading) {
     return (
-      <div
-        className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6"
-        data-testid="root-route-pending"
-      >
-        <div className="h-8 w-64 animate-shimmer" />
+      <div className="on-page" data-testid="root-route-pending" aria-hidden="true">
+        <div className="h-10 w-72 animate-shimmer" />
         <div className="h-48 animate-shimmer" />
       </div>
     );
   }
 
-  return isLoggedIn ? <HomePage /> : <SignInPage />;
+  if (signedOut) {
+    return (
+      <div className="on-page" data-testid="root-route-leaving">
+        <p className="on-muted" role="status">
+          taking you to <a className="on-link" href={MARKETING_URL}>{MARKETING_URL.replace(/^https?:\/\//, "")}</a>
+        </p>
+      </div>
+    );
+  }
+
+  return <HomePage />;
 }

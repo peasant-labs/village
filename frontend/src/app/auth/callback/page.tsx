@@ -4,6 +4,7 @@ import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { ConnectionPill, DataState } from "@/lib/ft-ui";
 import { setAuthTokenCookie } from "@/lib/api";
+import { takeNextPath } from "@/lib/signIn";
 
 function CallbackHandler() {
   const searchParams = useSearchParams();
@@ -13,26 +14,25 @@ function CallbackHandler() {
     if (token) {
       setAuthTokenCookie(token);
     }
-    // Use hard navigation so the auth state is fully re-fetched
-    window.location.replace("/");
+    // Hard navigation so the auth state is fully re-fetched. The page that sent
+    // the visitor to sign in, if any, is where they return; otherwise home.
+    window.location.replace(takeNextPath() ?? "/");
   }, [searchParams]);
 
   return null;
 }
 
-// Transient OAuth handshake screen — shows a connecting DataState skeleton
-// with a ConnectionPill header while the token is written and navigation fires.
+// Transient OAuth handshake screen: a connecting DataState skeleton with a
+// ConnectionPill header while the token is written and navigation fires.
 function CallbackStatus() {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center px-6 animate-fade-up">
-      <div className="flex w-full max-w-sm flex-col gap-4 border border-rule bg-surface px-6 py-8">
-        <div className="flex flex-col gap-2">
+    <div className="on-login">
+      <div className="on-login-card">
+        <div className="on-login-body">
           <ConnectionPill status="connecting" showNote={false} />
-          <p className="text-sm text-ink-3">
-            Finishing the OAuth handshake and returning you to the village.
-          </p>
+          <p className="on-muted">finishing the github sign-in and taking you back to peasant.</p>
+          <DataState status="connecting" loading skeletonRows={2} />
         </div>
-        <DataState status="connecting" loading skeletonRows={2} />
       </div>
     </div>
   );
