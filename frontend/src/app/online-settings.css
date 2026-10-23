@@ -51,12 +51,6 @@
   justify-content: space-between;
   gap: var(--sp-1) var(--sp-3);
 }
-.on-acct-desc {
-  flex-basis: 100%;
-  margin: 0;
-  max-width: 62ch;
-  color: var(--ink-3);
-}
 
 /* fairtrade's setting rows, framed as one box per section */
 .on-acct-rows {

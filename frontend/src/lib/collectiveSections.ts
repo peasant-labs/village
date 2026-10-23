@@ -57,21 +57,15 @@ export interface SettingsSectionDef {
   id: SettingsSectionId;
   /** The section's name in the section list and its page title. */
   label: string;
-  /** One line under the title. `members` counts the people in the collective. */
-  lede: (memberCount: number) => string;
 }
 
 export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
-  { id: "general", label: "general", lede: () => "the name and description people see." },
-  { id: "access", label: "access", lede: () => "who can add sessions here, and who can read them." },
-  {
-    id: "members",
-    label: "members",
-    lede: (count) => `${count} ${count === 1 ? "person" : "people"}. invite by github username.`,
-  },
-  { id: "github", label: "github", lede: () => "the organization and repositories this collective is linked to." },
-  { id: "pull-requests", label: "pull requests", lede: () => "what shows up on pull requests in linked repositories." },
-  { id: "danger", label: "danger zone", lede: () => "actions that cannot be undone." },
+  { id: "general", label: "general" },
+  { id: "access", label: "access" },
+  { id: "members", label: "members" },
+  { id: "github", label: "github" },
+  { id: "pull-requests", label: "pull requests" },
+  { id: "danger", label: "danger zone" },
 ];
 
 /**

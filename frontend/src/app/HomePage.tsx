@@ -480,7 +480,7 @@ function HomeBody({ username }: { username: string }) {
         {statusText}
       </p>
 
-      <OnHead title="your transcripts" lede="what you published, and who can read each one." />
+      <OnHead title="your transcripts" />
 
       {showStats ? (
         <ul className="on-stats" data-testid="home-stats" aria-label="your transcripts in numbers">

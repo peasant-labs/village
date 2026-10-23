@@ -56,7 +56,6 @@ export default function CollectiveStats({
               <p>github connection isn&apos;t set up on this server.</p>
             </div>
           )}
-          <p className="on-cap">a collective links one github org today.</p>
         </section>
     </div>
   );

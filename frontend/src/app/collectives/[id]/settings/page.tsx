@@ -253,10 +253,9 @@ export default function GroupSettingsPage({
   return (
     <OnPage tight testId="collective-settings">
       <OnCrumb items={crumb} />
-      <div className="on-split">
+      <header className="on-head">
         <h1 className="on-title">{section.label}</h1>
-        <p>{section.lede(members.length)}</p>
-      </div>
+      </header>
       {notice && (
         <div data-testid="collective-notice">
           <Toast variant={notice.ok ? "ok" : "err"} title={notice.title} onClose={() => setNotice(null)}>

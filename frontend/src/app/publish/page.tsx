@@ -94,11 +94,7 @@ export default function PublishPage() {
 
       <OnHead
         title="publishing dashboard"
-        lede={
-          <>
-            push transcripts from the peasant cli to peasant online. <PrivacyNoticeLine />
-          </>
-        }
+        lede={<PrivacyNoticeLine />}
       />
 
       <div className="on-plain-sections">

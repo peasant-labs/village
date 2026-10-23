@@ -25,8 +25,6 @@ import "@/app/online-pulls.css";
  * rows newest first and groups them by the day they were asked for; which pull
  * requests belong here is the server's answer.
  */
-const LEDE =
-  "your pull requests waiting for transcripts. publish the session behind one of a pull request's commits and it is attached.";
 
 const GITHUB_HOST = "https://github.com";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -37,7 +35,7 @@ export default function PullRequestsPage() {
   if (isLoading) {
     return (
       <OnPage testId="pulls-pending">
-        <OnHead title="pull requests" lede={LEDE} />
+        <OnHead title="pull requests" />
         <Skeleton />
       </OnPage>
     );
@@ -136,7 +134,7 @@ function WaitingPullRequests({ handle }: { handle: string }) {
   // One clock for every row, read once per mount.
   const [now] = useState(() => Date.now());
 
-  const head = <OnHead title="pull requests" lede={LEDE} />;
+  const head = <OnHead title="pull requests" />;
   const retry = (
     <RetryButton
       label={requests.isFetching ? "retrying" : "retry"}

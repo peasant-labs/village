@@ -262,7 +262,6 @@ export default function GroupReviewPage({
             review contributions to <span className="normal-case">{group.group.name}</span>
           </>
         }
-        lede="choose the contributions to approve or reject, then decide them together."
       />
 
       {tree.length === 0 && !hasGroupedExit ? (

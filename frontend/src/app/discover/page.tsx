@@ -156,9 +156,8 @@ export default function DiscoverPage() {
   };
 
   const head = (
-    <header className="on-split">
+    <header className="on-head">
       <h1 className="on-title">discover</h1>
-      <p>collectives you can join. search by name or github org.</p>
     </header>
   );
 

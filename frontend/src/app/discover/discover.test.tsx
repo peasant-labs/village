@@ -178,7 +178,11 @@ describe("the discover page's other states", () => {
     await renderDiscoverPage();
     await screen.findByRole("list", { name: "collectives you can join" });
     const box = screen.getByRole("searchbox", { name: "find a collective" });
+    // The search box says what it finds; the heading stands alone, with no
+    // sentence explaining the page beside it.
     expect(box.getAttribute("placeholder")).toBe("collective name or github org");
+    const heading = screen.getByRole("heading", { level: 1, name: "discover" });
+    expect(heading.parentElement!.querySelectorAll("p")).toHaveLength(0);
     for (const card of cards()) {
       const chrome = [card.members, card.who, card.transcripts, card.action?.label ?? "", ...card.tags];
       expect(chrome.join(" "), textOf(cardNamed(card.name))).toBe(chrome.join(" ").toLowerCase());

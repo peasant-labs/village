@@ -50,7 +50,6 @@ import "@/app/online-settings.css";
  * anchor (`/settings#pull-requests`), so another page can link to the setting
  * it talks about.
  */
-const LEDE = "switches save as soon as you flip them. your handle saves when you press save.";
 
 /** The page's sections, in order: the anchor each one has, and its icon. */
 const SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
@@ -67,7 +66,7 @@ export default function AccountSettingsPage() {
   if (isLoading) {
     return (
       <OnPage testId="settings-pending">
-        <OnHead title="your settings" lede={LEDE} />
+        <OnHead title="your settings" />
         <div className="h-48 animate-shimmer" />
       </OnPage>
     );
@@ -145,7 +144,7 @@ function Settings({ user }: { user: User }) {
 
   return (
     <OnPage testId="settings-page">
-      <OnHead title="your settings" lede={LEDE} />
+      <OnHead title="your settings" />
       <div className="on-settings">
         <SectionNav />
         <div className="on-settings-body">
@@ -185,7 +184,6 @@ function Settings({ user }: { user: User }) {
                 ? null
                 : `${myOrgs.data.length} ${myOrgs.data.length === 1 ? "organization" : "organizations"}`
             }
-            description="showing it here is optional. collectives use your membership, not this switch."
             testId="settings-orgs"
           >
             {myOrgs.isError ? (
@@ -223,7 +221,11 @@ function Settings({ user }: { user: User }) {
                       {org.org_login}
                     </span>
                   }
-                  help={org.visible ? "shown on your profile" : "not shown on your profile"}
+                  help={
+                    org.visible
+                      ? "shown on your profile. collectives check your membership either way."
+                      : "not shown on your profile. collectives check your membership either way."
+                  }
                   control="switch"
                   value={org.visible}
                   onCommit={async (next) => {
@@ -321,19 +323,17 @@ function SectionNav() {
   );
 }
 
-/** One section: its heading, an optional count and line, and its rows in one box. */
+/** One section: its heading, an optional count, and its rows in one box. */
 function Section({
   id,
   title,
   count = null,
-  description,
   testId,
   children,
 }: {
   id: string;
   title: string;
   count?: string | null;
-  description?: string;
   testId: string;
   children: ReactNode;
 }) {
@@ -345,7 +345,6 @@ function Section({
           {title}
         </h2>
         {count !== null && <span className="on-chrome is-n">{count}</span>}
-        {description && <p className="on-acct-desc">{description}</p>}
       </header>
       <div className="on-acct-rows">{children}</div>
     </section>

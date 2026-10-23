@@ -1104,23 +1104,6 @@
 
 /* ---------- choices, fields, settings ---------- */
 
-.on-split {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-3) var(--sp-8);
-  align-items: start;
-}
-@media (min-width: 900px) {
-  .on-split {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-}
-.on-split p {
-  margin: 0;
-  max-width: 46ch;
-  font-size: var(--fs-md);
-  color: var(--ink-3);
-}
 
 .on-opts {
   display: grid;

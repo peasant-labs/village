@@ -13,7 +13,6 @@ import { CollectiveSwatch, OnEmpty, OnHead, OnPage } from "@/components/online/P
 import NewCollectiveDialog from "@/components/collectives/NewCollectiveDialog";
 import "../online-collectives.css";
 
-const LEDE = "your teams, labs and classes. each one decides who publishes and who reads.";
 
 /**
  * The collectives the signed-in person belongs to.
@@ -41,7 +40,7 @@ export default function CollectivesPage() {
   if (!authLoading && !isLoggedIn) {
     return (
       <OnPage testId="collectives-page">
-        <OnHead title="collectives" lede={LEDE} />
+        <OnHead title="collectives" />
         <OnEmpty
           testId="collectives-signed-out"
           icon={<Users />}
@@ -71,7 +70,6 @@ export default function CollectivesPage() {
     <OnPage testId="collectives-page">
       <OnHead
         title="collectives"
-        lede={LEDE}
         actions={
           !loading && !empty ? (
             <>

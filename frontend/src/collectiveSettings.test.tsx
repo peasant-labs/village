@@ -152,7 +152,8 @@ describe("the collective settings sections", () => {
     await renderCollectiveSettings(world);
 
     expect(screen.getByRole("heading", { level: 1 }), sectionCase.why).toHaveTextContent(sectionCase.expectTitle);
-    expect(textOf(document.querySelector(".on-split p"))).toBe(sectionCase.expectLede);
+    // The title stands alone: no line explains the section under it.
+    expect(document.querySelector("header.on-head p")).toBeNull();
     const nav = screen.getByRole("navigation", { name: "settings sections" });
     const current = within(nav)
       .getAllByRole("link")

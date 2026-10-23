@@ -243,7 +243,6 @@ export default function GroupContributePage({
             contribute to <span className="normal-case">{group.group.name}</span>
           </>
         }
-        lede="choose the sessions to share with this collective."
       />
 
       {/* `contribute-member-panel` is the stable member-view testid this

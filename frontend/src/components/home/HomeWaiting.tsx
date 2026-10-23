@@ -53,8 +53,8 @@ export default function HomeWaiting({ contributions }: { contributions: Read<Con
             <Link href={`/collectives/${c.id}`} className="on-link">
               {c.name}
             </Link>
-            : <span className="tabular-nums">{plural(c.pending_count, "transcript", "transcripts")}</span> waiting. its
-            owner approves each transcript before members can read it.
+            : <span className="tabular-nums">{plural(c.pending_count, "transcript", "transcripts")}</span> waiting for
+            its owner&apos;s approval.
           </li>
         ))}
       </ul>

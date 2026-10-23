@@ -158,6 +158,8 @@ describe("the settings page's frame", () => {
     installSettingsRouteREST(cases[0]);
     await renderSettingsRoute();
     const nav = await screen.findByRole("navigation", { name: "settings sections" });
+    // The page and its section headings stand alone, with no explaining line.
+    expect(document.querySelector(".on-lede, .on-acct-desc")).toBeNull();
     const links = within(nav).getAllByRole("link");
     expect(links.map((link) => text(link))).toEqual([
       "profile",

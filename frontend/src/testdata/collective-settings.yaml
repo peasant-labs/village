@@ -288,53 +288,45 @@ sectionCases:
     search: ""
     expectSection: general
     expectTitle: general
-    expectLede: the name and description people see.
 
   - name: the-access-section
     why: ?section=access opens who can publish and who can read.
     search: "?section=access"
     expectSection: access
     expectTitle: access
-    expectLede: who can add sessions here, and who can read them.
 
-  - name: the-members-section-counts-the-people
-    why: the members section's line counts the people in the collective.
+  - name: the-members-section
+    why: ?section=members opens the people in the collective.
     search: "?section=members"
     expectSection: members
     expectTitle: members
-    expectLede: 3 people. invite by github username.
 
   - name: the-github-section
     why: ?section=github opens the org and its repositories.
     search: "?section=github"
     expectSection: github
     expectTitle: github
-    expectLede: the organization and repositories this collective is linked to.
 
   - name: the-pull-requests-section
     why: ?section=pull-requests opens what shows on pull requests.
     search: "?section=pull-requests"
     expectSection: pull-requests
     expectTitle: pull requests
-    expectLede: what shows up on pull requests in linked repositories.
 
   - name: the-danger-zone
     why: ?section=danger opens the actions that cannot be undone.
     search: "?section=danger"
     expectSection: danger
     expectTitle: danger zone
-    expectLede: actions that cannot be undone.
 
   - name: an-unknown-section-opens-general
     why: a section the page does not have opens general, never an empty page.
     search: "?section=tabs"
     expectSection: general
     expectTitle: general
-    expectLede: the name and description people see.
 
   - name: the-install-return-opens-github
     why: the GitHub App install handshake returns to the section where its repositories are picked.
     search: "?github_installed=1"
     expectSection: github
     expectTitle: github
-    expectLede: the organization and repositories this collective is linked to.

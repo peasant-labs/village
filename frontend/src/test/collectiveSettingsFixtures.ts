@@ -50,7 +50,6 @@ export interface SectionCase {
   search: string;
   expectSection: string;
   expectTitle: string;
-  expectLede: string;
 }
 
 export interface CollectiveSettingsFixtures {
@@ -82,7 +81,7 @@ const REQUIRED_CASES = [
 const REQUIRED_SECTION_CASES = [
   "no-section-opens-general",
   "the-access-section",
-  "the-members-section-counts-the-people",
+  "the-members-section",
   "the-github-section",
   "the-pull-requests-section",
   "the-danger-zone",
@@ -161,7 +160,7 @@ export function loadCollectiveSettingsFixtures(): CollectiveSettingsFixtures {
   const sectionCases = root.sectionCases as SectionCase[];
   assertNamesMatch(sectionCases.map((c) => c.name), REQUIRED_SECTION_CASES, "collective settings sections");
   for (const c of sectionCases) {
-    assertExactKeys(c, ["name", "why", "search", "expectSection", "expectTitle", "expectLede"], `section case ${c.name}`);
+    assertExactKeys(c, ["name", "why", "search", "expectSection", "expectTitle"], `section case ${c.name}`);
     if (!c.why?.trim()) fail(`section case "${c.name}"`, "states no reason it exists");
     if (!SECTIONS.has(c.expectSection)) fail(`section case "${c.name}"`, `expects an unknown section "${c.expectSection}"`);
   }

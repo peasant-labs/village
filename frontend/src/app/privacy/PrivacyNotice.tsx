@@ -38,12 +38,9 @@ export function PrivacyNotice() {
       <OnHead
         title="privacy notice"
         lede={
-          <>
-            who operates peasant online, and what a public contribution licenses.{" "}
-            <span className="on-cap tabular-nums">
-              last updated <time dateTime={NOTICE_UPDATED}>{NOTICE_UPDATED}</time>
-            </span>
-          </>
+          <span className="on-cap tabular-nums">
+            last updated <time dateTime={NOTICE_UPDATED}>{NOTICE_UPDATED}</time>
+          </span>
         }
       />
 
