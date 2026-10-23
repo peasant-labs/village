@@ -32,7 +32,7 @@ export type Commit = (key: CollectiveSettingKey, value: unknown) => Promise<unkn
 
 export function GeneralSection({ group, commit }: { group: Group; commit: Commit }) {
   return (
-    <div className="on-section" data-testid="settings-general">
+    <div className="on-section on-stack-rows" data-testid="settings-general">
       <SettingRow label="name" control="text" value={group.name} onCommit={(next) => commit("name", next).then(() => undefined)} />
       <SettingRow
         label="description"
@@ -141,7 +141,9 @@ export function MembersSection({
           const at = `@${member.github_username}`;
           return (
             <li key={member.id} className="on-mem">
-              <Avatar name={member.display_name || member.github_username} size="sm" />
+              <span aria-hidden="true">
+                <Avatar name={member.display_name || member.github_username} size="sm" src={member.avatar_url ?? undefined} />
+              </span>
               <span className="on-handle">
                 <span className="on-mem-login">{at}</span>
                 {member.display_name && <span className="on-mem-name">{member.display_name}</span>}

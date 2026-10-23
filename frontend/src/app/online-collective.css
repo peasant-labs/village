@@ -248,6 +248,16 @@ section.on-choices {
   max-width: 100%;
 }
 
+/* a text setting reads like a field: its name, its help, then the value and its edit button */
+.on-stack-rows .srow {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.on-stack-rows .srow-text-col {
+  flex: none;
+}
+
 /* on a phone the section list is a row of tabs above the section, not a column beside it */
 @media (max-width: 767px) {
   .on-settings {

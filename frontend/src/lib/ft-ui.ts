@@ -432,7 +432,7 @@ export const SettingGroup = FtSettingGroup as ComponentType<
 export { CopyIconButton, AccessList, CollectivePicker } from "@peasant-labs/fairtrade/ui";
 
 /**
- * RepoPicker — the dialog an owner links a collective's repositories in:
+ * RepoPicker: the dialog an owner links a collective's repositories in:
  *   repositories grouped by owner, a search, select all / clear, and one save
  *   that reports what to link and unlink as `{ add, remove }`. Re-exported as
  *   shipped (its published type is precise).

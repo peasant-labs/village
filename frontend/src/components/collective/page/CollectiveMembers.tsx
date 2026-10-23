@@ -50,7 +50,9 @@ export default function CollectiveMembers({
       <ul className="on-mem-list" aria-label="members">
         {members.map((member) => (
           <li key={member.id} className="on-mem">
-            <Avatar name={member.display_name || member.github_username} size="sm" />
+            <span aria-hidden="true">
+                <Avatar name={member.display_name || member.github_username} size="sm" src={member.avatar_url ?? undefined} />
+              </span>
             <span className="on-handle">
               <span className="on-mem-login">@{member.github_username}</span>
               {member.display_name && <span className="on-mem-name">{member.display_name}</span>}
