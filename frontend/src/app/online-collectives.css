@@ -1,0 +1,197 @@
+/* ============================================
+   peasant online: the collectives list, the discover page and the
+   new-collective dialog.
+
+   Only what online.css does not already draw. Every value reads a fairtrade
+   token; motion is transform and opacity only, and stops for
+   prefers-reduced-motion.
+   ============================================ */
+
+/* ---------- loading placeholders ---------- */
+
+.on-skel {
+  display: block;
+  height: var(--sp-5);
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+}
+.on-skel.is-row {
+  height: var(--sp-8);
+}
+.on-skel.is-card {
+  height: calc(var(--sp-8) * 4);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .on-skel {
+    animation: on-breathe 1.2s var(--on-ease) infinite alternate;
+  }
+}
+@keyframes on-breathe {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.on-skel-list {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------- the collectives table ---------- */
+
+.on-standing {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.on-tbl td.is-policy {
+  color: var(--ink-2);
+}
+
+/* ---------- discover cards ---------- */
+
+/* fairtrade lowercases every h1-h3 as chrome; these carry a collective's name,
+   which is user content and keeps its own case */
+.on-cards.is-collectives .on-card h2,
+.on-newcoll .on-done h3 {
+  text-transform: none;
+}
+
+.on-cards.is-collectives .on-card h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+.on-cards.is-collectives .on-card h2 a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+@media (hover: hover) and (pointer: fine) {
+  .on-cards.is-collectives .on-card h2 a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+.on-card-desc {
+  margin: 0;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.on-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.on-card-msg {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  color: var(--ink-2);
+}
+.on-card-msg svg {
+  flex: none;
+  width: var(--ic-lg);
+  height: var(--ic-lg);
+  margin-top: 2px;
+  color: var(--clay);
+}
+
+/* the discover search: its own clear button instead of the browser's */
+.on-search.is-clearable {
+  padding-right: 0;
+}
+.on-search.is-clearable input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.on-search.is-clearable .on-icon-btn {
+  flex: none;
+  height: calc(var(--target-comfortable) - 2px);
+}
+
+/* ---------- the new-collective dialog ---------- */
+
+.on-newcoll .dlg-body {
+  gap: var(--sp-6);
+  padding: var(--sp-5);
+}
+.on-newcoll .dlg-foot {
+  padding: var(--sp-4) var(--sp-5);
+}
+.on-newcoll .dlg-head {
+  padding: var(--sp-4) var(--sp-5);
+}
+.on-newcoll .dlg-head h3 {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+}
+@media (max-width: 767px) {
+  .on-newcoll .dlg-body {
+    padding: var(--sp-4);
+  }
+}
+.on-opt .on-opt-ic {
+  display: inline-flex;
+  color: var(--ink-strong);
+}
+.on-opt .on-opt-ic svg {
+  width: var(--sp-5);
+  height: var(--sp-5);
+}
+.on-opt[aria-checked="true"] .on-opt-ic {
+  color: var(--amber);
+}
+.on-opt .on-opt-help {
+  display: block;
+  color: var(--ink-2);
+}
+.on-invitees {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (pointer: coarse) {
+  .on-invitees .on-chip-person button {
+    width: var(--target-comfortable);
+    height: var(--target-comfortable);
+  }
+}
+.on-invitees .on-chip-person svg {
+  width: var(--ic-sm);
+  height: var(--ic-sm);
+}
+.on-done .on-done-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-3);
+}
+.on-done .on-notice {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+}
+.on-done .on-notice ul {
+  margin: var(--sp-2) 0 0;
+  padding-left: var(--sp-5);
+  color: var(--ink-2);
+}
+.on-done .on-notice li + li {
+  margin-top: var(--sp-1);
+}
+.on-select {
+  appearance: auto;
+}

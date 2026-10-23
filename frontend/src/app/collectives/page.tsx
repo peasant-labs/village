@@ -1,96 +1,169 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Users } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useVisibleGroups, useCreateGroup, useSearchCollectives } from "@/lib/queries/groups";
-import { createGroupRequest } from "@/lib/queries/groupRequests";
+import { useVisibleGroups } from "@/lib/queries/groups";
 import { useMyCollectiveContributions } from "@/lib/queries/collectives";
-import { useMyOrgs } from "@/lib/queries/orgs";
 import { useAuth } from "@/providers/AuthProvider";
 import { collectiveStanding, contributedCollectiveIds } from "@/lib/collectiveBadges";
-import { collectiveListRow, searchResultRows } from "@/lib/adapters/collective";
-import { CollectivesView } from "@peasant-labs/fairtrade/commons";
+import { whoCanPublishShort } from "@/lib/collectivePolicyCopy";
+import { loginHref } from "@/lib/signIn";
+import { CollectiveSwatch, OnEmpty, OnHead, OnPage } from "@/components/online/Page";
+import NewCollectiveDialog from "@/components/collectives/NewCollectiveDialog";
+import "../online-collectives.css";
 
-export default function GroupsPage() {
-  const router = useRouter();
-  const { isLoggedIn } = useAuth();
-  // Every collective the caller may SEE, not only the ones they belong to: a
-  // person browsing collectives is asking which ones exist for them, and the
-  // membership-only list answered a different question. Rows the caller does
-  // not belong to carry a null role.
+const LEDE = "Your teams, labs and classes. Each one decides who publishes and who reads.";
+
+/**
+ * The collectives the signed-in person belongs to.
+ *
+ * It reads the visible-collectives route and keeps the rows that carry a role:
+ * those are exactly the memberships (the server answers the same set on
+ * `GET /collectives`). The rows without a role, collectives the person may see
+ * but has not joined, are listed on `/discover`, which reads the same answer,
+ * so the two pages split one list and nothing a person could reach before is
+ * lost between them.
+ */
+export default function CollectivesPage() {
+  const { isLoading: authLoading, isLoggedIn, user } = useAuth();
   const visible = useVisibleGroups();
-  const groups = visible.data;
   const { data: contributions } = useMyCollectiveContributions(isLoggedIn);
-  const createGroup = useCreateGroup();
-  // The search the person submitted. An empty search shows the list again.
-  const [query, setQuery] = useState("");
-  const search = useSearchCollectives(query);
+  const [creating, setCreating] = useState(false);
 
-  const { data: myOrgs } = useMyOrgs();
-  const visibleOrgs = (myOrgs ?? []).filter((o) => o.visible);
-
-  const collectives = useMemo(() => {
+  const rows = useMemo(() => {
     const contributed = contributedCollectiveIds(contributions);
-    const now = new Date();
-    return (groups ?? []).map((g) => collectiveListRow(g, collectiveStanding(g, contributed), now));
-  }, [groups, contributions]);
+    return (visible.data ?? [])
+      .map((group) => ({ group, standing: collectiveStanding(group, contributed) }))
+      .filter(({ standing }) => standing.memberRole !== null);
+  }, [visible.data, contributions]);
 
-  const searching = query.trim().length > 0;
-  const rows = searching ? searchResultRows(search.data?.collectives ?? [], collectives) : collectives;
-
-  if (!isLoggedIn) {
+  if (!authLoading && !isLoggedIn) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-        <div className="border border-rule bg-surface px-5 py-12 flex flex-col items-center gap-3 text-center">
-          <Users size={28} className="text-ink-4" aria-hidden="true" />
-          <p className="text-sm font-medium text-ink">sign in to join or create collectives</p>
-          <p className="text-[13px] text-ink-3 max-w-sm">
-            a collective is a group that can read the transcripts its members publish to it.
-          </p>
-        </div>
-      </div>
+      <OnPage testId="collectives-page">
+        <OnHead title="collectives" lede={LEDE} />
+        <OnEmpty
+          testId="collectives-signed-out"
+          icon={<Users />}
+          title="sign in to see your collectives"
+          body="A collective is a group that reads the transcripts its members publish to it."
+          actions={
+            <Link className="btn btn-primary" href={loginHref("/collectives")}>
+              sign in
+            </Link>
+          }
+        />
+      </OnPage>
     );
   }
 
-  const handleCreateCollective = ({ name, purpose, mode, access, org }: { name: string; purpose: string; mode: string; access: string; org: string }) => {
-    createGroup.mutate(createGroupRequest({ name, purpose, mode, access, org }), {
-      onSuccess: (created) => router.push(`/collectives/${created.id}`),
-    });
-  };
+  const loading = authLoading || visible.isLoading;
+  const failed = !loading && visible.isError;
+  const empty = !loading && !failed && rows.length === 0;
+
+  const newCollective = (
+    <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+      new collective
+    </button>
+  );
 
   return (
-    <div className="cmg-root max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6 animate-fade-up">
-      {/* CollectivesView owns the heading, the deck, the table and the search. */}
-      <CollectivesView
-        data={{
-          collectives: rows,
-          linkedOrgs: visibleOrgs.map((o) => o.org_login),
-          caption: searching ? "search results" : "collectives",
-          createBusy: createGroup.isPending,
-        }}
-        actions={{
-          onCreateCollective: handleCreateCollective,
-          onOpenCollective: (id: string) => router.push(`/collectives/${id}`),
-          onSearchCollectives: (next: string) => setQuery(next.trim()),
-        }}
+    <OnPage testId="collectives-page">
+      <OnHead
+        title="collectives"
+        lede={LEDE}
+        actions={
+          !loading && !empty ? (
+            <>
+              <Link className="btn btn-secondary" href="/discover">
+                discover
+              </Link>
+              {newCollective}
+            </>
+          ) : undefined
+        }
       />
-      {visible.isError ? (
-        <div role="alert" className="text-[var(--fs-body)] text-danger">
-          <p>could not read collectives: {visible.error.message}</p>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={visible.isFetching} onClick={() => void visible.refetch()}>try again</button>
+
+      {loading ? (
+        <ul className="on-skel-list" aria-busy="true" aria-label="loading your collectives">
+          <li className="on-skel" />
+          <li className="on-skel is-row" />
+          <li className="on-skel is-row" />
+          <li className="on-skel is-row" />
+        </ul>
+      ) : failed ? (
+        <div className="on-notice" data-tone="danger" role="alert">
+          <p>could not read your collectives: {visible.error?.message}</p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={visible.isFetching}
+            onClick={() => void visible.refetch()}
+          >
+            try again
+          </button>
         </div>
-      ) : null}
-      {createGroup.isError ? (
-        <p role="alert" className="text-[var(--fs-body)] text-danger">
-          could not create the collective: {createGroup.error.message}
-        </p>
-      ) : null}
-      {searching && search.isError ? (
-        <p role="alert" className="text-[13px] text-danger">
-          the search failed: {search.error.message}
-        </p>
-      ) : null}
-    </div>
+      ) : empty ? (
+        <OnEmpty
+          testId="collectives-empty"
+          icon={<Users />}
+          title="no collectives yet"
+          actions={
+            <>
+              {newCollective}
+              <Link className="btn btn-secondary" href="/discover">
+                discover collectives
+              </Link>
+            </>
+          }
+        />
+      ) : (
+        <div className="on-tbl" tabIndex={0} role="region" aria-label="collectives you belong to">
+          <table>
+            <caption className="sr-only">collectives you belong to</caption>
+            <thead>
+              <tr>
+                <th scope="col">collective</th>
+                <th scope="col">your role</th>
+                <th scope="col">who can publish</th>
+                <th scope="col" className="is-n">
+                  members
+                </th>
+                <th scope="col" className="is-n">
+                  transcripts
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ group, standing }) => (
+                <tr key={group.id} data-collective-id={group.id}>
+                  <td>
+                    <span className="on-name">
+                      <CollectiveSwatch id={group.id} />
+                      <Link className="is-title" href={`/collectives/${group.id}`}>
+                        {group.name}
+                      </Link>
+                    </span>
+                  </td>
+                  <td data-cell="standing">
+                    <span className="on-standing">
+                      <span>{standing.memberRole}</span>
+                      {standing.hasContributed ? <span className="on-tag">contributed</span> : null}
+                    </span>
+                  </td>
+                  <td className="is-policy">
+                    {whoCanPublishShort(group.acceptance_mode, group.linked_github_org, standing.memberRole === "owner")}
+                  </td>
+                  <td className="is-n">{group.member_count.toLocaleString("en-US")}</td>
+                  <td className="is-n">{group.transcript_count.toLocaleString("en-US")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {creating && user ? <NewCollectiveDialog onClose={() => setCreating(false)} /> : null}
+    </OnPage>
   );
 }
