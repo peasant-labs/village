@@ -7,7 +7,22 @@
    fairtrade token; motion is transform and opacity only.
    ============================================ */
 
+/* fairtrade frames a bare <section> as a page band (a max width, a gutter,
+   centred); these sections are parts of a page body and take its width */
+section.on-section,
+section.on-choices {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
 /* ---------- the head ---------- */
+
+/* fairtrade lowercases every h1 to h3 as chrome; a collective's name is user
+   content and keeps its case wherever a heading carries it */
+.on-keep-case {
+  text-transform: none;
+}
 
 /* the actions arrive wrapped (for their test id); the row lays them out */
 .on-cactions {
@@ -209,6 +224,51 @@
 .on-settings-body .srow-group,
 .on-settings-body .srow {
   min-width: 0;
+}
+/* a long name or description wraps beside its edit button instead of pushing it off the page */
+.on-settings-body .srow {
+  flex-wrap: wrap;
+  padding-inline: 0;
+}
+.on-settings-body .srow-text {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.on-settings-body .srow-text-value {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.on-settings-body .srow-control,
+.on-settings-body .srow-text-col {
+  min-width: 0;
+}
+.on-settings-body .srow-control {
+  flex-shrink: 1;
+  max-width: 100%;
+}
+
+/* on a phone the section list is a row of tabs above the section, not a column beside it */
+@media (max-width: 767px) {
+  .on-settings {
+    gap: var(--sp-5);
+  }
+  .on-settings > nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-1) var(--sp-2);
+  }
+  .on-settings > nav .on-settings-back {
+    flex-basis: 100%;
+    margin-bottom: var(--sp-1);
+  }
+  .on-settings > nav [aria-current="page"] {
+    box-shadow: inset 0 -2px 0 var(--amber);
+  }
+  .on-settings > nav .on-cap {
+    flex-basis: 100%;
+    margin: var(--sp-1) 0 0;
+  }
 }
 
 /* a group of choice cards: its heading, then the cards, then what happened */

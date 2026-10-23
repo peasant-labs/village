@@ -78,7 +78,7 @@ export default function GroupSettingsPage({
   const searchParams = useSearchParams();
   const qc = useQueryClient();
   const collective = useGroup(id);
-  const { data, isLoading } = collective;
+  const { data } = collective;
   const updateGroup = useUpdateGroup();
   const deleteGroup = useDeleteGroup();
   const promoteMember = usePromoteMember();
@@ -119,7 +119,9 @@ export default function GroupSettingsPage({
     router.replace(settingsSectionHref(id, "github"));
   }, [installed, id, qc, router]);
 
-  if (isLoading) return <CollectiveSkeleton crumb={[CRUMB_ROOT, { label: "settings" }]} />;
+  // Pending covers the wait for the session too: the read is not sent until the
+  // viewer is known, and "not found" must never show before it has answered.
+  if (collective.isPending) return <CollectiveSkeleton crumb={[CRUMB_ROOT, { label: "settings" }]} />;
 
   // A 404 is the friendly not-found state below; other failures say what broke.
   if (collective.isError && !isApiErrorStatus(collective.error, 404)) {

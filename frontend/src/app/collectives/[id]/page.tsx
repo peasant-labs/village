@@ -63,7 +63,7 @@ export default function GroupDetailPage({
   const searchParams = useSearchParams();
   const { user, isLoading: authLoading } = useAuth();
   const collective = useGroup(id);
-  const { data, isLoading } = collective;
+  const { data } = collective;
 
   const role = data?.your_role ?? "";
   const isOwner = role === "owner";
@@ -113,7 +113,9 @@ export default function GroupDetailPage({
     window.history.replaceState(null, "", `${pathname}${search ? `?${search}` : ""}`);
   };
 
-  if (isLoading) return <CollectiveSkeleton crumb={[CRUMB_ROOT]} />;
+  // Pending covers the wait for the session too: the read is not sent until the
+  // viewer is known, and "not found" must never show before it has answered.
+  if (collective.isPending) return <CollectiveSkeleton crumb={[CRUMB_ROOT]} />;
 
   // A 404 is the friendly not-found state below; other failures say what broke.
   if (collective.isError && !isApiErrorStatus(collective.error, 404)) {
@@ -236,7 +238,8 @@ export default function GroupDetailPage({
       headingLevel={3}
       testId="collective-restricted"
       actions={
-        offerSignIn ? (
+        // Where the head already offers a sign-in to join, one way in is enough.
+        offerSignIn && !joinable ? (
           <Link href={signInHere} className="btn btn-secondary">
             <LogIn size={16} aria-hidden="true" /> sign in
           </Link>
@@ -323,7 +326,7 @@ export default function GroupDetailPage({
         title={
           <span className="on-title-row">
             <CollectiveSwatch id={group.id} />
-            {group.name}
+            <span className="on-keep-case">{group.name}</span>
           </span>
         }
         lede={group.description || undefined}

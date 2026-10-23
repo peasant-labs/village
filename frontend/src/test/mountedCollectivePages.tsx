@@ -359,6 +359,18 @@ export async function renderCollectiveSettings(world: CollectiveWorld, expectRea
   await screen.findByRole("navigation", { name: "settings sections" });
 }
 
+/** Renders the real `/collectives/{id}` route and waits for nothing: for the states before it has an answer. */
+export async function mountCollectivePage(world: CollectiveWorld): Promise<void> {
+  arriveAt(`/collectives/${world.group.id}`);
+  await act(async () => {
+    render(
+      <Providers>
+        <GroupDetailPage params={Promise.resolve({ id: world.group.id })} />
+      </Providers>,
+    );
+  });
+}
+
 /** Renders the real `/collectives/{id}/settings` route and waits for nothing: for the states that draw no sections. */
 export async function mountCollectiveSettings(world: CollectiveWorld): Promise<void> {
   arriveAt(`/collectives/${world.group.id}/settings`);

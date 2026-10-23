@@ -271,7 +271,7 @@ export function DangerSection({ group, onDelete }: { group: Group; onDelete: () 
   return (
     <div className="on-danger" data-testid="settings-danger">
       <h2>
-        <TriangleAlert size={22} aria-hidden="true" /> delete {group.name}
+        <TriangleAlert size={22} aria-hidden="true" /> delete <span className="on-keep-case">{group.name}</span>
       </h2>
       <p>this removes the collective and every member&apos;s access through it. it cannot be undone.</p>
       <div>

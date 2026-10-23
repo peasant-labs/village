@@ -1,5 +1,5 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { pullRequestCells } from "@/lib/adapters/collective";
 import type { GroupTranscript } from "@/lib/types";
 import { pushedRoutes } from "@/test/nextNavigationMock";
@@ -7,6 +7,7 @@ import { loadCollectivePageFixtures, loadCollectiveRecoveryFixtures } from "@/te
 import {
   installCollectivePagesTeardown,
   installCollectiveREST,
+  mountCollectivePage,
   renderCollectivePage,
   renderCollectivesList,
   renderCollectiveSettings,
@@ -183,6 +184,28 @@ describe("the collective page", () => {
     await waitFor(() => {
       expect(requests.map((r) => r.path)).toContain(`/collectives/${world.group.id}?limit=40&offset=0`);
     });
+  });
+
+  it("waits for the session before it says anything about the collective", async () => {
+    const pageCase = fixtures.cases.find((c) => c.role === "owner" && c.canRead);
+    if (!pageCase) throw new Error("the corpus no longer carries an owner who can read");
+    const world = fixtures.worldFor(pageCase);
+    installCollectiveREST(world);
+    // Hold the session read: the collective is not asked for until the viewer is known.
+    const delegate = globalThis.fetch;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/auth/me")) await held;
+      return delegate(input, init);
+    }));
+    await mountCollectivePage(world);
+
+    expect(screen.getByTestId("collective-loading")).toBeInTheDocument();
+    expect(screen.queryByText("collective not found")).toBeNull();
+    await act(async () => { release(); });
+    expect(await screen.findByRole("heading", { level: 1, name: world.group.name })).toBeInTheDocument();
+    expect(screen.queryByText("collective not found")).toBeNull();
   });
 
   it("links each pull request a transcript is attached to", async () => {

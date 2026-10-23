@@ -79,7 +79,7 @@ export default function CollectiveWaiting({
           {rows.length === 1 ? "1 session waits" : `${rows.length} sessions wait`} for your approval before members can
           read {rows.length === 1 ? "it" : "them"}.
         </p>
-        <Link href={reviewHref} className="btn btn-primary">
+        <Link href={reviewHref} className="btn btn-secondary">
           <ClipboardCheck size={16} aria-hidden="true" /> review transcripts
         </Link>
       </div>

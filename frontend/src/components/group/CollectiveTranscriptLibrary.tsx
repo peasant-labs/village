@@ -33,9 +33,9 @@ function MyContributionRow({ share, groupID, onUnshare, unsharing, helperGroups,
     /** Refresh of the originating grouped list, offered by an expired scope. */
     onRefreshOrigin: () => void;
 }) {
-    const row = (<div className="flex items-center gap-3 px-5 py-2.5 hover:bg-surface-hover transition-colors">
+    const row = (<div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-2.5 hover:bg-surface-hover transition-colors">
       <ProviderBadge provider={share.model_provider}/>
-      <Link href={`/transcripts/${share.id}`} className="text-[var(--fs-body)] text-ink truncate min-w-0 flex-1 hover:underline focus-mono cursor-pointer">
+      <Link href={`/transcripts/${share.id}`} className="text-[var(--fs-body)] text-ink truncate min-w-0 flex-1 basis-[12rem] hover:underline focus-mono cursor-pointer">
         {share.title || "untitled"}
       </Link>
       {share.status === "pending" && (<span className="text-sm font-mono text-ink-3 tracking-wider shrink-0">
@@ -211,7 +211,7 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
     {canRead && (transcripts.length > 0 || fallback.length > 0 || grouped.remainingItems > 0 || grouped.isError) && <div className="border border-rule bg-surface">
       <SessionGroupDisclosure label="transcript groups" collapsedLabel="transcript groups" expanded={expanded} onToggle={() => setExpanded((open) => !open)} rowsID={`collective-library-${groupID}`} testID="collective-library-disclosure" bare>
         <div id={`collective-library-${groupID}`}>
-          {transcripts.length > 0 && <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-rule">
+          {transcripts.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-rule">
             <label className="text-sm font-mono text-ink-3">contributor <select aria-label="filter transcripts by contributor" value={contributor} onChange={(event) => setContributor(event.target.value)} className="bg-surface border border-rule text-sm text-ink ml-2"><option value="">all contributors</option>{[...contributors].map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
             <div className="flex items-center gap-2"><button type="button" className="btn btn-ghost btn-sm" aria-pressed={view === "list"} onClick={() => setView("list")}>list</button><button type="button" className="btn btn-ghost btn-sm" aria-pressed={view === "repos"} onClick={() => setView("repos")}>repos</button></div>
             {isOwner && <><Checkbox checked={visible.length > 0 && visible.every((row) => selected.has(row.id))} disabled={removing} onChange={(checked) => changeSelection((current) => { const next = new Set(current); for (const row of visible) {
