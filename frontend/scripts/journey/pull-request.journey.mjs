@@ -1,11 +1,13 @@
-/* Journey: the pull request prompts page.
+/* Journey: the pull request prompts page, and the list of pull requests
+ * waiting on you.
  *
- * The page the pull request's comment and check link to. It is driven three
- * ways through the real route: the author reading a preview (what matches, the
- * two actions, and who can read the transcripts), a reviewer reading it once
- * attached, and that reviewer moving through the split list with `j`. Each
- * asserts the semantic surface and the design-system contract, records the
- * accessible tree and an axe report, and keeps a still for review.
+ * The prompts page is the one the pull request's comment and check link to. It
+ * is driven three ways through the real route: the author reading a preview
+ * (what matches, the two actions, and who can read the transcripts), a
+ * reviewer reading it once attached, and that reviewer moving through the
+ * split list with `j`. The list at `/pulls` is read with requests waiting and
+ * with none. Each asserts the semantic surface and the design-system contract,
+ * records the accessible tree and an axe report, and keeps a still for review.
  */
 import { writeFileSync } from 'node:fs'
 import { test, expect } from './lib/fixtures.mjs'
@@ -17,12 +19,13 @@ import {
   expectComputedTokens,
 } from './lib/assertions.mjs'
 import { JOURNEY_PULL, JOURNEY_PULL_PATH } from './lib/pull-request-fixtures.mjs'
+import { PROMPT_REQUESTS } from './lib/home-fixtures.mjs'
 
 const [FIX, GUARD] = JOURNEY_PULL.transcripts
 
 /** Record the page's accessible tree and axe report; fail on a serious violation. */
-async function recordEvidence(page, testInfo, name) {
-  const aria = await page.getByTestId('pull-request-page').ariaSnapshot()
+async function recordEvidence(page, testInfo, name, testId = 'pull-request-page') {
+  const aria = await page.getByTestId(testId).ariaSnapshot()
   writeFileSync(testInfo.outputPath(`${name}-aria.yml`), aria)
   await testInfo.attach(`${name}-aria.yml`, {
     path: testInfo.outputPath(`${name}-aria.yml`),
@@ -156,5 +159,49 @@ test.describe('pull request page', () => {
       await expect(selectedOption(page)).toHaveText(GUARD.title)
       await expect(page.locator('.pd-split-list')).toBeFocused()
     })
+  })
+})
+
+test.describe('pull requests waiting on you', () => {
+  test.afterEach(async ({ request }) => {
+    await setScenario(request, 'default')
+  })
+
+  test('lists them newest first, by the day they were asked for', async ({ page, theme }, testInfo) => {
+    await page.goto('/pulls')
+    await expect(page.getByTestId('pulls-page')).toBeVisible()
+    await expectTheme(page, theme)
+    await expect(page.getByRole('heading', { level: 1, name: 'pull requests' })).toBeVisible()
+
+    const cards = page.getByTestId('pulls-request')
+    await expect(cards).toHaveCount(PROMPT_REQUESTS.length)
+    await expect(page.getByTestId('pulls-day').first().locator('h2')).toHaveText('today')
+    // The newest request leads, and its heading opens its prompts page.
+    const newest = PROMPT_REQUESTS[PROMPT_REQUESTS.length - 1]
+    const first = cards.first().getByRole('link', { name: `${newest.owner}/${newest.name} #${newest.number}` })
+    await expect(first).toHaveAttribute('href', `/pulls/${newest.owner}/${newest.name}/${newest.number}`)
+    await expect(cards.first()).toContainText(`from ${newest.head_remote}`)
+    await expect(cards.first().locator('.on-tag')).toHaveText('waiting')
+
+    await expectComputedTokens(page, '[data-testid="pulls-request"]', { borderRadius: '0px' })
+    await recordEvidence(page, testInfo, 'pulls-list', 'pulls-page')
+    await page.screenshot({ path: testInfo.outputPath('pulls-list.png'), fullPage: true })
+  })
+
+  test('says nothing is waiting, and how a pull request comes to wait', async ({ page, request, theme }) => {
+    await setScenario(request, 'empty')
+    await page.goto('/pulls')
+    await expectTheme(page, theme)
+    const empty = page.getByTestId('pulls-empty')
+    await expect(empty.getByRole('heading', { name: 'nothing is waiting on you' })).toBeVisible()
+    await expect(empty).toContainText('/peasant attach')
+    await expect(page.getByTestId('pulls-request')).toHaveCount(0)
+  })
+
+  test('asks a signed-out visitor to sign in and come back', async ({ page, request }) => {
+    await setScenario(request, 'signed-out')
+    await page.goto('/pulls')
+    await expect(page.getByTestId('pulls-signed-out')).toBeVisible()
+    await expect(page.getByTestId('pulls-sign-in')).toHaveAttribute('href', `/login?next=${encodeURIComponent('/pulls')}`)
   })
 })

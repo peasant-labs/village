@@ -7,8 +7,10 @@
  * none. Ages are relative to the harness's frozen clock (2024-01-01T12:00Z).
  *
  * Scenarios (set by a journey through `setScenario`):
- *   default     the rows above, two peasant sign-ins, one transcript waiting
+ *   default     the rows above, two peasant sign-ins, one transcript waiting,
+ *               and three pull requests waiting for her transcripts
  *   empty       no transcripts at all (the composed mock's own empty scenario)
+ *               and no pull requests waiting
  *   no-keys     as default, but peasant is signed in nowhere
  *
  * `handleHomeRequest` composes into `scripts/journey/mock.mjs` the way
@@ -238,6 +240,18 @@ const readBody = (req) =>
     req.on('end', () => resolve(data))
   })
 
+/**
+ * The pull requests waiting on alice-dev's transcripts (`GET /users/me/prompt-requests`):
+ * ones she asked to attach to before publishing a session that matches. Served
+ * oldest first, as the server orders them; one comes from her own fork. The
+ * `empty` scenario has none waiting.
+ */
+export const PROMPT_REQUESTS = [
+  { owner: 'acme', name: 'ingest-api', number: 38, state: 'waiting', requested_at: at(3 * DAY), remote: 'acme/ingest-api', head_remote: 'acme/ingest-api' },
+  { owner: 'acme', name: 'web', number: 33, state: 'waiting', requested_at: at(DAY + 2 * HOUR), remote: 'acme/web', head_remote: 'acme/web' },
+  { owner: 'acme', name: 'ingest-api', number: 45, state: 'waiting', requested_at: at(2 * HOUR), remote: 'acme/ingest-api', head_remote: 'alice-dev/ingest-api' },
+]
+
 /** The handle somebody else already holds, so a journey can show the refusal. */
 export const TAKEN_HANDLE = 'bob-ai'
 
@@ -307,6 +321,10 @@ export async function handleHomeRequest(req, res, scenario) {
         { id: COLLECTIVES[0].id, name: COLLECTIVES[0].name, description: null, linked_github_org: 'acme', approved_count: 30, pending_count: 0, rejected_attempt_count: 0, withdrawn_attempt_count: 0 },
       ],
     })
+    return true
+  }
+  if (req.method === 'GET' && path === '/users/me/prompt-requests') {
+    send(res, 200, { requests: scenario === 'empty' ? [] : PROMPT_REQUESTS })
     return true
   }
   if (req.method === 'GET' && path === '/users/me/settings') {

@@ -1,0 +1,86 @@
+# The /pulls route: the signed-in person's pull requests waiting for their
+# transcripts, as `GET /users/me/prompt-requests` serves them. One case per
+# surface the page can land on.
+#
+# `now` is the frozen clock. Every requested_at sits within forty minutes of
+# midday UTC, so the local day each one lands on is the same day in any time
+# zone within eleven hours of UTC, and the day labels below do not depend on
+# where the suite runs.
+#
+# `requestFailure` describes the request rather than the rows: `never`, `first`
+# (only the first read fails, so the retry has an answer to reach) or `always`.
+# `expectDays` is what the page shows once it settles (after a retry, for a
+# case whose first read fails): the day labels in order, and each day's cards
+# in order, by the card's heading and its meta line.
+cases:
+  - name: requests-grouped-by-day-newest-first
+    signedIn: true
+    requestFailure: never
+    now: "2026-10-23T12:20:00Z"
+    # Served oldest first, as the server orders them; the page shows newest first.
+    requests:
+      - { owner: acme, name: ingest-api, number: 38, state: waiting, requested_at: "2026-10-20T12:00:00Z", remote: acme/ingest-api, head_remote: acme/ingest-api }
+      - { owner: acme, name: web, number: 7, state: waiting, requested_at: "2026-10-22T12:00:00Z", remote: acme/web, head_remote: acme/web }
+      - { owner: acme, name: ingest-api, number: 42, state: waiting, requested_at: "2026-10-23T11:40:00Z", remote: acme/ingest-api, head_remote: acme/ingest-api }
+      - { owner: Acme, name: Ingest-API, number: 45, state: waiting, requested_at: "2026-10-23T12:00:00Z", remote: Acme/Ingest-API, head_remote: alice-dev/Ingest-API }
+    expectSurface: rows
+    expectDays:
+      - label: today
+        cards:
+          - { heading: "Acme/Ingest-API #45", meta: "asked 20m ago from alice-dev/Ingest-API", href: /pulls/Acme/Ingest-API/45 }
+          - { heading: "acme/ingest-api #42", meta: "asked 40m ago", href: /pulls/acme/ingest-api/42 }
+      - label: yesterday
+        cards:
+          - { heading: "acme/web #7", meta: "asked yesterday", href: /pulls/acme/web/7 }
+      - label: oct 20
+        cards:
+          - { heading: "acme/ingest-api #38", meta: "asked 3d ago", href: /pulls/acme/ingest-api/38 }
+
+  - name: a-request-from-another-year-names-its-year
+    signedIn: true
+    requestFailure: never
+    now: "2026-01-02T12:20:00Z"
+    requests:
+      - { owner: acme, name: web, number: 3, state: waiting, requested_at: "2025-12-20T12:00:00Z", remote: acme/web, head_remote: acme/web }
+    expectSurface: rows
+    expectDays:
+      - label: dec 20, 2025
+        cards:
+          - { heading: "acme/web #3", meta: "asked last week", href: /pulls/acme/web/3 }
+
+  - name: nothing-is-waiting
+    signedIn: true
+    requestFailure: never
+    now: "2026-10-23T12:20:00Z"
+    requests: []
+    expectSurface: empty
+    expectDays: []
+
+  - name: a-failed-read-is-not-an-empty-list-and-retries
+    signedIn: true
+    requestFailure: first
+    now: "2026-10-23T12:20:00Z"
+    requests:
+      - { owner: acme, name: ingest-api, number: 42, state: waiting, requested_at: "2026-10-23T11:40:00Z", remote: acme/ingest-api, head_remote: acme/ingest-api }
+    expectSurface: failure
+    expectDays:
+      - label: today
+        cards:
+          - { heading: "acme/ingest-api #42", meta: "asked 40m ago", href: /pulls/acme/ingest-api/42 }
+
+  - name: a-read-that-keeps-failing-stays-a-failure
+    signedIn: true
+    requestFailure: always
+    now: "2026-10-23T12:20:00Z"
+    requests:
+      - { owner: acme, name: ingest-api, number: 42, state: waiting, requested_at: "2026-10-23T11:40:00Z", remote: acme/ingest-api, head_remote: acme/ingest-api }
+    expectSurface: failure
+    expectDays: []
+
+  - name: signed-out-is-asked-to-sign-in-back-to-pulls
+    signedIn: false
+    requestFailure: never
+    now: "2026-10-23T12:20:00Z"
+    requests: []
+    expectSurface: signed-out
+    expectDays: []

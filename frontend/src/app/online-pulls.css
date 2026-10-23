@@ -261,6 +261,26 @@
 .on-pr-list .on-prcard > header {
   padding-bottom: var(--sp-4);
 }
+.on-pr-cardhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+  min-width: 0;
+}
+.on-pr-cardhead h3 {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--sp-2) + 2px);
+  min-width: 0;
+}
+.on-pr-cardhead h3 svg {
+  flex: none;
+  width: var(--ic-lg);
+  height: var(--ic-lg);
+  color: var(--ink-3);
+}
 .on-pr-open {
   color: var(--ink-strong);
   text-decoration: none;

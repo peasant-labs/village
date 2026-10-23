@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  VillagePromptRequest,
+  VillagePromptRequestsResponse,
   VillagePullRequestAttachmentResponse,
   VillageTranscriptPullRequest,
   VillageTranscriptPullRequestsResponse,
@@ -30,6 +32,31 @@ export function usePullRequestAttachment(owner: string, name: string, number: nu
     queryFn: () => api<VillagePullRequestAttachmentResponse>(pullPath(owner, name, number)),
     retry: false,
     enabled: !!owner && !!name && Number.isInteger(number) && number > 0,
+  });
+}
+
+// The key carries the viewer it belongs to, for the same reason the settings
+// key below does: the route is always "me".
+export function myPromptRequestsKey(username: string) {
+  return ["my-prompt-requests", username.toLowerCase()] as const;
+}
+
+/**
+ * The signed-in person's pull requests that wait for a transcript from their
+ * computer (`GET /users/me/prompt-requests`): the ones they asked to attach,
+ * by commenting `/peasant attach` or by opening them with automatic linking on,
+ * while none of their published sessions matches yet. The server answers only
+ * attachments in the `waiting` state, oldest request first; the page orders
+ * and groups them for reading and decides nothing about which ones belong.
+ */
+export function useMyPromptRequests(enabled: boolean, username: string) {
+  return useQuery({
+    queryKey: myPromptRequestsKey(username),
+    queryFn: async (): Promise<VillagePromptRequest[]> => {
+      const res = await api<VillagePromptRequestsResponse>("/users/me/prompt-requests");
+      return res.requests ?? [];
+    },
+    enabled: enabled && !!username,
   });
 }
 
