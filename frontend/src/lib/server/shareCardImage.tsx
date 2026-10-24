@@ -137,6 +137,8 @@ export async function shareCardImage(params: Promise<{ id: string }>, height: He
       "content-type": "image/png",
       // Visibility is checked on every request, so no copy may be reused.
       "cache-control": "no-store",
+      // The card shows the first prompt, so image search may not list it either.
+      "x-robots-tag": "noindex",
     },
   });
 }

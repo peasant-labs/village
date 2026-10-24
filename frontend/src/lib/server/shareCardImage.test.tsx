@@ -169,6 +169,7 @@ describe("share image route: fails closed", () => {
         expect(response.status).toBe(200);
         expect(response.headers.get("content-type")).toBe("image/png");
         expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(response.headers.get("x-robots-tag")).toBe("noindex");
         expect(pngSize(bytes)).toEqual({ width: 1200, height });
         if (c.expect === "generic") expect(bytes.equals(generic.get(height)!)).toBe(true);
         else expect(bytes.equals(generic.get(height)!)).toBe(false);

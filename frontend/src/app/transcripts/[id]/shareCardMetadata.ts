@@ -56,6 +56,8 @@ export function shareCardMetadata(card: ShareCardData | null, id: string): Metad
   return {
     title,
     description,
+    // Readable by anyone with the link, never listed by a search engine.
+    robots: SITE_METADATA.robots,
     openGraph: { title, description, images: [image("opengraph-image", OPEN_GRAPH_HEIGHT)] },
     twitter: { card: "summary_large_image", title, description, images: [image("twitter-image", X_HEIGHT)] },
   };

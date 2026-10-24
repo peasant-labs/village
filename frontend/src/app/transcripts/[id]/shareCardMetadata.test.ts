@@ -71,6 +71,8 @@ describe("shareCardMetadata fixtures", () => {
         expect(s, "one line").not.toMatch(/[\r\n]/);
         expect(s, "no middle dot").not.toContain("·");
       }
+      // Public or not, no search engine may list or follow a transcript page.
+      expect(metadata.robots, "never indexed").toEqual({ index: false, follow: false });
 
       if (c.expect === "generic") {
         // The site's own title and description, with only the card size added.
