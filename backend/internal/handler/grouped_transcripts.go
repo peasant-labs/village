@@ -110,7 +110,14 @@ func (h *Handler) resolveGroupedTranscripts(ctx context.Context, request Grouped
 		viewer = user.PgID()
 	}
 	tags := append([]string{}, request.Tags...)
-	filter, err := h.resolveOwnerFilter(ctx, GetUser(ctx), request.Owner, request.Org)
+	filters := listFilterRequest{OwnerName: request.Owner, Org: request.Org, ProjectHash: request.ProjectHash}
+	if request.Project != "" {
+		filters.Project = "%" + request.Project + "%"
+	}
+	if request.Repository != "" {
+		filters.Repository = "%" + request.Repository + "%"
+	}
+	filter, err := h.resolveOwnerFilter(ctx, GetUser(ctx), filters)
 	if err != nil {
 		return GroupedScopeResult{}, err
 	}

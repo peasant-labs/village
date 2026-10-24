@@ -107,8 +107,10 @@ type ListGroupedTranscriptCandidatesParams struct {
 
 // No pagination here: group counts and top-level pages share this exact selected
 // set. EXISTS avoids duplicating identities when tags or share memberships join.
-// The owner and org filters arrive as the account ids the viewer may see as a
-// profile (resolved by the handler), so neither can name an anonymous owner.
+// The owner, org and repository filters (project name, project hash,
+// repository) also arrive as the account ids the viewer may see as a profile
+// (resolved by the handler), so none can name an anonymous owner or match a
+// repository withheld from this viewer.
 func (q *Queries) ListGroupedTranscriptCandidates(ctx context.Context, arg ListGroupedTranscriptCandidatesParams) ([]Transcript, error) {
 	rows, err := q.db.Query(ctx, listGroupedTranscriptCandidates,
 		arg.ViewerID,

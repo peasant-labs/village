@@ -1209,6 +1209,21 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// The envelope carries no owner, so the repository identity of an owner
+	// who is anonymous to this viewer is left out of it here.
+	owner, err := h.resolvePublicOwner(r.Context(), user, transcript.OwnerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Cannot read the transcript owner because the profile visibility lookup failed. No content was served; retry the request.")
+		return
+	}
+	if !owner.IsProfile() {
+		response, err = withholdContentRepository(response)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(response)
@@ -1823,10 +1838,17 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		argIdx++
 	}
 
-	// The owner and org filters match only owners this viewer may see as a
-	// profile, so a filter cannot tie anonymous rows to a person or an
-	// organization.
-	ownerFilter, err := h.resolveOwnerFilter(r.Context(), user, q.Get("owner"), q.Get("org"))
+	// The owner, org, project and repo filters match only owners this viewer
+	// may see as a profile, so a filter cannot tie anonymous rows to a person,
+	// an organization, or a repository.
+	filters := listFilterRequest{OwnerName: q.Get("owner"), Org: q.Get("org")}
+	if project := q.Get("project"); project != "" {
+		filters.Project = "%" + project + "%"
+	}
+	if repo := q.Get("repo"); repo != "" {
+		filters.Repository = "%" + repo + "%"
+	}
+	ownerFilter, err := h.resolveOwnerFilter(r.Context(), user, filters)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the owner or organization filter could not be resolved, so no transcript page was returned; retry the request")
 		return

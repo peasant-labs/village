@@ -1584,6 +1584,10 @@ func (m *mockQuerier) ListTranscriptsByOwnerLocalIDs(ctx context.Context, arg sq
 	return []sqlc.ListTranscriptsByOwnerLocalIDsRow{}, nil
 }
 
+func (m *mockQuerier) ListOwnersMatchingRepositoryFilter(ctx context.Context, arg sqlc.ListOwnersMatchingRepositoryFilterParams) ([]pgtype.UUID, error) {
+	return []pgtype.UUID{}, nil
+}
+
 func (m *mockQuerier) ListUserIDsWithVisibleOrg(ctx context.Context, orgLogin string) ([]pgtype.UUID, error) {
 	return []pgtype.UUID{}, nil
 }

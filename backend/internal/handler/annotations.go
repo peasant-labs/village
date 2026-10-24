@@ -54,7 +54,8 @@ func (h *Handler) ListTranscriptAnnotations(w http.ResponseWriter, r *http.Reque
 	// A human annotator's name is that person's handle, so it is shown only to a
 	// viewer who may see the person (resolvePublicOwners), and is otherwise
 	// replaced by the anonymous label.
-	authorIDs := make([]pgtype.UUID, 0, len(rows))
+	authorIDs := make([]pgtype.UUID, 0, len(rows)+1)
+	authorIDs = append(authorIDs, transcript.OwnerID)
 	for _, row := range rows {
 		authorIDs = append(authorIDs, row.OwnerID)
 	}
@@ -68,6 +69,7 @@ func (h *Handler) ListTranscriptAnnotations(w http.ResponseWriter, r *http.Reque
 	for _, row := range rows {
 		summary := annotationRowToSummary(row)
 		summary.AnnotatorName = annotatorNameFor(summary, authors.of(row.OwnerID))
+		withholdAnnotationRepository(&summary, authors.of(transcript.OwnerID))
 		annotations = append(annotations, summary)
 	}
 

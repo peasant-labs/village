@@ -407,11 +407,21 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   `parent_session_id` within the same owner (`ListTranscriptsByOwnerLocalIDs`,
   one read per page) and keeps it only when the viewer may read it under the
   transcript read policy (`transcriptViewAccess`); otherwise it is null.
-- **Which rows are listed is unchanged.** The roster and contributor queries
-  still leave out a person who is not discoverable unless the viewer owns the
-  collective, and `GET /users/{username}` and the project page still answer 404
-  for a hidden person to anyone but themselves. Those routes now return only
-  the public profile shape.
+- **Which rows are listed.** The roster and contributor queries leave out a
+  person who is not discoverable unless the viewer owns the collective or is
+  that person: a person always sees their own row. `GET /users/{username}` and
+  the project page still answer 404 for a hidden person to anyone but
+  themselves, and now return only the public profile shape.
+- **The content route and pull annotations withhold the repository too.**
+  Neither response carries an owner, so the server decides: for an owner
+  anonymous to the viewer, `GET /transcripts/{id}/content` serves
+  `sessionDetail` without `project`, `workingDirectory`, `gitBranch`,
+  `gitRemote` or any `childSessions[].project` (`withholdContentRepository`),
+  and annotations leave `targetProjectHash` and `targetFilePath` absent.
+  Withheld means null or absent, never an empty string. The `project` and
+  `repo` list filters (and the grouped `project_hash`) match only owners the
+  viewer may see as a profile, through the same owner set as the person
+  filters. Attached pull requests stay visible by design.
 - **Grouped lists keep the owning account off the wire.** Helper grouping needs
   the owner to keep two owners' equal local ids apart, so it travels beside the
   rows (`GroupedScopeResult.ownerKeys`) and the helper-group id is an HMAC under

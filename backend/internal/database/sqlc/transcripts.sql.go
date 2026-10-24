@@ -787,6 +787,45 @@ func (q *Queries) ListOwnerTranscriptsForMatching(ctx context.Context, ownerID p
 	return items, nil
 }
 
+const listOwnersMatchingRepositoryFilter = `-- name: ListOwnersMatchingRepositoryFilter :many
+SELECT DISTINCT t.owner_id
+FROM transcripts t
+WHERE ($1::text = '' OR t.project_name ILIKE $1::text)
+  AND ($2::text = '' OR t.git_remote ILIKE $2::text)
+  AND ($3::text = '' OR t.project_hash = $3::text)
+`
+
+type ListOwnersMatchingRepositoryFilterParams struct {
+	ProjectPattern    string `db:"project_pattern" json:"project_pattern"`
+	RepositoryPattern string `db:"repository_pattern" json:"repository_pattern"`
+	ProjectHash       string `db:"project_hash" json:"project_hash"`
+}
+
+// The owners with at least one transcript matching the transcript lists'
+// repository filters (project name, repository, project hash). The handler
+// keeps only the owners the viewer may see as a profile before filtering, so a
+// repository filter never matches a transcript whose repository is withheld
+// from this viewer. An empty filter matches every value.
+func (q *Queries) ListOwnersMatchingRepositoryFilter(ctx context.Context, arg ListOwnersMatchingRepositoryFilterParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listOwnersMatchingRepositoryFilter, arg.ProjectPattern, arg.RepositoryPattern, arg.ProjectHash)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var owner_id pgtype.UUID
+		if err := rows.Scan(&owner_id); err != nil {
+			return nil, err
+		}
+		items = append(items, owner_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectTranscriptsForViewer = `-- name: ListProjectTranscriptsForViewer :many
 SELECT t.id, t.owner_id, t.local_id, t.title, t.description, t.visibility, t.model_provider,
     t.model_name, t.harness_version, t.session_start, t.session_end, t.turn_count, t.token_count,

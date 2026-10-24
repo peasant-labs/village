@@ -25,6 +25,7 @@ type Querier interface {
 	UpsertUser(ctx context.Context, arg sqlc.UpsertUserParams) (sqlc.User, error)
 	UpsertUserByProvider(ctx context.Context, arg sqlc.UpsertUserByProviderParams) (sqlc.User, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (sqlc.User, error)
+	ListOwnersMatchingRepositoryFilter(ctx context.Context, arg sqlc.ListOwnersMatchingRepositoryFilterParams) ([]pgtype.UUID, error)
 	ListUserIDsWithVisibleOrg(ctx context.Context, orgLogin string) ([]pgtype.UUID, error)
 	ListTranscriptsByOwnerLocalIDs(ctx context.Context, arg sqlc.ListTranscriptsByOwnerLocalIDsParams) ([]sqlc.ListTranscriptsByOwnerLocalIDsRow, error)
 	ListPublicOwnersForViewer(ctx context.Context, arg sqlc.ListPublicOwnersForViewerParams) ([]sqlc.ListPublicOwnersForViewerRow, error)

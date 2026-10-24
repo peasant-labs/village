@@ -1,0 +1,32 @@
+# GET /transcripts/{id}/content for a public transcript whose stored session
+# detail names its repository: project, working directory, git branch and
+# remote, and a child session's project. The envelope carries no owner, so the
+# server leaves those fields out when the owner is anonymous to the viewer.
+#
+# withheld: true means every repository field must be absent and none of their
+# values may appear anywhere in the response bytes; false means every field is
+# served as stored.
+
+- name: discoverable_owner_to_signed_out_viewer
+  why: a discoverable owner's repository is shown to everyone
+  owner_discoverable: true
+  viewer: anonymous
+  withheld: false
+
+- name: hidden_owner_to_signed_out_viewer
+  why: a hidden owner is anonymous to a signed-out viewer, so the content names no repository
+  owner_discoverable: false
+  viewer: anonymous
+  withheld: true
+
+- name: hidden_owner_to_other_viewer
+  why: a hidden owner is anonymous to an unrelated signed-in viewer
+  owner_discoverable: false
+  viewer: other
+  withheld: true
+
+- name: hidden_owner_to_themselves
+  why: an owner always sees their own repository
+  owner_discoverable: false
+  viewer: owner
+  withheld: false

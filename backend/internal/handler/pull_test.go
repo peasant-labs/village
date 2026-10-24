@@ -296,8 +296,8 @@ func TestPull_GetMeta_Owner_SharedMapsToGroup(t *testing.T) {
 	if info.Harness != schema.HarnessClaudeCode {
 		t.Errorf("harness: got %q, want %q", info.Harness, schema.HarnessClaudeCode)
 	}
-	if info.ProjectName != "acme/widget" {
-		t.Errorf("projectName: got %q, want %q", info.ProjectName, "acme/widget")
+	if info.ProjectName == nil || *info.ProjectName != "acme/widget" {
+		t.Errorf("projectName: got %v, want %q", info.ProjectName, "acme/widget")
 	}
 	if info.ContractVersion != schema.ContractVersion("0.1.0") {
 		t.Errorf("contractVersion: got %q, want %q", info.ContractVersion, "0.1.0")

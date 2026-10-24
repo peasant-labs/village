@@ -16,15 +16,15 @@
 #                 detail, list, grouped list, collective library, review queue,
 #                 pull envelope.
 #   roster:       whether the collective roster and contributor list show the
-#                 owner (profile) or leave them out (absent). The roster keeps
-#                 its existing rule: a person who is not discoverable is listed
-#                 only to the collective's owners.
+#                 owner (profile) or leave them out (absent). A person who is
+#                 not discoverable is listed only to the collective's owners
+#                 and to themselves.
 #   profile_page: GET /users/{username} and the project page (profile |
 #                 not_found). These keep their existing rule: only a
 #                 discoverable person, or the person themselves.
 #   annotator:    a human annotation's annotator name (name | anon).
-#   filter:       whether ?owner= and ?org= on the transcript lists match the
-#                 owner's transcripts (match | empty).
+#   filter:       whether ?owner=, ?org=, ?project= and ?repo= on the
+#                 transcript lists match the owner's transcripts (match | empty).
 #   pull:         whether the viewer can pull the collective-shared transcript.
 #   review:       whether the viewer reads the review queue.
 #   my_shares:    whether the viewer reads their own submissions.
@@ -78,10 +78,10 @@
   expect: {owner: anonymous, roster: absent, profile_page: not_found, annotator: anon, filter: empty, pull: true, review: false, my_shares: false}
 
 - name: hidden_owner_to_themselves
-  why: a hidden owner still sees their own profile everywhere they appear as an owner
+  why: a hidden owner still sees their own profile everywhere they appear, the collective roster and contributor list included
   owner_discoverable: false
   viewer: owner
-  expect: {owner: profile, roster: absent, profile_page: profile, annotator: name, filter: match, pull: true, review: false, my_shares: true}
+  expect: {owner: profile, roster: profile, profile_page: profile, annotator: name, filter: match, pull: true, review: false, my_shares: true}
 
 - name: hidden_owner_to_collective_owner
   why: the owner of a collective the hidden owner joined and submitted to sees their profile, as the join dialog promises

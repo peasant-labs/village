@@ -118,6 +118,7 @@ type poWorld struct {
 	accepted    pgtype.UUID // public, accepted into the collective
 	shared      pgtype.UUID // collective-shared, accepted: pullable by members
 	pending     pgtype.UUID // public, awaiting review
+	contentKey  string      // blob key of the accepted transcript's stored content
 }
 
 func (w *poWorld) id(v pgtype.UUID) string { return uuid.UUID(v.Bytes).String() }
@@ -181,6 +182,15 @@ func newPublicOwnerWorld(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 			t.Fatalf("create the owner's annotation: %d %s", rec.Code, rec.Body.String())
 		}
 	}
+	// Annotations that name the owner's project, which the annotation routes
+	// withhold for an anonymous owner.
+	if _, err := pool.Exec(ctx, `UPDATE annotations SET project_hash = $2 WHERE owner_id = $1`, w.owner, w.projectHash); err != nil {
+		t.Fatalf("give the owner's annotations a target project: %v", err)
+	}
+	// Stored content whose session detail names the repository, served by the
+	// content route through a test blob store.
+	w.contentKey = "transcripts/" + uuid.NewString() + ".bin"
+	execAsSystem(t, ctx, pool, `UPDATE transcripts SET blob_key = $2 WHERE id = $1`, w.accepted, w.contentKey)
 	return w
 }
 
@@ -246,6 +256,7 @@ func publicOwnerRouter(h *Handler) http.Handler {
 	r.Get("/transcripts", h.ListTranscripts)
 	r.Get("/transcripts/{id}", h.GetTranscript)
 	r.Get("/transcripts/{id}/annotations", h.ListTranscriptAnnotations)
+	r.Get("/transcripts/{id}/content", h.GetTranscriptContent)
 	r.Get("/collectives/{id}", h.GetGroup)
 	r.Get("/collectives/{id}/pending", h.ListPendingShares)
 	r.Get("/collectives/{id}/my-shares", h.ListMyGroupShares)
@@ -297,7 +308,11 @@ func (w *poWorld) assertNoLeak(t *testing.T, where string, body []byte, c poCase
 	if c.Expect.Owner != "anonymous" {
 		return
 	}
-	for label, value := range map[string]string{"username": w.ownerName, "id": w.id(w.owner), "display name": w.displayName, "avatar": w.avatarURL, "organization": w.orgLogin, "project hash": w.projectHash, "project name": "po-project"} {
+	values := map[string]string{"username": w.ownerName, "id": w.id(w.owner), "display name": w.displayName, "avatar": w.avatarURL, "organization": w.orgLogin, "project hash": w.projectHash, "project name": "po-project"}
+	for i, value := range withheldContentValues {
+		values["content repository "+string(rune('a'+i))] = value
+	}
+	for label, value := range values {
 		if bytes.Contains(body, []byte(value)) {
 			t.Errorf("%s leaks the hidden owner's %s %q to the %s viewer: %s", where, label, value, c.Viewer, body)
 		}
@@ -312,8 +327,11 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 	for _, c := range loadPublicOwnerCases(t) {
 		t.Run(c.Name, func(t *testing.T) {
 			h := New(&config.Config{}, pool, nil)
+			blobs := newFakeBlobStore()
+			h.blobs = blobs
 			router := publicOwnerRouter(h)
 			w := newPublicOwnerWorld(t, ctx, pool, h, c)
+			blobs.put(w.contentKey, contentWithRepositoryJSON())
 			defer w.cleanup(t, ctx)
 			viewer := w.actor(c.Viewer)
 			check := func(where string, body []byte) { w.assertNoLeak(t, where, body, c) }
@@ -379,8 +397,9 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 				w.assertOwner(t, "grouped row "+string(rune('0'+i)), owner, c.Expect.Owner)
 			}
 
-			// The owner and organization filters on both lists.
-			for _, filter := range []string{"owner=" + url.QueryEscape(w.ownerName), "org=" + url.QueryEscape(w.orgLogin)} {
+			// The owner, organization, project and repository filters on both lists.
+			for _, filter := range []string{"owner=" + url.QueryEscape(w.ownerName), "org=" + url.QueryEscape(w.orgLogin),
+				"project=po-project", "repo=" + url.QueryEscape(w.ownerName+"/po-project")} {
 				for _, view := range []string{"", "&view=grouped"} {
 					status, body = w.get(t, router, viewer, "/transcripts?limit=100&"+filter+view)
 					if status != http.StatusOK {
@@ -514,6 +533,18 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 				}
 			}
 
+			// Stored content: the session detail's repository identity.
+			status, body = w.get(t, router, viewer, "/transcripts/"+w.id(w.accepted)+"/content")
+			if status != http.StatusOK {
+				t.Fatalf("content answered %d: %s", status, body)
+			}
+			check("content", body)
+			for _, value := range withheldContentValues {
+				if contains := bytes.Contains(body, []byte(value)); contains != (c.Expect.Owner == "profile") {
+					t.Errorf("content carries %q = %v, want %v for the %s viewer", value, contains, c.Expect.Owner == "profile", c.Viewer)
+				}
+			}
+
 			// Annotations on the web route.
 			status, body = w.get(t, router, viewer, "/transcripts/"+w.id(w.accepted)+"/annotations")
 			if status != http.StatusOK {
@@ -522,10 +553,14 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 			check("annotations", body)
 			var web struct {
 				Annotations []struct {
-					AnnotatorName string `json:"annotatorName"`
+					AnnotatorName     string  `json:"annotatorName"`
+					TargetProjectHash *string `json:"targetProjectHash"`
 				} `json:"annotations"`
 			}
 			mustDecode(t, body, &web)
+			for _, row := range web.Annotations {
+				w.assertTargetProject(t, "annotations", row.TargetProjectHash, c.Expect.Owner)
+			}
 			w.assertAnnotators(t, "annotations", len(web.Annotations), func(i int) string { return web.Annotations[i].AnnotatorName }, c.Expect.Annotator)
 
 			// The pull surface.
@@ -571,12 +606,14 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 				}
 				check("pull annotations", body)
 				var pulledAnnotations []struct {
-					Author        json.RawMessage `json:"author"`
-					AnnotatorName string          `json:"annotatorName"`
+					Author            json.RawMessage `json:"author"`
+					AnnotatorName     string          `json:"annotatorName"`
+					TargetProjectHash *string         `json:"targetProjectHash"`
 				}
 				mustDecode(t, body, &pulledAnnotations)
 				for _, row := range pulledAnnotations {
 					w.assertOwner(t, "pull annotation author", row.Author, c.Expect.Owner)
+					w.assertTargetProject(t, "pull annotations", row.TargetProjectHash, c.Expect.Owner)
 				}
 				w.assertAnnotators(t, "pull annotations", len(pulledAnnotations), func(i int) string { return pulledAnnotations[i].AnnotatorName }, c.Expect.Annotator)
 			}
@@ -646,6 +683,21 @@ func (w *poWorld) assertRoster(t *testing.T, where string, members []struct {
 	}
 	if (want == "profile") != memberFound || (want == "profile") != contributorFound {
 		t.Errorf("%s lists the owner as member=%v contributor=%v, want %s", where, memberFound, contributorFound, want)
+	}
+}
+
+// assertTargetProject checks an annotation's target project: the owner's
+// project hash beside a profile owner, absent beside an anonymous one.
+func (w *poWorld) assertTargetProject(t *testing.T, where string, got *string, owner string) {
+	t.Helper()
+	if owner == "anonymous" {
+		if got != nil {
+			t.Errorf("%s names the anonymous owner's target project %q", where, *got)
+		}
+		return
+	}
+	if got == nil || *got != w.projectHash {
+		t.Errorf("%s target project = %v, want %q", where, got, w.projectHash)
 	}
 }
 

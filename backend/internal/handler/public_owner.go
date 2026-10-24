@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -116,6 +118,83 @@ func withholdSessionRepository(session *schema.VillageTranscript, owner schema.V
 	session.ProjectDisplayName, session.ProjectNameSource, session.ProjectRemoteLabel = nil, nil, nil
 }
 
+// withholdAnnotationRepository leaves an annotation's target project hash and
+// target file path absent when the annotated transcript's owner is anonymous
+// to the viewer: both identify that owner's repository, and the annotations
+// response carries no owner to pair them with.
+func withholdAnnotationRepository(summary *schema.AnnotationSummary, transcriptOwner schema.VillagePublicOwner) {
+	if transcriptOwner.IsProfile() {
+		return
+	}
+	summary.TargetProjectHash = nil
+	summary.TargetFilePath = nil
+}
+
+// withheldSessionDetailFields are the sessionDetail fields that identify an
+// owner's repository: the project, the working directory, and the git branch
+// and remote. Every child session's project is withheld too.
+var withheldSessionDetailFields = []string{"project", "workingDirectory", "gitBranch", "gitRemote"}
+
+// withholdContentRepository removes the repository identity from a served
+// transcript content envelope whose owner is anonymous to the viewer. Every
+// other field is passed through as the stored bytes encode it; text inside the
+// conversation is content and is not covered.
+func withholdContentRepository(envelope []byte) ([]byte, error) {
+	fail := func(err error) ([]byte, error) {
+		return nil, fmt.Errorf("handler.withholdContentRepository: the transcript content could not be read to withhold an anonymous owner's repository; no content was served; retry, and report the transcript if it persists: %w", err)
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(envelope, &top); err != nil {
+		return fail(err)
+	}
+	raw, ok := top["sessionDetail"]
+	if !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return envelope, nil
+	}
+	var detail map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &detail); err != nil {
+		return fail(err)
+	}
+	changed := false
+	for _, field := range withheldSessionDetailFields {
+		if _, ok := detail[field]; ok {
+			delete(detail, field)
+			changed = true
+		}
+	}
+	if children, ok := detail["childSessions"]; ok && !bytes.Equal(bytes.TrimSpace(children), []byte("null")) {
+		var list []map[string]json.RawMessage
+		if err := json.Unmarshal(children, &list); err != nil {
+			return fail(err)
+		}
+		for _, child := range list {
+			if _, ok := child["project"]; ok {
+				delete(child, "project")
+				changed = true
+			}
+		}
+		encoded, err := json.Marshal(list)
+		if err != nil {
+			return fail(err)
+		}
+		detail["childSessions"] = encoded
+	}
+	if !changed {
+		// Nothing names the repository: serve the stored bytes unchanged.
+		return envelope, nil
+	}
+	encodedDetail, err := json.Marshal(detail)
+	if err != nil {
+		return fail(err)
+	}
+	top["sessionDetail"] = encodedDetail
+	out, err := json.Marshal(top)
+	if err != nil {
+		return fail(err)
+	}
+	return out, nil
+}
+
 // annotatorNameFor applies the viewer's answer to a human annotation's
 // annotator name. An agent or rule annotator names a tool, not a person, and
 // is left as stored.
@@ -126,26 +205,60 @@ func annotatorNameFor(summary schema.AnnotationSummary, author schema.VillagePub
 	return summary.AnnotatorName
 }
 
-// ownerFilter is the owner and organization filters of a transcript list,
+// ownerFilter is the person and repository filters of a transcript list,
 // narrowed to the accounts the viewer may see as a profile. Active is false
-// when the request names neither filter. An active filter with no accounts
+// when the request names none of them. An active filter with no accounts
 // matches nothing: a list filtered by an owner the viewer may not see is the
-// same empty answer as a filter by a name nobody holds, so the filter cannot
-// tie anonymous transcripts to a person or an organization.
+// same empty answer as a filter by a name nobody holds, so a filter cannot tie
+// anonymous transcripts to a person, an organization, or a repository.
 type ownerFilter struct {
 	Active   bool
 	OwnerIDs []pgtype.UUID
 }
 
-func (h *Handler) resolveOwnerFilter(ctx context.Context, viewer *AuthUser, ownerName, org string) (ownerFilter, error) {
+// listFilterRequest names the list filters that select by a person or by a
+// repository. Project and Repository are the ILIKE patterns the list applies;
+// empty means the filter is absent.
+type listFilterRequest struct {
+	OwnerName   string
+	Org         string
+	Project     string
+	Repository  string
+	ProjectHash string
+}
+
+// resolveOwnerFilter turns the person and repository filters into the set of
+// owners whose transcripts may match for this viewer: owners each named
+// filter selects, intersected, then kept only when the viewer may see them as
+// a profile. The list still applies its own filter conditions; this set is
+// added to them.
+func (h *Handler) resolveOwnerFilter(ctx context.Context, viewer *AuthUser, request listFilterRequest) (ownerFilter, error) {
 	filter := ownerFilter{OwnerIDs: []pgtype.UUID{}}
-	if ownerName == "" && org == "" {
+	repositoryFiltered := request.Project != "" || request.Repository != "" || request.ProjectHash != ""
+	if request.OwnerName == "" && request.Org == "" && !repositoryFiltered {
 		return filter, nil
 	}
 	filter.Active = true
 	var candidates []pgtype.UUID
-	if ownerName != "" {
-		user, err := h.queries.GetUserByUsername(ctx, ownerName)
+	narrow := func(ids []pgtype.UUID) {
+		if candidates == nil {
+			candidates = append([]pgtype.UUID{}, ids...)
+			return
+		}
+		keep := make(map[pgtype.UUID]bool, len(ids))
+		for _, id := range ids {
+			keep[id] = true
+		}
+		kept := []pgtype.UUID{}
+		for _, id := range candidates {
+			if keep[id] {
+				kept = append(kept, id)
+			}
+		}
+		candidates = kept
+	}
+	if request.OwnerName != "" {
+		user, err := h.queries.GetUserByUsername(ctx, request.OwnerName)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return filter, nil
@@ -154,31 +267,26 @@ func (h *Handler) resolveOwnerFilter(ctx context.Context, viewer *AuthUser, owne
 		}
 		// The filter has always matched the handle exactly; the lookup is
 		// case-insensitive, so keep the exact comparison.
-		if user.GithubUsername != ownerName {
+		if user.GithubUsername != request.OwnerName {
 			return filter, nil
 		}
-		candidates = []pgtype.UUID{user.ID}
+		narrow([]pgtype.UUID{user.ID})
 	}
-	if org != "" {
-		members, err := h.queries.ListUserIDsWithVisibleOrg(ctx, org)
+	if request.Org != "" {
+		members, err := h.queries.ListUserIDsWithVisibleOrg(ctx, request.Org)
 		if err != nil {
 			return filter, fmt.Errorf("handler.resolveOwnerFilter: the organization filter could not be read; no list was returned; retry the request: %w", err)
 		}
-		if candidates == nil {
-			candidates = members
-		} else {
-			inOrg := make(map[pgtype.UUID]bool, len(members))
-			for _, id := range members {
-				inOrg[id] = true
-			}
-			kept := []pgtype.UUID{}
-			for _, id := range candidates {
-				if inOrg[id] {
-					kept = append(kept, id)
-				}
-			}
-			candidates = kept
+		narrow(members)
+	}
+	if repositoryFiltered {
+		owners, err := h.queries.ListOwnersMatchingRepositoryFilter(ctx, sqlc.ListOwnersMatchingRepositoryFilterParams{
+			ProjectPattern: request.Project, RepositoryPattern: request.Repository, ProjectHash: request.ProjectHash,
+		})
+		if err != nil {
+			return filter, fmt.Errorf("handler.resolveOwnerFilter: the repository filter could not be read; no list was returned; retry the request: %w", err)
 		}
+		narrow(owners)
 	}
 	owners, err := h.resolvePublicOwners(ctx, viewer, candidates)
 	if err != nil {

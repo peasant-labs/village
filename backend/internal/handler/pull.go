@@ -122,7 +122,7 @@ func (h *Handler) pullTranscriptInfo(ctx context.Context, t sqlc.Transcript, own
 		Owner:           owner,
 		Title:           t.Title.String,
 		Harness:         schema.Harness(t.ModelProvider),
-		ProjectName:     t.ProjectName.String,
+		ProjectName:     pullProjectName(t.ProjectName),
 		Visibility:      mapDBVisibility(t.Visibility),
 		License:         wireLicense(t.LicenseID),
 		ContractVersion: schema.ContractVersion(t.SchemaVersion),
@@ -135,7 +135,7 @@ func (h *Handler) pullTranscriptInfo(ctx context.Context, t sqlc.Transcript, own
 	}
 	if !owner.IsProfile() {
 		// The project name describes an anonymous owner's repository.
-		info.ProjectName = ""
+		info.ProjectName = nil
 	}
 	return info
 }
@@ -289,6 +289,16 @@ func parseCollectiveFilter(raw string) ([]pgtype.UUID, error) {
 	return ids, nil
 }
 
+// pullProjectName is the envelope's optional project name: absent when none was
+// recorded, as the earlier omitempty string was.
+func pullProjectName(name pgtype.Text) *string {
+	if !name.Valid || name.String == "" {
+		return nil
+	}
+	value := name.String
+	return &value
+}
+
 // pullRowOwners lists the owner of every row on a pull page, for one batched
 // resolvePublicOwners read.
 func pullRowOwners(rows []sqlc.ListPullableTranscriptsRow) []pgtype.UUID {
@@ -311,7 +321,7 @@ func pullInfoFromListRow(row sqlc.ListPullableTranscriptsRow, owner schema.Villa
 		Owner:           owner,
 		Title:           row.Title.String,
 		Harness:         schema.Harness(row.ModelProvider),
-		ProjectName:     row.ProjectName.String,
+		ProjectName:     pullProjectName(row.ProjectName),
 		Visibility:      mapDBVisibility(row.Visibility),
 		License:         wireLicense(row.LicenseID),
 		ContractVersion: schema.ContractVersion(row.SchemaVersion),
@@ -324,7 +334,7 @@ func pullInfoFromListRow(row sqlc.ListPullableTranscriptsRow, owner schema.Villa
 	}
 	if !owner.IsProfile() {
 		// The project name describes an anonymous owner's repository.
-		info.ProjectName = ""
+		info.ProjectName = nil
 	}
 	return info
 }
@@ -408,7 +418,8 @@ func (h *Handler) GetPullTranscriptAnnotations(w http.ResponseWriter, r *http.Re
 
 	// Every author as the caller may see them, in one read. A human annotator's
 	// name is the person's handle, so it follows the same answer.
-	authorIDs := make([]pgtype.UUID, 0, len(rows))
+	authorIDs := make([]pgtype.UUID, 0, len(rows)+1)
+	authorIDs = append(authorIDs, t.OwnerID)
 	for _, row := range rows {
 		authorIDs = append(authorIDs, row.OwnerID)
 	}
@@ -423,6 +434,7 @@ func (h *Handler) GetPullTranscriptAnnotations(w http.ResponseWriter, r *http.Re
 		author := authors.of(row.OwnerID)
 		summary := annotationRowToSummary(row)
 		summary.AnnotatorName = annotatorNameFor(summary, author)
+		withholdAnnotationRepository(&summary, authors.of(t.OwnerID))
 		annotations = append(annotations, schema.PullAnnotation{
 			AnnotationSummary: summary,
 			Author:            author,

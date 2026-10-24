@@ -13,8 +13,10 @@ WHERE (
 )
 AND (sqlc.arg(search_text)::text = '' OR t.title ILIKE sqlc.arg(search_pattern)::text OR t.description ILIKE sqlc.arg(search_pattern)::text)
 AND (sqlc.arg(provider)::text = '' OR t.model_provider = sqlc.arg(provider)::text)
--- The owner and org filters arrive as the account ids the viewer may see as a
--- profile (resolved by the handler), so neither can name an anonymous owner.
+-- The owner, org and repository filters (project name, project hash,
+-- repository) also arrive as the account ids the viewer may see as a profile
+-- (resolved by the handler), so none can name an anonymous owner or match a
+-- repository withheld from this viewer.
 AND (NOT sqlc.arg(filter_by_owner)::boolean OR t.owner_id = ANY(sqlc.arg(filter_owner_ids)::uuid[]))
 AND (sqlc.arg(project_name)::text = '' OR t.project_name ILIKE sqlc.arg(project_pattern)::text)
 AND (sqlc.arg(project_hash)::text = '' OR t.project_hash = sqlc.arg(project_hash)::text)

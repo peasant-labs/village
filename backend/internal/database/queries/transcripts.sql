@@ -400,3 +400,15 @@ SELECT t.id, t.owner_id, t.local_id, t.visibility
 FROM transcripts t
 WHERE t.owner_id = ANY(@owner_ids::uuid[])
   AND t.local_id = ANY(@local_ids::text[]);
+
+-- name: ListOwnersMatchingRepositoryFilter :many
+-- The owners with at least one transcript matching the transcript lists'
+-- repository filters (project name, repository, project hash). The handler
+-- keeps only the owners the viewer may see as a profile before filtering, so a
+-- repository filter never matches a transcript whose repository is withheld
+-- from this viewer. An empty filter matches every value.
+SELECT DISTINCT t.owner_id
+FROM transcripts t
+WHERE (@project_pattern::text = '' OR t.project_name ILIKE @project_pattern::text)
+  AND (@repository_pattern::text = '' OR t.git_remote ILIKE @repository_pattern::text)
+  AND (@project_hash::text = '' OR t.project_hash = @project_hash::text);
