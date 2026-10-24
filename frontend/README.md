@@ -43,6 +43,11 @@ throw. The server reads transcripts anonymously (no token or cookie), so only
 a transcript the API serves to anyone, `visibility` of `public`, ever yields
 preview data.
 
+The transcript page makes the same anonymous read to decide whether a visitor
+without a session may read it: a public transcript opens signed out, and
+anything else is sent to sign in. Without both variables nothing opens signed
+out, so every signed-out visitor is sent to sign in.
+
 ## Build
 
 ```sh

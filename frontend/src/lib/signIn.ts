@@ -34,8 +34,9 @@ export const PROVIDER_PARAM = "provider";
 /**
  * The pages served to somebody without a session: the steps of signing in, and
  * the privacy notice the log-in popup links to. The development-only routes are
- * left alone too; a production build answers them 404. Every other page sends
- * a signed-out visitor to the marketing site's log-in popup.
+ * left alone too; a production build answers them 404. A transcript page
+ * decides for itself (`isTranscriptPage`). Every other page sends a signed-out
+ * visitor to the marketing site's log-in popup.
  */
 const OPEN_SIGNED_OUT = new Set(["/auth/callback", SIGN_IN_START_PATH, "/privacy"]);
 

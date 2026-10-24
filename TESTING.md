@@ -465,11 +465,26 @@ The server half of the front door is `frontend/src/testdata/sign-in-route.yaml`
 with `frontend/src/signInRoute.test.ts`: the proxy's answer to a page load (a
 visitor with no session cookie is redirected to the marketing site's log-in
 popup before any page is served, carrying the page and its query as `next`; an
-in-app fetch is served the app; a stale cookie is the frame's to catch), which
-pages are served signed out (`/privacy`, `/auth/start`, `/auth/callback`), and
-the return addresses a sign-in follows from `/login?next=` and
-`/auth/start?next=` through `/auth/callback` (only a path on this site, never
-another host, never a step of the sign-in itself).
+in-app fetch is served the app; a stale cookie is the frame's to catch; a
+transcript page is passed through to its own decision), which pages are served
+signed out (`/privacy`, `/auth/start`, `/auth/callback`), and the return
+addresses a sign-in follows from `/login?next=` and `/auth/start?next=` through
+`/auth/callback` (only a path on this site, never another host, never a step of
+the sign-in itself). Its `transcriptPageCases` are the transcript page's own
+server decision (`decideTranscriptPage`): without a session it reads the
+transcript as an anonymous visitor, serves a public one marked open, and sends
+anything else (private, shared, missing, a failed read, no API configured) to
+the same sign-in destination. `frontend/src/app/transcripts/[id]/page.test.tsx`
+pins how the route wires that decision, including that a public transcript's
+metadata stays noindex.
+
+The browser half of a signed-out transcript is
+`frontend/src/testdata/signed-out-transcript.yaml` with
+`frontend/src/signedOutTranscript.test.tsx`: the real app frame keeps a
+signed-out visitor on a transcript page the server marked public and leaves for
+sign-in otherwise, and the real transcript page signed out asks for nobody's
+collectives, links to no page that needs a session, and offers no owner or
+member action.
 
 ### The front door: sign-in, hidden surfaces, and lowercase chrome
 

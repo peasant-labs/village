@@ -4,7 +4,9 @@ import { NEXT_PARAM, returnAddressFor, safeNextPath } from "@/lib/signIn";
  * The peasant marketing site: where somebody without a session is sent, and
  * where signing in starts.
  *
- * The hosted app keeps no signed-out view of its own. The product is introduced
+ * The hosted app's one signed-out view is a public transcript (its page decides
+ * that on the server); every other page sends a visitor without a session here.
+ * The product is introduced
  * on the marketing site, and its log-in popup holds the sign-in the app's own
  * page used to: the GitHub button (which comes back through `/auth/start`) and
  * the terminal command. An operator can point it elsewhere (a staging site, a
