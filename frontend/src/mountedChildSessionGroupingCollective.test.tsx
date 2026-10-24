@@ -27,6 +27,7 @@ import {
   type ChildSessionRow,
   type ChildSessionSurface,
 } from "@/test/childSessionGroupingFixtures";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Mounted evidence for a session that another session started, on the REAL
@@ -141,9 +142,9 @@ function groupTranscript(row: ChildSessionRow, index: number): GroupTranscript {
   return {
     ...makeTranscriptFixture({
       id: row.name,
-      owner_id: row.ownerID,
       local_id: row.localID,
       parent_session_id: row.parentSessionID,
+      parent_transcript_id: null,
       title: ROW_TITLE(row),
       model_provider: ROW_PROVIDER,
       model_name: ROW_MODEL_NAME,
@@ -159,9 +160,7 @@ function groupTranscript(row: ChildSessionRow, index: number): GroupTranscript {
     outcome: null,
     source_format: null,
     subagents: null,
-    owner_username: row.ownerID,
-    owner_avatar_url: null,
-    owner_is_discoverable: true,
+    owner: profileOwner({ id: row.ownerID, github_username: row.ownerID }),
     pull_requests: { count: 0, recent: [] },
   };
 }
@@ -169,9 +168,10 @@ function groupTranscript(row: ChildSessionRow, index: number): GroupTranscript {
 function myShare(row: ChildSessionRow, index: number): UserGroupShare {
   return {
     id: row.name,
-    owner_id: row.ownerID,
+    owner: profileOwner({ id: row.ownerID, github_username: row.ownerID }),
     local_id: row.localID,
     parent_session_id: row.parentSessionID,
+    parent_transcript_id: null,
     title: ROW_TITLE(row),
     model_provider: ROW_PROVIDER,
     model_name: ROW_MODEL_NAME,

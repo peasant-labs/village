@@ -72,24 +72,38 @@ groupingCases:
     expectedGroupDisplayNames: ["newer-project", "older-project"]
     expectedGroupItemCounts: [1, 1]
 
+# `owner` is the transcript owner exactly as the metadata read serves it: a
+# public profile, an anonymous owner, a kind this app does not know, or absent.
+# Only a profile can name a project page; every other owner degrades to a
+# label-only crumb, so no link carries a hidden owner's handle.
 breadcrumbHrefCases:
   - name: username-and-hash-present-builds-href
-    ownerUsername: "octocat"
+    owner: {kind: profile, id: 11111111-1111-4111-8111-111111111111, username: octocat, display_name: null, avatar_url: null}
     projectHash: "6666666666666666666666666666666666666666666666666666666666666666"
     expectedHref: "/users/octocat/projects/6666666666666666666666666666666666666666666666666666666666666666"
 
   - name: missing-project-hash-degrades-to-no-href
-    ownerUsername: "octocat"
+    owner: {kind: profile, id: 11111111-1111-4111-8111-111111111111, username: octocat, display_name: null, avatar_url: null}
     projectHash: null
     expectedHref: null
 
   - name: missing-owner-username-degrades-to-no-href
-    ownerUsername: null
+    owner: null
+    projectHash: "7777777777777777777777777777777777777777777777777777777777777777"
+    expectedHref: null
+
+  - name: anonymous-owner-builds-no-href
+    owner: {kind: anonymous}
+    projectHash: "7777777777777777777777777777777777777777777777777777777777777777"
+    expectedHref: null
+
+  - name: unknown-owner-kind-builds-no-href
+    owner: {kind: organization, id: 22222222-2222-4222-8222-222222222222, username: acme}
     projectHash: "7777777777777777777777777777777777777777777777777777777777777777"
     expectedHref: null
 
   - name: username-with-reserved-url-characters-is-encoded
-    ownerUsername: "user with spaces"
+    owner: {kind: profile, id: 11111111-1111-4111-8111-111111111111, username: user with spaces, display_name: null, avatar_url: null}
     projectHash: "8888888888888888888888888888888888888888888888888888888888888888"
     expectedHref: "/users/user%20with%20spaces/projects/8888888888888888888888888888888888888888888888888888888888888888"
 

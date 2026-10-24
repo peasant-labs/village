@@ -10,6 +10,7 @@ import {
   toPendingShare,
   type ReviewPageCase,
 } from "@/test/groupsReviewPageFixtures";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * The REAL `/collectives/{id}/review` route, mounted inside the real
@@ -77,7 +78,7 @@ function installReviewRouteREST(testCase: ReviewPageCase): RecordedRequest[] {
           linked_github_org: null,
           display_members: true,
           transcript_deletion_policy: "user_choice",
-          created_by: "user-mod",
+          creator: profileOwner({ id: "user-mod", github_username: "collective-owner" }),
           created_at: "2026-01-01T00:00:00Z",
           updated_at: "2026-01-01T00:00:00Z",
           acceptance_mode: "curated",

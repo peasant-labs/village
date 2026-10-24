@@ -14,6 +14,7 @@ import { ordinaryOwnerUUID } from "@/test/groupedHelperSurfaceFixtures";
 import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import type { HelperMemberPageFixture } from "@/test/mountedGroupRoute";
 import type { UserGroupShare } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Typed loader for `src/testdata/collective-grouped-my-shares.yaml`.
@@ -101,6 +102,8 @@ const CONTINUATION_FIELDS = new Set([
 
 /** The signed-in contributor every row belongs to. */
 export const MY_SHARES_VIEWER_ID = "60000000-0000-4000-8000-0000000000aa";
+/** That contributor as the server names them to themselves: their own profile. */
+const MY_SHARES_OWNER = profileOwner({ id: MY_SHARES_VIEWER_ID, github_username: "contributor" });
 const MY_SHARES_PROVIDER = "claude-code";
 const MY_SHARES_MODEL = "claude-fable-5";
 const MY_SHARES_PUBLISHED_AT = "2026-09-01T09:00:00Z";
@@ -237,9 +240,10 @@ function myShareArm(row: {
 }): UserGroupShare {
   return {
     id: row.id,
-    owner_id: MY_SHARES_VIEWER_ID,
+    owner: MY_SHARES_OWNER,
     local_id: row.local_id,
     parent_session_id: null,
+    parent_transcript_id: null,
     title: row.title,
     model_provider: MY_SHARES_PROVIDER,
     model_name: MY_SHARES_MODEL,
@@ -272,10 +276,10 @@ export function groupedMyShareOwner(
   return {
     kind: "transcript",
     transcript: {
+      owner: MY_SHARES_OWNER,
       session: makeTranscriptFixture({
         id: row.id,
         local_id: row.local_id,
-        owner_id: MY_SHARES_VIEWER_ID,
         title: row.title,
         model_provider: MY_SHARES_PROVIDER,
         model_name: MY_SHARES_MODEL,
@@ -338,10 +342,10 @@ export function groupedMySharesFirstPage(count: number): VillageSessionListItem[
     return {
       kind: "transcript",
       transcript: {
+        owner: MY_SHARES_OWNER,
         session: makeTranscriptFixture({
           id,
           local_id: localID,
-          owner_id: MY_SHARES_VIEWER_ID,
           title,
           model_provider: MY_SHARES_PROVIDER,
           visibility: "shared",
@@ -360,10 +364,10 @@ function memberItem(spec: MyShareMemberSpec): VillageSessionListItem {
   return {
     kind: "transcript",
     transcript: {
+      owner: MY_SHARES_OWNER,
       session: makeTranscriptFixture({
         id,
         local_id: localID,
-        owner_id: MY_SHARES_VIEWER_ID,
         title: spec.title,
         model_provider: MY_SHARES_PROVIDER,
         visibility: "shared",

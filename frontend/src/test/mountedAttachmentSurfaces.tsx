@@ -6,6 +6,7 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import PullRequestPage from "@/app/pulls/[owner]/[name]/[number]/page";
 import GroupSettingsPage from "@/app/collectives/[id]/settings/page";
 import type { PromptDigest, VillagePullRequestAttachmentResponse } from "@peasant-labs/schema";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Mount support for the real pull request page, with REST stubbed at `fetch`
@@ -102,7 +103,6 @@ function transcriptReadResponse(read: TranscriptReadFixture) {
   return {
     transcript: {
       id: read.id,
-      owner_id: "11111111-1111-1111-1111-111111111111",
       local_id: `local-${read.id}`,
       title: read.title,
       description: null,
@@ -117,18 +117,7 @@ function transcriptReadResponse(read: TranscriptReadFixture) {
     tags: [],
     shares: [],
     enriched_shares: [],
-    owner: {
-      id: "11111111-1111-1111-1111-111111111111",
-      github_id: 1,
-      github_username: "alice-dev",
-      display_name: null,
-      avatar_url: null,
-      created_at: "2026-01-01T00:00:00Z",
-      updated_at: "2026-01-01T00:00:00Z",
-      is_discoverable: true,
-      username_chosen: true,
-      provider_username: "alice-dev",
-    },
+    owner: profileOwner({ id: "11111111-1111-1111-1111-111111111111", github_username: "alice-dev" }),
   };
 }
 

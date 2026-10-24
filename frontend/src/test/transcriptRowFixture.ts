@@ -13,7 +13,6 @@ import type { Transcript } from "@/lib/types";
 export function makeTranscriptFixture(overrides: Partial<Transcript> = {}): Transcript {
   return {
     id: "transcript-0",
-    owner_id: "user-fixture-owner",
     local_id: "local-0",
     title: "fixture session",
     description: null,
@@ -30,6 +29,7 @@ export function makeTranscriptFixture(overrides: Partial<Transcript> = {}): Tran
     published_at: "2026-08-20T10:00:00Z",
     updated_at: "2026-08-20T10:00:00Z",
     parent_session_id: null,
+    parent_transcript_id: null,
     ingested_at: null,
     source_format: null,
     git_branch: null,

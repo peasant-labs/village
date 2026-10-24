@@ -7,6 +7,8 @@ import type { Harness, VillageTranscriptPullRequest } from "@peasant-labs/schema
 import type { NameSource } from "@/lib/types";
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 import TranscriptDetailPage from "@/app/transcripts/[id]/page";
+import { profileOwner } from "@/test/publicOwnerFixture";
+import type { PublicOwner } from "@/lib/publicOwner";
 
 /**
  * Shared support for tests that mount the REAL production route
@@ -47,13 +49,17 @@ export interface MountedRouteTranscriptMetadata {
     /** Who drove the session; omitted by fixtures that do not exercise it. */
     session_origin?: SessionOrigin;
   };
-  owner: {
-    id: string;
-    /** Defaults to `"fixture-owner"` when omitted — see
-     *  `project_hash` above for why callers that don't exercise the
-     *  breadcrumb href need not set this. */
-    github_username?: string;
-  };
+  /** The owner's account fields, served as their public profile, or an
+   *  anonymous owner, served as is. */
+  owner:
+    | {
+        id: string;
+        /** Defaults to `"fixture-owner"` when omitted — see
+         *  `project_hash` above for why callers that don't exercise the
+         *  breadcrumb href need not set this. */
+        github_username?: string;
+      }
+    | PublicOwner;
   enriched_shares: unknown[];
   /** The approved memberships `GET /transcripts/{id}/collectives` serves to
    *  THIS viewer. Defaults to the empty list the server sends whenever the
@@ -78,7 +84,8 @@ const DEFAULT_OWNER_USERNAME = "fixture-owner";
  *  predate the resolved-name wire fields keep passing unmodified. */
 function withProjectIdentityDefaults(
   metadata: MountedRouteTranscriptMetadata,
-): MountedRouteTranscriptMetadata {
+): Omit<MountedRouteTranscriptMetadata, "owner"> & { owner: PublicOwner } {
+  const owner = metadata.owner;
   return {
     ...metadata,
     transcript: {
@@ -89,10 +96,11 @@ function withProjectIdentityDefaults(
       project_name_source: metadata.transcript.project_name_source ?? "consented",
       project_remote_label: metadata.transcript.project_remote_label ?? "",
     },
-    owner: {
-      ...metadata.owner,
-      github_username: metadata.owner.github_username ?? DEFAULT_OWNER_USERNAME,
-    },
+    // The wire's owner: a public profile, or the anonymous owner as given.
+    owner:
+      "kind" in owner
+        ? owner
+        : profileOwner({ id: owner.id, github_username: owner.github_username ?? DEFAULT_OWNER_USERNAME }),
   };
 }
 

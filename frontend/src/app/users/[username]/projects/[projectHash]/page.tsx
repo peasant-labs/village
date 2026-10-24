@@ -34,6 +34,7 @@ import {
 } from "@/lib/queries/transcripts";
 import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
 import { describeNameSource } from "@/lib/format";
+import { isOwnedBy } from "@/lib/publicOwner";
 import { childSessionsByParentID, groupProjectSessions } from "@/lib/childSessions";
 import { isApiErrorStatus } from "@/lib/api";
 import { HOME_SECTION } from "@/lib/nav/sections";
@@ -42,7 +43,6 @@ import type {
   ProjectCollectiveRollupEntry,
   Transcript,
   TranscriptListItem,
-  User,
 } from "@/lib/types";
 
 /** Longest display name the correction route accepts (village handler). */
@@ -85,10 +85,7 @@ export default function UserProjectPage({
   const [draft, setDraft] = useState<string | null>(null);
   const [orphansExpanded, setOrphansExpanded] = useState(false);
 
-  const isOwner =
-    !!user &&
-    !!data &&
-    user.github_username.toLowerCase() === data.owner.github_username.toLowerCase();
+  const isOwner = !!data && isOwnedBy(data.owner, user?.id);
 
   // ── Not found ───────────────────────────────────────────────────────────────
   // ONE answer for every refusal this route can make. A missing user, a user who
@@ -157,7 +154,7 @@ export default function UserProjectPage({
   const items: TranscriptListItem[] = data.transcripts.map((t: Transcript) => ({
     transcript: t,
     tags: [],
-    owner: data.owner as User,
+    owner: data.owner,
   }));
 
   // A project page is where a person asks what a session did, so a session that

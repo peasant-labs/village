@@ -49,6 +49,7 @@ import {
   type TranscriptExportFormat,
 } from '@/lib/transcriptExport';
 import { buildProjectHref, buildTranscriptBreadcrumb, overlayStoredTitle } from './transcriptChrome';
+import { isOwnedBy, type PublicOwner } from '@/lib/publicOwner';
 
 /** A transcript's stored visibility. `shared` is set server-side when the
  *  transcript is shared to a collective; it is not directly selectable. */
@@ -69,7 +70,11 @@ interface SessionDetailV2Props {
   /** The transcript's stored description — drives the edit form's initial value. */
   transcriptDescription?: string | null;
   /** Owner user id — gates owner-only actions. */
-  transcriptOwnerId?: string;
+  /** The transcript's owner as the server resolved them for this viewer. It
+   *  decides whether the viewer owns the transcript and, with `projectHash`,
+   *  builds the breadcrumb's project-page href. An anonymous owner yields
+   *  neither. */
+  owner?: PublicOwner | null;
   /** Where the transcript was opened from: the breadcrumb leads back there. */
   context?: TranscriptContext | null;
   /** The collective's name, for a collective context. */
@@ -77,13 +82,10 @@ interface SessionDetailV2Props {
   /** The one server-resolved project display name (`Transcript.project_display_name`)
    *  — the single name every surface renders. */
   projectName: string;
-  /** The transcript's `project_hash`, combined with `ownerUsername` to build
+  /** The transcript's `project_hash`, combined with `owner` to build
    *  the breadcrumb's project-page href. `null`/`undefined` degrades the
    *  crumb to a label with no link. */
   projectHash?: string | null;
-  /** The transcript owner's `github_username`, combined with `projectHash`
-   *  to build the breadcrumb's project-page href. */
-  ownerUsername?: string | null;
   detail: SessionDetailPayload | undefined;
   /** The viewer's authorized current-target navigation from the metadata read
    *  (`GET /transcripts/{id}`). It is read metadata, never durable content:
@@ -122,12 +124,11 @@ export function SessionDetailV2({
   transcriptVisibility,
   transcriptTitle,
   transcriptDescription,
-  transcriptOwnerId,
+  owner,
   context,
   collectiveName,
   projectName,
   projectHash,
-  ownerUsername,
   detail,
   relationshipNavigation,
   transcriptContentHash,
@@ -138,7 +139,7 @@ export function SessionDetailV2({
   const { user } = useAuth();
   const { theme } = useTheme();
   const isPreview = variant === "preview";
-  const isOwner = !isPreview && !!user && !!transcriptOwnerId && user.id === transcriptOwnerId;
+  const isOwner = !isPreview && isOwnedBy(owner, user?.id);
 
   const router = useRouter();
   // Read the persisted per-transcript read state once; the state initializers
@@ -377,7 +378,7 @@ export function SessionDetailV2({
   // algorithms disagree" bug this slice removes, so `projectName` always
   // wins.
   const project = projectName;
-  const projectHref = buildProjectHref(ownerUsername, projectHash);
+  const projectHref = buildProjectHref(owner, projectHash);
   const visibility = transcriptVisibility ?? 'private';
 
   return (

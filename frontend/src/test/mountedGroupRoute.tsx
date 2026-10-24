@@ -12,6 +12,8 @@ import type { PendingShare } from "@/lib/review/types";
 import GroupContributePage from "@/app/collectives/[id]/contribute/page";
 import type { Group, GroupMember, GroupTranscript, UserGroupShare, User } from "@/lib/types";
 import type { ContributableTranscript } from "@/lib/contribute/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
+import { ownerKey } from "@/lib/publicOwner";
 
 /**
  * Mount support for the REAL `/collectives/{id}/contribute` route, with REST stubbed
@@ -181,7 +183,7 @@ function makeGroup(fixture: GroupRouteFixture): Group {
     linked_github_org: null,
     display_members: true,
     transcript_deletion_policy: "user_choice",
-    created_by: "user-owner",
+    creator: profileOwner({ id: "user-owner", github_username: "collective-owner" }),
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     acceptance_mode: fixture.acceptanceMode ?? "open",
@@ -196,11 +198,8 @@ function makeMember(fixture: GroupRouteFixture): GroupMember {
   return {
     role: fixture.role ?? "owner",
     joined_at: "2026-01-02T00:00:00Z",
-    id: `user-${username}`,
-    github_username: username,
-    display_name: null,
+    member: profileOwner({ id: `user-${username}`, github_username: username }),
     github_orgs: [],
-    avatar_url: null,
   };
 }
 
@@ -326,11 +325,14 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
         const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
         const groupTranscripts = fixture.transcripts ?? [];
         return json({
-          group: { ...group, id: uuid(1), created_by: uuid(2) },
-          members: members.map((member, index) => ({ ...member, id: uuid(index + 3) })),
+          group: { ...group, id: uuid(1), creator: profileOwner({ id: uuid(2), github_username: "collective-owner" }) },
+          members: members.map((member, index) => ({
+            ...member,
+            member: member.member.kind === "profile" ? { ...member.member, id: uuid(index + 3) } : member.member,
+          })),
           stats: {
             total_transcripts: groupTranscripts.length,
-            contributor_count: new Set(groupTranscripts.map((t) => t.owner_id)).size,
+            contributor_count: new Set(groupTranscripts.map((t) => ownerKey(t.owner))).size,
             total_turns: 0,
             total_duration_ms: 0,
             total_tokens: 0,
@@ -351,7 +353,7 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
         transcripts: groupTranscripts,
         stats: {
           total_transcripts: groupTranscripts.length,
-          contributor_count: new Set(groupTranscripts.map((t) => t.owner_id)).size,
+          contributor_count: new Set(groupTranscripts.map((t) => ownerKey(t.owner))).size,
           total_turns: 0,
           total_duration_ms: 0,
           total_tokens: 0,

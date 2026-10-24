@@ -45,10 +45,12 @@ export interface ProjectCollectiveRollupEntry {
  */
 export interface UserProjectPageResponse {
   project: ResolvedProject;
-  owner: User;
+  /** The project's owner, named by the URL, so always a public profile. */
+  owner: PublicProfile;
   transcripts: Transcript[];
   collectives: ProjectCollectiveRollupEntry[];
 }
+import type { PublicOwner, PublicProfile } from "@/lib/publicOwner";
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 import type {
   DiagnosticEntry,
@@ -123,7 +125,6 @@ export function assertNameSourceExhaustive(source: never): never {
 
 export interface Transcript {
   id: string;
-  owner_id: string;
   local_id: string;
   title: string | null;
   description: string | null;
@@ -140,6 +141,9 @@ export interface Transcript {
   published_at: string;
   updated_at: string;
   parent_session_id: string | null;
+  /** The transcript the server resolved `parent_session_id` to within the same
+   *  owner, or null when it resolved none. */
+  parent_transcript_id: string | null;
   ingested_at: string | null;
   source_format: string | null;
   git_branch: string | null;
@@ -384,8 +388,8 @@ export interface Attestation {
   attestation_type: "used_in_training" | "referenced" | "evaluated" | "deployed";
   note: string | null;
   created_at: string;
-  attester_username: string;
-  attester_avatar: string | null;
+  /** Who attested, as the server resolved them for this viewer. */
+  attester: PublicOwner;
 }
 
 interface AttestationSummary {
@@ -396,39 +400,20 @@ interface AttestationSummary {
 }
 
 /**
- * What a list needs to know about the person a row belongs to.
- *
- * Narrower than the account record on purpose. Three endpoints answer with a
- * transcript and its author, and they do not agree on how much of that author
- * they send: the transcripts list sends a whole account, a collective's browse
- * page sends a handle, an avatar and a discoverability flag. Naming only the
- * four facts a ROW draws is what lets both be listed by this one component
- * without either inventing an account it was never sent.
- */
-export interface TranscriptRowOwner {
-  id: string;
-  github_username: string;
-  avatar_url: string | null;
-  /** Absent is not the same as false: a response that does not carry the flag
-   *  has not said this person opted out, and {@link resolveAttribution} treats
-   *  only an explicit `false` as an opt-out. */
-  is_discoverable?: boolean;
-}
-
-/**
  * One row of a transcript list: a transcript, whose it is, and where it is
  * shared. Every list in this app is a list of these.
  */
 export interface TranscriptRow {
   transcript: Transcript;
-  owner: TranscriptRowOwner;
+  /** The owner as the server resolved them for this viewer. */
+  owner: PublicOwner;
   shares?: { group_name: string }[];
 }
 
 export interface TranscriptListItem {
   transcript: Transcript;
   tags: Tag[];
-  owner: User;
+  owner: PublicOwner;
   shares?: EnrichedTranscriptShare[];
   attestations?: AttestationSummary[];
   /** The pull requests this row is attached to that the caller may read: how
@@ -454,7 +439,8 @@ export interface TranscriptDetailResponse {
   tags: Tag[];
   shares: TranscriptShare[];
   enriched_shares: EnrichedTranscriptShare[];
-  owner: User;
+  /** The owner as the server resolved them for this viewer. */
+  owner: PublicOwner;
   attestations?: Attestation[];
   /**
    * The viewer's authorized current-target navigation for the child's stored

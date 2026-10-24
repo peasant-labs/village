@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { parse } from "yaml";
 import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 import type { NameSource } from "@/lib/types";
+import type { PublicOwner } from "@/lib/publicOwner";
 
 export type ProjectIdentityGroupingItem = {
   projectHash: string;
@@ -21,7 +22,9 @@ export type ProjectIdentityGroupingCase = {
 
 export type ProjectIdentityBreadcrumbHrefCase = {
   name: string;
-  ownerUsername: string | null;
+  /** The owner as served, or null when absent. Read as the wire is read: an
+   *  unknown kind is anonymous. */
+  owner: PublicOwner | null;
   projectHash: string | null;
   expectedHref: string | null;
 };
@@ -66,6 +69,8 @@ const requiredBreadcrumbHrefCaseNames = [
   "username-and-hash-present-builds-href",
   "missing-project-hash-degrades-to-no-href",
   "missing-owner-username-degrades-to-no-href",
+  "anonymous-owner-builds-no-href",
+  "unknown-owner-kind-builds-no-href",
   "username-with-reserved-url-characters-is-encoded",
 ] as const;
 
@@ -95,7 +100,7 @@ const groupingCaseKeys = [
   "expectedGroupDisplayNames",
   "expectedGroupItemCounts",
 ];
-const breadcrumbHrefCaseKeys = ["name", "ownerUsername", "projectHash", "expectedHref"];
+const breadcrumbHrefCaseKeys = ["name", "owner", "projectHash", "expectedHref"];
 const repoGroupLabelCaseKeys = ["name", "gitRemote", "projectRemoteLabel", "projectDisplayName", "expectedName"];
 const nameSourceDescriptionCaseKeys = ["name", "why", "source", "expectedDescription"];
 
@@ -160,9 +165,10 @@ export function loadProjectIdentityFixtures(): ProjectIdentityFixtures {
   );
   for (const c of fixtures.breadcrumbHrefCases) {
     assertExactKeys(c, breadcrumbHrefCaseKeys, `breadcrumb-href case ${c.name}`);
-    if ((c.ownerUsername == null || c.projectHash == null) !== (c.expectedHref == null)) {
+    const named = c.owner?.kind === "profile";
+    if ((!named || c.projectHash == null) !== (c.expectedHref == null)) {
       throw new Error(
-        `breadcrumb-href case ${c.name}: expectedHref must be null exactly when either ownerUsername or ` +
+        `breadcrumb-href case ${c.name}: expectedHref must be null exactly when the owner is not a profile or ` +
           `projectHash is missing, and non-null when both are present`,
       );
     }

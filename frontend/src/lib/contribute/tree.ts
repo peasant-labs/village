@@ -127,7 +127,7 @@ function branchSortKey(label: string): string {
  * that endpoint ever answers with more than one person's rows -- an owner
  * selecting on someone's behalf, an organisation-scoped listing -- this
  * silently merges them and no test goes red. Widening it means giving
- * `ContributableTranscript` a real `owner_id` and reading it here, and the
+ * `ContributableTranscript` a real owner and reading it here, and the
  * wire-contract note in `./types.ts` says so at the other end.
  */
 const SINGLE_OWNER_ENDPOINT = "the caller";
@@ -136,9 +136,10 @@ const SINGLE_OWNER_ENDPOINT = "the caller";
  * How the fold identifies ONE row's owner. A list that can hold several
  * publishers' rows (the review queue) must state the real owner, because
  * `local_id` is unique per owner and matching on the session id alone would
- * let one publisher's submission capture another publisher's.
+ * let one publisher's submission capture another publisher's. `null` names an
+ * owner this viewer sees as anonymous; the fold never matches such a row.
  */
-export type OwnerOf<Row> = (row: Row) => string;
+export type OwnerOf<Row> = (row: Row) => string | null;
 
 function identityOf<Row extends TreeRowFacts>(ownerOf: OwnerOf<Row>) {
   return (row: Row): SessionIdentity => ({

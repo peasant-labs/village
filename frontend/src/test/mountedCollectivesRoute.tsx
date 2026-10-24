@@ -10,6 +10,7 @@ import CollectivesPage from "@/app/collectives/page";
 import DiscoverPage from "@/app/discover/page";
 import type { ContributedCollective, User, VisibleGroup } from "@/lib/types";
 import { AllVillageCollectiveRoles, type VillageCollectiveRole } from "@peasant-labs/schema";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Mount support for the REAL `/collectives` and `/discover` routes, with REST
@@ -225,7 +226,7 @@ function makeVisibleGroup(row: CollectiveBadgeRow): VisibleGroup {
     linked_github_org: null,
     display_members: true,
     transcript_deletion_policy: "user_choice",
-    created_by: "user-owner",
+    creator: profileOwner({ id: "user-owner", github_username: "collective-owner" }),
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     acceptance_mode: "open",

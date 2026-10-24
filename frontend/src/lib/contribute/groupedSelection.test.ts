@@ -4,6 +4,7 @@ import { parse } from "yaml";
 import { expect, it } from "vitest";
 import type { VillageSessionListItem, VillageTranscript } from "@peasant-labs/schema";
 import { groupedContributionBatches } from "./groupedSelection";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 interface SelectionFixtures {
   rows: { name: string; id: string; nested_group?: string }[];
@@ -35,6 +36,7 @@ for (const row of fixture.rows) {
   items.set(row.name, {
     kind: "transcript",
     transcript: {
+      owner: profileOwner({ id: "30000000-0000-4000-8000-000000000020", github_username: "member-owner" }),
       session,
       contributable: {
         id: session.id, local_id: session.local_id, title: session.title, visibility: session.visibility,

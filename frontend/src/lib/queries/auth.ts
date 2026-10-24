@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, type MutateOptions } from "@tans
 import { api, clearAuthTokenCookie, getAuthHeaders } from "../api";
 import { leaveForMarketingSite } from "../marketing";
 import { writeOnlineHint } from "../onlineHint";
+import type { PublicProfile } from "../publicOwner";
 import type { User } from "../types";
 
 export function useMe() {
@@ -15,7 +16,8 @@ export function useMe() {
 export function usePublicProfile(username: string) {
   return useQuery({
     queryKey: ["user", username],
-    queryFn: () => api<User>(`/users/${encodeURIComponent(username)}`),
+    // Only the public profile: id, username, display name and avatar.
+    queryFn: () => api<PublicProfile>(`/users/${encodeURIComponent(username)}`),
     retry: false,
     enabled: !!username,
   });

@@ -9,7 +9,6 @@ import { ProviderName, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import type { TranscriptListItem } from "@/lib/types";
 import { resolveAttribution } from "@/lib/format";
-import { useAuth } from "@/providers/AuthProvider";
 
 function formatDuration(ms: number): string {
   const mins = Math.floor(ms / 60000);
@@ -21,8 +20,8 @@ function formatDuration(ms: number): string {
 
 export default function TranscriptRow({ item }: { item: TranscriptListItem }) {
   const { transcript: t, owner, shares } = item;
-  const { user: viewer } = useAuth();
-  const attribution = resolveAttribution(owner, viewer?.id);
+  const attribution = resolveAttribution(owner);
+  const profile = attribution.profile;
 
   return (
     <Link
@@ -61,9 +60,9 @@ export default function TranscriptRow({ item }: { item: TranscriptListItem }) {
           <div className="w-4 h-4 bg-surface-hover border border-rule flex items-center justify-center text-[8px] font-bold text-ink-3">
             ?
           </div>
-        ) : owner.avatar_url ? (
+        ) : profile?.avatar_url ? (
           <Image
-            src={owner.avatar_url}
+            src={profile.avatar_url}
             alt=""
             width={16}
             height={16}
@@ -72,7 +71,7 @@ export default function TranscriptRow({ item }: { item: TranscriptListItem }) {
           />
         ) : (
           <div className="w-4 h-4 bg-surface-hover border border-rule flex items-center justify-center text-[8px] font-bold text-ink-2">
-            {owner.github_username[0].toUpperCase()}
+            {attribution.label[0].toUpperCase()}
           </div>
         )}
         <span className="text-[length:var(--fs-body)] text-ink-3">{attribution.label}</span>

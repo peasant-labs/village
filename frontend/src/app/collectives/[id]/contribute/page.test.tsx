@@ -11,6 +11,7 @@ import {
 import { AuthProvider } from "@/providers/AuthProvider";
 import { makeUser } from "@/test/mountedGroupRoute";
 import GroupContributePage from "@/app/collectives/[id]/contribute/page";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 const cases = loadGroupsContributeTreeFixtures();
 
@@ -28,7 +29,7 @@ function makeGroup(id: string): Group {
     linked_github_org: null,
     display_members: true,
     transcript_deletion_policy: "user_choice",
-    created_by: "someone-else",
+    creator: profileOwner({ id: "someone-else", github_username: "collective-owner" }),
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     acceptance_mode: "open",

@@ -12,6 +12,7 @@ import {
   memberUUID,
 } from "@/test/groupedHelperMountFixtures";
 import type { TranscriptListItem, User } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Mounted evidence for the signed-in home route's helper-group exits.
@@ -49,7 +50,6 @@ afterEach(() => {
 const ownerTranscript = makeTranscriptFixture({
   id: OWNER_ID,
   local_id: "ses_ownerrow",
-  owner_id: "12345678-1234-4234-8234-123456789099",
   title: "owner session",
   project_hash: "1".repeat(64),
   project_name: "proj",
@@ -94,7 +94,8 @@ function installREST(): Calls {
             items: [
               {
                 kind: "transcript",
-                transcript: { session: ownerTranscript },
+                // The grouped reader validates the owner id as a UUID.
+                transcript: { owner: profileOwner({ ...OWNER_USER, id: "12345678-1234-4234-8234-123456789099" }), session: ownerTranscript },
                 helperGroups: [fixtures.groups.owner],
               },
               {
@@ -113,7 +114,7 @@ function installREST(): Calls {
             helperThreadTotal: fixtures.groups.owner.helperThreadCount + 1,
           });
         }
-        const item: TranscriptListItem = { transcript: ownerTranscript, tags: [], owner: OWNER_USER };
+        const item: TranscriptListItem = { transcript: ownerTranscript, tags: [], owner: profileOwner(OWNER_USER) };
         return json({
           transcripts: [item],
           total: 1,

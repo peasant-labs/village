@@ -4,6 +4,7 @@ import {
   type NameSource,
   type TranscriptRow,
 } from "@/lib/types";
+import { ownerKey, publicProfile, type PublicOwner, type PublicProfile } from "@/lib/publicOwner";
 
 /**
  * Format a model identifier into a human-readable name.
@@ -261,7 +262,7 @@ export function transcriptTokens(t: {
  */
 export function groupByRepo<
   T extends {
-    owner_id: string;
+    owner: PublicOwner;
     git_remote: string | null;
     project_name: string | null;
     // The remote-derived label ("host:owner/repo"), NOT the resolved
@@ -298,7 +299,8 @@ export function groupByRepo<
           new Date(a.published_at).getTime()
       );
 
-      const contributors = new Set(groupItems.map((i) => i.owner_id));
+      // Anonymous owners carry no id, so together they count as one.
+      const contributors = new Set(groupItems.map((i) => ownerKey(i.owner)));
       const totalTokens = groupItems.reduce(
         (sum, i) => sum + transcriptTokens(i),
         0
@@ -349,46 +351,35 @@ export function groupByRepo<
 }
 
 /**
- * One collective-browse transcript as a transcript list reads it.
- *
- * The `/collectives/{id}/transcripts` response carries the author flattened onto the
- * transcript (`owner_username`, `owner_avatar_url`, `owner_is_discoverable`)
- * rather than as a nested account, because a collective's browse page needs a
- * handle and an avatar and nothing else about that person. This lifts those
- * three fields back into the shape every transcript list draws, so the
- * collective's rows are the SAME rows as everywhere else and no account is
- * invented to make them fit.
+ * One collective-browse transcript as a transcript list reads it: the
+ * transcript and the owner the server resolved for this viewer.
  */
 export function collectiveTranscriptRow(t: GroupTranscript): TranscriptRow {
-  return {
-    transcript: t,
-    owner: {
-      id: t.owner_id,
-      github_username: t.owner_username,
-      avatar_url: t.owner_avatar_url,
-      is_discoverable: t.owner_is_discoverable,
-    },
-  };
+  return { transcript: t, owner: t.owner };
 }
 
 /**
- * Resolves how a transcript author should be attributed in lists.
- * Returns `{ anonymous: true }` when the author has opted out of being
- * discoverable AND the viewer is not the author themselves; in that case
- * UI should render "anon" with no link or avatar lookup. Otherwise the
- * caller is responsible for rendering the handle/avatar as usual.
+ * How a transcript author is attributed: their username, or "anon".
+ *
+ * The server has already decided what this viewer may see, so this only
+ * renders it. An anonymous owner, an owner of a kind this app does not know,
+ * and a missing owner all read as "anon", with no profile to link or draw.
  */
-export function resolveAttribution(
-  owner: { id: string; github_username: string; is_discoverable?: boolean },
-  viewerId: string | undefined,
-  viewerIsPrivileged = false,
-): { anonymous: boolean; label: string } {
-  const anonymous =
-    owner.is_discoverable === false && owner.id !== viewerId && !viewerIsPrivileged;
-  return {
-    anonymous,
-    label: anonymous ? "anon" : owner.github_username,
-  };
+export function resolveAttribution(owner: PublicOwner | null | undefined): {
+  anonymous: boolean;
+  label: string;
+  profile: PublicProfile | null;
+} {
+  const profile = publicProfile(owner);
+  return profile
+    ? { anonymous: false, label: profile.username, profile }
+    : { anonymous: true, label: "anon", profile: null };
+}
+
+/** An owner as a handle: `@username`, or a bare "anon" that names nobody. */
+export function ownerHandle(owner: PublicOwner | null | undefined): string {
+  const attribution = resolveAttribution(owner);
+  return attribution.anonymous ? attribution.label : `@${attribution.label}`;
 }
 
 /**

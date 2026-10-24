@@ -82,10 +82,9 @@ export default function TranscriptPreview({ transcriptId }: TranscriptPreviewPro
       transcriptVisibility={t.visibility}
       transcriptTitle={t.title}
       transcriptDescription={t.description}
-      transcriptOwnerId={data.owner?.id}
+      owner={data.owner}
       projectName={t.project_display_name}
       projectHash={t.project_hash}
-      ownerUsername={data.owner?.github_username}
       detail={detail}
       error={contentError ? String((contentError as Error).message ?? contentError) : null}
     />

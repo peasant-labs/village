@@ -8,6 +8,7 @@ import {
 } from "@peasant-labs/schema";
 import { memberUUID, type MemberSpec } from "@/test/groupedHelperMountFixtures";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Typed loader for `src/testdata/grouped-shape-oracles.yaml`.
@@ -362,10 +363,10 @@ export function ownerItem(
   return {
     kind: "transcript",
     transcript: {
+      owner: profileOwner({ id: SHAPE_OWNER_ACCOUNT, github_username: "member-owner" }),
       session: makeTranscriptFixture({
         id: memberUUID(ownerKey),
         local_id: `ses_${ownerKey.replace(/[^a-zA-Z0-9]/g, "")}`,
-        owner_id: SHAPE_OWNER_ACCOUNT,
         title: owner.title,
         turn_count: owner.turnCount,
         ...(owner.inputSubmissionCount === null

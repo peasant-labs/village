@@ -1,3 +1,4 @@
+import { publicProfile, type PublicOwner } from "@/lib/publicOwner";
 import type { Transcript, TranscriptListItem } from "@/lib/types";
 
 /**
@@ -14,6 +15,11 @@ import type { Transcript, TranscriptListItem } from "@/lib/types";
  * (`UNIQUE (owner_id, local_id)` in the initial migration), so a parent is
  * matched on the owner AND the session id. Matching on the session id alone
  * would let one publisher's row capture another publisher's row.
+ *
+ * A row whose owner this viewer sees as anonymous has no owner id, so it is
+ * never matched in either direction and keeps its ordinary browse row. Folding
+ * it by session id alone could capture another publisher's row, and folding two
+ * anonymous rows together would tell the viewer that one person published both.
  *
  * NOTHING IS EVER REMOVED FROM THE LIST HERE. A row is folded only when the
  * session that started it is in the SAME response; otherwise it keeps its
@@ -49,8 +55,10 @@ export type SessionIdentity = {
    *  hand at the row it is drawing, and the key {@link childSessionsByRowID}
    *  indexes a group by. It is NOT the harness session id. */
   rowID: string;
-  /** The publisher. Session ids are unique per owner, never globally. */
-  ownerID: string;
+  /** The publisher. Session ids are unique per owner, never globally. `null`
+   *  when this viewer may not identify the publisher: such a row is never
+   *  matched as a parent or a child. */
+  ownerID: string | null;
   /** The id the recording harness used for this session (`local_id`). */
   sessionID: string;
   /** The harness id of the session that started this one, or absent when
@@ -128,6 +136,17 @@ export function sessionKey(ownerID: string, sessionID: string): string {
   return `${ownerID}${KEY_SEPARATOR}${sessionID}`;
 }
 
+/** The key a row is found under, or `null` when it has no known owner. */
+function identityKey(identity: SessionIdentity): string | null {
+  return identity.ownerID === null ? null : sessionKey(identity.ownerID, identity.sessionID);
+}
+
+/** The owner id a row's owner contributes to its identity: the profile's id,
+ *  or `null` for an owner this viewer sees as anonymous. */
+export function sessionOwnerID(owner: PublicOwner | null | undefined): string | null {
+  return publicProfile(owner)?.id ?? null;
+}
+
 /**
  * The parent a row names, or null when it names none.
  *
@@ -173,9 +192,8 @@ export function groupProjectSessionRows<Row>(
 ): ProjectSessionGrouping<Row> {
   const byKey = new Map<string, Row>();
   for (const row of rows) {
-    const identity = identify(row);
-    const key = sessionKey(identity.ownerID, identity.sessionID);
-    if (!byKey.has(key)) byKey.set(key, row);
+    const key = identityKey(identify(row));
+    if (key !== null && !byKey.has(key)) byKey.set(key, row);
   }
 
   const rootByRow = new Map<Row, Row | null>();
@@ -185,7 +203,7 @@ export function groupProjectSessionRows<Row>(
     let current = row;
     for (;;) {
       const identity = identify(current);
-      const key = sessionKey(identity.ownerID, identity.sessionID);
+      const key = identityKey(identity) ?? `row${KEY_SEPARATOR}${identity.rowID}`;
       if (seen.has(key)) {
         for (const item of visited) rootByRow.set(item, null);
         return null;
@@ -205,7 +223,7 @@ export function groupProjectSessionRows<Row>(
         for (const item of visited) rootByRow.set(item, root);
         return root;
       }
-      const parent = byKey.get(sessionKey(identity.ownerID, parentID));
+      const parent = identity.ownerID === null ? undefined : byKey.get(sessionKey(identity.ownerID, parentID));
       if (parent === undefined) {
         for (const item of visited) rootByRow.set(item, null);
         return null;
@@ -271,9 +289,8 @@ export function groupSessionRows<Row>(
 ): SessionGrouping<Row> {
   const byKey = new Map<string, Row>();
   for (const row of rows) {
-    const identity = identify(row);
-    const key = sessionKey(identity.ownerID, identity.sessionID);
-    if (!byKey.has(key)) byKey.set(key, row);
+    const key = identityKey(identify(row));
+    if (key !== null && !byKey.has(key)) byKey.set(key, row);
   }
 
   /** The topmost row of `row`'s parent chain that is present in this response.
@@ -283,7 +300,10 @@ export function groupSessionRows<Row>(
     let current = row;
     for (;;) {
       const identity = identify(current);
-      const currentKey = sessionKey(identity.ownerID, identity.sessionID);
+      const ownerID = identity.ownerID;
+      // A row with no known owner is never matched, so it stays where it is.
+      if (ownerID === null) return current;
+      const currentKey = sessionKey(ownerID, identity.sessionID);
       // A row that names itself, or a ring of rows that name each other, is a
       // cycle. Keep the row where it is rather than fold it into nothing.
       if (seen.has(currentKey)) return row;
@@ -292,7 +312,7 @@ export function groupSessionRows<Row>(
       const parentID = namedParent(identity);
       if (parentID === null) return current;
 
-      const parent = byKey.get(sessionKey(identity.ownerID, parentID));
+      const parent = byKey.get(sessionKey(ownerID, parentID));
       // The chain leaves this response. `current` is the highest row the fold
       // can honestly speak about, so it keeps its own browse row.
       if (parent === undefined) return current;
@@ -332,7 +352,8 @@ export function groupSessionRows<Row>(
  * they differ in what ELSE they send, so the fold names only the part it reads.
  */
 export type TranscriptCarryingRow = {
-  transcript: Pick<Transcript, "id" | "owner_id" | "local_id" | "parent_session_id" | "session_origin">;
+  transcript: Pick<Transcript, "id" | "local_id" | "parent_session_id" | "session_origin">;
+  owner: PublicOwner;
 };
 
 /**
@@ -343,7 +364,7 @@ export type TranscriptCarryingRow = {
 export function transcriptListItemIdentity(item: TranscriptCarryingRow): SessionIdentity {
   return {
     rowID: item.transcript.id,
-    ownerID: item.transcript.owner_id,
+    ownerID: sessionOwnerID(item.owner),
     sessionID: item.transcript.local_id,
     parentSessionID: item.transcript.parent_session_id,
   };

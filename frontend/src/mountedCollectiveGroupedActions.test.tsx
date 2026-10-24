@@ -17,6 +17,7 @@ import {
   type CollectiveActionCase,
 } from "@/test/collectiveGroupedActionFixtures";
 import { memberUUID } from "@/test/groupedHelperMountFixtures";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Mounted evidence for the collective grouped-helper contribution and review
@@ -66,7 +67,7 @@ function groupFixture(role: "member" | "owner"): Group {
     linked_github_org: null,
     display_members: true,
     transcript_deletion_policy: "user_choice",
-    created_by: "someone-else",
+    creator: profileOwner({ id: "someone-else", github_username: "collective-owner" }),
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     acceptance_mode: "curated",

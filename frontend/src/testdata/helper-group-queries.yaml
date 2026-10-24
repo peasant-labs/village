@@ -1,15 +1,15 @@
 group: {groupId: hg_fixture, purpose: helper_review, helperThreadCount: 1, memberScope: opaque-fixture-scope}
 nestedGroup: {groupId: hg_nested, purpose: helper_review, helperThreadCount: 1, memberScope: opaque-nested-scope}
+# The owner every row belongs to, as the grouped read names them.
+owner: {kind: profile, id: 12345678-1234-4234-8234-123456789013, username: helper-owner, display_name: null, avatar_url: null}
 nestedRow:
   id: 12345678-1234-4234-8234-123456789014
-  owner_id: 12345678-1234-4234-8234-123456789013
   local_id: ses_G3
   title: nested saved review
   turn_count: 5
   session_origin: agent
 row:
   id: 12345678-1234-4234-8234-123456789012
-  owner_id: 12345678-1234-4234-8234-123456789013
   local_id: ses_G2
   title: identical saved review
   turn_count: 5

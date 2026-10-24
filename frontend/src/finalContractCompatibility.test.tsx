@@ -7,13 +7,13 @@ import { SessionDetailV2 } from "@/components/session-detail/v2/SessionDetailV2"
 import { adaptExplore } from "@/lib/adapters/explore";
 import type { Transcript, TranscriptListResponse, User } from "@/lib/types";
 import { loadFinalContractCompatibilityFixtures } from "@/test/finalContractCompatibilityFixtures";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 const fixtures = loadFinalContractCompatibilityFixtures();
 
 function transcriptList(modelProvider: string, transcriptID: string): TranscriptListResponse {
   const transcript: Transcript = {
     id: transcriptID,
-    owner_id: "owner-1",
     local_id: "session-1",
     title: "contract fixture",
     description: null,
@@ -30,6 +30,7 @@ function transcriptList(modelProvider: string, transcriptID: string): Transcript
     published_at: "2026-08-03T00:00:00Z",
     updated_at: "2026-08-03T00:00:00Z",
     parent_session_id: null,
+    parent_transcript_id: null,
     ingested_at: null,
     source_format: null,
     project_name: "fixture-project",
@@ -93,7 +94,7 @@ function transcriptList(modelProvider: string, transcriptID: string): Transcript
     username_chosen: true,
     provider_username: "fixture-owner",
   };
-  return { transcripts: [{ transcript, tags: [], owner }], total: 1, agent_total: 0, page: 1, limit: 20 };
+  return { transcripts: [{ transcript, tags: [], owner: profileOwner(owner) }], total: 1, agent_total: 0, page: 1, limit: 20 };
 }
 
 function sessionDetail(turnsState: "omitted" | "null" | "nullable-fields", stopReasons?: ["max_turn_requests", "refusal"]): SessionDetailPayload {

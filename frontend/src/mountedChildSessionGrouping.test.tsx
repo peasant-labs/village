@@ -15,7 +15,8 @@ import {
 } from "@/test/mountedProjectRoute";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { HomeTranscriptCase } from "@/test/homePageFixtures";
-import type { TranscriptListItem, TranscriptListResponse, User } from "@/lib/types";
+import type { TranscriptListItem, TranscriptListResponse } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 import {
   loadChildSessionGroupingFixtures,
   type ChildSessionGroupingCase,
@@ -175,7 +176,6 @@ function wireItem(row: ChildSessionRow, sessionOrigin: "user" | "agent" = "user"
   return {
     transcript: makeTranscriptFixture({
       id: row.name,
-      owner_id: row.ownerID,
       local_id: row.localID,
       parent_session_id: row.parentSessionID,
       title: `Session ${row.name}`,
@@ -188,12 +188,7 @@ function wireItem(row: ChildSessionRow, sessionOrigin: "user" | "agent" = "user"
       session_origin: sessionOrigin,
     }),
     tags: [],
-    owner: {
-      id: row.ownerID,
-      github_username: row.ownerID,
-      display_name: row.ownerID,
-      avatar_url: null,
-    } as unknown as User,
+    owner: profileOwner({ id: row.ownerID, github_username: row.ownerID, display_name: row.ownerID }),
   };
 }
 

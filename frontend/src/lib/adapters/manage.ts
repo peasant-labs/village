@@ -35,6 +35,8 @@ import type {
   GroupModelBreakdown,
   GroupContributor,
 } from '@/lib/types';
+import { resolveAttribution } from '@/lib/format';
+import type { PublicOwner } from '@/lib/publicOwner';
 
 // ── Enum display formatting ──────────────────────────────────────────────────
 
@@ -66,8 +68,10 @@ type CollectiveRole = 'owner' | 'member' | 'contributor' | 'pending';
 // backend GetGroup handler defaults your_role to "" for non-members).
 type ViewerRole = CollectiveRole | '';
 
+// A person as the server resolved them for this viewer: `id` is null and the
+// handle reads "anon" for someone the viewer may not identify.
 interface CollectiveMemberPayload {
-  id: string;
+  id: string | null;
   githubUsername: string;
   displayName: string | null;
   avatarUrl: string | null;
@@ -102,7 +106,7 @@ interface CollectiveModelBreakdownPayload {
 }
 
 interface CollectiveContributorPayload {
-  id: string;
+  id: string | null;
   githubUsername: string;
   avatarUrl: string | null;
   transcriptCount: number;
@@ -115,7 +119,8 @@ interface CollectivePayload {
   linkedGithubOrg: string | null;
   displayMembers: boolean;
   transcriptDeletionPolicy: TranscriptDeletionPolicy;
-  createdBy: string;
+  /** The creator's id, or null when the server names them anonymously. */
+  createdBy: string | null;
   createdAt: string;
   updatedAt: string;
   acceptanceMode: AcceptanceMode;
@@ -133,6 +138,11 @@ interface ManagePayload {
   models: CollectiveModelBreakdownPayload[];
   contributors: CollectiveContributorPayload[];
   yourRole: ViewerRole;
+}
+
+function personPayload(owner: PublicOwner): { id: string | null; githubUsername: string; avatarUrl: string | null } {
+  const { label, profile } = resolveAttribution(owner);
+  return { id: profile?.id ?? null, githubUsername: label, avatarUrl: profile?.avatar_url ?? null };
 }
 
 // ── Adapter signature ─────────────────────────────────────────────────────────
@@ -183,7 +193,7 @@ export function adaptManage(data: ManageAdapterInput): ManagePayload {
       linkedGithubOrg: data.group.linked_github_org,
       displayMembers: data.group.display_members,
       transcriptDeletionPolicy: data.group.transcript_deletion_policy,
-      createdBy: data.group.created_by,
+      createdBy: personPayload(data.group.creator).id,
       createdAt: data.group.created_at,
       updatedAt: data.group.updated_at,
       acceptanceMode: data.group.acceptance_mode,
@@ -192,18 +202,14 @@ export function adaptManage(data: ManageAdapterInput): ManagePayload {
       memberSince: data.group.member_since,
     },
     members: data.members.map((member) => ({
-      id: member.id,
-      githubUsername: member.github_username,
-      displayName: member.display_name,
-      avatarUrl: member.avatar_url,
+      ...personPayload(member.member),
+      displayName: resolveAttribution(member.member).profile?.display_name ?? null,
       role: member.role as CollectiveRole,
       joinedAt: member.joined_at,
     })),
     pendingMembers: data.pendingMembers.map((member) => ({
-      id: member.id,
-      githubUsername: member.github_username,
-      displayName: member.display_name,
-      avatarUrl: member.avatar_url,
+      ...personPayload(member.member),
+      displayName: resolveAttribution(member.member).profile?.display_name ?? null,
       role: member.role as CollectiveRole,
       joinedAt: member.joined_at,
     })),
@@ -216,8 +222,8 @@ export function adaptManage(data: ManageAdapterInput): ManagePayload {
       sessionStart: transcript.session_start,
       turnCount: transcript.turn_count,
       tokenCount: transcript.token_count,
-      ownerUsername: transcript.owner_username,
-      ownerAvatarUrl: transcript.owner_avatar_url,
+      ownerUsername: personPayload(transcript.owner).githubUsername,
+      ownerAvatarUrl: personPayload(transcript.owner).avatarUrl,
     })),
     stats: {
       totalTranscripts: data.stats.total_transcripts,
@@ -231,9 +237,7 @@ export function adaptManage(data: ManageAdapterInput): ManagePayload {
       transcriptCount: model.transcript_count,
     })),
     contributors: data.contributors.map((contributor) => ({
-      id: contributor.id,
-      githubUsername: contributor.github_username,
-      avatarUrl: contributor.avatar_url,
+      ...personPayload(contributor.contributor),
       transcriptCount: contributor.transcript_count,
     })),
     yourRole: data.yourRole,

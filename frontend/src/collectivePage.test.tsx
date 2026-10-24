@@ -277,7 +277,7 @@ describe("the collective page's tabs", () => {
       const queue = screen.getByRole("table", { name: /^waiting for approval/ });
       const rows = within(queue).getAllByRole("row").slice(1);
       expect(rows.map((row) => textOf(row.querySelector("a.is-title")))).toEqual(world.pending!.map((row) => row.title));
-      expect(rows.map((row) => textOf(row.querySelector(".on-handle-cell")))).toEqual(world.pending!.map((row) => `@${row.owner_username}`));
+      expect(rows.map((row) => textOf(row.querySelector(".on-handle-cell")))).toEqual(world.pending!.map((row) => (row.owner.kind === "profile" ? `@${row.owner.username}` : "anon")));
       for (const row of rows) expect(textOf(row.querySelector(".on-tag"))).toBe("waiting");
       expect(screen.getByRole("link", { name: "review transcripts" })).toHaveAttribute("href", `/collectives/${world.group.id}/review`);
     }

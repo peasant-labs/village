@@ -16,6 +16,7 @@ import {
 } from "@/lib/format";
 import { isAgentSession } from "@/lib/sessionOrigin";
 import { useDeleteTranscript } from "@/lib/queries/transcripts";
+import { isOwnedBy } from "@/lib/publicOwner";
 import { useAuth } from "@/providers/AuthProvider";
 import { cn } from "@/lib/utils";
 import { transcriptHref, type TranscriptContext } from "@/lib/transcriptContext";
@@ -103,11 +104,6 @@ interface TranscriptListProps {
   /** Draw a selection box on every row and report clicks. Omit on a list the
    *  viewer does not select from. */
   selection?: TranscriptRowSelection;
-  /** The viewer may read the handle of an author who opted out of being
-   *  discoverable. True only where the surface itself grants it -- a
-   *  collective's owner browsing their own collective's contributions -- never
-   *  as a default. */
-  viewerIsPrivileged?: boolean;
   /** Link each handle to that person's profile. A collective's browse list is
    *  the app's way into a contributor's library, so the handle is the way
    *  there; a list of one person's own sessions has nowhere to go. */
@@ -133,7 +129,6 @@ export default function TranscriptList({
   childSessions,
   facts = DEFAULT_TRANSCRIPT_ROW_FACTS,
   selection,
-  viewerIsPrivileged = false,
   linkOwner = false,
   helperGroupSlot,
   context,
@@ -150,13 +145,12 @@ export default function TranscriptList({
           const row = (
             <Row
               item={item}
-              canManage={showOwnerActions && viewerId === item.owner.id}
+              canManage={showOwnerActions && isOwnedBy(item.owner, viewerId)}
               hideOwner={hideOwner}
               hideVisibility={hideVisibility}
               bottomSpace={carriesChip ? "tight" : "default"}
               facts={facts}
               selection={selection}
-              viewerIsPrivileged={viewerIsPrivileged}
               linkOwner={linkOwner}
               context={context}
             />
@@ -181,7 +175,6 @@ export default function TranscriptList({
                 hideVisibility={hideVisibility}
                 facts={facts}
                 selection={selection}
-                viewerIsPrivileged={viewerIsPrivileged}
                 linkOwner={linkOwner}
                 helperGroupSlot={helperGroupSlot}
                 context={context}
@@ -293,7 +286,6 @@ function Row({
   bottomSpace = "default",
   facts = DEFAULT_TRANSCRIPT_ROW_FACTS,
   selection,
-  viewerIsPrivileged = false,
   linkOwner = false,
   context,
 }: {
@@ -304,13 +296,12 @@ function Row({
   bottomSpace?: RowBottomSpace;
   facts?: readonly TranscriptRowFact[];
   selection?: TranscriptRowSelection;
-  viewerIsPrivileged?: boolean;
   linkOwner?: boolean;
   context?: TranscriptContext;
 }) {
   const { transcript: t, owner, shares } = item;
-  const { user: viewer } = useAuth();
-  const attribution = resolveAttribution(owner, viewer?.id, viewerIsPrivileged);
+  const attribution = resolveAttribution(owner);
+  const profile = attribution.profile;
   const [editOpen, setEditOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const del = useDeleteTranscript();
@@ -333,20 +324,20 @@ function Row({
     <div className="w-4 h-4 bg-surface-hover border border-rule flex items-center justify-center text-[8px] font-bold text-ink-3">
       ?
     </div>
-  ) : owner.avatar_url ? (
-    <Image src={owner.avatar_url} alt="" width={16} height={16} unoptimized className="w-4 h-4 border border-rule" />
+  ) : profile?.avatar_url ? (
+    <Image src={profile.avatar_url} alt="" width={16} height={16} unoptimized className="w-4 h-4 border border-rule" />
   ) : (
     <div className="w-4 h-4 bg-surface-hover border border-rule flex items-center justify-center text-[8px] font-bold text-ink-2">
-      {owner.github_username[0].toUpperCase()}
+      {attribution.label[0].toUpperCase()}
     </div>
   );
   // An anonymous author is never linked, whatever the list asked for: the whole
   // point of the anonymous pill is that it names nobody, and a link to
   // /users/<handle> would name them in its href.
   const ownerPill =
-    linkOwner && !attribution.anonymous ? (
+    linkOwner && profile ? (
       <Link
-        href={`/users/${encodeURIComponent(owner.github_username)}`}
+        href={`/users/${encodeURIComponent(profile.username)}`}
         className="inline-flex min-w-0 items-center gap-2 focus-mono cursor-pointer hover:underline"
       >
         {ownerFace}

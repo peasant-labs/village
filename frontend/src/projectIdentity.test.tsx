@@ -5,6 +5,7 @@ import {
   loadProjectIdentityFixtures,
   type ProjectIdentityGroupingItem,
 } from "@/test/projectIdentityFixtures";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 // Direct tests of the REAL, exported production functions — the same
 // `groupByProject` `UserProfilePage` calls to render the profile's project
@@ -109,7 +110,7 @@ describe("groupByProject: hash-keyed project grouping", () => {
 describe("buildProjectHref: the breadcrumb project-page href", () => {
   for (const c of fixtures.breadcrumbHrefCases) {
     it(c.name, () => {
-      expect(buildProjectHref(c.ownerUsername, c.projectHash)).toBe(c.expectedHref);
+      expect(buildProjectHref(c.owner, c.projectHash)).toBe(c.expectedHref);
     });
   }
 
@@ -132,7 +133,7 @@ describe("groupByRepo: the git_remote axis's label must not read the resolved pr
     projectDisplayName: string;
   }) {
     return {
-      owner_id: "owner-1",
+      owner: profileOwner({ id: "owner-1", github_username: "owner-1" }),
       git_remote: c.gitRemote,
       project_name: "raw-name",
       project_remote_label: c.projectRemoteLabel,

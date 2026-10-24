@@ -1,4 +1,6 @@
+import { sessionOwnerID } from "@/lib/childSessions";
 import { buildSessionTree, type ProjectNode, type TreeRowFacts } from "@/lib/contribute/tree";
+import { resolveAttribution } from "@/lib/format";
 import type { PendingShare } from "./types";
 
 /**
@@ -7,16 +9,15 @@ import type { PendingShare } from "./types";
  * The wire row is restated in the shared tree's own vocabulary — `id` rather
  * than `transcript_id`, a resolved `project_display_name`, a `git_branch` —
  * so the SAME fold that builds the contribute tree builds this one. Nothing
- * here recomputes grouping: the translation is names, plus the two facts the
- * wire cannot know (whether the viewer may see the publisher's handle, and
- * whether this row has already gone stale under the viewer).
+ * here recomputes grouping: the translation is names, plus the publisher's
+ * label and whether this row has already gone stale under the viewer.
  */
 export interface ReviewRow extends TreeRowFacts {
   /** The submission's own wire row, for the actions and the preview column. */
   share: PendingShare;
   model_provider: string;
-  /** The publisher as this viewer may see them: the real handle, or "anon"
-   *  when the publisher is not discoverable. */
+  /** The publisher as the server resolved them for this viewer: the handle,
+   *  or "anon". */
   owner_label: string;
   /** Another reviewer decided this row after the page loaded. It stays visible
    *  and marked rather than vanishing, so a reviewer sees WHY their selection
@@ -24,11 +25,8 @@ export interface ReviewRow extends TreeRowFacts {
   stale: boolean;
 }
 
-/** A publisher who is not discoverable is never named to a reviewer. */
-export const ANONYMOUS_OWNER = "anon";
-
 function ownerLabel(share: PendingShare): string {
-  return share.owner_is_discoverable ? share.owner_username : ANONYMOUS_OWNER;
+  return resolveAttribution(share.owner).label;
 }
 
 function formatDate(iso: string): string {
@@ -80,6 +78,6 @@ export function buildReviewTree(rows: ReviewRow[]): ProjectNode<ReviewRow>[] {
       mark: row.stale ? "already decided" : null,
       locked: row.stale,
     }),
-    (row) => row.share.owner_id,
+    (row) => sessionOwnerID(row.share.owner),
   );
 }

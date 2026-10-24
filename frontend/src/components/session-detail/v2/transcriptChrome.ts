@@ -1,6 +1,7 @@
 import type { adaptTranscript } from '@peasant-labs/fairtrade/ui';
 import { HOME_SECTION } from '@/lib/nav/sections';
 import type { TranscriptContext } from '@/lib/transcriptContext';
+import { publicProfile, type PublicOwner } from '@/lib/publicOwner';
 
 /** Same label the explore card (`TranscriptCard.tsx`) shows for a transcript
  *  with no stored title. The hero must show this — never the composite's own
@@ -51,16 +52,18 @@ export function shownTranscriptTitle(storedTitle: string | null | undefined): st
 
 /**
  * Builds the project page href `/users/{username}/projects/{projectHash}`
- * or `null` when either input is missing so a caller with an
+ * or `null` when there is no profile or no hash, so a caller with an
  * incomplete transcript record degrades to a label-only crumb instead of
- * emitting a broken link.
+ * emitting a broken link. An anonymous owner (or one of a kind this app does
+ * not know) has no username to put in a link, so it never gets one.
  */
 export function buildProjectHref(
-  ownerUsername: string | null | undefined,
+  owner: PublicOwner | null | undefined,
   projectHash: string | null | undefined,
 ): string | null {
-  if (!ownerUsername || !projectHash) return null;
-  return `/users/${encodeURIComponent(ownerUsername)}/projects/${encodeURIComponent(projectHash)}`;
+  const profile = publicProfile(owner);
+  if (!profile || !projectHash) return null;
+  return `/users/${encodeURIComponent(profile.username)}/projects/${encodeURIComponent(projectHash)}`;
 }
 
 export interface TranscriptBreadcrumbInput {

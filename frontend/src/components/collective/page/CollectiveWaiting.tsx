@@ -19,7 +19,6 @@ import { transcriptHref } from "@/lib/transcriptContext";
 export default function CollectiveWaiting({
   collectiveId,
   pending,
-  viewerId,
 }: {
   collectiveId: string;
   pending: {
@@ -30,7 +29,6 @@ export default function CollectiveWaiting({
     error: Error | null;
     refetch: () => unknown;
   };
-  viewerId: string | undefined;
 }) {
   const reviewHref = `/collectives/${collectiveId}/review`;
 
@@ -106,11 +104,7 @@ export default function CollectiveWaiting({
           </thead>
           <tbody>
             {rows.map((row) => {
-              const who = resolveAttribution(
-                { id: row.owner_id, github_username: row.owner_username, is_discoverable: row.owner_is_discoverable },
-                viewerId,
-                true,
-              );
+              const who = resolveAttribution(row.owner);
               return (
                 <tr key={row.transcript_id}>
                   <td className="on-ctable-title">

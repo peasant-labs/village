@@ -5,6 +5,8 @@ import { EyeOff, UserPlus } from "lucide-react";
 import { Avatar } from "@/lib/ft-ui";
 import { OnEmpty } from "@/components/online/Page";
 import { memberBreakdown } from "@/lib/adapters/collective";
+import { ownerHandle } from "@/lib/format";
+import { publicProfile } from "@/lib/publicOwner";
 import type { GroupMember } from "@/lib/types";
 
 /**
@@ -48,19 +50,23 @@ export default function CollectiveMembers({
         )}
       </div>
       <ul className="on-mem-list" aria-label="members">
-        {members.map((member) => (
-          <li key={member.id} className="on-mem">
-            <span aria-hidden="true">
-                <Avatar name={member.display_name || member.github_username} size="sm" src={member.avatar_url ?? undefined} />
+        {members.map((member, index) => {
+          const profile = publicProfile(member.member);
+          const handle = ownerHandle(member.member);
+          return (
+            <li key={profile?.id ?? `anonymous-${index}`} className="on-mem">
+              <span aria-hidden="true">
+                <Avatar name={profile?.display_name || (profile?.username ?? handle)} size="sm" src={profile?.avatar_url ?? undefined} />
               </span>
-            <span className="on-handle">
-              <span className="on-mem-login">@{member.github_username}</span>
-              {member.display_name && <span className="on-mem-name">{member.display_name}</span>}
-            </span>
-            <span className="on-chrome">{member.role}</span>
-            <span />
-          </li>
-        ))}
+              <span className="on-handle">
+                <span className="on-mem-login">{handle}</span>
+                {profile?.display_name && <span className="on-mem-name">{profile.display_name}</span>}
+              </span>
+              <span className="on-chrome">{member.role}</span>
+              <span />
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

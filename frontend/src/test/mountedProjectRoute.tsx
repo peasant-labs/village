@@ -13,6 +13,7 @@ import type {
   User,
   UserProjectPageResponse,
 } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /**
  * Mount support for the REAL project-page route
@@ -76,7 +77,9 @@ export interface ProjectRouteFixture {
 
 function makeUser(username: string): User {
   return {
-    id: `user-${username}`,
+    // Handles are case-insensitive, so one account answers to every casing and
+    // carries one id: ownership is decided by that id.
+    id: `user-${username.toLowerCase()}`,
     github_id: 1,
     github_username: username,
     display_name: username,
@@ -98,7 +101,6 @@ function makeTranscript(
   // comes from the shared fixture builder.
   return makeTranscriptFixture({
     id: row.id ?? `transcript-${index}`,
-    owner_id: `user-${fixture.ownerUsername}`,
     local_id: row.localID ?? `local-${index}`,
     parent_session_id: row.parentSessionID ?? null,
     session_origin: row.sessionOrigin ?? "user",
@@ -124,7 +126,7 @@ const json = (body: unknown, status = 200) =>
  */
 export function installProjectRouteREST(fixture: ProjectRouteFixture): RecordedRequest[] {
   const requests: RecordedRequest[] = [];
-  const owner = makeUser(fixture.ownerUsername);
+  const owner = profileOwner(makeUser(fixture.ownerUsername));
   let displayName = fixture.displayName;
   let nameSource = fixture.nameSource;
   let projectRead = 0;
