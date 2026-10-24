@@ -12,8 +12,8 @@ import PendingApprovalBar, {
 import { isSessionDetailPayload } from "@/lib/sessionDetailPayload";
 import type { SessionDetailPayload } from "@/types/messages";
 import Link from "next/link";
-import { Clock, FileX2, SearchX } from "lucide-react";
-import { hasAuthTokenCookie, isApiErrorStatus } from "@/lib/api";
+import { FileX2, SearchX } from "lucide-react";
+import { hasAuthTokenCookie } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { useDeclareSignedOutReadable } from "@/components/shell/signedOutDeclaration";
 import { loginHref } from "@/lib/signIn";
@@ -29,7 +29,7 @@ export default function TranscriptDetailPage({
 }) {
   const { id } = use(params);
   useDeclareSignedOutReadable(openSignedOut);
-  const { data, isLoading, error } = useTranscript(id);
+  const { data, isLoading } = useTranscript(id);
   const { data: content, isLoading: contentLoading, error: contentError } =
     useTranscriptContent(id, { knownHarness: data?.transcript.model_provider, enabled: !!data });
   const { isLoading: sessionLoading, isLoggedIn } = useAuth();
@@ -89,22 +89,6 @@ export default function TranscriptDetailPage({
           <div className="h-12 w-1/2 animate-shimmer" />
           <div className="h-96 w-full animate-shimmer" />
         </div>
-      </OnPage>
-    );
-  }
-
-  // The server refused this read. A rate-limited access check says so: rendering
-  // "not found" for it would pretend the reader has no access, which is the one
-  // thing the throttle's answer exists to avoid.
-  if (isApiErrorStatus(error, 429)) {
-    return (
-      <OnPage>
-        <OnEmpty
-          icon={<Clock aria-hidden="true" />}
-          title="too many access checks just now"
-          headingLevel={1}
-          body="this transcript's repository is asked whether you may read it, and that has been asked too often in the last few minutes. try again shortly."
-        />
       </OnPage>
     );
   }
