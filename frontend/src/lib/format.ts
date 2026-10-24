@@ -237,30 +237,6 @@ export interface RepoGroup<T> {
 
 const UNATTRIBUTED_KEY = "__unattributed__";
 
-/** The units a shortened count steps through, each a thousand of the last. */
-const COMPACT_UNITS = ["K", "M", "B", "T"] as const;
-
-/**
- * A count shortened for a place that has room for a few characters, not a
- * number: `1.2K`, `3.4M`, `66.7B`, and the plain number below a thousand. A
- * value that rounds up to a thousand of one unit reads as one of the next.
- *
- * One function, because a collective states the same total in more than one
- * place -- a repository's roll-up and the row it rolls up -- and two spellings
- * of one number read as two different numbers.
- */
-export function formatCompact(n: number): string {
-  if (!(Math.abs(n) >= 1_000)) return n.toLocaleString();
-  const shorten = (unit: number) => (n / 1_000 ** (unit + 1)).toFixed(1).replace(/\.0$/, "");
-  let unit = Math.min(Math.floor(Math.log10(Math.abs(n)) / 3), COMPACT_UNITS.length) - 1;
-  let text = shorten(unit);
-  if (Math.abs(Number(text)) >= 1_000 && unit < COMPACT_UNITS.length - 1) {
-    unit += 1;
-    text = shorten(unit);
-  }
-  return `${text}${COMPACT_UNITS[unit]}`;
-}
-
 /**
  * Total tokens for a transcript, preferring the stored `token_count` and
  * falling back to the in/out split — matching the collective data browser.

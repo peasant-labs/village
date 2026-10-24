@@ -16,7 +16,8 @@ import {
   type VillageUpdateGroupRequest,
 } from "@peasant-labs/schema";
 import type { CollectiveDetailView, CollectivesView } from "@peasant-labs/fairtrade/commons";
-import { formatCompact, resolveAttribution } from "@/lib/format";
+import { resolveAttribution } from "@/lib/format";
+import { formatCount } from "@/lib/ft-ui";
 import type {
   Group,
   GroupMember,
@@ -230,7 +231,7 @@ export function collectiveStats(
   return [
     { value: stats?.total_transcripts ?? 0, label: "transcripts" },
     { value: memberCount, label: "members" },
-    { value: formatCompact(Number(stats?.total_tokens ?? 0)), label: "tokens" },
+    { value: formatCount(Number(stats?.total_tokens ?? 0)), label: "tokens" },
     { value: stats?.pull_request_count ?? 0, label: "pull requests linked" },
   ];
 }

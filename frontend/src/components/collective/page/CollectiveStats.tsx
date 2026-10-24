@@ -2,6 +2,7 @@
 
 import { Github, SlidersHorizontal } from "lucide-react";
 import type { CollectiveGithub } from "./useCollectiveGithub";
+import { formatInteger } from "@/lib/ft-ui";
 
 /** The org line's words: the org, and how many of its repositories are linked when that is known. */
 export function orgLineText(org: CollectiveGithub["org"]): string {
@@ -32,7 +33,7 @@ export default function CollectiveStats({
         {stats.map((stat) => (
           <div key={stat.label} className="on-stat">
             <dt>{stat.label}</dt>
-            <dd>{typeof stat.value === "number" ? stat.value.toLocaleString("en-US") : stat.value}</dd>
+            <dd>{typeof stat.value === "number" ? formatInteger(stat.value) : stat.value}</dd>
           </div>
         ))}
       </dl>

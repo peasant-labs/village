@@ -4,13 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Pencil, Trash2 } from "lucide-react";
-import { ProviderName, Tag, VisibilityEye } from "@/lib/ft-ui";
+import { formatCount, ProviderName, Tag, VisibilityEye } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import TranscriptEditDialog from "./TranscriptEditDialog";
 import ChildSessionDisclosure from "./ChildSessionDisclosure";
 import type { Transcript, TranscriptRow } from "@/lib/types";
 import {
-  formatCompact,
   formatModelName,
   resolveAttribution,
   transcriptTokens,
@@ -264,7 +263,7 @@ function factNode(fact: TranscriptRowFact, t: Transcript): React.ReactNode {
       if (t.token_count == null && t.tokens_in == null && t.tokens_out == null) return null;
       return (
         <span className="font-mono tabular-nums">
-          {formatCompact(transcriptTokens(t))} tok
+          {formatCount(transcriptTokens(t))} tok
         </span>
       );
     }

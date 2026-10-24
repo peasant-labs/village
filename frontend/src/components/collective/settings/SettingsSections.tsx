@@ -228,7 +228,7 @@ export function GithubSection({
   const org = github.org;
   return (
     <Panel testId="settings-github">
-      <div className="srow on-row-stack" data-testid="settings-org-card">
+      <div className="srow" data-testid="settings-org-card">
         <span className="srow-text-col">
           <span className="srow-label on-org-label">
             <Github aria-hidden="true" />
@@ -240,19 +240,15 @@ export function GithubSection({
               : "connect github to link an organization's repositories, so their pull requests can show this collective's sessions."}
           </span>
         </span>
-        {(onManage || onConnect) && (
-          <span className="srow-control">
-            {onManage && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={onManage}>
-                manage repositories
-              </button>
-            )}
-            {onConnect && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={onConnect}>
-                <Github aria-hidden="true" /> connect github
-              </button>
-            )}
-          </span>
+        {onManage && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onManage}>
+            manage repositories
+          </button>
+        )}
+        {onConnect && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onConnect}>
+            <Github aria-hidden="true" /> connect github
+          </button>
         )}
       </div>
     </Panel>
@@ -293,7 +289,7 @@ export function PullRequestsSection({ group, commit }: { group: Group; commit: C
 export function DangerSection({ group, onDelete }: { group: Group; onDelete: () => void }) {
   return (
     <Panel testId="settings-danger">
-      <div className="srow on-row-stack">
+      <div className="srow">
         <span className="srow-text-col">
           <span className="srow-label">
             delete <span className="on-keep-case">{group.name}</span>
@@ -302,11 +298,9 @@ export function DangerSection({ group, onDelete }: { group: Group; onDelete: () 
             this removes the collective and every member&apos;s access through it. it cannot be undone.
           </span>
         </span>
-        <span className="srow-control">
-          <button type="button" className="btn btn-danger btn-sm" onClick={onDelete}>
-            <Trash2 aria-hidden="true" /> delete collective
-          </button>
-        </span>
+        <button type="button" className="btn btn-danger btn-sm" onClick={onDelete}>
+          <Trash2 aria-hidden="true" /> delete collective
+        </button>
       </div>
     </Panel>
   );

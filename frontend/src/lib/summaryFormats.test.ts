@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { formatCompact, formatRecordedDuration, formatRelativeTime } from "@/lib/format";
+import { formatRecordedDuration, formatRelativeTime } from "@/lib/format";
+import { formatCount } from "@/lib/ft-ui";
 import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 
 type RelativeTimeCase = { name: string; now: string; at: string; expect: string };
@@ -85,7 +86,7 @@ describe("a recorded duration, for the summary line", () => {
 describe("a count shortened for a glance", () => {
   for (const c of compactCases) {
     it(c.name, () => {
-      expect(formatCompact(c.n)).toBe(c.expect);
+      expect(formatCount(c.n)).toBe(c.expect);
     });
   }
 });

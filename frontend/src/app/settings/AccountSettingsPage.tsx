@@ -418,7 +418,7 @@ function DeleteAccount() {
   const deleteAccount = useDeleteAccount();
   const [error, setError] = useState<string | null>(null);
   return (
-    <div className="srow on-row-stack" data-testid="settings-delete">
+    <div className="srow" data-testid="settings-delete">
       <span className="srow-text-col">
         <span className="srow-help">
           deleting your account removes it from peasant online, with the transcripts you published and

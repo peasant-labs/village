@@ -448,6 +448,13 @@ export { CopyIconButton, AccessList, CollectivePicker } from "@peasant-labs/fair
 export { RepoPicker } from "@peasant-labs/fairtrade/ui";
 
 /**
+ * fairtrade's number formatters: the one rule every count in the app reads by.
+ * `formatCount` shortens for a glance ("1.2k", "66.7B"), `formatInteger`
+ * groups exactly ("272,000"), and a missing or unreadable value reads "—".
+ */
+export { formatCount, formatInteger } from "@peasant-labs/fairtrade/ui";
+
+/**
  * fairtrade Dialog — a real modal: role=dialog, focus trapped, Escape and the
  * scrim close it, focus returns to the opener. Widened because the published
  * `.d.ts` types every prop as a required `any`, although `footer`,

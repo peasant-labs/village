@@ -25,7 +25,8 @@ import { CheckRow, RadioRow, ViewMenu } from "@/components/online/ViewMenu";
 import RequestFailureState from "@/components/RequestFailureState";
 import MalformedProjectNotice from "@/components/MalformedProjectNotice";
 import RetryButton from "@/components/RetryButton";
-import { formatCompact, publishedAtDescending } from "@/lib/format";
+import { publishedAtDescending } from "@/lib/format";
+import { formatCount, formatInteger } from "@/lib/ft-ui";
 import {
   GROUP_BYS,
   GROUP_BY_LABELS,
@@ -291,7 +292,7 @@ function HomeBody({ username }: { username: string }) {
             ? [counted(collectives.data.length, "collective", "collectives")]
             : []),
           counted(stats.data.pull_request_count, "pull request linked", "pull requests linked"),
-          { label: "tokens recorded", value: formatCompact(stats.data.total_tokens) },
+          { label: "tokens recorded", value: formatCount(stats.data.total_tokens) },
         ];
   const libraryEmpty = own != null && total === 0 && query === "";
   const showStats = statItems.length > 0 && stats.data!.total_transcripts > 0;
@@ -479,7 +480,7 @@ function HomeBody({ username }: { username: string }) {
         <ul className="on-stats" data-testid="home-stats" aria-label="your transcripts in numbers">
           {statItems.map((item) => (
             <li key={item.label} className="on-stat">
-              <b className="tabular-nums">{item.value.toLocaleString("en-US")}</b> <span>{item.label}</span>
+              <b className="tabular-nums">{typeof item.value === "number" ? formatInteger(item.value) : item.value}</b> <span>{item.label}</span>
             </li>
           ))}
         </ul>

@@ -2,6 +2,7 @@ import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { formatCount } from "@/lib/ft-ui";
 import { makeTranscriptFixture } from "@/test/transcriptRowFixture";
 import type { GroupTranscript, UserGroupShare } from "@/lib/types";
 import type { ContributableTranscript } from "@/lib/contribute/types";
@@ -124,8 +125,9 @@ function tokenCount(index: number): number {
 }
 
 /** What {@link tokenCount} reads as once the list has shortened it. */
+/** The tokens as the row states them: fairtrade's shared count formatter. */
 function expectedTokens(index: number): string {
-  return `${(tokenCount(index) / 1000).toFixed(1)}K tok`;
+  return `${formatCount(tokenCount(index))} tok`;
 }
 
 const ROW_TITLE = (row: ChildSessionRow) => `Session ${row.name}`;

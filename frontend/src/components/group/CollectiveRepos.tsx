@@ -12,7 +12,8 @@ import type { HelperGroupSummary } from "@peasant-labs/schema";
 import { ScopedOwnerHelperGroups } from "@/components/transcript/ScopedHelperGroups";
 import type { GroupTranscript } from "@/lib/types";
 import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
-import { collectiveTranscriptRow, formatCompact, groupByRepo } from "@/lib/format";
+import { collectiveTranscriptRow, groupByRepo } from "@/lib/format";
+import { formatCount } from "@/lib/ft-ui";
 import type { TranscriptContext } from "@/lib/transcriptContext";
 import TranscriptList, {
   type TranscriptRowFact,
@@ -171,7 +172,7 @@ export default function CollectiveRepos({
                       {repo.contributorCount !== 1 ? "s" : ""}
                     </span>
                     <span title="total tokens">
-                      {formatCompact(repo.totalTokens)} tok
+                      {formatCount(repo.totalTokens)} tok
                     </span>
                   </div>
                 </button>
