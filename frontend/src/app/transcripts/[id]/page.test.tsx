@@ -6,13 +6,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // API answered by a stubbed `fetch`. The decision itself is driven case by case
 // in `src/signInRoute.test.ts`; this pins how the route wires it.
 
-const request = vi.hoisted(() => ({ cookie: null as string | null, fetchDest: "document" as string | null }));
+// One request: its cookie and its headers, the same headers object for every
+// read Next makes while serving it.
+const request = vi.hoisted(() => ({ cookie: null as string | null, headers: new Headers() }));
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => (name === "peasant_token" && request.cookie !== null ? { name, value: request.cookie } : undefined),
   }),
-  headers: async () => new Headers(request.fetchDest === null ? {} : { "sec-fetch-dest": request.fetchDest }),
+  headers: async () => request.headers,
 }));
 
 class Redirected extends Error {
@@ -83,7 +85,7 @@ describe("the transcript route on the server", () => {
     vi.stubEnv("VILLAGE_INTERNAL_API_URL", "http://backend:8080/api/v1");
     vi.stubEnv("VILLAGE_PUBLIC_ORIGIN", "https://village.example");
     request.cookie = null;
-    request.fetchDest = "document";
+    request.headers = new Headers({ "sec-fetch-dest": "document" });
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -112,6 +114,20 @@ describe("the transcript route on the server", () => {
     await expect(page({ turn: "2" })).rejects.toEqual(
       new Redirected("https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b%3Fturn%3D2"),
     );
+  });
+
+  it("reads the API once per request, a refused one included", async () => {
+    const calls = api(null);
+    // The page refuses, and Next renders the redirect again with its metadata.
+    await expect(page()).rejects.toBeInstanceOf(Redirected);
+    await generateMetadata({ params: Promise.resolve({ id: ID }) });
+    await expect(page()).rejects.toBeInstanceOf(Redirected);
+    expect(calls).toEqual(["http://backend:8080/api/v1/transcripts/7f1d2c3b"]);
+
+    // The next request reads again: nothing is reused across requests.
+    request.headers = new Headers({ "sec-fetch-dest": "document" });
+    await expect(page()).rejects.toBeInstanceOf(Redirected);
+    expect(calls).toHaveLength(2);
   });
 
   it("serves a signed-in request without reading the transcript anonymously", async () => {

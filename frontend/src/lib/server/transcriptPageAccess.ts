@@ -1,6 +1,6 @@
 import "server-only";
 
-import { cache } from "react";
+import { headers } from "next/headers";
 
 import { signedOutDestination } from "@/lib/marketing";
 import type { Transcript } from "@/lib/types";
@@ -8,17 +8,35 @@ import type { Transcript } from "@/lib/types";
 import { readPublicTranscript } from "./loadPublicTranscript";
 import { SHARE_CARD_DEADLINE_MS } from "./loadShareCard";
 
+/** Each request's reads, by transcript id, keyed on that request's headers. */
+const readsByRequest = new WeakMap<object, Map<string, Promise<Transcript | null>>>();
+
 /**
- * This request's anonymous read of a transcript's metadata. React scopes the
- * memo to one server request, so the page and its link-preview metadata share
- * one API read, and the next request reads again: a transcript made private
- * stops being served at once. Bounded by the share card's deadline; a read that
- * outlasts it is `null`, like any other failure.
+ * This request's anonymous read of a transcript's metadata. The page and its
+ * link-preview metadata share one API read per request, and the next request
+ * reads again: a transcript made private stops being served at once. Bounded by
+ * the share card's deadline; a read that outlasts it is `null`, like any other
+ * failure.
+ *
+ * The memo is keyed on the request's own headers object rather than React's
+ * per-render `cache`: when the page redirects, Next renders the redirect again
+ * in a fresh render of the same request, and that render's metadata would
+ * otherwise read the API a second time (twice the deadline when the API
+ * hangs). If Next ever hands the second render other headers, the cost is only
+ * that second read again; nothing outlives the request, so no answer is reused
+ * across requests.
  */
-export const readPublicTranscriptForRequest = cache(
-  (id: string): Promise<Transcript | null> =>
-    readPublicTranscript(id, { signal: AbortSignal.timeout(SHARE_CARD_DEADLINE_MS) }),
-);
+export async function readPublicTranscriptForRequest(id: string): Promise<Transcript | null> {
+  const request = await headers();
+  let reads = readsByRequest.get(request);
+  if (!reads) readsByRequest.set(request, (reads = new Map()));
+  let read = reads.get(id);
+  if (!read) {
+    read = readPublicTranscript(id, { signal: AbortSignal.timeout(SHARE_CARD_DEADLINE_MS) });
+    reads.set(id, read);
+  }
+  return read;
+}
 
 /** What the server knows about a request for a transcript page. */
 export interface TranscriptPageRequest {

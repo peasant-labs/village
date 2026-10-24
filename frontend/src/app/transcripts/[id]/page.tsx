@@ -23,7 +23,9 @@ export const dynamic = "force-dynamic";
  *
  * It is the page's, not a layout's: the segment's share images are attached at
  * the page level too, so only page metadata can name them with the card's alt.
- * Its metadata read is the one the page makes for the same request.
+ * It shares the page's anonymous read for the same request
+ * (`readPublicTranscriptForRequest`), including the second render Next makes
+ * when the page redirects.
  */
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
