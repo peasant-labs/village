@@ -1,15 +1,36 @@
-# Cases for loadPublicTranscript. Each case runs its steps in order against a
-# fake API. `meta` and `content` describe what the API answers on that step;
-# `expect` is `content` (the loader returned the transcript and its content) or
-# `null`. A `parallel` case fires its steps at once.
+# Cases for loadShareCard. Each case runs its steps in order against a fake API
+# (`parallel: true` fires them at once).
+#
+# `meta` and `content` describe what the API answers on that step. A reply is
+# `{kind: response, status, ...}`, `{kind: reject}` or `{kind: hang}`; a response
+# may carry `delayMs` (answered after that long on the fake clock). A metadata
+# response carries `visibility` and `updated_at`; a content response carries
+# `payload`: `figures` (both figures), `no-figures`, or `unparseable`.
+# `expect` is `card-figures`, `card-no-figures` or `null`.
+# `fakeTimers: true` runs the case on a fake clock and advances it by 3000ms
+# after starting the steps, so a deadline is proven without waiting.
+# `cacheValues` pins what the cache holds afterwards: `card` (only card-shaped
+# values) or `empty`.
+defaults:
+  updated_at: &t1 "2026-10-01T00:00:00Z"
 cases:
-  - name: public-returns-content
+  - name: public-both-figures
     steps:
-      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
-        content: { kind: response, status: 200 }
-        expect: content
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: figures }
+        expect: card-figures
     metadataFetches: 1
     contentFetches: 1
+    cacheValues: card
+
+  - name: public-no-figures
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: no-figures }
+        expect: card-no-figures
+    metadataFetches: 1
+    contentFetches: 1
+    cacheValues: card
 
   - name: shared
     steps:
@@ -17,6 +38,7 @@ cases:
         expect: "null"
     metadataFetches: 1
     contentFetches: 0
+    cacheValues: empty
 
   - name: private
     steps:
@@ -24,6 +46,7 @@ cases:
         expect: "null"
     metadataFetches: 1
     contentFetches: 0
+    cacheValues: empty
 
   - name: missing
     steps:
@@ -31,10 +54,11 @@ cases:
         expect: "null"
     metadataFetches: 1
     contentFetches: 0
+    cacheValues: empty
 
   - name: non-public-body-on-200
     steps:
-      - meta: { kind: response, status: 200, visibility: private, updated_at: "2026-10-01T00:00:00Z" }
+      - meta: { kind: response, status: 200, visibility: private, updated_at: *t1 }
         expect: "null"
     metadataFetches: 1
     contentFetches: 0
@@ -55,25 +79,61 @@ cases:
 
   - name: content-error-500
     steps:
-      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
         content: { kind: response, status: 500 }
         expect: "null"
     metadataFetches: 1
     contentFetches: 1
+    cacheValues: empty
 
-  - name: timeout
-    maxMs: 3500
+  - name: missing-updated-at
+    steps:
+      - meta: { kind: response, status: 200, visibility: public }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 0
+    cacheValues: empty
+
+  - name: non-string-updated-at
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: 1790000000 }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 0
+    cacheValues: empty
+
+  - name: unparseable-content
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: unparseable }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 1
+
+  - name: deadline
+    fakeTimers: true
     steps:
       - meta: { kind: hang }
         expect: "null"
     metadataFetches: 1
     contentFetches: 0
 
-  - name: content-timeout
-    maxMs: 3500
+  - name: deadline-content-hang
+    fakeTimers: true
     steps:
-      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
         content: { kind: hang }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 1
+    cacheValues: empty
+
+  # Each read alone is inside its own 3s bound; together they pass the one overall deadline.
+  - name: deadline-is-total
+    fakeTimers: true
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1, delayMs: 2000 }
+        content: { kind: response, status: 200, payload: figures, delayMs: 2000 }
         expect: "null"
     metadataFetches: 1
     contentFetches: 1
@@ -81,16 +141,16 @@ cases:
   - name: no-env
     env: false
     steps:
-      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
         expect: "null"
     metadataFetches: 0
     contentFetches: 0
 
   - name: visibility-flip
     steps:
-      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
-        content: { kind: response, status: 200 }
-        expect: content
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: figures }
+        expect: card-figures
       - meta: { kind: response, status: 403 }
         expect: "null"
     metadataFetches: 2
@@ -98,41 +158,51 @@ cases:
 
   - name: cache-hit-same-updated-at
     steps:
-      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
-        content: { kind: response, status: 200 }
-        expect: content
-      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
-        expect: content
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: figures }
+        expect: card-figures
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        expect: card-figures
     metadataFetches: 2
     contentFetches: 1
 
   - name: cache-miss-new-updated-at
     steps:
-      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
-        content: { kind: response, status: 200 }
-        expect: content
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: figures }
+        expect: card-figures
       - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-02T00:00:00Z" }
-        content: { kind: response, status: 200 }
-        expect: content
+        content: { kind: response, status: 200, payload: no-figures }
+        expect: card-no-figures
     metadataFetches: 2
     contentFetches: 2
+
+  # The cached function returns the card and nothing else: no cache key or value holds transcript text.
+  - name: caches-card-not-content
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: figures }
+        expect: card-figures
+    metadataFetches: 1
+    contentFetches: 1
+    cacheValues: card
 
   - name: single-flight
     parallel: true
     steps:
-      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
-        content: { kind: response, status: 200 }
-        expect: content
-      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
-        content: { kind: response, status: 200 }
-        expect: content
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: figures }
+        expect: card-figures
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: figures }
+        expect: card-figures
     metadataFetches: 2
     contentFetches: 1
 
   - name: no-auth-header
     steps:
-      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
-        content: { kind: response, status: 200 }
-        expect: content
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: figures }
+        expect: card-figures
     metadataFetches: 1
     contentFetches: 1
