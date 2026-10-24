@@ -95,6 +95,57 @@ proxyCases:
     cookie: null
     fetchDest: document
     expect: { status: null, location: null }
+  - name: a-crawler-reads-a-transcript-link-preview
+    why: >-
+      link-preview crawlers send no fetch metadata and must read the page's
+      meta tags; what they show is decided by the anonymous read of the
+      transcript, not by this redirect.
+    path: /transcripts/7f1d2c3b
+    cookie: null
+    fetchDest: null
+    expect: { status: null, location: null }
+  - name: a-crawler-reads-the-open-graph-image
+    why: the share images are images, never pages, and fail closed to the limited-visibility card on their own.
+    path: /transcripts/7f1d2c3b/opengraph-image
+    cookie: null
+    fetchDest: null
+    expect: { status: null, location: null }
+  - name: a-crawler-reads-the-x-image
+    why: the share images are images, never pages, and fail closed to the limited-visibility card on their own.
+    path: /transcripts/7f1d2c3b/twitter-image
+    cookie: null
+    fetchDest: null
+    expect: { status: null, location: null }
+  - name: a-share-image-is-served-whatever-the-headers
+    why: the share images are let through whatever the browser says, even a page load.
+    path: /transcripts/7f1d2c3b/opengraph-image
+    cookie: null
+    fetchDest: document
+    expect: { status: null, location: null }
+  - name: a-browser-on-a-transcript-link-still-signs-in
+    why: a browser always says `document` for a page load, so a person opening the link signs in first, as before.
+    path: /transcripts/7f1d2c3b
+    cookie: null
+    fetchDest: document
+    expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: a-crawler-on-another-transcript-path-is-redirected
+    why: only the transcript page and its two share images are open; any deeper path stays behind sign-in.
+    path: /transcripts/7f1d2c3b/anything-else
+    cookie: null
+    fetchDest: null
+    expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b%2Fanything-else" }
+  - name: a-crawler-on-the-transcripts-root-is-redirected
+    why: the bare transcripts path names no transcript, so it stays behind sign-in.
+    path: /transcripts
+    cookie: null
+    fetchDest: null
+    expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Ftranscripts" }
+  - name: a-crawler-on-another-app-page-is-redirected
+    why: link previews open only transcript links; every other page keeps no signed-out view.
+    path: /collectives/abc
+    cookie: null
+    fetchDest: null
+    expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Fcollectives%2Fabc" }
 
 # The return address a sign-in follows, from the `next` query of `/login` to
 # where `/auth/callback` lands. `expect: null` means the address is refused and

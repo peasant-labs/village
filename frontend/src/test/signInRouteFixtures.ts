@@ -40,6 +40,14 @@ const requiredProxyCases = [
   "the-sign-in-start-is-served-signed-out",
   "the-oauth-landing-is-served-signed-out",
   "the-privacy-notice-is-served-signed-out",
+  "a-crawler-reads-a-transcript-link-preview",
+  "a-crawler-reads-the-open-graph-image",
+  "a-crawler-reads-the-x-image",
+  "a-share-image-is-served-whatever-the-headers",
+  "a-browser-on-a-transcript-link-still-signs-in",
+  "a-crawler-on-another-transcript-path-is-redirected",
+  "a-crawler-on-the-transcripts-root-is-redirected",
+  "a-crawler-on-another-app-page-is-redirected",
 ];
 
 const requiredNextCases = [
