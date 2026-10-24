@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FileText, Layers, Search, SlidersHorizontal, Terminal } from "lucide-react";
 import { useTranscriptPages } from "@/lib/queries/transcripts";
+import { transcriptListFailureCause } from "@/lib/transcriptPageRequest";
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
 import { useGroups } from "@/lib/queries/groups";
@@ -40,7 +41,6 @@ import {
   type HomeView,
 } from "@/lib/homeView";
 import { childSessionsByParentID, groupChildSessions } from "@/lib/childSessions";
-import { TRANSCRIPT_LIST_ENDPOINT } from "@/lib/transcriptPageRequest";
 import type { TranscriptListItem } from "@/lib/types";
 
 /**
@@ -222,11 +222,7 @@ function HomeBody({ username }: { username: string }) {
   // A failed `load more` is not a failed list: the rows already shown are
   // still right, and that failure is said beside the button instead.
   const listFailed = list.isError && !list.isFetchNextPageError;
-  const reportedCause = listFailed
-    ? list.error instanceof Error
-      ? list.error.message
-      : "an unknown error"
-    : null;
+  const reportedCause = listFailed ? transcriptListFailureCause(list.error) : null;
   const [remembered, setRemembered] = useState<{ key: string; cause: string } | null>(null);
   if (reportedCause !== null && (reportedCause !== remembered?.cause || listKey !== remembered?.key)) {
     setRemembered({ key: listKey, cause: reportedCause });
@@ -327,10 +323,8 @@ function HomeBody({ username }: { username: string }) {
         <RequestFailureState
           title="your transcripts could not be loaded"
           message={
-            `your own published transcripts could not be loaded from ` +
-            `${TRANSCRIPT_LIST_ENDPOINT}. a failed request is not an empty ` +
-            `library, and nothing has been deleted. retry to load it again. ` +
-            `the request reported: ${failureCause}.`
+            `${failureCause}. a failed request is not an empty library, and ` +
+            `nothing has been deleted. retry to load your transcripts again.`
           }
           onRetry={() => list.refetch()}
           retryLabel={retryText}
@@ -390,8 +384,8 @@ function HomeBody({ username }: { username: string }) {
                 because its label changes while a retry is in flight, and an
                 atomic alert re-announces the whole notice on that change. */}
             <p role="alert">
-              these transcripts could not be refreshed, so they are the ones last loaded and may be
-              out of date. the request reported: {failureCause}.
+              these transcripts could not be refreshed: {failureCause}. they are the ones last loaded
+              and may be out of date.
             </p>
             <RetryButton
               label={retryText}

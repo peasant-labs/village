@@ -67,3 +67,27 @@ paramBuilds:
       limit: "24"
       provider: claude-code
       tags: debugging,greenfield
+
+# Why a list request failed, as the page says it (`transcriptListFailureCause`):
+# the server's own reason, or a plain sentence, and never an internal path.
+# `error` is what the request threw: `mismatch` for a response the page
+# refused, a `message` for any other error, or `none` for a thrown non-error.
+failureCauses:
+  - name: a-refused-page-says-the-server-answered-another
+    error: { kind: mismatch }
+    expect: the server answered with a different page than the one asked for
+  - name: the-servers-reason-is-said-without-its-full-stop
+    error: { kind: message, message: "the session list is unavailable." }
+    expect: the session list is unavailable
+  - name: a-reason-naming-an-api-path-is-not-shown
+    error: { kind: message, message: "GET /api/v1/transcripts?page=2 failed" }
+    expect: the request failed
+  - name: a-reason-naming-a-url-is-not-shown
+    error: { kind: message, message: "fetch https://village.example/api failed" }
+    expect: the request failed
+  - name: an-empty-reason-says-the-request-failed
+    error: { kind: message, message: "   " }
+    expect: the request failed
+  - name: a-thrown-non-error-says-the-request-failed
+    error: { kind: none }
+    expect: the request failed

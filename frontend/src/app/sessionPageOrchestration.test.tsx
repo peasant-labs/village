@@ -136,13 +136,13 @@ function assertStep(step: OrchestrationStep): void {
   } else if (expectation.renders === "errorSurface") {
     expect(screen.queryByTestId("session-list-results")).toBeNull();
     expect(screen.queryByTestId("explore")).toBeNull();
-    expect(screen.getByText("Failed to load transcripts")).toBeInTheDocument();
+    expect(screen.getByText("the transcripts could not be loaded")).toBeInTheDocument();
     // The actionable body, not merely the heading: a panel that lost its
-    // message would still carry the title. It must name the endpoint and the
-    // cause the request reported.
+    // message would still carry the title. It says the cause the request
+    // reported in plain words, and never the internal path it was asked of.
     const panel = screen.getAllByRole("alert")[0];
     const text = (panel.textContent ?? "").replace(/\s+/g, " ");
-    expect(text).toContain(TRANSCRIPT_LIST_ENDPOINT);
+    expect(text).not.toContain(TRANSCRIPT_LIST_ENDPOINT);
     expect(text).toContain("network unavailable");
     // This surface's retry names the exact page it re-issues; the home page's
     // panel says only "retry". The two share one component, so this is what

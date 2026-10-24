@@ -8,9 +8,9 @@ import { useSearchCollectives } from "@/lib/queries/groups";
 import { usePopularTags } from "@/lib/queries/tags";
 import { adaptExplore } from "@/lib/adapters/explore";
 import {
-  TRANSCRIPT_LIST_ENDPOINT,
   TRANSCRIPT_PAGE_SIZE,
   buildTranscriptListParams,
+  transcriptListFailureCause,
   type ExploreFilters,
 } from "@/lib/transcriptPageRequest";
 import type { TranscriptListResponse } from "@/lib/types";
@@ -128,11 +128,10 @@ export default function ExplorePage() {
   // the focus and the control with it. The message is therefore remembered
   // until a request actually succeeds.
   const reportedFailure: string | null = isError
-    ? `Failed to load page ${requestedPage} of the session list from ` +
-      `${TRANSCRIPT_LIST_ENDPOINT}. ` +
-      `${displayData != null ? "The previously confirmed rows are kept. " : ""}` +
-      `${error instanceof Error ? error.message : "Unknown error."} ` +
-      `Retry the same page to reload it.`
+    ? `page ${requestedPage} of the transcripts could not be loaded: ` +
+      `${transcriptListFailureCause(error)}. ` +
+      `${displayData != null ? "the transcripts already shown are kept. " : ""}` +
+      `retry to load the page again.`
     : null;
   // Remembered WITH the request it belongs to. Asking for a different page is
   // not a retry of the one that failed, so the old message must not follow the
@@ -211,7 +210,7 @@ export default function ExplorePage() {
     // different words.
     content = (
       <RequestFailureState
-        title="Failed to load transcripts"
+        title="the transcripts could not be loaded"
         message={failureMessage}
         onRetry={() => refetch()}
         retryLabel={retryLabel}

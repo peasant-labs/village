@@ -17,8 +17,29 @@
 /** Explicit Village page size for the commons discovery list. */
 export const TRANSCRIPT_PAGE_SIZE = 24;
 
-/** The `/api/v1/transcripts` discovery endpoint, used in actionable messages. */
+/** The `/api/v1/transcripts` discovery endpoint, named in the errors a failed
+ *  request throws (for whoever reads the logs), never on the page. */
 export const TRANSCRIPT_LIST_ENDPOINT = "/api/v1/transcripts";
+
+/** Stable machine-readable category for discovery response trust failures. */
+export enum TranscriptListQueryErrorCode {
+  ResponsePaginationMismatch = "response_pagination_mismatch",
+}
+
+/**
+ * Why a transcript-list request failed, in words for the page: the server's
+ * own reason when it gave one, or a plain sentence for a response the page
+ * refused. Never an internal path or a request detail; those stay in the
+ * error itself, for whoever reads the logs.
+ */
+export function transcriptListFailureCause(error: unknown): string {
+  if ((error as { code?: unknown } | null)?.code === TranscriptListQueryErrorCode.ResponsePaginationMismatch) {
+    return "the server answered with a different page than the one asked for";
+  }
+  const message = error instanceof Error ? error.message.trim().replace(/[.\s]+$/, "") : "";
+  if (!message || /\/api\/|https?:\/\//.test(message)) return "the request failed";
+  return message;
+}
 
 /**
  * Component-owned Explore filter state. `page` is the user's requested

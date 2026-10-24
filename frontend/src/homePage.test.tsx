@@ -199,7 +199,9 @@ describe("mounted home route: your transcripts, their totals and your collective
         // nothing would otherwise pass.
         const message = text(alert);
         expect(message).toContain("your transcripts could not be loaded");
-        expect(message).toContain(LIST_ENDPOINT);
+        // Plain words: what failed, never the internal path it was asked of.
+        expect(message).not.toContain(LIST_ENDPOINT);
+        expect(message).not.toMatch(/\/api\//);
         expect(message).toContain("a failed request is not an empty library");
         expect(message).toContain("nothing has been deleted");
         // The server's own reported cause reaches the reader, rather than a

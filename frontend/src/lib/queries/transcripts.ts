@@ -17,13 +17,10 @@ import type {
   AnnotationSummary,
   ListAnnotationsResponse,
 } from "../annotations";
-import { TRANSCRIPT_LIST_ENDPOINT } from "../transcriptPageRequest";
+import { TRANSCRIPT_LIST_ENDPOINT, TranscriptListQueryErrorCode } from "../transcriptPageRequest";
 import { parseTranscriptResponseText } from "./transcriptContent";
 
-/** Stable machine-readable category for discovery response trust failures. */
-export enum TranscriptListQueryErrorCode {
-  ResponsePaginationMismatch = "response_pagination_mismatch",
-}
+export { TranscriptListQueryErrorCode };
 
 /**
  * The discovery endpoint described different explicit pagination values than

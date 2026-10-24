@@ -10,9 +10,25 @@ export type ParamBuildFixture = {
   expectedParams: Record<string, string>;
 };
 
+export type FailureCauseFixture = {
+  name: string;
+  error: { kind: "mismatch" } | { kind: "message"; message: string } | { kind: "none" };
+  expect: string;
+};
+
 export type TranscriptPageRequestFixtures = {
   paramBuilds: ParamBuildFixture[];
+  failureCauses: FailureCauseFixture[];
 };
+
+const requiredFailureCauseNames = [
+  "a-refused-page-says-the-server-answered-another",
+  "the-servers-reason-is-said-without-its-full-stop",
+  "a-reason-naming-an-api-path-is-not-shown",
+  "a-reason-naming-a-url-is-not-shown",
+  "an-empty-reason-says-the-request-failed",
+  "a-thrown-non-error-says-the-request-failed",
+] as const;
 
 const requiredParamBuildNames = [
   "defaults-page-one",
@@ -42,7 +58,7 @@ export function loadTranscriptPageRequestFixtures(): TranscriptPageRequestFixtur
   if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("transcript page request fixture root must be an object");
   }
-  assertExactKeys(parsed, ["paramBuilds"], "fixture root");
+  assertExactKeys(parsed, ["paramBuilds", "failureCauses"], "fixture root");
   const fixtures = parsed as TranscriptPageRequestFixtures;
 
   if (fixtures.paramBuilds.length !== requiredParamBuildNames.length) {
@@ -60,6 +76,17 @@ export function loadTranscriptPageRequestFixtures(): TranscriptPageRequestFixtur
     throw new Error("transcript page request fixture names must be unique across sections");
   }
 
+  assertExactNameInventory(
+    fixtures.failureCauses.map(({ name }) => name),
+    requiredFailureCauseNames,
+    "failureCauses fixtures",
+  );
+  for (const fixture of fixtures.failureCauses) {
+    assertExactKeys(fixture, ["name", "error", "expect"], `failureCauses ${fixture.name}`);
+    if (/\/api\/|https?:\/\//.test(fixture.expect)) {
+      throw new Error(`failureCauses ${fixture.name}: what the page says may never name a path or a URL`);
+    }
+  }
   for (const fixture of fixtures.paramBuilds) {
     assertExactKeys(fixture, ["name", "filters", "expectedParams"], `paramBuilds ${fixture.name}`);
     assertExactKeys(
