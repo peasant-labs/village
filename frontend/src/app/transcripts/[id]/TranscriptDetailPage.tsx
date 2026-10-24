@@ -13,7 +13,7 @@ import { isSessionDetailPayload } from "@/lib/sessionDetailPayload";
 import type { SessionDetailPayload } from "@/types/messages";
 import Link from "next/link";
 import { Clock, FileX2, SearchX } from "lucide-react";
-import { isApiErrorStatus } from "@/lib/api";
+import { hasAuthTokenCookie, isApiErrorStatus } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { useDeclareSignedOutReadable } from "@/components/shell/signedOutDeclaration";
 import { loginHref } from "@/lib/signIn";
@@ -32,8 +32,13 @@ export default function TranscriptDetailPage({
   const { data, isLoading, error } = useTranscript(id);
   const { data: content, isLoading: contentLoading, error: contentError } =
     useTranscriptContent(id, { knownHarness: data?.transcript.model_provider, enabled: !!data });
-  const { data: myGroups, isError: myGroupsFailed } = useGroups();
   const { isLoading: sessionLoading, isLoggedIn } = useAuth();
+  // The person's own collectives need a session; nobody signed out has any.
+  // While the session read is in flight, a browser holding a session cookie
+  // asks at once, as before, so a signed-in page waits on nothing new.
+  const { data: myGroups, isError: myGroupsFailed } = useGroups({
+    enabled: isLoggedIn || (sessionLoading && hasAuthTokenCookie()),
+  });
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
