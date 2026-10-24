@@ -388,3 +388,15 @@ SELECT COUNT(*)::int AS total_transcripts,
        COALESCE(SUM(GREATEST(COALESCE(tokens_in, 0), 0) + GREATEST(COALESCE(tokens_out, 0), 0)), 0)::bigint AS total_tokens
 FROM transcripts
 WHERE owner_id = $1;
+
+-- name: ListTranscriptsByOwnerLocalIDs :many
+-- The transcripts published from named sessions, each within its own owner:
+-- a session id is unique only per owner (UNIQUE (owner_id, local_id)). Read
+-- lists use it to resolve a child session's parent transcript at read time,
+-- and keep a parent only when the viewer may read it. Both columns are
+-- matched as sets, so the caller keeps only the exact (owner, session) pairs it
+-- asked for; the (owner_id, local_id) unique index serves the lookup.
+SELECT t.id, t.owner_id, t.local_id, t.visibility
+FROM transcripts t
+WHERE t.owner_id = ANY(@owner_ids::uuid[])
+  AND t.local_id = ANY(@local_ids::text[]);

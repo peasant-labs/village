@@ -160,37 +160,84 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 	return i, err
 }
 
-const listUsersByIDs = `-- name: ListUsersByIDs :many
-SELECT id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests, github_org_sync_generation FROM users WHERE id = ANY($1::uuid[])
+const listPublicOwnersForViewer = `-- name: ListPublicOwnersForViewer :many
+SELECT u.id, u.github_username, u.display_name, u.avatar_url,
+       (
+         u.is_discoverable
+         OR COALESCE(u.id = $1::uuid, FALSE)
+         OR EXISTS (
+             SELECT 1
+             FROM group_members viewer_role
+             WHERE viewer_role.user_id = $1::uuid
+               AND viewer_role.role = 'owner'
+               AND (
+                     EXISTS (
+                         SELECT 1 FROM group_members person_role
+                         WHERE person_role.group_id = viewer_role.group_id
+                           AND person_role.user_id = u.id
+                     )
+                     OR EXISTS (
+                         SELECT 1
+                         FROM transcript_shares ts
+                         JOIN transcripts t ON t.id = ts.transcript_id
+                         WHERE ts.group_id = viewer_role.group_id
+                           AND t.owner_id = u.id
+                           AND ts.status IN ('pending', 'approved')
+                     )
+                   )
+         )
+       )::boolean AS profile_visible
+FROM users u
+WHERE u.id = ANY($2::uuid[])
 `
 
-// Several users in one statement, for list surfaces that would otherwise read
-// GetUserByID once per row.
-func (q *Queries) ListUsersByIDs(ctx context.Context, ids []pgtype.UUID) ([]User, error) {
-	rows, err := q.db.Query(ctx, listUsersByIDs, ids)
+type ListPublicOwnersForViewerParams struct {
+	ViewerID  pgtype.UUID   `db:"viewer_id" json:"viewer_id"`
+	PersonIds []pgtype.UUID `db:"person_ids" json:"person_ids"`
+}
+
+type ListPublicOwnersForViewerRow struct {
+	ID             pgtype.UUID `db:"id" json:"id"`
+	GithubUsername string      `db:"github_username" json:"github_username"`
+	DisplayName    pgtype.Text `db:"display_name" json:"display_name"`
+	AvatarUrl      pgtype.Text `db:"avatar_url" json:"avatar_url"`
+	ProfileVisible bool        `db:"profile_visible" json:"profile_visible"`
+}
+
+// The people one response shows, each with whether this viewer may see their
+// public profile. It is the single statement behind every owner, member,
+// contributor, and annotation author Village sends to a viewer, and it is
+// batched: a page names every person on it once, never one read per row.
+//
+// A profile is visible when ANY of these holds; otherwise the person is shown
+// as anonymous:
+//   - the person is discoverable (users.is_discoverable);
+//   - the viewer IS the person;
+//   - the viewer owns a collective (group_members.role = 'owner') that the
+//     person belongs to (a group_members row of any role, pending included,
+//     the same rows the owner's roster and join-request list already show
+//     in full), or that holds a pending or approved submission of one of the
+//     person's transcripts (transcript_shares.status, the current-state row
+//     the review queue and the collective library read). This is the promise
+//     the join dialog makes: joining reveals your profile to the collective's
+//     owners, while other members still see you as anonymous.
+//
+// A NULL viewer (signed out) sees discoverable people only.
+func (q *Queries) ListPublicOwnersForViewer(ctx context.Context, arg ListPublicOwnersForViewerParams) ([]ListPublicOwnersForViewerRow, error) {
+	rows, err := q.db.Query(ctx, listPublicOwnersForViewer, arg.ViewerID, arg.PersonIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []User{}
+	items := []ListPublicOwnersForViewerRow{}
 	for rows.Next() {
-		var i User
+		var i ListPublicOwnersForViewerRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.GithubID,
 			&i.GithubUsername,
 			&i.DisplayName,
 			&i.AvatarUrl,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.IsDiscoverable,
-			&i.Provider,
-			&i.ProviderUserID,
-			&i.UsernameChosen,
-			&i.ProviderUsername,
-			&i.PreviewBeforeAttach,
-			&i.AutoAttachPullRequests,
-			&i.GithubOrgSyncGeneration,
+			&i.ProfileVisible,
 		); err != nil {
 			return nil, err
 		}

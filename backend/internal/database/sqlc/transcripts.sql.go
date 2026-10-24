@@ -930,6 +930,56 @@ func (q *Queries) ListProjectTranscriptsForViewer(ctx context.Context, arg ListP
 	return items, nil
 }
 
+const listTranscriptsByOwnerLocalIDs = `-- name: ListTranscriptsByOwnerLocalIDs :many
+SELECT t.id, t.owner_id, t.local_id, t.visibility
+FROM transcripts t
+WHERE t.owner_id = ANY($1::uuid[])
+  AND t.local_id = ANY($2::text[])
+`
+
+type ListTranscriptsByOwnerLocalIDsParams struct {
+	OwnerIds []pgtype.UUID `db:"owner_ids" json:"owner_ids"`
+	LocalIds []string      `db:"local_ids" json:"local_ids"`
+}
+
+type ListTranscriptsByOwnerLocalIDsRow struct {
+	ID         pgtype.UUID `db:"id" json:"id"`
+	OwnerID    pgtype.UUID `db:"owner_id" json:"owner_id"`
+	LocalID    string      `db:"local_id" json:"local_id"`
+	Visibility string      `db:"visibility" json:"visibility"`
+}
+
+// The transcripts published from named sessions, each within its own owner:
+// a session id is unique only per owner (UNIQUE (owner_id, local_id)). Read
+// lists use it to resolve a child session's parent transcript at read time,
+// and keep a parent only when the viewer may read it. Both columns are
+// matched as sets, so the caller keeps only the exact (owner, session) pairs it
+// asked for; the (owner_id, local_id) unique index serves the lookup.
+func (q *Queries) ListTranscriptsByOwnerLocalIDs(ctx context.Context, arg ListTranscriptsByOwnerLocalIDsParams) ([]ListTranscriptsByOwnerLocalIDsRow, error) {
+	rows, err := q.db.Query(ctx, listTranscriptsByOwnerLocalIDs, arg.OwnerIds, arg.LocalIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTranscriptsByOwnerLocalIDsRow{}
+	for rows.Next() {
+		var i ListTranscriptsByOwnerLocalIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.LocalID,
+			&i.Visibility,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setAcceptedRequestOperationFingerprint = `-- name: SetAcceptedRequestOperationFingerprint :exec
 UPDATE transcripts
 SET accepted_request_operation_fingerprint = $2

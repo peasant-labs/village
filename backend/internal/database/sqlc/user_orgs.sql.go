@@ -248,6 +248,35 @@ func (q *Queries) ListUserAllOrgs(ctx context.Context, userID pgtype.UUID) ([]Li
 	return items, nil
 }
 
+const listUserIDsWithVisibleOrg = `-- name: ListUserIDsWithVisibleOrg :many
+SELECT DISTINCT user_id FROM user_github_orgs
+WHERE lower(org_login) = lower($1::text) AND visible = true
+`
+
+// The accounts that show one organization, for the transcript lists' org
+// filter. The handler keeps only the accounts the viewer may see as a profile
+// (ListPublicOwnersForViewer) before filtering, so the filter cannot tie an
+// anonymous owner's transcripts to an organization.
+func (q *Queries) ListUserIDsWithVisibleOrg(ctx context.Context, orgLogin string) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listUserIDsWithVisibleOrg, orgLogin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var user_id pgtype.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserVisibleOrgs = `-- name: ListUserVisibleOrgs :many
 SELECT org_login, org_id, avatar_url, visible, fetched_at
 FROM user_github_orgs
