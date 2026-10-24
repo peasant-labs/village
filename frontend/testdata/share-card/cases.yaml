@@ -5,7 +5,7 @@
 # `{kind: response, status, ...}`, `{kind: reject}` or `{kind: hang}`; a response
 # may carry `delayMs` (answered after that long on the fake clock). A metadata
 # response carries `visibility` and `updated_at`; a content response carries
-# `payload`: `figures` (both figures), `no-figures`, or `unparseable`.
+# `payload`: `figures` (both figures), `no-figures`, `unparseable`, `long-prompt` (a ~1MB first prompt) or `surrogate-boundary`.
 # `expect` is `card-figures`, `card-no-figures` or `null`.
 # `fakeTimers: true` runs the case on a fake clock and advances it by 3000ms
 # after starting the steps, so a deadline is proven without waiting.
@@ -62,6 +62,32 @@ cases:
         expect: "null"
     metadataFetches: 1
     contentFetches: 0
+
+  - name: shared-body-on-200
+    steps:
+      - meta: { kind: response, status: 200, visibility: shared, updated_at: *t1 }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 0
+    cacheValues: empty
+
+  - name: long-first-prompt
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: long-prompt }
+        expect: card-figures
+    metadataFetches: 1
+    contentFetches: 1
+    cacheValues: card
+
+  - name: first-prompt-surrogate-boundary
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: surrogate-boundary }
+        expect: card-figures
+    metadataFetches: 1
+    contentFetches: 1
+    cacheValues: card
 
   - name: api-error-500
     steps:

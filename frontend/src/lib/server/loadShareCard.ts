@@ -14,6 +14,23 @@ export const SHARE_CARD_DEADLINE_MS = 3000;
  */
 const inFlight = new Map<string, Promise<ShareCardData>>();
 
+/**
+ * The most of the first prompt that is stored. This equals the head fairtrade's
+ * `ShareCard` measures (it never renders past the first 2000 UTF-16 code units),
+ * so the cap cannot change what the card shows. It bounds what the data cache
+ * stores and is not a display rule.
+ */
+export const STORED_FIRST_PROMPT_UNITS = 2000;
+
+/** Cut to the cap without splitting a surrogate pair. */
+function capFirstPrompt(text: string): string {
+  if (text.length <= STORED_FIRST_PROMPT_UNITS) return text;
+  let end = STORED_FIRST_PROMPT_UNITS;
+  const last = text.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return text.slice(0, end);
+}
+
 class CardUnavailable extends Error {}
 
 /**
@@ -50,7 +67,8 @@ async function lookup(id: string, deps: LoadDeps): Promise<ShareCardData | null>
   const updatedAt: unknown = transcript.updated_at;
   if (typeof updatedAt !== "string" || updatedAt === "") return null;
 
-  const key = `${transcript.id}\u0000${updatedAt}`;
+  const key = `${id}\u0000${updatedAt}`;
+  // A joining caller shares the first caller's deadline and fails closed with it.
   let pending = inFlight.get(key);
   if (!pending) {
     const build = unstable_cache(
@@ -58,9 +76,9 @@ async function lookup(id: string, deps: LoadDeps): Promise<ShareCardData | null>
         const card = shareCardFromPayload(await readPublicContent(id, deps));
         // Throwing keeps an unusable result out of the cache.
         if (!card) throw new CardUnavailable("content did not map to a share card");
-        return card;
+        return { ...card, firstPrompt: capFirstPrompt(card.firstPrompt) };
       },
-      ["share-card", transcript.id, updatedAt],
+      ["share-card", id, updatedAt],
     );
     pending = build().finally(() => inFlight.delete(key));
     inFlight.set(key, pending);

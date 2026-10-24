@@ -19,7 +19,7 @@ vi.mock("next/cache", () => ({
 
 import { loadShareCard } from "./loadShareCard";
 
-type Payload = "figures" | "no-figures" | "unparseable";
+type Payload = "figures" | "no-figures" | "unparseable" | "long-prompt" | "surrogate-boundary";
 type Reply =
   | {
       kind: "response";
@@ -68,6 +68,16 @@ const REQUIRED = [
   "caches-card-not-content",
   "single-flight",
   "no-auth-header",
+  "api-error-500",
+  "no-env",
+  "api-unreachable",
+  "non-public-body-on-200",
+  "shared-body-on-200",
+  "content-error-500",
+  "non-string-updated-at",
+  "deadline-is-total",
+  "long-first-prompt",
+  "first-prompt-surrogate-boundary",
 ];
 
 // A transcript text that must never reach the cache.
@@ -99,6 +109,10 @@ function contentBody(payload: Payload = "figures"): string {
   if (payload === "unparseable") return JSON.stringify({ not: "a session" });
   const detail = sessionDetail();
   if (payload === "no-figures") delete detail.inputSubmissionCount;
+  const turns = detail.turns as Array<{ content: string }>;
+  if (payload === "long-prompt") turns[0].content = "x".repeat(1 << 20);
+  // An astral character straddles the 2000-unit cap: its high half is unit 1999.
+  if (payload === "surrogate-boundary") turns[0].content = `${"x".repeat(1999)}\u{1F600}${"y".repeat(50)}`;
   return JSON.stringify(detail);
 }
 
@@ -222,11 +236,22 @@ describe("loadShareCard", () => {
     if (c.name === "public-both-figures") {
       expect(results[0]).toMatchObject({
         title: "rewrite billing retries",
+        firstPrompt: SECRET_PROMPT,
         harness: "claude-code",
         brand: "claude",
         chip: "Claude Code (Opus 5.5)",
         figures: { prompts: 6, tokens: 84000 },
       });
+    }
+    if (c.name === "public-no-figures") expect((results[0] as { figures: unknown }).figures).toBeNull();
+    if (c.name === "long-first-prompt") {
+      const card = results[0] as { firstPrompt: string };
+      expect(card.firstPrompt).toBe("x".repeat(2000));
+      for (const value of store.values()) expect((value as { firstPrompt: string }).firstPrompt.length).toBeLessThanOrEqual(2000);
+    }
+    if (c.name === "first-prompt-surrogate-boundary") {
+      const card = results[0] as { firstPrompt: string };
+      expect(card.firstPrompt).toBe("x".repeat(1999));
     }
     if (c.name === "caches-card-not-content") {
       // The stored value is the card the caller got, and the transcript text appears nowhere but the prompt line.
