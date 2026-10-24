@@ -153,7 +153,7 @@ function linkedRow(world: CollectiveWorld, repo: string) {
     name,
     is_private: world.available.find((r) => r.repo === repo)?.private ?? false,
     installation_id: 4242,
-    linked_by: world.viewer?.id ?? "user-owner",
+    linked_by: profileOwner({ id: world.viewer?.id ?? "user-owner", github_username: world.viewer?.username ?? "collective-owner" }),
     created_at: "2026-01-03T00:00:00Z",
     last_synced_at: null,
   };

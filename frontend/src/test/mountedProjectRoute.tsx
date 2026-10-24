@@ -14,6 +14,7 @@ import type {
   UserProjectPageResponse,
 } from "@/lib/types";
 import { profileOwner } from "@/test/publicOwnerFixture";
+import { withResolvedParents } from "@/test/parentTranscriptFixture";
 
 /**
  * Mount support for the REAL project-page route
@@ -142,8 +143,9 @@ export function installProjectRouteREST(fixture: ProjectRouteFixture): RecordedR
       project_remote_label: fixture.remoteLabel,
     },
     owner,
-    transcripts: transcripts.map((row, i) =>
-      makeTranscript(row, i, { ...fixture, displayName, nameSource }),
+    // The server resolves each row's parent within this one owner.
+    transcripts: withResolvedParents(
+      transcripts.map((row, i) => makeTranscript(row, i, { ...fixture, displayName, nameSource })),
     ),
     collectives: fixture.collectives,
     });

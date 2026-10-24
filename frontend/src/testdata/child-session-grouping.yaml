@@ -31,9 +31,11 @@
 # column), and `parentSessionID` is the harness id of the session that started
 # this one, or null when nothing started it.
 #
-# `ownerID` matters: `local_id` is unique per owner, not globally, so a parent
-# is matched on the owner AND the session id. A case that crosses owners proves
-# one publisher's row cannot capture another publisher's row.
+# `ownerID` matters: `local_id` is unique per owner, not globally, so the
+# server resolves a row's parent within the same owner and sends it as
+# `parent_transcript_id`; the mocked responses resolve it the same way. A case
+# that crosses owners proves one publisher's row cannot capture another
+# publisher's row.
 #
 # `absentParentCause` records WHY a row in this case names a parent the response
 # does not carry. One response is not the viewer's whole readable corpus, so a

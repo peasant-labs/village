@@ -261,7 +261,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
                   owner,
                   name,
                   is_private: true,
-                  linked_by: "user-owner",
+                  linked_by: profileOwner({ id: "user-owner", github_username: "collective-owner" }),
                   created_at: WHEN,
                   last_synced_at: WHEN,
                 },

@@ -14,7 +14,7 @@ import { useGroupedCollective, useGroupedMyShares } from "@/lib/queries/groupedC
 import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import { collectiveTranscriptRow, resolveAttribution } from "@/lib/format";
 import { ownerKey } from "@/lib/publicOwner";
-import { type SessionIdentity, childSessionGroupLabel, childSessionsByParentID, childSessionsByRowID, groupChildSessions, groupSessionRows, sessionOwnerID } from "@/lib/childSessions";
+import { type SessionIdentity, childSessionGroupLabel, childSessionsByParentID, childSessionsByRowID, groupChildSessions, groupSessionRows } from "@/lib/childSessions";
 import TranscriptList, { type TranscriptRowFact } from "@/components/transcript/TranscriptList";
 import CollectiveRepos from "@/components/group/CollectiveRepos";
 import { transcriptHref } from "@/lib/transcriptContext";
@@ -95,7 +95,7 @@ function MyContributionChildren({ parentShareID, startedShares, groupID, onUnsha
       </SessionGroupDisclosure>
     </div>);
 }
-/** The shared fold's four facts, read out of one of the caller's own
+/** The shared fold's three facts, read out of one of the caller's own
  *  contributions. Its row identity is the transcript id under a different
  *  name -- this response calls it `id` where the pending queue calls it
  *  `transcript_id` -- which is exactly why each list states its own reading
@@ -103,9 +103,8 @@ function MyContributionChildren({ parentShareID, startedShares, groupID, onUnsha
 function myShareIdentity(share: UserGroupShare): SessionIdentity {
     return {
         rowID: share.id,
-        ownerID: sessionOwnerID(share.owner),
-        sessionID: share.local_id,
         parentSessionID: share.parent_session_id,
+        parentRowID: share.parent_transcript_id,
     };
 }
 /**

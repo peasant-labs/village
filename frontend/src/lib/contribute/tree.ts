@@ -1,4 +1,4 @@
-import { groupSessionRows, namesAParent, type SessionIdentity } from "@/lib/childSessions";
+import { groupSessionRows, namedParent, namesAParent, type SessionIdentity } from "@/lib/childSessions";
 import type { ContributableTranscript } from "./types";
 
 /**
@@ -113,40 +113,44 @@ function branchSortKey(label: string): string {
 }
 
 /**
- * The shared fold's four facts, read out of a contributable row.
+ * How the fold finds the row that started ONE row: the row id of its parent,
+ * or null when none is known.
  *
- * `GET /collectives/{id}/contributable` answers with the caller's OWN transcripts
- * only, so every row here has one owner and the fold's per-owner scoping has
- * nothing to separate. It is still stated, because the fold matches a parent on
- * the owner AND the session id, and a constant is the honest way to say "these
- * all belong to the same person" rather than leaving the field to be guessed.
- *
- * The constant is named for its PRECONDITION, because that precondition is
- * load-bearing: per-owner scoping is what stops one publisher's session id
- * capturing another publisher's row, and a single owner switches it off. If
- * that endpoint ever answers with more than one person's rows -- an owner
- * selecting on someone's behalf, an organisation-scoped listing -- this
- * silently merges them and no test goes red. Widening it means giving
- * `ContributableTranscript` a real owner and reading it here, and the
- * wire-contract note in `./types.ts` says so at the other end.
+ * A list that can hold several publishers' rows (the review queue) reads the
+ * parent the server resolved within the same owner (`parent_transcript_id`),
+ * because `local_id` is unique per owner and the wire carries no owner id for
+ * a publisher the viewer sees as anonymous.
  */
-const SINGLE_OWNER_ENDPOINT = "the caller";
+export type ParentRowOf<Row> = (row: Row) => string | null;
 
 /**
- * How the fold identifies ONE row's owner. A list that can hold several
- * publishers' rows (the review queue) must state the real owner, because
- * `local_id` is unique per owner and matching on the session id alone would
- * let one publisher's submission capture another publisher's. `null` names an
- * owner this viewer sees as anonymous; the fold never matches such a row.
+ * The parent of a contributable row, found by its session id among the same
+ * project's rows.
+ *
+ * `GET /collectives/{id}/contributable` answers with the caller's OWN
+ * transcripts only, so every row here has one owner and a session id names at
+ * most one row. That precondition is load-bearing: if that endpoint ever
+ * answers with more than one person's rows -- an owner selecting on someone's
+ * behalf, an organisation-scoped listing -- matching on the session id would
+ * silently merge them and no test goes red. Widening it means giving
+ * `ContributableTranscript` the server-resolved `parent_transcript_id` and
+ * reading it here, and the wire-contract note in `./types.ts` says so at the
+ * other end.
  */
-export type OwnerOf<Row> = (row: Row) => string | null;
+function singleOwnerParentRow<Row extends TreeRowFacts>(rows: readonly Row[]): ParentRowOf<Row> {
+  const bySession = new Map<string, string>();
+  for (const row of rows) if (!bySession.has(row.local_id)) bySession.set(row.local_id, row.id);
+  return (row) => {
+    const parent = namedParent({ parentSessionID: row.parent_session_id });
+    return parent === null ? null : (bySession.get(parent) ?? null);
+  };
+}
 
-function identityOf<Row extends TreeRowFacts>(ownerOf: OwnerOf<Row>) {
+function identityOf<Row extends TreeRowFacts>(parentRowOf: ParentRowOf<Row>) {
   return (row: Row): SessionIdentity => ({
     rowID: row.id,
-    ownerID: ownerOf(row),
-    sessionID: row.local_id,
     parentSessionID: row.parent_session_id,
+    parentRowID: parentRowOf(row),
   });
 }
 
@@ -177,7 +181,7 @@ function identityOf<Row extends TreeRowFacts>(ownerOf: OwnerOf<Row>) {
 export function buildSessionTree<Row extends TreeRowFacts>(
   rows: Row[],
   present: (row: Row) => SessionPresentation,
-  ownerOf: OwnerOf<Row>,
+  parentRowOf?: ParentRowOf<Row>,
 ): ProjectNode<Row>[] {
   function sessionNode(row: Row, children: Row[]): SessionNode<Row> {
     return {
@@ -205,7 +209,7 @@ export function buildSessionTree<Row extends TreeRowFacts>(
     // place, which row hangs under another, and what happens to a row that
     // names itself or a ring of rows that name each other -- is the shared
     // fold's answer, not a second one written here.
-    const identify = identityOf(ownerOf);
+    const identify = identityOf(parentRowOf ?? singleOwnerParentRow(projectRows));
     const fold = groupSessionRows(projectRows, identify);
     const startedBy = new Map(
       fold.groups.map((group) => [group.parent.id, group.children]),
@@ -272,7 +276,6 @@ export function buildContributeTree(rows: ContributableTranscript[]): ProjectNod
       mark: row.already_shared ? "already contributed" : null,
       locked: row.already_shared,
     }),
-    () => SINGLE_OWNER_ENDPOINT,
   );
 }
 

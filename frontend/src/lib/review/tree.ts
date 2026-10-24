@@ -1,4 +1,3 @@
-import { sessionOwnerID } from "@/lib/childSessions";
 import { buildSessionTree, type ProjectNode, type TreeRowFacts } from "@/lib/contribute/tree";
 import { resolveAttribution } from "@/lib/format";
 import type { PendingShare } from "./types";
@@ -65,10 +64,11 @@ export function toReviewRows(shares: PendingShare[], stale: ReadonlySet<string>)
  * It is the SAME fold the contribute page uses, given the review queue's own
  * rows: a submission that another session started is read under the submission
  * that started it, and one whose starter was never offered to this collective
- * keeps its ordinary place under the project's orphans grouping. The owner is
- * the real publisher here, not a constant, because a queue holds several
- * publishers' work and `local_id` is unique only per publisher — matching on
- * the session id alone would let one publisher's submission capture another's.
+ * keeps its ordinary place under the project's orphans grouping. A queue holds
+ * several publishers' work and `local_id` is unique only per publisher, so the
+ * parent is the one the server resolved within the same publisher
+ * (`parent_transcript_id`): matching on the session id alone would let one
+ * publisher's submission capture another's.
  */
 export function buildReviewTree(rows: ReviewRow[]): ProjectNode<ReviewRow>[] {
   return buildSessionTree(
@@ -78,6 +78,6 @@ export function buildReviewTree(rows: ReviewRow[]): ProjectNode<ReviewRow>[] {
       mark: row.stale ? "already decided" : null,
       locked: row.stale,
     }),
-    (row) => sessionOwnerID(row.share.owner),
+    (row) => row.share.parent_transcript_id,
   );
 }
