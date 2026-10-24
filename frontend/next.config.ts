@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { HTML_LIMITED_BOT_UA_RE } from "next/dist/shared/lib/router/utils/is-bot";
 import path from "path";
 
 // @peasant-labs/fairtrade (including its graph and analytics entries) is
@@ -21,8 +22,14 @@ const shareCardFontFiles = [
   "./node_modules/@peasant-labs/fairtrade/dist/lib/share-fonts/*",
 ];
 
+// Link-preview crawlers read only the HTML they are first sent, so Next must
+// render page metadata into it rather than stream it in later. Next's own list
+// is kept whole; these add Telegram, Mastodon and Bluesky's card fetcher.
+const htmlLimitedBots = new RegExp(`${HTML_LIMITED_BOT_UA_RE.source}|TelegramBot|Mastodon|cardyb`, "i");
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  htmlLimitedBots,
   outputFileTracingRoot: repositoryRoot,
   // The share-card image routes read fairtrade's card fonts from disk by a
   // name computed at run time, which tracing cannot see, so they are listed,
