@@ -35,19 +35,23 @@ export function OnPage({
 /** The page's title on the left, its actions on the right, one line under both. */
 export function OnHead({
   title,
+  loadingLabel,
   lede,
   actions,
   titleId,
 }: {
-  title: ReactNode;
+  /** The page's title. Null while the page is reading it: the title's place
+   *  shimmers, and the heading is named by `loadingLabel` until it arrives. */
+  title: ReactNode | null;
+  loadingLabel?: string;
   lede?: ReactNode;
   actions?: ReactNode;
   titleId?: string;
 }) {
   return (
     <header className="on-head">
-      <h1 className="on-title" id={titleId}>
-        {title}
+      <h1 className="on-title" id={titleId} aria-label={title == null ? loadingLabel : undefined}>
+        {title ?? <span className="on-title-skel animate-shimmer" aria-hidden="true" />}
       </h1>
       {actions ? <div className="on-actions">{actions}</div> : null}
       {lede ? <p className="on-lede">{lede}</p> : null}
@@ -95,9 +99,11 @@ export function OnEmpty({
   children?: ReactNode;
   actions?: ReactNode;
   testId?: string;
-  headingLevel?: 2 | 3;
+  /** 1 where the state is the whole page (not found, a failed read), so its
+   *  title is the page's heading. */
+  headingLevel?: 1 | 2 | 3;
 }) {
-  const Heading = headingLevel === 2 ? "h2" : "h3";
+  const Heading = headingLevel === 1 ? "h1" : headingLevel === 2 ? "h2" : "h3";
   return (
     <div className="on-empty" data-testid={testId}>
       <span className="on-ico-tile" aria-hidden="true">

@@ -1,17 +1,44 @@
 "use client";
 
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { Users } from "lucide-react";
-import { OnCrumb, OnEmpty, OnPage } from "@/components/online/Page";
+import { OnCrumb, OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 
-/** The collective pages' shape while the collective is read: a crumb, a title, a row of chips and a body. */
-export function CollectiveSkeleton({ crumb }: { crumb: { label: string; href?: string }[] }) {
+/**
+ * The collective's name while its page reads it, when the app already holds
+ * it: the person's own collectives and the ones discover listed are read
+ * before a collective is opened from them. Null on a cold link.
+ */
+export function useKnownCollectiveName(id: string): string | null {
+  const qc = useQueryClient();
+  for (const key of [["groups"], ["visible-groups"]]) {
+    const list = qc.getQueryData<{ id: string; name: string }[]>(key);
+    const found = list?.find((group) => group.id === id);
+    if (found) return found.name;
+  }
+  return null;
+}
+
+/**
+ * The collective pages' shape while the collective is read: a crumb, the
+ * page's title, a row of chips and a body. The title is the one the page will
+ * show (`title`), so the heading does not change when the read lands; when it
+ * is not known yet its place shimmers.
+ */
+export function CollectiveSkeleton({
+  crumb,
+  title,
+}: {
+  crumb: { label: string; href?: string }[];
+  title: string | null;
+}) {
   return (
     <OnPage tight testId="collective-loading">
       <OnCrumb items={crumb} />
+      <OnHead title={title} loadingLabel="loading the collective" />
       {/* A status, so its label is announced; the shapes are for the eye. */}
       <div className="on-cskel" role="status" aria-busy="true" aria-label="loading the collective">
-        <div aria-hidden="true" className="h-10 w-72 max-w-full bg-surface-hover animate-shimmer" />
         <div aria-hidden="true" className="on-row">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-11 w-48 max-w-full bg-surface-hover animate-shimmer" />
@@ -29,11 +56,15 @@ export function CollectiveSkeleton({ crumb }: { crumb: { label: string; href?: s
  */
 export function CollectiveReadError({
   crumb,
+  title,
   message,
   retrying,
   onRetry,
 }: {
   crumb: { label: string; href?: string }[];
+  /** The page's title, as the loaded page would show it; "collective" when the
+   *  read that failed was the one that would have named it. */
+  title: string | null;
   message: string;
   retrying: boolean;
   onRetry: () => void;
@@ -41,6 +72,7 @@ export function CollectiveReadError({
   return (
     <OnPage tight testId="collective-error">
       <OnCrumb items={crumb} />
+      <OnHead title={title ?? "collective"} />
       <div className="on-notice" data-tone="danger" role="alert">
         <p>could not read the collective: {message}</p>
         <button type="button" className="btn btn-secondary" disabled={retrying} onClick={onRetry}>
@@ -59,6 +91,7 @@ export function CollectiveNotFound() {
       <OnEmpty
         icon={<Users />}
         title="collective not found"
+        headingLevel={1}
         body="it may have been deleted, or the link may be wrong."
         actions={
           <Link href="/collectives" className="btn btn-secondary">

@@ -16,7 +16,7 @@ import { Clock, FileX2, SearchX } from "lucide-react";
 import { isApiErrorStatus } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { loginHref } from "@/lib/signIn";
-import { OnEmpty, OnPage } from "@/components/online/Page";
+import { OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 
 export default function TranscriptDetailPage({
   params,
@@ -70,14 +70,16 @@ export default function TranscriptDetailPage({
   }, [data, myGroups]);
 
   // Transcript metadata still loading.
+  // The title's place shimmers until the read names it.
   if (isLoading) {
     return (
-      <div className="max-w-[1600px] mx-auto px-6 pt-6 pb-12 flex flex-col gap-6">
-        <div className="h-4 w-40 animate-shimmer" />
-        <div className="h-8 w-2/3 animate-shimmer" />
-        <div className="h-12 w-1/2 animate-shimmer" />
-        <div className="h-96 w-full animate-shimmer" />
-      </div>
+      <OnPage>
+        <OnHead title={null} loadingLabel="loading the transcript" />
+        <div className="flex flex-col gap-6" aria-hidden="true">
+          <div className="h-12 w-1/2 animate-shimmer" />
+          <div className="h-96 w-full animate-shimmer" />
+        </div>
+      </OnPage>
     );
   }
 
@@ -90,6 +92,7 @@ export default function TranscriptDetailPage({
         <OnEmpty
           icon={<Clock aria-hidden="true" />}
           title="too many access checks just now"
+          headingLevel={1}
           body="this transcript's repository is asked whether you may read it, and that has been asked too often in the last few minutes. try again shortly."
         />
       </OnPage>
@@ -106,6 +109,7 @@ export default function TranscriptDetailPage({
         <OnEmpty
           icon={<SearchX aria-hidden="true" />}
           title="transcript not found"
+          headingLevel={1}
           body={signedOut ? "if it was shared with you, sign in to read it." : undefined}
           testId="transcript-not-found"
           actions={
@@ -133,6 +137,7 @@ export default function TranscriptDetailPage({
         <OnEmpty
           icon={<FileX2 aria-hidden="true" />}
           title="unsupported transcript format"
+          headingLevel={1}
           body="this transcript was published in a format the viewer can no longer render. publish it again from peasant to read it here."
         />
       </OnPage>

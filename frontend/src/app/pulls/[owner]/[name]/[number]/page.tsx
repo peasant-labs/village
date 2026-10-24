@@ -288,6 +288,7 @@ export default function PullRequestPage({
         <OnEmpty
           icon={<GitPullRequest aria-hidden="true" />}
           title="no attachment here"
+          headingLevel={1}
           body={
             signedOut
               ? "this pull request has no prompts on peasant that you can open signed out."
@@ -323,7 +324,7 @@ export default function PullRequestPage({
       <OnPage tight testId="pull-request-page-error">
         <div className="on-notice" data-tone="danger">
           <div role="alert" className="on-pr-fail">
-            <p className="on-pr-fail-title">this pull request page could not be loaded</p>
+            <h1 className="on-pr-fail-title">this pull request page could not be loaded</h1>
             <p>
               The request to peasant online failed before the attachment could be read, so nothing
               is shown rather than part of the page.
@@ -345,12 +346,15 @@ export default function PullRequestPage({
       <OnPage tight testId="pull-request-page-pending">
         <div className="on-prcard" aria-busy="true">
           <header>
-            <div className="h-4 w-40 animate-shimmer" />
-            <div className="h-8 w-2/3 animate-shimmer" />
-            <div className="h-4 w-56 animate-shimmer" />
+            <div className="h-4 w-40 animate-shimmer" aria-hidden="true" />
+            {/* The title's place shimmers until the read names it. */}
+            <h1 className="on-pr-title" aria-label="loading the pull request">
+              <span className="block h-8 w-2/3 animate-shimmer" aria-hidden="true" />
+            </h1>
+            <div className="h-4 w-56 animate-shimmer" aria-hidden="true" />
           </header>
         </div>
-        <div className="h-64 w-full animate-shimmer" />
+        <div className="h-64 w-full animate-shimmer" aria-hidden="true" />
       </OnPage>
     );
   }

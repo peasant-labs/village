@@ -340,6 +340,13 @@ describe("collective read and create recovery", () => {
     if (c.operation === "read") {
       expect(await screen.findByRole("alert")).toHaveTextContent(c.error!);
       expect(screen.queryByText("collective not found")).not.toBeInTheDocument();
+      // The failed read keeps one h1, the page's own: the collective's name
+      // when the app already holds it ("collective" when the failed read was
+      // the one that would have named it), or a settings page's section.
+      if (c.surface !== "list") {
+        const h1s = screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent);
+        expect(h1s).toEqual([c.surface === "settings" ? "general" : "collective"]);
+      }
       const before = requests.filter((r) => r.path === path && r.method === "GET").length;
       expect(before).toBeGreaterThan(0);
       world.failures = [];

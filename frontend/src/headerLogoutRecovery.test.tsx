@@ -20,7 +20,7 @@ for (const row of loadHeaderLogoutRecoveryFixtures().cases) {
     });
     try {
       await renderHeaderAt("/collectives");
-      const account = await screen.findByRole("button", { name: "account menu for @alice-dev" });
+      const account = await screen.findByRole("button", { name: "@alice-dev" });
       const frames: FrameRequestCallback[] = [];
       if (row.mode === "rapid") vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });
       fireEvent.click(account);

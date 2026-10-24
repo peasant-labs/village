@@ -252,6 +252,8 @@ describe("the pull request page", () => {
     await renderPullRequestRoute(OWNER, NAME, NUMBER);
 
     await screen.findByTestId("pull-request-page-not-found");
+    // The refusal is the whole page, so its title is the page's one h1.
+    expect(screen.getAllByRole("heading", { level: 1 }).map(spoken)).toEqual(["no attachment here"]);
     const back = screen.getByTestId("pull-request-back-link");
     expect(back.getAttribute("href")).toBe("/collectives");
     expect(spoken(back)).toBe("back to collectives");
@@ -280,6 +282,9 @@ describe("the pull request page", () => {
     });
     await renderPullRequestRoute(OWNER, NAME, NUMBER);
     await screen.findByText("this pull request page could not be loaded");
+    expect(screen.getAllByRole("heading", { level: 1 }).map(spoken)).toEqual([
+      "this pull request page could not be loaded",
+    ]);
 
     fireEvent.click(screen.getByTestId("pull-request-retry"));
 

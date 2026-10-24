@@ -36,7 +36,7 @@ async function chromeSettled(expectNav: "sections" | "public" | "none"): Promise
   // sidebar has drawn; on the privacy notice, the public bar's way in; anywhere
   // else signed out, the frame's word that it is taking the visitor to sign in.
   await waitFor(() => {
-    if (expectNav === "sections") expect(screen.getByTestId("account-menu-trigger")).toBeInTheDocument();
+    if (expectNav === "sections") expect(document.querySelector(".asb-foot .asb-account")).not.toBeNull();
     else if (expectNav === "public") expect(screen.getByRole("link", { name: "sign in" })).toBeInTheDocument();
     else expect(screen.getByTestId("leaving-for-sign-in")).toBeInTheDocument();
   });
@@ -202,7 +202,7 @@ describe("mounted sidebar: the account menu", () => {
     await renderHeaderAt("/");
     await chromeSettled("sections");
 
-    const trigger = screen.getByRole("button", { name: "account menu for @alice-dev" });
+    const trigger = screen.getByRole("button", { name: "@alice-dev" });
     expect(trigger).toHaveAttribute("aria-haspopup", "menu");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
 
@@ -223,7 +223,7 @@ describe("mounted sidebar: the account menu", () => {
       await renderHeaderAt("/");
       await chromeSettled("sections");
 
-      fireEvent.click(screen.getByRole("button", { name: "account menu for @alice-dev" }));
+      fireEvent.click(screen.getByRole("button", { name: "@alice-dev" }));
       fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: c.item }));
 
       if (c.effect === "navigate") {

@@ -35,7 +35,8 @@ test.describe('account settings', () => {
   test('opens from the account menu and shows every row', async ({ page, theme }, testInfo) => {
     await page.goto('/')
     await expect(page.getByTestId('home-page')).toBeVisible()
-    await page.getByRole('button', { name: /account menu/ }).click()
+    // fairtrade's account row, named by the handle, is the menu's trigger.
+    await page.getByRole('button', { name: '@alice-dev' }).click()
     await page.getByRole('menuitem', { name: 'settings', exact: true }).click()
     await expect(page).toHaveURL(/\/settings$/)
 

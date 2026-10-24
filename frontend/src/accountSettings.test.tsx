@@ -6,7 +6,7 @@ import {
   renderHeader,
   renderSettingsRoute,
 } from "@/test/mountedSettingsRoute";
-import { loadAccountSettingsFixtures, type SettingsCase } from "@/test/accountSettingsFixtures";
+import { SETTINGS_VIEWER, loadAccountSettingsFixtures, type SettingsCase } from "@/test/accountSettingsFixtures";
 
 // Mounts the REAL `/settings` route. Every assertion is on what lands in the
 // DOM and on the writes the page actually sends, so a regression cannot hide
@@ -189,7 +189,8 @@ describe("the account menu", () => {
   it("leads to the settings route", async () => {
     installSettingsRouteREST(cases[0]);
     await renderHeader();
-    const trigger = await screen.findByRole("button", { name: /account menu/ });
+    // fairtrade's account row is the menu's trigger, named by the handle.
+    const trigger = await screen.findByRole("button", { name: `@${SETTINGS_VIEWER}` });
     await act(async () => {
       fireEvent.click(trigger);
     });
