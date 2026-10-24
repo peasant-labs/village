@@ -102,24 +102,24 @@ func (q *Queries) ListAttestationsByTranscriptIDs(ctx context.Context, dollar_1 
 
 const listTranscriptAttestations = `-- name: ListTranscriptAttestations :many
 SELECT a.id, a.transcript_id, a.org_login, a.attestation_type, a.note, a.created_at,
-       u.github_username as attester_username, u.avatar_url as attester_avatar
+       a.attester_id
 FROM attestations a
-JOIN users u ON a.attester_id = u.id
 WHERE a.transcript_id = $1
 ORDER BY a.created_at DESC
 `
 
 type ListTranscriptAttestationsRow struct {
-	ID               pgtype.UUID        `db:"id" json:"id"`
-	TranscriptID     pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
-	OrgLogin         string             `db:"org_login" json:"org_login"`
-	AttestationType  string             `db:"attestation_type" json:"attestation_type"`
-	Note             pgtype.Text        `db:"note" json:"note"`
-	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	AttesterUsername string             `db:"attester_username" json:"attester_username"`
-	AttesterAvatar   pgtype.Text        `db:"attester_avatar" json:"attester_avatar"`
+	ID              pgtype.UUID        `db:"id" json:"id"`
+	TranscriptID    pgtype.UUID        `db:"transcript_id" json:"transcript_id"`
+	OrgLogin        string             `db:"org_login" json:"org_login"`
+	AttestationType string             `db:"attestation_type" json:"attestation_type"`
+	Note            pgtype.Text        `db:"note" json:"note"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	AttesterID      pgtype.UUID        `db:"attester_id" json:"attester_id"`
 }
 
+// The attester is attester_id only: the handler shows them as the viewer may
+// see them (ListPublicOwnersForViewer), never from columns read here.
 func (q *Queries) ListTranscriptAttestations(ctx context.Context, transcriptID pgtype.UUID) ([]ListTranscriptAttestationsRow, error) {
 	rows, err := q.db.Query(ctx, listTranscriptAttestations, transcriptID)
 	if err != nil {
@@ -136,8 +136,7 @@ func (q *Queries) ListTranscriptAttestations(ctx context.Context, transcriptID p
 			&i.AttestationType,
 			&i.Note,
 			&i.CreatedAt,
-			&i.AttesterUsername,
-			&i.AttesterAvatar,
+			&i.AttesterID,
 		); err != nil {
 			return nil, err
 		}

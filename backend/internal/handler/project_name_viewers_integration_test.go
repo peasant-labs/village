@@ -445,8 +445,8 @@ func (w *projectNameWorld) renderSurface(t *testing.T, h *Handler, surface, view
 		}
 		decodeSurface(t, h.GetTranscript, w.asViewer(r, viewer), surface, &detail)
 		return renderedProject{
-			DisplayName: detail.Transcript.ProjectDisplayName,
-			NameSource:  detail.Transcript.ProjectNameSource,
+			DisplayName: derefOr(detail.Transcript.ProjectDisplayName),
+			NameSource:  derefOr(detail.Transcript.ProjectNameSource),
 		}
 
 	case "override_response":
@@ -474,8 +474,8 @@ func (w *projectNameWorld) renderListSurface(t *testing.T, h *Handler, surface, 
 	for _, item := range list.Transcripts {
 		if item.Transcript.ID == w.transcript {
 			return renderedProject{
-				DisplayName: item.Transcript.ProjectDisplayName,
-				NameSource:  item.Transcript.ProjectNameSource,
+				DisplayName: derefOr(item.Transcript.ProjectDisplayName),
+				NameSource:  derefOr(item.Transcript.ProjectNameSource),
 			}
 		}
 	}

@@ -49,7 +49,9 @@ func (h *Handler) ListUserPublicOrgs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, orgs)
 }
 
-// GetUserPublicProfile returns a user's public profile by username.
+// GetUserPublicProfile returns a user's public profile by username, in the
+// contract's public-person shape (kind profile: id, username, display name,
+// avatar).
 // Hidden (is_discoverable=false) users return 404 to non-owners so their
 // existence isn't confirmed via direct URL lookup.
 // GET /users/{username} (AuthOptional)
@@ -74,7 +76,9 @@ func (h *Handler) GetUserPublicProfile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, target)
+	// Only the public profile fields, never the account row: the row carries
+	// sign-in identity, account dates, and personal settings.
+	writeJSON(w, http.StatusOK, publicProfileOfUser(target))
 }
 
 // ListMyOrgs returns all GitHub orgs for the authenticated user (settings page).

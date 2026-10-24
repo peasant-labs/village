@@ -139,7 +139,7 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 					ID string `json:"id"`
 				} `json:"transcript"`
 				Owner struct {
-					GithubUsername string `json:"github_username"`
+					Username string `json:"username"`
 				} `json:"owner"`
 				Tags         json.RawMessage                    `json:"tags"`
 				PullRequests *schema.VillagePullRequestsSummary `json:"pull_requests"`
@@ -150,7 +150,7 @@ func readSummarySurface(t *testing.T, world *builtPRWorld, h *Handler, routes ht
 		}
 		for _, row := range body.Transcripts {
 			add(row.Transcript.ID, row.PullRequests)
-			read.owners[row.Transcript.ID] = row.Owner.GithubUsername
+			read.owners[row.Transcript.ID] = row.Owner.Username
 			read.rawTags[row.Transcript.ID] = string(row.Tags)
 			var tags []struct {
 				Name string `json:"name"`

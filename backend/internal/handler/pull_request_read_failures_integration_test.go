@@ -61,11 +61,11 @@ func (q failingReadQuerier) ListTagsByTranscriptIDs(ctx context.Context, ids []p
 	return q.Querier.ListTagsByTranscriptIDs(ctx, ids)
 }
 
-func (q failingReadQuerier) ListUsersByIDs(ctx context.Context, ids []pgtype.UUID) ([]sqlc.User, error) {
-	if q.fails == "ListUsersByIDs" {
+func (q failingReadQuerier) ListPublicOwnersForViewer(ctx context.Context, arg sqlc.ListPublicOwnersForViewerParams) ([]sqlc.ListPublicOwnersForViewerRow, error) {
+	if q.fails == "ListPublicOwnersForViewer" {
 		return nil, errInjectedRead
 	}
-	return q.Querier.ListUsersByIDs(ctx, ids)
+	return q.Querier.ListPublicOwnersForViewer(ctx, arg)
 }
 
 func (q failingReadQuerier) ListPullRequestCandidatesByTranscripts(ctx context.Context, arg sqlc.ListPullRequestCandidatesByTranscriptsParams) ([]sqlc.ListPullRequestCandidatesByTranscriptsRow, error) {

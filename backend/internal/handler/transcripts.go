@@ -834,7 +834,12 @@ func (h *Handler) PublishTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	if !authoritative {
 		tags, _ := h.queries.GetTranscriptTags(r.Context(), transcript.ID)
-		writeJSON(w, status, map[string]any{"transcript": publishTranscriptResponse(transcript), "tags": tags})
+		parents, err := h.resolveParentTranscriptsOf(r.Context(), GetUser(r.Context()), []sqlc.Transcript{transcript})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "The transcript was published, but its parent session could not be resolved for the response; read the transcript again")
+			return
+		}
+		writeJSON(w, status, map[string]any{"transcript": publishTranscriptResponse(transcript).withParent(parents.of(transcript.ID)), "tags": tags})
 		return
 	}
 	transcriptID, err := schema.NewTranscriptID(uuid.UUID(transcript.ID.Bytes).String())
@@ -1032,9 +1037,26 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Cannot read transcript associations because the database lookup failed. No complete detail was returned; retry the transcript lookup.")
 		return
 	}
-	owner, _ := h.queries.GetUserByID(r.Context(), transcript.OwnerID)
-	ownerOrgs, _ := h.queries.ListUserVisibleOrgs(r.Context(), transcript.OwnerID)
-	attestations, _ := h.queries.ListTranscriptAttestations(r.Context(), transcript.ID)
+	// The owner as this viewer may see them. A failed visibility read refuses the
+	// detail rather than guessing either way. Organization logins can identify a
+	// person, so an anonymous owner lists none.
+	owner, err := h.resolvePublicOwner(r.Context(), user, transcript.OwnerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Cannot read the transcript owner because the profile visibility lookup failed. No detail was returned; retry the transcript lookup.")
+		return
+	}
+	ownerOrgs := []sqlc.ListUserVisibleOrgsRow{}
+	if owner.IsProfile() {
+		if orgs, err := h.queries.ListUserVisibleOrgs(r.Context(), transcript.OwnerID); err == nil {
+			ownerOrgs = orgs
+		}
+	}
+	attestationRows, _ := h.queries.ListTranscriptAttestations(r.Context(), transcript.ID)
+	attestations, err := h.attestationsForViewer(r.Context(), user, attestationRows)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Cannot read the transcript's attesters because the profile visibility lookup failed. No detail was returned; retry the transcript lookup.")
+		return
+	}
 
 	// Enrich shares with acceptance_mode
 	enrichedShares, err := h.queries.ListSharesByTranscriptIDs(r.Context(), []pgtype.UUID{transcript.ID})
@@ -1082,8 +1104,13 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	parents, err := h.resolveParentTranscriptsOf(r.Context(), user, []sqlc.Transcript{transcript})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Cannot resolve the transcript's parent session because a database lookup failed. No detail was returned; retry the transcript lookup.")
+		return
+	}
 	response := map[string]any{
-		"transcript":      detailTranscriptResponse(transcript, resolved),
+		"transcript":      detailTranscriptResponse(transcript, resolved).withParent(parents.of(transcript.ID)).withholdRepository(owner),
 		"tags":            tags,
 		"shares":          shares,
 		"enriched_shares": enrichedShares,
@@ -1796,11 +1823,17 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		argIdx++
 	}
 
-	if owner := q.Get("owner"); owner != "" {
-		conditions = append(conditions, fmt.Sprintf(
-			`t.owner_id = (SELECT id FROM users WHERE github_username = $%d)`, argIdx,
-		))
-		args = append(args, owner)
+	// The owner and org filters match only owners this viewer may see as a
+	// profile, so a filter cannot tie anonymous rows to a person or an
+	// organization.
+	ownerFilter, err := h.resolveOwnerFilter(r.Context(), user, q.Get("owner"), q.Get("org"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the owner or organization filter could not be resolved, so no transcript page was returned; retry the request")
+		return
+	}
+	if ownerFilter.Active {
+		conditions = append(conditions, fmt.Sprintf(`t.owner_id = ANY($%d::uuid[])`, argIdx))
+		args = append(args, ownerFilter.OwnerIDs)
 		argIdx++
 	}
 
@@ -1813,15 +1846,6 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	if repo := q.Get("repo"); repo != "" {
 		conditions = append(conditions, fmt.Sprintf(`t.git_remote ILIKE $%d`, argIdx))
 		args = append(args, "%"+repo+"%")
-		argIdx++
-	}
-
-	if org := q.Get("org"); org != "" {
-		conditions = append(conditions, fmt.Sprintf(
-			`t.owner_id IN (SELECT user_id FROM user_github_orgs WHERE lower(org_login) = lower($%d) AND visible = true)`,
-			argIdx,
-		))
-		args = append(args, org)
 		argIdx++
 	}
 
@@ -1948,23 +1972,17 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Batch owners by id.
-	ownersByID := map[pgtype.UUID]sqlc.User{}
-	if len(ownerIDs) > 0 {
-		owners, err := h.queries.ListUsersByIDs(r.Context(), ownerIDs)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the owners of the listed transcripts could not be read, so no transcript page was returned; retry the request")
-			return
-		}
-		for _, owner := range owners {
-			ownersByID[owner.ID] = owner
-		}
+	// Every owner on the page as this viewer may see them, in one read.
+	ownersByID, err := h.resolvePublicOwners(r.Context(), user, ownerIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the owners of the listed transcripts could not be read, so no transcript page was returned; retry the request")
+		return
 	}
 
 	type parsedTranscript struct {
 		t     sqlc.Transcript
 		tags  []sqlc.Tag
-		owner sqlc.User
+		owner schema.VillagePublicOwner
 	}
 	var parsed []parsedTranscript
 	for _, t := range listed {
@@ -1972,7 +1990,7 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		if tags == nil {
 			tags = []sqlc.Tag{}
 		}
-		parsed = append(parsed, parsedTranscript{t: t, tags: tags, owner: ownersByID[t.OwnerID]})
+		parsed = append(parsed, parsedTranscript{t: t, tags: tags, owner: ownersByID.of(t.OwnerID)})
 	}
 
 	// The pull requests each row is attached to, as the caller may read them. A
@@ -1983,12 +2001,19 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Batch org badges by owner
-	orgsByOwner := map[pgtype.UUID][]sqlc.ListVisibleOrgsByUserIDsRow{}
-	if len(ownerIDs) > 0 {
-		allOrgs, _ := h.queries.ListVisibleOrgsByUserIDs(r.Context(), ownerIDs)
+	// Batch org badges by owner. Only owners shown as a profile carry them: an
+	// organization login can identify a person, and the row names no account.
+	orgsByOwner := map[pgtype.UUID][]listOwnerOrganization{}
+	shownOwners := make([]pgtype.UUID, 0, len(ownerIDs))
+	for _, id := range ownerIDs {
+		if ownersByID.of(id).IsProfile() {
+			shownOwners = append(shownOwners, id)
+		}
+	}
+	if len(shownOwners) > 0 {
+		allOrgs, _ := h.queries.ListVisibleOrgsByUserIDs(r.Context(), shownOwners)
 		for _, o := range allOrgs {
-			orgsByOwner[o.UserID] = append(orgsByOwner[o.UserID], o)
+			orgsByOwner[o.UserID] = append(orgsByOwner[o.UserID], listOwnerOrganization{OrgLogin: o.OrgLogin, AvatarURL: o.AvatarUrl})
 		}
 	}
 
@@ -2018,13 +2043,19 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	parents, err := h.resolveParentTranscriptsOf(r.Context(), user, listed)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the parent sessions of the listed transcripts could not be resolved, so no transcript page was returned; retry the request")
+		return
+	}
+
 	transcripts := []map[string]any{}
 	for _, p := range parsed {
 		transcripts = append(transcripts, map[string]any{
-			"transcript":    listTranscriptResponse(p.t, resolvedProjects[projectIdentityKey{OwnerID: p.t.OwnerID, ProjectHash: p.t.ProjectHash}]),
+			"transcript":    listTranscriptResponse(p.t, resolvedProjects[projectIdentityKey{OwnerID: p.t.OwnerID, ProjectHash: p.t.ProjectHash}]).withParent(parents.of(p.t.ID)).withholdRepository(p.owner),
 			"tags":          p.tags,
 			"owner":         p.owner,
-			"owner_orgs":    orgsByOwner[p.t.OwnerID],
+			"owner_orgs":    listOwnerOrganizations(orgsByOwner[p.t.OwnerID]),
 			"shares":        sharesByTranscript[p.t.ID],
 			"attestations":  attestsByTranscript[p.t.ID],
 			"pull_requests": pullRequests[p.t.ID],
@@ -2317,4 +2348,19 @@ func linkTagsWithQuerier(ctx context.Context, q Querier, transcriptID pgtype.UUI
 		}
 	}
 	return nil
+}
+
+// listOwnerOrganization is one visible organization badge on a list row. It
+// names no account: the row's owner field already shows its owner as the
+// viewer may see them.
+type listOwnerOrganization struct {
+	OrgLogin  string      `json:"org_login"`
+	AvatarURL pgtype.Text `json:"avatar_url"`
+}
+
+func listOwnerOrganizations(orgs []listOwnerOrganization) []listOwnerOrganization {
+	if orgs == nil {
+		return []listOwnerOrganization{}
+	}
+	return orgs
 }

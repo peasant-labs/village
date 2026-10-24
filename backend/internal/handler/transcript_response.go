@@ -11,71 +11,75 @@ import (
 // transcriptResponse is the single public projection of a transcript row.
 // Storage locations and source-machine paths remain internal database state.
 type transcriptResponse struct {
-	ID                      pgtype.UUID           `json:"id"`
-	OwnerID                 pgtype.UUID           `json:"owner_id"`
-	LocalID                 string                `json:"local_id"`
-	Title                   pgtype.Text           `json:"title"`
-	Description             pgtype.Text           `json:"description"`
-	Visibility              string                `json:"visibility"`
-	ModelProvider           string                `json:"model_provider"`
-	ModelName               pgtype.Text           `json:"model_name"`
-	HarnessVersion          pgtype.Text           `json:"harness_version"`
-	SessionStart            pgtype.Timestamptz    `json:"session_start"`
-	SessionEnd              pgtype.Timestamptz    `json:"session_end"`
-	TurnCount               pgtype.Int4           `json:"turn_count"`
-	InputSubmissionCount    *int64                `json:"input_submission_count,omitempty"`
-	RootSessionID           *schema.SessionID     `json:"root_session_id,omitempty"`
-	Purpose                 schema.SessionPurpose `json:"purpose,omitempty"`
-	Relationships           json.RawMessage       `json:"relationships,omitempty"`
-	TokenCount              pgtype.Int4           `json:"token_count"`
-	BlobSizeBytes           pgtype.Int8           `json:"blob_size_bytes"`
-	SchemaVersion           string                `json:"schema_version"`
-	PublishedAt             pgtype.Timestamptz    `json:"published_at"`
-	UpdatedAt               pgtype.Timestamptz    `json:"updated_at"`
-	ParentSessionID         pgtype.Text           `json:"parent_session_id"`
-	IngestedAt              pgtype.Timestamptz    `json:"ingested_at"`
-	SourceFormat            pgtype.Text           `json:"source_format"`
-	GitBranch               pgtype.Text           `json:"git_branch"`
-	GitRemote               pgtype.Text           `json:"git_remote"`
-	ProjectHash             pgtype.Text           `json:"project_hash"`
-	ProjectName             pgtype.Text           `json:"project_name"`
-	ToolCallCount           pgtype.Int4           `json:"tool_call_count"`
-	SubagentCount           pgtype.Int4           `json:"subagent_count"`
-	DurationMs              pgtype.Int8           `json:"duration_ms"`
-	Subagents               []byte                `json:"subagents"`
-	DiagnosticsWarnings     []byte                `json:"diagnostics_warnings"`
-	DiagnosticsPartial      pgtype.Bool           `json:"diagnostics_partial"`
-	TokensIn                pgtype.Int8           `json:"tokens_in"`
-	TokensOut               pgtype.Int8           `json:"tokens_out"`
-	TitleGenerated          pgtype.Text           `json:"title_generated"`
-	Outcome                 pgtype.Text           `json:"outcome"`
-	FilesTouched            pgtype.Int4           `json:"files_touched"`
-	LinesChanged            pgtype.Int4           `json:"lines_changed"`
-	RetryLoops              pgtype.Int4           `json:"retry_loops"`
-	RetryTokensWasted       pgtype.Int4           `json:"retry_tokens_wasted"`
-	WithinSessionReverts    pgtype.Int4           `json:"within_session_reverts"`
-	SignalDensity           pgtype.Float4         `json:"signal_density"`
-	SpecQualityScore        pgtype.Float4         `json:"spec_quality_score"`
-	ExplorationRatio        pgtype.Float4         `json:"exploration_ratio"`
-	ScopeBreadth            pgtype.Int4           `json:"scope_breadth"`
-	DiscoveryTurns          pgtype.Int4           `json:"discovery_turns"`
-	M2TokenOutcomeRatio     pgtype.Float4         `json:"m2_token_outcome_ratio"`
-	M3UniqueToolCount       pgtype.Int4           `json:"m3_unique_tool_count"`
-	M4ErrorRecoveryCount    pgtype.Int4           `json:"m4_error_recovery_count"`
-	M4ConsecutiveErrorMax   pgtype.Int4           `json:"m4_consecutive_error_max"`
-	M5ContextUtilizationPct pgtype.Float4         `json:"m5_context_utilization_pct"`
-	M5PeakContextTokens     pgtype.Int4           `json:"m5_peak_context_tokens"`
-	M5AvgMessageTokens      pgtype.Int4           `json:"m5_avg_message_tokens"`
-	M6OutputSurvivalPct     pgtype.Float4         `json:"m6_output_survival_pct"`
-	M6LinesSurvived         pgtype.Int4           `json:"m6_lines_survived"`
-	M6LinesTotal            pgtype.Int4           `json:"m6_lines_total"`
-	M7SpecWordCount         pgtype.Int4           `json:"m7_spec_word_count"`
-	M7SpecHasExamples       pgtype.Bool           `json:"m7_spec_has_examples"`
-	M7SpecHasConstraints    pgtype.Bool           `json:"m7_spec_has_constraints"`
-	ComputedAt              pgtype.Timestamptz    `json:"computed_at"`
-	ComputeVersion          pgtype.Int4           `json:"compute_version"`
-	ContentHash             pgtype.Text           `json:"content_hash"`
-	LicenseID               pgtype.Text           `json:"license_id"`
+	ID                   pgtype.UUID           `json:"id"`
+	LocalID              string                `json:"local_id"`
+	Title                pgtype.Text           `json:"title"`
+	Description          pgtype.Text           `json:"description"`
+	Visibility           string                `json:"visibility"`
+	ModelProvider        string                `json:"model_provider"`
+	ModelName            pgtype.Text           `json:"model_name"`
+	HarnessVersion       pgtype.Text           `json:"harness_version"`
+	SessionStart         pgtype.Timestamptz    `json:"session_start"`
+	SessionEnd           pgtype.Timestamptz    `json:"session_end"`
+	TurnCount            pgtype.Int4           `json:"turn_count"`
+	InputSubmissionCount *int64                `json:"input_submission_count,omitempty"`
+	RootSessionID        *schema.SessionID     `json:"root_session_id,omitempty"`
+	Purpose              schema.SessionPurpose `json:"purpose,omitempty"`
+	Relationships        json.RawMessage       `json:"relationships,omitempty"`
+	TokenCount           pgtype.Int4           `json:"token_count"`
+	BlobSizeBytes        pgtype.Int8           `json:"blob_size_bytes"`
+	SchemaVersion        string                `json:"schema_version"`
+	PublishedAt          pgtype.Timestamptz    `json:"published_at"`
+	UpdatedAt            pgtype.Timestamptz    `json:"updated_at"`
+	ParentSessionID      pgtype.Text           `json:"parent_session_id"`
+	// ParentTranscriptID is the transcript published from ParentSessionID
+	// within the same owner, when this viewer may read it, resolved at read
+	// time (resolveParentTranscripts); null otherwise. It lets a reader fold a
+	// child under its parent without the owner's account id.
+	ParentTranscriptID      *schema.TranscriptID `json:"parent_transcript_id"`
+	IngestedAt              pgtype.Timestamptz   `json:"ingested_at"`
+	SourceFormat            pgtype.Text          `json:"source_format"`
+	GitBranch               pgtype.Text          `json:"git_branch"`
+	GitRemote               pgtype.Text          `json:"git_remote"`
+	ProjectHash             pgtype.Text          `json:"project_hash"`
+	ProjectName             pgtype.Text          `json:"project_name"`
+	ToolCallCount           pgtype.Int4          `json:"tool_call_count"`
+	SubagentCount           pgtype.Int4          `json:"subagent_count"`
+	DurationMs              pgtype.Int8          `json:"duration_ms"`
+	Subagents               []byte               `json:"subagents"`
+	DiagnosticsWarnings     []byte               `json:"diagnostics_warnings"`
+	DiagnosticsPartial      pgtype.Bool          `json:"diagnostics_partial"`
+	TokensIn                pgtype.Int8          `json:"tokens_in"`
+	TokensOut               pgtype.Int8          `json:"tokens_out"`
+	TitleGenerated          pgtype.Text          `json:"title_generated"`
+	Outcome                 pgtype.Text          `json:"outcome"`
+	FilesTouched            pgtype.Int4          `json:"files_touched"`
+	LinesChanged            pgtype.Int4          `json:"lines_changed"`
+	RetryLoops              pgtype.Int4          `json:"retry_loops"`
+	RetryTokensWasted       pgtype.Int4          `json:"retry_tokens_wasted"`
+	WithinSessionReverts    pgtype.Int4          `json:"within_session_reverts"`
+	SignalDensity           pgtype.Float4        `json:"signal_density"`
+	SpecQualityScore        pgtype.Float4        `json:"spec_quality_score"`
+	ExplorationRatio        pgtype.Float4        `json:"exploration_ratio"`
+	ScopeBreadth            pgtype.Int4          `json:"scope_breadth"`
+	DiscoveryTurns          pgtype.Int4          `json:"discovery_turns"`
+	M2TokenOutcomeRatio     pgtype.Float4        `json:"m2_token_outcome_ratio"`
+	M3UniqueToolCount       pgtype.Int4          `json:"m3_unique_tool_count"`
+	M4ErrorRecoveryCount    pgtype.Int4          `json:"m4_error_recovery_count"`
+	M4ConsecutiveErrorMax   pgtype.Int4          `json:"m4_consecutive_error_max"`
+	M5ContextUtilizationPct pgtype.Float4        `json:"m5_context_utilization_pct"`
+	M5PeakContextTokens     pgtype.Int4          `json:"m5_peak_context_tokens"`
+	M5AvgMessageTokens      pgtype.Int4          `json:"m5_avg_message_tokens"`
+	M6OutputSurvivalPct     pgtype.Float4        `json:"m6_output_survival_pct"`
+	M6LinesSurvived         pgtype.Int4          `json:"m6_lines_survived"`
+	M6LinesTotal            pgtype.Int4          `json:"m6_lines_total"`
+	M7SpecWordCount         pgtype.Int4          `json:"m7_spec_word_count"`
+	M7SpecHasExamples       pgtype.Bool          `json:"m7_spec_has_examples"`
+	M7SpecHasConstraints    pgtype.Bool          `json:"m7_spec_has_constraints"`
+	ComputedAt              pgtype.Timestamptz   `json:"computed_at"`
+	ComputeVersion          pgtype.Int4          `json:"compute_version"`
+	ContentHash             pgtype.Text          `json:"content_hash"`
+	LicenseID               pgtype.Text          `json:"license_id"`
 	// SessionOrigin says who drove the session: `user`, `agent`, or `unknown`.
 	// It scopes DISCOVERY only. Clients collapse `agent` rows into a labelled
 	// group instead of listing them at root level; every value still opens
@@ -93,9 +97,32 @@ type transcriptResponse struct {
 	//
 	// ProjectNameSource is the closed projectname.NameSource set, not a bare
 	// string, so an unknown tier cannot be introduced by accident on this wire.
-	ProjectDisplayName string                 `json:"project_display_name"`
-	ProjectNameSource  projectname.NameSource `json:"project_name_source"`
-	ProjectRemoteLabel string                 `json:"project_remote_label"`
+	//
+	// All three, and the raw repository fields above, are null when the owner
+	// is anonymous to this viewer (withholdRepository).
+	ProjectDisplayName *string                 `json:"project_display_name"`
+	ProjectNameSource  *projectname.NameSource `json:"project_name_source"`
+	ProjectRemoteLabel *string                 `json:"project_remote_label"`
+}
+
+// withholdRepository removes the repository identity of a transcript whose
+// owner is anonymous to the viewer: the git remote and its label name the
+// repository's owner, the branch and project names describe it, and the
+// project hash links one person's transcripts. Each becomes null. A profile
+// owner keeps every field.
+func (t transcriptResponse) withholdRepository(owner schema.VillagePublicOwner) transcriptResponse {
+	if owner.IsProfile() {
+		return t
+	}
+	t.GitBranch, t.GitRemote, t.ProjectHash, t.ProjectName = pgtype.Text{}, pgtype.Text{}, pgtype.Text{}, pgtype.Text{}
+	t.ProjectDisplayName, t.ProjectNameSource, t.ProjectRemoteLabel = nil, nil, nil
+	return t
+}
+
+// withParent attaches the resolved parent transcript id.
+func (t transcriptResponse) withParent(parent *schema.TranscriptID) transcriptResponse {
+	t.ParentTranscriptID = parent
+	return t
 }
 
 // withResolvedProject attaches the resolved identity to a projected transcript.
@@ -103,15 +130,19 @@ type transcriptResponse struct {
 // per-(owner, project) answer that a caller batches across a whole page, while the
 // projection is per row.
 func (t transcriptResponse) withResolvedProject(resolved projectname.Resolved) transcriptResponse {
-	t.ProjectDisplayName = resolved.DisplayName
-	t.ProjectNameSource = resolved.Source
-	t.ProjectRemoteLabel = resolved.RemoteLabel
+	displayName, source, remoteLabel := resolved.DisplayName, resolved.Source, resolved.RemoteLabel
+	t.ProjectDisplayName, t.ProjectNameSource, t.ProjectRemoteLabel = &displayName, &source, &remoteLabel
 	return t
 }
 
 func toTranscriptResponse(r sqlc.Transcript) transcriptResponse {
+	// A route that resolves no project identity serves the three rendering
+	// fields as empty strings, as it did before they became nullable; null is
+	// reserved for a withheld repository.
+	emptyName, emptySource, emptyLabel := "", projectname.NameSource(""), ""
 	return transcriptResponse{
-		ID: r.ID, OwnerID: r.OwnerID, LocalID: r.LocalID, Title: r.Title, Description: r.Description, Visibility: r.Visibility, ModelProvider: r.ModelProvider, ModelName: r.ModelName, HarnessVersion: r.HarnessVersion,
+		ProjectDisplayName: &emptyName, ProjectNameSource: &emptySource, ProjectRemoteLabel: &emptyLabel,
+		ID: r.ID, LocalID: r.LocalID, Title: r.Title, Description: r.Description, Visibility: r.Visibility, ModelProvider: r.ModelProvider, ModelName: r.ModelName, HarnessVersion: r.HarnessVersion,
 		SessionStart: r.SessionStart, SessionEnd: r.SessionEnd, TurnCount: r.TurnCount, TokenCount: r.TokenCount, BlobSizeBytes: r.BlobSizeBytes, SchemaVersion: r.SchemaVersion, PublishedAt: r.PublishedAt, UpdatedAt: r.UpdatedAt,
 		ParentSessionID: r.ParentSessionID, IngestedAt: r.IngestedAt, SourceFormat: r.SourceFormat, GitBranch: r.GitBranch, GitRemote: r.GitRemote, ProjectHash: pgtype.Text{String: r.ProjectHash, Valid: true}, ProjectName: r.ProjectName,
 		ToolCallCount: r.ToolCallCount, SubagentCount: r.SubagentCount, DurationMs: r.DurationMs, Subagents: r.Subagents, DiagnosticsWarnings: r.DiagnosticsWarnings, DiagnosticsPartial: r.DiagnosticsPartial,
@@ -156,13 +187,18 @@ func projectPageTranscriptResponse(row sqlc.Transcript, resolved projectname.Res
 
 type groupTranscriptResponse struct {
 	transcriptResponse
-	OwnerUsername       pgtype.Text                       `json:"owner_username"`
-	OwnerAvatarURL      pgtype.Text                       `json:"owner_avatar_url"`
-	OwnerIsDiscoverable bool                              `json:"owner_is_discoverable"`
-	PullRequests        schema.VillagePullRequestsSummary `json:"pull_requests"`
+	// Owner is the transcript's owner as the viewer may see them.
+	Owner        schema.VillagePublicOwner         `json:"owner"`
+	PullRequests schema.VillagePullRequestsSummary `json:"pull_requests"`
 }
 
-func groupTranscriptFromRow(row sqlc.ListGroupTranscriptsRow) groupTranscriptResponse {
+// groupTranscriptStoredRow is the stored transcript a collective library row
+// was read from.
+func groupTranscriptStoredRow(row sqlc.ListGroupTranscriptsRow) sqlc.Transcript {
+	return sqlc.Transcript{ID: row.ID, OwnerID: row.OwnerID, ParentSessionID: row.ParentSessionID}
+}
+
+func groupTranscriptFromRow(row sqlc.ListGroupTranscriptsRow, owner schema.VillagePublicOwner) groupTranscriptResponse {
 	dbRow := sqlc.Transcript{
 		ID: row.ID, OwnerID: row.OwnerID, LocalID: row.LocalID, Title: row.Title, Description: row.Description, Visibility: row.Visibility,
 		ModelProvider: row.ModelProvider, ModelName: row.ModelName, HarnessVersion: row.HarnessVersion, SessionStart: row.SessionStart, SessionEnd: row.SessionEnd,
@@ -185,10 +221,8 @@ func groupTranscriptFromRow(row sqlc.ListGroupTranscriptsRow) groupTranscriptRes
 		SessionPurpose: row.SessionPurpose, SessionRelationships: row.SessionRelationships,
 	}
 	return groupTranscriptResponse{
-		transcriptResponse:  toTranscriptResponse(dbRow),
-		OwnerUsername:       pgtype.Text{String: row.OwnerUsername, Valid: row.OwnerUsername != ""},
-		OwnerAvatarURL:      row.OwnerAvatarUrl,
-		OwnerIsDiscoverable: row.OwnerIsDiscoverable,
-		PullRequests:        emptyPullRequestsSummary(),
+		transcriptResponse: toTranscriptResponse(dbRow),
+		Owner:              owner,
+		PullRequests:       emptyPullRequestsSummary(),
 	}
 }

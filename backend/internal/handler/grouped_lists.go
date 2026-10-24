@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
@@ -64,7 +66,7 @@ func (h *Handler) GroupedList(ctx context.Context, request GroupedScopeRequest, 
 	if err != nil {
 		return schema.VillageSessionListPayload{}, err
 	}
-	items, groups, ordinary, err := groupVillageRows(result.Rows, result.cyclic)
+	items, groups, ordinary, err := groupVillageRows(result.Rows, result.ownerKeys, result.cyclic)
 	if err != nil {
 		return schema.VillageSessionListPayload{}, err
 	}
@@ -113,7 +115,7 @@ func (h *Handler) ListHelperMembers(w http.ResponseWriter, r *http.Request) {
 		WriteGroupedScopeError(w, err)
 		return
 	}
-	_, groups, _, err := groupVillageRows(result.Rows, result.cyclic)
+	_, groups, _, err := groupVillageRows(result.Rows, result.ownerKeys, result.cyclic)
 	if err != nil {
 		WriteGroupedScopeError(w, err)
 		return
@@ -191,8 +193,8 @@ func groupedSortTime(row schema.VillageSessionRow) time.Time {
 	return row.Session.PublishedAt
 }
 
-func groupedIdentity(owner schema.VillageUUID, local schema.SessionID) string {
-	return string(owner) + "\x00" + string(local)
+func groupedIdentity(owner string, local schema.SessionID) string {
+	return owner + "\x00" + string(local)
 }
 
 func helperOwner(row schema.VillageSessionRow) (schema.SessionID, schema.RelationshipNavigationStatus) {
@@ -218,12 +220,25 @@ func helperOwner(row schema.VillageSessionRow) (schema.SessionID, schema.Relatio
 	return "", schema.RelationshipNavigationUnknown
 }
 
-func helperGroupID(row schema.VillageSessionRow, owner schema.SessionID) string {
-	parts := []string{"1", string(row.Session.OwnerID), string(owner), string(schema.SessionPurposeHelperReview)}
-	if owner == "" {
-		parts = []string{"1", string(row.Session.OwnerID), "unresolved", string(row.Session.LocalID), string(schema.SessionPurposeHelperReview)}
+// helperGroupKey keys the helper-group digest. The digest covers the owning
+// account, which an anonymous owner's viewer must not be able to confirm by
+// hashing a known account id, so it is keyed with a secret drawn once per
+// process. Group ids only need to be stable for the life of the in-memory
+// scope cache, which a restart clears anyway.
+var helperGroupKey = func() []byte {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		panic(fmt.Sprintf("handler: the helper-group key could not be drawn from the system random source; grouped lists cannot hide owner accounts without it; restart once the random source is available: %v", err))
 	}
-	hash := sha256.New()
+	return key
+}()
+
+func helperGroupID(ownerKey string, row schema.VillageSessionRow, owner schema.SessionID) string {
+	parts := []string{"1", ownerKey, string(owner), string(schema.SessionPurposeHelperReview)}
+	if owner == "" {
+		parts = []string{"1", ownerKey, "unresolved", string(row.Session.LocalID), string(schema.SessionPurposeHelperReview)}
+	}
+	hash := hmac.New(sha256.New, helperGroupKey)
 	for _, part := range parts {
 		var length [8]byte
 		binary.BigEndian.PutUint64(length[:], uint64(len(part)))
@@ -235,7 +250,7 @@ func helperGroupID(row schema.VillageSessionRow, owner schema.SessionID) string 
 
 // groupVillageRows only sees the selected candidate domain. No lookup of a
 // hidden owner's title, time or usage is needed to construct a context container.
-func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.TranscriptID]bool) ([]schema.VillageSessionListItem, map[string][]schema.VillageSessionListItem, int, error) {
+func groupVillageRows(rows []schema.VillageSessionRow, ownerKeys map[schema.TranscriptID]string, cyclic map[schema.TranscriptID]bool) ([]schema.VillageSessionListItem, map[string][]schema.VillageSessionListItem, int, error) {
 	byIdentity := make(map[string]schema.VillageSessionRow, len(rows))
 	seenIDs := make(map[schema.TranscriptID]bool, len(rows))
 	for _, row := range rows {
@@ -248,7 +263,10 @@ func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.Transcr
 		if err := schema.ValidateSessionRelationships(row.Session.Relationships); err != nil {
 			return nil, nil, 0, err
 		}
-		key := groupedIdentity(row.Session.OwnerID, row.Session.LocalID)
+		if ownerKeys[row.Session.ID] == "" {
+			return nil, nil, 0, fmt.Errorf("handler helper grouping: a candidate carries no owning account during projection; no rows returned; correct the route resolver to record each row's owner")
+		}
+		key := groupedIdentity(ownerKeys[row.Session.ID], row.Session.LocalID)
 		if _, exists := byIdentity[key]; exists || seenIDs[row.Session.ID] {
 			return nil, nil, 0, fmt.Errorf("handler helper grouping: duplicate candidate identity during projection; no rows returned; correct the originating SQL to return distinct transcripts")
 		}
@@ -267,10 +285,10 @@ func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.Transcr
 			owner, status = "", schema.RelationshipNavigationConflicting
 		}
 		// Only a cycle actually containing this helper invalidates its owner.
-		visited := map[string]bool{groupedIdentity(row.Session.OwnerID, row.Session.LocalID): true}
+		visited := map[string]bool{groupedIdentity(ownerKeys[row.Session.ID], row.Session.LocalID): true}
 		next := owner
 		for next != "" {
-			key := groupedIdentity(row.Session.OwnerID, next)
+			key := groupedIdentity(ownerKeys[row.Session.ID], next)
 			if visited[key] {
 				owner, status = "", schema.RelationshipNavigationConflicting
 				break
@@ -282,10 +300,10 @@ func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.Transcr
 			}
 			next, _ = helperOwner(parent)
 		}
-		id := helperGroupID(row, owner)
+		id := helperGroupID(ownerKeys[row.Session.ID], row, owner)
 		groups[id] = append(groups[id], row)
 		if owner != "" {
-			owners[id] = groupedIdentity(row.Session.OwnerID, owner)
+			owners[id] = groupedIdentity(ownerKeys[row.Session.ID], owner)
 		}
 		statuses[id] = status
 	}
@@ -293,7 +311,7 @@ func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.Transcr
 	times := map[string]time.Time{}
 	byItemIdentity := map[string]*schema.VillageSessionListItem{}
 	for i := range rows {
-		byItemIdentity[groupedIdentity(rows[i].Session.OwnerID, rows[i].Session.LocalID)] = &schema.VillageSessionListItem{Kind: schema.SessionListItemTranscript, Transcript: &rows[i]}
+		byItemIdentity[groupedIdentity(ownerKeys[rows[i].Session.ID], rows[i].Session.LocalID)] = &schema.VillageSessionListItem{Kind: schema.SessionListItemTranscript, Transcript: &rows[i]}
 		if rows[i].Session.Purpose == schema.SessionPurposeHelperReview {
 			continue
 		}
@@ -328,7 +346,7 @@ func groupVillageRows(rows []schema.VillageSessionRow, cyclic map[schema.Transcr
 	memberItems := make(map[string][]schema.VillageSessionListItem, len(groups))
 	for id, members := range groups {
 		for _, row := range members {
-			memberItems[id] = append(memberItems[id], *byItemIdentity[groupedIdentity(row.Session.OwnerID, row.Session.LocalID)])
+			memberItems[id] = append(memberItems[id], *byItemIdentity[groupedIdentity(ownerKeys[row.Session.ID], row.Session.LocalID)])
 		}
 	}
 	itemKey := func(item schema.VillageSessionListItem) string {

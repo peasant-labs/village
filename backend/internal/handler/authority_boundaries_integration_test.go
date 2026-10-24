@@ -37,6 +37,8 @@ type authorityBoundaryCase struct {
 	Newer     string   `yaml:"newer"`
 	Key       string   `yaml:"key"`
 	Fields    []string `yaml:"fields"`
+	// PublicFields is the exact field set of the public profile route.
+	PublicFields []string `yaml:"public_fields"`
 }
 
 func loadAuthorityBoundaryFixtures(t *testing.T) []authorityBoundaryCase {
@@ -520,11 +522,15 @@ func boundaryPrivateJSON(t *testing.T, ctx context.Context, h *Handler, w *share
 		if _, exists := raw["github_org_sync_generation"]; exists {
 			t.Fatalf("private generation leaked on %s", path)
 		}
-		if len(c.Fields) == 0 {
+		fields := c.Fields
+		if path != "/auth/me" {
+			fields = c.PublicFields
+		}
+		if len(fields) == 0 {
 			t.Fatal("raw user fixture lacks independent field inventory")
 		}
 		expected := map[string]bool{}
-		for _, field := range c.Fields {
+		for _, field := range fields {
 			expected[field] = true
 			if _, ok := raw[field]; !ok {
 				t.Fatalf("user response lost field %s", field)

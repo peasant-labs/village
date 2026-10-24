@@ -231,6 +231,22 @@ func (h *Handler) resolveCollectiveGroupedScope(ctx context.Context, request Gro
 		}
 	}
 	projects := h.resolveProjectIdentities(ctx, keys)
+	ownerIDs := make([]pgtype.UUID, 0, len(rows))
+	for _, row := range rows {
+		ownerIDs = append(ownerIDs, row.Transcript.OwnerID)
+	}
+	owners, err := h.resolvePublicOwners(ctx, GetUser(ctx), ownerIDs)
+	if err != nil {
+		return result, collectiveGroupedFailure(500, "resolveCollectiveGroupedScope", "the owners' profile visibility could not be read", "retry the collective page; a failed read is not an anonymous owner")
+	}
+	stored := make([]sqlc.Transcript, 0, len(rows))
+	for _, row := range rows {
+		stored = append(stored, row.Transcript)
+	}
+	parents, err := h.resolveParentTranscriptsOf(ctx, GetUser(ctx), stored)
+	if err != nil {
+		return result, collectiveGroupedFailure(500, "resolveCollectiveGroupedScope", "the parent sessions could not be resolved", "retry the collective page")
+	}
 	for _, row := range rows {
 		key := projectIdentityKey{OwnerID: row.Transcript.OwnerID, ProjectHash: row.Transcript.ProjectHash}
 		session, err := groupedSessionFromTranscript(row.Transcript, projects[key])
@@ -240,21 +256,24 @@ func (h *Handler) resolveCollectiveGroupedScope(ctx context.Context, request Gro
 			// row can be found, and keep the shared refusal shape.
 			return result, collectiveGroupedFailure(500, "resolveCollectiveGroupedScope", fmt.Sprintf("stored transcript metadata for transcript %s could not be projected into the canonical response", uuidFromPg(row.Transcript.ID).String()), "retry after the deployed contract and the stored metadata agree, and report the transcript identifier if the read still fails")
 		}
+		session.ParentTranscriptID = parents.of(row.Transcript.ID)
+		owner := owners.of(row.Transcript.OwnerID)
+		withholdSessionRepository(&session, owner)
 		var projected schema.VillageSessionRow
 		switch request.Variant {
 		case GroupedRouteCollective:
-			projected = collectiveSessionRow(session, row.OwnerUsername, pgTextPointer(row.OwnerAvatarUrl), row.OwnerIsDiscoverable)
+			projected = collectiveSessionRow(session, owner)
 		case GroupedRoutePending:
-			projected = pendingSessionRow(session, row.OwnerUsername, row.OwnerIsDiscoverable, row.SharedAt.Time)
+			projected = pendingSessionRow(session, owner, row.SharedAt.Time)
 		case GroupedRouteMyShares:
-			projected = myShareSessionRow(session, schema.VillageShareStatus(row.ShareStatus), row.SharedAt.Time)
+			projected = myShareSessionRow(session, owner, schema.VillageShareStatus(row.ShareStatus), row.SharedAt.Time)
 		case GroupedRouteContributable:
-			projected = contributableSessionRow(session, row.AlreadyShared)
+			projected = contributableSessionRow(session, owner, row.AlreadyShared)
 		}
 		if err := projected.Validate(); err != nil {
 			return result, err
 		}
-		result.Rows = append(result.Rows, projected)
+		result.add(projected, row.Transcript.OwnerID)
 	}
 	return result, nil
 }

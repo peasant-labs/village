@@ -18,4 +18,7 @@
 - {name: creator-delete-cascade-waits-for-collective-authority-row, operation: cascade, key: group}
 - name: private-org-generation-never-enters-raw-user-endpoints
   operation: private-json
+  # /auth/me is the caller's own account record.
   fields: [id, github_id, github_username, display_name, avatar_url, created_at, updated_at, is_discoverable, provider, provider_user_id, username_chosen, provider_username, preview_before_attach, auto_attach_pull_requests]
+  # /users/{username} shows a person to any viewer: the public profile only.
+  public_fields: [kind, id, username, display_name, avatar_url]
