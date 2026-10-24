@@ -106,6 +106,29 @@ section.on-choices {
 .on-pr-repo {
   color: var(--ink-4);
 }
+/* A collective's transcript tables (its transcripts, and those waiting) on a
+   phone: the table fits the screen. The contributor, agent and turns or
+   status columns give way, and each row states them under its title; the
+   title and when stay. Wider, the facts line is not drawn and the columns
+   carry them. */
+.on-ctable .on-ctable-facts {
+  display: none;
+  gap: var(--sp-1) var(--sp-3);
+}
+@media (max-width: 767px) {
+  .on-tbl table.on-ctable {
+    min-width: 0;
+  }
+  .on-ctable .on-ctable-title {
+    min-width: 0;
+  }
+  .on-ctable .is-wide {
+    display: none;
+  }
+  .on-ctable .on-ctable-facts {
+    display: flex;
+  }
+}
 .on-handle-cell {
   font-family: var(--font-mono);
   font-size: var(--fs-sm);

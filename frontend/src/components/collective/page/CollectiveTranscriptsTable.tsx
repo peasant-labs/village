@@ -43,9 +43,13 @@ export default function CollectiveTranscriptsTable({
           <thead>
             <tr>
               <th scope="col">transcript</th>
-              <th scope="col">contributor</th>
-              <th scope="col">agent</th>
-              <th scope="col" className="is-n">
+              <th scope="col" className="is-wide">
+                contributor
+              </th>
+              <th scope="col" className="is-wide">
+                agent
+              </th>
+              <th scope="col" className="is-n is-wide">
                 turns
               </th>
               <th scope="col" className="is-n">
@@ -75,14 +79,27 @@ export default function CollectiveTranscriptsTable({
                       {row.repo && <span className="on-pr-repo">{row.repo}</span>}
                     </span>
                   )}
+                  {/* On a phone the contributor, agent and turns columns give
+                      way, and the row states them under its title instead. */}
+                  <span className="is-sub on-ctable-facts" data-testid="collective-row-facts">
+                    <span>{row.author}</span>
+                    <span className="on-agent">
+                      <AgentCell provider={row.harness} />
+                    </span>
+                    {row.turns != null && (
+                      <span className="tabular-nums">
+                        {row.turns} {row.turns === 1 ? "turn" : "turns"}
+                      </span>
+                    )}
+                  </span>
                 </td>
-                <td className="on-handle-cell">{row.author}</td>
-                <td>
+                <td className="on-handle-cell is-wide">{row.author}</td>
+                <td className="is-wide">
                   <span className="on-agent">
                     <AgentCell provider={row.harness} />
                   </span>
                 </td>
-                <td className="is-n">{row.turns ?? ""}</td>
+                <td className="is-n is-wide">{row.turns ?? ""}</td>
                 <td className="is-n on-when">{row.when ?? ""}</td>
               </tr>
             ))}
