@@ -59,6 +59,11 @@ const user = {
   provider_username: 'alice-dev',
 }
 
+/* Each person as the server names them to this viewer: their public profile.
+   The viewer owns the collective, so the server shows them every contributor. */
+const OWNER_PROFILE = { kind: 'profile', id: OWNER_ID, username: 'alice-dev', display_name: 'Alice Developer', avatar_url: null }
+const VISITOR_PROFILE = { kind: 'profile', id: VISITOR_ID, username: 'bob-ai', display_name: null, avatar_url: null }
+
 /* Each route variant mints its OWN opaque member scope for the same group, so
    the member page can answer with the route's own row arm: the contribute route
    gets contributable rows, the review route gets pending rows. */
@@ -95,9 +100,8 @@ const members = [
   { id: '22222222-2222-4222-8222-0000000000a2', local: 'ses_capturehelper2', title: 'Guardian review of the storage lock' },
 ]
 
-const session = ({ id, local, title, ownerID = VISITOR_ID, parent = null }) => ({
+const session = ({ id, local, title, parent = null }) => ({
   id,
-  owner_id: ownerID,
   local_id: local,
   title,
   description: null,
@@ -114,6 +118,7 @@ const session = ({ id, local, title, ownerID = VISITOR_ID, parent = null }) => (
   published_at: '2026-09-01T11:00:00Z',
   updated_at: '2026-09-01T11:00:00Z',
   parent_session_id: parent,
+  parent_transcript_id: null,
   ingested_at: '2026-09-01T11:00:00Z',
   source_format: 'json',
   git_branch: 'develop',
@@ -183,14 +188,13 @@ const pendingArm = (row) => ({
   transcript_id: row.id,
   title: row.title,
   model_provider: 'claude-code',
-  owner_id: VISITOR_ID,
+  owner: VISITOR_PROFILE,
   local_id: row.local,
   parent_session_id: null,
+  parent_transcript_id: null,
   project_hash: HASH,
   project_name: 'village',
   branch: 'develop',
-  owner_username: 'bob-ai',
-  owner_is_discoverable: true,
   shared_at: '2026-09-02T10:00:00Z',
 })
 
@@ -198,9 +202,10 @@ const pendingArm = (row) => ({
    viewer is the collective's owner here, so the contribution belongs to them. */
 const myShareArm = (row, status = 'approved') => ({
   id: row.id,
-  owner_id: OWNER_ID,
+  owner: OWNER_PROFILE,
   local_id: row.local,
   parent_session_id: null,
+  parent_transcript_id: null,
   title: row.title,
   model_provider: 'claude-code',
   model_name: 'claude-opus-4-8',
@@ -244,8 +249,8 @@ const withArm = (row, arm) => {
 }
 
 const groupedItems = (arm, variant) => [
-  { kind: 'transcript', transcript: { session: session(owned[0]), ...withArm(owned[0], arm) }, helperGroups: [ownerGroup(variant)] },
-  { kind: 'transcript', transcript: { session: session(owned[1]), ...withArm(owned[1], arm) } },
+  { kind: 'transcript', transcript: { owner: VISITOR_PROFILE, session: session(owned[0]), ...withArm(owned[0], arm) }, helperGroups: [ownerGroup(variant)] },
+  { kind: 'transcript', transcript: { owner: VISITOR_PROFILE, session: session(owned[1]), ...withArm(owned[1], arm) } },
   {
     kind: 'context_container',
     context: { groupId: contextGroup(variant).groupId, ownerStatus: 'known_unavailable' },
@@ -264,7 +269,7 @@ const ordinaryOwner = (index) => ({
 const ordinaryPage = () =>
   Array.from({ length: LIST_PAGE_SIZE }, (_, index) => ({
     kind: 'transcript',
-    transcript: { session: session(ordinaryOwner(index)) },
+    transcript: { owner: VISITOR_PROFILE, session: session(ordinaryOwner(index)) },
   }))
 
 const listPage = (arm, variant, requestedPage = 1) => {
@@ -288,7 +293,7 @@ const groupRecord = {
   id: GROUP_ID,
   name: 'AI Research Collective',
   description: 'Shared governance for the village demo.',
-  created_by: OWNER_ID,
+  creator: OWNER_PROFILE,
   created_at: '2026-06-01T12:00:00Z',
   updated_at: '2026-06-28T12:00:00Z',
   acceptance_mode: 'curated',
@@ -300,8 +305,8 @@ const groupRecord = {
 
 const flatGroupDetail = {
   group: { ...groupRecord, role: 'owner', member_since: '2026-06-01T12:00:00Z', member_count: 1, transcript_count: owned.length },
-  members: [{ id: OWNER_ID, role: 'owner', joined_at: '2026-06-01T12:00:00Z', github_username: 'alice-dev', display_name: 'Alice Developer', avatar_url: null, github_orgs: [] }],
-  transcripts: EMPTY_FLAT ? [] : owned.map((row) => ({ ...session(row), owner_username: 'bob-ai', owner_avatar_url: null, owner_is_discoverable: true })),
+  members: [{ role: 'owner', joined_at: '2026-06-01T12:00:00Z', member: OWNER_PROFILE, github_orgs: [] }],
+  transcripts: EMPTY_FLAT ? [] : owned.map((row) => ({ ...session(row), owner: VISITOR_PROFILE })),
   stats: { total_transcripts: owned.length, contributor_count: 1, total_turns: 0, total_duration_ms: 0, total_tokens: 0 },
   models: [],
   contributors: [],
@@ -317,7 +322,7 @@ const groupedGroupDetail = (page = 1) => ({
 })
 
 const memberPayload = (arm) => ({
-  members: members.map((row) => ({ kind: 'transcript', transcript: { session: session(row), ...withArm(row, arm) } })),
+  members: members.map((row) => ({ kind: 'transcript', transcript: { owner: VISITOR_PROFILE, session: session(row), ...withArm(row, arm) } })),
   page: 1,
   limit: 20,
   total: members.length,
@@ -328,7 +333,7 @@ const memberPayload = (arm) => ({
    page that nests the saved helper group under the contribution the server
    grouped it with. Both the panel's rows and the nested members belong to the
    signed-in owner. */
-const myShareSession = (row) => session({ ...row, ownerID: OWNER_ID })
+const myShareSession = (row) => session(row)
 const flatMyShares = MY_SHARES ? myShareRows.map((row) => myShareArm(row, 'pending')) : []
 const groupedMySharesPage = () => {
   const items = MY_SHARES
@@ -336,6 +341,7 @@ const groupedMySharesPage = () => {
         {
           kind: 'transcript',
           transcript: {
+            owner: OWNER_PROFILE,
             session: myShareSession(myShareRows[0]),
             myShare: myShareArm(myShareRows[0], 'pending'),
           },
@@ -355,7 +361,7 @@ const groupedMySharesPage = () => {
 const myShareMemberPayload = {
   members: myShareMembers.map((row) => ({
     kind: 'transcript',
-    transcript: { session: myShareSession(row), myShare: myShareArm(row) },
+    transcript: { owner: OWNER_PROFILE, session: myShareSession(row), myShare: myShareArm(row) },
   })),
   page: 1,
   limit: 20,

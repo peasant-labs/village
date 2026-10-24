@@ -88,8 +88,8 @@ function attachmentResponse(scenario) {
       head_sha: '9f3c2ab41d7e08c5a6b2f9e0d3c7a1b4e5f60718',
       is_private_repository: true,
       state: reader ? 'attached' : 'preview',
-      author_user_id: AUTHOR_ID,
-      requested_by_github_id: null,
+      author: { kind: 'profile', id: AUTHOR_ID, username: 'alice-dev', display_name: null, avatar_url: null },
+      requested_by: null,
       comment_id: reader ? 22 : null,
       check_run_id: reader ? 11 : null,
       created_at: '2026-09-28T09:00:00Z',
@@ -117,7 +117,6 @@ function transcriptRead(row) {
   return {
     transcript: {
       id: row.id,
-      owner_id: AUTHOR_ID,
       local_id: `local-${row.id}`,
       title: row.title,
       description: null,
@@ -132,18 +131,7 @@ function transcriptRead(row) {
     tags: [],
     shares: [],
     enriched_shares: [],
-    owner: {
-      id: AUTHOR_ID,
-      github_id: 1,
-      github_username: 'alice-dev',
-      display_name: null,
-      avatar_url: null,
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-      is_discoverable: true,
-      username_chosen: true,
-      provider_username: 'alice-dev',
-    },
+    owner: { kind: 'profile', id: AUTHOR_ID, username: 'alice-dev', display_name: null, avatar_url: null },
   }
 }
 

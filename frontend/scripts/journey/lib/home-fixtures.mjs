@@ -115,7 +115,6 @@ const owner = {
 
 const transcript = (row) => ({
   id: row.id,
-  owner_id: owner.id,
   local_id: `local-${row.id}`,
   title: row.title,
   description: null,
@@ -132,6 +131,7 @@ const transcript = (row) => ({
   published_at: at(row.minutesAgo),
   updated_at: at(row.minutesAgo),
   parent_session_id: null,
+  parent_transcript_id: null,
   ingested_at: null,
   source_format: null,
   git_branch: row.branch,
@@ -184,7 +184,8 @@ const transcript = (row) => ({
 const listItem = (row) => ({
   transcript: transcript(row),
   tags: [],
-  owner,
+  // The viewer's own rows: the server names them to themselves by profile.
+  owner: { kind: 'profile', id: owner.id, username: owner.github_username, display_name: owner.display_name, avatar_url: owner.avatar_url },
   owner_orgs: null,
   attestations: null,
   shares: row.sharedWith.map((name) => {
@@ -205,7 +206,7 @@ const groupRow = (c) => ({
   id: c.id,
   name: c.name,
   description: null,
-  created_by: 'user-demo',
+  creator: { kind: 'profile', id: 'user-demo', username: HOME_VIEWER, display_name: null, avatar_url: null },
   created_at: '2023-06-01T12:00:00Z',
   updated_at: '2023-06-01T12:00:00Z',
   acceptance_mode: c.name === 'ML Reading Group' ? 'curated' : 'open',

@@ -254,7 +254,10 @@ const server = createServer((req, res) => {
       limit: Number(url.searchParams.get('limit') || '24'),
     })
   }
-  if (/^\/users\/[^/]+$/.test(path)) return send(res, 200, user)
+  // The public profile only, as the server sends it to any viewer.
+  if (/^\/users\/[^/]+$/.test(path)) {
+    return send(res, 200, { kind: 'profile', id: user.id, username: user.github_username, display_name: user.display_name, avatar_url: user.avatar_url })
+  }
 
   return send(res, 404, { error: `no mock route for ${req.method} ${url.pathname}` })
 })

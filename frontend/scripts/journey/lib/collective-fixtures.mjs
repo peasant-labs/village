@@ -19,6 +19,7 @@ import { parse } from 'yaml'
 import { createHash } from 'node:crypto'
 import { zVillageGroupedGroupDetailResponse, zVillageSessionListPayload, zVillageHelperMembersPayload } from '@peasant-labs/schema'
 import { makeTranscriptFixture } from '../../../src/test/transcriptRowFixture.ts'
+import { profileOwner } from '../../../src/test/publicOwnerFixture.ts'
 import { FROZEN_EPOCH_MS } from './determinism-constants.mjs'
 
 const retainedWorld = parse(readFileSync(new URL('../testdata/collective-retained-flows.yaml', import.meta.url), 'utf8'), { strict: true })
@@ -38,10 +39,16 @@ const emptyGrouped = (url) => ({ items: [], page: Number(url.searchParams.get('p
 function retainedGrouped(url) {
   const page = Number(url.searchParams.get('page') || 1)
   const limit = Number(url.searchParams.get('limit') || RETAINED_GROUPED.pageSize)
-  const items = page === 1 ? Array.from({ length: limit }, (_, index) => ({ kind: 'transcript', transcript: { session: makeTranscriptFixture({ id: fixtureUUID(`retained-ordinary-${index}`), owner_id: fixtureUUID('user-demo'), local_id: `ses_ordinary${index}`, visibility: 'private', title: `ordinary grouped contribution ${index}` }) } })) : [{ kind: 'context_container', context: { groupId: RETAINED_GROUPED.groupID, ownerStatus: 'known_unavailable' }, helperGroups: [{ groupId: RETAINED_GROUPED.groupID, purpose: RETAINED_GROUPED.purpose, helperThreadCount: 1, memberScope: RETAINED_GROUPED.memberScope }] }]
+  const items = page === 1 ? Array.from({ length: limit }, (_, index) => ({ kind: 'transcript', transcript: { owner: VIEWER_GROUPED, session: makeTranscriptFixture({ id: fixtureUUID(`retained-ordinary-${index}`), local_id: `ses_ordinary${index}`, visibility: 'private', title: `ordinary grouped contribution ${index}` }) } })) : [{ kind: 'context_container', context: { groupId: RETAINED_GROUPED.groupID, ownerStatus: 'known_unavailable' }, helperGroups: [{ groupId: RETAINED_GROUPED.groupID, purpose: RETAINED_GROUPED.purpose, helperThreadCount: 1, memberScope: RETAINED_GROUPED.memberScope }] }]
   return validated(zVillageSessionListPayload, { items, page, limit, totalItems: RETAINED_GROUPED.totalItems, ordinarySessionTotal: RETAINED_GROUPED.pageSize, helperThreadTotal: 1 })
 }
 const VIEWER_ID = 'user-demo'
+const VIEWER_LOGIN = 'alice-dev'
+/** The viewer as the grouped reads name them: their own profile, under a real UUID. */
+const VIEWER_GROUPED = profileOwner({ id: fixtureUUID(VIEWER_ID), github_username: VIEWER_LOGIN })
+/** A person's public profile from the fixture's legacy account id: `user-<login>`, or the viewer. */
+const LOGINS = { [VIEWER_ID]: VIEWER_LOGIN, 'user-bob': 'bob-ai', 'user-carol': 'carol-ml', 'user-dan': 'dan-ops' }
+const personRef = (id) => profileOwner({ id, github_username: LOGINS[id] ?? id.replace(/^user-/, '') })
 const ago = (minutes) => new Date(FROZEN_EPOCH_MS - minutes * 60_000).toISOString()
 
 export const JOURNEY_COLLECTIVES = {
@@ -54,10 +61,7 @@ export const JOURNEY_COLLECTIVES = {
 }
 
 const person = (id, login, name, role) => ({
-  id,
-  github_username: login,
-  display_name: name,
-  avatar_url: null,
+  member: profileOwner({ id, github_username: login, display_name: name }),
   github_orgs: [],
   joined_at: ago(60 * 24 * 90),
   role,
@@ -82,13 +86,13 @@ const transcript = (id, title, provider, turns, author, prs, minutes) => ({
   title,
   model_provider: provider,
   turn_count: turns,
-  owner_id: author.id,
-  owner_username: author.github_username,
-  owner_avatar_url: null,
-  owner_is_discoverable: true,
+  owner: author.member,
   pull_requests: prs,
   local_id: id,
   parent_session_id: id === "c41a9f20-0000-4000-8000-000000000002" ? "3f9c0a17-0000-4000-8000-000000000001" : null,
+  // The server resolves the parent within the same owner; here it is the row
+  // published from that session.
+  parent_transcript_id: id === "c41a9f20-0000-4000-8000-000000000002" ? "3f9c0a17-0000-4000-8000-000000000001" : null,
   project_hash: "a".repeat(64),
   project_display_name: prs.recent[0]?.name ?? "worker",
   project_name_source: "remote",
@@ -143,13 +147,13 @@ const linkedRow = (groupId, name) => {
     name,
     is_private: found?.is_private ?? false,
     installation_id: 4242,
-    linked_by: VIEWER_ID,
+    linked_by: personRef(VIEWER_ID),
     created_at: ago(60 * 24 * 30),
     last_synced_at: ago(60 * 3),
   }
 }
 
-const group = (id, name, description, overrides) => ({
+const group = (id, name, description, { creatorID = VIEWER_ID, ...overrides } = {}) => ({
   id,
   name,
   description,
@@ -160,7 +164,7 @@ const group = (id, name, description, overrides) => ({
   transcript_deletion_policy: 'user_choice',
   post_prompts_check: true,
   prompts_check_mode: 'informational',
-  created_by: VIEWER_ID,
+  creator: personRef(creatorID),
   created_at: ago(60 * 24 * 200),
   updated_at: ago(60 * 24 * 2),
   ...overrides,
@@ -190,7 +194,7 @@ function discoverEntries() {
   const { open, verified, curated } = DISCOVER_COLLECTIVES
   const crowd = (prefix, count) => Array.from({ length: count }, (_, n) => person(`user-${prefix}-${n}`, `${prefix}-${n}`, null, n === 0 ? 'owner' : 'member'))
   const entry = (row, description, overrides, members, transcripts) => ({
-    group: group(row.id, row.name, description, { created_by: members[0].id, ...overrides }),
+    group: group(row.id, row.name, description, { creatorID: members[0].member.id, ...overrides }),
     role: '',
     members,
     transcripts: [],
@@ -214,13 +218,13 @@ function freshWorld() {
         role: 'owner',
         members: PLATFORM_MEMBERS,
         transcripts: [...PLATFORM_TRANSCRIPTS],
-        myShares: RETAINED_CONTRIBUTIONS.map((row) => ({ id: row.id, title: row.title, model_provider: "claude-code", owner_id: VIEWER_ID, local_id: row.localID, parent_session_id: row.parentSessionID, visibility: "private", status: row.status, shared_at: ago(30) })),
+        myShares: RETAINED_CONTRIBUTIONS.map((row) => ({ id: row.id, title: row.title, model_provider: "claude-code", owner: personRef(VIEWER_ID), local_id: row.localID, parent_session_id: row.parentSessionID, parent_transcript_id: RETAINED_CONTRIBUTIONS.find((other) => other.localID === row.parentSessionID)?.id ?? null, visibility: "private", status: row.status, shared_at: ago(30) })),
         stats: { total_transcripts: 248, contributor_count: 9, total_turns: 9120, total_duration_ms: 3_600_000 * 41, total_tokens: 124_000_000, pull_request_count: 31 },
         linked: ['ingest-api', 'web'],
         memberSince: ago(60 * 24 * 150),
       },
       [member.id]: {
-        group: group(member.id, member.name, 'Every team at Acme.', { acceptance_mode: 'verified_only', linked_github_org: 'acme', created_by: 'user-bob' }),
+        group: group(member.id, member.name, 'Every team at Acme.', { acceptance_mode: 'verified_only', linked_github_org: 'acme', creatorID: 'user-bob' }),
         role: 'member',
         members: [person('user-bob', 'bob-ai', 'Bob Ainsley', 'owner'), person(VIEWER_ID, 'alice-dev', 'Alice Developer', 'member'), person('user-carol', 'carol-ml', 'Carol Mendes', 'contributor')],
         transcripts: PLATFORM_TRANSCRIPTS.slice(0, 3),
@@ -229,7 +233,7 @@ function freshWorld() {
         memberSince: ago(60 * 24 * 40),
       },
       [visitor.id]: {
-        group: group(visitor.id, visitor.name, 'Papers we read and the sessions that reproduce them.', { created_by: 'user-carol' }),
+        group: group(visitor.id, visitor.name, 'Papers we read and the sessions that reproduce them.', { creatorID: 'user-carol' }),
         role: '',
         members: [person('user-carol', 'carol-ml', 'Carol Mendes', 'owner'), person('user-dan', 'dan-ops', 'Dan Okafor', 'member')],
         transcripts: [],
@@ -336,7 +340,7 @@ export function handleCollectiveRequest(req, res) {
 
   if (req.method === 'GET' && path === `/transcript-groups/${RETAINED_GROUPED.groupID}/members`) {
     if (url.searchParams.get('scope') !== RETAINED_GROUPED.memberScope) { send(res, 409, { error: 'scope expired' }); return true }
-    const member = { kind: 'transcript', transcript: { session: makeTranscriptFixture({ id: RETAINED_GROUPED.memberID, owner_id: fixtureUUID(VIEWER_ID), local_id: 'ses_laterhelper', title: RETAINED_GROUPED.title, visibility: 'private' }) } }
+    const member = { kind: 'transcript', transcript: { owner: VIEWER_GROUPED, session: makeTranscriptFixture({ id: RETAINED_GROUPED.memberID, local_id: 'ses_laterhelper', title: RETAINED_GROUPED.title, visibility: 'private' }) } }
     send(res, 200, validated(zVillageHelperMembersPayload, { members: [member], page: 1, limit: Number(url.searchParams.get('limit')), total: 1 }))
     return true
   }
@@ -355,7 +359,7 @@ export function handleCollectiveRequest(req, res) {
   const rest = match[2] || ''
 
   if (rest === '' && req.method === 'GET') {
-    send(res, 200, url.searchParams.get("view") === "grouped" ? validated(zVillageGroupedGroupDetailResponse, { ...detail(entry, url), group: { ...entry.group, created_by: fixtureUUID(entry.group.created_by) }, members: entry.members.map((member) => ({ ...member, id: fixtureUUID(member.id) })), transcriptList: emptyGrouped(url) }) : detail(entry, url))
+    send(res, 200, url.searchParams.get("view") === "grouped" ? validated(zVillageGroupedGroupDetailResponse, { ...detail(entry, url), group: { ...entry.group, creator: { ...entry.group.creator, id: fixtureUUID(entry.group.creator.id) } }, members: entry.members.map((member) => ({ ...member, member: { ...member.member, id: fixtureUUID(member.member.id) } })), transcriptList: emptyGrouped(url) }) : detail(entry, url))
     return true
   }
   if (rest === '' && req.method === 'PATCH') {
@@ -412,7 +416,7 @@ export function handleCollectiveRequest(req, res) {
   const memberRole = rest.match(/^\/members\/([^/]+)\/role$/)
   if (memberRole && req.method === 'PATCH') {
     readJSON(req).then((body) => {
-      entry.members = entry.members.map((m) => (m.id === memberRole[1] ? { ...m, role: body.role } : m))
+      entry.members = entry.members.map((m) => (m.member.id === memberRole[1] ? { ...m, role: body.role } : m))
       send(res, 200, { status: 'updated', role: body.role })
     })
     return true
@@ -445,11 +449,10 @@ export function applyCollectivePageScenario(name) {
       transcript_id: row.transcript_id,
       title: row.title,
       model_provider: row.provider,
-      owner_id: row.owner,
-      owner_username: row.login,
-      owner_is_discoverable: true,
+      owner: profileOwner({ id: row.owner, github_username: row.login }),
       local_id: `local-${row.transcript_id.slice(-4)}`,
       parent_session_id: null,
+      parent_transcript_id: null,
       project_hash: 'b'.repeat(64),
       project_name: row.project,
       branch: row.branch,
@@ -479,7 +482,7 @@ export function handleCollectivePageRequest(req, res) {
   }
   const member = rest.match(/^\/members\/([^/]+)$/)
   if (member && req.method === 'DELETE') {
-    entry.members = entry.members.filter((m) => m.id !== decodeURIComponent(member[1]))
+    entry.members = entry.members.filter((m) => m.member.id !== decodeURIComponent(member[1]))
     send(res, 200, { status: 'removed' })
     return true
   }
@@ -562,7 +565,7 @@ export function handleNewCollectiveRequest(req, res, scenario) {
         send(res, 404, { error: `@${body.username} hasn't joined the platform yet. They need to sign in first.` })
         return
       }
-      entry.members = [...entry.members.filter((m) => m.github_username !== body.username), person(`user-${body.username}`, body.username, null, 'member')]
+      entry.members = [...entry.members.filter((m) => m.member.username !== body.username), person(`user-${body.username}`, body.username, null, 'member')]
       send(res, 200, { status: 'added' })
     })
     return true

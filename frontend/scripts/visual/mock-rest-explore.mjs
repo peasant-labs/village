@@ -18,12 +18,16 @@ import { pathToFileURL } from 'node:url'
 
 const PORT = Number(process.env.MOCK_REST_PORT || 8789)
 
+// Each owner as the server names them to this viewer: a public profile, or
+// anonymous for someone who keeps their profile hidden.
+const profile = (username, display_name) => ({ kind: 'profile', id: `owner-${username}`, username, display_name, avatar_url: null })
 const owners = {
-  'alice-dev': { github_username: 'alice-dev', display_name: 'Alice Developer', avatar_url: null },
-  'bob-ai': { github_username: 'bob-ai', display_name: 'Bob AI', avatar_url: null },
-  'charlie-ml': { github_username: 'charlie-ml', display_name: 'Charlie ML', avatar_url: null },
-  'dana-ops': { github_username: 'dana-ops', display_name: 'Dana Ops', avatar_url: null },
+  'alice-dev': profile('alice-dev', 'Alice Developer'),
+  'bob-ai': profile('bob-ai', 'Bob AI'),
+  'charlie-ml': profile('charlie-ml', 'Charlie ML'),
+  'dana-ops': profile('dana-ops', 'Dana Ops'),
 }
+const ANONYMOUS = { kind: 'anonymous' }
 
 // The Explore capture is now taken signed-in (explore-shoot.mjs sets the same peasant_token
 // cookie manage-shoot.mjs uses) so the nav shows the signed-in home | collectives set,
@@ -154,7 +158,7 @@ const transcripts = [
     git_branch: 'scratch',
     project_name: 'scratch',
     tags: ['iterative-refinement'],
-    owner: { github_username: 'anon', display_name: null, avatar_url: null },
+    owner: ANONYMOUS,
   },
 ]
 
@@ -270,10 +274,19 @@ const send = (res, code, body) => {
   res.end(body == null ? '' : JSON.stringify(body))
 }
 
+/* The server resolves a row's parent within the same owner: the row of that
+   owner published from the named session, or null when it serves none. */
+function resolvedParent(row) {
+  if (row.parent_session_id == null) return null
+  const parent = [...transcripts, ...childTranscripts].find(
+    (other) => other.id === row.parent_session_id && other.owner === row.owner,
+  )
+  return parent?.id ?? null
+}
+
 const toListItem = (row, sessionOrigin) => ({
   transcript: {
     id: row.id,
-    owner_id: `owner-${row.owner.github_username || 'anon'}`,
     local_id: row.id,
     title: row.title,
     description: `${row.project_name} browse fixture`,
@@ -291,6 +304,7 @@ const toListItem = (row, sessionOrigin) => ({
     published_at: row.session_start,
     updated_at: row.session_end,
     parent_session_id: row.parent_session_id ?? null,
+    parent_transcript_id: resolvedParent(row),
     ingested_at: row.session_end,
     source_file_path: null,
     source_format: 'json',
@@ -417,7 +431,7 @@ const filterTranscripts = (url) => {
         row.transcript.title,
         row.transcript.model_name,
         row.transcript.project_name,
-        row.owner.github_username,
+        row.owner.username,
         ...row.tags.map((tag) => tag.name),
       ]
         .filter(Boolean)

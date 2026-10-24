@@ -58,6 +58,24 @@ const otherUser = {
   provider_username: 'bob-ai',
 }
 
+/** A person as the server names them to another viewer: their public profile. */
+const profileOf = (account) => ({ kind: 'profile', id: account.id, username: account.github_username, display_name: account.display_name, avatar_url: account.avatar_url })
+const OWNER_PROFILE = profileOf(user)
+const OTHER_PROFILE = profileOf(otherUser)
+
+/* The server resolves each row's parent within the same owner and sends it as
+   `parent_transcript_id`. This mock states that resolution once per list: the
+   row of the same owner whose session id the row names, or null when the list
+   carries none. */
+const ROW_OWNERS = new Map()
+const remember = (row, ownerID) => { ROW_OWNERS.set(row, ownerID); return row }
+const withResolvedParents = (rows, idOf = (row) => row.id) => rows.map((row) => ({
+  ...row,
+  parent_transcript_id: row.parent_session_id == null
+    ? null
+    : idOf(rows.find((other) => ROW_OWNERS.get(other) === ROW_OWNERS.get(row) && other.local_id === row.parent_session_id) ?? {}) ?? null,
+}))
+
 const PEASANT_HASH = 'b'.repeat(64)
 const VILLAGE_HASH = 'c'.repeat(64)
 const PEASANT_REMOTE = 'git@github.com:peasant-labs/peasant.git'
@@ -82,9 +100,8 @@ const transcript = ({
   tokensIn,
   tokensOut,
   published,
-}) => ({
+}) => remember({
   id,
-  owner_id: ownerID,
   local_id: localID,
   title,
   description: null,
@@ -132,7 +149,7 @@ const transcript = ({
   within_session_reverts: 0,
   signal_density: 0.6,
   session_origin: 'user',
-})
+}, ownerID)
 
 // ── The profile library ──────────────────────────────────────────────────────
 // Two projects. The first holds a parent, the two sessions it started, and a
@@ -224,7 +241,7 @@ const libraryRows = [
 ]
 
 const libraryResponse = {
-  transcripts: libraryRows.map((t) => ({ transcript: t, tags: [], owner: user, shares: [] })),
+  transcripts: withResolvedParents(libraryRows).map((t) => ({ transcript: t, tags: [], owner: OWNER_PROFILE, shares: [] })),
   total: libraryRows.length,
   agent_total: 0,
   page: 1,
@@ -235,12 +252,10 @@ const libraryResponse = {
 // Five rows, because the page previews the first five before "browse data" is
 // opened. Three sit on one repository so the repos view has a fold too.
 
-const withOwner = (t, username, discoverable = true) => ({
+const withOwner = (t, username) => remember({
   ...t,
-  owner_username: username,
-  owner_avatar_url: null,
-  owner_is_discoverable: discoverable,
-})
+  owner: username === user.github_username ? OWNER_PROFILE : OTHER_PROFILE,
+}, ROW_OWNERS.get(t))
 
 const groupTranscripts = [
   withOwner(
@@ -348,7 +363,7 @@ const groupDetail = {
     linked_github_org: 'anthropic-labs',
     display_members: true,
     transcript_deletion_policy: 'user_choice',
-    created_by: OWNER_ID,
+    creator: OWNER_PROFILE,
     created_at: '2026-06-01T12:00:00Z',
     updated_at: '2026-06-28T12:00:00Z',
     // Curated, so the review queue this capture needs is served at all.
@@ -361,25 +376,19 @@ const groupDetail = {
   },
   members: [
     {
-      id: OWNER_ID,
       role: 'owner',
       joined_at: '2026-06-01T12:00:00Z',
-      github_username: 'alice-dev',
-      display_name: 'Alice Developer',
-      avatar_url: null,
+      member: OWNER_PROFILE,
       github_orgs: ['anthropic-labs'],
     },
     {
-      id: OTHER_ID,
       role: 'member',
       joined_at: '2026-06-10T12:00:00Z',
-      github_username: 'bob-ai',
-      display_name: 'Bob AI',
-      avatar_url: null,
+      member: OTHER_PROFILE,
       github_orgs: ['anthropic-labs'],
     },
   ],
-  transcripts: groupTranscripts,
+  transcripts: withResolvedParents(groupTranscripts),
   stats: {
     total_transcripts: groupTranscripts.length,
     contributor_count: 2,
@@ -393,8 +402,8 @@ const groupDetail = {
     { model_provider: 'codex', transcript_count: 1 },
   ],
   contributors: [
-    { id: OWNER_ID, github_username: 'alice-dev', avatar_url: null, transcript_count: 3 },
-    { id: OTHER_ID, github_username: 'bob-ai', avatar_url: null, transcript_count: 2 },
+    { contributor: OWNER_PROFILE, transcript_count: 3 },
+    { contributor: OTHER_PROFILE, transcript_count: 2 },
   ],
   can_read: true,
   your_role: 'owner',
@@ -403,17 +412,15 @@ const groupDetail = {
 
 // ── The review queue ─────────────────────────────────────────────────────────
 
-const pendingShare = ({ id, localID, parent, title, provider, at }) => ({
+const pendingShare = ({ id, localID, parent, title, provider, at }) => remember({
   transcript_id: id,
   title,
   model_provider: provider,
-  owner_id: OTHER_ID,
+  owner: OTHER_PROFILE,
   local_id: localID,
   parent_session_id: parent,
-  owner_username: 'bob-ai',
-  owner_is_discoverable: true,
   shared_at: at,
-})
+}, OTHER_ID)
 
 const pendingShares = [
   pendingShare({
@@ -452,9 +459,9 @@ const pendingShares = [
 
 // ── The caller's own contributions ───────────────────────────────────────────
 
-const myShare = ({ id, localID, parent, title, provider, status, at }) => ({
+const myShare = ({ id, localID, parent, title, provider, status, at }) => remember({
   id,
-  owner_id: OWNER_ID,
+  owner: OWNER_PROFILE,
   local_id: localID,
   parent_session_id: parent,
   title,
@@ -467,7 +474,7 @@ const myShare = ({ id, localID, parent, title, provider, status, at }) => ({
   tokens_out: 2000,
   status,
   shared_at: at,
-})
+}, OWNER_ID)
 
 const myShares = [
   myShare({
@@ -624,8 +631,8 @@ const server = createServer((req, res) => {
 
   if (req.method === 'GET' && p === '/auth/me') return send(res, 200, user)
   if (req.method === 'GET' && p === '/auth/orgs') return send(res, 200, [])
-  if (req.method === 'GET' && p === '/users/alice-dev') return send(res, 200, user)
-  if (req.method === 'GET' && p === '/users/bob-ai') return send(res, 200, otherUser)
+  if (req.method === 'GET' && p === '/users/alice-dev') return send(res, 200, OWNER_PROFILE)
+  if (req.method === 'GET' && p === '/users/bob-ai') return send(res, 200, OTHER_PROFILE)
   if (req.method === 'GET' && p === '/transcripts') return send(res, 200, libraryResponse)
   if (req.method === 'GET' && p === '/users/me/collectives/contributions') {
     return send(res, 200, { collectives: contributions })
@@ -634,10 +641,10 @@ const server = createServer((req, res) => {
   if (req.method === 'GET' && p === '/collectives/visible') return send(res, 200, [groupDetail.group])
   if (req.method === 'GET' && p === `/collectives/${GROUP_ID}`) return send(res, 200, groupDetail)
   if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/settings`) return send(res, 200, groupDetail)
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/pending`) return send(res, 200, pendingShares)
-  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/my-shares`) return send(res, 200, myShares)
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/pending`) return send(res, 200, withResolvedParents(pendingShares, (row) => row.transcript_id))
+  if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/my-shares`) return send(res, 200, withResolvedParents(myShares))
   if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/transcripts`) {
-    return send(res, 200, { transcripts: groupTranscripts })
+    return send(res, 200, { transcripts: withResolvedParents(groupTranscripts) })
   }
   if (req.method === 'GET' && p === `/collectives/${GROUP_ID}/contributable`) return send(res, 200, contributable)
   // No repository is linked here. Answered rather than refused, so the panel

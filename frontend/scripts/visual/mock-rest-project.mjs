@@ -61,6 +61,8 @@ const makeUser = (username, displayName) => ({
 })
 
 const owner = makeUser(OWNER_USERNAME, 'Alice Developer')
+/** The owner as the project and profile routes name them: their public profile. */
+const ownerProfile = { kind: 'profile', id: owner.id, username: owner.github_username, display_name: owner.display_name, avatar_url: owner.avatar_url }
 const otherViewer = makeUser('bob-reviewer', 'Bob Reviewer')
 
 // Live identity state. The correction routes mutate it, and the page re-reads
@@ -119,7 +121,6 @@ const collectives = [
 
 const transcript = (s, i) => ({
   id: `transcript-${i}`,
-  owner_id: owner.id,
   local_id: `local-${i}`,
   title: s.title,
   description: null,
@@ -136,6 +137,9 @@ const transcript = (s, i) => ({
   published_at: s.published,
   updated_at: s.published,
   parent_session_id: s.parent ?? null,
+  // The server resolves the parent within this one owner: the served row
+  // published from that session, or null when none is served.
+  parent_transcript_id: s.parent == null ? null : (sessions.findIndex((_, j) => `local-${j}` === s.parent) >= 0 ? `transcript-${sessions.findIndex((_, j) => `local-${j}` === s.parent)}` : null),
   ingested_at: null,
   source_format: null,
   git_branch: null,
@@ -196,7 +200,7 @@ const resolvedProject = () => ({
 
 const projectPage = () => ({
   project: resolvedProject(),
-  owner,
+  owner: ownerProfile,
   transcripts: sessions.map(transcript),
   collectives: ROLLUP === 'empty' ? [] : collectives,
 })
@@ -206,7 +210,7 @@ const profileTranscripts = () => ({
   transcripts: sessions.map((s, i) => ({
     transcript: transcript(s, i),
     tags: [],
-    owner,
+    owner: ownerProfile,
   })),
   total: sessions.length,
   agent_total: 0,
@@ -270,7 +274,7 @@ const server = createServer(async (req, res) => {
   // served from the SAME identity state, so the card heading and the project
   // heading always render the same string.
   if (req.method === 'GET' && path === `/users/${OWNER_USERNAME}`) {
-    return send(res, 200, owner)
+    return send(res, 200, ownerProfile)
   }
   if (req.method === 'GET' && path === '/transcripts') {
     return send(res, 200, profileTranscripts())
