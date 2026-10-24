@@ -44,6 +44,7 @@ const requiredPageCases = [
   "opened-from-a-collective",
   "opened-from-a-pull-request",
   "bound-to-a-pull-request-on-a-public-repository",
+  "not-marked-open-is-left-for-sign-in",
 ];
 
 export function loadSignedOutTranscriptFixtures(): { frameCases: FrameCase[]; pageCases: PageCase[] } {

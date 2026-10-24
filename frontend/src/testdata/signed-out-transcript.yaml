@@ -107,3 +107,12 @@ pageCases:
       - { owner: acme, name: widgets, number: 7, title: Fix flaky ingest test, head_ref: fix/flaky-ingest, state: attached }
     expectLeaving: false
     expectCrumbs: ["home", "village"]
+  - name: not-marked-open-is-left-for-sign-in
+    why: >-
+      the real page passes on the server's answer: a transcript it did not
+      mark open is never drawn for a signed-out visitor, who is sent to sign in.
+    openSignedOut: false
+    search: ""
+    pullRequests: []
+    expectLeaving: true
+    expectCrumbs: []
