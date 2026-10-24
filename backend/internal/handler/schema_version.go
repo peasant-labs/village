@@ -23,14 +23,16 @@ const minPushContractVersion schema.PushContractVersion = "0.1.0"
 // DISTINCT from the push window above: a client may pull a contract it could not
 // push, and vice versa, so they negotiate independently.
 //
-// Current is 0.2.0 because the pull list gained the optional collectives filter.
-// The floor stays 0.1.0: a village that predates the filter ignores the parameter
-// and would answer with the caller's whole pullable set, so a client that sends
-// it must refuse an older window rather than over-pull. Holding the floor also
-// keeps a 0.1.0 CLI working against this village.
+// The window is [0.3.0, 0.3.0]. 0.3.0 replaced the owner and annotation author
+// id and username strings with a public owner the server resolves per caller,
+// so an owner who is not discoverable is anonymous to callers who may not see
+// them. A pull request does not say which envelope the client reads, so Village
+// cannot keep serving the 0.2.0 shape to an older CLI without leaking the
+// identity 0.3.0 hides: the floor rises with it, and an older CLI receives the
+// existing pull-contract upgrade error instead.
 const (
-	pullContractVersion    schema.PushContractVersion = "0.2.0"
-	minPullContractVersion schema.PushContractVersion = "0.1.0"
+	pullContractVersion    schema.PushContractVersion = "0.3.0"
+	minPullContractVersion schema.PushContractVersion = "0.3.0"
 )
 
 // GetSchemaVersion returns the annotation schema version and supported types,

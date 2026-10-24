@@ -751,7 +751,7 @@ func TestAssociationAnnotationIngressSameLocalIDOwnerIsolationRealPostgres(t *te
 		t.Fatal("same-local owner A transcript is absent from owner A pull list")
 	}
 	pulledA := pullTranscriptAssociationAnnotations(t, h, ownerAID, uuid.UUID(transcriptA.ID.Bytes))
-	if len(pulledA) != 1 || pulledA[0].AuthorUserID != ownerAID.String() || pulledA[0].ContentHash == nil || *pulledA[0].ContentHash != ownerAItem.ContentHash {
+	if len(pulledA) != 1 || !pulledA[0].Author.IsAccount(schema.VillageUUID(ownerAID.String())) || pulledA[0].ContentHash == nil || *pulledA[0].ContentHash != ownerAItem.ContentHash {
 		t.Fatalf("same-local pull annotations for owner A = %+v, want only owner A annotation", pulledA)
 	}
 

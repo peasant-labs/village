@@ -349,7 +349,7 @@ func requireExactManualTarget(t *testing.T, ctx context.Context, h *Handler, vie
 		t.Fatalf("mounted pull count for %s = %d, want 1", label, info.AnnotationCount)
 	}
 	pulled := pullTranscriptAssociationAnnotations(t, h, viewerID, transcriptID)
-	if len(pulled) != 1 || pulled[0].ContentHash == nil || *pulled[0].ContentHash != wantHash || pulled[0].AuthorUserID != viewerID.String() {
+	if len(pulled) != 1 || pulled[0].ContentHash == nil || *pulled[0].ContentHash != wantHash || !pulled[0].Author.IsAccount(schema.VillageUUID(viewerID.String())) {
 		t.Fatalf("mounted pull annotation refetch for %s = %+v, want only viewer label", label, pulled)
 	}
 }

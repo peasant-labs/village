@@ -22,14 +22,15 @@ ORDER BY published_at ASC, id;
 -- APPROVED share to a group the requester is a member of). Public visibility and
 -- collective-owner preview are DELIBERATELY excluded (pull policy is narrower than
 -- canViewTranscript). This projects every column pullTranscriptInfo needs —
--- including content_hash, the owner's github_username (users join), and a
--- per-row annotation count (correlated subquery keyed on transcript UUID, matching
--- CountTranscriptAnnotations) — in ONE query per page, so the list handler does
--- not issue separate per-row transcript, content-hash, annotation-count, or owner
--- lookups. Together with the count query, listing takes two database round trips
--- instead of scaling with page size. Offset pagination (MVP). Newest-first by
+-- including content_hash and a per-row annotation count (correlated subquery
+-- keyed on transcript UUID, matching CountTranscriptAnnotations) — in ONE query
+-- per page, so the list handler does not issue separate per-row transcript,
+-- content-hash, or annotation-count lookups. The owner is owner_id only; the
+-- handler resolves every owner on the page in one ListPublicOwnersForViewer
+-- read. Together with the count query and that read, listing takes three
+-- database round trips instead of scaling with page size. Offset pagination (MVP). Newest-first by
 -- published_at for stable listing.
-SELECT DISTINCT t.id, t.local_id, t.owner_id, u.github_username AS owner_username,
+SELECT DISTINCT t.id, t.local_id, t.owner_id,
        t.title, t.model_provider, t.project_name, t.visibility, t.schema_version,
        t.published_at, t.updated_at, t.content_hash, t.license_id,
         (SELECT COUNT(*) FROM annotations a
@@ -45,7 +46,6 @@ SELECT DISTINCT t.id, t.local_id, t.owner_id, u.github_username AS owner_usernam
                     AND ta.transcript_id = t.id
               )) AS annotation_count
 FROM transcripts t
-JOIN users u ON u.id = t.owner_id
 LEFT JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 LEFT JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = $1
@@ -74,7 +74,7 @@ WHERE t.owner_id = $1 OR gm.user_id = $1;
 -- not in contributes no rows and no error (no membership or existence oracle).
 -- Projects the same columns as ListPullableTranscripts, including the per-row
 -- annotation count, newest-first, offset pagination.
-SELECT DISTINCT t.id, t.local_id, t.owner_id, u.github_username AS owner_username,
+SELECT DISTINCT t.id, t.local_id, t.owner_id,
        t.title, t.model_provider, t.project_name, t.visibility, t.schema_version,
        t.published_at, t.updated_at, t.content_hash, t.license_id,
         (SELECT COUNT(*) FROM annotations a
@@ -90,7 +90,6 @@ SELECT DISTINCT t.id, t.local_id, t.owner_id, u.github_username AS owner_usernam
                      AND ta.transcript_id = t.id
                )) AS annotation_count
 FROM transcripts t
-JOIN users u ON u.id = t.owner_id
 JOIN transcript_shares ts
     ON ts.transcript_id = t.id AND t.visibility = 'shared' AND ts.status = 'approved'
 JOIN group_members gm ON gm.group_id = ts.group_id AND gm.user_id = @user_id

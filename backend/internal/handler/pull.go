@@ -109,19 +109,17 @@ func wireTranscriptID(id pgtype.UUID) schema.TranscriptID {
 	return schema.TranscriptID(raw)
 }
 
-// pullTranscriptInfo builds the wire metadata view for one transcript. It looks
+// pullTranscriptInfo builds the wire metadata view for one transcript. It
 // reads the served-blob hash from the loaded row (NULL => empty ContentHash =>
-// client falls back to an unconditional GET), looks up the annotation count, and resolves the owner's account
-// identity via the users table (GetUserByID).
-func (h *Handler) pullTranscriptInfo(ctx context.Context, t sqlc.Transcript) schema.PullTranscriptInfo {
-	owner, _ := h.queries.GetUserByID(ctx, t.OwnerID)
+// client falls back to an unconditional GET), looks up the annotation count,
+// and carries the owner as the caller may see them (resolvePublicOwners).
+func (h *Handler) pullTranscriptInfo(ctx context.Context, t sqlc.Transcript, owner schema.VillagePublicOwner) schema.PullTranscriptInfo {
 	annCount, _ := h.queries.CountTranscriptAnnotations(ctx, t.ID)
 
 	info := schema.PullTranscriptInfo{
 		TranscriptID:    wireTranscriptID(t.ID),
 		LocalID:         t.LocalID,
-		OwnerUserID:     uuid.UUID(t.OwnerID.Bytes).String(),
-		OwnerUsername:   owner.GithubUsername,
+		Owner:           owner,
 		Title:           t.Title.String,
 		Harness:         schema.Harness(t.ModelProvider),
 		ProjectName:     t.ProjectName.String,
@@ -134,6 +132,10 @@ func (h *Handler) pullTranscriptInfo(ctx context.Context, t sqlc.Transcript) sch
 	}
 	if t.ContentHash.Valid {
 		info.ContentHash = t.ContentHash.String
+	}
+	if !owner.IsProfile() {
+		// The project name describes an anonymous owner's repository.
+		info.ProjectName = ""
 	}
 	return info
 }
@@ -199,9 +201,14 @@ func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request
 			writeError(w, http.StatusInternalServerError, "Failed to count pullable transcripts")
 			return
 		}
+		owners, ownerErr := h.resolvePublicOwners(r.Context(), user, pullRowOwners(rows))
+		if ownerErr != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to resolve the owners of pullable transcripts")
+			return
+		}
 		infos = make([]schema.PullTranscriptInfo, 0, len(rows))
 		for _, row := range rows {
-			infos = append(infos, pullInfoFromListRow(row))
+			infos = append(infos, pullInfoFromListRow(row, owners.of(row.OwnerID)))
 		}
 	} else {
 		rows, listErr := h.queries.ListPullableTranscriptsInCollective(r.Context(), sqlc.ListPullableTranscriptsInCollectiveParams{
@@ -222,12 +229,21 @@ func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request
 			writeError(w, http.StatusInternalServerError, "Failed to count pullable transcripts")
 			return
 		}
-		infos = make([]schema.PullTranscriptInfo, 0, len(rows))
+		converted := make([]sqlc.ListPullableTranscriptsRow, 0, len(rows))
 		for _, row := range rows {
 			// The filtered row carries the same columns in the same order as the
 			// unfiltered one, so one projector serves both. A field drift between
 			// the two queries breaks this conversion at compile time.
-			infos = append(infos, pullInfoFromListRow(sqlc.ListPullableTranscriptsRow(row)))
+			converted = append(converted, sqlc.ListPullableTranscriptsRow(row))
+		}
+		owners, ownerErr := h.resolvePublicOwners(r.Context(), user, pullRowOwners(converted))
+		if ownerErr != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to resolve the owners of pullable transcripts")
+			return
+		}
+		infos = make([]schema.PullTranscriptInfo, 0, len(converted))
+		for _, row := range converted {
+			infos = append(infos, pullInfoFromListRow(row, owners.of(row.OwnerID)))
 		}
 	}
 
@@ -273,16 +289,26 @@ func parseCollectiveFilter(raw string) ([]pgtype.UUID, error) {
 	return ids, nil
 }
 
+// pullRowOwners lists the owner of every row on a pull page, for one batched
+// resolvePublicOwners read.
+func pullRowOwners(rows []sqlc.ListPullableTranscriptsRow) []pgtype.UUID {
+	ids := make([]pgtype.UUID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.OwnerID)
+	}
+	return ids
+}
+
 // pullInfoFromListRow builds the wire metadata view from a batched
 // ListPullableTranscripts row. It mirrors pullTranscriptInfo's mapping exactly,
 // but every field is already in-hand from the single list query (no per-row
-// GetUserByID / GetTranscriptContentHash / CountTranscriptAnnotations).
-func pullInfoFromListRow(row sqlc.ListPullableTranscriptsRow) schema.PullTranscriptInfo {
+// GetTranscriptContentHash / CountTranscriptAnnotations), and the owner comes
+// from one batched resolvePublicOwners read for the page.
+func pullInfoFromListRow(row sqlc.ListPullableTranscriptsRow, owner schema.VillagePublicOwner) schema.PullTranscriptInfo {
 	info := schema.PullTranscriptInfo{
 		TranscriptID:    wireTranscriptID(row.ID),
 		LocalID:         row.LocalID,
-		OwnerUserID:     uuid.UUID(row.OwnerID.Bytes).String(),
-		OwnerUsername:   row.OwnerUsername,
+		Owner:           owner,
 		Title:           row.Title.String,
 		Harness:         schema.Harness(row.ModelProvider),
 		ProjectName:     row.ProjectName.String,
@@ -296,6 +322,10 @@ func pullInfoFromListRow(row sqlc.ListPullableTranscriptsRow) schema.PullTranscr
 	if row.ContentHash.Valid {
 		info.ContentHash = row.ContentHash.String
 	}
+	if !owner.IsProfile() {
+		// The project name describes an anonymous owner's repository.
+		info.ProjectName = ""
+	}
 	return info
 }
 
@@ -308,7 +338,12 @@ func (h *Handler) GetPullTranscript(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, h.pullTranscriptInfo(r.Context(), t))
+	owner, err := h.resolvePublicOwner(r.Context(), user, t.OwnerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the transcript owner")
+		return
+	}
+	writeJSON(w, http.StatusOK, h.pullTranscriptInfo(r.Context(), t, owner))
 }
 
 // GetPullTranscriptContent authenticates and decrypts the stored ciphertext,
@@ -354,9 +389,9 @@ func (h *Handler) GetPullTranscriptContent(w http.ResponseWriter, r *http.Reques
 
 // GetPullTranscriptAnnotations returns the authored annotations for a pullable
 // transcript as PullAnnotation rows: the existing AnnotationSummary plus the
-// village account identity (AuthorUserID/AuthorUsername) resolved via a users
-// join on annotations.owner_id. The author identity is what lets the client
-// foreign-mark pulled annotations and exclude its own during refresh.
+// author as the caller may see them. The caller's own rows always carry the
+// caller's profile, which is what lets the client exclude its own during
+// refresh; an anonymous author is foreign.
 // GET /api/v1/pull/transcripts/{id}/annotations (AuthRequired)
 func (h *Handler) GetPullTranscriptAnnotations(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
@@ -371,33 +406,26 @@ func (h *Handler) GetPullTranscriptAnnotations(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Resolve author identity per owner_id, caching lookups so a transcript with
-	// N annotations from M authors costs M user lookups, not N.
-	type author struct {
-		id       string
-		username string
+	// Every author as the caller may see them, in one read. A human annotator's
+	// name is the person's handle, so it follows the same answer.
+	authorIDs := make([]pgtype.UUID, 0, len(rows))
+	for _, row := range rows {
+		authorIDs = append(authorIDs, row.OwnerID)
 	}
-	authorCache := map[pgtype.UUID]author{}
-	resolveAuthor := func(ownerID pgtype.UUID) author {
-		if a, ok := authorCache[ownerID]; ok {
-			return a
-		}
-		u, _ := h.queries.GetUserByID(r.Context(), ownerID)
-		a := author{
-			id:       uuid.UUID(ownerID.Bytes).String(),
-			username: u.GithubUsername,
-		}
-		authorCache[ownerID] = a
-		return a
+	authors, err := h.resolvePublicOwners(r.Context(), user, authorIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve annotation authors")
+		return
 	}
 
 	annotations := make([]schema.PullAnnotation, 0, len(rows))
 	for _, row := range rows {
-		a := resolveAuthor(row.OwnerID)
+		author := authors.of(row.OwnerID)
+		summary := annotationRowToSummary(row)
+		summary.AnnotatorName = annotatorNameFor(summary, author)
 		annotations = append(annotations, schema.PullAnnotation{
-			AnnotationSummary: annotationRowToSummary(row),
-			AuthorUserID:      a.id,
-			AuthorUsername:    a.username,
+			AnnotationSummary: summary,
+			Author:            author,
 		})
 	}
 

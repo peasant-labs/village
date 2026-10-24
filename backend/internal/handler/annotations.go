@@ -51,9 +51,24 @@ func (h *Handler) ListTranscriptAnnotations(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// A human annotator's name is that person's handle, so it is shown only to a
+	// viewer who may see the person (resolvePublicOwners), and is otherwise
+	// replaced by the anonymous label.
+	authorIDs := make([]pgtype.UUID, 0, len(rows))
+	for _, row := range rows {
+		authorIDs = append(authorIDs, row.OwnerID)
+	}
+	authors, err := h.resolvePublicOwners(r.Context(), user, authorIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve annotation authors")
+		return
+	}
+
 	annotations := make([]schema.AnnotationSummary, 0, len(rows))
 	for _, row := range rows {
-		annotations = append(annotations, annotationRowToSummary(row))
+		summary := annotationRowToSummary(row)
+		summary.AnnotatorName = annotatorNameFor(summary, authors.of(row.OwnerID))
+		annotations = append(annotations, summary)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"annotations": annotations})
