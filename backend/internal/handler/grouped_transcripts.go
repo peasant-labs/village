@@ -66,6 +66,7 @@ func (h *Handler) listGroupedTranscripts(w http.ResponseWriter, r *http.Request)
 // inferred parent availability or a re-count of the transcript's turns.
 func groupedSessionFromTranscript(row sqlc.Transcript, resolved projectname.Resolved) (schema.VillageTranscript, error) {
 	var session schema.VillageTranscript
+	transcriptID := uuidFromPg(row.ID).String()
 	// Reuse the existing public projection and its privacy policy. JSONB
 	// fields must remain JSON rather than the []byte base64 representation.
 	projected := listTranscriptResponse(row, resolved)
@@ -75,10 +76,10 @@ func groupedSessionFromTranscript(row sqlc.Transcript, resolved projectname.Reso
 		Warnings  json.RawMessage `json:"diagnostics_warnings"`
 	}{projected, row.Subagents, row.DiagnosticsWarnings})
 	if err != nil {
-		return session, fmt.Errorf("handler.groupedSessionFromTranscript: stored transcript metadata could not be encoded during grouped projection; no rows returned; retry after repairing the stored metadata through an explicit owner update: %w", err)
+		return session, fmt.Errorf("handler.groupedSessionFromTranscript: stored transcript metadata for transcript %s could not be encoded during grouped projection; no rows returned; retry after the deployed contract and the stored metadata agree: %w", transcriptID, err)
 	}
 	if err := json.Unmarshal(encoded, &session); err != nil {
-		return session, fmt.Errorf("handler.groupedSessionFromTranscript: encoded transcript metadata could not be decoded into the canonical session during grouped projection; no rows returned; retry after repairing the stored metadata through an explicit owner update: %w", err)
+		return session, fmt.Errorf("handler.groupedSessionFromTranscript: encoded transcript metadata for transcript %s could not be decoded into the canonical session during grouped projection; no rows returned; retry after the deployed contract and the stored metadata agree: %w", transcriptID, err)
 	}
 	// Nullable graph/count columns are the validated durable projection, not
 	// inferred parent availability or a re-count of the transcript's turns.
@@ -92,7 +93,7 @@ func groupedSessionFromTranscript(row sqlc.Transcript, resolved projectname.Reso
 	}
 	session.Purpose = schema.SessionPurpose(row.SessionPurpose.String)
 	if err := json.Unmarshal(row.SessionRelationships, &session.Relationships); err != nil {
-		return session, fmt.Errorf("handler.groupedSessionFromTranscript: stored session relationships could not be decoded during grouped projection; no rows returned; retry after repairing the stored metadata through an explicit owner update: %w", err)
+		return session, fmt.Errorf("handler.groupedSessionFromTranscript: stored session relationships for transcript %s could not be decoded during grouped projection; no rows returned; retry after the deployed contract and the stored metadata agree: %w", transcriptID, err)
 	}
 	return session, nil
 }
@@ -126,7 +127,13 @@ func (h *Handler) resolveGroupedTranscripts(ctx context.Context, request Grouped
 	for _, row := range rows {
 		session, err := groupedSessionFromTranscript(row, projects[projectIdentityKey{OwnerID: row.OwnerID, ProjectHash: row.ProjectHash}])
 		if err != nil {
-			return GroupedScopeResult{}, err
+			// A row that cannot be projected fails the read instead of disappearing:
+			// a silently shorter list would misstate what the route selected. Name
+			// the transcript and the cause so an operator can find the row, and keep
+			// the shared failure shape the other grouped reads already answer with.
+			return GroupedScopeResult{}, &GroupedScopeError{Status: 500, Message: fmt.Sprintf(
+				"handler.resolveGroupedTranscripts refused the grouped read: stored transcript metadata for transcript %s could not be projected into the canonical response; no transcript list or members were returned and nothing was changed; retry after the deployed contract and the stored metadata agree: %v",
+				uuidFromPg(row.ID).String(), err)}
 		}
 		result.Rows = append(result.Rows, schema.VillageSessionRow{Session: session})
 	}

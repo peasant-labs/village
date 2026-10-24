@@ -51,6 +51,7 @@ export interface UserProjectPageResponse {
 }
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 import type {
+  DiagnosticEntry,
   SessionRelationshipNavigation,
   VillageCollective,
   VillageCollectiveViewerRole,
@@ -186,7 +187,7 @@ export interface Transcript {
   tokens_in: number | null;
   tokens_out: number | null;
   subagents: unknown[] | null;
-  diagnostics_warnings: string[] | null;
+  diagnostics_warnings: DiagnosticEntry[] | null;
   diagnostics_partial: boolean | null;
   title_generated: string | null;
   outcome: string | null;
