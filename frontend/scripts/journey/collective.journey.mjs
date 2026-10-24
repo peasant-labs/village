@@ -88,7 +88,9 @@ test.describe('collectives', () => {
     // An invite in an earlier journey adds to the member list the mock's reset starts from, so the tab counts whoever is there.
     await expect(page.getByRole('tab')).toHaveText(['transcripts 248', /^members \d+$/, 'stats'])
     await expect(page.getByRole('table', { name: 'transcripts 248' })).toContainText('Fix flaky ingest test')
-    await expect(page.getByRole('link', { name: 'settings' })).toHaveAttribute('href', `/collectives/${OWNER.id}/settings`)
+    // The app sidebar carries a settings gear of its own, so the collective's
+    // own control is read inside the collective's header actions.
+    await expect(page.getByTestId('collective-header-actions').getByRole('link', { name: 'settings' })).toHaveAttribute('href', `/collectives/${OWNER.id}/settings`)
     await expect(page.getByRole('link', { name: 'invite people' })).toHaveAttribute('href', `/collectives/${OWNER.id}/settings?section=members`)
     await expectComputedTokens(page, '.on-page', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })
 
@@ -122,10 +124,10 @@ test.describe('collectives', () => {
     await expectTheme(page, theme)
 
     await expect(page.getByRole('list', { name: 'how this collective works' })).toContainText('you approve each session')
-    // Every listed transcript has been approved: in a curated collective that is a step, so it is shown.
+    // The table lists only approved transcripts, so it draws no status column:
+    // what still waits is the waiting tab's own table.
     const table = page.getByRole('table', { name: 'transcripts 248' })
-    await expect(table.getByRole('columnheader')).toHaveText(['transcript', 'contributor', 'agent', 'turns', 'status', 'when'])
-    await expect(table.locator('tbody .on-tag').first()).toHaveText('approved')
+    await expect(table.getByRole('columnheader')).toHaveText(['transcript', 'contributor', 'agent', 'turns', 'when'])
     await page.getByRole('button', { name: 'more', exact: true }).click()
     await expect(page.getByRole('menuitem')).toHaveText(['publish several transcripts', 'review transcripts'])
     await page.keyboard.press('Escape')
@@ -202,7 +204,7 @@ test.describe('collectives', () => {
 
     await expect(page.getByRole('heading', { level: 1, name: MEMBER.name })).toBeVisible()
     await expect(page.getByRole('list', { name: 'how this collective works' })).toContainText('you are a member')
-    await expect(page.getByRole('link', { name: 'settings' })).toHaveCount(0)
+    await expect(page.getByTestId('collective-header-actions').getByRole('link', { name: 'settings' })).toHaveCount(0)
     await expect(page.getByRole('link', { name: 'invite people' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'leave' })).toBeVisible()
 
@@ -221,22 +223,28 @@ test.describe('collectives', () => {
     await expect(dialog).toHaveCount(0)
   })
 
-  test('lets a signed-out reader read a public collective and sign in to join it', async ({ page, request, theme }, testInfo) => {
+  test('sends a signed-out reader of a public collective to the marketing log-in, coming back to it', async ({ page, request }) => {
     await setScenario(request, 'signed-out-public-collective')
-    await page.goto(`/collectives/${VISITOR.id}`)
-    await expectTheme(page, theme)
-
-    await expect(page.getByRole('heading', { level: 1, name: VISITOR.name })).toBeVisible()
-    await expect(page.getByRole('list', { name: 'how this collective works' })).toContainText('anyone can read')
-    await expect(page.getByRole('table', { name: /^transcripts/ })).toContainText('Paginate the collectives list')
-    const signIn = page.getByRole('link', { name: 'sign in to join' })
-    await expect(signIn).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/collectives/${VISITOR.id}`)}`)
-    await expect(page.getByRole('button', { name: 'join' })).toHaveCount(0)
-    await still(page, testInfo, 'collective-signed-out')
-    await record(page, testInfo, page.getByRole('main'), 'collective-signed-out')
-
-    await signIn.click()
-    await expect(page).toHaveURL(new RegExp(`/login\\?next=${encodeURIComponent(`/collectives/${VISITOR.id}`)}$`))
+    try {
+      // The app keeps no signed-out view: a page load is served the frame, which
+      // hands the reader to the marketing site's log-in popup once /auth/me
+      // answers, carrying this collective as where to come back to.
+      await page.route('https://peasantlabs.org/**', (route) =>
+        route.fulfill({ status: 200, contentType: 'text/html', body: '<title>marketing</title>' }),
+      )
+      await page.goto(`/collectives/${VISITOR.id}`)
+      await expect(page).toHaveURL(`https://peasantlabs.org/?login&next=${encodeURIComponent(`/collectives/${VISITOR.id}`)}`)
+      const destination = new URL(page.url())
+      expect(destination.protocol).toBe('https:')
+      expect(destination.host).toBe('peasantlabs.org')
+      expect(destination.pathname).toBe('/')
+      expect(destination.searchParams.has('login')).toBe(true)
+      expect(destination.searchParams.get('next')).toBe(`/collectives/${VISITOR.id}`)
+      // The collective page never mounts for a reader without a session.
+      await expect(page.getByTestId('collective-page')).toHaveCount(0)
+    } finally {
+      await setScenario(request, 'default')
+    }
   })
 
   test('opens the repo picker, links a repository and says what it saved', async ({ page, theme }, testInfo) => {
@@ -250,7 +258,9 @@ test.describe('collectives', () => {
     await expect(picker).toContainText('2 of 14 selected')
     await expect(picker).toContainText('3 members publish from it')
 
-    await picker.locator('.rpk-repo-row', { hasText: 'acme/cli' }).getByRole('checkbox').check()
+    // The row sits under its owner's heading, so it names the repository alone.
+    const cliRow = picker.locator('.rpk-repo-row').filter({ has: picker.locator('.rpk-repo-name', { hasText: /^cli$/ }) })
+    await cliRow.getByRole('checkbox').check()
     await expect(picker).toContainText('3 of 14 selected')
     await expect(picker.getByRole('button', { name: 'save: link 1 repository' })).toBeEnabled()
     await still(page, testInfo, 'repo-picker')

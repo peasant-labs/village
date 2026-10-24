@@ -421,15 +421,16 @@ column) layout and that connector are proven by
 `frontend/src/testdata/home-page.yaml` +
 `frontend/src/test/homePageFixtures.ts` hold every case for the root of the
 app and the routes beside it: `/` is the signed-in person's home page and, for
-everybody else, a hand-off to the marketing site; signing in starts at
-`/login`; and the public discovery list keeps its own address at `/explore` for
-both. The file carries five groups.
+everybody else, a hand-off to the marketing site's log-in popup; `/login` is
+the address the app's sign-in links use and hands the visitor on to that popup;
+and the public discovery list keeps its own address at `/explore` for both. The
+file carries five groups.
 `routeCases` pin WHICH surface each (path, visitor) pair lands on, and are
 consumed by `frontend/src/homePage.test.tsx`, which mounts the REAL routes
 inside the real `AuthProvider` with `fetch` stubbed, so the session decides the
-answer rather than a stubbed hook. Leaving for the marketing site is the one
-boundary stubbed (`leaveForMarketingSite`), because it navigates the document
-away. `homeCases` pin what
+answer rather than a stubbed hook. Leaving the app is the boundary stubbed:
+`leaveForSignIn` for the pop-up and `startSignIn` for the provider, because
+each navigates the document away. `homeCases` pin what
 the home surface renders for a given owner-scoped transcript list - the rows in
 order, their project, readers, agent and pull request cells, the totals, and
 what is waiting for a collective's approval - and are consumed by the same
@@ -461,11 +462,14 @@ because the menu is the only way to one's own profile and the chrome's only way
 to sign out.
 
 The server half of the front door is `frontend/src/testdata/sign-in-route.yaml`
-with `frontend/src/signInRoute.test.ts`: the proxy's answer at `/` (a visitor
-with no session cookie is redirected to the marketing site before any page is
-served; a stale cookie is the root page's to catch), and the return addresses a
-sign-in follows from `/login?next=` through `/auth/callback` (only a path on
-this site, never another host, never a step of the sign-in itself).
+with `frontend/src/signInRoute.test.ts`: the proxy's answer to a page load (a
+visitor with no session cookie is redirected to the marketing site's log-in
+popup before any page is served, carrying the page and its query as `next`; an
+in-app fetch is served the app; a stale cookie is the frame's to catch), which
+pages are served signed out (`/privacy`, `/auth/start`, `/auth/callback`), and
+the return addresses a sign-in follows from `/login?next=` and
+`/auth/start?next=` through `/auth/callback` (only a path on this site, never
+another host, never a step of the sign-in itself).
 
 ### The front door: sign-in, hidden surfaces, and lowercase chrome
 
@@ -473,13 +477,20 @@ Three frontend fixtures hold what the village front door offers, each with a
 required-NAME loader in `frontend/src/test/` and a mounted test in
 `frontend/src/`:
 
-- `sign-in-page.yaml` (`signInPage.test.tsx`): which providers each screen's
-  sign-in buttons lead to, by the provider id each button hands `startSignIn`
-  (the one boundary stubbed, because it navigates the document away), and
-  where the chrome's own "sign in" link leads. The corpus's `offeredProviders`
-  is the closed set, asserted as exact membership against `SIGN_IN_PROVIDERS`;
-  `/login` offers one GitHub button with no chrome around it, and a signed-out
-  reader of another page gets one link to `/login` that returns to that page.
+- `sign-in-page.yaml` (`signInPage.test.tsx`): where each step of signing in
+  sends the visitor. The GitHub button and the terminal sign-in now live on the
+  marketing site's log-in popup; in this app `/login` hands the visitor to that
+  popup with the page to return to, and `/auth/start` remembers a safe `next`
+  and leaves for the provider (`startSignIn` and `leaveForSignIn` are the two
+  boundaries stubbed, because each navigates the document away). The corpus's
+  `offeredProviders` is the closed set, asserted as exact membership against
+  `SIGN_IN_PROVIDERS`; a signed-out reader of any other page is sent to the
+  popup, and the public privacy notice keeps the chrome's one "sign in" link
+  that returns to it. The journey harness asserts the app's side of the same
+  hand-off at the production routes -- scheme, host, `login`, `next`, the
+  provider start and the callback landing -- and keeps the public privacy
+  notice's theme and accessibility checks; the popup's own UI is the marketing
+  site's and is not covered from this repository.
 - `hidden-surfaces.yaml` (`hiddenSurfaces.test.tsx`): controls hidden while
   publishing is for collectives only, on the real routes that drew them. The
   `public` data-access option is listed only for a collective that is already

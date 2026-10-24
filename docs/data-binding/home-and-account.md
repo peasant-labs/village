@@ -2,7 +2,9 @@
 
 The root route mounts the signed-in home page only after the account is known.
 It derives no repository matcher, transcript access rule, or redaction policy.
-The signed-out front door remains its own mounted route surface.
+A signed-out document load is sent to the marketing site's log-in popup,
+carrying the page and its query as `next`; only the privacy notice and the
+sign-in steps are served without a session.
 
 ## Home
 

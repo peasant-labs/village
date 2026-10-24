@@ -53,7 +53,7 @@ test.describe('account settings', () => {
     // Two working sign-ins; the revoked one is not counted.
     await expect(page.getByTestId('settings-peasant')).toContainText('peasant on 2 computers')
     await expect(page.getByTestId('settings-peasant')).toContainText('last used 12m ago')
-    await expect(page.getByTestId('settings-delete')).toContainText('It cannot be undone.')
+    await expect(page.getByTestId('settings-delete')).toContainText('it cannot be undone.')
 
     // The section list leads to each section by its anchor.
     const sections = page.getByRole('navigation', { name: 'settings sections' })
