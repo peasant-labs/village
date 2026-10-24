@@ -120,13 +120,15 @@ export default function GroupSettingsPage({
 
   // Pending covers the wait for the session too: the read is not sent until the
   // viewer is known, and "not found" must never show before it has answered.
-  if (collective.isPending) return <CollectiveSkeleton crumb={[CRUMB_ROOT, { label: "settings" }]} />;
+  // The page's title is the section, known from the address before the read.
+  if (collective.isPending) return <CollectiveSkeleton crumb={[CRUMB_ROOT, { label: "settings" }]} title={section.label} />;
 
   // A 404 is the friendly not-found state below; other failures say what broke.
   if (collective.isError && !isApiErrorStatus(collective.error, 404)) {
     return (
       <CollectiveReadError
         crumb={[CRUMB_ROOT, { label: "settings" }]}
+        title={section.label}
         message={collective.error.message}
         retrying={collective.isFetching}
         onRetry={() => void collective.refetch()}
@@ -146,6 +148,7 @@ export default function GroupSettingsPage({
         <OnEmpty
           icon={<Lock />}
           title="only the owner can change these settings"
+          headingLevel={1}
           body="ask the collective's owner if something here needs to change."
           actions={
             <Link href={`/collectives/${id}`} className="btn btn-secondary">

@@ -36,7 +36,12 @@ import CollectiveWaiting from "@/components/collective/page/CollectiveWaiting";
 import CollectiveMembers from "@/components/collective/page/CollectiveMembers";
 import CollectiveStats from "@/components/collective/page/CollectiveStats";
 import PolicyChips from "@/components/collective/page/PolicyChips";
-import { CollectiveNotFound, CollectiveReadError, CollectiveSkeleton } from "@/components/collective/page/CollectiveStates";
+import {
+  CollectiveNotFound,
+  CollectiveReadError,
+  CollectiveSkeleton,
+  useKnownCollectiveName,
+} from "@/components/collective/page/CollectiveStates";
 import { useCollectiveGithub } from "@/components/collective/page/useCollectiveGithub";
 import "@/app/online-collective.css";
 
@@ -113,15 +118,20 @@ export default function GroupDetailPage({
     window.history.replaceState(null, "", `${pathname}${search ? `?${search}` : ""}`);
   };
 
+  // The page's title, the collective's name, when the app already holds it, so
+  // the heading reads the same before and after the read lands.
+  const knownName = useKnownCollectiveName(id);
+
   // Pending covers the wait for the session too: the read is not sent until the
   // viewer is known, and "not found" must never show before it has answered.
-  if (collective.isPending) return <CollectiveSkeleton crumb={[CRUMB_ROOT]} />;
+  if (collective.isPending) return <CollectiveSkeleton crumb={[CRUMB_ROOT]} title={knownName} />;
 
   // A 404 is the friendly not-found state below; other failures say what broke.
   if (collective.isError && !isApiErrorStatus(collective.error, 404)) {
     return (
       <CollectiveReadError
         crumb={[CRUMB_ROOT]}
+        title={knownName}
         message={collective.error.message}
         retrying={collective.isFetching}
         onRetry={() => void collective.refetch()}

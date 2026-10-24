@@ -84,6 +84,7 @@
 .on-title,
 .on-h2,
 .on-recent-label,
+.on-empty h1,
 .on-empty h2,
 .on-empty h3,
 .on-card h2,
@@ -150,6 +151,12 @@
 }
 .on-head > .on-title {
   grid-column: 1;
+}
+/* the title's place while the page reads it */
+.on-title-skel {
+  display: block;
+  width: min(18rem, 100%);
+  height: var(--sp-7);
 }
 .on-head > .on-actions {
   grid-column: 2;
@@ -1046,6 +1053,7 @@
     padding: var(--sp-6) var(--sp-4);
   }
 }
+.on-empty h1,
 .on-empty h2,
 .on-empty h3 {
   margin: 0;

@@ -182,7 +182,11 @@ describe("the collective settings sections", () => {
     window.history.replaceState(null, "", `/collectives/${world.group.id}/settings?section=access`);
     const requests = installCollectiveREST(world);
     await mountCollectiveSettings(world);
-    await waitFor(() => expect(screen.getByRole("heading", { name: "only the owner can change these settings" })).toBeInTheDocument());
+    // The state is the whole page, so its title is the page's one h1.
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { level: 1, name: "only the owner can change these settings" })).toBeInTheDocument(),
+    );
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("link", { name: "back to the collective" })).toHaveAttribute("href", `/collectives/${world.group.id}`);
     expect(screen.queryByRole("navigation", { name: "settings sections" })).toBeNull();
     expect(requests.filter((r) => r.path.includes("/repositories"))).toEqual([]);
@@ -195,8 +199,9 @@ describe("the collective settings sections", () => {
     await mountCollectiveSettings(world);
     // The read settles once the viewer is known; the state it lands on is the one to hold.
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "collective not found" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: "collective not found" })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "back to collectives" })).toHaveAttribute("href", "/collectives");
     });
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 });

@@ -21,7 +21,11 @@ import { groupChildSessions, visibleTranscriptTotal } from "@/lib/childSessions"
 import RequestFailureState from "@/components/RequestFailureState";
 import RetryButton from "@/components/RetryButton";
 import { useExploreSearchFocus } from "@/lib/exploreSearch";
-import { OnPage } from "@/components/online/Page";
+import { OnHead, OnPage } from "@/components/online/Page";
+
+/** The page's title: fairtrade's explore surface heads the loaded page with
+ *  it, and the loading and failure states head theirs with the same words. */
+const EXPLORE_TITLE = "explore transcripts";
 
 const DEFAULT_FILTERS: ExploreFilters = {
   query: "",
@@ -211,21 +215,22 @@ export default function ExplorePage() {
     // SHARED panel, so the home page cannot describe the same failure in
     // different words.
     content = (
-      <RequestFailureState
-        title="the transcripts could not be loaded"
-        message={failureMessage}
-        onRetry={() => refetch()}
-        retryLabel={retryLabel}
-        retryDisabled={retrying}
-      />
+      <>
+        <OnHead title={EXPLORE_TITLE} />
+        <RequestFailureState
+          title="the transcripts could not be loaded"
+          message={failureMessage}
+          onRetry={() => refetch()}
+          retryLabel={retryLabel}
+          retryDisabled={retrying}
+        />
+      </>
     );
   } else if ((isLoading && failureMessage == null) || !payload) {
     content = (
       <div className="flex flex-col gap-6 animate-fade-up">
-        <div className="flex flex-col gap-1">
-          <div className="h-8 w-72 animate-shimmer" />
-          <div className="h-4 w-96 animate-shimmer" />
-        </div>
+        <OnHead title={EXPLORE_TITLE} />
+        <div className="h-4 w-96 max-w-full animate-shimmer" aria-hidden="true" />
         <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-6">
           <div className="h-[420px] animate-shimmer" />
           <div className="flex flex-col gap-4">
