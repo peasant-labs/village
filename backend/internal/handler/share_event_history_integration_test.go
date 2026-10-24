@@ -68,6 +68,7 @@ type shareEventHistoryCase struct {
 var requiredShareEventHistoryCases = []string{
 	"full_history_all_five_states_in_order",
 	"legacy_rejected_null_decision_keeps_whole_history",
+	"legacy_approved_null_decision_keeps_whole_history",
 	"pending_event_carries_no_decided_at_and_no_actor",
 	"retracted_and_revoked_history_never_names_a_raw_user",
 	"non_owner_signed_in_collective_member_gets_404",
@@ -97,9 +98,10 @@ func loadShareEventHistoryCases(t *testing.T) []shareEventHistoryCase {
 				t.Fatalf("case %q legacy attempt %d declares event_num %d; legacy rows are installed in ordinal order "+
 					"from 1 so the case describes the state migration 036's backfill produced", c.Name, i, legacy.EventNum)
 			}
-			if legacy.Status != "rejected" {
-				t.Fatalf("case %q legacy attempt %d declares status %q; only a pre-capture rejection carries a null "+
-					"decision time, which is the compatibility case this fixture exists for", c.Name, i, legacy.Status)
+			if legacy.Status != "rejected" && legacy.Status != "approved" {
+				t.Fatalf("case %q legacy attempt %d declares status %q; only a pre-capture terminal decision "+
+					"(rejected or an initially automatic approval) carries a null decision time, which is the "+
+					"compatibility case this fixture exists for", c.Name, i, legacy.Status)
 			}
 			if _, err := time.Parse(time.RFC3339, legacy.RecordedAt); err != nil {
 				t.Fatalf("case %q legacy attempt %d has recorded_at %q, which is not RFC 3339: %v",
@@ -194,9 +196,10 @@ func TestShareEventHistory(t *testing.T) {
 	}
 }
 
-// seedLegacyAttempts installs the pre-capture rejection shape directly, because
-// no current write path can produce it: the production decide path always
-// records a decision time. Migration 036's backfill copied the old
+// seedLegacyAttempts installs the pre-capture terminal shape directly, because
+// no current write path can produce a rejection with no decision time: the
+// production decide path always records one (an initially automatic approval
+// can also have no decision time). Migration 036's backfill copied the old
 // transcript_shares status into attempt 1 and left decided_at and decided_by
 // null, so this statement is the same shape the shipped migration wrote. The
 // attempt ledger has no audit actor requirement, and the derivation trigger

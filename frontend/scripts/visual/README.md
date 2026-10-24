@@ -751,20 +751,25 @@ done
 ## Own-profile contributed-collectives gate (`profile-collectives`)
 
 `profile-collectives-shoot.mjs` captures the own-profile contributed-collectives
-section on the REAL profile route, in three states taken from one live page so
+section on the REAL profile route, in four states taken from one live page so
 they cannot mix builds: the section with every contributed collective and its
-counters, one collective open with its submissions listed, and one submission
-open with its full event history visible.
+counters, one collective open with its submissions listed, one submission open
+with its full event history visible, and the mounted profile page (its own hero
+header plus body) with that history open.
 
 It asserts build provenance BEFORE writing any PNG. The served page must carry
 the section, more than one contributed collective row, a collective with zero
 approved contributions and some awaiting review, and the units sentence above
 the counters stating that rejected and withdrawn count submission attempts
-(not transcripts). Each of those exists only in the change this gate covers,
-so a stale server or one serving another worktree fails with a nonzero exit
-instead of producing a misleading capture. (Per-counter unit FOOTERS were
-removed at the user's explicit request; the distinction now lives only in
-that one sentence, which is what this gate checks.)
+(not transcripts). The open history must show the legacy terminal row with an
+explicit `decision time not recorded` label and no timestamp in that cell; a
+decided row must still show its recorded decision time (and an open attempt,
+when present, its submission time), and all four rows must remain. Each of those exists
+only in the change this gate covers, so a stale server or one serving another
+worktree fails with a nonzero exit instead of producing a misleading capture.
+(Per-counter unit FOOTERS were removed at the user's explicit request; the
+distinction now lives only in that one sentence, which is what this gate
+checks.)
 
 Set `NARROW=1` to capture at a ~390px mobile viewport instead of the default
 desktop one, appending `-narrow` to every filename so a narrow run cannot
@@ -779,9 +784,10 @@ border radius and line height.
 `mock-rest-profile.mjs` is the matching REST stand-in. It serves `/auth/me` as
 the profile's own owner (so the page decides the viewer is the owner through the
 production code path, not through a stub), the public profile, an empty library
-list, the three-counter contributions list, the owner's submissions per
-collective, and a share-event history containing all five states so the actor
-labels are visible in the capture.
+list, the four-counter contributions list, the owner's submissions per
+collective, and a share-event history containing all five states plus a legacy
+terminal row with no decision time so the actor labels and the honest unknown
+time are visible in the capture.
 
 ```sh
 CHROME=/path/to/google-chrome
@@ -798,6 +804,24 @@ CHROME_PATH=$CHROME node scripts/visual/profile-collectives-shoot.mjs light $BAS
 CHROME_PATH=$CHROME NARROW=1 node scripts/visual/profile-collectives-shoot.mjs dark  $BASE/dark
 CHROME_PATH=$CHROME NARROW=1 node scripts/visual/profile-collectives-shoot.mjs light $BASE/light
 ```
+
+The default mock's `Strict Curators` history opens with the migration-036
+legacy rejection (`decided_at: null`) and carries the three newer rows; its
+`AI Research Team` `c02d5188` history opens with a legacy approval
+(`decided_at: null`). The default shoot opens `Strict Curators`, so the
+capture exercises the same unknown-time branch for a rejection; the approved
+variant is covered by the mounted `profileCollectives.test.tsx` corpus. If a
+second visual arm is ever wanted for the approved variant, open the
+`AI Research Team` collective and the submission with
+`data-transcript-id="c02d5188"` and capture the same
+`[data-testid="profile-collectives"]` selector.
+
+Expected artifacts per theme and width (`-narrow` for `NARROW=1`):
+`profile-collectives.png`, `profile-collectives-submissions.png`,
+`profile-collectives-history.png`, and
+`profile-collectives-history-page.png` (the mounted `main#main` header plus
+body). The run prints the unknown-time and known-time cells as provenance so a
+reviewer can attribute them to the exact served build.
 
 Capture into `review-capture/` (gitignored). Per-round proof PNGs are never
 committed.

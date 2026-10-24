@@ -1,9 +1,10 @@
 /* Screenshot the own-profile contributed-collectives section on the REAL profile route.
 
-   Three captures per theme, taken from one live page so they cannot mix builds:
+   Four captures per theme, taken from one live page so they cannot mix builds:
      profile-collectives            the section with every contributed collective and its FOUR counters
      profile-collectives-submissions one collective open, its submissions (pairs) listed
      profile-collectives-history     one submission open, its full event log visible
+     profile-collectives-history-page the mounted profile page (own header + body) with that log open
 
    The collective opened for the submissions/history captures is deliberately
    the one whose only pair is a withdrawal ("Strict Curators": refused three
@@ -17,9 +18,11 @@
    carry the section, FOUR counters (including "withdrawn"), the unit wording
    that states the attempts-versus-transcripts asymmetry, and — after opening
    the withdrawn-only collective — a submission row with a "withdrawn" chip and
-   the "none on record" copy genuinely absent. All of this exists only in this
-   change. A stale server, or one serving another worktree, fails with a
-   nonzero exit instead of producing a misleading capture.
+   the "none on record" copy genuinely absent. The history also carries a
+   legacy terminal row with no decision time, so the unknown-time label is
+   asserted on screen and a timestamp in that cell fails the run. All of this
+   exists only in this change. A stale server, or one serving another worktree,
+   fails with a nonzero exit instead of producing a misleading capture.
 
    Computed styles are read from the live DOM as well, because a scaled PNG
    cannot tell two close token values apart: the run reports the counter's
@@ -341,23 +344,93 @@ if (!log) {
     'the capture could not show the audit log this change adds.',
     'confirm the mock serves the events route for that pair and retry.')
 }
+const UNKNOWN_DECISION_TIME = 'decision time not recorded'
 const eventRows = await page.$$eval('[data-testid="share-event"]', (els) =>
   els.map((el) => `${el.dataset.eventNum}:${el.dataset.eventStatus}:${el.textContent.replace(/\s+/g, ' ').trim()}`),
 )
-// The log claims to read oldest first. If the timestamps disagree, the capture
-// would be evidence of a chronology that cannot happen, so the run fails rather
-// than producing it — this is exactly the defect that reached a screenshot once.
-const shownTimes = await page.$$eval('[data-testid="share-event-time"]', (els) =>
-  els.map((el) => el.textContent.trim()),
+const eventTimes = await page.$$eval('[data-testid="share-event"]', (els) =>
+  els.map((el) => {
+    const cell = el.querySelector('[data-testid="share-event-time"]')
+    return {
+      status: el.dataset.eventStatus,
+      marked: cell?.hasAttribute('data-time-known') === true,
+      known: cell?.dataset.timeKnown === 'true',
+      text: cell?.textContent?.trim() ?? '',
+    }
+  }),
 )
-const backwards = shownTimes.findIndex((t, i) => i > 0 && t < shownTimes[i - 1])
-if (backwards > 0) {
+if (eventTimes.some((row) => !row.marked)) {
   await browser.close()
-  die(1, `the event log shows a time running backwards: row ${backwards + 1} reads ${JSON.stringify(shownTimes[backwards])} after row ${backwards} reads ${JSON.stringify(shownTimes[backwards - 1])}.`,
+  die(2, 'the served event-time cells do not mark whether their time is known.',
+    'the served build predates the legacy-unknown UI change, so the cell has no data-time-known marker.',
+    'the capture would come from an older build and could not prove this change.',
+    'rebuild and restart the app from THIS worktree, then retry.')
+}
+// The changed state must be on screen, not merely mocked: a legacy terminal
+// attempt has no recorded decision time, so the cell must carry the explicit
+// unknown label and no timestamp. A stale build that still substitutes
+// recorded_at fails here before any PNG is written.
+const unknownTimes = eventTimes.filter((row) => !row.known)
+if (unknownTimes.length === 0) {
+  await browser.close()
+  die(2, 'the event log has no row with an unknown decision time.',
+    'the served build predates the legacy-unknown UI, or the mock no longer serves a terminal row with decided_at null.',
+    'the capture would not show the changed state and would prove nothing about the fix.',
+    'rebuild from this worktree and confirm the mock serves the legacy Strict Curators history, then retry.')
+}
+for (const row of unknownTimes) {
+  if (row.text !== UNKNOWN_DECISION_TIME) {
+    await browser.close()
+    die(2, `an unknown decision time renders ${JSON.stringify(row.text)}, expected ${JSON.stringify(UNKNOWN_DECISION_TIME)}.`,
+      'the row is formatting a date for a terminal attempt whose decision time is null.',
+      'the capture would show a fabricated decision time, which is the defect this change removes.',
+      'restore the explicit unknown label in ShareEventLog and retry.')
+  }
+  if (/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(row.text)) {
+    await browser.close()
+    die(2, `an unknown decision time renders a timestamp: ${JSON.stringify(row.text)}.`,
+      'recorded_at is still being substituted for the missing decision time.',
+      'the capture would show invented evidence as a decision time.',
+      'restore the explicit unknown label in ShareEventLog and retry.')
+  }
+}
+// Any still-open attempt in this history must keep showing its submission
+// time. (The mounted fixture corpus also carries a pending row beside a legacy
+// unknown terminal row; this capture's history has none.)
+const pendingRows = eventTimes.filter((row) => row.status === 'pending')
+if (pendingRows.some((row) => !row.known || !/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(row.text))) {
+  await browser.close()
+  die(2, `pending events do not render their submission time: ${JSON.stringify(pendingRows)}.`,
+    'the unknown-time change also removed the submission time from a still-open attempt.',
+    'the capture would show a pending event with no honest time.',
+    'keep the recorded_at display for pending events and retry.')
+}
+const knownTerminalRows = eventTimes.filter((row) => row.status !== 'pending' && row.known)
+if (knownTerminalRows.length === 0) {
+  await browser.close()
+  die(2, 'no decided event with a recorded decision time rendered alongside the unknown row.',
+    'the fixture no longer serves a normally decided row, or the row stopped reading decided_at.',
+    'the capture could not show that a known decision time still renders correctly.',
+    'restore the decided rows in the mock fixture and retry.')
+}
+// The log claims to read oldest first. Unknown rows carry no decision time to
+// order by; every row that does carry one must still be at or after the
+// previous known row.
+let previousKnown = null
+const backwards = eventTimes.findIndex((row) => {
+  if (!row.known) return false
+  const worse = previousKnown !== null && row.text < previousKnown
+  previousKnown = row.text
+  return worse
+})
+if (backwards >= 0) {
+  await browser.close()
+  die(1, `the event log shows a time running backwards at row ${backwards + 1}: ${JSON.stringify(eventTimes[backwards].text)}.`,
     'either the fixture stamps events with times that cannot occur in that order, or the row renders the wrong time field.',
     'the capture would show an audit log contradicting its own oldest-first claim, which is misleading evidence.',
     'fix the fixture so each attempt is recorded after the previous one closed, or fix the field the row reads, then recapture.')
 }
+const shownTimes = eventTimes.map((row) => row.text)
 // Nothing in the log may bleed past its box. At a narrow viewport the row used
 // to keep its timestamp unshrinkable and squeeze the label word-per-line while
 // the time ran off the right edge; the row now wraps instead. This is a
@@ -373,21 +446,36 @@ if (overflow.length > 0) {
     'the capture would show timestamps cut off at the edge of the card, which is what a person sees at this width.',
     'let the row wrap (flex-wrap) and let the timestamp fall to its own line, then recapture.')
 }
-if (eventRows.length < 2) {
+// The legacy row must not replace or truncate the newer history: the mock
+// serves four events for this pair, and every one must still render.
+if (eventRows.length !== 4) {
   await browser.close()
-  die(1, `the event log rendered ${eventRows.length} row(s).`,
-    'the served build renders fewer events than the fixture supplies.',
-    'the capture would not show the log as an ordered history.',
-    'confirm the mock serves the full event list and retry.')
+  die(1, `the event log rendered ${eventRows.length} row(s), expected the fixture's 4.`,
+    'the legacy unknown-time row replaced or shortened the newer history, or the build dropped rows.',
+    'the capture would not show that the whole history survives an unknown decision time.',
+    'confirm the mock serves all four Strict Curators events and that ShareEventLog maps every row, then retry.')
+}
+// The changed state belongs on the mounted production path, so carry the
+// profile page's own header and body in one capture beside the section crop.
+const pageHeader = await page.$('main#main header.on-head')
+if (!pageHeader) {
+  await browser.close()
+  die(2, 'the profile page header did not render above the history.',
+    'the page shell changed or the capture ran on a surface that is not the mounted profile route.',
+    'the full-page evidence would not show the changed state inside the production page.',
+    'confirm VILLAGE_URL is /users/alice-dev and that the profile route still renders its hero header, then retry.')
 }
 await pause(300)
 await shoot('profile-collectives-history', '[data-testid="profile-collectives"]')
+await shoot('profile-collectives-history-page', 'main#main')
 
 console.log('provenance collapsed-name-legibility =', JSON.stringify(nameLegibility))
 console.log('provenance withdrawn-value =', JSON.stringify(withdrawnCounterValue))
 console.log('provenance units-sentence =', JSON.stringify(explanationText))
 console.log('provenance opened-withdrawn-only-collective =', opened)
 console.log('provenance collective-rows =', rows.length, '| pending-only listed =', pendingOnly)
+console.log('provenance unknown-decision-times =', JSON.stringify(unknownTimes))
+console.log('provenance known-terminal-times =', JSON.stringify(knownTerminalRows))
 console.log('provenance event-times =', shownTimes.join('  ->  '))
 console.log('provenance event-rows =')
 for (const r of eventRows) console.log('   ', r)

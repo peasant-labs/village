@@ -20,7 +20,9 @@
    a row with a "withdrawn" chip rather than being empty — the exact
    contradiction a real user acceptance test caught: a nonzero withdrawn
    counter beside "no submissions of yours are on record"), and an event
-   history containing all five states so the actor labels are visible.
+   history containing all five states so the actor labels are visible, plus a
+   legacy terminal row whose decision time was never captured (migration 036
+   copied its status without one) so the unknown-time label is visible.
 
    Usage:
      MOCK_REST_PORT=8790 node scripts/visual/mock-rest-profile.mjs
@@ -163,8 +165,10 @@ const eventsByGroupAndTranscript = {
     event(1, 'rejected', 'moderator', '2026-07-20T13:00:00Z', '2026-07-22T09:10:00Z'),
     event(2, 'approved', 'moderator', '2026-07-25T10:30:00Z', '2026-07-26T15:45:00Z'),
   ],
+  // A legacy approval too: migration 036 copied the old current-state row
+  // without a decision time, so its one row is honest unknown evidence.
   [`${RESEARCH}/c02d5188`]: [
-    event(1, 'approved', 'moderator', '2026-07-11T08:00:00Z', '2026-07-11T17:20:00Z'),
+    event(1, 'approved', 'moderator', '2026-07-11T08:00:00Z', null),
   ],
   [`${RESEARCH}/b7c8d9e0`]: [
     event(1, 'rejected', 'moderator', '2026-07-20T09:00:00Z', '2026-07-21T09:00:00Z'),
@@ -173,8 +177,11 @@ const eventsByGroupAndTranscript = {
   [`${FORMER}/a1b2c3d4`]: [
     event(1, 'retracted', 'owner', '2026-08-05T12:00:00Z', '2026-08-05T12:00:00Z'),
   ],
+  // Attempt 1 is the legacy rejection migration 036 copied: its status came
+  // from the pre-ledger row, so it never had a decision time. The later rows
+  // were decided by the current write path and each carry one.
   [`${STRICT}/b4b6e2ad`]: [
-    event(1, 'rejected', 'moderator', '2026-07-01T09:00:00Z', '2026-07-02T10:00:00Z'),
+    event(1, 'rejected', 'moderator', '2026-07-01T09:00:00Z', null),
     event(2, 'rejected', 'moderator', '2026-07-10T09:00:00Z', '2026-07-11T10:00:00Z'),
     event(3, 'rejected', 'moderator', '2026-07-20T09:00:00Z', '2026-07-21T10:00:00Z'),
     event(4, 'retracted', 'owner', '2026-08-06T07:05:00Z', '2026-08-06T08:20:00Z'),
