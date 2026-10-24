@@ -73,14 +73,17 @@ describe('the journey workflow failure gate', () => {
     expect(steps[built]['continue-on-error'], 'a built-route failure fails the job directly').toBeUndefined()
 
     const gate = steps[steps.length - 1]
-    expect(gate.if, 'the gate runs even after an earlier failure').toContain('always()')
-    expect(gate.if, 'the gate re-raises the catalog outcome').toContain("steps.journey.outcome != 'success'")
-    expect(gate.run, 'the gate exits non-zero').toMatch(/\bexit 1\b/)
+    // Exact condition and command: a trailing `&& false`, a comment-only run or
+    // a no-op must not satisfy the guard. Only non-semantic whitespace is
+    // normalized, so a folded YAML scalar reads the same.
+    const condition = (value) => String(value ?? '').replace(/\s+/g, ' ').trim()
+    expect(condition(gate.if), 'the gate re-raises the catalog outcome').toBe("always() && steps.journey.outcome != 'success'")
+    expect(String(gate.run ?? '').trim(), 'the gate exits non-zero').toBe('exit 1')
     for (const upload of uploads) expect(steps.length - 1, `${upload.name} is uploaded before the gate`).toBeGreaterThan(upload.index)
     expect(built, 'the built-route check runs before the gate').toBeLessThan(steps.length - 1)
 
     const fail = workflow.jobs.evidence.steps.find((step) => step.name === 'Fail if journeys failed')
-    expect(fail?.if, 'the evidence job fails the run on the journey job result').toContain("needs.journey.result == 'failure'")
+    expect(condition(fail?.if), 'the evidence job fails the run on the journey job result').toBe("needs.journey.result == 'failure'")
   })
 })
 
