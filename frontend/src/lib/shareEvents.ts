@@ -111,3 +111,41 @@ export function shareEventLabel(event: Pick<ShareEvent, "status" | "decided_by_a
   const clause = shareEventActorClause(event.decided_by_actor);
   return clause === "" ? verb : `${verb} ${clause}`;
 }
+
+/**
+ * Shown where a terminal attempt has no recorded decision time.
+ *
+ * A legacy rejection can predate decision-time capture, and an initially
+ * automatic approval can carry no decision time at all. Both are honest
+ * unknown evidence: the wire holds null, and this label says so rather than
+ * presenting the submission time as a decision time.
+ */
+export const UNKNOWN_DECISION_TIME = "decision time not recorded";
+
+/** Renders an ISO timestamp as a stable, locale-independent date and time. */
+export function formatShareEventTime(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  return at.toISOString().replace("T", " ").slice(0, 16);
+}
+
+/**
+ * The time one event row may honestly show.
+ *
+ * A still-open attempt shows when it was submitted. A decided attempt shows
+ * its decision time. A terminal attempt whose decision time was never captured
+ * shows {@link UNKNOWN_DECISION_TIME}. `recorded_at` is when the attempt was
+ * opened, so it is never promoted to a decision time: that would invent
+ * evidence the ledger never held.
+ */
+export function shareEventTime(
+  event: Pick<ShareEvent, "status" | "recorded_at" | "decided_at">,
+): { text: string; known: boolean } {
+  if (event.decided_at != null) {
+    return { text: formatShareEventTime(event.decided_at), known: true };
+  }
+  if (event.status === "pending") {
+    return { text: formatShareEventTime(event.recorded_at), known: true };
+  }
+  return { text: UNKNOWN_DECISION_TIME, known: false };
+}

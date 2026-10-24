@@ -15,6 +15,13 @@
 # events, when present, are asserted in array order against the response body
 # in that same order - the response is a history read top to bottom, so
 # event_num must appear ascending with no reordering.
+#
+# legacy_attempts, when present, are installed BEFORE the steps in the shape
+# migration 036's backfill left them: a terminal status (a rejection or an
+# initially automatic approval) copied from the old transcript_shares row with
+# no decided_at. They stand in for history the current write paths cannot
+# produce, and every step that follows them still runs through the production
+# handlers.
 
 - name: full_history_all_five_states_in_order
   why: >-
@@ -38,6 +45,47 @@
     - {event_num: 3, status: retracted, decided: true, actor: owner}
     - {event_num: 4, status: approved, decided: true, actor: moderator}
     - {event_num: 5, status: revoked, decided: true, actor: collective}
+
+- name: legacy_rejected_null_decision_keeps_whole_history
+  why: >-
+    a rejection recorded before Village captured decision times survives
+    migration 036 as attempt 1 with no decided_at. The owner's history must
+    still answer 200, carry an explicit JSON null for that unknown time, and
+    keep every newer row behind it. A decision time derived from recorded_at
+    or from the event ordinal would invent evidence the ledger never held.
+  legacy_attempts:
+    - {event_num: 1, status: rejected, recorded_at: "2026-08-01T09:15:00Z"}
+  steps:
+    - {do: submit, expect: ok}
+    - {do: decide, status: approved, expect: ok}
+    - {do: unshare, expect: ok}
+    - {do: submit, expect: ok}
+    - {do: decide, status: rejected, expect: ok}
+  viewer: owner
+  expect_status: 200
+  events:
+    - {event_num: 1, status: rejected, decided: false, actor: moderator}
+    - {event_num: 2, status: approved, decided: true, actor: moderator}
+    - {event_num: 3, status: retracted, decided: true, actor: owner}
+    - {event_num: 4, status: rejected, decided: true, actor: moderator}
+
+- name: legacy_approved_null_decision_keeps_whole_history
+  why: >-
+    an initially automatic (or legacy) approval carries no decision time, so
+    its decided_at is honest unknown evidence rather than a time inferred from
+    the submission. The owner's later withdrawal appends a decided row and the
+    next attempt is still open; every row must remain in the history.
+  legacy_attempts:
+    - {event_num: 1, status: approved, recorded_at: "2026-06-01T09:00:00Z"}
+  steps:
+    - {do: unshare, expect: ok}
+    - {do: submit, expect: ok}
+  viewer: owner
+  expect_status: 200
+  events:
+    - {event_num: 1, status: approved, decided: false, actor: moderator}
+    - {event_num: 2, status: retracted, decided: true, actor: owner}
+    - {event_num: 3, status: pending, decided: false, actor: ""}
 
 - name: pending_event_carries_no_decided_at_and_no_actor
   why: >-

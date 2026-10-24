@@ -2,21 +2,32 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { test, expect } from '@playwright/test'
 import { loadLegacyCollectiveFixtures } from '../../src/test/collectivesLegacyFixtures.ts'
 import { expectTheme, expectComputedTokens, scanAxe, seriousViolations } from './lib/assertions.mjs'
+import { signedInCookies } from './lib/collectives-built-auth.mjs'
 import { zVillageGroupedContributableResponse, zVillageSessionListPayload } from '@peasant-labs/schema'
 
 test('built collective navigation and every legacy inbound link', async ({ page, context, request }, info) => {
   const theme = info.project.name
+  const app = process.env.COLLECTIVES_BUILT_URL
+  expect(app, 'COLLECTIVES_BUILT_URL must name the built app this journey drives').toBeTruthy()
   const manifest = JSON.parse(readFileSync(`${process.env.COLLECTIVES_BUILT_ROOT}/build.json`, 'utf8'))
   expect(manifest.servedVerified).toBe(true)
   await context.addInitScript((value) => localStorage.setItem('peasant-theme', value), theme)
-  await context.addCookies([{ name: 'peasant_token', value: 'demo-token', url: process.env.COLLECTIVES_BUILT_URL }])
+  // The same signed-in session the runner's readiness page load used. The proxy,
+  // the app frame and the API all read this cookie, so a journey that starts
+  // without it is sent to the marketing site before any page renders.
+  await context.addCookies(signedInCookies(app))
   const requests = []
   page.on('request', (req) => {
     if (req.url().startsWith(manifest.apiBase)) requests.push(new URL(req.url()).pathname)
   })
   expect((await request.post(`${manifest.apiBase}/__built/contribution-context?enabled=0`)).ok()).toBe(true)
   await page.goto('/collectives')
-  const nav = page.getByRole('navigation', { name: 'main navigation' })
+  // The signed-in chrome: fairtrade's sidebar, with a sections navigation that
+  // names the place each page belongs to. The page body is asserted apart from
+  // it, so a control that moved into or out of the chrome cannot pass for the
+  // other.
+  const nav = page.getByRole('navigation', { name: 'peasant sections' })
+  const main = page.getByRole('main')
   const link = nav.getByRole('link', { name: 'collectives', exact: true })
   await expect(link).toHaveAttribute('href', '/collectives')
   await nav.getByRole('link', { name: 'home', exact: true }).click()
@@ -24,17 +35,24 @@ test('built collective navigation and every legacy inbound link', async ({ page,
   await expect(page).toHaveURL(/\/collectives$/)
   for (const row of loadLegacyCollectiveFixtures()) {
     const target = `/collectives${row.suffix}?${new URLSearchParams(row.query)}`
-    const response = await request.get(`/groups${row.suffix}?${row.query}`, { maxRedirects: 0 })
-    expect(response.status()).toBe(307)
-    expect(response.headers().location).toBe(target)
+    // A legacy address is a page load, so the probe sends the context's own
+    // session cookie: without it the proxy answers the marketing site's log-in
+    // popup and the redirecting page is never reached.
+    const response = await context.request.get(`/groups${row.suffix}?${row.query}`, { maxRedirects: 0 })
+    expect(response.status(), `the legacy ${row.name} address must redirect, not render`).toBe(307)
+    expect(response.headers().location, `the legacy ${row.name} address must land on its canonical route`).toBe(target)
     const queue = row.name === 'contribute' || row.name === 'review'
       ? page.waitForResponse((response) => response.url().includes(`/collectives${row.suffix.replace(/\/review$/, '/pending').replace(/\/contribute$/, '/contributable')}?view=grouped`))
       : undefined
     await page.goto(`/groups${row.suffix}?${row.query}`)
-    await expect(page).toHaveURL(`${process.env.COLLECTIVES_BUILT_URL}${target}`)
+    await expect(page).toHaveURL(`${app}${target}`)
     await expectTheme(page, theme)
-    await expect(link).toHaveAttribute('aria-current', 'page')
-    await expect(page.getByRole(row.role, { name: new RegExp(row.body) }).first()).toBeVisible()
+    // Exactly one sidebar entry is current, and it is the row's own place: the
+    // section on the list, the collective itself on each canonical collective
+    // route (the sidebar marks the person's collective, not the list above it).
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1)
+    await expect(nav.getByRole('link', { name: row.navCurrent, exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(main.getByRole(row.role, { name: new RegExp(row.body) }).first()).toBeVisible()
     if (queue) {
       const response = await queue
       expect(response.ok()).toBe(true)
@@ -42,7 +60,7 @@ test('built collective navigation and every legacy inbound link', async ({ page,
       expect(schema.safeParse(await response.json()).success).toBe(true)
     }
     for (const assertion of row.assertions) {
-      const locator = assertion.testId ? page.getByTestId(assertion.testId) : page.getByRole(assertion.role, { name: assertion.name, exact: true })
+      const locator = assertion.testId ? main.getByTestId(assertion.testId) : main.getByRole(assertion.role, { name: assertion.name, exact: true })
       await expect(locator).toBeVisible()
       if (assertion.text) await expect(locator).toContainText(assertion.text)
       if (assertion.disabled === true) await expect(locator).toBeDisabled()
@@ -52,12 +70,12 @@ test('built collective navigation and every legacy inbound link', async ({ page,
       // Execute the real mounted edit/save callback, not merely its button.
       // Restore the fixture's name through that SAME callback for later routes.
       for (const { value } of row.nameEdits) {
-        await page.getByRole('button', { name: 'edit name', exact: true }).click()
-        const input = page.getByRole('textbox', { name: 'name', exact: true })
+        await main.getByRole('button', { name: 'edit name', exact: true }).click()
+        const input = main.getByRole('textbox', { name: 'name', exact: true })
         await expect(input).toBeFocused()
         await input.fill(value)
         const saved = page.waitForResponse((response) => response.request().method() === 'PATCH' && response.url() === `${manifest.apiBase}/collectives/c011ec71-0000-4000-8000-000000000001`)
-        await page.getByRole('button', { name: 'save', exact: true }).click()
+        await main.getByRole('button', { name: 'save', exact: true }).click()
         const response = await saved
         expect(response.ok()).toBe(true)
         expect(response.request().postDataJSON()).toEqual({ name: value })
@@ -73,11 +91,15 @@ test('built collective navigation and every legacy inbound link', async ({ page,
     expect(seriousViolations(surfaceAxe), `WCAG AA findings on ${row.name}`).toEqual([])
     await page.screenshot({ path: `${process.env.COLLECTIVES_BUILT_ROOT}/${theme}-${row.name}.png`, fullPage: true, animations: 'disabled' })
     if (row.back) {
-      const back = page.getByRole('link', { name: row.back.name, exact: true })
+      // The canonical way back is the page's own breadcrumb: the trail that
+      // names where the route sits, the same one the chrome and every inbound
+      // link land beside. It is scoped to the breadcrumb because the sidebar
+      // offers a link with the same name.
+      const back = page.getByRole('navigation', { name: 'breadcrumb' }).getByRole('link', { name: row.back.name, exact: true })
       await expect(back).toHaveAttribute('href', row.back.href)
       await back.click()
-      await expect(page).toHaveURL(`${process.env.COLLECTIVES_BUILT_URL}${row.back.href}`)
-      await expect(page.getByRole(row.back.role, { name: row.back.body, exact: true })).toBeVisible()
+      await expect(page).toHaveURL(`${app}${row.back.href}`)
+      await expect(main.getByRole(row.back.role, { name: row.back.body, exact: true })).toBeVisible()
     }
   }
   // A nonempty grouped-only exit proves the real hook consumed the canonical

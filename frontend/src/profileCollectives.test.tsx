@@ -13,6 +13,7 @@ import {
   type ContributedCollectiveFixture,
 } from "@/test/profileCollectivesFixtures";
 import type { CollectiveSubmissionPair, ContributedCollective, ShareEvent } from "@/lib/types";
+import { UNKNOWN_DECISION_TIME } from "@/lib/shareEvents";
 
 // Mounts the REAL profile route (`UserProfilePage` inside the real
 // `AuthProvider`, with REST stubbed) — the surface a person actually loads —
@@ -306,20 +307,36 @@ describe("mounted profile route: the per-collective history is a full event log"
       });
 
       // The log claims to read oldest first, and the timestamps must agree with
-      // that claim. Each row shows the decision time once decided and the
-      // submission time while still open; reading down the column must never
-      // go backwards, or the log contradicts itself in front of the person it
-      // exists to inform.
-      const shownTimes = [
+      // that claim. Each row shows its recorded decision time, the submission
+      // time while still open, or an explicit unknown label for a terminal
+      // attempt whose decision time was never captured. Known times must never
+      // run backwards, and an unknown row must never stand in for a timestamp.
+      const timeCells = [
         ...document.querySelectorAll<HTMLElement>('[data-testid="share-event-time"]'),
-      ].map((el) => el.textContent!.trim());
+      ];
+      const shownTimes = timeCells.map((el) => el.textContent!.trim());
       expect(shownTimes).toEqual(c.events.map((e) => e.expectedDisplayedAt));
-      for (let i = 1; i < shownTimes.length; i += 1) {
-        expect(
-          shownTimes[i] >= shownTimes[i - 1],
-          `event ${i + 1} shows ${shownTimes[i]}, which is BEFORE event ${i}'s ${shownTimes[i - 1]}`,
-        ).toBe(true);
-      }
+      let previousKnown: string | null = null;
+      timeCells.forEach((cell, i) => {
+        const event = c.events[i];
+        const unknown = event.decidedAt == null && event.status !== "pending";
+        expect(cell.dataset.timeKnown).toBe(unknown ? "false" : "true");
+        if (unknown) {
+          // The display label is the whole cell: no recorded time stands in
+          // for the decision time the ledger never held.
+          expect(shownTimes[i]).toBe(UNKNOWN_DECISION_TIME);
+          const recordedStem = `${event.recordedAt.slice(0, 10)} ${event.recordedAt.slice(11, 16)}`;
+          expect(shownTimes[i]).not.toContain(recordedStem);
+          return;
+        }
+        if (previousKnown !== null) {
+          expect(
+            shownTimes[i] >= previousKnown,
+            `event ${i + 1} shows ${shownTimes[i]}, which is BEFORE the previous known time ${previousKnown}`,
+          ).toBe(true);
+        }
+        previousKnown = shownTimes[i];
+      });
 
       // The actor is a CLASS and the wire carries no name, so nothing here is
       // looked up and nothing can be reported as missing.

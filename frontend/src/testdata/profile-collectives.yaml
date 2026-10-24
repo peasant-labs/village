@@ -138,22 +138,28 @@ contributionCases:
 # the wire payload in the order the server sends it (event_num ascending);
 # `expectedLabels` is what each row must read, in the same order.
 #
-# Every case is a history the WRITE PATHS CAN ACTUALLY PRODUCE, because a case
-# describing an impossible state proves nothing about a real regression:
+# Every case is a history the WRITE PATHS OR THE SHIPPED MIGRATION 036 BACKFILL
+# CAN ACTUALLY PRODUCE, because a case describing an impossible state proves
+# nothing about a real regression:
 #   - one row per submission. A row is opened `pending` and UPDATED in place to
 #     approved / rejected, or to retracted / revoked when it is withdrawn while
 #     still awaiting review. Withdrawing an ACCEPTED contribution appends a
 #     further row instead, so the acceptance stays on record.
 #   - at most ONE row is `pending` (uq_share_attempt_open), and it can only be
 #     the last: a row stops being pending the moment anything happens to it.
+#   - a legacy FIRST row can carry a terminal status with `decidedAt: null`,
+#     because the pre-ledger transcript_shares row never recorded a decision
+#     time and migration 036 copied its status into attempt 1. After that
+#     backfill, every decision records its time.
 #   - `recordedAt` increases with `eventNum`, and a new attempt is never opened
-#     before the previous one closed, so `recordedAt[n] >= decidedAt[n-1]`.
-#     An appended withdrawal row is recorded and decided in the same moment.
+#     before the previous one closed, so `recordedAt[n] >= decidedAt[n-1]` (or
+#     the previous row's `recordedAt` when its decision time is unknown).
 #
-# `expectedDisplayedAt` is the timestamp the row must SHOW: the decision time
-# once decided, the submission time while still open. Because of the ordering
-# rules above it never runs backwards, and the loader refuses a case where it
-# would — an audit log whose times go backwards is not an audit log.
+# `expectedDisplayedAt` is what the row must SHOW: the decision time once
+# recorded, the submission time while still open, and the explicit unknown
+# label for a terminal event whose decision time was never recorded. Known
+# times never run backwards, and the loader refuses a case where they would —
+# an audit log whose times go backwards is not an audit log.
 eventHistoryCases:
   - name: all-five-states-in-ascending-order
     events:
@@ -316,6 +322,65 @@ eventHistoryCases:
       - rejected by moderator
       - approved by moderator
       - revoked by collective
+      - submitted
+
+  # A legacy rejection copied by migration 036: attempt 1 carries the status
+  # from the pre-ledger row and never had a decision time. Resubmitting and
+  # refusing again appends a decided row with a real time, and the still-open
+  # third attempt shows its submission time. The unknown first row must stay
+  # unknown, and every newer row must remain in the log.
+  - name: legacy-rejected-null-decision-keeps-newer-history
+    events:
+      - eventNum: 1
+        status: rejected
+        decidedByActor: moderator
+        recordedAt: "2026-07-01T09:00:00Z"
+        decidedAt: null
+        expectedDisplayedAt: "decision time not recorded"
+      - eventNum: 2
+        status: rejected
+        decidedByActor: moderator
+        recordedAt: "2026-07-10T09:00:00Z"
+        decidedAt: "2026-07-11T10:00:00Z"
+        expectedDisplayedAt: "2026-07-11 10:00"
+      - eventNum: 3
+        status: pending
+        decidedByActor: ""
+        recordedAt: "2026-07-20T09:00:00Z"
+        decidedAt: null
+        expectedDisplayedAt: "2026-07-20 09:00"
+    expectedLabels:
+      - rejected by moderator
+      - rejected by moderator
+      - submitted
+
+  # An initially automatic (or legacy) approval also carries no decision time.
+  # The owner's later withdrawal appends its own decided row, and the next
+  # attempt is still open. The approval's unknown time must not be filled in
+  # with the moment the attempt was submitted.
+  - name: legacy-approved-null-decision-keeps-newer-history
+    events:
+      - eventNum: 1
+        status: approved
+        decidedByActor: moderator
+        recordedAt: "2026-06-01T09:00:00Z"
+        decidedAt: null
+        expectedDisplayedAt: "decision time not recorded"
+      - eventNum: 2
+        status: retracted
+        decidedByActor: owner
+        recordedAt: "2026-06-10T09:00:00Z"
+        decidedAt: "2026-06-10T09:00:00Z"
+        expectedDisplayedAt: "2026-06-10 09:00"
+      - eventNum: 3
+        status: pending
+        decidedByActor: ""
+        recordedAt: "2026-06-20T09:00:00Z"
+        decidedAt: null
+        expectedDisplayedAt: "2026-06-20 09:00"
+    expectedLabels:
+      - approved by moderator
+      - retracted by owner
       - submitted
 
 # The owner-only PAIRS list for one collective

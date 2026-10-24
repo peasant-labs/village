@@ -40,10 +40,10 @@
     },
     "surface-elev": {
       "$type": "color",
-      "$value": "#1c1b18",
+      "$value": "#0b0b0a",
       "$extensions": {
         "fairtrade.theme": {
-          "light": "#efece4"
+          "light": "#fbfaf7"
         }
       }
     },
@@ -359,6 +359,10 @@
       "$type": "dimension",
       "$value": "28px"
     },
+    "chip-h": {
+      "$type": "dimension",
+      "$value": "28px"
+    },
     "nav-h": {
       "$type": "dimension",
       "$value": "56px"
@@ -638,6 +642,10 @@
     "toast-w": {
       "$type": "other",
       "$value": "360px"
+    },
+    "card-pad": {
+      "$type": "other",
+      "$value": "var(--sp-5)"
     },
     "success-soft": {
       "$type": "other",

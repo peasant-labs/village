@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
-import { shareEventLabel, submissionPairChip } from "@/lib/shareEvents";
+import {
+  shareEventLabel,
+  submissionPairChip,
+  UNKNOWN_DECISION_TIME,
+} from "@/lib/shareEvents";
 import type { ShareEventActor, ShareEventStatus } from "@/lib/types";
 
 /** Who is looking at the profile in a viewer case. */
@@ -45,12 +49,14 @@ export type ShareEventFixture = {
   decidedByActor: ShareEventActor;
   /** When the attempt was opened. */
   recordedAt: string;
-  /** When it was decided, or null while it is still open. */
+  /** When it was decided; null while it is still open, and null for a legacy
+   *  terminal attempt whose decision time was never captured. */
   decidedAt: string | null;
-  /** The timestamp the row must SHOW: the decision time once decided, the
-   *  submission time while still open. Authored here rather than derived from
-   *  the component, so the assertion has an independent expectation to fail
-   *  against. */
+  /** The timestamp the row must SHOW: the decision time once recorded, the
+   *  submission time while still open, or the explicit unknown label for a
+   *  terminal attempt with no recorded decision time. Authored here rather
+   *  than derived from the component, so the assertion has an independent
+   *  expectation to fail against. */
   expectedDisplayedAt: string;
 };
 
@@ -117,6 +123,8 @@ const requiredEventHistoryCaseNames = [
   "repeated-rejection-then-still-pending",
   "withdrawn-by-owner-is-never-phrased-as-a-resubmission",
   "removed-by-the-collective-is-distinct-from-a-refusal",
+  "legacy-rejected-null-decision-keeps-newer-history",
+  "legacy-approved-null-decision-keeps-newer-history",
 ] as const;
 
 const viewerCaseKeys = ["name", "viewer", "expectSection", "expectContributionsRequest"];
@@ -301,6 +309,8 @@ export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
             `a history no write path can produce`,
         );
       }
+      const isPending = e.status === "pending";
+      const isWithdrawal = e.status === "retracted" || e.status === "revoked";
       const recorded = Date.parse(e.recordedAt);
       const decided = e.decidedAt == null ? null : Date.parse(e.decidedAt);
       if (Number.isNaN(recorded) || (e.decidedAt != null && Number.isNaN(decided!))) {
@@ -309,10 +319,20 @@ export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
             `timestamps, got ${e.recordedAt} / ${e.decidedAt}`,
         );
       }
-      if ((e.decidedAt == null) !== (e.status === "pending")) {
+      // The canonical wire allows a null decidedAt for an open attempt and for
+      // a terminal attempt whose decision time was never recorded: a legacy
+      // rejection, or an initially automatic approval. Retraction and
+      // revocation still require their decision time, and an open attempt
+      // still requires null — this is not a general "null is fine" hole.
+      if (isPending && e.decidedAt != null) {
         throw new Error(
-          `event-history case ${c.name} events[${i}]: decidedAt is null exactly while the event is ` +
-            `still open, and set for every decided event`,
+          `event-history case ${c.name} events[${i}]: a pending event cannot carry a decision time`,
+        );
+      }
+      if (isWithdrawal && e.decidedAt == null) {
+        throw new Error(
+          `event-history case ${c.name} events[${i}]: a ${e.status} event always records its ` +
+            `decision time`,
         );
       }
       if (decided != null && decided < recorded) {
@@ -323,12 +343,15 @@ export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
       }
       if (i > 0) {
         const prev = c.events[i - 1];
+        // A legacy terminal row carries no recorded decision time. Its
+        // recordedAt is the only lower bound the wire holds, and a new attempt
+        // cannot be opened before the previous row existed.
         const prevClosed = Date.parse(prev.decidedAt ?? prev.recordedAt);
         if (recorded < prevClosed) {
           throw new Error(
             `event-history case ${c.name} events[${i}]: a new attempt is only opened after the ` +
               `previous one closed, so recordedAt (${e.recordedAt}) cannot precede the previous ` +
-              `event's own time (${prev.decidedAt ?? prev.recordedAt})`,
+              `event's own known time (${prev.decidedAt ?? prev.recordedAt})`,
           );
         }
       }
@@ -336,20 +359,30 @@ export function loadProfileCollectivesFixtures(): ProfileCollectivesFixtures {
       // the fields it must come from. A log whose displayed times run backwards
       // contradicts its own "oldest first" claim, so the fixture refuses to
       // express one.
-      const displayedIso = e.decidedAt ?? e.recordedAt;
-      const displayed = `${displayedIso.slice(0, 10)} ${displayedIso.slice(11, 16)}`;
+      const displayedIso = e.decidedAt ?? (isPending ? e.recordedAt : null);
+      const displayed = displayedIso
+        ? `${displayedIso.slice(0, 10)} ${displayedIso.slice(11, 16)}`
+        : UNKNOWN_DECISION_TIME;
       if (e.expectedDisplayedAt !== displayed) {
         throw new Error(
           `event-history case ${c.name} events[${i}]: expectedDisplayedAt is ` +
-            `"${e.expectedDisplayedAt}" but the decided-else-recorded time is "${displayed}"`,
+            `"${e.expectedDisplayedAt}" but the honest display is "${displayed}"`,
         );
       }
-      if (i > 0 && e.expectedDisplayedAt < c.events[i - 1].expectedDisplayedAt) {
-        throw new Error(
-          `event-history case ${c.name} events[${i}]: the displayed time runs BACKWARDS ` +
-            `("${e.expectedDisplayedAt}" after "${c.events[i - 1].expectedDisplayedAt}") — the log ` +
-            `is read oldest first, so its times must never decrease`,
-        );
+      if (i > 0 && e.expectedDisplayedAt !== UNKNOWN_DECISION_TIME) {
+        // Unknown rows carry no decision time to order by. Every row that does
+        // carry one must still be at or after the previous known row.
+        const previousKnown = c.events
+          .slice(0, i)
+          .reverse()
+          .find((prev) => prev.expectedDisplayedAt !== UNKNOWN_DECISION_TIME);
+        if (previousKnown && e.expectedDisplayedAt < previousKnown.expectedDisplayedAt) {
+          throw new Error(
+            `event-history case ${c.name} events[${i}]: the displayed time runs BACKWARDS ` +
+              `("${e.expectedDisplayedAt}" after "${previousKnown.expectedDisplayedAt}") — the log ` +
+              `is read oldest first, so its known times must never decrease`,
+          );
+        }
       }
       // The expected label is checked against the production labeller here so a
       // fixture cannot quietly encode wording the app does not produce, and so
