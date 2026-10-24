@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -38,13 +39,24 @@ type shareEventHistoryExpectedEvent struct {
 	Actor    string `yaml:"actor"`
 }
 
+// shareEventHistoryLegacyAttempt is a row installed in the shape migration 036's
+// backfill left it: a status carried over from the pre-ledger transcript_shares
+// table with no decision time, because that table never recorded one. It is data
+// only; the read under test is still the production handler.
+type shareEventHistoryLegacyAttempt struct {
+	EventNum   int    `yaml:"event_num"`
+	Status     string `yaml:"status"`
+	RecordedAt string `yaml:"recorded_at"`
+}
+
 type shareEventHistoryCase struct {
-	Name         string                           `yaml:"name"`
-	Why          string                           `yaml:"why"`
-	Steps        []shareAttemptStep               `yaml:"steps"`
-	Viewer       string                           `yaml:"viewer"`
-	ExpectStatus int                              `yaml:"expect_status"`
-	Events       []shareEventHistoryExpectedEvent `yaml:"events"`
+	Name           string                           `yaml:"name"`
+	Why            string                           `yaml:"why"`
+	LegacyAttempts []shareEventHistoryLegacyAttempt `yaml:"legacy_attempts"`
+	Steps          []shareAttemptStep               `yaml:"steps"`
+	Viewer         string                           `yaml:"viewer"`
+	ExpectStatus   int                              `yaml:"expect_status"`
+	Events         []shareEventHistoryExpectedEvent `yaml:"events"`
 }
 
 // requiredShareEventHistoryCases names the cases that must exist. Each one is
@@ -55,6 +67,7 @@ type shareEventHistoryCase struct {
 // could bypass.
 var requiredShareEventHistoryCases = []string{
 	"full_history_all_five_states_in_order",
+	"legacy_rejected_null_decision_keeps_whole_history",
 	"pending_event_carries_no_decided_at_and_no_actor",
 	"retracted_and_revoked_history_never_names_a_raw_user",
 	"non_owner_signed_in_collective_member_gets_404",
@@ -78,6 +91,20 @@ func loadShareEventHistoryCases(t *testing.T) []shareEventHistoryCase {
 		}
 		if c.ExpectStatus == 0 {
 			t.Fatalf("case %q declares no expect_status", c.Name)
+		}
+		for i, legacy := range c.LegacyAttempts {
+			if legacy.EventNum != i+1 {
+				t.Fatalf("case %q legacy attempt %d declares event_num %d; legacy rows are installed in ordinal order "+
+					"from 1 so the case describes the state migration 036's backfill produced", c.Name, i, legacy.EventNum)
+			}
+			if legacy.Status != "rejected" {
+				t.Fatalf("case %q legacy attempt %d declares status %q; only a pre-capture rejection carries a null "+
+					"decision time, which is the compatibility case this fixture exists for", c.Name, i, legacy.Status)
+			}
+			if _, err := time.Parse(time.RFC3339, legacy.RecordedAt); err != nil {
+				t.Fatalf("case %q legacy attempt %d has recorded_at %q, which is not RFC 3339: %v",
+					c.Name, i, legacy.RecordedAt, err)
+			}
 		}
 	}
 	for _, required := range requiredShareEventHistoryCases {
@@ -108,6 +135,8 @@ func TestShareEventHistory(t *testing.T) {
 				}
 			}()
 
+			world.seedLegacyAttempts(t, ctx, tc.LegacyAttempts)
+
 			for i, step := range tc.Steps {
 				world.run(t, ctx, h, i, step)
 			}
@@ -122,12 +151,21 @@ func TestShareEventHistory(t *testing.T) {
 				return
 			}
 
+			body := rec.Body.Bytes()
 			var got []ShareEventHistoryEntry
-			if err := json.NewDecoder(rec.Result().Body).Decode(&got); err != nil {
+			if err := json.Unmarshal(body, &got); err != nil {
 				t.Fatalf("decode response: %v", err)
 			}
-			if len(got) != len(tc.Events) {
-				t.Fatalf("got %d events, want %d (%s)", len(got), len(tc.Events), tc.Why)
+			// The contract's decided_at is REQUIRED and nullable. Decoding into
+			// the typed shape cannot tell an explicit null from an omitted
+			// member, so keep the raw object alongside it: an unknown decision
+			// time must travel as null, never as an absent field.
+			var raw []map[string]json.RawMessage
+			if err := json.Unmarshal(body, &raw); err != nil {
+				t.Fatalf("decode raw response objects: %v", err)
+			}
+			if len(got) != len(tc.Events) || len(raw) != len(tc.Events) {
+				t.Fatalf("got %d events (%d raw), want %d (%s)", len(got), len(raw), len(tc.Events), tc.Why)
 			}
 			for i, want := range tc.Events {
 				if int(got[i].EventNum) != want.EventNum {
@@ -135,6 +173,15 @@ func TestShareEventHistory(t *testing.T) {
 				}
 				if string(got[i].Status) != want.Status {
 					t.Errorf("event %d: status = %q, want %q (%s)", i, got[i].Status, want.Status, tc.Why)
+				}
+				decidedRaw, decidedPresent := raw[i]["decided_at"]
+				if !decidedPresent {
+					t.Errorf("event %d omits decided_at; the wire member is required and nullable, so an unknown "+
+						"decision time must be an explicit JSON null (case %s)", i, tc.Name)
+				} else if !want.Decided && string(decidedRaw) != "null" {
+					t.Errorf("event %d: decided_at = %s, want JSON null. A decision time this row never recorded "+
+						"is unknown evidence and must not be derived from recorded_at or the event ordinal (case %s)",
+						i, decidedRaw, tc.Name)
 				}
 				if (got[i].DecidedAt != nil) != want.Decided {
 					t.Errorf("event %d: decided_at present = %v, want %v (%s)", i, got[i].DecidedAt != nil, want.Decided, tc.Why)
@@ -144,6 +191,30 @@ func TestShareEventHistory(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// seedLegacyAttempts installs the pre-capture rejection shape directly, because
+// no current write path can produce it: the production decide path always
+// records a decision time. Migration 036's backfill copied the old
+// transcript_shares status into attempt 1 and left decided_at and decided_by
+// null, so this statement is the same shape the shipped migration wrote. The
+// attempt ledger has no audit actor requirement, and the derivation trigger
+// still owns the current-state row.
+func (w *shareWorld) seedLegacyAttempts(t *testing.T, ctx context.Context, attempts []shareEventHistoryLegacyAttempt) {
+	t.Helper()
+	for _, attempt := range attempts {
+		recordedAt, err := time.Parse(time.RFC3339, attempt.RecordedAt)
+		if err != nil {
+			t.Fatalf("parse legacy recorded_at %q: %v", attempt.RecordedAt, err)
+		}
+		if _, err := w.pool.Exec(ctx, `
+			INSERT INTO transcript_share_attempts
+				(transcript_id, group_id, event_num, status, recorded_at, decided_at, decided_by)
+			VALUES ($1, $2, $3, $4, $5, NULL, NULL)
+		`, w.transcript, w.group, attempt.EventNum, attempt.Status, recordedAt); err != nil {
+			t.Fatalf("install legacy attempt %d (%s): %v", attempt.EventNum, attempt.Status, err)
+		}
 	}
 }
 
