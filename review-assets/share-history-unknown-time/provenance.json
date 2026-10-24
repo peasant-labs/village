@@ -1,0 +1,61 @@
+{
+  "subjectRepo": "peasant-labs/village",
+  "subjectPR": 307,
+  "subjectRevision": "3b85995e4fb007b3772db3571ef7d428ec2bd737",
+  "runner": "Playwright",
+  "path": "built production profile route /users/alice-dev",
+  "data": "controlled public REST fixture; no real user data",
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "viewports": {
+    "desktop": [
+      1396,
+      939
+    ],
+    "mobile": [
+      390,
+      1400
+    ]
+  },
+  "buildProvenance": "changed state markers and served JS bytes verified against the exact build tree",
+  "servedJSsha256": "76d0e68aa981f4cbaa012a149aee86fc38ac8c6305dc2e6373214f8d03e015fc",
+  "manualSelfReview": "all four mounted shell states and all four details inspected; final captures byte-identical to inspected initial set; no clipping or overflow",
+  "semantics": "terminal null decision time is not substituted from recorded_at",
+  "limits": "rejected-null captured; approved-null and pending/known-time covered by mounted unit fixtures; no physical device claim",
+  "files": [
+    {
+      "file": "light-desktop-shell.png",
+      "sha256": "21a43208caa8bdc1caad66aa18b85dd708f28c3d0e0cd5c4d639cfe984a423b4"
+    },
+    {
+      "file": "light-desktop-detail.png",
+      "sha256": "7d5f4e55e4c9b1f851e6951dc95c543de000711e0a3c5e1f7c85a664915e04af"
+    },
+    {
+      "file": "light-mobile-shell.png",
+      "sha256": "27ab93b1cdffc7f52cc04bc8058ebd3304f608564b19ca0f0349604a4cc21f0d"
+    },
+    {
+      "file": "light-mobile-detail.png",
+      "sha256": "d19f7a4d7d8427e38d6eba005f14ee9e07f9515e9f8895c1452e347a687ee092"
+    },
+    {
+      "file": "dark-desktop-shell.png",
+      "sha256": "a35f9727a8608c1e251159ba709f214dcb180a59a2f8518c3374d28e63aa7c17"
+    },
+    {
+      "file": "dark-desktop-detail.png",
+      "sha256": "3048b4f6065b80be5ca1421c70b7539dd36b4d647b8fda895c0c5c72b738d7b0"
+    },
+    {
+      "file": "dark-mobile-shell.png",
+      "sha256": "461d37bfeb50fe9b326e2274dc2a0826bad193149cb2b7c8aebb2f94cc8d767a"
+    },
+    {
+      "file": "dark-mobile-detail.png",
+      "sha256": "ddb50ab124a5c7bd1be88101ff6d1695d041da3904743fafb10bd2da2f2d788a"
+    }
+  ]
+}
