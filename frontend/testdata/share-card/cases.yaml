@@ -1,0 +1,138 @@
+# Cases for loadPublicTranscript. Each case runs its steps in order against a
+# fake API. `meta` and `content` describe what the API answers on that step;
+# `expect` is `content` (the loader returned the transcript and its content) or
+# `null`. A `parallel` case fires its steps at once.
+cases:
+  - name: public-returns-content
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+        content: { kind: response, status: 200 }
+        expect: content
+    metadataFetches: 1
+    contentFetches: 1
+
+  - name: shared
+    steps:
+      - meta: { kind: response, status: 403 }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 0
+
+  - name: private
+    steps:
+      - meta: { kind: response, status: 403 }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 0
+
+  - name: missing
+    steps:
+      - meta: { kind: response, status: 404 }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 0
+
+  - name: non-public-body-on-200
+    steps:
+      - meta: { kind: response, status: 200, visibility: private, updated_at: "2026-10-01T00:00:00Z" }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 0
+
+  - name: api-error-500
+    steps:
+      - meta: { kind: response, status: 500 }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 0
+
+  - name: api-unreachable
+    steps:
+      - meta: { kind: reject }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 0
+
+  - name: content-error-500
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+        content: { kind: response, status: 500 }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 1
+
+  - name: timeout
+    maxMs: 3500
+    steps:
+      - meta: { kind: hang }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 0
+
+  - name: content-timeout
+    maxMs: 3500
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+        content: { kind: hang }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 1
+
+  - name: no-env
+    env: false
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+        expect: "null"
+    metadataFetches: 0
+    contentFetches: 0
+
+  - name: visibility-flip
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+        content: { kind: response, status: 200 }
+        expect: content
+      - meta: { kind: response, status: 403 }
+        expect: "null"
+    metadataFetches: 2
+    contentFetches: 1
+
+  - name: cache-hit-same-updated-at
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+        content: { kind: response, status: 200 }
+        expect: content
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+        expect: content
+    metadataFetches: 2
+    contentFetches: 1
+
+  - name: cache-miss-new-updated-at
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+        content: { kind: response, status: 200 }
+        expect: content
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-02T00:00:00Z" }
+        content: { kind: response, status: 200 }
+        expect: content
+    metadataFetches: 2
+    contentFetches: 2
+
+  - name: single-flight
+    parallel: true
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+        content: { kind: response, status: 200 }
+        expect: content
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+        content: { kind: response, status: 200 }
+        expect: content
+    metadataFetches: 2
+    contentFetches: 1
+
+  - name: no-auth-header
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: "2026-10-01T00:00:00Z" }
+        content: { kind: response, status: 200 }
+        expect: content
+    metadataFetches: 1
+    contentFetches: 1
