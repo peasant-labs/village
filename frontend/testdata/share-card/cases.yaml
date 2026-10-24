@@ -7,7 +7,12 @@
 # response carries `visibility` and `updated_at`; a content response carries
 # `payload`: `figures` (both figures), `no-figures`, `unparseable`, `long-prompt` (a ~1MB first prompt) or `surrogate-boundary`.
 # `id` is the transcript id asked for (default `t1`).
-# `expect` is `card-figures`, `card-no-figures` or `null`.
+# `expect` is `card-figures`, `card-no-figures` or `null`. A step's `card` lists
+# fields the returned card must have; `firstPrompt` there is a string or
+# `{repeat, times}` (one character repeated, for texts too long to write out).
+# `metadataUrl` is the exact metadata read the case expects (default the `t1` read).
+# `storedPromptMaxUnits` bounds every stored card's first prompt, in UTF-16 units.
+# `storedEqualsResult: true` pins that the cache holds exactly the card returned.
 # `fakeTimers: true` runs the case on a fake clock and advances it by 3000ms
 # after starting the steps, so a deadline is proven without waiting.
 # `cacheValues` pins what the cache holds afterwards: `card` (only card-shaped
@@ -20,6 +25,13 @@ cases:
       - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
         content: { kind: response, status: 200, payload: figures }
         expect: card-figures
+        card:
+          title: rewrite billing retries
+          firstPrompt: rewrite billing retries with SECRET-PROMPT-TEXT
+          harness: claude-code
+          brand: claude
+          chip: Claude Code (Opus 5.5)
+          figures: { prompts: 6, tokens: 84000 }
     metadataFetches: 1
     contentFetches: 1
     cacheValues: card
@@ -29,6 +41,7 @@ cases:
       - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
         content: { kind: response, status: 200, payload: no-figures }
         expect: card-no-figures
+        card: { figures: null }
     metadataFetches: 1
     contentFetches: 1
     cacheValues: card
@@ -77,8 +90,10 @@ cases:
       - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
         content: { kind: response, status: 200, payload: long-prompt }
         expect: card-figures
+        card: { firstPrompt: { repeat: x, times: 2000 } }
     metadataFetches: 1
     contentFetches: 1
+    storedPromptMaxUnits: 2000
     cacheValues: card
 
   - name: first-prompt-surrogate-boundary
@@ -86,6 +101,7 @@ cases:
       - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
         content: { kind: response, status: 200, payload: surrogate-boundary }
         expect: card-figures
+        card: { firstPrompt: { repeat: x, times: 1999 } }
     metadataFetches: 1
     contentFetches: 1
     cacheValues: card
@@ -191,6 +207,17 @@ cases:
     metadataFetches: 0
     contentFetches: 0
 
+  # A percent-encoded dot segment is an ordinary id: it is escaped again, so the
+  # read stays one path segment under /transcripts.
+  - name: percent-encoded-dot-dot-id
+    id: "%2e%2e"
+    steps:
+      - meta: { kind: response, status: 404 }
+        expect: "null"
+    metadataFetches: 1
+    contentFetches: 0
+    metadataUrl: "http://backend:8080/api/v1/transcripts/%252e%252e"
+
   - name: visibility-flip
     steps:
       - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
@@ -230,6 +257,7 @@ cases:
         expect: card-figures
     metadataFetches: 1
     contentFetches: 1
+    storedEqualsResult: true
     cacheValues: card
 
   - name: single-flight

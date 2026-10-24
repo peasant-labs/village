@@ -34,10 +34,24 @@ type Reply =
 
 type Expect = "card-figures" | "card-no-figures" | "null";
 
+/** A literal string, or one character repeated (for texts too long to write out). */
+type Text = string | { repeat: string; times: number };
+
+interface CardExpectation {
+  title?: string;
+  firstPrompt?: Text;
+  firstPromptIsTitle?: boolean;
+  harness?: string;
+  brand?: string | null;
+  chip?: string;
+  figures?: { prompts: number; tokens: number } | null;
+}
+
 interface Step {
   meta: Reply;
   content?: Reply;
   expect: Expect;
+  card?: CardExpectation;
 }
 
 interface Case {
@@ -49,7 +63,10 @@ interface Case {
   steps: Step[];
   metadataFetches: number;
   contentFetches: number;
+  metadataUrl?: string;
   cacheValues?: "card" | "empty";
+  storedPromptMaxUnits?: number;
+  storedEqualsResult?: boolean;
 }
 
 const cases = (
@@ -81,10 +98,16 @@ const REQUIRED = [
   "first-prompt-surrogate-boundary",
   "dot-segment-id",
   "dot-dot-segment-id",
+  "percent-encoded-dot-dot-id",
 ];
 
-// A transcript text that must never reach the cache.
+// A transcript text that must never reach the cache key. The fixtures name it
+// as the expected first prompt.
 const SECRET_PROMPT = "rewrite billing retries with SECRET-PROMPT-TEXT";
+
+function text(spec: Text): string {
+  return typeof spec === "string" ? spec : spec.repeat.repeat(spec.times);
+}
 
 function sessionDetail(): Record<string, unknown> {
   return {
@@ -194,20 +217,23 @@ describe("loadShareCard", () => {
 
     const results: unknown[] = [];
     if (c.parallel) {
-      const pending = c.steps.map(run);
-      results.push(...(await Promise.all(pending)));
+      results.push(...(await Promise.all(c.steps.map(run))));
     } else if (c.fakeTimers) {
       const pending = run();
       await vi.advanceTimersByTimeAsync(3000);
       results.push(await pending);
     } else {
-      for (const step of c.steps) {
-        const result = await run();
-        results.push(result);
-        expect(label(result), `step ${results.length - 1}`).toBe(step.expect);
-      }
+      for (const _step of c.steps) results.push(await run());
     }
-    results.forEach((r, i) => expect(label(r), `step ${i}`).toBe(c.steps[i].expect));
+    results.forEach((r, i) => {
+      expect(label(r), `step ${i}`).toBe(c.steps[i].expect);
+      const want = c.steps[i].card;
+      if (want) {
+        const { firstPrompt, ...rest } = want;
+        expect(r, `step ${i}`).toMatchObject(rest);
+        if (firstPrompt !== undefined) expect((r as { firstPrompt: string }).firstPrompt, `step ${i}`).toBe(text(firstPrompt));
+      }
+    });
 
     expect(calls.filter((x) => !x.url.endsWith("/content"))).toHaveLength(c.metadataFetches);
     expect(calls.filter((x) => x.url.endsWith("/content"))).toHaveLength(c.contentFetches);
@@ -221,7 +247,7 @@ describe("loadShareCard", () => {
     }
     for (const x of calls.filter((x) => !x.url.endsWith("/content"))) {
       expect(x.init?.cache).toBe("no-store");
-      expect(x.url).toBe("http://backend:8080/api/v1/transcripts/t1");
+      expect(x.url).toBe(c.metadataUrl ?? "http://backend:8080/api/v1/transcripts/t1");
     }
 
     if (c.cacheValues === "empty") expect(store.size).toBe(0);
@@ -236,28 +262,14 @@ describe("loadShareCard", () => {
         expect(key).not.toContain("assistant");
       }
     }
-    if (c.name === "public-both-figures") {
-      expect(results[0]).toMatchObject({
-        title: "rewrite billing retries",
-        firstPrompt: SECRET_PROMPT,
-        harness: "claude-code",
-        brand: "claude",
-        chip: "Claude Code (Opus 5.5)",
-        figures: { prompts: 6, tokens: 84000 },
-      });
+    if (c.storedPromptMaxUnits !== undefined) {
+      expect(store.size).toBeGreaterThan(0);
+      for (const value of store.values()) {
+        expect((value as { firstPrompt: string }).firstPrompt.length).toBeLessThanOrEqual(c.storedPromptMaxUnits);
+      }
     }
-    if (c.name === "public-no-figures") expect((results[0] as { figures: unknown }).figures).toBeNull();
-    if (c.name === "long-first-prompt") {
-      const card = results[0] as { firstPrompt: string };
-      expect(card.firstPrompt).toBe("x".repeat(2000));
-      for (const value of store.values()) expect((value as { firstPrompt: string }).firstPrompt.length).toBeLessThanOrEqual(2000);
-    }
-    if (c.name === "first-prompt-surrogate-boundary") {
-      const card = results[0] as { firstPrompt: string };
-      expect(card.firstPrompt).toBe("x".repeat(1999));
-    }
-    if (c.name === "caches-card-not-content") {
-      // The stored value is the card the caller got, and the transcript text appears nowhere but the prompt line.
+    if (c.storedEqualsResult) {
+      // The stored value is the card the caller got, and no key holds transcript structure.
       const [stored] = [...store.values()];
       expect(stored).toStrictEqual(results[0]);
       expect(JSON.stringify([...store.keys()])).not.toContain("turns");
