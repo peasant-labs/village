@@ -46,6 +46,16 @@ export function isOpenSignedOut(pathname: string): boolean {
 }
 
 /**
+ * Whether a page is a transcript (`/transcripts/<id>`, one segment). Its
+ * server decides who it serves without a session: a public transcript opens
+ * signed out, and anything else is sent to sign in before it is served. The app
+ * frame takes the page's word for it (`useDeclareSignedOutReadable`).
+ */
+export function isTranscriptPage(pathname: string): boolean {
+  return /^\/transcripts\/[^/]+$/.test(pathname.replace(/\/+$/, ""));
+}
+
+/**
  * Where a signed-out visitor to a page was headed, as the return address the
  * log-in popup carries: the page itself, or, on the sign-in page, the address
  * that page was asked to return to. Null when there is nothing to come back to

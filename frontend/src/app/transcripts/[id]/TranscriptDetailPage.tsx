@@ -15,15 +15,20 @@ import Link from "next/link";
 import { Clock, FileX2, SearchX } from "lucide-react";
 import { isApiErrorStatus } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
+import { useDeclareSignedOutReadable } from "@/components/shell/signedOutDeclaration";
 import { loginHref } from "@/lib/signIn";
 import { OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 
 export default function TranscriptDetailPage({
   params,
+  openSignedOut = false,
 }: {
   params: Promise<{ id: string }>;
+  /** The server read this transcript as public, so a visitor without a session may stay. */
+  openSignedOut?: boolean;
 }) {
   const { id } = use(params);
+  useDeclareSignedOutReadable(openSignedOut);
   const { data, isLoading, error } = useTranscript(id);
   const { data: content, isLoading: contentLoading, error: contentError } =
     useTranscriptContent(id, { knownHarness: data?.transcript.model_provider, enabled: !!data });

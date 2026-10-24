@@ -161,8 +161,9 @@ navCases:
     expectActiveLabel: null
     expectBackHref: null
   - name: a-signed-out-transcript-reader-gets-no-sidebar
-    # A shared link's reader who is not signed in is sent to sign in first,
-    # with no sidebar of sections drawn on the way.
+    # The reader of a transcript its server did not mark public, who is not
+    # signed in, is sent to sign in first, with no sidebar of sections drawn
+    # on the way. (A public one is `signed-out-transcript.yaml`'s.)
     isLoggedIn: false
     pathname: "/transcripts/abc123"
     expectNav: none
