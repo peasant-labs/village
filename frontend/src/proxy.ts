@@ -32,8 +32,10 @@ import { isOpenSignedOut } from "@/lib/signIn";
  *   `/twitter-image`) whatever its headers, because they are images, never
  *   pages;
  * - the transcript page (`/transcripts/<id>`, one segment) only when it sends
- *   no `Sec-Fetch-Dest`, as crawlers do. A browser always sends `document` for
- *   a page load, so a person is still sent to sign in.
+ *   no `Sec-Fetch-Dest`, as crawlers do. Current browsers send `document` for
+ *   a page load, so a person is still sent to sign in here. An older browser
+ *   that sends no Fetch Metadata is served the page, and the app frame's own
+ *   signed-out redirect then sends that visitor to sign in.
  *
  * This redirect is not what keeps a transcript private. The metadata and the
  * images read the transcript as an anonymous visitor on every request, and

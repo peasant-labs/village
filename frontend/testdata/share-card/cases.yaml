@@ -6,6 +6,7 @@
 # may carry `delayMs` (answered after that long on the fake clock). A metadata
 # response carries `visibility` and `updated_at`; a content response carries
 # `payload`: `figures` (both figures), `no-figures`, `unparseable`, `long-prompt` (a ~1MB first prompt) or `surrogate-boundary`.
+# `id` is the transcript id asked for (default `t1`).
 # `expect` is `card-figures`, `card-no-figures` or `null`.
 # `fakeTimers: true` runs the case on a fake clock and advances it by 3000ms
 # after starting the steps, so a deadline is proven without waiting.
@@ -166,6 +167,24 @@ cases:
 
   - name: no-env
     env: false
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        expect: "null"
+    metadataFetches: 0
+    contentFetches: 0
+
+  - name: dot-segment-id
+    # "." and ".." would be read by URL resolution as a path step, so the
+    # request would reach another API route; no request is made for them.
+    id: "."
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        expect: "null"
+    metadataFetches: 0
+    contentFetches: 0
+
+  - name: dot-dot-segment-id
+    id: ".."
     steps:
       - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
         expect: "null"

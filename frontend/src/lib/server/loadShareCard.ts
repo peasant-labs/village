@@ -44,6 +44,9 @@ class CardUnavailable extends Error {}
  * cached, keyed by id and `updated_at`; the transcript content is never stored.
  */
 export async function loadShareCard(id: string, deps: Pick<LoadDeps, "fetch"> = {}): Promise<ShareCardData | null> {
+  // URL resolution reads "." and ".." as path steps even when encoded, so the
+  // read would reach another API route. No transcript has such an id.
+  if (id === "." || id === "..") return null;
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<null>((resolve) => {

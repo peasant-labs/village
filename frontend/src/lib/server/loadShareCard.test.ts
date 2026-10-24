@@ -42,6 +42,7 @@ interface Step {
 
 interface Case {
   name: string;
+  id?: string;
   env?: boolean;
   parallel?: boolean;
   fakeTimers?: boolean;
@@ -78,6 +79,8 @@ const REQUIRED = [
   "deadline-is-total",
   "long-first-prompt",
   "first-prompt-surrogate-boundary",
+  "dot-segment-id",
+  "dot-dot-segment-id",
 ];
 
 // A transcript text that must never reach the cache.
@@ -187,7 +190,7 @@ describe("loadShareCard", () => {
     if (c.env === false) vi.stubEnv("VILLAGE_INTERNAL_API_URL", "");
     if (c.fakeTimers) vi.useFakeTimers();
     const { fetchFn, calls } = makeFetch(c.steps);
-    const run = () => loadShareCard("t1", { fetch: fetchFn });
+    const run = () => loadShareCard(c.id ?? "t1", { fetch: fetchFn });
 
     const results: unknown[] = [];
     if (c.parallel) {
