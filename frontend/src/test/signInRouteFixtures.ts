@@ -27,7 +27,7 @@ export interface TranscriptPageCase {
   searchParams: Record<string, string>;
   session: boolean;
   fetchDest: "document" | "empty" | null;
-  api: "public" | "not-found" | "non-public-body" | "error" | "unreachable" | "no-config";
+  api: "public" | "not-found" | "non-public-body" | "error" | "unreachable" | "no-config" | "non-public-read";
   reads: number;
   expect: { serve: boolean; openSignedOut: boolean; location: string | null };
 }
@@ -68,6 +68,7 @@ const requiredTranscriptPageCases = [
   "a-shared-transcript-signs-in-first",
   "a-missing-transcript-signs-in-first",
   "a-non-public-answer-signs-in-first",
+  "a-read-of-a-non-public-transcript-signs-in-first",
   "an-api-error-fails-closed",
   "an-unreachable-api-fails-closed",
   "no-api-configured-fails-closed",
@@ -79,7 +80,7 @@ const requiredTranscriptPageCases = [
   "a-dot-segment-id-is-never-read",
 ];
 
-const API_ANSWERS = ["public", "not-found", "non-public-body", "error", "unreachable", "no-config"];
+const API_ANSWERS = ["public", "not-found", "non-public-body", "error", "unreachable", "no-config", "non-public-read"];
 
 const requiredNextCases = [
   "a-page-on-this-site-is-followed",

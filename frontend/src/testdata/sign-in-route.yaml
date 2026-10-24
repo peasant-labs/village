@@ -163,6 +163,9 @@ proxyCases:
 #   error             500
 #   unreachable       the request fails
 #   no-config         the server's API address is not configured
+#   non-public-read   the read itself hands back a transcript that is not
+#                     public (the page checks visibility again, whatever read
+#                     it is given)
 # `reads` is how many times the API was asked. `expect.serve` is whether the
 # page is served; `openSignedOut` whether the frame lets a signed-out visitor
 # stay; `location` where anybody not served is sent.
@@ -211,6 +214,17 @@ transcriptPageCases:
     fetchDest: document
     api: non-public-body
     reads: 1
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: a-read-of-a-non-public-transcript-signs-in-first
+    why: >-
+      the page opens only what it sees is public, so a read that passes on a
+      transcript that is not public still sends the visitor to sign in.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: document
+    api: non-public-read
+    reads: 0
     expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
   - name: an-api-error-fails-closed
     why: a read that fails decides nothing, so the visitor is sent to sign in as before.

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { proxy } from "@/proxy";
 import { readPublicTranscript } from "@/lib/server/loadPublicTranscript";
 import { decideTranscriptPage, searchString } from "@/lib/server/transcriptPageAccess";
+import type { Transcript } from "@/lib/types";
 import { loginHref, rememberNextPath, safeNextPath, takeNextPath } from "@/lib/signIn";
 import { loadSignInRouteFixtures, type TranscriptPageCase } from "@/test/signInRouteFixtures";
 
@@ -67,7 +68,9 @@ describe("the transcript page: who it serves without a session", () => {
       const { fetchFn, calls } = apiAnswering(c.api);
       const decision = await decideTranscriptPage(
         { id: c.id, search: searchString(c.searchParams), hasSession: c.session, fetchDest: c.fetchDest },
-        (id) => readPublicTranscript(id, { fetch: fetchFn }),
+        c.api === "non-public-read"
+          ? async (id) => ({ id, title: "a transcript", visibility: "shared" }) as Transcript
+          : (id) => readPublicTranscript(id, { fetch: fetchFn }),
       );
       expect(decision, c.why).toEqual(
         c.expect.serve
@@ -93,7 +96,7 @@ describe("the transcript page: who it serves without a session", () => {
     );
     expect(new Set(refused.map((c) => c.expect.location)).size).toBe(1);
     expect(new Set(refused.map((c) => c.api))).toEqual(
-      new Set(["not-found", "non-public-body", "error", "unreachable", "no-config"]),
+      new Set(["not-found", "non-public-body", "error", "unreachable", "no-config", "non-public-read"]),
     );
   });
 });
