@@ -15,8 +15,10 @@ export interface FrameCase {
   why: string;
   pathname: string;
   signedIn: boolean;
+  cookie: "none" | "stale" | "stale-uncleared";
   declares: "public" | "not-public" | "nothing";
   expectChrome: "public" | "sections" | "leaving";
+  expectReload: boolean;
 }
 
 export interface PageCase {
@@ -37,6 +39,10 @@ const requiredFrameCases = [
   "a-public-mark-opens-no-deeper-transcript-path",
   "a-signed-in-reader-of-a-public-transcript-is-unchanged",
   "a-signed-in-reader-of-another-transcript-is-unchanged",
+  "a-stale-cookie-on-a-transcript-reloads-without-it",
+  "a-cookie-that-will-not-clear-leaves-for-sign-in",
+  "a-stale-cookie-elsewhere-leaves-for-sign-in",
+  "a-stale-cookie-on-a-public-transcript-stays",
 ];
 
 const requiredPageCases = [
@@ -55,7 +61,17 @@ export function loadSignedOutTranscriptFixtures(): { frameCases: FrameCase[]; pa
 
   assertNamesMatch(parsed.frameCases.map((c) => c.name), requiredFrameCases, "signed-out-transcript frameCases");
   for (const c of parsed.frameCases) {
-    assertExactKeys(c, ["name", "why", "pathname", "signedIn", "declares", "expectChrome"], `frame case ${c.name}`);
+    assertExactKeys(
+      c,
+      ["name", "why", "pathname", "signedIn", "cookie", "declares", "expectChrome", "expectReload"],
+      `frame case ${c.name}`,
+    );
+    if (!["none", "stale", "stale-uncleared"].includes(c.cookie)) {
+      throw new Error(`frame case ${c.name}: ${c.cookie} is not a cookie the browser holds`);
+    }
+    if (c.expectReload && c.expectChrome !== "leaving") {
+      throw new Error(`frame case ${c.name}: a reload happens only where the frame would otherwise leave`);
+    }
     if (!["public", "not-public", "nothing"].includes(c.declares)) {
       throw new Error(`frame case ${c.name}: ${c.declares} is not a declaration`);
     }
@@ -66,7 +82,9 @@ export function loadSignedOutTranscriptFixtures(): { frameCases: FrameCase[]; pa
   }
   // Both answers on a transcript page must be present, or a frame that never
   // left (or always did) would pass.
-  const onTranscript = parsed.frameCases.filter((c) => c.pathname === "/transcripts/7f1d2c3b" && !c.signedIn);
+  const onTranscript = parsed.frameCases.filter(
+    (c) => c.pathname === "/transcripts/7f1d2c3b" && !c.signedIn && c.cookie === "none",
+  );
   if (!onTranscript.some((c) => c.expectChrome === "leaving") || !onTranscript.some((c) => c.expectChrome === "public")) {
     throw new Error("signed-out-transcript frameCases must cover a transcript page both left and kept");
   }

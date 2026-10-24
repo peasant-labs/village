@@ -13,13 +13,19 @@
 # the chrome drawn: `public` (the public bar with its "sign in" link),
 # `sections` (the signed-in sidebar), or `leaving` (the frame's "taking you to
 # log in" note, and the visitor sent to the marketing site's log-in popup).
+# `cookie` is the session cookie the browser holds: `none`, `stale` (the
+# session read answers 401), or `stale-uncleared` (stale, and scoped so the
+# app cannot clear it). `expectReload` says the frame dropped the stale cookie
+# and loaded the page again for the server to decide, instead of leaving.
 frameCases:
   - name: a-public-transcript-stays-open-signed-out
     why: the server read it as public, so the frame lets a signed-out reader stay, in the public bar.
     pathname: /transcripts/7f1d2c3b
     signedIn: false
+    cookie: none
     declares: public
     expectChrome: public
+    expectReload: false
   - name: a-transcript-not-marked-public-is-left-for-sign-in
     why: >-
       a page the server did not mark public reaches a signed-out browser only
@@ -27,40 +33,87 @@ frameCases:
       to sign in as before.
     pathname: /transcripts/7f1d2c3b
     signedIn: false
+    cookie: none
     declares: not-public
     expectChrome: leaving
+    expectReload: false
   - name: a-transcript-page-that-has-not-said-is-waited-for
     why: >-
       the frame waits for the page's word rather than leave before the page
       has mounted to give it.
     pathname: /transcripts/7f1d2c3b
     signedIn: false
+    cookie: none
     declares: nothing
     expectChrome: public
+    expectReload: false
   - name: a-public-mark-opens-no-other-page
     why: only a transcript page decides for itself; anywhere else a declaration is not listened to.
     pathname: /collectives/abc
     signedIn: false
+    cookie: none
     declares: public
     expectChrome: leaving
+    expectReload: false
   - name: a-public-mark-opens-no-deeper-transcript-path
     why: only the transcript page itself (one segment) decides for itself.
     pathname: /transcripts/7f1d2c3b/anything-else
     signedIn: false
+    cookie: none
     declares: public
     expectChrome: leaving
+    expectReload: false
   - name: a-signed-in-reader-of-a-public-transcript-is-unchanged
     why: a signed-in person gets the sidebar on a public transcript, as before.
     pathname: /transcripts/7f1d2c3b
     signedIn: true
+    cookie: none
     declares: public
     expectChrome: sections
+    expectReload: false
   - name: a-signed-in-reader-of-another-transcript-is-unchanged
     why: a signed-in person gets the sidebar whatever the page declares.
     pathname: /transcripts/7f1d2c3b
     signedIn: true
+    cookie: none
     declares: not-public
     expectChrome: sections
+    expectReload: false
+  - name: a-stale-cookie-on-a-transcript-reloads-without-it
+    why: >-
+      the server served the page to a stale cookie without reading the
+      transcript; dropped, the page is loaded again and the server decides as
+      for anybody signed out, so a public transcript opens.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    cookie: stale
+    declares: not-public
+    expectChrome: leaving
+    expectReload: true
+  - name: a-cookie-that-will-not-clear-leaves-for-sign-in
+    why: a reload that would carry the same stale cookie could repeat forever, so the frame leaves as before.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    cookie: stale-uncleared
+    declares: not-public
+    expectChrome: leaving
+    expectReload: false
+  - name: a-stale-cookie-elsewhere-leaves-for-sign-in
+    why: only a transcript page decides for a signed-out visitor; anywhere else a stale cookie is sent to sign in.
+    pathname: /collectives/abc
+    signedIn: false
+    cookie: stale
+    declares: nothing
+    expectChrome: leaving
+    expectReload: false
+  - name: a-stale-cookie-on-a-public-transcript-stays
+    why: a page the server marked open keeps a visitor whose cookie turned out stale.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    cookie: stale
+    declares: public
+    expectChrome: public
+    expectReload: false
 
 # The real transcript page inside the real frame, opened signed out at
 # `/transcripts/{id}{search}`. `openSignedOut` is what the server told the

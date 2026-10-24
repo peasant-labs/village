@@ -45,6 +45,14 @@ export function leaveForSignIn(next: string | null): void {
   window.location.replace(marketingLoginURL(next));
 }
 
+/**
+ * Loads this page again from the server, replacing this history entry: for a
+ * page the server decides on, once the browser holds no session cookie.
+ */
+export function reloadPage(): void {
+  window.location.replace(window.location.href);
+}
+
 /** Leaves the app for the marketing site itself, as somebody who just signed out. */
 export function leaveForMarketingSite(): void {
   window.location.replace(MARKETING_URL);

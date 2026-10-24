@@ -9,8 +9,8 @@ import OnlineSidebar from "@/components/shell/OnlineSidebar";
 import PublicTopBar from "@/components/shell/PublicTopBar";
 import { SignedOutDeclarationContext, type SignedOutDeclaration } from "@/components/shell/signedOutDeclaration";
 import { LOGIN_PATH, SIGN_IN_START_PATH, isOpenSignedOut, isTranscriptPage, returnAddressFor } from "@/lib/signIn";
-import { MARKETING_URL, leaveForSignIn } from "@/lib/marketing";
-import { hasAuthTokenCookie } from "@/lib/api";
+import { MARKETING_URL, leaveForSignIn, reloadPage } from "@/lib/marketing";
+import { clearAuthTokenCookie, hasAuthTokenCookie } from "@/lib/api";
 
 const noSubscription = () => () => {};
 
@@ -36,10 +36,17 @@ const BARE = new Set([LOGIN_PATH, SIGN_IN_START_PATH, "/auth/callback"]);
  * frame waits rather than leave: the server has already refused a signed-out
  * load of a transcript that is not public, so the page only says so for a
  * stale session cookie or an older browser.
+ *
+ * A stale session cookie hid the visitor from that decision: the server
+ * served the page to the cookie without reading the transcript. So on a
+ * transcript page, once the session read answers 401, the frame drops the
+ * cookie and loads the page again, and the server decides as for anybody
+ * signed out: a public transcript opens, anything else is sent to sign in.
+ * The reload happens only once the cookie is gone, so it cannot repeat.
  */
 export default function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { isLoading, isLoggedIn, user } = useAuth();
+  const { isLoading, isLoggedIn, user, sessionRefused } = useAuth();
   // The stored theme applies on every route, the bare sign-in steps included,
   // whichever chrome (if any) draws the switch.
   useTheme();
@@ -62,9 +69,18 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     pathname !== LOGIN_PATH &&
     (!pageDecides || pageAnswer === false);
 
+  const staleCookieOnPageThatDecides = leaving && pageDecides && sessionRefused;
   useEffect(() => {
-    if (leaving) leaveForSignIn(returnAddressFor(window.location.pathname, window.location.search));
-  }, [leaving]);
+    if (!leaving) return;
+    if (staleCookieOnPageThatDecides && hasAuthTokenCookie()) {
+      clearAuthTokenCookie();
+      if (!hasAuthTokenCookie()) {
+        reloadPage();
+        return;
+      }
+    }
+    leaveForSignIn(returnAddressFor(window.location.pathname, window.location.search));
+  }, [leaving, staleCookieOnPageThatDecides]);
 
   if (leaving) {
     return (

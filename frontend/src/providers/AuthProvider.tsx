@@ -10,12 +10,16 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   isLoggedIn: boolean;
+  /** The server answered the session read with 401: whatever session cookie
+   *  this browser holds is stale. False while loading and on any other failure. */
+  sessionRefused: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   isLoading: true,
   isLoggedIn: false,
+  sessionRefused: false,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -36,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: user ?? null,
         isLoading,
         isLoggedIn: !!user,
+        sessionRefused: signedOut,
       }}
     >
       {children}

@@ -2,12 +2,13 @@ import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { SessionDetailPayload } from "@peasant-labs/schema";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AppFrame from "@/components/shell/AppFrame";
 import { useDeclareSignedOutReadable } from "@/components/shell/signedOutDeclaration";
 import TranscriptDetailPage from "@/app/transcripts/[id]/TranscriptDetailPage";
 import { AuthProvider } from "@/providers/AuthProvider";
-import { MARKETING_URL, leaveForSignIn } from "@/lib/marketing";
+import { MARKETING_URL, leaveForSignIn, reloadPage } from "@/lib/marketing";
+import { hasAuthTokenCookie } from "@/lib/api";
 import { installHomeRouteREST, renderHeaderAt } from "@/test/mountedHomeRoute";
 import { installMountedRouteTeardown, installRESTFixture } from "@/test/mountedProductionRoute";
 import { resetNextNavigation } from "@/test/nextNavigationMock";
@@ -26,7 +27,12 @@ installMountedRouteTeardown();
 
 beforeEach(() => {
   vi.mocked(leaveForSignIn).mockClear();
+  vi.mocked(reloadPage).mockClear();
   resetNextNavigation();
+});
+
+afterEach(() => {
+  for (const path of ["/", "/transcripts"]) document.cookie = `peasant_token=; max-age=0; path=${path}`;
 });
 
 function Declares({ readable }: { readable: boolean }) {
@@ -43,13 +49,24 @@ describe("the app frame on a transcript page, signed out", () => {
   for (const c of fx.frameCases) {
     it(c.name, async () => {
       installHomeRouteREST({ viewerUsername: c.signedIn ? "alice-dev" : null, transcripts: [], collectives: [] });
+      // A stale cookie is one the session read refuses (no viewer: 401). One
+      // scoped to a narrower path is out of reach of the app's own clearing.
+      if (c.cookie === "stale") document.cookie = "peasant_token=stale; path=/";
+      if (c.cookie === "stale-uncleared") document.cookie = "peasant_token=stale; path=/transcripts";
       await renderHeaderAt(c.pathname, standIn(c));
       await waitFor(() => {
         if (c.expectChrome === "sections") expect(document.querySelector(".asb-foot .asb-account")).not.toBeNull();
         else if (c.expectChrome === "public") expect(screen.getByRole("link", { name: "sign in" })).toBeInTheDocument();
         else expect(screen.getByTestId("leaving-for-sign-in")).toBeInTheDocument();
       });
-      expect(vi.mocked(leaveForSignIn).mock.calls.length, c.why).toBe(c.expectChrome === "leaving" ? 1 : 0);
+      await waitFor(() =>
+        expect(vi.mocked(leaveForSignIn).mock.calls.length + vi.mocked(reloadPage).mock.calls.length, c.why).toBe(
+          c.expectChrome === "leaving" ? 1 : 0,
+        ),
+      );
+      expect(vi.mocked(reloadPage).mock.calls.length, c.why).toBe(c.expectReload ? 1 : 0);
+      // The page is reloaded only once the stale cookie is gone.
+      if (c.expectReload) expect(hasAuthTokenCookie()).toBe(false);
       expect(screen.queryByTestId("public-top-bar") !== null, c.why).toBe(c.expectChrome === "public");
       // The page is drawn only where the frame keeps the visitor.
       expect(screen.queryByText("the page") !== null, c.why).toBe(c.expectChrome !== "leaving");
