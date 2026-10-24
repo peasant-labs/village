@@ -1,0 +1,54 @@
+# Cases for the share-image route's fail-closed paths and the page metadata's
+# catch. Every image case runs at both heights (600 and 630) and must answer
+# 200, image/png, cache-control no-store.
+#
+# `lookup` is what loadShareCard does:
+#   `card`   resolves a public card;
+#   `null`   resolves null;
+#   `reject` rejects;
+#   `hang`   the real loader against an API that never answers, on a fake clock
+#            moved past its deadline.
+# `render` is what drawing does: `ok`, `card-fails` (a card throws, the generic
+# card draws) or `all-fail` (every draw throws).
+# `warm: true` serves one generic image first with every draw working, then
+# switches to `render`.
+# `fonts: fail-once` serves one image first while the card fonts cannot be
+# read; the case's own request then reads them again.
+# `expect` is `card` (differs from the generic bytes), `generic` (the generic
+# bytes exactly) or `plain` (a valid PNG of the right size from the last resort).
+imageCases:
+  - name: lookup-rejects
+    lookup: reject
+    render: ok
+    expect: generic
+  - name: lookup-times-out
+    lookup: hang
+    render: ok
+    expect: generic
+  - name: card-render-rejects
+    lookup: card
+    render: card-fails
+    expect: generic
+  - name: generic-render-fails-too
+    lookup: card
+    render: all-fail
+    expect: plain
+  - name: kept-generic-outlives-a-broken-renderer
+    lookup: "null"
+    render: all-fail
+    warm: true
+    expect: generic
+  - name: fonts-are-read-again-after-a-failure
+    lookup: "null"
+    render: ok
+    fonts: fail-once
+    expect: generic
+  - name: public-card-renders
+    lookup: card
+    render: ok
+    expect: card
+
+# The page metadata when loadShareCard throws: the generic metadata.
+metadataCases:
+  - name: metadata-lookup-throws
+    id: 7f1d2c3b
