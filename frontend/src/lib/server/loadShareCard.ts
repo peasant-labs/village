@@ -7,12 +7,22 @@ import { shownTranscriptTitle } from "@/components/session-detail/v2/transcriptC
 
 import { readPublicContent, readPublicTranscript, type LoadDeps } from "./loadPublicTranscript";
 
-/** One deadline for the whole lookup (metadata, content and mapping), so a slow API never stalls a crawler. */
+/** One deadline for a caller's whole lookup (metadata, content and mapping), so a slow API never stalls a crawler. */
 export const SHARE_CARD_DEADLINE_MS = 3000;
 
 /**
- * Card reads that are already running, by transcript id and `updated_at`.
- * Concurrent cold requests for one transcript share one content read.
+ * The bound on one cache fill (the content read and its mapping). It is the
+ * fill's own and longer than a caller's deadline, so a cold read that is slow
+ * but finishes is still cached for the next caller.
+ */
+export const SHARE_CARD_FILL_TIMEOUT_MS = 25_000;
+
+/**
+ * Cache fills that are already running, by transcript id and `updated_at`.
+ * Concurrent cold requests for one transcript share one content read. A fill
+ * runs on its own timeout, not on any caller's deadline: each caller waits for
+ * it only until its own deadline, and the entry stays until the fill settles,
+ * so a caller arriving meanwhile joins it instead of starting another read.
  */
 const inFlight = new Map<string, Promise<ShareCardData>>();
 
@@ -77,19 +87,11 @@ async function lookup(id: string, deps: LoadDeps): Promise<ShareCardData | null>
   if (typeof updatedAt !== "string" || updatedAt === "") return null;
 
   const key = `${id}\u0000${updatedAt}`;
-  // A joining caller shares the first caller's deadline and fails closed with it.
   let pending = inFlight.get(key);
   if (!pending) {
-    const build = unstable_cache(
-      async (): Promise<ShareCardData> => {
-        const card = shareCardFromPayload(await readPublicContent(id, deps));
-        // Throwing keeps an unusable result out of the cache.
-        if (!card) throw new CardUnavailable("content did not map to a share card");
-        return { ...card, firstPrompt: capFirstPrompt(card.firstPrompt) };
-      },
-      ["share-card", id, updatedAt],
-    );
-    pending = build().finally(() => inFlight.delete(key));
+    pending = fill(id, updatedAt, deps.fetch).finally(() => inFlight.delete(key));
+    // A fill whose callers have all given up still settles quietly.
+    pending.catch(() => {});
     inFlight.set(key, pending);
   }
   let card: ShareCardData;
@@ -99,6 +101,28 @@ async function lookup(id: string, deps: LoadDeps): Promise<ShareCardData | null>
     return null;
   }
   return withStoredTitle(card, transcript.title);
+}
+
+/**
+ * Read the content and cache its card under id and `updated_at`, bounded by
+ * the fill's own timeout. Throws on any failure, which keeps it out of the cache.
+ */
+async function fill(id: string, updatedAt: string, doFetch: LoadDeps["fetch"]): Promise<ShareCardData> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SHARE_CARD_FILL_TIMEOUT_MS);
+  const build = unstable_cache(
+    async (): Promise<ShareCardData> => {
+      const card = shareCardFromPayload(await readPublicContent(id, { fetch: doFetch, signal: controller.signal }));
+      if (!card) throw new CardUnavailable("content did not map to a share card");
+      return { ...card, firstPrompt: capFirstPrompt(card.firstPrompt) };
+    },
+    ["share-card", id, updatedAt],
+  );
+  try {
+    return await build();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** The card with the page's title; a title standing in for the first prompt follows it. */

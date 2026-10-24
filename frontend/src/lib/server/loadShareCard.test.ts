@@ -65,6 +65,10 @@ interface Step {
   expect: Expect;
   card?: CardExpectation;
   metadata?: MetadataExpectation;
+  /** On the fake clock: how far it moves before this step starts. */
+  startAfterMs?: number;
+  /** On the fake clock: how far it moves after this step starts, before its result is read. */
+  advanceMs?: number;
 }
 
 interface Case {
@@ -115,6 +119,7 @@ const REQUIRED = [
   "retitled-transcript",
   "retitled-title-stands-in-for-prompt",
   "untitled-stored",
+  "slow-cold-read",
 ];
 
 // A transcript text that must never reach the cache key. The fixtures name it
@@ -237,13 +242,17 @@ describe("loadShareCard", () => {
     const results: unknown[] = [];
     if (c.parallel) {
       results.push(...(await Promise.all(c.steps.map(run))));
-    } else if (c.fakeTimers) {
-      const pending = run();
-      await vi.advanceTimersByTimeAsync(3000);
-      results.push(await pending);
     } else {
-      for (const _step of c.steps) results.push(await run());
+      for (const step of c.steps) {
+        if (step.startAfterMs) await vi.advanceTimersByTimeAsync(step.startAfterMs);
+        const pending = run();
+        if (step.advanceMs) await vi.advanceTimersByTimeAsync(step.advanceMs);
+        results.push(await pending);
+      }
     }
+    // A fill keeps running after its caller gave up; let it settle so it
+    // cannot reach into the next case.
+    if (c.fakeTimers) await vi.runAllTimersAsync();
     results.forEach((r, i) => {
       expect(label(r), `step ${i}`).toBe(c.steps[i].expect);
       const want = c.steps[i].card;

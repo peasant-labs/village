@@ -17,8 +17,9 @@
 # `metadataUrl` is the exact metadata read the case expects (default the `t1` read).
 # `storedPromptMaxUnits` bounds every stored card's first prompt, in UTF-16 units.
 # `storedEqualsResult: true` pins that the cache holds exactly the card returned.
-# `fakeTimers: true` runs the case on a fake clock and advances it by 3000ms
-# after starting the steps, so a deadline is proven without waiting.
+# `fakeTimers: true` runs the case on a fake clock, so a deadline is proven
+# without waiting: a step's `startAfterMs` moves the clock before the step
+# starts and its `advanceMs` moves it after, before the result is read.
 # `cacheValues` pins what the cache holds afterwards: `card` (only card-shaped
 # values) or `empty`.
 defaults:
@@ -162,6 +163,7 @@ cases:
     steps:
       - meta: { kind: hang }
         expect: "null"
+        advanceMs: 3000
     metadataFetches: 1
     contentFetches: 0
 
@@ -171,6 +173,7 @@ cases:
       - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
         content: { kind: hang }
         expect: "null"
+        advanceMs: 3000
     metadataFetches: 1
     contentFetches: 1
     cacheValues: empty
@@ -182,8 +185,26 @@ cases:
       - meta: { kind: response, status: 200, visibility: public, updated_at: *t1, delayMs: 2000 }
         content: { kind: response, status: 200, payload: figures, delayMs: 2000 }
         expect: "null"
+        advanceMs: 3000
     metadataFetches: 1
     contentFetches: 1
+
+  # A cold read slower than a caller's deadline: that caller gets null at 3s,
+  # but the fill runs on its own clock, lands at 4s and is cached, so a later
+  # caller gets the card without reading the content again.
+  - name: slow-cold-read
+    fakeTimers: true
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        content: { kind: response, status: 200, payload: figures, delayMs: 4000 }
+        expect: "null"
+        advanceMs: 3000
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1 }
+        startAfterMs: 1500
+        expect: card-figures
+    metadataFetches: 2
+    contentFetches: 1
+    cacheValues: card
 
   - name: no-env
     env: false
