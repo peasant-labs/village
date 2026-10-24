@@ -375,6 +375,50 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   attach widened, migration 044); for every other binding it is a record and
   never a target. It is never accepted from a caller.
 
+### Showing a person to another viewer
+
+- **One statement decides profile or anonymous.** Every response that shows a
+  transcript owner, collective member or contributor, collective creator,
+  repository linker, attester, pull request author or requester, or annotation
+  author to a viewer resolves that person through `ListPublicOwnersForViewer`
+  (`queries/users.sql`), called through `resolvePublicOwners`
+  (`handler/public_owner.go`), once per response for every person on it. A
+  person is shown as their public profile (id, username, display name, avatar)
+  when they are discoverable, when the viewer is that person, or when the viewer
+  owns a collective the person belongs to (any `group_members` row, pending
+  included) or holds a pending or approved submission of theirs
+  (`transcript_shares.status`). Everyone else receives the anonymous shape,
+  which carries no id. No handler restates this rule, and no response to another
+  viewer carries the `users` row; `GET /auth/me` returns the caller's own.
+- **Identity beside an anonymous person is withheld too.** Organization badges
+  (`owner_orgs`, a roster row's `github_orgs`) are empty for an anonymous
+  person, a human annotation's `annotatorName` becomes `anon`, and the `owner=`
+  and `org=` list filters match only owners the viewer may see as a profile, so
+  a filter cannot tie anonymous rows to a person or an organization. A
+  transcript of an anonymous owner carries none of its repository identity:
+  `git_remote`, `git_branch`, `project_hash`, `project_name` and the three
+  resolved project fields are null (`withholdRepository`), and the pull
+  envelope omits `projectName`. A pull request requester is recorded as a
+  GitHub id; it is resolved to the Village account that signed in with that
+  identity, and a requester with no account is anonymous like a hidden one.
+- **A child session's parent is resolved at read time.** With no owner id on
+  the wire, `parent_transcript_id` is how a reader folds a child under its
+  parent: the route looks up the transcript published from
+  `parent_session_id` within the same owner (`ListTranscriptsByOwnerLocalIDs`,
+  one read per page) and keeps it only when the viewer may read it under the
+  transcript read policy (`transcriptViewAccess`); otherwise it is null.
+- **Which rows are listed is unchanged.** The roster and contributor queries
+  still leave out a person who is not discoverable unless the viewer owns the
+  collective, and `GET /users/{username}` and the project page still answer 404
+  for a hidden person to anyone but themselves. Those routes now return only
+  the public profile shape.
+- **Grouped lists keep the owning account off the wire.** Helper grouping needs
+  the owner to keep two owners' equal local ids apart, so it travels beside the
+  rows (`GroupedScopeResult.ownerKeys`) and the helper-group id is an HMAC under
+  a per-process key, so a viewer cannot confirm an anonymous owner by hashing a
+  known account id.
+- The rule reads existing rows only; it adds no column, table or migration.
+
 ## 4. Governance event taxonomy
 
 - **`governance_event_types`** is a reference table (`id` = the event name)

@@ -736,6 +736,21 @@ that line:
   like every other mounted publish test, so it runs under the encrypted
   aggregate.
 
+### Showing a person to another viewer
+
+`internal/handler/testdata/public-owner-visibility.yaml` drives every route that
+shows a transcript owner, member, contributor or annotation author (detail,
+flat and grouped lists and their `owner=`/`org=` filters, flat and grouped
+collective detail, the review queue, my-shares, web and pull annotations, the
+pull envelope, and the profile and project pages) for a discoverable and a
+hidden owner against five viewers: signed out, an unrelated signed-in user, a
+plain member, the owner, and the owner of the collective the owner joined. Each
+route asserts the exact owner object, and when the case expects anonymous the
+owner's username, id, display name, avatar, organization, project hash and
+project name (the fixture gives the owner's transcripts a git remote that names
+them) must appear nowhere in the response bytes. The rule lives in SQL, so this runs against real
+PostgreSQL through the production handlers.
+
 ### Collectives surfaces: who may see a membership, and what the counters mean
 
 The three collectives queries in `queries/groups.sql` carry a COPY of
