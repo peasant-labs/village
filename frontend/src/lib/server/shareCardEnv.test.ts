@@ -3,13 +3,14 @@ import { resolve } from "node:path";
 import YAML from "yaml";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { shareCardEnv } from "./shareCardEnv";
+import { publicOrigin, shareCardEnv } from "./shareCardEnv";
 
 interface EnvCase {
   name: string;
   apiUrl?: string;
   origin?: string;
   expect: "null" | { apiBase: string; origin: string };
+  publicOrigin: string;
 }
 
 const cases = (
@@ -27,6 +28,7 @@ const REQUIRED = [
   "api-non-http-protocol",
   "origin-non-http-protocol",
   "origin-schemeless",
+  "origin-only-set",
 ];
 
 describe("shareCardEnv", () => {
@@ -48,5 +50,8 @@ describe("shareCardEnv", () => {
       expect(env?.apiBase).toBe(c.expect.apiBase);
       expect(env?.origin.href).toBe(`${c.expect.origin}/`);
     }
+    const origin = publicOrigin();
+    if (c.publicOrigin === "null") expect(origin).toBeNull();
+    else expect(origin?.href).toBe(`${c.publicOrigin}/`);
   });
 });

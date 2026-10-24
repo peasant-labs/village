@@ -1,52 +1,71 @@
 # Cases for shareCardEnv. `apiUrl` and `origin` are the two environment values
 # (absent means unset). `expect` is `null`, or the `apiBase` string and the
-# `origin` string (scheme and host only) the function returns.
+# `origin` string (scheme and host only) the function returns. `publicOrigin` is
+# what VILLAGE_PUBLIC_ORIGIN alone gives (`null`, or scheme, host and port): it
+# needs no API URL, and the root layout's metadataBase is exactly it.
 cases:
   - name: both-set
     apiUrl: "http://backend:8080/api/v1"
     origin: "https://village.example"
     expect: { apiBase: "http://backend:8080/api/v1", origin: "https://village.example" }
+    publicOrigin: "https://village.example"
   - name: trailing-slashes-on-api-trimmed
     apiUrl: "http://backend:8080/api/v1//"
     origin: "https://village.example"
     expect: { apiBase: "http://backend:8080/api/v1", origin: "https://village.example" }
+    publicOrigin: "https://village.example"
   - name: origin-path-and-query-dropped
     apiUrl: "http://backend:8080/api/v1"
     origin: "https://village.example/some/path?x=1"
     expect: { apiBase: "http://backend:8080/api/v1", origin: "https://village.example" }
+    publicOrigin: "https://village.example"
   - name: origin-keeps-port
     apiUrl: "http://localhost:8080/api/v1"
     origin: "http://localhost:3000/"
     expect: { apiBase: "http://localhost:8080/api/v1", origin: "http://localhost:3000" }
+    publicOrigin: "http://localhost:3000"
   - name: surrounding-whitespace-trimmed
     apiUrl: "  http://backend:8080/api/v1  "
     origin: "  https://village.example  "
     expect: { apiBase: "http://backend:8080/api/v1", origin: "https://village.example" }
+    publicOrigin: "https://village.example"
   - name: api-unset
     origin: "https://village.example"
     expect: "null"
+    publicOrigin: "https://village.example"
   - name: origin-unset
     apiUrl: "http://backend:8080/api/v1"
     expect: "null"
+    publicOrigin: "null"
   - name: both-unset
     expect: "null"
+    publicOrigin: "null"
   - name: blank-values
     apiUrl: "   "
     origin: ""
     expect: "null"
+    publicOrigin: "null"
   - name: api-non-http-protocol
     apiUrl: "ftp://backend/api/v1"
     origin: "https://village.example"
     expect: "null"
+    publicOrigin: "https://village.example"
   - name: origin-non-http-protocol
     apiUrl: "http://backend:8080/api/v1"
     origin: "javascript:alert(1)"
     expect: "null"
+    publicOrigin: "null"
   - name: origin-schemeless
     apiUrl: "http://backend:8080/api/v1"
     origin: "village.example"
     expect: "null"
+    publicOrigin: "null"
   - name: api-not-a-url
     apiUrl: "not a url"
     origin: "https://village.example"
     expect: "null"
+    publicOrigin: "https://village.example"
+  - name: origin-only-set
+    origin: "https://village.example"
+    expect: "null"
+    publicOrigin: "https://village.example"

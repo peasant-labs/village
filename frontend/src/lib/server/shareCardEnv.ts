@@ -12,13 +12,28 @@ import "server-only";
  */
 export function shareCardEnv(): { apiBase: string; origin: URL } | null {
   const rawBase = process.env.VILLAGE_INTERNAL_API_URL?.trim();
-  const rawOrigin = process.env.VILLAGE_PUBLIC_ORIGIN?.trim();
-  if (!rawBase || !rawOrigin) return null;
+  const origin = publicOrigin();
+  if (!rawBase || !origin) return null;
   try {
-    const base = new URL(rawBase);
-    const origin = new URL(rawOrigin);
-    if (!/^https?:$/.test(base.protocol) || !/^https?:$/.test(origin.protocol)) return null;
-    return { apiBase: rawBase.replace(/\/+$/, ""), origin: new URL(origin.origin) };
+    if (!/^https?:$/.test(new URL(rawBase).protocol)) return null;
+    return { apiBase: rawBase.replace(/\/+$/, ""), origin };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The site's public origin (scheme, host and port) from `VILLAGE_PUBLIC_ORIGIN`
+ * alone, or `null` when it is unset or not an http(s) URL. It needs no API
+ * URL: it only makes preview URLs absolute.
+ */
+export function publicOrigin(): URL | null {
+  const raw = process.env.VILLAGE_PUBLIC_ORIGIN?.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (!/^https?:$/.test(url.protocol)) return null;
+    return new URL(url.origin);
   } catch {
     return null;
   }
