@@ -115,7 +115,17 @@ try {
     }
   })(), 30_000, 'next start readiness')
   manifest.canonicalHTMLHash = hash(readFileSync(join(frontend, '.next/server/app/collectives.html')))
-  if (!html.includes(buildID) || hash(html) !== manifest.canonicalHTMLHash || !html.includes('Your teams, labs and classes.')) throw new Error('Served canonical HTML differs from this production build')
+  // The served page must be this build's own prerendered collectives body. The
+  // page's copy changes with the product, so the route is named by the page's
+  // own frame rather than by a sentence beside its heading. The build id and
+  // the byte hash still prove the page came from this build; the mounted body
+  // and chrome are asserted by the Playwright suite this guard gates.
+  const pageMarker = 'data-testid="collectives-page"'
+  const problems = []
+  if (!html.includes(buildID)) problems.push(`the served HTML does not name build ${buildID}; the server is serving another build`)
+  if (hash(html) !== manifest.canonicalHTMLHash) problems.push(`the served HTML differs from the prerendered .next/server/app/collectives.html (served ${hash(html)}, built ${manifest.canonicalHTMLHash})`)
+  if (!html.includes(pageMarker)) problems.push(`the served HTML is not the collectives page body: it is missing ${pageMarker}`)
+  if (problems.length) throw new Error(`Served canonical HTML is not this production build's collectives page: ${problems.join('; ')}. Build evidence: ${root}/build.json`)
   const references = [...html.matchAll(/(?:src|href)="([^"?#]+\.(?:js|css))"/g)].map((match) => match[1]).filter((path) => path.startsWith('/_next/'))
   if (!references.length) throw new Error('No served Next assets found; provenance cannot be verified')
   for (const path of new Set(references)) {
