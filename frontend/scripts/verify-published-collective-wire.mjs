@@ -10,7 +10,14 @@ const [evidenceDir, oldPackageRoot] = process.argv.slice(2)
 if (!evidenceDir || !oldPackageRoot) throw new Error('Pass the owned real PostgreSQL producer evidence directory and an independently installed published schema0.25 package root')
 const requireOld = createRequire(resolve(oldPackageRoot, 'package.json'))
 const currentManifest = JSON.parse(readFileSync(new URL('../node_modules/@peasant-labs/schema/package.json', import.meta.url), 'utf8'))
-if (currentManifest.version !== '0.31.1') throw new Error('Current producer proof requires the actual published0.31.1 frontend dependency')
+// The current side must be the published package the frontend actually pins, not
+// whatever happens to be installed. Read the exact declared dependency and
+// refuse a range, link or workspace alias before the proof starts.
+const frontendManifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+const declaredSchema = frontendManifest.dependencies?.['@peasant-labs/schema']
+const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
+if (typeof declaredSchema !== 'string' || !EXACT_VERSION.test(declaredSchema)) throw new Error(`The producer proof requires frontend/package.json to declare @peasant-labs/schema as one exact published version; declared ${JSON.stringify(declaredSchema)}`)
+if (declaredSchema !== currentManifest.version) throw new Error(`The producer proof requires the installed published @peasant-labs/schema to match the exact declared dependency: declared ${declaredSchema}, installed ${currentManifest.version}. Install the locked frontend tree before running this proof`)
 const old = await import(pathToFileURL(requireOld.resolve('@peasant-labs/schema')).href)
 const oldManifest = JSON.parse(readFileSync(resolve(oldPackageRoot, 'node_modules/@peasant-labs/schema/package.json'), 'utf8'))
 if (oldManifest.version !== '0.25.0') throw new Error('The legacy proof must use the actual published0.25.0 package, not a current alias')
