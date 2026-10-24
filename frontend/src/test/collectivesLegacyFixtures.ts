@@ -8,6 +8,8 @@ export interface LegacyCollectiveCase {
   query: string;
   body: string;
   role: "table" | "heading";
+  /** The sidebar entry this route marks current: the section or the collective. */
+  navCurrent: string;
   nameEdits?: Array<{ name: string; value: string }>;
   assertions: Array<{
     role?: "table" | "button" | "searchbox" | "combobox" | "link" | "tab" | "navigation";
@@ -34,6 +36,13 @@ export function loadLegacyCollectiveFixtures(): LegacyCollectiveCase[] {
 	}
     if (typeof row.suffix !== "string" || typeof row.query !== "string" || !row.body || !["table", "heading"].includes(row.role)) {
       throw new Error(`Invalid legacy collective fixture ${row.name}; provide route, query and mounted body expectation`);
+    }
+    if (typeof row.navCurrent !== "string" || !row.navCurrent) {
+      throw new Error(
+        `Legacy collective fixture ${row.name} must name the sidebar entry its canonical route marks current ` +
+        `(the section on the list, the collective on its own pages); the built journey asserts that one entry, ` +
+        `so a route whose current place changed fails here instead of silently asserting nothing`,
+      );
     }
     if (!Array.isArray(row.assertions) || row.assertions.length === 0 || row.assertions.some((assertion) =>
       assertion.testId ? typeof assertion.testId !== "string" || typeof assertion.text !== "string" :
