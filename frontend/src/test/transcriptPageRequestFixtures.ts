@@ -10,24 +10,29 @@ export type ParamBuildFixture = {
   expectedParams: Record<string, string>;
 };
 
-export type FailureCauseFixture = {
+export type FailureNoteFixture = {
   name: string;
-  error: { kind: "mismatch" } | { kind: "message"; message: string } | { kind: "none" };
-  expect: string;
+  error:
+    | { kind: "mismatch" }
+    | { kind: "status"; status: number; message: string }
+    | { kind: "network"; message: string }
+    | { kind: "message"; message: string }
+    | { kind: "none" };
+  expect: string | null;
 };
 
 export type TranscriptPageRequestFixtures = {
   paramBuilds: ParamBuildFixture[];
-  failureCauses: FailureCauseFixture[];
+  failureNotes: FailureNoteFixture[];
 };
 
-const requiredFailureCauseNames = [
-  "a-refused-page-says-the-server-answered-another",
-  "the-servers-reason-is-said-without-its-full-stop",
-  "a-reason-naming-an-api-path-is-not-shown",
-  "a-reason-naming-a-url-is-not-shown",
-  "an-empty-reason-says-the-request-failed",
-  "a-thrown-non-error-says-the-request-failed",
+const requiredFailureNoteNames = [
+  "too-many-requests-says-to-wait",
+  "no-connection-says-to-check-it",
+  "the-servers-own-reason-restates-the-heading",
+  "a-refused-page-adds-nothing",
+  "a-reason-naming-an-api-path-adds-nothing",
+  "a-thrown-non-error-adds-nothing",
 ] as const;
 
 const requiredParamBuildNames = [
@@ -58,7 +63,7 @@ export function loadTranscriptPageRequestFixtures(): TranscriptPageRequestFixtur
   if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("transcript page request fixture root must be an object");
   }
-  assertExactKeys(parsed, ["paramBuilds", "failureCauses"], "fixture root");
+  assertExactKeys(parsed, ["paramBuilds", "failureNotes"], "fixture root");
   const fixtures = parsed as TranscriptPageRequestFixtures;
 
   if (fixtures.paramBuilds.length !== requiredParamBuildNames.length) {
@@ -77,14 +82,14 @@ export function loadTranscriptPageRequestFixtures(): TranscriptPageRequestFixtur
   }
 
   assertExactNameInventory(
-    fixtures.failureCauses.map(({ name }) => name),
-    requiredFailureCauseNames,
-    "failureCauses fixtures",
+    fixtures.failureNotes.map(({ name }) => name),
+    requiredFailureNoteNames,
+    "failureNotes fixtures",
   );
-  for (const fixture of fixtures.failureCauses) {
-    assertExactKeys(fixture, ["name", "error", "expect"], `failureCauses ${fixture.name}`);
-    if (/\/api\/|https?:\/\//.test(fixture.expect)) {
-      throw new Error(`failureCauses ${fixture.name}: what the page says may never name a path or a URL`);
+  for (const fixture of fixtures.failureNotes) {
+    assertExactKeys(fixture, ["name", "error", "expect"], `failureNotes ${fixture.name}`);
+    if (fixture.expect !== null && /\/api\/|https?:\/\//.test(fixture.expect)) {
+      throw new Error(`failureNotes ${fixture.name}: what the page says may never name a path or a URL`);
     }
   }
   for (const fixture of fixtures.paramBuilds) {

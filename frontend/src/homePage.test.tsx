@@ -194,19 +194,17 @@ describe("mounted home route: your transcripts, their totals and your collective
         expect(document.querySelector('[data-testid="home-transcripts"]')).toBeNull();
         const alert = failure!.querySelector('[role="alert"]');
         expect(alert).not.toBeNull();
-        // The whole message, not merely its heading. The sentence that says a
-        // failure is not an emptiness IS the fix; a body that regressed to
-        // nothing would otherwise pass.
+        // The whole message, not merely its heading. Saying nothing was deleted
+        // is what tells a failure from an empty library; a body that regressed
+        // to nothing would otherwise pass.
         const message = text(alert);
         expect(message).toContain("your transcripts could not be loaded");
-        // Plain words: what failed, never the internal path it was asked of.
+        expect(message).toContain("nothing has been deleted. retry to load them again.");
+        // Plain words, once: never the internal path it was asked of, and not
+        // the server's own reason, which only restates the heading.
         expect(message).not.toContain(LIST_ENDPOINT);
         expect(message).not.toMatch(/\/api\//);
-        expect(message).toContain("a failed request is not an empty library");
-        expect(message).toContain("nothing has been deleted");
-        // The server's own reported cause reaches the reader, rather than a
-        // fixed string that would read identically for every failure.
-        expect(message).toContain("the session list is unavailable");
+        expect(message).not.toContain("the session list is unavailable");
 
         // Retry must re-issue the SAME owner-scoped request, not merely
         // re-render: a button that only cleared the panel would leave the
@@ -307,8 +305,8 @@ describe("mounted home route: your transcripts, their totals and your collective
         const noticeAlert = notice.querySelector('[role="alert"]');
         expect(noticeAlert).not.toBeNull();
         expect(noticeAlert!.querySelector("button")).toBeNull();
-        expect(notice.textContent).toContain("could not be refreshed");
-        expect(notice.textContent).toContain("the session list is unavailable");
+        expect(notice.textContent).toContain("could not be refreshed and may be out of date");
+        expect(notice.textContent).not.toContain("the session list is unavailable");
         // The rows the server did confirm are still on screen, and the failure
         // panel did not take the page.
         expect(homeErrorSurface()).toBeNull();
@@ -449,6 +447,11 @@ describe("mounted home route: your transcripts, their totals and your collective
         const td = cellOf(rowTitled(cell.title), "readers");
         const named = [...td.querySelectorAll(".on-readers > span")].map(text);
         expect(named.length > 0 ? named : [text(td)]).toEqual(cell.text);
+        // On a phone the readers column gives way and the row says who can
+        // read it under its title, always, whatever columns are chosen.
+        const readers = rowTitled(cell.title).querySelector('[data-testid="home-row-facts"] [data-fact="readers"]');
+        expect(readers, `${cell.title} says who can read it under its title`).not.toBeNull();
+        expect(text(readers!)).toBe(`who can read: ${cell.text.join(", ")}`);
       }
       for (const mark of c.expectProviderMarks ?? []) {
         const agent = cellOf(rowTitled(mark.title), "agent");
@@ -458,8 +461,13 @@ describe("mounted home route: your transcripts, their totals and your collective
         // what is read, so the mark is not announced a second time.
         expect(text(agent)).toBe(mark.name);
         for (const icon of icons) expect(icon).not.toHaveAttribute("role", "img");
-        // And the title cell names no provider: the agent has its own column.
-        expect(rowTitled(mark.title).querySelector('[data-testid="home-transcript-row"] svg[data-brand]')).toBeNull();
+        // And the title names no provider: the agent has its own column. Only
+        // the phone's facts line under the title, drawn where that column
+        // gives way, names it there.
+        const titleMarks = [
+          ...rowTitled(mark.title).querySelectorAll('[data-testid="home-transcript-row"] svg[data-brand]'),
+        ].filter((icon) => icon.closest('[data-testid="home-row-facts"]') === null);
+        expect(titleMarks).toEqual([]);
       }
 
       for (const cell of c.expectPullRequestCells ?? []) {

@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   TRANSCRIPT_PAGE_SIZE,
   buildTranscriptListParams,
-  transcriptListFailureCause,
+  transcriptListFailureNote,
 } from "@/lib/transcriptPageRequest";
 import { TranscriptListResponseMismatchError } from "@/lib/queries/transcripts";
+import { ApiError } from "@/lib/api";
 import { loadTranscriptPageRequestFixtures } from "@/test/transcriptPageRequestFixtures";
 
 const fixtures = loadTranscriptPageRequestFixtures();
@@ -21,16 +22,21 @@ describe("buildTranscriptListParams", () => {
   }
 });
 
-describe("transcriptListFailureCause", () => {
-  for (const fixture of fixtures.failureCauses) {
+describe("transcriptListFailureNote", () => {
+  for (const fixture of fixtures.failureNotes) {
     it(fixture.name, () => {
+      const thrown = fixture.error;
       const error =
-        fixture.error.kind === "mismatch"
+        thrown.kind === "mismatch"
           ? new TranscriptListResponseMismatchError("2", "24", 5, 24)
-          : fixture.error.kind === "message"
-            ? new Error(fixture.error.message)
-            : "not an error";
-      expect(transcriptListFailureCause(error)).toBe(fixture.expect);
+          : thrown.kind === "status"
+            ? new ApiError(thrown.status, thrown.message)
+            : thrown.kind === "network"
+              ? new TypeError(thrown.message)
+              : thrown.kind === "message"
+                ? new Error(thrown.message)
+                : "not an error";
+      expect(transcriptListFailureNote(error)).toBe(fixture.expect);
     });
   }
 });

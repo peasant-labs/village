@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FileText, Layers, Search, SlidersHorizontal, Terminal } from "lucide-react";
 import { useTranscriptPages } from "@/lib/queries/transcripts";
-import { transcriptListFailureCause } from "@/lib/transcriptPageRequest";
+import { transcriptListFailureNote } from "@/lib/transcriptPageRequest";
 import ScopedGroupedContinuation from "@/components/transcript/ScopedGroupedContinuation";
 import { useGroupedTranscriptsPaged } from "@/lib/queries/helperGroups";
 import { useGroups } from "@/lib/queries/groups";
@@ -222,7 +222,8 @@ function HomeBody({ username }: { username: string }) {
   // A failed `load more` is not a failed list: the rows already shown are
   // still right, and that failure is said beside the button instead.
   const listFailed = list.isError && !list.isFetchNextPageError;
-  const reportedCause = listFailed ? transcriptListFailureCause(list.error) : null;
+  // What the panel adds to "could not be loaded", or "" when nothing would help.
+  const reportedCause = listFailed ? (transcriptListFailureNote(list.error) ?? "") : null;
   const [remembered, setRemembered] = useState<{ key: string; cause: string } | null>(null);
   if (reportedCause !== null && (reportedCause !== remembered?.cause || listKey !== remembered?.key)) {
     setRemembered({ key: listKey, cause: reportedCause });
@@ -323,8 +324,7 @@ function HomeBody({ username }: { username: string }) {
         <RequestFailureState
           title="your transcripts could not be loaded"
           message={
-            `${failureCause}. a failed request is not an empty library, and ` +
-            `nothing has been deleted. retry to load your transcripts again.`
+            `${failureCause ? `${failureCause}. ` : ""}nothing has been deleted. retry to load them again.`
           }
           onRetry={() => list.refetch()}
           retryLabel={retryText}
@@ -384,8 +384,8 @@ function HomeBody({ username }: { username: string }) {
                 because its label changes while a retry is in flight, and an
                 atomic alert re-announces the whole notice on that change. */}
             <p role="alert">
-              these transcripts could not be refreshed: {failureCause}. they are the ones last loaded
-              and may be out of date.
+              these transcripts could not be refreshed and may be out of date.
+              {failureCause ? ` ${failureCause}.` : ""}
             </p>
             <RetryButton
               label={retryText}

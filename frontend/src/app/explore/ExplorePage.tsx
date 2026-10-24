@@ -10,7 +10,7 @@ import { adaptExplore } from "@/lib/adapters/explore";
 import {
   TRANSCRIPT_PAGE_SIZE,
   buildTranscriptListParams,
-  transcriptListFailureCause,
+  transcriptListFailureNote,
   type ExploreFilters,
 } from "@/lib/transcriptPageRequest";
 import type { TranscriptListResponse } from "@/lib/types";
@@ -127,11 +127,15 @@ export default function ExplorePage() {
   // for a loading skeleton the moment the button was pressed, taking the alert,
   // the focus and the control with it. The message is therefore remembered
   // until a request actually succeeds.
+  // Said under the panel's heading ("the transcripts could not be loaded"),
+  // or, with rows still on screen, beside them: never the heading again, and
+  // a reason only when the person can act on it.
+  const failureNote = isError ? transcriptListFailureNote(error) : null;
   const reportedFailure: string | null = isError
-    ? `page ${requestedPage} of the transcripts could not be loaded: ` +
-      `${transcriptListFailureCause(error)}. ` +
-      `${displayData != null ? "the transcripts already shown are kept. " : ""}` +
-      `retry to load the page again.`
+    ? displayData != null
+      ? `page ${requestedPage} could not be loaded; the transcripts below are the last ones loaded.` +
+        `${failureNote ? ` ${failureNote}.` : ""}`
+      : `${failureNote ? `${failureNote}. ` : ""}retry to load them again.`
     : null;
   // Remembered WITH the request it belongs to. Asking for a different page is
   // not a retry of the one that failed, so the old message must not follow the

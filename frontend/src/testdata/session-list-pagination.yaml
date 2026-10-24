@@ -170,10 +170,8 @@ scenarios:
           visibleLoading: false
           alert: true
           alertIncludes:
-            - "page 2 of the transcripts could not be loaded"
-            - "the server answered with a different page than the one asked for"
-            - "the transcripts already shown are kept"
-            - "retry to load the page again"
+            - "page 2 could not be loaded"
+            - "the transcripts below are the last ones loaded"
           requestedPages: [1, 2]
           uniqueIds: true
       - name: navigate-to-page-3-without-retrying-page-2

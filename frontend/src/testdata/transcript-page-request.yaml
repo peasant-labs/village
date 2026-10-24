@@ -68,26 +68,28 @@ paramBuilds:
       provider: claude-code
       tags: debugging,greenfield
 
-# Why a list request failed, as the page says it (`transcriptListFailureCause`):
-# the server's own reason, or a plain sentence, and never an internal path.
-# `error` is what the request threw: `mismatch` for a response the page
-# refused, a `message` for any other error, or `none` for a thrown non-error.
-failureCauses:
-  - name: a-refused-page-says-the-server-answered-another
+# What a failed list panel adds under "could not be loaded"
+# (`transcriptListFailureNote`): a line the person can act on, or null when
+# it would only restate the heading. `error` is what the request threw:
+# `mismatch` for a response the page refused, `status` for a server answer,
+# `network` for a request that never reached the server, `message` for any
+# other error, or `none` for a thrown non-error.
+failureNotes:
+  - name: too-many-requests-says-to-wait
+    error: { kind: status, status: 429, message: "rate limit exceeded" }
+    expect: too many requests just now, so wait a moment
+  - name: no-connection-says-to-check-it
+    error: { kind: network, message: "Failed to fetch" }
+    expect: check your connection
+  - name: the-servers-own-reason-restates-the-heading
+    error: { kind: status, status: 500, message: "the session list is unavailable" }
+    expect: null
+  - name: a-refused-page-adds-nothing
     error: { kind: mismatch }
-    expect: the server answered with a different page than the one asked for
-  - name: the-servers-reason-is-said-without-its-full-stop
-    error: { kind: message, message: "the session list is unavailable." }
-    expect: the session list is unavailable
-  - name: a-reason-naming-an-api-path-is-not-shown
+    expect: null
+  - name: a-reason-naming-an-api-path-adds-nothing
     error: { kind: message, message: "GET /api/v1/transcripts?page=2 failed" }
-    expect: the request failed
-  - name: a-reason-naming-a-url-is-not-shown
-    error: { kind: message, message: "fetch https://village.example/api failed" }
-    expect: the request failed
-  - name: an-empty-reason-says-the-request-failed
-    error: { kind: message, message: "   " }
-    expect: the request failed
-  - name: a-thrown-non-error-says-the-request-failed
+    expect: null
+  - name: a-thrown-non-error-adds-nothing
     error: { kind: none }
-    expect: the request failed
+    expect: null

@@ -27,18 +27,17 @@ export enum TranscriptListQueryErrorCode {
 }
 
 /**
- * Why a transcript-list request failed, in words for the page: the server's
- * own reason when it gave one, or a plain sentence for a response the page
- * refused. Never an internal path or a request detail; those stay in the
- * error itself, for whoever reads the logs.
+ * The one line a failed transcript-list panel adds to "could not be loaded",
+ * or null when it would add nothing. It is said only when the person can act
+ * on it: too many requests (wait), or no connection (check it). Any other
+ * reason, the server's own words or a refused page, restates the heading and
+ * is left out; it stays in the thrown error, for whoever reads the logs, with
+ * any internal path.
  */
-export function transcriptListFailureCause(error: unknown): string {
-  if ((error as { code?: unknown } | null)?.code === TranscriptListQueryErrorCode.ResponsePaginationMismatch) {
-    return "the server answered with a different page than the one asked for";
-  }
-  const message = error instanceof Error ? error.message.trim().replace(/[.\s]+$/, "") : "";
-  if (!message || /\/api\/|https?:\/\//.test(message)) return "the request failed";
-  return message;
+export function transcriptListFailureNote(error: unknown): string | null {
+  if ((error as { status?: unknown } | null)?.status === 429) return "too many requests just now, so wait a moment";
+  if (error instanceof TypeError) return "check your connection";
+  return null;
 }
 
 /**
