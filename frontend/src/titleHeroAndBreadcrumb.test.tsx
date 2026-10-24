@@ -100,6 +100,9 @@ describe("mounted production transcript route: stored title hero", () => {
       await renderCase(c);
       const hero = document.querySelector(".txn-title");
       expect(hero?.textContent).toBe(c.expectedHeroTitle);
+      // The transcript is the whole page, so its title is the page's one h1.
+      expect(hero?.tagName).toBe("H1");
+      expect(document.querySelectorAll("h1")).toHaveLength(1);
     });
   }
 });

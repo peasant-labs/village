@@ -4,7 +4,7 @@ import { useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Compass, GitPullRequest, Home, Users } from "lucide-react";
-import { AppSidebar } from "@/lib/ft-ui";
+import { AppSidebar } from "@peasant-labs/fairtrade/ui";
 import { useGroups } from "@/lib/queries/groups";
 import { useTheme } from "@/hooks/useTheme";
 import { collectiveToneColor } from "@/lib/collectiveTone";
@@ -107,7 +107,11 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
         storageKey="peasant-online.sidebar"
         theme={theme}
         onThemeChange={setTheme}
-        account={user ? { handle: user.github_username, items: accountMenu.items } : undefined}
+        account={
+          user
+            ? { handle: user.github_username, items: accountMenu.items, avatarUrl: user.avatar_url ?? undefined }
+            : undefined
+        }
         search={{ onOpen: openSearch, shortcut: "⌘K", keyShortcuts: "Meta+K Control+K" }}
         settingsHref="/settings"
       />

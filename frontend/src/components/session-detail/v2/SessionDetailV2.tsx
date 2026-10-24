@@ -417,6 +417,9 @@ export function SessionDetailV2({
       )}
       <div className="flex-1 min-h-0" ref={streamContainerRef}>
         <TranscriptViewer
+          // The standalone route is the whole page, so its title is the page's
+          // h1; the contribute page's preview column sits under that page's own.
+          headingLevel={isPreview ? 2 : 1}
           viewModel={vm!}
           theme={theme}
           // The header row is the host's own, as in the fairtrade in-use demo:
