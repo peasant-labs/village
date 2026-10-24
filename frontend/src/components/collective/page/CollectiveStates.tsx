@@ -9,14 +9,15 @@ export function CollectiveSkeleton({ crumb }: { crumb: { label: string; href?: s
   return (
     <OnPage tight testId="collective-loading">
       <OnCrumb items={crumb} />
-      <div className="on-cskel" aria-busy="true" aria-label="loading the collective">
-        <div className="h-10 w-72 max-w-full bg-surface-hover animate-shimmer" />
-        <div className="on-row">
+      {/* A status, so its label is announced; the shapes are for the eye. */}
+      <div className="on-cskel" role="status" aria-busy="true" aria-label="loading the collective">
+        <div aria-hidden="true" className="h-10 w-72 max-w-full bg-surface-hover animate-shimmer" />
+        <div aria-hidden="true" className="on-row">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-11 w-48 max-w-full bg-surface-hover animate-shimmer" />
           ))}
         </div>
-        <div className="h-64 w-full bg-surface-hover animate-shimmer" />
+        <div aria-hidden="true" className="h-64 w-full bg-surface-hover animate-shimmer" />
       </div>
     </OnPage>
   );
