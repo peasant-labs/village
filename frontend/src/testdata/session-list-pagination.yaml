@@ -170,7 +170,7 @@ scenarios:
           visibleLoading: false
           alert: true
           alertIncludes:
-            - "page 2 could not be loaded"
+            - "this page could not be loaded"
             - "the transcripts below are the last ones loaded"
           requestedPages: [1, 2]
           uniqueIds: true

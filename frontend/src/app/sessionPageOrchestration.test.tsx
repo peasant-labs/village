@@ -146,11 +146,10 @@ function assertStep(step: OrchestrationStep): void {
     expect(text).not.toContain(TRANSCRIPT_LIST_ENDPOINT);
     expect(text).toContain("retry to load them again.");
     expect(text).not.toContain("network unavailable");
-    // This surface's retry names the exact page it re-issues; the home page's
-    // panel says only "retry". The two share one component, so this is what
-    // notices if the lift ever collapsed their labels into one.
+    // The retry says only "retry", as the home page's does: the page number
+    // is the request's business, not the reader's.
     expect(
-      screen.getByRole("button", { name: /^retry(ing)? page \d+$/ }),
+      screen.getByRole("button", { name: /^retry(ing)?$/ }),
     ).toBeInTheDocument();
   } else {
     expect(screen.queryByTestId("session-list-results")).toBeNull();
@@ -159,7 +158,7 @@ function assertStep(step: OrchestrationStep): void {
   }
 
   if (expectation.retryLabel !== undefined || expectation.retryBusy !== undefined) {
-    const retry = screen.getByRole("button", { name: /^retry(ing)? page \d+$/ });
+    const retry = screen.getByRole("button", { name: /^retry(ing)?$/ });
     if (expectation.retryLabel !== undefined) {
       expect((retry.textContent ?? "").trim(), `${location}: retry label`).toBe(
         expectation.retryLabel,

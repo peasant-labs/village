@@ -133,7 +133,7 @@ export default function ExplorePage() {
   const failureNote = isError ? transcriptListFailureNote(error) : null;
   const reportedFailure: string | null = isError
     ? displayData != null
-      ? `page ${requestedPage} could not be loaded; the transcripts below are the last ones loaded.` +
+      ? `this page could not be loaded; the transcripts below are the last ones loaded.` +
         `${failureNote ? ` ${failureNote}.` : ""}`
       : `${failureNote ? `${failureNote}. ` : ""}retry to load them again.`
     : null;
@@ -179,7 +179,7 @@ export default function ExplorePage() {
   // is owned by the alert surface, so a failure is announced exactly once.
   let statusMessage: string;
   if (retrying) {
-    statusMessage = `retrying page ${requestedPage}`;
+    statusMessage = "retrying";
   } else if (isLoading) {
     statusMessage = "loading session list";
   } else if (busy) {
@@ -197,9 +197,7 @@ export default function ExplorePage() {
   // One label for both ways the same failure is offered: the full surface and
   // the notice above retained rows. Written out in two places, it would drift
   // the moment one of them is reworded.
-  const retryLabel = retrying
-    ? `retrying page ${requestedPage}`
-    : `retry page ${requestedPage}`;
+  const retryLabel = retrying ? "retrying" : "retry";
 
   const retryButton = (
     <RetryButton label={retryLabel} busy={retrying} onRetry={() => refetch()} />

@@ -64,7 +64,7 @@ scenarios:
           # reports itself the same way: a retry that fails again renders the
           # same words, so a control that did not say it was working could not
           # be told from one that did nothing.
-          retryLabel: retrying page 2
+          retryLabel: retrying
           retryBusy: true
           visibleLoading: true
       # An outage answers every request with the same words. Changing the search
@@ -79,7 +79,7 @@ scenarios:
           renders: explore
           displayedPage: 1
           alert: true
-          retryLabel: retry page 2
+          retryLabel: retry
           retryBusy: false
           visibleLoading: false
       # Asking for a DIFFERENT page is not a retry of the one that failed. That
@@ -190,7 +190,7 @@ scenarios:
           refetchCalled: true
           # The control names the page it will reload, so a reader on page 3
           # knows which request is going out again.
-          retryLabel: retry page 1
+          retryLabel: retry
           retryBusy: false
       # The retry is now in flight. With no rows to fall back on the query
       # returns to its PENDING state, so the surface must not be read off the
@@ -201,9 +201,9 @@ scenarios:
         expect:
           renders: errorSurface
           alert: true
-          retryLabel: retrying page 1
+          retryLabel: retrying
           retryBusy: true
-          status: retrying page 1
+          status: retrying
 
   - name: persistent-live-status-across-branches
     steps:
@@ -257,7 +257,7 @@ scenarios:
           renders: explore
           displayedPage: 1
           alert: true
-          retryLabel: retry page 1
+          retryLabel: retry
           retryBusy: false
       # A THIRD key is loading. It has no data of its own either, so the clear
       # cannot fire; only the keyed read stops the previous key's failure being
