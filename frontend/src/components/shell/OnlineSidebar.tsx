@@ -4,12 +4,12 @@ import { useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Compass, GitPullRequest, Home, Users } from "lucide-react";
-import { AppSidebar } from "@peasant-labs/fairtrade/ui";
+import { AppSidebar } from "@/lib/ft-ui";
 import { useGroups } from "@/lib/queries/groups";
 import { useTheme } from "@/hooks/useTheme";
 import { collectiveToneColor } from "@/lib/collectiveTone";
 import { DOCS_URL } from "@/lib/appLinks";
-import AccountMenu from "@/components/shell/AccountMenu";
+import { useAccountMenu } from "@/components/shell/AccountMenu";
 import { openExploreSearch, useSearchShortcut } from "@/lib/exploreSearch";
 import { CONTEXT_PARAM, parseTranscriptContext, type TranscriptContext } from "@/lib/transcriptContext";
 import type { User } from "@/lib/types";
@@ -71,6 +71,7 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
   const router = useRouter();
   const openSearch = useCallback(() => openExploreSearch(router.push, pathname), [router, pathname]);
   useSearchShortcut(openSearch);
+  const accountMenu = useAccountMenu(user);
   const ids = new Set(mine.map((c) => c.id));
 
   const groups = [
@@ -95,19 +96,22 @@ export default function OnlineSidebar({ user }: { user: User | null }) {
   const currentId = currentItemFor(pathname, ids, parseTranscriptContext(searchParams.get(CONTEXT_PARAM)));
 
   return (
-    <AppSidebar
-      app="online"
-      apps={APPS}
-      groups={groups}
-      currentId={currentId}
-      homeHref="/"
-      LinkComponent={Link}
-      storageKey="peasant-online.sidebar"
-      theme={theme}
-      onThemeChange={setTheme}
-      accountSlot={user ? <AccountMenu user={user} /> : undefined}
-      search={{ onOpen: openSearch, shortcut: "⌘K", keyShortcuts: "Meta+K Control+K" }}
-      settingsHref="/settings"
-    />
+    <>
+      <AppSidebar
+        app="online"
+        apps={APPS}
+        groups={groups}
+        currentId={currentId}
+        homeHref="/"
+        LinkComponent={Link}
+        storageKey="peasant-online.sidebar"
+        theme={theme}
+        onThemeChange={setTheme}
+        account={user ? { handle: user.github_username, items: accountMenu.items } : undefined}
+        search={{ onOpen: openSearch, shortcut: "⌘K", keyShortcuts: "Meta+K Control+K" }}
+        settingsHref="/settings"
+      />
+      {accountMenu.dialog}
+    </>
   );
 }

@@ -205,7 +205,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
       }
       await screen.findByRole("link", { name: content.collective });
       if (c.state === "account-menu-open") {
-        fireEvent.click(await screen.findByRole("button", { name: `account menu for @${content.viewer}` }));
+        fireEvent.click(await screen.findByRole("button", { name: `@${content.viewer}` }));
         await screen.findByRole("menu");
       }
       return document.body;

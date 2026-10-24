@@ -48,7 +48,7 @@ describe("mounted sign-in steps: where each screen sends the visitor", () => {
         if (c.expectStart !== null) expect(vi.mocked(startSignIn)).toHaveBeenCalled();
         if (c.expectLeaving) expect(vi.mocked(leaveForSignIn)).toHaveBeenCalled();
         if (c.expectSignInLink !== null) expect(screen.getByRole("link", { name: "sign in" })).toBeInTheDocument();
-        if (c.signedIn && c.path === "/") expect(screen.getByTestId("account-menu-trigger")).toBeInTheDocument();
+        if (c.signedIn && c.path === "/") expect(document.querySelector(".asb-foot .asb-account")).not.toBeNull();
       });
 
       expect(vi.mocked(startSignIn).mock.calls.map(([provider]) => provider)).toEqual(

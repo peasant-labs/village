@@ -54,7 +54,7 @@ it(fixtures.logout.name, async () => {
 it(fixtures.headerLogout.name, async () => {
   const backend = installSettingsRouteREST(base, undefined, { failLogout: true });
   await renderHeader();
-  const account = await screen.findByRole("button", { name: "account menu for @alice-dev" });
+  const account = await screen.findByRole("button", { name: "@alice-dev" });
   fireEvent.click(account);
   fireEvent.click(screen.getByRole("menuitem", { name: "sign out" }));
   const dialog = await screen.findByRole("dialog", { name: "could not sign out" });
@@ -102,7 +102,7 @@ it(fixtures.headerPending.name, async () => {
   const backend = installSettingsRouteREST(base, undefined, { failLogout: true, deferLogout: true });
   try {
     await renderHeader();
-    fireEvent.click(await screen.findByRole("button", { name: "account menu for @alice-dev" }));
+    fireEvent.click(await screen.findByRole("button", { name: "@alice-dev" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "sign out" }));
     const dialog = await screen.findByRole("dialog", { name: "signing out" });
     expect(within(dialog).getByRole("status")).toHaveTextContent("waiting for the sign-out request");
@@ -120,7 +120,7 @@ it(fixtures.headerRapid.name, async () => {
   const frames: FrameRequestCallback[] = [];
   try {
     await renderHeader();
-    const account = await screen.findByRole("button", { name: "account menu for @alice-dev" });
+    const account = await screen.findByRole("button", { name: "@alice-dev" });
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });
     fireEvent.click(account);
     fireEvent.click(screen.getByRole("menuitem", { name: "sign out" }));
