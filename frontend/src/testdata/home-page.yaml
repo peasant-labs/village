@@ -8,9 +8,10 @@
 
 # Which surface each (path, viewer) pair must land on. The app's one signed-out
 # view is a public transcript (`signed-out-transcript.yaml`); on these routes
-# anybody without a session is sent to the marketing site's log-in popup (the frame says where it is taking them and leaves), `/login`
-# included. A signed-in visitor gets the page: home at `/`, discovery at
-# `/explore`, which left the root and the nav and keeps its own address.
+# anybody without a session is sent to the marketing site's log-in popup (the
+# frame says where it is taking them and leaves), `/login` included. A
+# signed-in visitor gets the page: home at `/`, discovery at `/explore`, which
+# left the root and the nav and keeps its own address.
 routeCases:
   - name: signed-out-visitor-at-the-root-leaves-for-the-marketing-site
     path: "/"

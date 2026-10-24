@@ -6,12 +6,11 @@ import { NEXT_PARAM, returnAddressFor, safeNextPath } from "@/lib/signIn";
  *
  * The hosted app's one signed-out view is a public transcript (its page decides
  * that on the server); every other page sends a visitor without a session here.
- * The product is introduced
- * on the marketing site, and its log-in popup holds the sign-in the app's own
- * page used to: the GitHub button (which comes back through `/auth/start`) and
- * the terminal command. An operator can point it elsewhere (a staging site, a
- * mirror) with `NEXT_PUBLIC_MARKETING_URL`, read at build time like every other
- * public value.
+ * The product is introduced on the marketing site, and its log-in popup holds
+ * the sign-in the app's own page used to: the GitHub button (which comes back
+ * through `/auth/start`) and the terminal command. An operator can point it
+ * elsewhere (a staging site, a mirror) with `NEXT_PUBLIC_MARKETING_URL`, read at
+ * build time like every other public value.
  */
 export const DEFAULT_MARKETING_URL = "https://peasantlabs.org";
 

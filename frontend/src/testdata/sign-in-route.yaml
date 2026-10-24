@@ -5,9 +5,10 @@
 # `src/test/signInRouteFixtures.ts`.
 
 # The proxy's answer to a page load, decided on the address and the session
-# cookie alone; a transcript page is passed to the page, which decides itself. A cookie that turns out to be stale is the app frame's to
-# catch once `/auth/me` answers; these cases are what the server decides
-# before any page is served. `path` is the address asked for (with its query).
+# cookie alone; a transcript page is passed to the page, which decides itself.
+# A cookie that turns out to be stale is the app frame's to catch once
+# `/auth/me` answers; these cases are what the server decides before any page
+# is served. `path` is the address asked for (with its query).
 # `fetchDest` is the browser's `Sec-Fetch-Dest`: `document` for a page load,
 # `empty` for a fetch the page makes (Next prefetching or navigating inside the
 # app), null for a client that sends none (curl, a crawler).
@@ -51,8 +52,8 @@ proxyCases:
   - name: a-signed-out-deep-link-comes-back-to-its-page
     why: >-
       the app's one signed-out view is a public transcript: a link to any other
-      page sends a signed-out visitor to the log-in popup, which returns them to that page, query and
-      all, once signed in.
+      page sends a signed-out visitor to the log-in popup, which returns them
+      to that page, query and all, once signed in.
     path: /collectives/abc?tab=members
     cookie: null
     fetchDest: document
