@@ -90,9 +90,15 @@ export default function CollectiveWaiting({
           <thead>
             <tr>
               <th scope="col">transcript</th>
-              <th scope="col">contributor</th>
-              <th scope="col">agent</th>
-              <th scope="col">status</th>
+              <th scope="col" className="is-wide">
+                contributor
+              </th>
+              <th scope="col" className="is-wide">
+                agent
+              </th>
+              <th scope="col" className="is-wide">
+                status
+              </th>
               <th scope="col" className="is-n">
                 when
               </th>
@@ -114,14 +120,25 @@ export default function CollectiveWaiting({
                     {(row.project_name || row.branch) && (
                       <span className="is-sub">{[row.project_name, row.branch].filter(Boolean).join(", ")}</span>
                     )}
+                    {/* On a phone the contributor, agent and status columns
+                        give way, and the row states them under its title. */}
+                    <span className="is-sub on-ctable-facts" data-testid="collective-row-facts">
+                      <span>{who.anonymous ? "anon" : `@${who.label}`}</span>
+                      <span className="on-agent">
+                        <AgentCell provider={row.model_provider} />
+                      </span>
+                      <span className="on-tag" data-tone="wait">
+                        waiting
+                      </span>
+                    </span>
                   </td>
-                  <td className="on-handle-cell">{who.anonymous ? "anon" : `@${who.label}`}</td>
-                  <td>
+                  <td className="on-handle-cell is-wide">{who.anonymous ? "anon" : `@${who.label}`}</td>
+                  <td className="is-wide">
                     <span className="on-agent">
                       <AgentCell provider={row.model_provider} />
                     </span>
                   </td>
-                  <td>
+                  <td className="is-wide">
                     <span className="on-tag" data-tone="wait">
                       waiting
                     </span>

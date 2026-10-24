@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Eye } from "lucide-react";
 import { ProviderName } from "@/lib/ft-ui";
 import { isHarness } from "@/lib/harness";
 import ChildSessionDisclosure from "@/components/transcript/ChildSessionDisclosure";
@@ -55,7 +56,8 @@ interface HomeTableProps {
  * The signed-in person's transcripts: one row each, optionally grouped, with the
  * columns the person chose. A session another session started is not a row of
  * its own when the session that started it is listed: it is inside that row's
- * chip. Wide tables scroll inside their own box.
+ * chip. Wide tables scroll inside their own box; on a phone the table keeps
+ * the title and when, and each row states the rest under its title.
  */
 export default function HomeTable({
   groups,
@@ -80,7 +82,7 @@ export default function HomeTable({
         // server contract violation: it is still listed, and its project is
         // named but not linked, never folded into a made-up project.
         return (
-          <td key={key} className="is-data is-wrap" data-col="project">
+          <td key={key} className="is-data is-wrap is-wide" data-col="project">
             {t.project_hash ? (
               <Link
                 href={`/users/${encodeURIComponent(viewerUsername)}/projects/${t.project_hash}`}
@@ -98,7 +100,7 @@ export default function HomeTable({
       case "readers": {
         const readers = readersOf(item);
         return (
-          <td key={key} className="is-data is-wrap" data-col="readers">
+          <td key={key} className="is-data is-wrap is-wide" data-col="readers">
             {readers.length > 0 ? (
               <span className="on-readers">
                 {readers.map((name) => (
@@ -113,7 +115,7 @@ export default function HomeTable({
       }
       case "agent":
         return (
-          <td key={key} className="is-data" data-col="agent">
+          <td key={key} className="is-data is-wide" data-col="agent">
             {isHarness(t.model_provider) ? (
               <ProviderName harness={t.model_provider} className="on-agent" />
             ) : (
@@ -123,13 +125,13 @@ export default function HomeTable({
         );
       case "pullRequests":
         return (
-          <td key={key} className="is-data" data-col="pullRequests">
+          <td key={key} className="is-data is-wide" data-col="pullRequests">
             <PullRequestCell transcriptID={t.id} summary={item.pull_requests} />
           </td>
         );
       case "turns":
         return (
-          <td key={key} className="is-data is-n" data-col="turns">
+          <td key={key} className="is-data is-n is-wide" data-col="turns">
             {t.turn_count == null ? <span className="on-none">not counted</span> : t.turn_count.toLocaleString("en-US")}
           </td>
         );
@@ -142,6 +144,43 @@ export default function HomeTable({
     }
   };
 
+  // On a phone the table keeps the title and when, and each row states the
+  // rest under its title: who can read it always, then the other columns the
+  // person chose. Wider, this line is not drawn and the columns carry them.
+  const facts = (item: TranscriptListItem): ReactNode => {
+    const t = item.transcript;
+    const readers = readersOf(item);
+    return (
+      <span className="on-row-facts" data-testid="home-row-facts">
+        <span className="on-fact-readers" data-fact="readers">
+          <Eye aria-hidden="true" />
+          <span className="sr-only">{HOME_COLUMN_LABELS.readers}: </span>
+          {readers.length > 0 ? readers.join(", ") : NO_READERS}
+        </span>
+        {columns.project && <span data-fact="project">{t.project_display_name}</span>}
+        {columns.agent && (
+          <span data-fact="agent">
+            {isHarness(t.model_provider) ? (
+              <ProviderName harness={t.model_provider} className="on-agent" />
+            ) : (
+              <span className="on-agent">{agentLabel(item)}</span>
+            )}
+          </span>
+        )}
+        {columns.pullRequests && (
+          <span data-fact="pullRequests">
+            <PullRequestCell transcriptID={t.id} summary={item.pull_requests} />
+          </span>
+        )}
+        {columns.turns && t.turn_count != null && (
+          <span data-fact="turns" className="tabular-nums">
+            {plural(t.turn_count, "turn", "turns")}
+          </span>
+        )}
+      </span>
+    );
+  };
+
   const row = (item: TranscriptListItem, inGroup: boolean) => {
     const t = item.transcript;
     const started = childSessions.get(t.id);
@@ -150,6 +189,7 @@ export default function HomeTable({
         <td>
           <div className="on-cell-title" data-testid="home-transcript-row" data-transcript-id={t.id}>
             <Link href={transcriptHref(t.id, { kind: "home" })}>{t.title || "untitled"}</Link>
+            {facts(item)}
             {helperGroupSlot(item)}
             {started !== undefined && started.length > 0 && (
               <ChildSessionDisclosure
@@ -175,14 +215,18 @@ export default function HomeTable({
         <colgroup>
           <col />
           {shown.map((key) => (
-            <col key={key} className={`on-col-${key}`} />
+            <col key={key} className={key === "when" ? `on-col-${key}` : `on-col-${key} is-wide`} />
           ))}
         </colgroup>
         <thead>
           <tr>
             <th scope="col">transcript</th>
             {shown.map((key) => (
-              <th key={key} scope="col" className={NUMERIC.has(key) ? "is-n" : undefined}>
+              <th
+                key={key}
+                scope="col"
+                className={[NUMERIC.has(key) ? "is-n" : "", key === "when" ? "" : "is-wide"].filter(Boolean).join(" ") || undefined}
+              >
                 {HOME_COLUMN_LABELS[key]}
               </th>
             ))}

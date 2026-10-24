@@ -136,19 +136,20 @@ function assertStep(step: OrchestrationStep): void {
   } else if (expectation.renders === "errorSurface") {
     expect(screen.queryByTestId("session-list-results")).toBeNull();
     expect(screen.queryByTestId("explore")).toBeNull();
-    expect(screen.getByText("Failed to load transcripts")).toBeInTheDocument();
+    expect(screen.getByText("the transcripts could not be loaded")).toBeInTheDocument();
     // The actionable body, not merely the heading: a panel that lost its
-    // message would still carry the title. It must name the endpoint and the
-    // cause the request reported.
+    // message would still carry the title. It offers the retry in plain
+    // words, never the internal path it was asked of, and leaves out a
+    // reason that only restates the heading.
     const panel = screen.getAllByRole("alert")[0];
     const text = (panel.textContent ?? "").replace(/\s+/g, " ");
-    expect(text).toContain(TRANSCRIPT_LIST_ENDPOINT);
-    expect(text).toContain("network unavailable");
-    // This surface's retry names the exact page it re-issues; the home page's
-    // panel says only "retry". The two share one component, so this is what
-    // notices if the lift ever collapsed their labels into one.
+    expect(text).not.toContain(TRANSCRIPT_LIST_ENDPOINT);
+    expect(text).toContain("retry to load them again.");
+    expect(text).not.toContain("network unavailable");
+    // The retry says only "retry", as the home page's does: the page number
+    // is the request's business, not the reader's.
     expect(
-      screen.getByRole("button", { name: /^retry(ing)? page \d+$/ }),
+      screen.getByRole("button", { name: /^retry(ing)?$/ }),
     ).toBeInTheDocument();
   } else {
     expect(screen.queryByTestId("session-list-results")).toBeNull();
@@ -157,7 +158,7 @@ function assertStep(step: OrchestrationStep): void {
   }
 
   if (expectation.retryLabel !== undefined || expectation.retryBusy !== undefined) {
-    const retry = screen.getByRole("button", { name: /^retry(ing)? page \d+$/ });
+    const retry = screen.getByRole("button", { name: /^retry(ing)?$/ });
     if (expectation.retryLabel !== undefined) {
       expect((retry.textContent ?? "").trim(), `${location}: retry label`).toBe(
         expectation.retryLabel,

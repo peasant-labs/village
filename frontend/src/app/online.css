@@ -779,6 +779,47 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The home table on a phone: it fits the screen. Every column but when gives
+   way, and each row states who can read it, then the other chosen columns,
+   under its title. Wider, the facts line is not drawn. */
+.on-row-facts {
+  display: none;
+}
+.on-fact-readers {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.on-fact-readers svg {
+  flex: none;
+  width: var(--ic-sm);
+  height: var(--ic-sm);
+}
+@media (max-width: 767px) {
+  .on-table,
+  .on-table.is-narrow {
+    min-width: 0;
+  }
+  .on-table .is-wide {
+    display: none;
+  }
+  .on-table .on-col-when {
+    width: 6rem;
+  }
+  .on-table .on-row-facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-1) var(--sp-3);
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+    letter-spacing: 0;
+    color: var(--ink-3);
+  }
+}
+
 /* the home table's optional columns; the title takes what is left */
 .on-col-project { width: 15%; }
 .on-col-readers { width: 18%; }

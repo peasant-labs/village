@@ -94,6 +94,15 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+      # The catalog step continues on error only so its artifacts are uploaded.
+      # Once both uploads have run, a failed catalog must fail this job too:
+      # otherwise the evidence job's needs.journey.result test sees success and a
+      # red catalog could post a green badge. Built-route failures already fail
+      # the job directly and never reach this step as a success.
+      - name: Fail when any journey failed
+        if: always() && steps.journey.outcome != 'success'
+        run: exit 1
+
   # Evidence posting runs OUTSIDE the Playwright container: ci-post-evidence
   # shells out to the gh CLI, which the pool runner image and the GitHub-hosted
   # runners carry but the Playwright image does not. setup-node provides the

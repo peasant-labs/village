@@ -8,9 +8,9 @@ import { useSearchCollectives } from "@/lib/queries/groups";
 import { usePopularTags } from "@/lib/queries/tags";
 import { adaptExplore } from "@/lib/adapters/explore";
 import {
-  TRANSCRIPT_LIST_ENDPOINT,
   TRANSCRIPT_PAGE_SIZE,
   buildTranscriptListParams,
+  transcriptListFailureNote,
   type ExploreFilters,
 } from "@/lib/transcriptPageRequest";
 import type { TranscriptListResponse } from "@/lib/types";
@@ -127,12 +127,15 @@ export default function ExplorePage() {
   // for a loading skeleton the moment the button was pressed, taking the alert,
   // the focus and the control with it. The message is therefore remembered
   // until a request actually succeeds.
+  // Said under the panel's heading ("the transcripts could not be loaded"),
+  // or, with rows still on screen, beside them: never the heading again, and
+  // a reason only when the person can act on it.
+  const failureNote = isError ? transcriptListFailureNote(error) : null;
   const reportedFailure: string | null = isError
-    ? `Failed to load page ${requestedPage} of the session list from ` +
-      `${TRANSCRIPT_LIST_ENDPOINT}. ` +
-      `${displayData != null ? "The previously confirmed rows are kept. " : ""}` +
-      `${error instanceof Error ? error.message : "Unknown error."} ` +
-      `Retry the same page to reload it.`
+    ? displayData != null
+      ? `this page could not be loaded; the transcripts below are the last ones loaded.` +
+        `${failureNote ? ` ${failureNote}.` : ""}`
+      : `${failureNote ? `${failureNote}. ` : ""}retry to load them again.`
     : null;
   // Remembered WITH the request it belongs to. Asking for a different page is
   // not a retry of the one that failed, so the old message must not follow the
@@ -176,7 +179,7 @@ export default function ExplorePage() {
   // is owned by the alert surface, so a failure is announced exactly once.
   let statusMessage: string;
   if (retrying) {
-    statusMessage = `retrying page ${requestedPage}`;
+    statusMessage = "retrying";
   } else if (isLoading) {
     statusMessage = "loading session list";
   } else if (busy) {
@@ -194,9 +197,7 @@ export default function ExplorePage() {
   // One label for both ways the same failure is offered: the full surface and
   // the notice above retained rows. Written out in two places, it would drift
   // the moment one of them is reworded.
-  const retryLabel = retrying
-    ? `retrying page ${requestedPage}`
-    : `retry page ${requestedPage}`;
+  const retryLabel = retrying ? "retrying" : "retry";
 
   const retryButton = (
     <RetryButton label={retryLabel} busy={retrying} onRetry={() => refetch()} />
@@ -211,7 +212,7 @@ export default function ExplorePage() {
     // different words.
     content = (
       <RequestFailureState
-        title="Failed to load transcripts"
+        title="the transcripts could not be loaded"
         message={failureMessage}
         onRetry={() => refetch()}
         retryLabel={retryLabel}

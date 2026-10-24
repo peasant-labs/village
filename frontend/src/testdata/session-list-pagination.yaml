@@ -170,12 +170,8 @@ scenarios:
           visibleLoading: false
           alert: true
           alertIncludes:
-            - "Failed to load page 2"
-            - "requested page 2 and limit 24"
-            - "received page 5 and limit 24"
-            - "response was rejected"
-            - "previously confirmed rows are kept"
-            - "Retry the same page"
+            - "this page could not be loaded"
+            - "the transcripts below are the last ones loaded"
           requestedPages: [1, 2]
           uniqueIds: true
       - name: navigate-to-page-3-without-retrying-page-2

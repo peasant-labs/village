@@ -53,6 +53,37 @@ describe('resolveAttachmentPath', () => {
   }
 })
 
+describe('the journey workflow failure gate', () => {
+  it('collects both evidence artifacts, then fails the job when the catalog did not succeed', () => {
+    const workflow = YAML.parse(readFileSync(join(here, '../../../.github/workflows/journey.yml'), 'utf8'))
+    const steps = workflow.jobs.journey.steps
+    const catalog = steps.find((step) => step.id === 'journey')
+    expect(catalog, 'the catalog step is the one whose outcome is re-raised').toBeTruthy()
+    expect(catalog['continue-on-error'], 'the catalog step continues only so its evidence is collected').toBe(true)
+
+    const uploads = steps
+      .filter((step) => step.uses?.startsWith('actions/upload-artifact'))
+      .map((step) => ({ name: step.with?.name, index: steps.indexOf(step) }))
+    expect(uploads.map((upload) => upload.name)).toEqual(
+      expect.arrayContaining(['journey-artifacts', 'collectives-built']),
+    )
+
+    const built = steps.findIndex((step) => step.name === 'Verify built collective routes and legacy redirects')
+    expect(built, 'the built-route check runs in this job').toBeGreaterThanOrEqual(0)
+    expect(steps[built]['continue-on-error'], 'a built-route failure fails the job directly').toBeUndefined()
+
+    const gate = steps[steps.length - 1]
+    expect(gate.if, 'the gate runs even after an earlier failure').toContain('always()')
+    expect(gate.if, 'the gate re-raises the catalog outcome').toContain("steps.journey.outcome != 'success'")
+    expect(gate.run, 'the gate exits non-zero').toMatch(/\bexit 1\b/)
+    for (const upload of uploads) expect(steps.length - 1, `${upload.name} is uploaded before the gate`).toBeGreaterThan(upload.index)
+    expect(built, 'the built-route check runs before the gate').toBeLessThan(steps.length - 1)
+
+    const fail = workflow.jobs.evidence.steps.find((step) => step.name === 'Fail if journeys failed')
+    expect(fail?.if, 'the evidence job fails the run on the journey job result').toContain("needs.journey.result == 'failure'")
+  })
+})
+
 describe('collectMedia', () => {
   for (const c of fixture.reportCases) {
     it(c.name, () => {

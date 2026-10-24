@@ -45,6 +45,19 @@ async function record(page, testInfo, locator, name) {
   expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([])
 }
 
+/**
+ * One waiting row states its status and contributor exactly once, whichever
+ * representation is on screen: the wide columns or the row's facts line. Both
+ * are real status tags; only one is visible at a time, so a lost stylesheet that
+ * showed both fails the visible count instead of being counted twice.
+ */
+async function expectOneVisibleWaitingRow(row, pending) {
+  const status = row.locator('.on-tag').filter({ visible: true })
+  await expect(status).toHaveCount(1)
+  await expect(status).toHaveText('waiting')
+  await expect(row.getByText(`@${pending.login}`, { exact: true }).filter({ visible: true })).toHaveCount(1)
+}
+
 test.describe('collectives', () => {
   test.beforeEach(async ({ request }) => {
     // A fresh world: no earlier journey's link or settings write carries over.
@@ -135,13 +148,33 @@ test.describe('collectives', () => {
     const waiting = await openTab(page, 'waiting for approval')
     await expect(page.getByRole('tab', { name: /^waiting/ })).toHaveText(`waiting for approval ${JOURNEY_PENDING.length}`)
     const queue = waiting.getByRole('table', { name: `waiting for approval ${JOURNEY_PENDING.length}` })
+    const queueRows = queue.locator('tbody tr')
+    await expect(queueRows).toHaveCount(JOURNEY_PENDING.length)
     await expect(queue.locator('tbody a.is-title')).toHaveText(JOURNEY_PENDING.map((row) => row.title))
     await expect(queue.locator('tbody .on-handle-cell')).toHaveText(JOURNEY_PENDING.map((row) => `@${row.login}`))
-    await expect(queue.locator('tbody .on-tag')).toHaveText(JOURNEY_PENDING.map(() => 'waiting'))
+    for (const [index, pending] of JOURNEY_PENDING.entries()) {
+      const row = queueRows.nth(index)
+      await expectOneVisibleWaitingRow(row, pending)
+      // A wide page draws the columns and not the facts line.
+      await expect(row.getByTestId('collective-row-facts')).toBeHidden()
+      await expect(row.locator('.on-handle-cell')).toBeVisible()
+      await expect(row.locator('.is-wide .on-tag')).toBeVisible()
+    }
     await expect(waiting.getByRole('link', { name: 'review transcripts' })).toHaveAttribute('href', `/collectives/${OWNER.id}/review`)
     await expect(page).toHaveURL(new RegExp(`\\?tab=waiting$`))
     await still(page, testInfo, 'collective-waiting')
     await record(page, testInfo, waiting, 'collective-waiting')
+
+    // A phone drops the wide columns and states the same row under its title.
+    // The status and handle must stay visible exactly once in that form.
+    await page.setViewportSize({ width: 390, height: 844 })
+    for (const [index, pending] of JOURNEY_PENDING.entries()) {
+      const row = queueRows.nth(index)
+      await expect(row.getByTestId('collective-row-facts')).toBeVisible()
+      await expect(row.locator('.on-handle-cell')).toBeHidden()
+      await expect(row.locator('.is-wide .on-tag')).toBeHidden()
+      await expectOneVisibleWaitingRow(row, pending)
+    }
   })
 
   test('retains transcript grouping and private contribution withdrawal on the mounted detail page', async ({ page, theme }, testInfo) => {

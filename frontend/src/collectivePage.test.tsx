@@ -86,6 +86,16 @@ describe("the collective page", () => {
       const headers = within(table).getAllByRole("columnheader").map((th) => textOf(th));
       // No status column: the list holds only approved transcripts.
       expect(headers).toEqual(["transcript", "contributor", "agent", "turns", "when"]);
+      // Each row also states its contributor, agent and turns under its title,
+      // the line a phone shows in place of those three columns.
+      for (const row of within(table).getAllByRole("row").slice(1)) {
+        const cells = row.querySelectorAll("td");
+        const facts = row.querySelector('[data-testid="collective-row-facts"]');
+        expect(facts, "a row states its facts under its title").not.toBeNull();
+        expect(textOf(facts!)).toContain(textOf(cells[1]));
+        expect(textOf(facts!)).toContain(textOf(cells[2]));
+        if (textOf(cells[3])) expect(textOf(facts!)).toContain(`${textOf(cells[3])} turn`);
+      }
     }
     if (!pageCase.canRead) expect(screen.getByRole("heading", { name: "data access restricted" })).toBeInTheDocument();
 
