@@ -81,7 +81,7 @@ function detail(): SessionDetailPayload {
 /** App pages that need a session: the root, and every section under it. */
 const SESSION_ONLY = /^\/(?:$|[?#]|(?:collectives|pulls|users|settings|explore|discover|groups|publish|welcome)(?:[/?#]|$))/;
 
-describe("the transcript page, signed out, on a public transcript", () => {
+describe("the transcript page, signed out", () => {
   for (const c of fx.pageCases) {
     it(c.name, async () => {
       const requested: string[] = [];
@@ -98,6 +98,7 @@ describe("the transcript page, signed out, on a public transcript", () => {
           },
           // The owner is somebody else; nobody is signed in.
           owner: { id: "user-alice", github_username: "alice" },
+          pull_requests: c.pullRequests,
           enriched_shares: [
             {
               transcript_id: TRANSCRIPT_ID,
@@ -128,13 +129,26 @@ describe("the transcript page, signed out, on a public transcript", () => {
             <AuthProvider>
               <AppFrame>
                 <Suspense fallback={<div>loading mounted transcript</div>}>
-                  <TranscriptDetailPage params={Promise.resolve({ id: TRANSCRIPT_ID })} openSignedOut />
+                  <TranscriptDetailPage
+                    params={Promise.resolve({ id: TRANSCRIPT_ID })}
+                    openSignedOut={c.openSignedOut}
+                  />
                 </Suspense>
               </AppFrame>
             </AuthProvider>
           </QueryClientProvider>,
         );
       });
+
+      if (c.expectLeaving) {
+        // Swapped for the frame's note, nothing of the transcript drawn, and
+        // the visitor sent to sign in once.
+        await waitFor(() => expect(screen.getByTestId("leaving-for-sign-in")).toBeInTheDocument());
+        expect(vi.mocked(leaveForSignIn)).toHaveBeenCalledTimes(1);
+        expect(document.querySelector(".txn-title")).toBeNull();
+        expect(screen.queryByTestId("public-top-bar")).toBeNull();
+        return;
+      }
 
       // The transcript is read, in the public bar with its one way in.
       await waitFor(() => expect(document.querySelector(".txn-title")?.textContent).toBe(TITLE));
@@ -152,6 +166,17 @@ describe("the transcript page, signed out, on a public transcript", () => {
         return href ? `${crumb.textContent ?? ""} -> ${href}` : crumb.textContent ?? "";
       });
       expect(crumbs).toEqual(c.expectCrumbs);
+
+      // Each pull request is named, as text.
+      if (c.pullRequests.length > 0) {
+        await waitFor(() =>
+          expect(screen.getAllByTestId("transcript-pull-request")).toHaveLength(c.pullRequests.length),
+        );
+        for (const row of screen.getAllByTestId("transcript-pull-request")) {
+          expect(row.querySelector("a"), row.textContent ?? "").toBeNull();
+        }
+        expect(screen.getByTestId("transcript-pull-request")).toHaveTextContent("acme/widgets #7");
+      }
 
       // Nothing links to a page that needs a session.
       for (const a of document.querySelectorAll("a")) {

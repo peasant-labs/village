@@ -62,22 +62,48 @@ frameCases:
     declares: not-public
     expectChrome: sections
 
-# The real transcript page inside the real frame, opened signed out on a
-# transcript the server marked public, at `/transcripts/{id}{search}`. The
-# trail is `expectCrumbs`, each crumb `label -> href` or the bare label for one
-# with no link; signed out, none links. Every case also asserts that the page
-# asks for nobody's collectives, links to no page that needs a session, and
-# offers no owner or member action.
+# The real transcript page inside the real frame, opened signed out at
+# `/transcripts/{id}{search}`. `openSignedOut` is what the server told the
+# page; `pullRequests` are the pull requests the API serves this anonymous
+# reader (only ones on public repositories).
+#
+# A page the server marked open (`expectLeaving: false`) is read in the public
+# bar. Its trail is `expectCrumbs`, each crumb `label -> href` or the bare
+# label for one with no link; signed out, none links. Every such case also
+# asserts that the page asks for nobody's collectives, links to no page that
+# needs a session (pull request rows included), and offers no owner or member
+# action. A page the server did not mark open is swapped for the frame's
+# "taking you to log in" note, and the visitor is sent to sign in once.
 pageCases:
   - name: opened-with-no-place
     why: a shared link names no place; the trail is home and the project, as text.
+    openSignedOut: true
     search: ""
+    pullRequests: []
+    expectLeaving: false
     expectCrumbs: ["home", "village"]
   - name: opened-from-a-collective
     why: a link copied inside a collective keeps its place; signed out it names it without linking it.
+    openSignedOut: true
     search: "?in=collective:c-guild"
+    pullRequests: []
+    expectLeaving: false
     expectCrumbs: ["collectives", "Infra Guild"]
   - name: opened-from-a-pull-request
     why: a link copied from a pull request keeps its place; signed out it names it without linking it.
+    openSignedOut: true
     search: "?in=pull:acme/widgets/7"
+    pullRequests: []
+    expectLeaving: false
     expectCrumbs: ["pull requests", "acme/widgets#7"]
+  - name: bound-to-a-pull-request-on-a-public-repository
+    why: >-
+      the API serves an anonymous reader the pull requests on public
+      repositories; signed out, each row names its pull request without
+      linking to the page that needs a session.
+    openSignedOut: true
+    search: ""
+    pullRequests:
+      - { owner: acme, name: widgets, number: 7, title: Fix flaky ingest test, head_ref: fix/flaky-ingest, state: attached }
+    expectLeaving: false
+    expectCrumbs: ["home", "village"]

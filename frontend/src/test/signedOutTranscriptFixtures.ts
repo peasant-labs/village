@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
+import type { VillageTranscriptPullRequest } from "@peasant-labs/schema";
 import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 
 /**
@@ -21,7 +22,10 @@ export interface FrameCase {
 export interface PageCase {
   name: string;
   why: string;
+  openSignedOut: boolean;
   search: string;
+  pullRequests: VillageTranscriptPullRequest[];
+  expectLeaving: boolean;
   expectCrumbs: string[];
 }
 
@@ -35,7 +39,12 @@ const requiredFrameCases = [
   "a-signed-in-reader-of-another-transcript-is-unchanged",
 ];
 
-const requiredPageCases = ["opened-with-no-place", "opened-from-a-collective", "opened-from-a-pull-request"];
+const requiredPageCases = [
+  "opened-with-no-place",
+  "opened-from-a-collective",
+  "opened-from-a-pull-request",
+  "bound-to-a-pull-request-on-a-public-repository",
+];
 
 export function loadSignedOutTranscriptFixtures(): { frameCases: FrameCase[]; pageCases: PageCase[] } {
   const parsed = parse(readFileSync(resolve(process.cwd(), "src/testdata/signed-out-transcript.yaml"), "utf8"), {
@@ -63,8 +72,19 @@ export function loadSignedOutTranscriptFixtures(): { frameCases: FrameCase[]; pa
 
   assertNamesMatch(parsed.pageCases.map((c) => c.name), requiredPageCases, "signed-out-transcript pageCases");
   for (const c of parsed.pageCases) {
-    assertExactKeys(c, ["name", "why", "search", "expectCrumbs"], `page case ${c.name}`);
+    assertExactKeys(
+      c,
+      ["name", "why", "openSignedOut", "search", "pullRequests", "expectLeaving", "expectCrumbs"],
+      `page case ${c.name}`,
+    );
     if (!c.why?.trim()) throw new Error(`page case ${c.name} states no reason it exists`);
+    if (c.expectLeaving === c.openSignedOut) {
+      throw new Error(`page case ${c.name}: a signed-out visitor stays exactly when the server marked the page open`);
+    }
+  }
+  // The no-session-link check must see a pull request row, or it proves nothing about them.
+  if (!parsed.pageCases.some((c) => !c.expectLeaving && c.pullRequests.length > 0)) {
+    throw new Error("signed-out-transcript pageCases must serve a pull request to a page that stays open");
   }
   return parsed;
 }
