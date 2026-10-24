@@ -11,7 +11,7 @@ session: |
     "project_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "project_name":"Published name", "project_display_name":"Owner name", "project_name_source":"override",
     "project_remote_label":"owner/project", "tool_call_count":2, "subagent_count":1, "duration_ms":60000,
-    "subagents":[], "diagnostics_warnings":["retained uncertainty"], "diagnostics_partial":true,
+    "subagents":[], "diagnostics_warnings":[{"errorType":"unknown_data_retained","location":"selected session entry","message":"retained uncertainty","remediation":"No action is required"}], "diagnostics_partial":true,
     "tokens_in":11, "tokens_out":20, "title_generated":"Generated name", "outcome":"success",
     "files_touched":2, "lines_changed":3, "retry_loops":4, "retry_tokens_wasted":5, "within_session_reverts":6,
     "signal_density":0.5, "spec_quality_score":0.6, "exploration_ratio":0.7, "scope_breadth":7, "discovery_turns":8,

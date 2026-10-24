@@ -235,7 +235,10 @@ func (h *Handler) resolveCollectiveGroupedScope(ctx context.Context, request Gro
 		key := projectIdentityKey{OwnerID: row.Transcript.OwnerID, ProjectHash: row.Transcript.ProjectHash}
 		session, err := groupedSessionFromTranscript(row.Transcript, projects[key])
 		if err != nil {
-			return result, collectiveGroupedFailure(500, "resolveCollectiveGroupedScope", "stored transcript metadata could not be projected into the canonical response", "retry after repairing the stored metadata through an explicit owner update")
+			// Fail the page rather than dropping the row: a shorter list would
+			// misstate what the route selected. Name the transcript so the stored
+			// row can be found, and keep the shared refusal shape.
+			return result, collectiveGroupedFailure(500, "resolveCollectiveGroupedScope", fmt.Sprintf("stored transcript metadata for transcript %s could not be projected into the canonical response", uuidFromPg(row.Transcript.ID).String()), "retry after the deployed contract and the stored metadata agree, and report the transcript identifier if the read still fails")
 		}
 		var projected schema.VillageSessionRow
 		switch request.Variant {
