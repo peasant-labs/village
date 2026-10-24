@@ -301,7 +301,9 @@ JOIN users u ON gm.user_id = u.id
 LEFT JOIN user_github_orgs ugo ON ugo.user_id = u.id AND ugo.visible = TRUE
 WHERE gm.group_id = $1
   AND gm.role != 'pending'
-  AND (u.is_discoverable = TRUE OR $2::boolean)
+  -- A person who is not discoverable is listed to the collective's owners and
+  -- to themselves; a person always sees their own row.
+  AND (u.is_discoverable = TRUE OR $2::boolean OR u.id = $3::uuid)
 GROUP BY gm.role, gm.joined_at, u.id, u.github_username, u.display_name, u.avatar_url
 ORDER BY gm.role, u.github_username
 `
@@ -309,6 +311,7 @@ ORDER BY gm.role, u.github_username
 type ListGroupMembersParams struct {
 	GroupID       pgtype.UUID `db:"group_id" json:"group_id"`
 	ViewerIsOwner bool        `db:"viewer_is_owner" json:"viewer_is_owner"`
+	ViewerID      pgtype.UUID `db:"viewer_id" json:"viewer_id"`
 }
 
 type ListGroupMembersRow struct {
@@ -322,7 +325,7 @@ type ListGroupMembersRow struct {
 }
 
 func (q *Queries) ListGroupMembers(ctx context.Context, arg ListGroupMembersParams) ([]ListGroupMembersRow, error) {
-	rows, err := q.db.Query(ctx, listGroupMembers, arg.GroupID, arg.ViewerIsOwner)
+	rows, err := q.db.Query(ctx, listGroupMembers, arg.GroupID, arg.ViewerIsOwner, arg.ViewerID)
 	if err != nil {
 		return nil, err
 	}

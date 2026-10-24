@@ -114,7 +114,9 @@ JOIN users u ON gm.user_id = u.id
 LEFT JOIN user_github_orgs ugo ON ugo.user_id = u.id AND ugo.visible = TRUE
 WHERE gm.group_id = $1
   AND gm.role != 'pending'
-  AND (u.is_discoverable = TRUE OR @viewer_is_owner::boolean)
+  -- A person who is not discoverable is listed to the collective's owners and
+  -- to themselves; a person always sees their own row.
+  AND (u.is_discoverable = TRUE OR @viewer_is_owner::boolean OR u.id = sqlc.narg(viewer_id)::uuid)
 GROUP BY gm.role, gm.joined_at, u.id, u.github_username, u.display_name, u.avatar_url
 ORDER BY gm.role, u.github_username;
 

@@ -22,16 +22,16 @@ type collectivePeople struct {
 }
 
 // collectivePeopleFor reads the three lists and resolves every person on them
-// in one batch. Which rows are listed is unchanged: the roster and contributor
-// queries still leave out a person who is not discoverable unless the viewer
-// owns the collective, and join requests are read for an owner only.
+// in one batch. The roster and contributor queries leave out a person who is
+// not discoverable unless the viewer owns the collective or is that person,
+// and join requests are read for an owner only.
 func (h *Handler) collectivePeopleFor(ctx context.Context, viewer *AuthUser, groupID pgtype.UUID, viewerIsOwner bool) (collectivePeople, error) {
 	people := collectivePeople{Members: []schema.VillageCollectiveMember{}, Contributors: []schema.VillageCollectiveContributor{}}
-	members, err := h.queries.ListGroupMembers(ctx, sqlc.ListGroupMembersParams{GroupID: groupID, ViewerIsOwner: viewerIsOwner})
+	members, err := h.queries.ListGroupMembers(ctx, sqlc.ListGroupMembersParams{GroupID: groupID, ViewerIsOwner: viewerIsOwner, ViewerID: viewerID(viewer)})
 	if err != nil {
 		return people, fmt.Errorf("handler.collectivePeopleFor: the roster could not be read: %w", err)
 	}
-	contributors, err := h.queries.ListGroupContributors(ctx, sqlc.ListGroupContributorsParams{GroupID: groupID, ViewerIsOwner: viewerIsOwner})
+	contributors, err := h.queries.ListGroupContributors(ctx, sqlc.ListGroupContributorsParams{GroupID: groupID, ViewerIsOwner: viewerIsOwner, ViewerID: viewerID(viewer)})
 	if err != nil {
 		return people, fmt.Errorf("handler.collectivePeopleFor: the contributors could not be read: %w", err)
 	}

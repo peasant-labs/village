@@ -132,7 +132,9 @@ FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
 JOIN users u ON t.owner_id = u.id
 WHERE ts.group_id = $1 AND ts.status = 'approved'
-  AND (u.is_discoverable = TRUE OR $2::boolean)
+  -- Listed to the collective's owners and to the person themselves when not
+  -- discoverable; a person always sees their own row.
+  AND (u.is_discoverable = TRUE OR $2::boolean OR u.id = $3::uuid)
 GROUP BY u.id, u.github_username, u.avatar_url
 ORDER BY transcript_count DESC
 `
@@ -140,6 +142,7 @@ ORDER BY transcript_count DESC
 type ListGroupContributorsParams struct {
 	GroupID       pgtype.UUID `db:"group_id" json:"group_id"`
 	ViewerIsOwner bool        `db:"viewer_is_owner" json:"viewer_is_owner"`
+	ViewerID      pgtype.UUID `db:"viewer_id" json:"viewer_id"`
 }
 
 type ListGroupContributorsRow struct {
@@ -150,7 +153,7 @@ type ListGroupContributorsRow struct {
 }
 
 func (q *Queries) ListGroupContributors(ctx context.Context, arg ListGroupContributorsParams) ([]ListGroupContributorsRow, error) {
-	rows, err := q.db.Query(ctx, listGroupContributors, arg.GroupID, arg.ViewerIsOwner)
+	rows, err := q.db.Query(ctx, listGroupContributors, arg.GroupID, arg.ViewerIsOwner, arg.ViewerID)
 	if err != nil {
 		return nil, err
 	}

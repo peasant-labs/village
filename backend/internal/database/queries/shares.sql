@@ -236,7 +236,9 @@ FROM transcripts t
 JOIN transcript_shares ts ON t.id = ts.transcript_id
 JOIN users u ON t.owner_id = u.id
 WHERE ts.group_id = $1 AND ts.status = 'approved'
-  AND (u.is_discoverable = TRUE OR @viewer_is_owner::boolean)
+  -- Listed to the collective's owners and to the person themselves when not
+  -- discoverable; a person always sees their own row.
+  AND (u.is_discoverable = TRUE OR @viewer_is_owner::boolean OR u.id = sqlc.narg(viewer_id)::uuid)
 GROUP BY u.id, u.github_username, u.avatar_url
 ORDER BY transcript_count DESC;
 
