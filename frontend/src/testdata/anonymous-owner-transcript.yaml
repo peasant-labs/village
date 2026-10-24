@@ -1,0 +1,29 @@
+# The mounted /transcripts/[id] page for an owner the server names as a public
+# profile and for one it names as anonymous. Loaded by
+# src/anonymousOwnerTranscript.test.tsx, which renders the REAL route with the
+# metadata and content reads mocked over REST.
+#
+# `owner` is the metadata read's owner. `project` is the resolved project name
+# the metadata read serves, or null when the server withholds the repository
+# (an anonymous owner). `contentProject` is the content read's own
+# `sessionDetail.project`, or null when the content route leaves it out, as it
+# does for an anonymous owner, together with the working directory and the git
+# branch and remote.
+#
+# `expectedCrumbs` is the trail the page shows. An anonymous owner's trail
+# names no project, and the page carries no link to any person's profile or
+# project page.
+cases:
+  - name: profile-owner-shows-the-project-crumb-and-link
+    owner: {kind: profile, id: 11111111-1111-4111-8111-111111111111, username: alice-dev, display_name: null, avatar_url: null}
+    project: village
+    contentProject: village
+    expectedCrumbs: [home, village]
+    expectedUserLinks: ["/users/alice-dev/projects/0000000000000000000000000000000000000000000000000000000000000000"]
+
+  - name: anonymous-owner-shows-no-project-and-no-link
+    owner: {kind: anonymous}
+    project: null
+    contentProject: null
+    expectedCrumbs: [home]
+    expectedUserLinks: []

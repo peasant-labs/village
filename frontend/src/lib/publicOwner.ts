@@ -12,9 +12,6 @@ export type PublicOwner = VillagePublicOwner;
 /** The profile arm of {@link PublicOwner}. */
 export type PublicProfile = Extract<VillagePublicOwner, { kind: "profile" }>;
 
-/** An owner this viewer may not identify. */
-export const ANONYMOUS_OWNER: PublicOwner = Object.freeze({ kind: "anonymous" }) as PublicOwner;
-
 /**
  * The profile `owner` carries, or `null` when it names nobody.
  *
@@ -40,15 +37,4 @@ export function publicProfile(owner: PublicOwner | null | undefined): PublicProf
 export function isOwnedBy(owner: PublicOwner | null | undefined, viewerId: string | null | undefined): boolean {
   if (!viewerId) return false;
   return publicProfile(owner)?.id === viewerId;
-}
-
-/**
- * A key that tells profiles apart and puts every anonymous owner in one
- * bucket. Counting or filtering by owner uses it, because anonymous owners
- * carry no id that could tell them apart.
- */
-export const ANONYMOUS_OWNER_KEY = "anonymous";
-
-export function ownerKey(owner: PublicOwner | null | undefined): string {
-  return publicProfile(owner)?.id ?? ANONYMOUS_OWNER_KEY;
 }

@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildProjectHref } from "@/components/session-detail/v2/transcriptChrome";
 import TranscriptList from "@/components/transcript/TranscriptList";
 import { groupChildSessions } from "@/lib/childSessions";
-import { ownerHandle, resolveAttribution } from "@/lib/format";
-import { isOwnedBy, ownerKey, type PublicOwner } from "@/lib/publicOwner";
+import { groupByRepo, ownerHandle, resolveAttribution } from "@/lib/format";
+import { isOwnedBy, type PublicOwner } from "@/lib/publicOwner";
 import { toReviewRows } from "@/lib/review/tree";
 import type { PendingShare } from "@/lib/review/types";
 import type { TranscriptRow } from "@/lib/types";
@@ -26,7 +26,6 @@ type OwnerCase = {
     anonymous: boolean;
     handle: string;
     ownedBy: boolean;
-    key: string;
     projectHref: string | null;
   };
 };
@@ -49,6 +48,7 @@ type Fixture = {
   cases: OwnerCase[];
   owners: Record<string, PublicOwner>;
   foldCases: FoldCase[];
+  repoCount: { rows: string[]; expect: { contributorCount: number; anonymousSessionCount: number } };
 };
 
 const requiredCaseNames = [
@@ -74,12 +74,12 @@ function loadFixture(): Fixture {
   const parsed = parse(readFileSync(resolve(process.cwd(), "src/testdata/public-owner.yaml"), "utf8"), {
     strict: true,
   }) as Fixture;
-  assertExactKeys(parsed, ["projectHash", "cases", "owners", "foldCases"], "public-owner fixture root");
+  assertExactKeys(parsed, ["projectHash", "cases", "owners", "foldCases", "repoCount"], "public-owner fixture root");
   assertNamesMatch(parsed.cases.map((c) => c.name), requiredCaseNames, "public-owner cases");
   assertNamesMatch(parsed.foldCases.map((c) => c.name), requiredFoldCaseNames, "public-owner fold cases");
   for (const c of parsed.cases) {
     assertExactKeys(c, ["name", "owner", "viewerId", "expect"], `case ${c.name}`);
-    assertExactKeys(c.expect, ["label", "anonymous", "handle", "ownedBy", "key", "projectHref"], `case ${c.name} expect`);
+    assertExactKeys(c.expect, ["label", "anonymous", "handle", "ownedBy", "projectHref"], `case ${c.name} expect`);
   }
   for (const c of parsed.foldCases) {
     assertExactKeys(c, ["name", "rows", "expect"], `fold case ${c.name}`);
@@ -109,7 +109,6 @@ describe("a person as the server resolved them", () => {
       expect(attribution.profile === null).toBe(c.expect.anonymous);
       expect(ownerHandle(c.owner)).toBe(c.expect.handle);
       expect(isOwnedBy(c.owner, c.viewerId)).toBe(c.expect.ownedBy);
-      expect(ownerKey(c.owner)).toBe(c.expect.key);
       expect(buildProjectHref(c.owner, fixture.projectHash)).toBe(c.expect.projectHref);
     });
   }
@@ -158,6 +157,19 @@ describe("folding started sessions reads only the parent the server resolved", (
       ).toEqual(c.expect.groups);
     });
   }
+});
+
+describe("a repository counts identified contributors apart from anonymous sessions", () => {
+  it("never merges anonymous owners into one contributor", () => {
+    const rows = fixture.repoCount.rows.map((key, index) => ({
+      ...makeTranscriptFixture({ id: `repo-${index}`, git_remote: "git@github.com:acme/village.git" }),
+      owner: fixture.owners[key],
+    }));
+    const [group] = groupByRepo(rows);
+    expect({ contributorCount: group.contributorCount, anonymousSessionCount: group.anonymousSessionCount }).toEqual(
+      fixture.repoCount.expect,
+    );
+  });
 });
 
 describe("a transcript list row draws only what the owner carries", () => {

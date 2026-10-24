@@ -18,8 +18,6 @@
 #   anonymous  whether the attribution names nobody
 #   handle     the handle a table cell shows: "@username", or a bare "anon"
 #   ownedBy    whether the signed-in viewer is this owner (the own-transcript check)
-#   key        the key counts and filters group owners by: the profile id, or
-#              the one bucket every anonymous owner shares
 #   projectHref the transcript page's project link for project hash `projectHash`,
 #              or null: no link is ever built from an owner that is not a profile
 #
@@ -38,7 +36,6 @@ cases:
       anonymous: false
       handle: "@alice-dev"
       ownedBy: false
-      key: 11111111-1111-4111-8111-111111111111
       projectHref: "/users/alice-dev/projects/9999999999999999999999999999999999999999999999999999999999999999"
 
   - name: profile-seen-by-its-owner
@@ -49,7 +46,6 @@ cases:
       anonymous: false
       handle: "@alice-dev"
       ownedBy: true
-      key: 11111111-1111-4111-8111-111111111111
       projectHref: "/users/alice-dev/projects/9999999999999999999999999999999999999999999999999999999999999999"
 
   - name: profile-seen-signed-out
@@ -60,7 +56,6 @@ cases:
       anonymous: false
       handle: "@alice-dev"
       ownedBy: false
-      key: 11111111-1111-4111-8111-111111111111
       projectHref: "/users/alice-dev/projects/9999999999999999999999999999999999999999999999999999999999999999"
 
   - name: anonymous-seen-signed-in
@@ -71,7 +66,6 @@ cases:
       anonymous: true
       handle: anon
       ownedBy: false
-      key: anonymous
       projectHref: null
 
   - name: anonymous-seen-signed-out
@@ -82,7 +76,6 @@ cases:
       anonymous: true
       handle: anon
       ownedBy: false
-      key: anonymous
       projectHref: null
 
   - name: unknown-kind-reads-as-anonymous-and-keeps-nothing
@@ -93,7 +86,6 @@ cases:
       anonymous: true
       handle: anon
       ownedBy: false
-      key: anonymous
       projectHref: null
 
   - name: profile-without-an-id-names-nobody
@@ -104,7 +96,6 @@ cases:
       anonymous: true
       handle: anon
       ownedBy: false
-      key: anonymous
       projectHref: null
 
   - name: absent-owner-names-nobody
@@ -115,7 +106,6 @@ cases:
       anonymous: true
       handle: anon
       ownedBy: false
-      key: anonymous
       projectHref: null
 
   - name: viewer-with-the-same-username-is-not-the-owner
@@ -126,7 +116,6 @@ cases:
       anonymous: false
       handle: "@alice-dev"
       ownedBy: false
-      key: 11111111-1111-4111-8111-111111111111
       projectHref: "/users/alice-dev/projects/9999999999999999999999999999999999999999999999999999999999999999"
 
 # Sessions one session started, folded under it. A session id is unique only
@@ -175,3 +164,13 @@ foldCases:
     expect:
       rootRows: [child]
       groups: {}
+
+# A repository's contributor count names only the people the viewer may
+# identify. Anonymous owners carry no id, so their sessions are counted as
+# sessions and never merged into one contributor. `rows` name an owner key
+# from `owners`; every row shares one remote.
+repoCount:
+  rows: [alice, alice, hidden, hidden]
+  expect:
+    contributorCount: 1
+    anonymousSessionCount: 2

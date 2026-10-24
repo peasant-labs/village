@@ -1,5 +1,5 @@
 import { buildSessionTree, type ProjectNode, type TreeRowFacts } from "@/lib/contribute/tree";
-import { resolveAttribution } from "@/lib/format";
+import { HIDDEN_PROJECT_LABEL, resolveAttribution } from "@/lib/format";
 import type { PendingShare } from "./types";
 
 /**
@@ -41,14 +41,33 @@ function formatDate(iso: string): string {
  * action. `project_name` is optional on the wire, so a project with no name
  * falls back to its hash: a reviewer can still tell two projects apart, which
  * is what the grouping is for.
+ *
+ * A submission whose project the server withheld (its publisher is anonymous
+ * to the reviewer) is headed "hidden project". It is filed with the sessions
+ * the server linked it to through `parent_transcript_id` and with nothing
+ * else: one shared heading for every withheld project would claim they are
+ * one project, and so one person's.
  */
 export function toReviewRows(shares: PendingShare[], stale: ReadonlySet<string>): ReviewRow[] {
+  const byID = new Map(shares.map((share) => [share.transcript_id, share]));
+  // The topmost submission of a row's resolved parent chain in this queue.
+  const chainRoot = (share: PendingShare): string => {
+    const seen = new Set<string>();
+    let current = share;
+    while (current.parent_transcript_id != null && !seen.has(current.transcript_id)) {
+      seen.add(current.transcript_id);
+      const parent = byID.get(current.parent_transcript_id);
+      if (parent === undefined) break;
+      current = parent;
+    }
+    return current.transcript_id;
+  };
   return shares.map((share) => ({
     id: share.transcript_id,
     local_id: share.local_id,
     title: share.title,
-    project_hash: share.project_hash,
-    project_display_name: share.project_name ?? share.project_hash,
+    project_hash: share.project_hash ?? `hidden:${chainRoot(share)}`,
+    project_display_name: share.project_hash == null ? HIDDEN_PROJECT_LABEL : (share.project_name ?? share.project_hash),
     git_branch: share.branch,
     parent_session_id: share.parent_session_id,
     share,

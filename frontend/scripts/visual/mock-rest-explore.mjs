@@ -284,12 +284,16 @@ function resolvedParent(row) {
   return parent?.id ?? null
 }
 
+// The server withholds every repository field of an owner who is anonymous
+// to the viewer.
+const withheld = (row) => row.owner.kind !== 'profile'
+
 const toListItem = (row, sessionOrigin) => ({
   transcript: {
     id: row.id,
     local_id: row.id,
     title: row.title,
-    description: `${row.project_name} browse fixture`,
+    description: withheld(row) ? 'browse fixture' : `${row.project_name} browse fixture`,
     visibility: row.visibility,
     model_provider: row.model_provider,
     model_name: row.model_name,
@@ -308,12 +312,12 @@ const toListItem = (row, sessionOrigin) => ({
     ingested_at: row.session_end,
     source_file_path: null,
     source_format: 'json',
-    git_branch: row.git_branch,
+    git_branch: withheld(row) ? null : row.git_branch,
     git_remote: null,
     git_worktree: null,
     project_hash: null,
     project_path: null,
-    project_name: row.project_name,
+    project_name: withheld(row) ? null : row.project_name,
     tool_call_count: row.tool_call_count,
     subagent_count: 0,
     duration_ms: row.duration_ms,

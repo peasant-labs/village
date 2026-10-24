@@ -13,7 +13,7 @@ import GroupContributePage from "@/app/collectives/[id]/contribute/page";
 import type { Group, GroupMember, GroupTranscript, UserGroupShare, User } from "@/lib/types";
 import type { ContributableTranscript } from "@/lib/contribute/types";
 import { profileOwner } from "@/test/publicOwnerFixture";
-import { ownerKey } from "@/lib/publicOwner";
+import { publicProfile } from "@/lib/publicOwner";
 
 /**
  * Mount support for the REAL `/collectives/{id}/contribute` route, with REST stubbed
@@ -332,7 +332,7 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
           })),
           stats: {
             total_transcripts: groupTranscripts.length,
-            contributor_count: new Set(groupTranscripts.map((t) => ownerKey(t.owner))).size,
+            contributor_count: new Set(groupTranscripts.map((t, index) => publicProfile(t.owner)?.id ?? `anonymous-${index}`)).size,
             total_turns: 0,
             total_duration_ms: 0,
             total_tokens: 0,
@@ -353,7 +353,7 @@ export function installGroupRouteREST(fixture: GroupRouteFixture): RecordedGroup
         transcripts: groupTranscripts,
         stats: {
           total_transcripts: groupTranscripts.length,
-          contributor_count: new Set(groupTranscripts.map((t) => ownerKey(t.owner))).size,
+          contributor_count: new Set(groupTranscripts.map((t, index) => publicProfile(t.owner)?.id ?? `anonymous-${index}`)).size,
           total_turns: 0,
           total_duration_ms: 0,
           total_tokens: 0,

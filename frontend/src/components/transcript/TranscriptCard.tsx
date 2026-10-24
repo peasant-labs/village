@@ -43,7 +43,7 @@ export default function TranscriptCard({ item }: { item: TranscriptListItem }) {
           {projectDisplay && (
             <span
               className="text-[length:var(--fs-label)] font-mono text-ink-3 truncate"
-              title={describeNameSource(t.project_name_source)}
+              title={t.project_name_source ? describeNameSource(t.project_name_source) : undefined}
             >
               {projectDisplay}
             </span>

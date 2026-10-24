@@ -164,6 +164,8 @@ export default function CollectiveRepos({
                     <span title="contributors">
                       {repo.contributorCount} contributor
                       {repo.contributorCount !== 1 ? "s" : ""}
+                      {repo.anonymousSessionCount > 0 &&
+                        ` and ${repo.anonymousSessionCount} anonymous session${repo.anonymousSessionCount !== 1 ? "s" : ""}`}
                     </span>
                     <span title="total tokens">
                       {formatCount(repo.totalTokens)} tok

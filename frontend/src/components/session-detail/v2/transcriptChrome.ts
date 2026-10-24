@@ -70,8 +70,9 @@ export interface TranscriptBreadcrumbInput {
   /** Signed-out readers have no home link: the root is their sign-in page. */
   isLoggedIn?: boolean;
   /** The one server-resolved project display name (`Transcript.project_display_name`)
-   *  — never a locally re-derived name. */
-  project: string;
+   *  — never a locally re-derived name. `null` when the server withheld it
+   *  (an anonymous owner): the trail then names no project at all. */
+  project: string | null;
   /** Href to the project page (`/users/{username}/projects/{projectHash}`),
    *  or `null` when the caller cannot build one (missing owner username or
    *  project hash). When `null` the crumb renders as a label with no link. */
@@ -92,7 +93,8 @@ export interface TranscriptBreadcrumbCrumb {
  * chrome): the place the transcript was opened from, never the transcript's
  * own title, which the heading under the trail already shows.
  *
- *   home          home, then the project (linking to its page when known)
+ *   home          home, then the project (linking to its page when known);
+ *                 no project crumb when the project is withheld
  *   a collective  collectives, then the collective
  *   a pull        pull requests, then owner/repo#n
  *
@@ -122,6 +124,6 @@ export function buildTranscriptBreadcrumb({
   }
   return [
     { label: HOME_SECTION.label, ...(isLoggedIn ? { href: HOME_SECTION.href } : {}) },
-    { label: project, ...(projectHref ? { href: projectHref } : {}) },
+    ...(project == null ? [] : [{ label: project, ...(projectHref ? { href: projectHref } : {}) }]),
   ];
 }

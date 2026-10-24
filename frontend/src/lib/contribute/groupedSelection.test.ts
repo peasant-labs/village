@@ -40,8 +40,9 @@ for (const row of fixture.rows) {
       session,
       contributable: {
         id: session.id, local_id: session.local_id, title: session.title, visibility: session.visibility,
-        project_hash: session.project_hash, project_display_name: session.project_display_name,
-        project_name_source: session.project_name_source, git_branch: session.git_branch,
+        // The caller's own row: its repository fields are never withheld.
+        project_hash: session.project_hash!, project_display_name: session.project_display_name!,
+        project_name_source: session.project_name_source!, git_branch: session.git_branch,
         parent_session_id: session.parent_session_id, session_origin: session.session_origin,
         model_provider: session.model_provider, published_at: session.published_at, already_shared: false,
         root_session_id: session.root_session_id, purpose: session.purpose, relationships: session.relationships,

@@ -81,7 +81,7 @@ interface SessionDetailV2Props {
   collectiveName?: string | null;
   /** The one server-resolved project display name (`Transcript.project_display_name`)
    *  — the single name every surface renders. */
-  projectName: string;
+  projectName: string | null;
   /** The transcript's `project_hash`, combined with `owner` to build
    *  the breadcrumb's project-page href. `null`/`undefined` degrades the
    *  crumb to a label with no link. */

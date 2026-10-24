@@ -13,7 +13,7 @@ import { useUnshareTranscript } from "@/lib/queries/transcripts";
 import { useGroupedCollective, useGroupedMyShares } from "@/lib/queries/groupedCollectives";
 import { GROUPED_TOP_LEVEL_PAGE_SIZE } from "@/lib/queries/helperGroups";
 import { collectiveTranscriptRow, resolveAttribution } from "@/lib/format";
-import { ownerKey } from "@/lib/publicOwner";
+import { publicProfile } from "@/lib/publicOwner";
 import { type SessionIdentity, childSessionGroupLabel, childSessionsByParentID, childSessionsByRowID, groupChildSessions, groupSessionRows } from "@/lib/childSessions";
 import TranscriptList, { type TranscriptRowFact } from "@/components/transcript/TranscriptList";
 import CollectiveRepos from "@/components/group/CollectiveRepos";
@@ -156,9 +156,14 @@ export default function CollectiveTranscriptLibrary({ groupID, transcripts, canR
     const groupedMine = useGroupedMyShares(groupID, { limit: GROUPED_TOP_LEVEL_PAGE_SIZE }, !!user);
     const withdraw = useUnshareTranscript();
     const remove = useRemoveGroupTranscript();
-    // Every anonymous contributor shares one entry: they carry no id to tell apart.
-    const contributors = new Map(transcripts.map((row) => [ownerKey(row.owner), resolveAttribution(row.owner).label]));
-    const visible = contributor ? transcripts.filter((row) => ownerKey(row.owner) === contributor) : transcripts;
+    // Only a contributor the viewer may identify can be filtered by: an
+    // anonymous row carries no id, and one shared "anon" entry would claim
+    // that every anonymous row is one person's.
+    const contributors = new Map(transcripts.flatMap((row) => {
+        const profile = publicProfile(row.owner);
+        return profile ? [[profile.id, resolveAttribution(row.owner).label] as const] : [];
+    }));
+    const visible = contributor ? transcripts.filter((row) => publicProfile(row.owner)?.id === contributor) : transcripts;
     const folded = groupChildSessions(visible.map(collectiveTranscriptRow));
     const children = childSessionsByParentID(folded);
     // Include folded children in the represented set; their helper slots live

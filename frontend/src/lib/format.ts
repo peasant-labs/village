@@ -4,7 +4,7 @@ import {
   type NameSource,
   type TranscriptRow,
 } from "@/lib/types";
-import { ownerKey, publicProfile, type PublicOwner, type PublicProfile } from "@/lib/publicOwner";
+import { publicProfile, type PublicOwner, type PublicProfile } from "@/lib/publicOwner";
 
 /**
  * Format a model identifier into a human-readable name.
@@ -142,8 +142,8 @@ export interface ProjectGroupingResult<T> {
 export function groupByProject<
   T extends {
     transcript: {
-      project_hash: string;
-      project_display_name: string;
+      project_hash: string | null;
+      project_display_name: string | null;
       published_at: string;
     };
   }
@@ -152,18 +152,17 @@ export function groupByProject<
   const malformed: T[] = [];
 
   for (const item of items) {
-    // Runtime data is not guaranteed by the TypeScript type: `project_hash`
-    // is typed `string` because the wire contract guarantees it, but a
-    // malformed or empty value can still arrive over the network if that
-    // guarantee is ever violated server-side. Checked defensively, never
-    // thrown — see this function's doc comment.
+    // A null hash is withheld (an anonymous owner, never on a person's own
+    // library); an empty one is a contract violation. Neither is a project,
+    // so both are reported apart rather than thrown -- see this function's
+    // doc comment.
     const hash = item.transcript.project_hash;
     if (!hash) {
       malformed.push(item);
       continue;
     }
     if (!groups.has(hash)) {
-      groups.set(hash, { displayName: item.transcript.project_display_name, items: [] });
+      groups.set(hash, { displayName: item.transcript.project_display_name ?? hash, items: [] });
     }
     groups.get(hash)!.items.push(item);
   }
@@ -231,8 +230,12 @@ export interface RepoGroup<T> {
   unattributed: boolean;
   transcripts: T[];
   transcriptCount: number;
-  /** Distinct contributor count (by owner id). */
+  /** Distinct contributors the viewer may identify (by profile id). */
   contributorCount: number;
+  /** Sessions whose owner is anonymous to the viewer. They carry no id, so
+   *  they are counted as sessions: how many people they belong to is unknown,
+   *  and merging them into one contributor would claim one person. */
+  anonymousSessionCount: number;
   totalTokens: number;
 }
 
@@ -269,7 +272,7 @@ export function groupByRepo<
     // project identity — see the label-selection comment below for why
     // this axis must not read project_display_name. "" (never null) when
     // no remote is known — see the field's doc comment in @/lib/types.
-    project_remote_label: string;
+    project_remote_label: string | null;
     published_at: string;
     token_count: number | null;
     tokens_in: number | null;
@@ -299,8 +302,13 @@ export function groupByRepo<
           new Date(a.published_at).getTime()
       );
 
-      // Anonymous owners carry no id, so together they count as one.
-      const contributors = new Set(groupItems.map((i) => ownerKey(i.owner)));
+      const contributors = new Set(
+        groupItems.flatMap((i) => {
+          const profile = publicProfile(i.owner);
+          return profile ? [profile.id] : [];
+        }),
+      );
+      const anonymousSessionCount = groupItems.filter((i) => publicProfile(i.owner) === null).length;
       const totalTokens = groupItems.reduce(
         (sum, i) => sum + transcriptTokens(i),
         0
@@ -337,6 +345,7 @@ export function groupByRepo<
         transcripts: groupItems,
         transcriptCount: groupItems.length,
         contributorCount: contributors.size,
+        anonymousSessionCount,
         totalTokens,
       };
     }
@@ -349,6 +358,13 @@ export function groupByRepo<
     return b.transcriptCount - a.transcriptCount;
   });
 }
+
+/**
+ * The heading for a project the server withheld (the owner is anonymous to
+ * the viewer), where a heading needs text. Anywhere a project is optional, a
+ * withheld one is simply not shown.
+ */
+export const HIDDEN_PROJECT_LABEL = "hidden project";
 
 /**
  * One collective-browse transcript as a transcript list reads it: the

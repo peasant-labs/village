@@ -1,3 +1,4 @@
+import { HIDDEN_PROJECT_LABEL } from "@/lib/format";
 import { isHarness } from "@/lib/harness";
 import type { TranscriptListItem } from "@/lib/types";
 
@@ -87,7 +88,13 @@ export interface ProjectOption {
 
 /** The project a row is filed under. A row with no project identity keeps its name as its key. */
 export function projectKey(item: TranscriptListItem): string {
-  return item.transcript.project_hash || `name:${item.transcript.project_display_name}`;
+  return item.transcript.project_hash || `name:${item.transcript.project_display_name ?? ""}`;
+}
+
+/** The heading a row's project is filed under. A withheld project (null) has
+ *  no name to show, so the heading says so instead. */
+export function projectLabel(item: TranscriptListItem): string {
+  return item.transcript.project_display_name ?? HIDDEN_PROJECT_LABEL;
 }
 
 /** The projects among the rows, most recent first, with how many rows each holds. */
@@ -97,7 +104,7 @@ export function projectOptions(rows: TranscriptListItem[]): ProjectOption[] {
     const key = projectKey(item);
     const known = byKey.get(key);
     if (known) known.count += 1;
-    else byKey.set(key, { key, label: item.transcript.project_display_name, count: 1 });
+    else byKey.set(key, { key, label: projectLabel(item), count: 1 });
   }
   return [...byKey.values()];
 }
@@ -145,7 +152,7 @@ export function groupRows(rows: TranscriptListItem[], groupBy: GroupBy): HomeGro
   };
   for (const item of rows) {
     if (groupBy === "project") {
-      file(projectKey(item), item.transcript.project_display_name, item);
+      file(projectKey(item), projectLabel(item), item);
     } else if (groupBy === "agent") {
       const label = agentLabel(item);
       file(item.transcript.model_provider || label, label, item);
