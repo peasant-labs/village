@@ -242,7 +242,7 @@ function Settings({ user }: { user: User }) {
             <SettingRow
               label="link my transcripts to my pull requests automatically"
               control="switch"
-              value={settings.data?.auto_attach_pull_requests ?? false}
+              value={settings.data?.auto_attach_pull_requests ?? true}
               disabled={settings.data == null || settings.isFetching}
               onCommit={async (next) => {
                 await updateAutoAttach.mutateAsync(Boolean(next));
