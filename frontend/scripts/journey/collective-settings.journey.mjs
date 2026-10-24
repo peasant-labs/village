@@ -58,9 +58,13 @@ test.describe('collective settings', () => {
     await expect(nav.getByRole('link')).toHaveText(SECTIONS.map((s) => s.label))
     const back = page.getByRole('navigation', { name: 'breadcrumb' }).getByRole('link', { name: OWNER.name })
     await expect(back).toHaveAttribute('href', `/collectives/${OWNER.id}`)
-    await expectComputedTokens(page, '.on-settings', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })
+    // The mounted page frame is the settings surface; fairtrade's layout owns
+    // its section bar and body. The frame carries the app's body font and type
+    // floor, so a lost stylesheet still fails here.
+    const settingsPage = page.getByTestId('collective-settings')
+    await expectComputedTokens(page, '[data-testid="collective-settings"]', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })
     await still(page, testInfo, 'collective-settings')
-    writeFileSync(testInfo.outputPath('settings-aria.yml'), await page.locator('.on-settings').ariaSnapshot())
+    writeFileSync(testInfo.outputPath('settings-aria.yml'), await settingsPage.ariaSnapshot())
     await testInfo.attach('settings-aria.yml', { path: testInfo.outputPath('settings-aria.yml'), contentType: 'text/yaml' })
     await axe(page, testInfo)
 

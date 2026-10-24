@@ -259,7 +259,9 @@ test.describe('collectives', () => {
     await expect(picker).toContainText('3 members publish from it')
 
     // The row sits under its owner's heading, so it names the repository alone.
-    const cliRow = picker.locator('.rpk-repo-row').filter({ has: picker.locator('.rpk-repo-name', { hasText: /^cli$/ }) })
+    // The inner locator is re-rooted into each row; naming the dialog again
+    // would nest it inside the row and never match.
+    const cliRow = picker.locator('.rpk-repo-row').filter({ has: page.locator('.rpk-repo-name', { hasText: /^cli$/ }) })
     await cliRow.getByRole('checkbox').check()
     await expect(picker).toContainText('3 of 14 selected')
     await expect(picker.getByRole('button', { name: 'save: link 1 repository' })).toBeEnabled()

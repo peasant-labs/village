@@ -140,8 +140,15 @@ test.describe('sign-in', () => {
       await page.goto('/privacy')
       await expectTheme(page, theme)
       const bar = page.getByTestId('public-top-bar')
-      // The product's home is the marketing site, over https on its own host.
-      await expect(bar.getByRole('link', { name: 'peasant home' })).toHaveAttribute('href', MARKETING)
+      // The product's home is the marketing site: https, its own host, the root
+      // path, and nothing extra carried in the address.
+      const homeHref = await bar.getByRole('link', { name: 'peasant home' }).getAttribute('href')
+      const homeUrl = new URL(homeHref)
+      expect(homeUrl.protocol).toBe('https:')
+      expect(homeUrl.host).toBe('peasantlabs.org')
+      expect(homeUrl.pathname).toBe('/')
+      expect(homeUrl.search).toBe('')
+      expect(homeUrl.hash).toBe('')
       // Give Next the time it takes to prefetch the links in view, then follow
       // the page's own link home the way a reader does, inside the app.
       await page.waitForLoadState('networkidle')
