@@ -20,6 +20,18 @@ export interface ProxyCase {
   expect: { status: number | null; location: string | null };
 }
 
+export interface TranscriptPageCase {
+  name: string;
+  why: string;
+  id: string;
+  searchParams: Record<string, string>;
+  session: boolean;
+  fetchDest: "document" | "empty" | null;
+  api: "public" | "not-found" | "non-public-body" | "error" | "unreachable" | "no-config";
+  reads: number;
+  expect: { serve: boolean; openSignedOut: boolean; location: string | null };
+}
+
 export interface NextCase {
   name: string;
   why: string;
@@ -34,7 +46,7 @@ const requiredProxyCases = [
   "a-session-cookie-is-served-the-home-page",
   "an-in-app-fetch-of-the-root-is-served-the-app",
   "a-signed-out-deep-link-comes-back-to-its-page",
-  "a-shared-transcript-link-signs-in-first",
+  "a-transcript-link-is-left-to-its-page",
   "the-sign-in-page-hands-over-its-return-address",
   "the-sign-in-page-drops-a-foreign-return-address",
   "the-sign-in-start-is-served-signed-out",
@@ -44,11 +56,30 @@ const requiredProxyCases = [
   "a-crawler-reads-the-open-graph-image",
   "a-crawler-reads-the-x-image",
   "a-share-image-is-served-whatever-the-headers",
-  "a-browser-on-a-transcript-link-still-signs-in",
+  "an-in-app-navigation-to-a-transcript-is-left-to-its-page",
   "a-crawler-on-another-transcript-path-is-redirected",
   "a-crawler-on-the-transcripts-root-is-redirected",
   "a-crawler-on-another-app-page-is-redirected",
 ];
+
+const requiredTranscriptPageCases = [
+  "a-public-transcript-opens-signed-out",
+  "a-private-transcript-signs-in-first",
+  "a-shared-transcript-signs-in-first",
+  "a-missing-transcript-signs-in-first",
+  "a-non-public-answer-signs-in-first",
+  "an-api-error-fails-closed",
+  "an-unreachable-api-fails-closed",
+  "no-api-configured-fails-closed",
+  "the-way-back-keeps-the-query",
+  "a-session-is-served-without-a-read",
+  "an-in-app-navigation-to-a-private-transcript-signs-in",
+  "a-crawler-reads-a-public-transcript",
+  "a-crawler-reads-a-private-transcript-link-preview",
+  "a-dot-segment-id-is-never-read",
+];
+
+const API_ANSWERS = ["public", "not-found", "non-public-body", "error", "unreachable", "no-config"];
 
 const requiredNextCases = [
   "a-page-on-this-site-is-followed",
@@ -61,11 +92,15 @@ const requiredNextCases = [
   "surrounding-space-is-trimmed",
 ];
 
-export function loadSignInRouteFixtures(): { proxyCases: ProxyCase[]; nextCases: NextCase[] } {
+export function loadSignInRouteFixtures(): {
+  proxyCases: ProxyCase[];
+  transcriptPageCases: TranscriptPageCase[];
+  nextCases: NextCase[];
+} {
   const parsed = parse(readFileSync(resolve(process.cwd(), "src/testdata/sign-in-route.yaml"), "utf8"), {
     strict: true,
-  }) as { proxyCases: ProxyCase[]; nextCases: NextCase[] };
-  assertExactKeys(parsed, ["proxyCases", "nextCases"], "sign-in-route fixture root");
+  }) as { proxyCases: ProxyCase[]; transcriptPageCases: TranscriptPageCase[]; nextCases: NextCase[] };
+  assertExactKeys(parsed, ["proxyCases", "transcriptPageCases", "nextCases"], "sign-in-route fixture root");
 
   assertNamesMatch(parsed.proxyCases.map((c) => c.name), requiredProxyCases, "sign-in-route proxyCases");
   for (const c of parsed.proxyCases) {
@@ -77,6 +112,25 @@ export function loadSignInRouteFixtures(): { proxyCases: ProxyCase[]; nextCases:
   // did) would pass.
   if (!parsed.proxyCases.some((c) => c.expect.status === null) || !parsed.proxyCases.some((c) => c.expect.status !== null)) {
     throw new Error("sign-in-route proxyCases must cover both a redirect and a page served");
+  }
+
+  assertNamesMatch(
+    parsed.transcriptPageCases.map((c) => c.name),
+    requiredTranscriptPageCases,
+    "sign-in-route transcriptPageCases",
+  );
+  for (const c of parsed.transcriptPageCases) {
+    assertExactKeys(
+      c,
+      ["name", "why", "id", "searchParams", "session", "fetchDest", "api", "reads", "expect"],
+      `transcript page case ${c.name}`,
+    );
+    assertExactKeys(c.expect, ["serve", "openSignedOut", "location"], `transcript page case ${c.name} expect`);
+    if (!c.why?.trim()) throw new Error(`transcript page case ${c.name} states no reason it exists`);
+    if (!API_ANSWERS.includes(c.api)) throw new Error(`transcript page case ${c.name}: ${c.api} is not an API answer`);
+    if (c.expect.serve === (c.expect.location !== null)) {
+      throw new Error(`transcript page case ${c.name}: a served page has no location, and one not served has one`);
+    }
   }
 
   assertNamesMatch(parsed.nextCases.map((c) => c.name), requiredNextCases, "sign-in-route nextCases");

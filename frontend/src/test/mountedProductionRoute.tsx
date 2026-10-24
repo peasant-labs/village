@@ -6,7 +6,7 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import type { Harness, VillageTranscriptPullRequest } from "@peasant-labs/schema";
 import type { NameSource } from "@/lib/types";
 import type { SessionOrigin } from "@/lib/sessionOrigin";
-import TranscriptDetailPage from "@/app/transcripts/[id]/page";
+import TranscriptDetailPage from "@/app/transcripts/[id]/TranscriptDetailPage";
 import { profileOwner } from "@/test/publicOwnerFixture";
 import type { PublicOwner } from "@/lib/publicOwner";
 

@@ -6,8 +6,8 @@ import { isOpenSignedOut } from "@/lib/signIn";
 /**
  * A visitor with no session who opens any page of the app is sent to the
  * marketing site's log-in popup before the page is served, carrying the page
- * as where to come back to once signed in. The hosted app keeps no signed-out
- * view of its own.
+ * as where to come back to once signed in. The hosted app's one signed-out view
+ * is a public transcript.
  *
  * Three pages are served without a session (see `isOpenSignedOut`): the two
  * steps of signing in (`/auth/start`, where the popup's button lands, and
@@ -23,39 +23,38 @@ import { isOpenSignedOut } from "@/lib/signIn";
  * page load. A client that sends no `Sec-Fetch-Dest` (curl, a crawler) is
  * treated as a page load.
  *
- * Link previews are the one exception. When a transcript link is pasted into
- * X, Slack, Discord, LinkedIn or Facebook, their crawler must read the page's
- * meta tags and the two share images, and a crawler holds no session. So a
- * signed-out request is served:
+ * A transcript is the exception, and its own page decides. A signed-out
+ * request is passed through for:
  *
+ * - the transcript page (`/transcripts/<id>`, one segment), whatever its
+ *   headers. The page reads the transcript as an anonymous visitor on every
+ *   request (`decideTranscriptPage`): a public transcript is served and opens
+ *   without signing in; anything else (private, shared, missing, an API
+ *   failure) is sent to the same log-in popup this proxy would have sent it
+ *   to, before anything is served. A client that sends no `Sec-Fetch-Dest`, as
+ *   link-preview crawlers do, is still served the page so it can read the meta
+ *   tags, which are the site's generic card for anything that is not public.
  * - the share images (`/transcripts/<id>/opengraph-image` and
  *   `/twitter-image`) whatever its headers, because they are images, never
- *   pages;
- * - the transcript page (`/transcripts/<id>`, one segment) only when it sends
- *   no `Sec-Fetch-Dest`, as crawlers do. Current browsers send `document` for
- *   a page load, so a person is still sent to sign in here. An older browser
- *   that sends no Fetch Metadata is served the page, and the app frame's own
- *   signed-out redirect then sends that visitor to sign in.
+ *   pages, and fail closed to the limited-visibility card on their own.
  *
- * This redirect is not what keeps a transcript private. The metadata and the
- * images read the transcript as an anonymous visitor on every request, and
- * anything that is not public gets the site's generic preview, the same for a
- * private id as for one that does not exist.
+ * This redirect is not what keeps a transcript private. The API serves a
+ * transcript that is not public to nobody without a session, and the page,
+ * its metadata and the images all read it as an anonymous visitor.
  *
  * Only the cookie's presence is read here. The cookie can still be stale (expired
  * or signed out elsewhere), so the app's frame repeats the decision once `GET
  * /auth/me` answers.
  */
 /** A transcript page, or one of its two share images. */
-const TRANSCRIPT_PREVIEW = /^\/transcripts\/[^/]+(\/(?:opengraph|twitter)-image)?$/;
+const TRANSCRIPT_ROUTE = /^\/transcripts\/[^/]+(\/(?:opengraph|twitter)-image)?$/;
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   if (isOpenSignedOut(pathname)) return NextResponse.next();
   if (request.cookies.get(AUTH_COOKIE)?.value) return NextResponse.next();
+  if (TRANSCRIPT_ROUTE.test(pathname)) return NextResponse.next();
   const destination = request.headers.get("sec-fetch-dest");
-  const preview = TRANSCRIPT_PREVIEW.exec(pathname);
-  if (preview && (preview[1] !== undefined || destination === null)) return NextResponse.next();
   if (destination !== null && destination !== "document") return NextResponse.next();
   return NextResponse.redirect(signedOutDestination(pathname, search), 307);
 }
