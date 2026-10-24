@@ -1,0 +1,83 @@
+# Case corpus for `src/signedOutTranscript.test.tsx`: a transcript page read
+# by somebody who is not signed in. The server decides who it serves
+# (`sign-in-route.yaml`'s transcriptPageCases); these cases are the browser's
+# half, and cover what the app frame and the page draw.
+#
+# Deletion protection is the required-NAME manifest in
+# `src/test/signedOutTranscriptFixtures.ts`.
+
+# The real app frame (`AppFrame`) at `pathname`, inside the real
+# `AuthProvider`, around a stand-in page. `declares` is what that page tells
+# the frame: `public` (the server marked it open to a signed-out reader),
+# `not-public`, or `nothing` (the page has not said yet). `expectChrome` is
+# the chrome drawn: `public` (the public bar with its "sign in" link),
+# `sections` (the signed-in sidebar), or `leaving` (the frame's "taking you to
+# log in" note, and the visitor sent to the marketing site's log-in popup).
+frameCases:
+  - name: a-public-transcript-stays-open-signed-out
+    why: the server read it as public, so the frame lets a signed-out reader stay, in the public bar.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    declares: public
+    expectChrome: public
+  - name: a-transcript-not-marked-public-is-left-for-sign-in
+    why: >-
+      a page the server did not mark public reaches a signed-out browser only
+      with a stale session cookie or without fetch metadata; the frame sends it
+      to sign in as before.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    declares: not-public
+    expectChrome: leaving
+  - name: a-transcript-page-that-has-not-said-is-waited-for
+    why: >-
+      the frame waits for the page's word rather than leave before the page
+      has mounted to give it.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: false
+    declares: nothing
+    expectChrome: public
+  - name: a-public-mark-opens-no-other-page
+    why: only a transcript page decides for itself; anywhere else a declaration is not listened to.
+    pathname: /collectives/abc
+    signedIn: false
+    declares: public
+    expectChrome: leaving
+  - name: a-public-mark-opens-no-deeper-transcript-path
+    why: only the transcript page itself (one segment) decides for itself.
+    pathname: /transcripts/7f1d2c3b/anything-else
+    signedIn: false
+    declares: public
+    expectChrome: leaving
+  - name: a-signed-in-reader-of-a-public-transcript-is-unchanged
+    why: a signed-in person gets the sidebar on a public transcript, as before.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: true
+    declares: public
+    expectChrome: sections
+  - name: a-signed-in-reader-of-another-transcript-is-unchanged
+    why: a signed-in person gets the sidebar whatever the page declares.
+    pathname: /transcripts/7f1d2c3b
+    signedIn: true
+    declares: not-public
+    expectChrome: sections
+
+# The real transcript page inside the real frame, opened signed out on a
+# transcript the server marked public, at `/transcripts/{id}{search}`. The
+# trail is `expectCrumbs`, each crumb `label -> href` or the bare label for one
+# with no link; signed out, none links. Every case also asserts that the page
+# asks for nobody's collectives, links to no page that needs a session, and
+# offers no owner or member action.
+pageCases:
+  - name: opened-with-no-place
+    why: a shared link names no place; the trail is home and the project, as text.
+    search: ""
+    expectCrumbs: ["home", "village"]
+  - name: opened-from-a-collective
+    why: a link copied inside a collective keeps its place; signed out it names it without linking it.
+    search: "?in=collective:c-guild"
+    expectCrumbs: ["collectives", "Infra Guild"]
+  - name: opened-from-a-pull-request
+    why: a link copied from a pull request keeps its place; signed out it names it without linking it.
+    search: "?in=pull:acme/widgets/7"
+    expectCrumbs: ["pull requests", "acme/widgets#7"]
