@@ -3,6 +3,8 @@ import "server-only";
 import { shareCardFromPayload, type ShareCardData } from "@peasant-labs/fairtrade/share";
 import { unstable_cache } from "next/cache";
 
+import { shownTranscriptTitle } from "@/components/session-detail/v2/transcriptChrome";
+
 import { readPublicContent, readPublicTranscript, type LoadDeps } from "./loadPublicTranscript";
 
 /** One deadline for the whole lookup (metadata, content and mapping), so a slow API never stalls a crawler. */
@@ -42,6 +44,10 @@ class CardUnavailable extends Error {}
  * The metadata read runs first on every call and is never cached, so a
  * transcript made private stops resolving at once. Only the small card is
  * cached, keyed by id and `updated_at`; the transcript content is never stored.
+ *
+ * The card's title is the one the transcript page shows, taken from that
+ * uncached metadata read, so a renamed transcript unfurls with its new title
+ * at once even when `updated_at` did not change.
  */
 export async function loadShareCard(id: string, deps: Pick<LoadDeps, "fetch"> = {}): Promise<ShareCardData | null> {
   // URL resolution reads "." and ".." as path steps even when encoded, so the
@@ -86,9 +92,17 @@ async function lookup(id: string, deps: LoadDeps): Promise<ShareCardData | null>
     pending = build().finally(() => inFlight.delete(key));
     inFlight.set(key, pending);
   }
+  let card: ShareCardData;
   try {
-    return await pending;
+    card = await pending;
   } catch {
     return null;
   }
+  return withStoredTitle(card, transcript.title);
+}
+
+/** The card with the page's title; a title standing in for the first prompt follows it. */
+function withStoredTitle(card: ShareCardData, storedTitle: string | null | undefined): ShareCardData {
+  const title = shownTranscriptTitle(storedTitle);
+  return { ...card, title, ...(card.firstPromptIsTitle ? { firstPrompt: title } : {}) };
 }

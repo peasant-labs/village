@@ -35,9 +35,18 @@ export function overlayStoredTitle(
     ...adapted,
     session: {
       ...adapted.session,
-      title: storedTitle?.trim() || UNTITLED_TRANSCRIPT_LABEL,
+      title: shownTranscriptTitle(storedTitle),
     },
   };
+}
+
+/**
+ * The title the transcript page shows for a stored title: the stored title,
+ * or the explore card's empty-title label when it is blank. The page hero and
+ * the link preview both call this, so a link unfurls with the page's title.
+ */
+export function shownTranscriptTitle(storedTitle: string | null | undefined): string {
+  return storedTitle?.trim() || UNTITLED_TRANSCRIPT_LABEL;
 }
 
 /**

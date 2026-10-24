@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import YAML from "yaml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ShareCardData } from "@peasant-labs/fairtrade/share";
 
 // The cache needs Next's incremental cache, which only exists inside a running
 // server. This stand-in keeps the contract that matters here: a result is
@@ -17,13 +18,17 @@ vi.mock("next/cache", () => ({
   },
 }));
 
+import { shareCardMetadata } from "@/app/transcripts/[id]/shareCardMetadata";
+
 import { loadShareCard } from "./loadShareCard";
 
-type Payload = "figures" | "no-figures" | "unparseable" | "long-prompt" | "surrogate-boundary";
+type Payload = "figures" | "no-figures" | "no-first-prompt" | "unparseable" | "long-prompt" | "surrogate-boundary";
 type Reply =
   | {
       kind: "response";
       status: number;
+      /** The stored title; absent means the same title the content carries. */
+      title?: string | null;
       visibility?: string;
       updated_at?: string | number;
       payload?: Payload;
@@ -47,11 +52,19 @@ interface CardExpectation {
   figures?: { prompts: number; tokens: number } | null;
 }
 
+/** The link text the page metadata builds from the returned card. */
+interface MetadataExpectation {
+  title: string;
+  description: string;
+  alt: string;
+}
+
 interface Step {
   meta: Reply;
   content?: Reply;
   expect: Expect;
   card?: CardExpectation;
+  metadata?: MetadataExpectation;
 }
 
 interface Case {
@@ -99,11 +112,15 @@ const REQUIRED = [
   "dot-segment-id",
   "dot-dot-segment-id",
   "percent-encoded-dot-dot-id",
+  "retitled-transcript",
+  "retitled-title-stands-in-for-prompt",
+  "untitled-stored",
 ];
 
 // A transcript text that must never reach the cache key. The fixtures name it
 // as the expected first prompt.
 const SECRET_PROMPT = "rewrite billing retries with SECRET-PROMPT-TEXT";
+const CONTENT_TITLE = "rewrite billing retries";
 
 function text(spec: Text): string {
   return typeof spec === "string" ? spec : spec.repeat.repeat(spec.times);
@@ -114,7 +131,7 @@ function sessionDetail(): Record<string, unknown> {
     id: "ses_share",
     harness: "claude-code",
     model: "claude-opus-5-5",
-    title: "rewrite billing retries",
+    title: CONTENT_TITLE,
     startTime: "2026-07-16T08:00:00Z",
     endTime: "2026-07-16T08:01:00Z",
     durationMins: 1,
@@ -136,6 +153,8 @@ function contentBody(payload: Payload = "figures"): string {
   const detail = sessionDetail();
   if (payload === "no-figures") delete detail.inputSubmissionCount;
   const turns = detail.turns as Array<{ content: string }>;
+  // A first turn with no text: the card stands the title in for the prompt.
+  if (payload === "no-first-prompt") turns[0].content = "";
   if (payload === "long-prompt") turns[0].content = "x".repeat(1 << 20);
   // An astral character straddles the 2000-unit cap: its high half is unit 1999.
   if (payload === "surrogate-boundary") turns[0].content = `${"x".repeat(1999)}\u{1F600}${"y".repeat(50)}`;
@@ -177,7 +196,7 @@ function makeFetch(steps: Step[]) {
         JSON.stringify({
           transcript: {
             id: "t1",
-            title: "a title",
+            title: r.kind === "response" && r.title !== undefined ? r.title : CONTENT_TITLE,
             visibility: r.kind === "response" ? r.visibility : undefined,
             updated_at: r.kind === "response" ? r.updated_at : undefined,
           },
@@ -232,6 +251,15 @@ describe("loadShareCard", () => {
         const { firstPrompt, ...rest } = want;
         expect(r, `step ${i}`).toMatchObject(rest);
         if (firstPrompt !== undefined) expect((r as { firstPrompt: string }).firstPrompt, `step ${i}`).toBe(text(firstPrompt));
+      }
+      const link = c.steps[i].metadata;
+      if (link) {
+        const metadata = shareCardMetadata(r as ShareCardData, c.id ?? "t1");
+        const image = (metadata.openGraph?.images as Array<{ alt: string }>)[0];
+        expect(
+          { title: metadata.title, description: metadata.description, alt: image.alt },
+          `step ${i}`,
+        ).toEqual(link);
       }
     });
 

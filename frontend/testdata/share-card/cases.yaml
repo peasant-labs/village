@@ -4,12 +4,16 @@
 # `meta` and `content` describe what the API answers on that step. A reply is
 # `{kind: response, status, ...}`, `{kind: reject}` or `{kind: hang}`; a response
 # may carry `delayMs` (answered after that long on the fake clock). A metadata
-# response carries `visibility` and `updated_at`; a content response carries
-# `payload`: `figures` (both figures), `no-figures`, `unparseable`, `long-prompt` (a ~1MB first prompt) or `surrogate-boundary`.
+# response carries `visibility`, `updated_at` and the stored `title` (absent: the
+# title the content carries, "rewrite billing retries"); a content response carries
+# `payload`: `figures` (both figures), `no-figures`, `no-first-prompt` (the first
+# user turn has no text), `unparseable`, `long-prompt` (a ~1MB first prompt) or `surrogate-boundary`.
 # `id` is the transcript id asked for (default `t1`).
 # `expect` is `card-figures`, `card-no-figures` or `null`. A step's `card` lists
 # fields the returned card must have; `firstPrompt` there is a string or
 # `{repeat, times}` (one character repeated, for texts too long to write out).
+# A step's `metadata` is the link text the page builds from that card: the
+# title, the description and the share images' alt.
 # `metadataUrl` is the exact metadata read the case expects (default the `t1` read).
 # `storedPromptMaxUnits` bounds every stored card's first prompt, in UTF-16 units.
 # `storedEqualsResult: true` pins that the cache holds exactly the card returned.
@@ -259,6 +263,57 @@ cases:
     contentFetches: 1
     storedEqualsResult: true
     cacheValues: card
+
+  # The owner renamed the transcript. The page shows the stored title, so the card
+  # and its link text do too, and a rename that keeps updated_at shows at once:
+  # the stored title is read on every request, never from the cached card.
+  - name: retitled-transcript
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1, title: "billing retries, renamed" }
+        content: { kind: response, status: 200, payload: no-figures }
+        expect: card-no-figures
+        card: { title: "billing retries, renamed", firstPrompt: rewrite billing retries with SECRET-PROMPT-TEXT }
+        metadata:
+          title: "billing retries, renamed"
+          description: 'What prompts produced "billing retries, renamed"? Read every prompt on village.'
+          alt: 'Share card: the first prompt of "billing retries, renamed" with Claude Code (Opus 5.5)'
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1, title: "retries, renamed again" }
+        expect: card-no-figures
+        card: { title: "retries, renamed again" }
+        metadata:
+          title: "retries, renamed again"
+          description: 'What prompts produced "retries, renamed again"? Read every prompt on village.'
+          alt: 'Share card: the first prompt of "retries, renamed again" with Claude Code (Opus 5.5)'
+    metadataFetches: 2
+    contentFetches: 1
+
+  # With no first-prompt text the card draws the title in its place, so the
+  # stored title stands in there too.
+  - name: retitled-title-stands-in-for-prompt
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1, title: "billing retries, renamed" }
+        content: { kind: response, status: 200, payload: no-first-prompt }
+        expect: card-figures
+        card: { title: "billing retries, renamed", firstPrompt: "billing retries, renamed", firstPromptIsTitle: true }
+    metadataFetches: 1
+    contentFetches: 1
+
+  # A blank stored title shows the page's untitled label, as the page does.
+  - name: untitled-stored
+    steps:
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1, title: "   " }
+        content: { kind: response, status: 200, payload: no-figures }
+        expect: card-no-figures
+        card: { title: Untitled transcript }
+        metadata:
+          title: Untitled transcript
+          description: 'What prompts produced "Untitled transcript"? Read every prompt on village.'
+          alt: 'Share card: the first prompt of "Untitled transcript" with Claude Code (Opus 5.5)'
+      - meta: { kind: response, status: 200, visibility: public, updated_at: *t1, title: null }
+        expect: card-no-figures
+        card: { title: Untitled transcript }
+    metadataFetches: 2
+    contentFetches: 1
 
   - name: single-flight
     parallel: true
