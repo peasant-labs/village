@@ -16,9 +16,22 @@ import path from "path";
 // pnpm store, so both compilation and standalone tracing need only this repo.
 const repositoryRoot = path.resolve(__dirname, "..");
 
+const shareCardFontFiles = [
+  "./node_modules/@peasant-labs/fairtrade/package.json",
+  "./node_modules/@peasant-labs/fairtrade/dist/lib/share-fonts/*",
+];
+
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: repositoryRoot,
+  // The share-card image routes read fairtrade's card fonts from disk by a
+  // name computed at run time, which tracing cannot see, so they are listed,
+  // with the package manifest whose exports map resolves them. The keys are
+  // globs, so the brackets of the dynamic segment are escaped.
+  outputFileTracingIncludes: {
+    "/transcripts/\\[id\\]/opengraph-image": shareCardFontFiles,
+    "/transcripts/\\[id\\]/twitter-image": shareCardFontFiles,
+  },
   experimental: {
     externalDir: true,
   },

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { LayoutShell } from "@/components/LayoutShell";
 import { atkinsonHyperlegible, atkinsonHyperlegibleMono } from "@/app/fonts";
 import { THEME_BOOT_SCRIPT } from "@/lib/themeBoot";
+import { shareCardEnv } from "@/lib/server/shareCardEnv";
+import { SITE_METADATA } from "./siteMetadata";
 // CSS import order: fairtrade components.css (tokens + base + component
 // styles) FIRST, then the fairtrade analytics per-surface bundle (nothing
 // auto-loads it — the dashboard ships unstyled without the explicit import),
@@ -29,9 +31,12 @@ import "./globals.css";
 // The online page patterns (on-*): layout only, every value a fairtrade token.
 import "./online.css";
 
+// The public origin, when configured, makes link-preview image URLs absolute.
+const origin = shareCardEnv()?.origin;
+
 export const metadata: Metadata = {
-  title: "peasant",
-  description: "The agent sessions behind your pull requests, shared with the people who review them.",
+  ...SITE_METADATA,
+  ...(origin ? { metadataBase: origin } : {}),
 };
 
 export default function RootLayout({

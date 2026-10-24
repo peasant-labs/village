@@ -1,0 +1,67 @@
+# Cases for shareCardMetadata. Each case maps `card` (a ShareCardData, or null
+# for a transcript that is not public) for transcript `id` to page metadata.
+#
+# `expect` is `public` or `generic`.
+# A `public` case may pin `title`: the one-line title the metadata must carry
+# (it defaults to the card's title), and `descriptionContains`: text the
+# description must hold verbatim.
+# A `generic` case may name `sameAs`: another id whose generic metadata must be
+# deep-equal, so the result never depends on which id was asked for.
+# Every case is checked for one-line strings and for no middle dot anywhere.
+cards:
+  figures: &figures
+    title: rewrite billing retries
+    harness: claude-code
+    brand: claude-code
+    chip: Claude Code (Opus 5.5)
+    firstPrompt: rewrite billing retries with exponential backoff
+    firstPromptIsTitle: false
+    figures: { prompts: 6, tokens: 84000 }
+cases:
+  - name: public
+    id: tr-public
+    card: *figures
+    expect: public
+
+  - name: public-no-figures
+    id: tr-public
+    card:
+      <<: *figures
+      figures: null
+    expect: public
+
+  - name: generic
+    id: tr-private
+    card: null
+    expect: generic
+    sameAs: tr-does-not-exist
+
+  - name: quotes-and-newlines
+    id: tr-quotes
+    card:
+      <<: *figures
+      title: "say \"hi\" <b>\n"
+    expect: public
+    title: 'say "hi" <b>'
+    descriptionContains: '"say "hi" <b>"'
+
+  - name: inner-newlines-collapse
+    id: tr-lines
+    card:
+      <<: *figures
+      title: "first line\r\n\n  second\tline"
+      chip: "Claude Code\n(Opus 5.5)"
+    expect: public
+    title: first line second line
+
+  - name: no-middle-dot
+    id: tr-dot
+    card:
+      <<: *figures
+      figures: { prompts: 1, tokens: 1200000 }
+    expect: public
+
+  - name: id-is-path-escaped
+    id: "a/b?c#d"
+    card: *figures
+    expect: public
