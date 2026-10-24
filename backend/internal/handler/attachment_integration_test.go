@@ -879,11 +879,14 @@ func TestUserSettingsRoundTrip(t *testing.T) {
 		return read(attachmentServe(t, router, http.MethodGet, "/api/v1/users/me/settings", owner))
 	}
 
-	if settings := get(); settings.PreviewBeforeAttach || settings.AutoAttachPullRequests {
-		t.Fatalf("settings = %+v before either was set, want both off", settings)
+	if settings := get(); settings.PreviewBeforeAttach || !settings.AutoAttachPullRequests {
+		t.Fatalf("settings = %+v before either was set, want the preview off and the product's automatic linking default on", settings)
 	}
-	if settings := patch(`{"preview_before_attach":true}`); !settings.PreviewBeforeAttach || settings.AutoAttachPullRequests {
-		t.Fatalf("settings = %+v after setting the preview, want the preview on and automatic linking still off", settings)
+	if settings := patch(`{"preview_before_attach":true}`); !settings.PreviewBeforeAttach || !settings.AutoAttachPullRequests {
+		t.Fatalf("settings = %+v after setting the preview, want both on", settings)
+	}
+	if settings := patch(`{"auto_attach_pull_requests":false}`); !settings.PreviewBeforeAttach || settings.AutoAttachPullRequests {
+		t.Fatalf("settings = %+v after turning automatic linking off, want the preview on and linking off", settings)
 	}
 	if settings := patch(`{"auto_attach_pull_requests":true}`); !settings.PreviewBeforeAttach || !settings.AutoAttachPullRequests {
 		t.Fatalf("settings = %+v after turning automatic linking on, want both on", settings)

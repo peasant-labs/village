@@ -230,10 +230,12 @@ boundary are documented in
   holds. Detach keeps every binding, so a detached pull request still lists the
   transcripts it held; the next attach cycle clears them first, releasing any
   still marked, and binds afresh. The same migration adds
-  `users.auto_attach_pull_requests BOOLEAN NOT NULL DEFAULT false`, the author's
-  choice to link their own transcripts when a pull request opens in a
-  repository a collective they belong to links. It is separate from
-  `preview_before_attach`, which asks before each attach. `GET` and `PATCH
+  `users.auto_attach_pull_requests`, the author's choice to link their own
+  transcripts when a pull request opens in a repository a collective they
+  belong to links. It is separate from `preview_before_attach`, which asks
+  before each attach. Migration 046 changes its default to `true` (the product
+  default) without rewriting an author's stored choice, so an account created
+  after it links automatically while an account that saved `false` keeps it. `GET` and `PATCH
   /users/me/settings` carry both; a PATCH that carries one leaves the other as
   stored, through one UPDATE that reads an omitted field as NULL
   (`UpdateUserAttachSettings`). Because the binding

@@ -135,9 +135,17 @@ func TestOpenedPullRequestFollowsTheAuthorsAutoAttachChoice_RealPostgres(t *test
 					}
 				}
 			}
-			if c.Author == "opted_in" {
+			// The product default is on, so an opted-out author has to be
+			// recorded explicitly; the fixture names the choice, not the schema
+			// default it used to rely on.
+			switch c.Author {
+			case "opted_in":
 				if _, err := pool.Exec(ctx, `UPDATE users SET auto_attach_pull_requests = true WHERE id = $1`, owner); err != nil {
 					t.Fatalf("opt the author in: %v", err)
+				}
+			case "opted_out":
+				if _, err := pool.Exec(ctx, `UPDATE users SET auto_attach_pull_requests = false WHERE id = $1`, owner); err != nil {
+					t.Fatalf("opt the author out: %v", err)
 				}
 			}
 			prAuthor := authorGitHubID
