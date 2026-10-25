@@ -1,0 +1,35 @@
+# What an owner's invite (POST /groups/{id}/invitations) answers and writes.
+#
+# The rule under test: the answer never tells the owner whether an account
+# holds the name. Every name the owner may invite gets the same 202 body and
+# the same write, an invitation row keyed by the typed handle. Only a person
+# who is already a member who consented answers differently (409), and the
+# owner sees that person in the roster anyway.
+#
+# invitee:
+#   unknown           no account holds the handle.
+#   hidden            an account that is not discoverable.
+#   discoverable      a discoverable account.
+#   consented_member  a member who joined themselves.
+#   legacy_member     a member from before provenance (may consent again).
+#   join_request      a leftover pending join request (legacy).
+# typed:   how the owner typed the handle: exact | upper (uppercase with a
+#          leading @ and spaces), which must store the same lowercase handle.
+# prior:   an invitation for the same handle before this invite:
+#          none | pending | declined | expired.
+# want:
+#   status: the HTTP status.
+#   row:    new (a fresh pending row), kept (the earlier row, unchanged),
+#           none (no row).
+#   linked: whether the row names the account (invitee_id set).
+- {name: unknown_name_is_invited, invitee: unknown, typed: exact, prior: none, want: {status: 202, row: new, linked: false}}
+- {name: hidden_account_is_invited, invitee: hidden, typed: exact, prior: none, want: {status: 202, row: new, linked: true}}
+- {name: discoverable_account_is_invited, invitee: discoverable, typed: exact, prior: none, want: {status: 202, row: new, linked: true}}
+- {name: typed_handle_is_normalized, invitee: hidden, typed: upper, prior: none, want: {status: 202, row: new, linked: true}}
+- {name: consented_member_conflicts, invitee: consented_member, typed: exact, prior: none, want: {status: 409, row: none, linked: false}}
+- {name: legacy_member_may_be_invited, invitee: legacy_member, typed: exact, prior: none, want: {status: 202, row: new, linked: true}}
+- {name: join_request_may_be_invited, invitee: join_request, typed: exact, prior: none, want: {status: 202, row: new, linked: true}}
+- {name: reinvite_while_pending_is_idempotent, invitee: hidden, typed: exact, prior: pending, want: {status: 202, row: kept, linked: true}}
+- {name: reinvite_after_decline_is_idempotent, invitee: hidden, typed: exact, prior: declined, want: {status: 202, row: kept, linked: true}}
+- {name: reinvite_unknown_while_pending_is_idempotent, invitee: unknown, typed: exact, prior: pending, want: {status: 202, row: kept, linked: false}}
+- {name: expired_invitation_is_replaced, invitee: hidden, typed: exact, prior: expired, want: {status: 202, row: new, linked: true}}

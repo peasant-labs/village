@@ -71,6 +71,9 @@ func TestLoadAuthorityFixture(t *testing.T) {
 			t.Setenv("GITHUB_APP_PRIVATE_KEY", `line-one\nline-two`)
 			t.Setenv("GITHUB_APP_SLUG", "village-app")
 			t.Setenv("GITHUB_APP_WEBHOOK_SECRET", "webhook-secret")
+			t.Setenv("EMAIL_PROVIDER_API_KEY", "email-provider-key")
+			t.Setenv("EMAIL_FROM", "village <village@example.test>")
+			t.Setenv("EMAIL_LINK_SIGNING_KEY", "email-link-signing-key")
 			switch tc.Omit {
 			case "database":
 				t.Setenv("DATABASE_URL", "")
@@ -103,11 +106,11 @@ func TestLoadAuthorityFixture(t *testing.T) {
 			if (authority.Config.JWTSecret != "") != tc.ExpectJWT || (authority.Keyring != nil) != tc.ExpectBlobs || (authority.Config.S3Endpoint != "") != tc.ExpectBlobs {
 				t.Fatalf("loaded excess or missing authority: %+v keyring=%v", authority.Config, authority.Keyring != nil)
 			}
-			servingComplete := authority.Config.Port == "9443" && authority.Config.BaseURL == "https://api.example.test" && authority.Config.FrontendURL == "https://app.example.test" && authority.Config.GitHubClientID == "github-client" && authority.Config.GitHubClientSecret == "github-secret" && authority.Config.GitLabClientID == "gitlab-client" && authority.Config.GitLabClientSecret == "gitlab-secret" && authority.Config.HuggingFaceClientID == "huggingface-client" && authority.Config.HuggingFaceClientSecret == "huggingface-secret" && authority.Config.CodebergClientID == "codeberg-client" && authority.Config.CodebergClientSecret == "codeberg-secret" && authority.Config.SourceHutClientID == "sourcehut-client" && authority.Config.SourceHutClientSecret == "sourcehut-secret" && authority.Config.GitHubAppID == "123" && authority.Config.GitHubAppPrivateKey == "line-one\nline-two" && authority.Config.GitHubAppSlug == "village-app" && authority.Config.GitHubAppWebhookSecret == "webhook-secret"
+			servingComplete := authority.Config.Port == "9443" && authority.Config.BaseURL == "https://api.example.test" && authority.Config.FrontendURL == "https://app.example.test" && authority.Config.GitHubClientID == "github-client" && authority.Config.GitHubClientSecret == "github-secret" && authority.Config.GitLabClientID == "gitlab-client" && authority.Config.GitLabClientSecret == "gitlab-secret" && authority.Config.HuggingFaceClientID == "huggingface-client" && authority.Config.HuggingFaceClientSecret == "huggingface-secret" && authority.Config.CodebergClientID == "codeberg-client" && authority.Config.CodebergClientSecret == "codeberg-secret" && authority.Config.SourceHutClientID == "sourcehut-client" && authority.Config.SourceHutClientSecret == "sourcehut-secret" && authority.Config.GitHubAppID == "123" && authority.Config.GitHubAppPrivateKey == "line-one\nline-two" && authority.Config.GitHubAppSlug == "village-app" && authority.Config.GitHubAppWebhookSecret == "webhook-secret" && authority.Config.EmailProviderAPIKey == "email-provider-key" && authority.Config.EmailFrom == "village <village@example.test>" && authority.Config.EmailLinkSigningKey == "email-link-signing-key"
 			if servingComplete != tc.ExpectServingConfig {
 				t.Fatalf("serving configuration completeness=%v, want %v: %+v", servingComplete, tc.ExpectServingConfig, authority.Config)
 			}
-			if !tc.ExpectServingConfig && (authority.Config.Port != "" || authority.Config.BaseURL != "" || authority.Config.GitHubClientID != "") {
+			if !tc.ExpectServingConfig && (authority.Config.Port != "" || authority.Config.BaseURL != "" || authority.Config.GitHubClientID != "" || authority.Config.EmailProviderAPIKey != "") {
 				t.Fatalf("non-serving mode received serving authority: %+v", authority.Config)
 			}
 		})

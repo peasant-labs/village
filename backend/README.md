@@ -86,6 +86,9 @@ Key environment variables:
 | `GITHUB_APP_ID` | GitHub App ID for collective repo linking and pull request prompts (optional; feature disabled when empty) |
 | `GITHUB_APP_PRIVATE_KEY` | GitHub App PEM private key (optional; needs Contents + Metadata read, Pull requests + Checks read/write) |
 | `GITHUB_APP_WEBHOOK_SECRET` | Verifies inbound GitHub App webhook deliveries by HMAC (optional; webhook route returns 501 when empty) |
+| `EMAIL_PROVIDER_API_KEY` | Resend API key for notification-address verification and invitation emails (optional; email is off unless all three `EMAIL_*` variables are set) |
+| `EMAIL_FROM` | Sender of Village's emails, for example `village <village@your-domain>` (optional) |
+| `EMAIL_LINK_SIGNING_KEY` | Signs the one-click unsubscribe link, 32+ characters (optional) |
 | `JWT_SECRET` | Secret for signing JWTs |
 | `PORT` | Server port (default 8080) |
 | `FRONTEND_URL` | Frontend origin for CORS |

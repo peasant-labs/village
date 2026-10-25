@@ -99,6 +99,9 @@ func loadServingConfiguration(cfg *Config) {
 	cfg.GitHubAppPrivateKey = normalizePEM(getEnv("GITHUB_APP_PRIVATE_KEY", ""))
 	cfg.GitHubAppSlug = getEnv("GITHUB_APP_SLUG", "")
 	cfg.GitHubAppWebhookSecret = getEnv("GITHUB_APP_WEBHOOK_SECRET", "")
+	cfg.EmailProviderAPIKey = getEnv("EMAIL_PROVIDER_API_KEY", "")
+	cfg.EmailFrom = getEnv("EMAIL_FROM", "")
+	cfg.EmailLinkSigningKey = getEnv("EMAIL_LINK_SIGNING_KEY", "")
 }
 
 func validateRequiredURL(setting, value string) error {

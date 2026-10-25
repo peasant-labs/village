@@ -7,7 +7,8 @@
 - {name: update-collective-body, method: PATCH, suffix: '/{id}', auth: required, body: '{"display_members":"yes"}', status: 400}
 - {name: delete-collective-owner-refusal, method: DELETE, suffix: '/{id}', auth: required, actor: other, status: 403}
 - {name: join-existing-membership, method: POST, suffix: '/{id}/join', auth: required, status: 409}
-- {name: add-member-body, method: POST, suffix: '/{id}/members', auth: required, body: '{}', status: 400}
+- {name: invite-body, method: POST, suffix: '/{id}/invitations', auth: required, body: '{}', status: 400}
+- {name: invitations-list, method: GET, suffix: '/{id}/invitations', auth: required, status: 200}
 - {name: member-role-user-id-body, method: PATCH, suffix: '/{id}/members/{userID}/role', auth: required, body: '{"role":"owner"}', status: 400}
 - {name: remove-member-owner-refusal, method: DELETE, suffix: '/{id}/members/{userID}?retract=true', auth: required, actor: other, status: 403}
 - {name: contributable-flat, method: GET, suffix: '/{id}/contributable', auth: required, status: 200}

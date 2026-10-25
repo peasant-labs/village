@@ -1,0 +1,19 @@
+# Whether an invitation is emailed, and what the email says about the
+# inviting owner. The invite's answer to the owner is the same 202 in every
+# case; only the invitee's own settings decide whether mail goes out.
+#
+# address:          the invitee's notification address: none | unverified |
+#                   verified.
+# email_invitations: the invitee's choice to be emailed invitations.
+# inviter:          discoverable | hidden; a hidden inviter is "an owner of"
+#                   the collective in the email, as in the in-app list.
+# invitee:          account | unknown (no account holds the handle).
+# want:
+#   sent:   whether exactly one email went out.
+#   lead:   how the email opens: handle | owner_of (only when sent).
+- {name: verified_and_opted_in_is_emailed, address: verified, email_invitations: true, inviter: discoverable, invitee: account, want: {sent: true, lead: handle}}
+- {name: hidden_inviter_is_an_owner_of, address: verified, email_invitations: true, inviter: hidden, invitee: account, want: {sent: true, lead: owner_of}}
+- {name: unverified_address_is_not_emailed, address: unverified, email_invitations: true, inviter: discoverable, invitee: account, want: {sent: false, lead: ''}}
+- {name: opted_out_is_not_emailed, address: verified, email_invitations: false, inviter: discoverable, invitee: account, want: {sent: false, lead: ''}}
+- {name: no_address_is_not_emailed, address: none, email_invitations: true, inviter: discoverable, invitee: account, want: {sent: false, lead: ''}}
+- {name: unknown_name_is_not_emailed, address: none, email_invitations: true, inviter: discoverable, invitee: unknown, want: {sent: false, lead: ''}}

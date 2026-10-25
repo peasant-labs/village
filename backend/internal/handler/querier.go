@@ -116,7 +116,35 @@ type Querier interface {
 	ListReadableTranscriptIDs(ctx context.Context, arg sqlc.ListReadableTranscriptIDsParams) ([]pgtype.UUID, error)
 	ListTranscriptsCollectivesForViewer(ctx context.Context, arg sqlc.ListTranscriptsCollectivesForViewerParams) ([]sqlc.ListTranscriptsCollectivesForViewerRow, error)
 	ListTranscriptCollectivesForViewer(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error)
-	AddGroupMember(ctx context.Context, arg sqlc.AddGroupMemberParams) error
+	AddGroupCreator(ctx context.Context, arg sqlc.AddGroupCreatorParams) error
+	JoinGroupSelf(ctx context.Context, arg sqlc.JoinGroupSelfParams) error
+	AcceptInvitationMembership(ctx context.Context, arg sqlc.AcceptInvitationMembershipParams) (string, error)
+
+	// Collective invitations
+	GetOpenGroupInvitationByUsername(ctx context.Context, arg sqlc.GetOpenGroupInvitationByUsernameParams) (sqlc.CollectiveInvitation, error)
+	DeleteExpiredGroupInvitationByUsername(ctx context.Context, arg sqlc.DeleteExpiredGroupInvitationByUsernameParams) error
+	CountOpenGroupInvitations(ctx context.Context, groupID pgtype.UUID) (int32, error)
+	CreateGroupInvitation(ctx context.Context, arg sqlc.CreateGroupInvitationParams) (sqlc.CollectiveInvitation, error)
+	ListGroupInvitations(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListGroupInvitationsRow, error)
+	RevokeGroupInvitation(ctx context.Context, arg sqlc.RevokeGroupInvitationParams) (int64, error)
+	ListMyInvitations(ctx context.Context, inviteeID pgtype.UUID) ([]sqlc.ListMyInvitationsRow, error)
+	GetMyPendingInvitation(ctx context.Context, arg sqlc.GetMyPendingInvitationParams) (sqlc.CollectiveInvitation, error)
+	GetMyPendingInvitationForUpdate(ctx context.Context, arg sqlc.GetMyPendingInvitationForUpdateParams) (sqlc.CollectiveInvitation, error)
+	DeleteInvitation(ctx context.Context, id pgtype.UUID) error
+	DeclineMyInvitation(ctx context.Context, arg sqlc.DeclineMyInvitationParams) (int64, error)
+
+	// Daily limits
+	TakeDailyQuota(ctx context.Context, arg sqlc.TakeDailyQuotaParams) (int32, error)
+	DeleteStaleDailyQuotas(ctx context.Context) error
+
+	// Notification email
+	GetNotificationEmail(ctx context.Context, userID pgtype.UUID) (sqlc.UserNotificationEmail, error)
+	SetNotificationEmail(ctx context.Context, arg sqlc.SetNotificationEmailParams) (sqlc.UserNotificationEmail, error)
+	VerifyNotificationEmail(ctx context.Context, arg sqlc.VerifyNotificationEmailParams) (sqlc.UserNotificationEmail, error)
+	RemoveNotificationEmail(ctx context.Context, userID pgtype.UUID) error
+	SetEmailInvitations(ctx context.Context, arg sqlc.SetEmailInvitationsParams) (sqlc.UserNotificationEmail, error)
+	UnsubscribeInvitationEmails(ctx context.Context, userID pgtype.UUID) error
+	GetInvitationEmailRecipient(ctx context.Context, userID pgtype.UUID) (string, error)
 	RemoveGroupMember(ctx context.Context, arg sqlc.RemoveGroupMemberParams) error
 	GetGroupMember(ctx context.Context, arg sqlc.GetGroupMemberParams) (sqlc.GroupMember, error)
 	GetGroupMemberForShare(ctx context.Context, arg sqlc.GetGroupMemberForShareParams) (sqlc.GroupMember, error)

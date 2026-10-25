@@ -769,6 +769,15 @@ project name (the fixture gives the owner's transcripts a git remote that names
 them) must appear nowhere in the response bytes. The rule lives in SQL, so this runs against real
 PostgreSQL through the production handlers.
 
+The `relation_owner` cases relate the hidden owner to another owner's
+collective one way each: a legacy membership the other owner created
+(`force_add`), a join request, the owner's own join (`self_join`), an
+invitation that is pending, accepted, declined or revoked, and a legacy member
+who then accepts an invitation. Only the consented ones (`self_join`,
+`invitation_accepted`, `legacy_accepts_invitation`) and the join request show
+the owner's profile. Mutation check: counting `legacy` as consent in
+`ListPublicOwnersForViewer` fails `hidden_owner_force_added_by_unrelated_owner`.
+
 ### The requestable pull envelope
 
 Two unit fixtures drive the production pull handlers with the owner read
@@ -781,6 +790,45 @@ declares. `internal/handler/testdata/pull-envelope-people.yaml` requires that
 neither envelope leaks a hidden owner's id, username, display name, avatar,
 project name, project hash or content repository, and that the schema module's
 `Validate` accepts each body.
+
+### Collective invitations and the notification address
+
+Four fixtures drive the production handlers against real PostgreSQL:
+
+- `testdata/collective-invitations.yaml`: what the invite route answers and
+  writes for an unknown handle, a hidden and a discoverable account, members
+  of each origin, and an earlier pending, declined or expired invitation.
+  Every 202 must be the same bytes, and every invitable name must leave
+  exactly one open row, linked to the account only when one holds the handle.
+  Mutation check: answering 202 for an unknown handle without writing a row
+  fails `unknown_name_is_invited`.
+- `testdata/invitation-answers.yaml`: accept and decline by the invitee and by
+  someone else, for each acceptance mode (an invitation admits through
+  `curated` and `verified_only`), for legacy and consented members, and after
+  a decline, expiry or revocation. It asserts the membership's role and origin
+  and what is left of the invitation.
+- `testdata/invitation-emails.yaml`: whether an invitation is emailed (only to
+  a verified address whose owner keeps invitation emails on) and how the
+  email names the inviting owner, through a fake sender
+  (`newMailServiceWith`). Wait for the post-response send with
+  `waitForNotices` before asserting.
+- `testdata/membership-origin-transitions.yaml` (database package): every
+  origin change the write-once trigger decides.
+
+The daily limits live in `user_daily_quotas`, so `TestInvitationLimits`,
+`TestInvitationEmailsPerRecipientCap` and `TestVerificationEmailsPerDayCap`
+take the last slot through a fresh handler on the same database
+(`invitationWorld.restart`), as a restart or a second instance would. A limit
+kept in process memory fails all three. `TestRoleRouteNeverDemotesTheCreator`
+pins the creator invariant, and `testdata/email-configuration.yaml` proves
+email stays off unless every `EMAIL_*` variable is set.
+
+`TestNotificationEmailLifecycleAndUnsubscribe` sets, verifies and removes an
+address, follows the emailed unsubscribe link signed out, and reads the
+owner's invitation list, the collective detail and roster, the profile, and
+the invitee's own invitation list, failing if any of them carries the
+address. Mutation check: putting the caller's address into their own
+invitation list fails it.
 
 ### Collectives surfaces: who may see a membership, and what the counters mean
 
