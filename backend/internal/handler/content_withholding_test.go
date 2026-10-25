@@ -67,17 +67,20 @@ var withheldContentValues = []string{"withheld-project-name", "withheld-person",
 func TestWithholdContentRepositoryRemovesHarnessMetadata(t *testing.T) {
 	envelope := []byte(`{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"s","turns":[{"index":0,"content":"keep me"}],` +
 		`"nativeMetadata":[{"id":"n1","data":{"cwd":"/home/withheld-native-cwd"}}],` +
-		`"retainedUnknown":[{"value":{"gitBranch":"withheld-retained-branch"}}]}}`)
+		`"retainedUnknown":[{"value":{"gitBranch":"withheld-retained-branch"}}],` +
+		`"earlierHistory":[{"state":"uncertain_migrated","turns":[{"index":0,"content":"keep earlier"}],` +
+		`"nativeMetadata":[{"id":"n2","data":{"cwd":"/home/withheld-earlier-cwd"}}],` +
+		`"retainedUnknown":[{"value":{"gitBranch":"withheld-earlier-branch"}}]}]}}`)
 	out, err := withholdContentRepository(envelope)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range []string{"withheld-native-cwd", "withheld-retained-branch", "nativeMetadata", "retainedUnknown"} {
+	for _, value := range []string{"withheld-native-cwd", "withheld-retained-branch", "withheld-earlier-cwd", "withheld-earlier-branch", "nativeMetadata", "retainedUnknown"} {
 		if bytes.Contains(out, []byte(value)) {
 			t.Errorf("withheld content still carries %q: %s", value, out)
 		}
 	}
-	if !bytes.Contains(out, []byte("keep me")) {
+	if !bytes.Contains(out, []byte("keep me")) || !bytes.Contains(out, []byte("keep earlier")) {
 		t.Errorf("withholding removed the conversation: %s", out)
 	}
 }

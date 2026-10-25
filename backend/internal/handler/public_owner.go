@@ -155,6 +155,10 @@ func writeContentRepositoryUnreadable(w http.ResponseWriter) {
 // directory and branch. Readers treat both as optional.
 var withheldSessionDetailFields = []string{"project", "workingDirectory", "gitBranch", "gitRemote", "nativeMetadata", "retainedUnknown"}
 
+// earlierHistoryWithheldFields are the harness metadata records an
+// earlierHistory section carries, withheld for the same reason.
+var earlierHistoryWithheldFields = []string{"nativeMetadata", "retainedUnknown"}
+
 // withholdContentRepository removes the repository identity from served
 // transcript content whose owner is anonymous to the viewer. It accepts the
 // durable envelope ({contractVersion, kind, sessionDetail}) and, for stored
@@ -213,6 +217,30 @@ func withholdSessionDetailRepository(detail map[string]json.RawMessage) (bool, e
 	for _, field := range withheldSessionDetailFields {
 		if _, ok := detail[field]; ok {
 			delete(detail, field)
+			changed = true
+		}
+	}
+	// Earlier history sections carry the same harness metadata records.
+	if history, ok := detail["earlierHistory"]; ok && !bytes.Equal(bytes.TrimSpace(history), []byte("null")) {
+		var sections []map[string]json.RawMessage
+		if err := json.Unmarshal(history, &sections); err != nil {
+			return false, err
+		}
+		historyChanged := false
+		for _, section := range sections {
+			for _, field := range earlierHistoryWithheldFields {
+				if _, ok := section[field]; ok {
+					delete(section, field)
+					historyChanged = true
+				}
+			}
+		}
+		if historyChanged {
+			encoded, err := json.Marshal(sections)
+			if err != nil {
+				return false, err
+			}
+			detail["earlierHistory"] = encoded
 			changed = true
 		}
 	}
