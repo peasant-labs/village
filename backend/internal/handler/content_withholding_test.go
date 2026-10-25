@@ -61,6 +61,27 @@ func contentWithRepositoryJSON() []byte {
 
 var withheldContentValues = []string{"withheld-project-name", "withheld-person", "withheld-branch", "withheld-child-project"}
 
+// TestWithholdContentRepositoryRemovesHarnessMetadata pins that the harness
+// metadata records, which can carry the working directory and branch, leave
+// with the repository fields while the conversation stays.
+func TestWithholdContentRepositoryRemovesHarnessMetadata(t *testing.T) {
+	envelope := []byte(`{"contractVersion":"0.1.1","kind":"session_detail","sessionDetail":{"id":"s","turns":[{"index":0,"content":"keep me"}],` +
+		`"nativeMetadata":[{"id":"n1","data":{"cwd":"/home/withheld-native-cwd"}}],` +
+		`"retainedUnknown":[{"value":{"gitBranch":"withheld-retained-branch"}}]}}`)
+	out, err := withholdContentRepository(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"withheld-native-cwd", "withheld-retained-branch", "nativeMetadata", "retainedUnknown"} {
+		if bytes.Contains(out, []byte(value)) {
+			t.Errorf("withheld content still carries %q: %s", value, out)
+		}
+	}
+	if !bytes.Contains(out, []byte("keep me")) {
+		t.Errorf("withholding removed the conversation: %s", out)
+	}
+}
+
 func TestContentRouteWithholdsAnAnonymousOwnersRepository(t *testing.T) {
 	cases, err := decodeFixtureRows[contentWithholdingCase](contentWithholdingYAML)
 	if err != nil {
@@ -126,7 +147,9 @@ func TestContentRouteWithholdsAnAnonymousOwnersRepository(t *testing.T) {
 				t.Fatalf("the child session reference was dropped (%s): %s", c.Why, w.Body.String())
 			}
 			_, childProject := children[0]["project"]
-			for _, field := range withheldSessionDetailFields {
+			// The stored fixture names its repository in these four fields; the
+			// harness metadata records are covered by the unit test below.
+			for _, field := range []string{"project", "workingDirectory", "gitBranch", "gitRemote"} {
 				if _, served := envelope.SessionDetail[field]; served == c.Withheld {
 					t.Errorf("sessionDetail.%s served=%v, want withheld=%v (%s)", field, served, c.Withheld, c.Why)
 				}

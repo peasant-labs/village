@@ -403,15 +403,35 @@ WHERE t.owner_id = ANY(@owner_ids::uuid[])
 
 -- name: ListOwnersMatchingRepositoryFilter :many
 -- The owners with at least one transcript matching the transcript lists'
--- repository filters (project name, repository, project hash). The handler
--- keeps only the owners the viewer may see as a profile before filtering, so a
--- repository filter never matches a transcript whose repository is withheld
--- from this viewer. An empty filter matches every value.
+-- repository filters (project name, repository, project hash), counting only
+-- transcripts the viewer may read (the read policy of
+-- ListReadableTranscriptIDs). The handler keeps only the owners the viewer may
+-- see as a profile before filtering, so a repository filter never matches a
+-- transcript whose repository is withheld from this viewer. An empty filter
+-- matches every value.
 SELECT DISTINCT t.owner_id
 FROM transcripts t
 WHERE (@project_pattern::text = '' OR t.project_name ILIKE @project_pattern::text)
   AND (@repository_pattern::text = '' OR t.git_remote ILIKE @repository_pattern::text)
-  AND (@project_hash::text = '' OR t.project_hash = @project_hash::text);
+  AND (@project_hash::text = '' OR t.project_hash = @project_hash::text)
+  AND (
+        t.visibility = 'public'
+        OR t.owner_id = sqlc.narg(viewer_id)::uuid
+        OR (t.visibility = 'shared' AND EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id AND ts.status = 'approved'
+              AND gm.user_id = sqlc.narg(viewer_id)::uuid
+              AND gm.role IN ('owner', 'member', 'contributor')
+        ))
+        OR EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id
+              AND gm.user_id = sqlc.narg(viewer_id)::uuid
+              AND gm.role = 'owner'
+        )
+      );
 
 -- name: ListReadableTranscriptIDs :many
 -- Which of the named transcripts a viewer may read, for a whole page at once.

@@ -149,8 +149,11 @@ func writeContentRepositoryUnreadable(w http.ResponseWriter) {
 
 // withheldSessionDetailFields are the sessionDetail fields that identify an
 // owner's repository: the project, the working directory, and the git branch
-// and remote. Every child session's project is withheld too.
-var withheldSessionDetailFields = []string{"project", "workingDirectory", "gitBranch", "gitRemote"}
+// and remote. Every child session's project is withheld too. The harness
+// metadata records (nativeMetadata, retainedUnknown) are withheld with them:
+// they carry the harness's own fields, which can include the working
+// directory and branch. Readers treat both as optional.
+var withheldSessionDetailFields = []string{"project", "workingDirectory", "gitBranch", "gitRemote", "nativeMetadata", "retainedUnknown"}
 
 // withholdContentRepository removes the repository identity from served
 // transcript content whose owner is anonymous to the viewer. It accepts the
@@ -325,6 +328,7 @@ func (h *Handler) resolveOwnerFilter(ctx context.Context, viewer *AuthUser, requ
 	if repositoryFiltered {
 		owners, err := h.queries.ListOwnersMatchingRepositoryFilter(ctx, sqlc.ListOwnersMatchingRepositoryFilterParams{
 			ProjectPattern: request.Project, RepositoryPattern: request.Repository, ProjectHash: request.ProjectHash,
+			ViewerID: viewerID(viewer),
 		})
 		if err != nil {
 			return filter, fmt.Errorf("handler.resolveOwnerFilter: the repository filter could not be read; no list was returned; retry the request: %w", err)

@@ -793,21 +793,47 @@ FROM transcripts t
 WHERE ($1::text = '' OR t.project_name ILIKE $1::text)
   AND ($2::text = '' OR t.git_remote ILIKE $2::text)
   AND ($3::text = '' OR t.project_hash = $3::text)
+  AND (
+        t.visibility = 'public'
+        OR t.owner_id = $4::uuid
+        OR (t.visibility = 'shared' AND EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id AND ts.status = 'approved'
+              AND gm.user_id = $4::uuid
+              AND gm.role IN ('owner', 'member', 'contributor')
+        ))
+        OR EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id
+              AND gm.user_id = $4::uuid
+              AND gm.role = 'owner'
+        )
+      )
 `
 
 type ListOwnersMatchingRepositoryFilterParams struct {
-	ProjectPattern    string `db:"project_pattern" json:"project_pattern"`
-	RepositoryPattern string `db:"repository_pattern" json:"repository_pattern"`
-	ProjectHash       string `db:"project_hash" json:"project_hash"`
+	ProjectPattern    string      `db:"project_pattern" json:"project_pattern"`
+	RepositoryPattern string      `db:"repository_pattern" json:"repository_pattern"`
+	ProjectHash       string      `db:"project_hash" json:"project_hash"`
+	ViewerID          pgtype.UUID `db:"viewer_id" json:"viewer_id"`
 }
 
 // The owners with at least one transcript matching the transcript lists'
-// repository filters (project name, repository, project hash). The handler
-// keeps only the owners the viewer may see as a profile before filtering, so a
-// repository filter never matches a transcript whose repository is withheld
-// from this viewer. An empty filter matches every value.
+// repository filters (project name, repository, project hash), counting only
+// transcripts the viewer may read (the read policy of
+// ListReadableTranscriptIDs). The handler keeps only the owners the viewer may
+// see as a profile before filtering, so a repository filter never matches a
+// transcript whose repository is withheld from this viewer. An empty filter
+// matches every value.
 func (q *Queries) ListOwnersMatchingRepositoryFilter(ctx context.Context, arg ListOwnersMatchingRepositoryFilterParams) ([]pgtype.UUID, error) {
-	rows, err := q.db.Query(ctx, listOwnersMatchingRepositoryFilter, arg.ProjectPattern, arg.RepositoryPattern, arg.ProjectHash)
+	rows, err := q.db.Query(ctx, listOwnersMatchingRepositoryFilter,
+		arg.ProjectPattern,
+		arg.RepositoryPattern,
+		arg.ProjectHash,
+		arg.ViewerID,
+	)
 	if err != nil {
 		return nil, err
 	}
