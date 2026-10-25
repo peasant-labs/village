@@ -188,10 +188,29 @@ func (h *Handler) GetOrg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := h.queries.ListOrgMembers(r.Context(), login)
+	allMembers, err := h.queries.ListOrgMembers(r.Context(), login)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to fetch organization members")
 		return
+	}
+	// Only the members this viewer may see as a profile are listed: an
+	// organization's roster would otherwise name a person who is anonymous to
+	// the viewer. A hidden person still sees themselves. member_count stays the
+	// organization's aggregate.
+	memberIDs := make([]pgtype.UUID, 0, len(allMembers))
+	for _, row := range allMembers {
+		memberIDs = append(memberIDs, row.ID)
+	}
+	people, err := h.resolvePublicOwners(r.Context(), user, memberIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the organization's members")
+		return
+	}
+	members := make([]sqlc.ListOrgMembersRow, 0, len(allMembers))
+	for _, row := range allMembers {
+		if people.of(row.ID).IsProfile() {
+			members = append(members, row)
+		}
 	}
 
 	// Collectives linked to this org, filtered to those the caller can see.
