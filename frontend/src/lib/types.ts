@@ -1,3 +1,4 @@
+import type { PublicOwner, PublicProfile } from "@/lib/publicOwner";
 
 /**
  * One project's resolved identity, as the server answers it.
@@ -50,7 +51,6 @@ export interface UserProjectPageResponse {
   transcripts: Transcript[];
   collectives: ProjectCollectiveRollupEntry[];
 }
-import type { PublicOwner, PublicProfile } from "@/lib/publicOwner";
 import type { SessionOrigin } from "@/lib/sessionOrigin";
 import type {
   DiagnosticEntry,
