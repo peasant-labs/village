@@ -202,7 +202,8 @@ cases:
   - name: a-non-member-of-a-curated-collective-is-offered-no-join
     why: >-
       a curated collective is joined by invitation only (the join route refuses
-      everyone else), so no join button is drawn.
+      everyone else), so no join button is drawn; the head says it joins by
+      invitation instead.
     signedIn: true
     role: ""
     canRead: false

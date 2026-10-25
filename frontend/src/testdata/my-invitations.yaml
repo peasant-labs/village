@@ -1,0 +1,144 @@
+# The invitations block at the top of /collectives, mounted through the real
+# route with REST stubbed at fetch (`src/test/mountedCollectivesSurfaces.tsx`).
+#
+# `invitations` is what `GET /users/me/invitations` answers: each names its
+# collective and acceptance mode, and the inviting owner as this viewer may see
+# them (a username, or `anonymous` for an owner hidden from the viewer).
+# `discoverable` is the viewer's own setting, which decides whether accepting
+# asks them to consent to showing their profile. `search` is the page's query
+# on arrival. `action` is what the person does; `expect.writes` is every
+# non-GET request the page sent, in order.
+#
+# Deletion protection is the required-name manifest in
+# `src/myInvitations.test.tsx`.
+
+invitations:
+  - { id: 1e000000-0000-4000-8000-0000000000e1, collective: Eval Crowd, mode: curated, by: tomas-r }
+  - { id: 1e000000-0000-4000-8000-0000000000e2, collective: Night Shift, mode: open, by: anonymous }
+
+cases:
+  - name: no-invitations-draw-nothing
+    why: with nothing to decide, the block is not drawn at all.
+    discoverable: true
+    open: []
+    search: ""
+    action: { kind: none }
+    expect:
+      rows: []
+      dialog: null
+      writes: []
+      notice: null
+      member: null
+
+  - name: each-invitation-names-its-collective-and-sender
+    why: >-
+      a sender the viewer may see is named by handle; a hidden one is "an
+      owner"; a curated collective says it joins by invitation.
+    discoverable: true
+    open: [1e000000-0000-4000-8000-0000000000e1, 1e000000-0000-4000-8000-0000000000e2]
+    search: ""
+    action: { kind: none }
+    expect:
+      rows: ["Eval Crowd joins by invitation | from @tomas-r", "Night Shift | from an owner"]
+      dialog: null
+      writes: []
+      notice: null
+      member: null
+
+  - name: a-hidden-person-consents-before-accepting
+    why: >-
+      accepting shows a person who is not discoverable the same consent as
+      self-join, opened by who invited them, and nothing is sent until they
+      consent and confirm.
+    discoverable: false
+    open: [1e000000-0000-4000-8000-0000000000e1]
+    search: ""
+    action: { kind: accept, invitation: 1e000000-0000-4000-8000-0000000000e1 }
+    expect:
+      rows: []
+      dialog: { title: join Eval Crowd?, intro: "@tomas-r invited you.", consent: true }
+      writes: ["POST /users/me/invitations/1e000000-0000-4000-8000-0000000000e1/accept"]
+      notice: "you're a member of Eval Crowd now."
+      member: Eval Crowd
+
+  - name: a-discoverable-person-skips-the-reveal
+    why: a discoverable person's profile is already public, so the dialog asks only to join.
+    discoverable: true
+    open: [1e000000-0000-4000-8000-0000000000e1]
+    search: ""
+    action: { kind: accept, invitation: 1e000000-0000-4000-8000-0000000000e1 }
+    expect:
+      rows: []
+      dialog: { title: join Eval Crowd?, intro: "@tomas-r invited you.", consent: false }
+      writes: ["POST /users/me/invitations/1e000000-0000-4000-8000-0000000000e1/accept"]
+      notice: "you're a member of Eval Crowd now."
+      member: Eval Crowd
+
+  - name: a-hidden-inviter-is-an-owner-of-the-collective
+    why: an inviter the viewer may not see is never named; the dialog says an owner of the collective invited them.
+    discoverable: true
+    open: [1e000000-0000-4000-8000-0000000000e2]
+    search: ""
+    action: { kind: accept, invitation: 1e000000-0000-4000-8000-0000000000e2 }
+    expect:
+      rows: []
+      dialog: { title: join Night Shift?, intro: an owner of Night Shift invited you., consent: false }
+      writes: ["POST /users/me/invitations/1e000000-0000-4000-8000-0000000000e2/accept"]
+      notice: "you're a member of Night Shift now."
+      member: Night Shift
+
+  - name: declining-is-one-click-and-tells-no-one
+    why: decline sends at once, and the person is told the owners are not told.
+    discoverable: true
+    open: [1e000000-0000-4000-8000-0000000000e1, 1e000000-0000-4000-8000-0000000000e2]
+    search: ""
+    action: { kind: decline, invitation: 1e000000-0000-4000-8000-0000000000e2 }
+    expect:
+      rows: ["Eval Crowd joins by invitation | from @tomas-r"]
+      dialog: null
+      writes: ["POST /users/me/invitations/1e000000-0000-4000-8000-0000000000e2/decline"]
+      notice: "declined. the owners aren't told."
+      member: null
+
+  - name: an-invitation-link-opens-its-dialog
+    why: the link in an invitation email opens the accept dialog for that invitation, and sends nothing by itself.
+    discoverable: true
+    open: [1e000000-0000-4000-8000-0000000000e1, 1e000000-0000-4000-8000-0000000000e2]
+    search: "?invitation=1e000000-0000-4000-8000-0000000000e2"
+    action: { kind: none }
+    expect:
+      rows: ["Eval Crowd joins by invitation | from @tomas-r", "Night Shift | from an owner"]
+      dialog: { title: join Night Shift?, intro: an owner of Night Shift invited you., consent: false }
+      writes: []
+      notice: null
+      member: null
+
+  - name: a-link-to-an-invitation-no-longer-open-says-so
+    why: >-
+      a link whose invitation expired, was revoked, or is for another account
+      opens nothing and says the invitation is not open, without saying which.
+    discoverable: true
+    open: [1e000000-0000-4000-8000-0000000000e1]
+    search: "?invitation=1e000000-0000-4000-8000-0000000000e2"
+    action: { kind: none }
+    expect:
+      rows: ["Eval Crowd joins by invitation | from @tomas-r"]
+      dialog: null
+      writes: []
+      notice: that invitation has expired, been withdrawn, or is for another account.
+      member: null
+
+  - name: an-invitation-gone-meanwhile-is-refreshed-away
+    why: >-
+      an accept the server answers 404 (revoked or expired since the list was
+      read) says so and reads the list again.
+    discoverable: true
+    open: [1e000000-0000-4000-8000-0000000000e1]
+    search: ""
+    action: { kind: accept-gone, invitation: 1e000000-0000-4000-8000-0000000000e1 }
+    expect:
+      rows: []
+      dialog: { title: join Eval Crowd?, intro: "@tomas-r invited you.", consent: false }
+      writes: ["POST /users/me/invitations/1e000000-0000-4000-8000-0000000000e1/accept"]
+      notice: that invitation has expired or been withdrawn.
+      member: null

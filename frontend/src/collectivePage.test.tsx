@@ -75,6 +75,11 @@ describe("the collective page", () => {
     });
     // The actions wait on the viewer and the repository reads, which land after the page.
     await waitFor(() => expect(headerActions()).toEqual(expected.actions));
+    // A curated collective is joined only by an owner's invitation; anybody
+    // without a role there is told so where a join button would be.
+    expect(screen.queryByTestId("collective-joins-by-invitation") !== null, pageCase.why).toBe(
+      world.group.acceptance_mode === "curated" && pageCase.role === "",
+    );
     expect(screen.getAllByRole("tab").map((tab) => textOf(tab).replace(/\s*[\d,]+$/, ""))).toEqual(expected.tabs);
     expect(screen.getByRole("tab", { name: /^transcripts/ })).toHaveAttribute("aria-selected", "true");
 

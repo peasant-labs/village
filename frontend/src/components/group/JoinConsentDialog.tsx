@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Eye, Users, UserCheck } from "lucide-react";
 import { ConsentDialog } from "@/lib/ft-ui";
 
@@ -9,6 +10,11 @@ interface JoinConsentDialogProps {
   onConfirm: () => void | Promise<void>;
   collectiveName: string;
   isSubmitting?: boolean;
+  /**
+   * Who invited the person, when they are joining by accepting an invitation:
+   * the line opens the dialog. Self-join leaves it out.
+   */
+  invitedLine?: ReactNode;
 }
 
 export default function JoinConsentDialog({
@@ -17,6 +23,7 @@ export default function JoinConsentDialog({
   onConfirm,
   collectiveName,
   isSubmitting = false,
+  invitedLine,
 }: JoinConsentDialogProps) {
   return (
     <ConsentDialog
@@ -29,6 +36,7 @@ export default function JoinConsentDialog({
       }
       intro={
         <>
+          {invitedLine ? <p>{invitedLine}</p> : null}
           <p>
             you&apos;re currently <span className="cns-em">not discoverable</span>, so your
             handle is hidden across the commons.
