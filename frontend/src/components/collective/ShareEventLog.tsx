@@ -4,7 +4,7 @@ import { Ban, Check, CornerUpLeft, Send, X } from "lucide-react";
 import type { ComponentType } from "react";
 import { DataState } from "@/lib/ft-ui";
 import { useShareEventHistory } from "@/lib/queries/collectives";
-import { shareEventLabel } from "@/lib/shareEvents";
+import { shareEventLabel, shareEventTime } from "@/lib/shareEvents";
 import {
   assertShareEventStatusExhaustive,
   type ShareEventStatus,
@@ -31,13 +31,6 @@ function eventIcon(status: ShareEventStatus): ComponentType<{ className?: string
     default:
       return assertShareEventStatusExhaustive(status);
   }
-}
-
-/** Renders an ISO timestamp as a stable, locale-independent date and time. */
-function formatEventTime(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return iso;
-  return at.toISOString().replace("T", " ").slice(0, 16);
 }
 
 /**
@@ -94,6 +87,7 @@ export default function ShareEventLog({
       >
         {events.map((event) => {
           const Icon = eventIcon(event.status);
+          const time = shareEventTime(event);
           return (
             <li
               key={event.event_num}
@@ -107,16 +101,17 @@ export default function ShareEventLog({
               </span>
               <Icon className="size-3.5 text-ink-3 shrink-0" />
               <span className="font-mono text-[length:var(--fs-label)] text-ink whitespace-nowrap">{shareEventLabel(event)}</span>
-              {/* When this event happened: the decision time once decided,
-                  the submission time while still open. Both come from the same
-                  row, and the write paths only ever open a new attempt after
-                  the previous one closed, so reading down the column is
-                  reading forwards in time. */}
+              {/* The time this row may honestly show: the decision time when
+                  the ledger recorded one, the submission time while the
+                  attempt is still open, and an explicit unknown label for a
+                  terminal attempt whose decision time was never captured. The
+                  submission time is never presented as a decision time. */}
               <span
                 data-testid="share-event-time"
+                data-time-known={time.known ? "true" : "false"}
                 className="ml-auto font-mono text-[length:var(--fs-label)] text-ink-3 tabular-nums shrink-0"
               >
-                {formatEventTime(event.decided_at ?? event.recorded_at)}
+                {time.text}
               </span>
             </li>
           );

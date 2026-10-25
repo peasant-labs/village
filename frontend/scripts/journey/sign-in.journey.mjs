@@ -1,20 +1,66 @@
 /* Journey: the front door.
  *
- * A visitor with no session at `/` is sent to the marketing site; signing in
- * starts at `/login`, one GitHub button, and a page that asked a signed-out
- * reader to sign in is where they come back to. A signed-in visitor gets the
- * sidebar and an account menu holding profile, settings and sign out. Each test
- * ends on the state its evidence screenshot shows, in both themes. Assertions
- * are on roles, names and computed tokens, and the sign-in page's ARIA tree and
- * axe report are kept as artifacts.
+ * A visitor with no session is sent to the marketing site's log-in popup, which
+ * holds the sign-in itself; `/login` hands the visitor on, keeping the page they
+ * asked for so `/auth/start` and `/auth/callback` can bring them back to it
+ * after the provider answers. A signed-in visitor gets the sidebar and an
+ * account menu holding profile, settings and sign out. Each test ends on the
+ * state its evidence screenshot shows, in both themes. Assertions are on roles
+ * and names, and the public privacy notice's ARIA tree and axe report are kept
+ * as artifacts.
+ *
+ * Coverage boundary: the GitHub button, the terminal sign-in and their card now
+ * live on the marketing site. This harness asserts the app's side of that
+ * hand-off -- the exact destination (scheme, host, `login`, `next`), the return
+ * address, the provider start and the callback landing -- and the public
+ * privacy notice the app still serves. It does not assert the external popup's
+ * UI, which this repository does not own.
  */
 import { writeFileSync } from 'node:fs'
 import { test, expect } from './lib/fixtures.mjs'
 import { setScenario } from './lib/scenario.mjs'
-import { scanAxe, seriousViolations, expectTheme, expectComputedTokens } from './lib/assertions.mjs'
+import { scanAxe, seriousViolations, expectTheme } from './lib/assertions.mjs'
 
-const HEADLINE = 'log in to peasant'
 const MARKETING = 'https://peasantlabs.org/'
+const MARKETING_LOGIN = `${MARKETING}?login`
+
+/**
+ * The log-in hand-off read as the browser's own navigation: scheme and host are
+ * asserted, never assumed, and `next` is the decoded page to come back to.
+ */
+function marketingDestination(raw) {
+  const url = new URL(raw)
+  return {
+    protocol: url.protocol,
+    host: url.host,
+    pathname: url.pathname,
+    login: url.searchParams.has('login'),
+    next: url.searchParams.get('next'),
+  }
+}
+
+/**
+ * Waits for the browser to finish the hand-off (the frame leaves in an effect,
+ * after the session answers), then reads the destination it landed on.
+ */
+async function expectMarketingLogin(page, next) {
+  const expected = next === null ? MARKETING_LOGIN : `${MARKETING_LOGIN}&next=${encodeURIComponent(next)}`
+  await expect(page).toHaveURL(expected)
+  expect(marketingDestination(page.url())).toEqual({
+    protocol: 'https:',
+    host: 'peasantlabs.org',
+    pathname: '/',
+    login: true,
+    next,
+  })
+}
+
+/** Answers the marketing site so a hand-off can finish inside the test. */
+async function stubMarketing(page) {
+  await page.route(`${MARKETING}**`, (route) =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: '<title>marketing</title>' }),
+  )
+}
 
 async function attachJSON(testInfo, name, value) {
   writeFileSync(testInfo.outputPath(name), JSON.stringify(value, null, 2))
@@ -36,21 +82,41 @@ async function recordOAuthStarts(page) {
 }
 
 test.describe('sign-in', () => {
-  test('a visitor with no session at the root is sent to the marketing site', async ({ request }) => {
+  test('a visitor with no session at the root is sent to the marketing log-in popup', async ({ request }) => {
     // The server decides before any page is served: no cookie, no app.
     const response = await request.get('/', { headers: { 'Sec-Fetch-Dest': 'document' }, maxRedirects: 0 })
     expect(response.status()).toBe(307)
-    expect(response.headers()['location']).toBe(MARKETING)
+    expect(marketingDestination(response.headers()['location'])).toEqual({
+      protocol: 'https:',
+      host: 'peasantlabs.org',
+      pathname: '/',
+      login: true,
+      next: null,
+    })
   })
 
-  test('a stale session at the root also leaves for the marketing site', async ({ page, request }) => {
+  test('a stale session at the root also leaves for the marketing log-in popup', async ({ page, request }) => {
     await setScenario(request, 'signed-out')
     try {
       // The browser holds a cookie the API no longer accepts: the page asks
       // /auth/me, hears no session, and leaves.
-      await page.route(`${MARKETING}**`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>marketing</title>' }))
+      await stubMarketing(page)
       await page.goto('/')
-      await expect(page).toHaveURL(MARKETING)
+      await expectMarketingLogin(page, null)
+      // The app's own home never mounts for a session the server refused.
+      await expect(page.getByTestId('home-page')).toHaveCount(0)
+    } finally {
+      await setScenario(request, 'default')
+    }
+  })
+
+  test('a signed-out deep link comes back to its page, query and all', async ({ page, request }) => {
+    await setScenario(request, 'signed-out')
+    try {
+      await stubMarketing(page)
+      await page.goto('/collectives/abc?tab=members')
+      await expectMarketingLogin(page, '/collectives/abc?tab=members')
+      await expect(page.getByTestId('collective-page')).toHaveCount(0)
     } finally {
       await setScenario(request, 'default')
     }
@@ -70,18 +136,26 @@ test.describe('sign-in', () => {
           problems.push(`${req.url()} answered ${res.status()} to ${res.headers()['location']}`)
         }
       })
-      await page.route(`${MARKETING}**`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>marketing</title>' }))
+      await stubMarketing(page)
       await page.goto('/privacy')
       await expectTheme(page, theme)
       const bar = page.getByTestId('public-top-bar')
-      await expect(bar.getByRole('link', { name: 'peasant home' })).toHaveAttribute('href', /^https:\/\/peasantlabs\.org\/?$/)
+      // The product's home is the marketing site: https, its own host, the root
+      // path, and nothing extra carried in the address.
+      const homeHref = await bar.getByRole('link', { name: 'peasant home' }).getAttribute('href')
+      const homeUrl = new URL(homeHref)
+      expect(homeUrl.protocol).toBe('https:')
+      expect(homeUrl.host).toBe('peasantlabs.org')
+      expect(homeUrl.pathname).toBe('/')
+      expect(homeUrl.search).toBe('')
+      expect(homeUrl.hash).toBe('')
       // Give Next the time it takes to prefetch the links in view, then follow
       // the page's own link home the way a reader does, inside the app.
       await page.waitForLoadState('networkidle')
       await page.waitForTimeout(500)
       await page.getByRole('navigation', { name: 'breadcrumb' }).getByRole('link', { name: 'peasant' }).click()
-      // The root page sends a signed-out reader on to the marketing site itself.
-      await expect(page).toHaveURL(/^https:\/\/peasantlabs\.org\/?$/)
+      // The root page sends a signed-out reader on to the marketing log-in popup.
+      await expectMarketingLogin(page, null)
       expect(problems).toEqual([])
     } finally {
       await setScenario(request, 'default')
@@ -116,8 +190,10 @@ test.describe('sign-in', () => {
             }
           }).observe(document, { attributes: true, subtree: true, attributeFilter: ['data-theme'] })
         })
-        await page.goto('/login')
-        await expect(page.getByRole('heading', { level: 1, name: HEADLINE })).toBeVisible()
+        // The privacy notice is the signed-out page the app still serves; the
+        // theme must be right on its first paint like every other page.
+        await page.goto('/privacy')
+        await expect(page.getByTestId('privacy-notice')).toBeVisible()
         await expect(page.locator('html')).toHaveAttribute('data-theme', scheme)
         const changes = await page.evaluate(() => window.__themeChanges)
         // The server writes dark; a light system changes it once, before
@@ -131,26 +207,26 @@ test.describe('sign-in', () => {
   }
 
   for (const scheme of ['light', 'dark']) {
-    test(`the signed-out pages hydrate without an error on a ${scheme} system`, async ({ browser, request }, testInfo) => {
+    test(`the public privacy notice hydrates without an error on a ${scheme} system`, async ({ browser, request }, testInfo) => {
       await setScenario(request, 'signed-out')
       // Every load in a fresh browser with nothing stored and nothing cached,
       // so the theme comes from the system and the scripts arrive cold. A
       // mismatch between the served markup and the first client render shows
-      // up as a page error; it was intermittent, so each page is loaded several
-      // times at both widths.
+      // up as a page error; it was intermittent, so the page is loaded several
+      // times at both widths. The privacy notice is the only signed-out page
+      // that serves content, so it carries this check.
       const errors = []
       try {
         for (let round = 0; round < 3; round += 1) {
           for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
-            for (const path of ['/login', '/privacy']) {
-              const context = await browser.newContext({ colorScheme: scheme, viewport, baseURL: testInfo.project.use.baseURL })
-              const page = await context.newPage()
-              page.on('pageerror', (error) => errors.push(`${path} at ${viewport.width}: ${error.message.split('\n')[0]}`))
-              await page.goto(path)
-              await page.waitForLoadState('networkidle')
-              await expect(page.locator('html')).toHaveAttribute('data-theme', scheme)
-              await context.close()
-            }
+            const context = await browser.newContext({ colorScheme: scheme, viewport, baseURL: testInfo.project.use.baseURL })
+            const page = await context.newPage()
+            page.on('pageerror', (error) => errors.push(`/privacy at ${viewport.width}: ${error.message.split('\n')[0]}`))
+            await page.goto('/privacy')
+            await page.waitForLoadState('networkidle')
+            await expect(page.locator('html')).toHaveAttribute('data-theme', scheme)
+            await expect(page.getByTestId('privacy-notice')).toBeVisible()
+            await context.close()
           }
         }
         expect(errors).toEqual([])
@@ -160,69 +236,42 @@ test.describe('sign-in', () => {
     })
   }
 
-  test('the sign-in page is one github button', async ({ page, request, theme }, testInfo) => {
+  test('the sign-in page hands off to the marketing log-in popup, keeping where to return', async ({ page, request }) => {
     await setScenario(request, 'signed-out')
     try {
-      const oauthStarts = await recordOAuthStarts(page)
+      await stubMarketing(page)
+      // /login is the address every sign-in link leads to; the sign-in itself,
+      // with its GitHub button and terminal command, is the marketing popup's.
+      await page.goto('/login?next=%2Fprivacy')
+      await expectMarketingLogin(page, '/privacy')
+      // Signing in with nothing to come back to still opens the popup.
       await page.goto('/login')
-      await expectTheme(page, theme)
-
-      const signIn = page.getByTestId('sign-in-page')
-      await expect(signIn.getByRole('heading', { level: 1, name: HEADLINE })).toBeVisible()
-      await expect(signIn.getByText('peasant', { exact: true })).toBeVisible()
-      await expectComputedTokens(page, '.on-login-card', { borderRadius: '0px' })
-
-      // One front door: one GitHub button, nothing behind a chevron, and no
-      // chrome around the page to offer a second.
-      const button = signIn.getByRole('button', { name: /continue with github/i })
-      await expect(button).toBeVisible()
-      await expect(page.getByRole('button', { name: 'more sign-in providers' })).toHaveCount(0)
-      await expect(page.getByTestId('public-top-bar')).toHaveCount(0)
-      await expect(page.getByRole('navigation', { name: 'peasant sections' })).toHaveCount(0)
-
-      // The terminal sign-in and the privacy notice sit beside it.
-      await expect(signIn.getByText('peasant village login')).toBeVisible()
-      await expect(signIn.getByRole('link', { name: 'privacy notice' })).toHaveAttribute('href', '/privacy')
-
-      await expectComputedTokens(page, '[data-testid="sign-in-page"] p', {
-        fontFamilyIncludes: 'atkinson',
-        minFontSize: 14,
-      })
-      await expectComputedTokens(page, '[data-testid="sign-in-page"] .si-split-primary', {
-        borderRadius: '0px',
-      })
-
-      const aria = await signIn.ariaSnapshot()
-      writeFileSync(testInfo.outputPath('sign-in-aria.yml'), aria)
-      await testInfo.attach('sign-in-aria.yml', {
-        path: testInfo.outputPath('sign-in-aria.yml'),
-        contentType: 'text/yaml',
-      })
-      const axe = await scanAxe(page)
-      await attachJSON(testInfo, 'axe.json', axe)
-      const blocking = seriousViolations(axe)
-      expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([])
-
-      await button.click()
-      await expect.poll(() => oauthStarts).toEqual(['/api/v1/auth/github'])
-      await expect(signIn.getByRole('heading', { level: 1, name: HEADLINE })).toBeVisible()
+      await expectMarketingLogin(page, null)
     } finally {
       await setScenario(request, 'default')
     }
   })
 
-  test('signing in from a page comes back to it', async ({ page, request, theme }) => {
+  test('the sign-in page drops a foreign return address', async ({ page, request }) => {
+    await setScenario(request, 'signed-out')
+    try {
+      await stubMarketing(page)
+      // An address on another host would turn the sign-in into an open
+      // redirect, so the hand-off carries no `next` at all.
+      await page.goto('/login?next=%2F%2Fexample.com%2Fsteal')
+      await expectMarketingLogin(page, null)
+    } finally {
+      await setScenario(request, 'default')
+    }
+  })
+
+  test('signing in from a page comes back to it', async ({ page, request }) => {
     await setScenario(request, 'signed-out')
     try {
       const oauthStarts = await recordOAuthStarts(page)
-      // A signed-out reader of a page is offered a way in that returns to it.
-      await page.goto('/privacy')
-      await expectTheme(page, theme)
-      const signInLink = page.getByTestId('public-top-bar').getByRole('link', { name: 'sign in' })
-      await expect(signInLink).toHaveAttribute('href', '/login?next=%2Fprivacy')
-      await signInLink.click()
-      await expect(page).toHaveURL(/\/login\?next=%2Fprivacy$/)
-      await page.getByRole('button', { name: /continue with github/i }).click()
+      // The marketing popup's GitHub button lands on /auth/start with the page
+      // to return to; that step remembers it and leaves for the provider.
+      await page.goto('/auth/start?provider=github&next=%2Fprivacy')
       await expect.poll(() => oauthStarts).toEqual(['/api/v1/auth/github'])
     } finally {
       await setScenario(request, 'default')
@@ -230,22 +279,67 @@ test.describe('sign-in', () => {
     // GitHub answers, and the API sends the browser to the callback with a token.
     await page.goto('/auth/callback?token=demo-token')
     await expect(page).toHaveURL(/\/privacy$/)
+    await expect(page.getByTestId('privacy-notice')).toBeVisible()
   })
 
-  test('the sign-in page fits a phone', async ({ page, request, theme }) => {
+  test('a provider hand-off never follows a foreign return address', async ({ page, request }) => {
+    const offOrigin = []
+    page.on('request', (request) => {
+      const host = new URL(request.url()).host
+      if (host === 'example.com' || host.endsWith('.example.com')) offOrigin.push(request.url())
+    })
+    await setScenario(request, 'signed-out')
+    try {
+      const oauthStarts = await recordOAuthStarts(page)
+      await page.goto('/auth/start?provider=github&next=%2F%2Fexample.com%2Fsteal')
+      await expect.poll(() => oauthStarts).toEqual(['/api/v1/auth/github'])
+    } finally {
+      await setScenario(request, 'default')
+    }
+    // With no address to come back to, the callback lands on the signed-in home.
+    await page.goto('/auth/callback?token=demo-token')
+    await expect(page.getByTestId('home-page')).toBeVisible()
+    expect(new URL(page.url()).pathname).toBe('/')
+    expect(offOrigin).toEqual([])
+  })
+
+  test('the public privacy notice fits a phone', async ({ page, request, theme }) => {
     await setScenario(request, 'signed-out')
     try {
       await page.setViewportSize({ width: 390, height: 844 })
-      await page.goto('/login')
+      // The privacy notice is the signed-out page the app still serves.
+      await page.goto('/privacy')
       await expectTheme(page, theme)
-      const signIn = page.getByTestId('sign-in-page')
-      await expect(signIn.getByRole('heading', { level: 1, name: HEADLINE })).toBeVisible()
-      await expect(signIn.getByRole('button', { name: /continue with github/i })).toBeVisible()
+      await expect(page.getByTestId('privacy-notice')).toBeVisible()
       // No horizontal scroll at phone width.
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       )
       expect(overflow).toBeLessThanOrEqual(0)
+    } finally {
+      await setScenario(request, 'default')
+    }
+  })
+
+  test('the public privacy notice is accessible signed out', async ({ page, request, theme }, testInfo) => {
+    await setScenario(request, 'signed-out')
+    try {
+      await page.goto('/privacy')
+      await expectTheme(page, theme)
+      // The notice is the signed-out page the app owns, so its accessibility is
+      // this repository's to assert; the marketing popup's card is not.
+      const notice = page.getByTestId('privacy-notice')
+      await expect(notice).toBeVisible()
+      const aria = await notice.ariaSnapshot()
+      writeFileSync(testInfo.outputPath('privacy-notice-aria.yml'), aria)
+      await testInfo.attach('privacy-notice-aria.yml', {
+        path: testInfo.outputPath('privacy-notice-aria.yml'),
+        contentType: 'text/yaml',
+      })
+      const axe = await scanAxe(page)
+      await attachJSON(testInfo, 'privacy-notice-axe.json', axe)
+      const blocking = seriousViolations(axe)
+      expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([])
     } finally {
       await setScenario(request, 'default')
     }
@@ -268,7 +362,12 @@ test.describe('sign-in', () => {
     // Explore and publish keep their routes but stay out of the sidebar.
     await expect(nav.getByRole('link', { name: 'explore' })).toHaveCount(0)
     await expect(nav.getByRole('link', { name: 'publish' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'account menu for @alice-dev' })).toBeVisible()
+    // fairtrade's account row, named by the handle, is the menu's trigger.
+    const account = page.getByRole('button', { name: '@alice-dev' })
+    await expect(account).toBeVisible()
+    await expect(account).toHaveAttribute('aria-haspopup', 'menu')
+    // The chrome's settings gear is its own link, current only on /settings.
+    await expect(page.getByRole('link', { name: 'settings' })).toHaveAttribute('href', '/settings')
     // Signed in, the page never offers sign-in.
     await expect(page.getByRole('button', { name: /continue with/i })).toHaveCount(0)
     await expect(page.getByRole('link', { name: 'sign in' })).toHaveCount(0)
@@ -278,7 +377,8 @@ test.describe('sign-in', () => {
     await page.goto('/')
     await expectTheme(page, theme)
 
-    const trigger = page.getByRole('button', { name: 'account menu for @alice-dev' })
+    const trigger = page.getByRole('button', { name: '@alice-dev' })
+    await expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
     await trigger.click()
     const menu = page.getByRole('menu')
     await expect(menu.getByRole('menuitem')).toHaveText(['profile', 'settings', 'sign out'])
@@ -311,10 +411,11 @@ test.describe('sign-in', () => {
     })
     await page.goto('/')
     await expectTheme(page, theme)
-    await page.getByRole('button', { name: 'account menu for @alice-dev' }).click()
+    await page.getByRole('button', { name: '@alice-dev' }).click()
     await page.getByRole('menuitem', { name: 'sign out' }).click()
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByText('waiting for the sign-out request.')).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'signing out' })).toBeVisible()
+    await expect(dialog.getByRole('status')).toHaveText('waiting for the sign-out request.')
     await expect.poll(() => posts).toBe(1)
     await expect(dialog.getByRole('button', { name: 'close dialog' })).toBeDisabled()
     await page.evaluate(() => window.scrollTo(0, 0))
@@ -322,12 +423,13 @@ test.describe('sign-in', () => {
     await page.screenshot({ path: pending, fullPage: false })
     await testInfo.attach('header-sign-out-pending', { path: pending, contentType: 'image/png' })
     await pendingRoute.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'sign-out service unavailable' }) })
+    await expect(page.getByRole('dialog', { name: 'could not sign out' })).toBeVisible()
     await expect(dialog.getByRole('alert')).toContainText('sign-out service unavailable')
     await expect(dialog.getByRole('button', { name: 'try again' })).toBeEnabled()
     const failed = testInfo.outputPath(`header-sign-out-failed-${theme}.png`)
     await page.screenshot({ path: failed, fullPage: false })
     await testInfo.attach('header-sign-out-failed', { path: failed, contentType: 'image/png' })
-    await expect(page.getByRole('button', { name: 'account menu for @alice-dev', includeHidden: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '@alice-dev', includeHidden: true })).toBeVisible()
     const axe = await scanAxe(page)
     await attachJSON(testInfo, 'header-sign-out-axe.json', axe)
     expect(seriousViolations(axe)).toEqual([])

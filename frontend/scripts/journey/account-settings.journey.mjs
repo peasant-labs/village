@@ -35,7 +35,8 @@ test.describe('account settings', () => {
   test('opens from the account menu and shows every row', async ({ page, theme }, testInfo) => {
     await page.goto('/')
     await expect(page.getByTestId('home-page')).toBeVisible()
-    await page.getByRole('button', { name: /account menu/ }).click()
+    // fairtrade's account row, named by the handle, is the menu's trigger.
+    await page.getByRole('button', { name: '@alice-dev' }).click()
     await page.getByRole('menuitem', { name: 'settings', exact: true }).click()
     await expect(page).toHaveURL(/\/settings$/)
 
@@ -53,7 +54,7 @@ test.describe('account settings', () => {
     // Two working sign-ins; the revoked one is not counted.
     await expect(page.getByTestId('settings-peasant')).toContainText('peasant on 2 computers')
     await expect(page.getByTestId('settings-peasant')).toContainText('last used 12m ago')
-    await expect(page.getByTestId('settings-delete')).toContainText('It cannot be undone.')
+    await expect(page.getByTestId('settings-delete')).toContainText('it cannot be undone.')
 
     // The section list leads to each section by its anchor.
     const sections = page.getByRole('navigation', { name: 'settings sections' })

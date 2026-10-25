@@ -129,9 +129,10 @@ test.describe('pull request page', () => {
       await expect(page.getByTestId('pull-request-coverage')).toHaveText('3 of 4 commits traced')
       await expect(page.getByRole('option')).toHaveCount(2)
       await expect(selectedOption(page)).toHaveText(FIX.title)
+      // The transcript opens carrying this pull request as where it was opened.
       await expect(page.getByRole('link', { name: 'open the transcript' })).toHaveAttribute(
         'href',
-        `/transcripts/${FIX.id}`,
+        `/transcripts/${FIX.id}?in=pull:${JOURNEY_PULL.owner}/${JOURNEY_PULL.name}/${JOURNEY_PULL.number}`,
       )
 
       await recordEvidence(page, testInfo, 'pull-request-reader')
@@ -194,14 +195,39 @@ test.describe('pull requests waiting on you', () => {
     await expectTheme(page, theme)
     const empty = page.getByTestId('pulls-empty')
     await expect(empty.getByRole('heading', { name: 'nothing is waiting on you' })).toBeVisible()
-    await expect(empty).toContainText('/peasant attach')
+    // How a pull request comes to wait lives in the docs; the app links there
+    // instead of restating the command.
+    const docs = empty.getByRole('link', { name: /how pull requests get transcripts/ })
+    await expect(docs).toHaveAttribute('href', 'https://peasantlabs.org/docs/guides/reviews')
+    // It leaves the app: a new tab on the docs, with no window handle back.
+    await expect(docs).toHaveAttribute('target', '_blank')
+    await expect(docs).toHaveAttribute('rel', /noopener/)
+    await expect(empty).not.toContainText('/peasant attach')
     await expect(page.getByTestId('pulls-request')).toHaveCount(0)
   })
 
   test('asks a signed-out visitor to sign in and come back', async ({ page, request }) => {
     await setScenario(request, 'signed-out')
-    await page.goto('/pulls')
-    await expect(page.getByTestId('pulls-signed-out')).toBeVisible()
-    await expect(page.getByTestId('pulls-sign-in')).toHaveAttribute('href', `/login?next=${encodeURIComponent('/pulls')}`)
+    try {
+      // The app keeps no signed-out view: the frame hands the visitor to the
+      // marketing site's log-in popup, carrying this list as where to come back.
+      await page.route('https://peasantlabs.org/**', (route) =>
+        route.fulfill({ status: 200, contentType: 'text/html', body: '<title>marketing</title>' }),
+      )
+      await page.goto('/pulls')
+      await expect(page).toHaveURL(`https://peasantlabs.org/?login&next=${encodeURIComponent('/pulls')}`)
+      const destination = new URL(page.url())
+      expect(destination.protocol).toBe('https:')
+      expect(destination.host).toBe('peasantlabs.org')
+      expect(destination.pathname).toBe('/')
+      expect(destination.searchParams.has('login')).toBe(true)
+      expect(destination.searchParams.get('next')).toBe('/pulls')
+      // Neither the list nor its signed-out notice mounts: the visitor leaves
+      // for the popup before the app draws a page of its own.
+      await expect(page.getByTestId('pulls-page')).toHaveCount(0)
+      await expect(page.getByTestId('pulls-signed-out')).toHaveCount(0)
+    } finally {
+      await setScenario(request, 'default')
+    }
   })
 })

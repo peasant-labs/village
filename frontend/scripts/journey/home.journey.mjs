@@ -55,7 +55,8 @@ test.describe('home', () => {
     // The newest three as cards, each leading to its transcript.
     const recent = page.getByRole('region', { name: 'recent' })
     await expect(recent.getByRole('link')).toHaveCount(Math.min(3, HOME_ROWS.length))
-    await expect(recent.getByRole('link').first()).toHaveAttribute('href', `/transcripts/${HOME_ROWS[0].id}`)
+    // A card carries where it was opened from, so the transcript page can lead back here.
+    await expect(recent.getByRole('link').first()).toHaveAttribute('href', `/transcripts/${HOME_ROWS[0].id}?in=home`)
 
     // The table opens grouped by project with every group closed; one control
     // opens them all.
@@ -68,7 +69,7 @@ test.describe('home', () => {
     for (const row of HOME_ROWS) {
       await expect(page.getByTestId('home-table').getByRole('link', { name: row.title, exact: true })).toHaveAttribute(
         'href',
-        `/transcripts/${row.id}`,
+        `/transcripts/${row.id}?in=home`,
       )
     }
 
@@ -152,8 +153,14 @@ test.describe('home', () => {
       await expect(empty).toBeVisible()
       await expectTheme(page, theme)
       await expect(empty).toContainText('nothing published yet')
-      await expect(empty).toContainText('curl -fsSL https://peasantlabs.org/install | bash')
-      await expect(empty).toContainText('peasant kickstart')
+      // How to publish lives in the docs; the app links there instead of
+      // restating the command.
+      const publish = empty.getByRole('link', { name: /how to publish/ })
+      await expect(publish).toHaveAttribute('href', 'https://peasantlabs.org/docs#publish')
+      // It leaves the app: a new tab on the docs, with no window handle back.
+      await expect(publish).toHaveAttribute('target', '_blank')
+      await expect(publish).toHaveAttribute('rel', /noopener/)
+      await expect(empty).not.toContainText('curl -fsSL')
       await expect(page.getByTestId('home-transcript-row')).toHaveCount(0)
       await expect(page.getByRole('searchbox')).toHaveCount(0)
 

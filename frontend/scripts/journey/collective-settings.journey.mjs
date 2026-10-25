@@ -47,22 +47,24 @@ test.describe('collective settings', () => {
     await setScenario(request, 'default')
   })
 
-  test('walks the sections from the sidebar, and draws no check-mode radios', async ({ page, theme }, testInfo) => {
+  test('walks the sections from the section bar, and draws no check-mode radios', async ({ page, theme }, testInfo) => {
     await page.goto(SETTINGS)
     await expectTheme(page, theme)
 
-    // Beside the desktop sidebar the sections are the sidebar's own navigation:
-    // the way back to the collective, then the sections. The page's own list is
-    // for a phone, where the sidebar folds into a drawer.
-    const nav = page.getByRole('navigation', { name: 'collective settings' })
+    // fairtrade's section bar holds every section, beside the page on a wide
+    // screen and above it on a narrow one; the breadcrumb is the way back to
+    // the collective.
+    const nav = page.getByRole('navigation', { name: 'settings sections' })
     await expect(nav.getByRole('link')).toHaveText(SECTIONS.map((s) => s.label))
-    const back = page.getByRole('navigation', { name: 'back' }).getByRole('link')
-    await expect(back).toHaveText(OWNER.name)
+    const back = page.getByRole('navigation', { name: 'breadcrumb' }).getByRole('link', { name: OWNER.name })
     await expect(back).toHaveAttribute('href', `/collectives/${OWNER.id}`)
-    await expect(page.getByRole('navigation', { name: 'settings sections' })).toBeHidden()
-    await expectComputedTokens(page, '.on-settings', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })
+    // The mounted page frame is the settings surface; fairtrade's layout owns
+    // its section bar and body. The frame carries the app's body font and type
+    // floor, so a lost stylesheet still fails here.
+    const settingsPage = page.getByTestId('collective-settings')
+    await expectComputedTokens(page, '[data-testid="collective-settings"]', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })
     await still(page, testInfo, 'collective-settings')
-    writeFileSync(testInfo.outputPath('settings-aria.yml'), await page.locator('.on-settings').ariaSnapshot())
+    writeFileSync(testInfo.outputPath('settings-aria.yml'), await settingsPage.ariaSnapshot())
     await testInfo.attach('settings-aria.yml', { path: testInfo.outputPath('settings-aria.yml'), contentType: 'text/yaml' })
     await axe(page, testInfo)
 
@@ -76,20 +78,21 @@ test.describe('collective settings', () => {
 
     await page.goto(`${SETTINGS}?section=pull-requests`)
     await expect(page.getByRole('switch', { name: 'show transcripts on pull requests' })).toHaveAttribute('aria-checked', 'true')
-    await expect(page.getByRole('link', { name: 'your settings' })).toHaveAttribute('href', '/settings')
+    await expect(page.getByRole('link', { name: 'your settings' })).toHaveAttribute('href', '/settings#pull-requests')
     await page.goto(`${SETTINGS}?section=members`)
     await expect(page.getByRole('combobox', { name: 'role for @bob-ai' })).toHaveValue('member')
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('members')
-    // An invite in an earlier journey adds to the member list the mock's reset starts from, so the line counts whoever is there.
-    await expect(page.locator('.on-split p')).toHaveText(/^\d+ people\. invite by github username\.$/)
+    // An invite in an earlier journey adds to the member list the mock's reset starts from, so the list holds whoever is there.
+    await expect(page.getByRole('list', { name: 'members' })).toContainText('@bob-ai')
+    await expect(page.getByLabel('invite by github username')).toBeVisible()
   })
 
-  test('keeps its own section list on a phone, where the sidebar is a drawer', async ({ page, theme }) => {
+  test('keeps its section bar on a phone', async ({ page, theme }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto(SETTINGS)
     await expectTheme(page, theme)
     const inline = page.getByRole('navigation', { name: 'settings sections' })
-    await expect(inline.getByRole('link')).toHaveText([`back to ${OWNER.name}`, ...SECTIONS.map((s) => s.label)])
+    await expect(inline.getByRole('link')).toHaveText(SECTIONS.map((s) => s.label))
     await inline.getByRole('link', { name: 'members', exact: true }).click()
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('members')
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)

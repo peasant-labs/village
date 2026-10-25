@@ -73,16 +73,42 @@ test.describe('transcript page, as its owner', () => {
     await setScenario(request, 'default')
   })
 
-  test('the header: link, copy and more', async ({ page }, testInfo) => {
+  test('the header copies the address and keeps more', async ({ page }, testInfo) => {
+    // The clipboard is the host's, not the app's: record what the control
+    // writes, so this asserts the real click callback instead of a dormant
+    // button. The app itself is untouched.
+    await page.addInitScript(() => {
+      window.__copiedFromTranscriptHeader = []
+      const write = async (value) => { window.__copiedFromTranscriptHeader.push(value) }
+      try {
+        // The host owns the clipboard; stand one in that records the write.
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: write } })
+      } catch {
+        // A browser that will not let the instance be shadowed: patch the
+        // shared Clipboard prototype instead, which every call goes through.
+        Object.defineProperty(Object.getPrototypeOf(navigator.clipboard), 'writeText', { configurable: true, value: write })
+      }
+    })
+    await page.reload()
+    await expect(page.locator('.txn-app')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'more', exact: true })).toBeVisible()
+
     const actions = page.getByTestId('transcript-header-actions')
-    const link = actions.getByTestId('transcript-link')
-    await expect(link).toHaveAttribute('href', new RegExp(`/transcripts/${OWNED_TRANSCRIPT.id}$`))
-    await expect(link).toHaveText(/\/transcripts\/3f9c…e21a$/)
-    await expect(actions.getByRole('button', { name: 'copy link' })).toBeVisible()
+    // The address is copied, never spelled out in the header.
+    await expect(actions.locator('a')).toHaveCount(0)
+    const copy = actions.getByRole('button', { name: 'copy link' })
+    await expect(copy).toBeVisible()
+    await expect(actions.getByRole('button', { name: 'more', exact: true })).toBeVisible()
+
+    const expected = `${new URL(page.url()).origin}/transcripts/${OWNED_TRANSCRIPT.id}`
+    await copy.click()
+    await expect(actions.getByRole('status')).toHaveText('copied')
+    await expect.poll(() => page.evaluate(() => window.__copiedFromTranscriptHeader)).toEqual([expected])
+    await expect(actions.getByRole('button', { name: 'copied' })).toBeVisible()
+
     // The composite's own share/more tail and the outcome chip are off.
     await expect(page.locator('.txn-actions').getByRole('button', { name: /share|more actions/ })).toHaveCount(0)
 
-    await expectComputedTokens(page, '[data-testid="transcript-link"]', { fontFamilyIncludes: 'atkinsonhyperlegiblemono' })
     await expectComputedTokens(page, '[data-testid="transcript-header-actions"] .btn', { borderRadius: '0px' })
 
     const aria = await page.locator('.txn-header').ariaSnapshot()

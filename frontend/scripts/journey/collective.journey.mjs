@@ -45,6 +45,19 @@ async function record(page, testInfo, locator, name) {
   expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([])
 }
 
+/**
+ * One waiting row states its status and contributor exactly once, whichever
+ * representation is on screen: the wide columns or the row's facts line. Both
+ * are real status tags; only one is visible at a time, so a lost stylesheet that
+ * showed both fails the visible count instead of being counted twice.
+ */
+async function expectOneVisibleWaitingRow(row, pending) {
+  const status = row.locator('.on-tag').filter({ visible: true })
+  await expect(status).toHaveCount(1)
+  await expect(status).toHaveText('waiting')
+  await expect(row.getByText(`@${pending.login}`, { exact: true }).filter({ visible: true })).toHaveCount(1)
+}
+
 test.describe('collectives', () => {
   test.beforeEach(async ({ request }) => {
     // A fresh world: no earlier journey's link or settings write carries over.
@@ -88,7 +101,9 @@ test.describe('collectives', () => {
     // An invite in an earlier journey adds to the member list the mock's reset starts from, so the tab counts whoever is there.
     await expect(page.getByRole('tab')).toHaveText(['transcripts 248', /^members \d+$/, 'stats'])
     await expect(page.getByRole('table', { name: 'transcripts 248' })).toContainText('Fix flaky ingest test')
-    await expect(page.getByRole('link', { name: 'settings' })).toHaveAttribute('href', `/collectives/${OWNER.id}/settings`)
+    // The app sidebar carries a settings gear of its own, so the collective's
+    // own control is read inside the collective's header actions.
+    await expect(page.getByTestId('collective-header-actions').getByRole('link', { name: 'settings' })).toHaveAttribute('href', `/collectives/${OWNER.id}/settings`)
     await expect(page.getByRole('link', { name: 'invite people' })).toHaveAttribute('href', `/collectives/${OWNER.id}/settings?section=members`)
     await expectComputedTokens(page, '.on-page', { fontFamilyIncludes: 'atkinson', borderRadius: '0px', minFontSize: 16 })
 
@@ -122,10 +137,10 @@ test.describe('collectives', () => {
     await expectTheme(page, theme)
 
     await expect(page.getByRole('list', { name: 'how this collective works' })).toContainText('you approve each session')
-    // Every listed transcript has been approved: in a curated collective that is a step, so it is shown.
+    // The table lists only approved transcripts, so it draws no status column:
+    // what still waits is the waiting tab's own table.
     const table = page.getByRole('table', { name: 'transcripts 248' })
-    await expect(table.getByRole('columnheader')).toHaveText(['transcript', 'contributor', 'agent', 'turns', 'status', 'when'])
-    await expect(table.locator('tbody .on-tag').first()).toHaveText('approved')
+    await expect(table.getByRole('columnheader')).toHaveText(['transcript', 'contributor', 'agent', 'turns', 'when'])
     await page.getByRole('button', { name: 'more', exact: true }).click()
     await expect(page.getByRole('menuitem')).toHaveText(['publish several transcripts', 'review transcripts'])
     await page.keyboard.press('Escape')
@@ -133,13 +148,33 @@ test.describe('collectives', () => {
     const waiting = await openTab(page, 'waiting for approval')
     await expect(page.getByRole('tab', { name: /^waiting/ })).toHaveText(`waiting for approval ${JOURNEY_PENDING.length}`)
     const queue = waiting.getByRole('table', { name: `waiting for approval ${JOURNEY_PENDING.length}` })
+    const queueRows = queue.locator('tbody tr')
+    await expect(queueRows).toHaveCount(JOURNEY_PENDING.length)
     await expect(queue.locator('tbody a.is-title')).toHaveText(JOURNEY_PENDING.map((row) => row.title))
     await expect(queue.locator('tbody .on-handle-cell')).toHaveText(JOURNEY_PENDING.map((row) => `@${row.login}`))
-    await expect(queue.locator('tbody .on-tag')).toHaveText(JOURNEY_PENDING.map(() => 'waiting'))
+    for (const [index, pending] of JOURNEY_PENDING.entries()) {
+      const row = queueRows.nth(index)
+      await expectOneVisibleWaitingRow(row, pending)
+      // A wide page draws the columns and not the facts line.
+      await expect(row.getByTestId('collective-row-facts')).toBeHidden()
+      await expect(row.locator('.on-handle-cell')).toBeVisible()
+      await expect(row.locator('.is-wide .on-tag')).toBeVisible()
+    }
     await expect(waiting.getByRole('link', { name: 'review transcripts' })).toHaveAttribute('href', `/collectives/${OWNER.id}/review`)
     await expect(page).toHaveURL(new RegExp(`\\?tab=waiting$`))
     await still(page, testInfo, 'collective-waiting')
     await record(page, testInfo, waiting, 'collective-waiting')
+
+    // A phone drops the wide columns and states the same row under its title.
+    // The status and handle must stay visible exactly once in that form.
+    await page.setViewportSize({ width: 390, height: 844 })
+    for (const [index, pending] of JOURNEY_PENDING.entries()) {
+      const row = queueRows.nth(index)
+      await expect(row.getByTestId('collective-row-facts')).toBeVisible()
+      await expect(row.locator('.on-handle-cell')).toBeHidden()
+      await expect(row.locator('.is-wide .on-tag')).toBeHidden()
+      await expectOneVisibleWaitingRow(row, pending)
+    }
   })
 
   test('retains transcript grouping and private contribution withdrawal on the mounted detail page', async ({ page, theme }, testInfo) => {
@@ -202,7 +237,7 @@ test.describe('collectives', () => {
 
     await expect(page.getByRole('heading', { level: 1, name: MEMBER.name })).toBeVisible()
     await expect(page.getByRole('list', { name: 'how this collective works' })).toContainText('you are a member')
-    await expect(page.getByRole('link', { name: 'settings' })).toHaveCount(0)
+    await expect(page.getByTestId('collective-header-actions').getByRole('link', { name: 'settings' })).toHaveCount(0)
     await expect(page.getByRole('link', { name: 'invite people' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'leave' })).toBeVisible()
 
@@ -221,22 +256,28 @@ test.describe('collectives', () => {
     await expect(dialog).toHaveCount(0)
   })
 
-  test('lets a signed-out reader read a public collective and sign in to join it', async ({ page, request, theme }, testInfo) => {
+  test('sends a signed-out reader of a public collective to the marketing log-in, coming back to it', async ({ page, request }) => {
     await setScenario(request, 'signed-out-public-collective')
-    await page.goto(`/collectives/${VISITOR.id}`)
-    await expectTheme(page, theme)
-
-    await expect(page.getByRole('heading', { level: 1, name: VISITOR.name })).toBeVisible()
-    await expect(page.getByRole('list', { name: 'how this collective works' })).toContainText('anyone can read')
-    await expect(page.getByRole('table', { name: /^transcripts/ })).toContainText('Paginate the collectives list')
-    const signIn = page.getByRole('link', { name: 'sign in to join' })
-    await expect(signIn).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/collectives/${VISITOR.id}`)}`)
-    await expect(page.getByRole('button', { name: 'join' })).toHaveCount(0)
-    await still(page, testInfo, 'collective-signed-out')
-    await record(page, testInfo, page.getByRole('main'), 'collective-signed-out')
-
-    await signIn.click()
-    await expect(page).toHaveURL(new RegExp(`/login\\?next=${encodeURIComponent(`/collectives/${VISITOR.id}`)}$`))
+    try {
+      // The app keeps no signed-out view: a page load is served the frame, which
+      // hands the reader to the marketing site's log-in popup once /auth/me
+      // answers, carrying this collective as where to come back to.
+      await page.route('https://peasantlabs.org/**', (route) =>
+        route.fulfill({ status: 200, contentType: 'text/html', body: '<title>marketing</title>' }),
+      )
+      await page.goto(`/collectives/${VISITOR.id}`)
+      await expect(page).toHaveURL(`https://peasantlabs.org/?login&next=${encodeURIComponent(`/collectives/${VISITOR.id}`)}`)
+      const destination = new URL(page.url())
+      expect(destination.protocol).toBe('https:')
+      expect(destination.host).toBe('peasantlabs.org')
+      expect(destination.pathname).toBe('/')
+      expect(destination.searchParams.has('login')).toBe(true)
+      expect(destination.searchParams.get('next')).toBe(`/collectives/${VISITOR.id}`)
+      // The collective page never mounts for a reader without a session.
+      await expect(page.getByTestId('collective-page')).toHaveCount(0)
+    } finally {
+      await setScenario(request, 'default')
+    }
   })
 
   test('opens the repo picker, links a repository and says what it saved', async ({ page, theme }, testInfo) => {
@@ -250,7 +291,11 @@ test.describe('collectives', () => {
     await expect(picker).toContainText('2 of 14 selected')
     await expect(picker).toContainText('3 members publish from it')
 
-    await picker.locator('.rpk-repo-row', { hasText: 'acme/cli' }).getByRole('checkbox').check()
+    // The row sits under its owner's heading, so it names the repository alone.
+    // The inner locator is re-rooted into each row; naming the dialog again
+    // would nest it inside the row and never match.
+    const cliRow = picker.locator('.rpk-repo-row').filter({ has: page.locator('.rpk-repo-name', { hasText: /^cli$/ }) })
+    await cliRow.getByRole('checkbox').check()
     await expect(picker).toContainText('3 of 14 selected')
     await expect(picker.getByRole('button', { name: 'save: link 1 repository' })).toBeEnabled()
     await still(page, testInfo, 'repo-picker')
