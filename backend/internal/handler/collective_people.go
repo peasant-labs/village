@@ -58,8 +58,18 @@ func (h *Handler) collectivePeopleFor(ctx context.Context, viewer *AuthUser, gro
 		return people, err
 	}
 
+	// The owners of a collective see every member of it as a profile: they
+	// added or accepted each one by username and need the id to manage roles
+	// and remove people, so the roster reveals nothing new to them. Every
+	// other viewer gets the transcript rule (resolvePublicOwners).
+	rosterPerson := func(id pgtype.UUID, username string, displayName, avatar pgtype.Text) schema.VillagePublicOwner {
+		if viewerIsOwner {
+			return publicProfile(id, username, displayName, avatar)
+		}
+		return owners.of(id)
+	}
 	for _, row := range members {
-		people.Members = append(people.Members, collectiveMember(row.Role, row.JoinedAt, owners.of(row.ID), row.GithubOrgs))
+		people.Members = append(people.Members, collectiveMember(row.Role, row.JoinedAt, rosterPerson(row.ID, row.GithubUsername, row.DisplayName, row.AvatarUrl), row.GithubOrgs))
 	}
 	for _, row := range contributors {
 		people.Contributors = append(people.Contributors, schema.VillageCollectiveContributor{
@@ -69,7 +79,7 @@ func (h *Handler) collectivePeopleFor(ctx context.Context, viewer *AuthUser, gro
 	if viewerIsOwner {
 		people.PendingMembers = []schema.VillageCollectiveMember{}
 		for _, row := range pending {
-			people.PendingMembers = append(people.PendingMembers, collectiveMember(row.Role, row.JoinedAt, owners.of(row.ID), row.GithubOrgs))
+			people.PendingMembers = append(people.PendingMembers, collectiveMember(row.Role, row.JoinedAt, rosterPerson(row.ID, row.GithubUsername, row.DisplayName, row.AvatarUrl), row.GithubOrgs))
 		}
 	}
 	return people, nil

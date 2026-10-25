@@ -48,6 +48,9 @@ type poExpect struct {
 	Pull        bool   `yaml:"pull"`
 	Review      bool   `yaml:"review"`
 	MyShares    bool   `yaml:"my_shares"`
+	// RelationRoster is how the relation_owner's own collective roster shows
+	// the owner (profile | absent), or none when that collective is gone.
+	RelationRoster string `yaml:"relation_roster"`
 }
 
 type poCase struct {
@@ -55,7 +58,10 @@ type poCase struct {
 	Why               string   `yaml:"why"`
 	OwnerDiscoverable bool     `yaml:"owner_discoverable"`
 	Viewer            string   `yaml:"viewer"`
-	Expect            poExpect `yaml:"expect"`
+	// Relation names how the relation_owner viewer's own collective relates
+	// to the owner (see the fixture header); empty for every other viewer.
+	Relation string   `yaml:"relation"`
+	Expect   poExpect `yaml:"expect"`
 }
 
 // requiredPublicOwnerCases names every case that must exist: both owner
@@ -71,6 +77,11 @@ var requiredPublicOwnerCases = []string{
 	"hidden_owner_to_member_viewer",
 	"hidden_owner_to_themselves",
 	"hidden_owner_to_collective_owner",
+	"hidden_owner_force_added_by_unrelated_owner",
+	"hidden_owner_with_pending_join_request",
+	"hidden_owner_with_rejected_share",
+	"hidden_owner_left_with_approved_share",
+	"hidden_owner_submitted_to_deleted_collective",
 }
 
 func loadPublicOwnerCases(t *testing.T) []poCase {
@@ -93,6 +104,12 @@ func loadPublicOwnerCases(t *testing.T) []poCase {
 			if !containsString(allowed, value) {
 				t.Fatalf("case %q expects %s %q; the outcomes are %v", c.Name, field, value, allowed)
 			}
+		}
+		if (c.Viewer == "relation_owner") != (c.Relation != "") {
+			t.Fatalf("case %q: a relation is set exactly when the viewer is relation_owner", c.Name)
+		}
+		if c.Viewer == "relation_owner" && !containsString([]string{"profile", "absent", "none"}, c.Expect.RelationRoster) {
+			t.Fatalf("case %q expects relation_roster %q; the outcomes are profile, absent and none", c.Name, c.Expect.RelationRoster)
 		}
 	}
 	for _, required := range requiredPublicOwnerCases {
@@ -119,6 +136,8 @@ type poWorld struct {
 	shared      pgtype.UUID // collective-shared, accepted: pullable by members
 	pending     pgtype.UUID // public, awaiting review
 	contentKey  string      // blob key of the accepted transcript's stored content
+	relOwner    pgtype.UUID // owner of the relation collective (relation_owner viewer)
+	relGroup    pgtype.UUID // the relation collective, when the case has one
 	// sharedContentKey is the blob key of the shared transcript's stored
 	// content, which the pull content route serves.
 	sharedContentKey string
@@ -196,7 +215,63 @@ func newPublicOwnerWorld(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	execAsSystem(t, ctx, pool, `UPDATE transcripts SET blob_key = $2 WHERE id = $1`, w.accepted, w.contentKey)
 	w.sharedContentKey = "transcripts/" + uuid.NewString() + ".bin"
 	execAsSystem(t, ctx, pool, `UPDATE transcripts SET blob_key = $2 WHERE id = $1`, w.shared, w.sharedContentKey)
+
+	w.relOwner = cvInsertUser(t, ctx, pool, "po-rel-"+suffix, true)
+	if c.Relation != "" {
+		w.buildRelation(t, ctx, h, c.Relation, suffix)
+	}
 	return w
+}
+
+// buildRelation gives relation_owner a collective of their own and relates
+// the owner to it in one way. Only acts the owner took (a submission, or a
+// leftover join request) may reveal the owner's transcripts to relation_owner;
+// a membership relation_owner created alone may not.
+func (w *poWorld) buildRelation(t *testing.T, ctx context.Context, h *Handler, relation, suffix string) {
+	t.Helper()
+	if err := w.pool.QueryRow(ctx, `
+		INSERT INTO groups (name, created_by, acceptance_mode, data_access) VALUES ($1, $2, 'curated', 'public') RETURNING id
+	`, "po-rel-"+suffix, w.relOwner).Scan(&w.relGroup); err != nil {
+		t.Fatalf("create the relation collective: %v", err)
+	}
+	shareAddMember(t, ctx, w.pool, w.relGroup, w.relOwner, "owner")
+	owner, relOwner := w.actor("owner"), w.actor("relation_owner")
+	submit := func() {
+		w.mustOK(t, h.ShareTranscript, owner, http.MethodPost, "/share", map[string][]string{"group_ids": {w.id(w.relGroup)}},
+			map[string]string{"id": w.id(w.accepted)})
+	}
+	review := func(status string) {
+		w.mustOK(t, h.ReviewShare, relOwner, http.MethodPatch, "/review", map[string]string{"status": status},
+			map[string]string{"id": w.id(w.relGroup), "transcriptID": w.id(w.accepted)})
+	}
+	switch relation {
+	case "force_add":
+		// The collective's owner added the person by username; the person did
+		// nothing.
+		shareAddMember(t, ctx, w.pool, w.relGroup, w.owner, "member")
+	case "join_request":
+		shareAddMember(t, ctx, w.pool, w.relGroup, w.owner, "pending")
+	case "rejected_share":
+		shareAddMember(t, ctx, w.pool, w.relGroup, w.owner, "member")
+		submit()
+		review("rejected")
+	case "left_with_approved_share":
+		shareAddMember(t, ctx, w.pool, w.relGroup, w.owner, "member")
+		submit()
+		review("approved")
+		if _, err := w.pool.Exec(ctx, `DELETE FROM group_members WHERE group_id = $1 AND user_id = $2`, w.relGroup, w.owner); err != nil {
+			t.Fatal(err)
+		}
+	case "deleted_collective":
+		shareAddMember(t, ctx, w.pool, w.relGroup, w.owner, "member")
+		submit()
+		if _, err := w.pool.Exec(ctx, `DELETE FROM groups WHERE id = $1`, w.relGroup); err != nil {
+			t.Fatal(err)
+		}
+		w.relGroup = pgtype.UUID{}
+	default:
+		t.Fatalf("the fixture names relation %q; the relations are force_add, join_request, rejected_share, left_with_approved_share and deleted_collective", relation)
+	}
 }
 
 func (w *poWorld) cleanup(t *testing.T, ctx context.Context) {
@@ -204,10 +279,10 @@ func (w *poWorld) cleanup(t *testing.T, ctx context.Context) {
 	if _, err := w.pool.Exec(ctx, "DELETE FROM annotations WHERE owner_id = $1", w.owner); err != nil {
 		t.Errorf("cleanup annotations: %v", err)
 	}
-	if _, err := w.pool.Exec(ctx, "DELETE FROM groups WHERE id = $1", w.group); err != nil {
+	if _, err := w.pool.Exec(ctx, "DELETE FROM groups WHERE id = ANY($1)", []pgtype.UUID{w.group, w.relGroup}); err != nil {
 		t.Errorf("cleanup the collective: %v", err)
 	}
-	cleanupOwners(t, ctx, w.pool, w.owner, w.moderator, w.member, w.other)
+	cleanupOwners(t, ctx, w.pool, w.owner, w.moderator, w.member, w.other, w.relOwner)
 }
 
 func (w *poWorld) actor(name string) *AuthUser {
@@ -220,6 +295,8 @@ func (w *poWorld) actor(name string) *AuthUser {
 		return &AuthUser{ID: uuid.UUID(w.member.Bytes), Username: "po-member"}
 	case "other":
 		return &AuthUser{ID: uuid.UUID(w.other.Bytes), Username: "po-other"}
+	case "relation_owner":
+		return &AuthUser{ID: uuid.UUID(w.relOwner.Bytes), Username: "po-rel"}
 	}
 	return nil
 }
@@ -476,6 +553,35 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 				w.assertOwner(t, "grouped collective row", owner, c.Expect.Owner)
 			}
 			w.assertRoster(t, "grouped collective roster", grouped.Members, grouped.Contributors, c.Expect.Roster)
+
+			// relation_owner's own collective: its owner sees every member and
+			// join request as a profile, whatever the transcript rule says.
+			if c.Viewer == "relation_owner" && c.Expect.RelationRoster != "none" {
+				status, body = w.get(t, router, viewer, "/collectives/"+w.id(w.relGroup))
+				if status != http.StatusOK {
+					t.Fatalf("relation collective answered %d: %s", status, body)
+				}
+				var roster struct {
+					Members        []struct{ Member json.RawMessage } `json:"members"`
+					PendingMembers []struct{ Member json.RawMessage } `json:"pending_members"`
+				}
+				mustDecode(t, body, &roster)
+				found := false
+				for _, row := range append(roster.Members, roster.PendingMembers...) {
+					var person map[string]any
+					mustDecode(t, row.Member, &person)
+					if person["kind"] != "profile" {
+						t.Errorf("relation collective roster shows its own owner an anonymous member: %s", row.Member)
+					}
+					if person["id"] == w.id(w.owner) {
+						found = true
+						w.assertOwner(t, "relation collective roster", row.Member, "profile")
+					}
+				}
+				if found != (c.Expect.RelationRoster == "profile") {
+					t.Errorf("relation collective roster lists the owner = %v, want %s", found, c.Expect.RelationRoster)
+				}
+			}
 
 			// Review queue, flat and grouped. Mounted behind sign-in, so a
 			// signed-out viewer never reaches the handler.

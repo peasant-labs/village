@@ -385,9 +385,17 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   (`handler/public_owner.go`), once per response for every person on it. A
   person is shown as their public profile (id, username, display name, avatar)
   when they are discoverable, when the viewer is that person, or when the viewer
-  owns a collective the person belongs to (any `group_members` row, pending
-  included) or holds a pending or approved submission of theirs
-  (`transcript_shares.status`). Everyone else receives the anonymous shape,
+  owns a collective where the person took an act that still stands: a pending
+  or approved submission (`transcript_shares.status`) or a leftover `pending`
+  join request. A plain `member` or `contributor` row does not count: Village
+  records no provenance for membership and an owner can add anyone by
+  username, so membership alone reveals nothing about a person's transcripts.
+  Invitations the person accepts are the planned replacement for owner adds
+  (a separate follow-up), after which an accepted membership may count again.
+  The roster is the exception: a collective's owners see every member and join
+  request of that collective as a profile (`collectivePeopleFor`), because they
+  added or accepted each one and need the id to manage them; other members get
+  the rule above. Everyone else receives the anonymous shape,
   which carries no id. No handler restates this rule, and no response to another
   viewer carries the `users` row; `GET /auth/me` returns the caller's own.
 - **Identity beside an anonymous person is withheld too.** Organization badges

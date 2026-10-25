@@ -175,6 +175,7 @@ SELECT u.id, u.github_username, u.display_name, u.avatar_url,
                          SELECT 1 FROM group_members person_role
                          WHERE person_role.group_id = viewer_role.group_id
                            AND person_role.user_id = u.id
+                           AND person_role.role = 'pending'
                      )
                      OR EXISTS (
                          SELECT 1
@@ -213,14 +214,17 @@ type ListPublicOwnersForViewerRow struct {
 // as anonymous:
 //   - the person is discoverable (users.is_discoverable);
 //   - the viewer IS the person;
-//   - the viewer owns a collective (group_members.role = 'owner') that the
-//     person belongs to (a group_members row of any role, pending included,
-//     the same rows the owner's roster and join-request list already show
-//     in full), or that holds a pending or approved submission of one of the
-//     person's transcripts (transcript_shares.status, the current-state row
-//     the review queue and the collective library read). This is the promise
-//     the join dialog makes: joining reveals your profile to the collective's
-//     owners, while other members still see you as anonymous.
+//   - the viewer owns a collective (group_members.role = 'owner') where the
+//     person took an act of their own: a pending or approved submission of
+//     one of their transcripts (transcript_shares.status, the current-state
+//     row the review queue and the collective library read), or a leftover
+//     'pending' join-request row. A plain member or contributor row does NOT
+//     count: Village records no provenance for membership, and an owner can
+//     add anyone by username, so membership alone must reveal nothing about a
+//     person's transcripts. Collective owners still see their own roster in
+//     full (handler collectivePeopleFor). Invitations the person accepts are
+//     the planned replacement for owner adds, after which an accepted
+//     membership may count again.
 //
 // A NULL viewer (signed out) sees discoverable people only.
 func (q *Queries) ListPublicOwnersForViewer(ctx context.Context, arg ListPublicOwnersForViewerParams) ([]ListPublicOwnersForViewerRow, error) {
