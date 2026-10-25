@@ -123,9 +123,16 @@ func (h *Handler) attestationsForViewer(ctx context.Context, viewer *AuthUser, r
 	}
 	out := make([]attestationResponse, 0, len(rows))
 	for _, row := range rows {
+		attester := attesters.of(row.AttesterID)
+		// The organization is one the attester belongs to, so it is blank
+		// beside an anonymous attester.
+		orgLogin := row.OrgLogin
+		if !attester.IsProfile() {
+			orgLogin = ""
+		}
 		out = append(out, attestationResponse{
-			ID: row.ID, TranscriptID: row.TranscriptID, OrgLogin: row.OrgLogin, AttestationType: row.AttestationType,
-			Note: row.Note, CreatedAt: row.CreatedAt, Attester: attesters.of(row.AttesterID),
+			ID: row.ID, TranscriptID: row.TranscriptID, OrgLogin: orgLogin, AttestationType: row.AttestationType,
+			Note: row.Note, CreatedAt: row.CreatedAt, Attester: attester,
 		})
 	}
 	return out, nil

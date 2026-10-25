@@ -2084,12 +2084,29 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 	}
 	resolvedProjects := h.resolveProjectIdentities(r.Context(), identityKeys)
 
-	// Batch attestations by transcript
-	attestsByTranscript := map[pgtype.UUID][]sqlc.ListAttestationsByTranscriptIDsRow{}
+	// Batch attestations by transcript. An attestation names an organization
+	// its attester belongs to, so the organization of an attester who is
+	// anonymous to the viewer is withheld (the row names no attester).
+	attestsByTranscript := map[pgtype.UUID][]listAttestation{}
 	if len(transcriptIDs) > 0 {
 		allAttests, _ := h.queries.ListAttestationsByTranscriptIDs(r.Context(), transcriptIDs)
+		attesterIDs := make([]pgtype.UUID, 0, len(allAttests))
 		for _, a := range allAttests {
-			attestsByTranscript[a.TranscriptID] = append(attestsByTranscript[a.TranscriptID], a)
+			attesterIDs = append(attesterIDs, a.AttesterID)
+		}
+		attesters, err := h.resolvePublicOwners(r.Context(), user, attesterIDs)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the attesters of the listed transcripts could not be resolved, so no transcript page was returned; retry the request")
+			return
+		}
+		for _, a := range allAttests {
+			orgLogin := a.OrgLogin
+			if !attesters.of(a.AttesterID).IsProfile() {
+				orgLogin = ""
+			}
+			attestsByTranscript[a.TranscriptID] = append(attestsByTranscript[a.TranscriptID], listAttestation{
+				TranscriptID: a.TranscriptID, OrgLogin: orgLogin, AttestationType: a.AttestationType, CreatedAt: a.CreatedAt,
+			})
 		}
 	}
 
@@ -2413,4 +2430,13 @@ func listOwnerOrganizations(orgs []listOwnerOrganization) []listOwnerOrganizatio
 		return []listOwnerOrganization{}
 	}
 	return orgs
+}
+
+// listAttestation is one attestation on a list row. It names no attester; its
+// organization is blank when the attester is anonymous to the viewer.
+type listAttestation struct {
+	TranscriptID    pgtype.UUID        `json:"transcript_id"`
+	OrgLogin        string             `json:"org_login"`
+	AttestationType string             `json:"attestation_type"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }

@@ -62,7 +62,7 @@ func (q *Queries) DeleteAttestation(ctx context.Context, arg DeleteAttestationPa
 }
 
 const listAttestationsByTranscriptIDs = `-- name: ListAttestationsByTranscriptIDs :many
-SELECT a.transcript_id, a.org_login, a.attestation_type, a.created_at
+SELECT a.transcript_id, a.org_login, a.attestation_type, a.created_at, a.attester_id
 FROM attestations a
 WHERE a.transcript_id = ANY($1::uuid[])
 ORDER BY a.created_at DESC
@@ -73,8 +73,11 @@ type ListAttestationsByTranscriptIDsRow struct {
 	OrgLogin        string             `db:"org_login" json:"org_login"`
 	AttestationType string             `db:"attestation_type" json:"attestation_type"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	AttesterID      pgtype.UUID        `db:"attester_id" json:"attester_id"`
 }
 
+// attester_id is read so the handler can withhold the organization of an
+// attester who is anonymous to the viewer; it is never served.
 func (q *Queries) ListAttestationsByTranscriptIDs(ctx context.Context, dollar_1 []pgtype.UUID) ([]ListAttestationsByTranscriptIDsRow, error) {
 	rows, err := q.db.Query(ctx, listAttestationsByTranscriptIDs, dollar_1)
 	if err != nil {
@@ -89,6 +92,7 @@ func (q *Queries) ListAttestationsByTranscriptIDs(ctx context.Context, dollar_1 
 			&i.OrgLogin,
 			&i.AttestationType,
 			&i.CreatedAt,
+			&i.AttesterID,
 		); err != nil {
 			return nil, err
 		}
