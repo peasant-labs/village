@@ -1219,7 +1219,7 @@ func (h *Handler) GetTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	if !owner.IsProfile() {
 		response, err = withholdContentRepository(response)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeContentRepositoryUnreadable(w)
 			return
 		}
 	}

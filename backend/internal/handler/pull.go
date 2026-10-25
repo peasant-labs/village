@@ -400,12 +400,26 @@ func (h *Handler) GetPullTranscriptContent(w http.ResponseWriter, r *http.Reques
 	body := result.Plaintext
 	withheld := false
 	if !owner.IsProfile() {
-		trimmed, err := withholdContentRepository(body)
+		// The stored content may predate the envelope (a bare session detail or
+		// raw JSONL), so it is read through the same migrator as the web content
+		// route first; only then can its repository fields be found.
+		payload, rewrite, err := defaultContentMigrator.Migrate(r.Context(), body)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeContentRepositoryUnreadable(w)
 			return
 		}
-		withheld = !bytes.Equal(trimmed, body)
+		if rewrite {
+			if body, err = marshalTranscriptContentEnvelope(currentContractVersion, payload); err != nil {
+				writeContentRepositoryUnreadable(w)
+				return
+			}
+		}
+		trimmed, err := withholdContentRepository(body)
+		if err != nil {
+			writeContentRepositoryUnreadable(w)
+			return
+		}
+		withheld = !bytes.Equal(trimmed, result.Plaintext)
 		body = trimmed
 	}
 	// The ETag names the stored blob's hash. Bytes with a field withheld are

@@ -1,0 +1,17 @@
+# GET /pull/transcripts/{id}/content for a caller who may pull a transcript
+# whose owner is anonymous to them (a member of the collective it was
+# accepted into), or for the owner themselves. Stored content of every shape
+# Village holds is read through the content migrator before the repository
+# identity is withheld; content no reader can parse is refused with a stable,
+# non-retryable answer.
+#
+# stored:  envelope_with_repository - a bare session detail naming its repository
+#          raw_jsonl_with_repository - a raw JSONL message array carrying cwd and branch
+#          unreadable                - bytes that are not a transcript
+# caller:  member (owner anonymous to them) | owner (always their own profile)
+# want:    served_withheld | served_unchanged | unreadable
+
+- {name: member_pulls_bare_detail, stored: envelope_with_repository, caller: member, want: served_withheld}
+- {name: member_pulls_raw_jsonl, stored: raw_jsonl_with_repository, caller: member, want: served_withheld}
+- {name: member_pulls_unreadable_content, stored: unreadable, caller: member, want: unreadable}
+- {name: owner_pulls_bare_detail, stored: envelope_with_repository, caller: owner, want: served_unchanged}

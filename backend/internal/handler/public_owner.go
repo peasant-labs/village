@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
@@ -130,6 +131,22 @@ func withholdAnnotationRepository(summary *schema.AnnotationSummary, transcriptO
 	summary.TargetFilePath = nil
 }
 
+// errContentRepositoryUnreadable is content Village cannot read as a transcript
+// session, so it cannot withhold the repository identity of an anonymous owner
+// and does not serve it. It is a fact about the stored content, so retrying
+// does not change it.
+var errContentRepositoryUnreadable = errors.New("the stored transcript content is not a session Village can read, so the repository identity of its anonymous owner cannot be withheld and the content is not served; retrying will not change this; the owner can republish the transcript")
+
+// writeContentRepositoryUnreadable answers a content route whose stored content
+// cannot be read to withhold an anonymous owner's repository: 422 with a
+// stable code, because the condition is permanent for this content.
+func writeContentRepositoryUnreadable(w http.ResponseWriter) {
+	writeJSON(w, http.StatusUnprocessableEntity, map[string]string{
+		"code":  "content_unreadable_for_anonymous_owner",
+		"error": errContentRepositoryUnreadable.Error(),
+	})
+}
+
 // withheldSessionDetailFields are the sessionDetail fields that identify an
 // owner's repository: the project, the working directory, and the git branch
 // and remote. Every child session's project is withheld too.
@@ -144,7 +161,7 @@ var withheldSessionDetailFields = []string{"project", "workingDirectory", "gitBr
 // is content and is not covered.
 func withholdContentRepository(content []byte) ([]byte, error) {
 	fail := func(err error) ([]byte, error) {
-		return nil, fmt.Errorf("handler.withholdContentRepository: the transcript content could not be read to withhold an anonymous owner's repository; no content was served; retry, and report the transcript if it persists: %w", err)
+		return nil, fmt.Errorf("%w: %v", errContentRepositoryUnreadable, err)
 	}
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(content, &top); err != nil {
