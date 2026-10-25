@@ -1,16 +1,18 @@
 {
   "subjectRepo": "peasant-labs/village",
   "subjectPR": 307,
-  "subjectRevision": "d493ac933b8fa53baf9088fbf9597de7dd5b57e0",
+  "subjectRevision": "4c8159df34fdefe33c9aef9b3241f87e1ba9c33a",
+  "fairtradeVersion": "0.0.45",
   "schemaVersion": "0.32.0",
-  "schemaIntegrity": "sha512-2cn6lSxEUE1DaIWLn90Eb1p0W+f3pjeGhuQEp3jBAGHRgdKDKR9RzJL6ybIZbV5k0RA7zzKAfcFiLoRnKocqRw==",
+  "sourceClean": true,
+  "build": {
+    "exitCode": 0,
+    "wallSeconds": 20.57680470100604,
+    "command": "NEXT_PUBLIC_API_URL=<owned-fixture>/api/v1 pnpm --dir frontend build"
+  },
   "runner": "Playwright",
-  "path": "built production profile route /users/alice-dev",
-  "data": "controlled public REST fixture, no real user data",
-  "themes": [
-    "light",
-    "dark"
-  ],
+  "path": "built production /users/alice-dev",
+  "data": "controlled public REST fixture; no real user data",
   "viewports": {
     "desktop": [
       1396,
@@ -23,18 +25,17 @@
   },
   "servedAssetProvenance": [
     {
-      "asset": "chunks/470201bcf7a5ef17.js",
-      "sha256": "d52e52f7b0062f258591fd08bacb19a17fb5ae49f8c4d436656d32a1132209c7",
+      "asset": "chunks/c38f6e554f35cdf7.js",
+      "sha256": "e63278c1d3ba2246da3e39b4ede7dd10bc42dfdd225a7da0d41bfc050abc4b85",
       "servedBytesMatch": true
     }
   ],
-  "manualSelfReview": "all four full-shell states and four details inspected on this exact clean schema032 head; no horizontal document overflow; unknown time visible with no substituted date",
-  "semantics": "terminal null decision time stays unknown; known rows retain actual decisions",
-  "limits": "Controlled public REST fixture; rejected-null captured, approved-null/pending/known-time asserted by mounted tests; no physical-device claim.",
-  "files": [
+  "manualSelfReview": "all four full-shell states and four history details inspected; unknown decision time and four history rows retained, no horizontal document overflow; canonical045 chrome",
+  "limits": "No physical-device claim; rejected-null pictured; approved-null/pending/known-time covered by mounted regression corpus",
+  "screenshots": [
     {
       "file": "light-desktop-shell.png",
-      "sha256": "21a43208caa8bdc1caad66aa18b85dd708f28c3d0e0cd5c4d639cfe984a423b4",
+      "sha256": "d45c4301e88f3f9c1006d62cd35ff120806373c5397200c382e689245888f401",
       "manuallyInspected": true
     },
     {
@@ -54,7 +55,7 @@
     },
     {
       "file": "dark-desktop-shell.png",
-      "sha256": "a35f9727a8608c1e251159ba709f214dcb180a59a2f8518c3374d28e63aa7c17",
+      "sha256": "e7d5d972af215ddb86502ab3b6bea668aa588b7b5e9003aeb927bb9792905fc4",
       "manuallyInspected": true
     },
     {
