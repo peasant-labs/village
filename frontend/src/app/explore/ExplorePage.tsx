@@ -277,6 +277,7 @@ export default function ExplorePage() {
         )}
         <div ref={resultsRef} aria-busy={busy} data-testid="session-list-results">
           <Explore
+            headingLevel={1}
             data={payload}
             onFiltersChange={setFilters}
             transcriptHref={(transcript) => `/transcripts/${transcript.id}`}

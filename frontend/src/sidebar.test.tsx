@@ -176,6 +176,8 @@ describe("mounted sidebar: the search", () => {
     await renderAppRoute("/explore", { header: true });
     await chromeSettled("sections");
     const box = await screen.findByRole("textbox", { name: /^search transcripts/ });
+    // Explore is the whole page, so its title is the page's one h1.
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual(["explore transcripts"]);
     expect(document.activeElement).not.toBe(box);
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     expect(document.activeElement).toBe(box);

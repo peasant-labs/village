@@ -166,6 +166,7 @@ export default function VisualHarnessPage() {
       <div style={{ height: "calc(100vh - 45px)" }}>
         <TranscriptViewer
           viewModel={vm}
+          headingLevel={1}
           theme={theme}
           // The transcript production path hides the composite tail; its
           // header menu owns downloads and editing.

@@ -25,12 +25,10 @@ import type {
   TextareaHTMLAttributes,
 } from "react";
 import {
-  AppSidebar as FtAppSidebar,
   Button as FtButton,
   Dialog as FtDialog,
   Checkbox as FtCheckbox,
   Input as FtInput,
-  Menu as FtMenu,
   PromptDigest as FtPromptDigest,
   Radio as FtRadio,
   RadioGroup as FtRadioGroup,
@@ -44,17 +42,6 @@ import {
   TeachingEmptyState as FtTeachingEmptyState,
   Textarea as FtTextarea,
 } from "@peasant-labs/fairtrade/ui";
-
-/**
- * fairtrade AppSidebar. Its account row takes `href` (a link) or `items` (the
- * row is its own menu, drawn flat, opening above the footer); the published
- * type names only `handle`, so it is widened to the documented shape.
- */
-export const AppSidebar = FtAppSidebar as ComponentType<
-  Omit<ComponentProps<typeof FtAppSidebar>, "account"> & {
-    account?: { handle: string; href?: string; items?: NonNullable<ComponentProps<typeof FtMenu>["items"]> };
-  }
->;
 
 /**
  * fairtrade Button. Renders a real `<button>` (default) and forwards native

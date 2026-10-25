@@ -26,6 +26,23 @@ range, and re-run `pnpm install`.
 
 The dev server starts at `http://localhost:3000`. It expects the Go backend at `http://localhost:8080`.
 
+## Server-only environment
+
+Link previews (the share card shown when a public transcript link is pasted
+into X, Slack or Discord) are read by the Next server, not the browser. Two
+runtime variables, never exposed to client code, configure that path:
+
+- `VILLAGE_INTERNAL_API_URL`: the API base the Next server can reach, including
+  `/api/v1` (for example `http://backend:8080/api/v1` under Docker Compose, or
+  the private-network address in production).
+- `VILLAGE_PUBLIC_ORIGIN`: this site's public origin, for example
+  `https://village.peasantlabs.org`.
+
+If either is unset, preview routes fall back to the generic card and never
+throw. The server reads transcripts anonymously (no token or cookie), so only
+a transcript the API serves to anyone, `visibility` of `public`, ever yields
+preview data.
+
 ## Build
 
 ```sh
