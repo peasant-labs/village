@@ -400,7 +400,10 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   viewer carries the `users` row; `GET /auth/me` returns the caller's own.
 - **Identity beside an anonymous person is withheld too.** Organization badges
   (`owner_orgs`, a roster row's `github_orgs`) are empty for an anonymous
-  person, a human annotation's `annotatorName` becomes `anon`, and the `owner=`
+  person, an attestation's `org_login` is blank beside an anonymous attester,
+  `GET /orgs/{login}` lists only the members the viewer may see as a profile
+  (its `member_count` stays the aggregate), a human annotation's
+  `annotatorName` becomes `anon` (a handle no account may hold), and the `owner=`
   and `org=` list filters match only owners the viewer may see as a profile, so
   a filter cannot tie anonymous rows to a person or an organization. A
   transcript of an anonymous owner carries none of its repository identity:
@@ -424,16 +427,27 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   Neither response carries an owner, so the server decides: for an owner
   anonymous to the viewer, `GET /transcripts/{id}/content` and
   `GET /pull/transcripts/{id}/content` serve the session detail without
-  `project`, `workingDirectory`, `gitBranch`, `gitRemote` or any
-  `childSessions[].project` (`withholdContentRepository`, which also reads a
-  bare pre-envelope session detail and refuses content it cannot parse rather
-  than serve it unread; withheld pull content carries no ETag, because its
-  bytes are no longer the stored blob's),
+  `project`, `workingDirectory`, `gitBranch`, `gitRemote`, any
+  `childSessions[].project`, or the harness metadata records `nativeMetadata`
+  and `retainedUnknown`, which can carry the working directory and branch
+  (`withholdContentRepository`). The pull route first reads stored content
+  through the same migrator as the web route, so a legacy blob is served as an
+  envelope; content no migrator can read is refused on both routes with 422
+  `content_unreadable_for_anonymous_owner`, which retrying cannot change.
+  Withheld pull content carries no ETag, because its bytes are no longer the
+  stored blob's,
   and annotations leave `targetProjectHash` and `targetFilePath` absent.
   Withheld means null or absent, never an empty string. The `project` and
   `repo` list filters (and the grouped `project_hash`) match only owners the
   viewer may see as a profile, through the same owner set as the person
-  filters. Attached pull requests stay visible by design.
+  filters. Attached pull requests stay visible by design: attaching a
+  transcript to a public pull request is the owner's own public act. For the
+  same reason the GitHub prompt-digest comment on that pull request names its
+  author's handle.
+- **`content_hash` is kept beside an anonymous owner.** The pull envelope and
+  transcript rows still carry it: peasant uses it for conditional pulls and
+  caching, and confirming a guessed repository from it would need the whole
+  blob, which the viewer can only read with the repository fields withheld.
 - **Grouped lists keep the owning account off the wire.** Helper grouping needs
   the owner to keep two owners' equal local ids apart, so it travels beside the
   rows (`GroupedScopeResult.ownerKeys`) and the helper-group id is an HMAC under
@@ -897,7 +911,10 @@ authenticating. Both are custom Postgres parameters read via
 - **Transcript association disclosure is separate from content access.** A
   non-owner's detail response filters both `shares` and `enriched_shares` through
   `ListTranscriptCollectivesForViewer`, exactly the accepted association set the
-  dedicated endpoint discloses. Collective visibility and contributor
+  dedicated endpoint discloses, and the transcript list discloses the same set
+  for every row the viewer does not own, batched through
+  `ListTranscriptsCollectivesForViewer` (held equal to the single-transcript
+  query by the collectives-visibility corpus). Collective visibility and contributor
   discoverability both apply; a withheld association looks absent rather than
   producing an existence-confirming refusal. Owners retain their broader
   pending/current projections and separate attempt-history reads. Share,
