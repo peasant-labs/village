@@ -35,7 +35,7 @@ func TestUpdateGroupAppliesPromptCheckSettings(t *testing.T) {
 		t.Fatalf("insert group: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')
+		INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, 'owner', 'legacy')
 	`, groupID, owner); err != nil {
 		t.Fatalf("insert owner membership: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestUpdateGroupKeepsTheLinkedOrgWhenItIsOmitted(t *testing.T) {
 		t.Fatalf("insert group: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')
+		INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, 'owner', 'legacy')
 	`, groupID, owner); err != nil {
 		t.Fatalf("insert owner membership: %v", err)
 	}

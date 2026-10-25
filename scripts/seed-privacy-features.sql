@@ -49,8 +49,8 @@ ON CONFLICT (user_id, org_login) DO NOTHING;
 -- ── Enrich vitorhw's OWN collective "AI research collective" (curated) ───────
 -- Goal: as owner you should see anon members + an anon pending member, and an
 -- anon contributor + an anon PENDING share with their REAL handle (others see "anon").
-INSERT INTO group_members (group_id, user_id, role)
-SELECT g.id, v.user_id::uuid, v.role
+INSERT INTO group_members (group_id, user_id, role, origin)
+SELECT g.id, v.user_id::uuid, v.role, 'legacy'
 FROM groups g
 CROSS JOIN (VALUES
     ('f0000000-0000-0000-0000-000000000001', 'member'),   -- dana-anon (anon member)
@@ -89,8 +89,8 @@ UPDATE groups SET transcript_deletion_policy = 'mandatory' WHERE name = 'AI Rese
 
 -- Verified Contributors -> user_choice (default): add vitorhw as a member and
 -- share their other transcript so leaving shows the optional retract checkbox.
-INSERT INTO group_members (group_id, user_id, role)
-SELECT g.id, (SELECT id FROM users WHERE github_username = :vitor_handle), 'member'
+INSERT INTO group_members (group_id, user_id, role, origin)
+SELECT g.id, (SELECT id FROM users WHERE github_username = :vitor_handle), 'member', 'legacy'
 FROM groups g
 JOIN users u ON u.github_username = :vitor_handle
 WHERE g.name = 'Verified Contributors'
@@ -117,7 +117,7 @@ INSERT INTO groups (id, name, description, created_by, acceptance_mode, transcri
     ('d1000000-0000-0000-0000-000000000001', 'Open Sandbox', 'Open collective for testing the anon join-consent flow', 'a0000000-0000-0000-0000-000000000001', 'open', 'user_choice')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO group_members (group_id, user_id, role) VALUES
-    ('d1000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'owner'),
-    ('d1000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000003', 'member')
+INSERT INTO group_members (group_id, user_id, role, origin) VALUES
+    ('d1000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'owner', 'creator'),
+    ('d1000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000003', 'member', 'legacy')
 ON CONFLICT DO NOTHING;

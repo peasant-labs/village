@@ -130,7 +130,7 @@ func TestOpenedPullRequestFollowsTheAuthorsAutoAttachChoice_RealPostgres(t *test
 			if c.Linked {
 				groupID = attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
 				if c.Member {
-					if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')`, groupID, owner); err != nil {
+					if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, 'owner', 'legacy')`, groupID, owner); err != nil {
 						t.Fatalf("make the author a member of the linking collective: %v", err)
 					}
 				}
@@ -246,7 +246,7 @@ func TestAutoAttachSurvivesTheWebhookGivingUp_RealPostgres(t *testing.T) {
 	repoName := "auto-cancel-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
 	sha := fmt.Sprintf("d%039d", authorGitHubID)
 	groupID := attachmentLinkCollective(t, ctx, pool, owner, "acme", repoName, true, "informational")
-	if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')`, groupID, owner); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, 'owner', 'legacy')`, groupID, owner); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE users SET auto_attach_pull_requests = true WHERE id = $1`, owner); err != nil {

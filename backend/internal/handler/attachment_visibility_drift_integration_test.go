@@ -343,7 +343,7 @@ func newSharedAttachedWorld(t *testing.T, githubBase int64, alsoOther bool, mode
 		repoName: "shared-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8],
 	}
 	w.groupID = attachmentLinkCollective(t, ctx, pool, owner, "acme", w.repoName, true, mode)
-	if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, w.groupID, member); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, 'member', 'legacy')`, w.groupID, member); err != nil {
 		t.Fatalf("add the member: %v", err)
 	}
 	if err := pool.QueryRow(ctx, `INSERT INTO groups (name, created_by) VALUES ($1, $2) RETURNING id`, "shared-other-"+uuid.NewString(), owner).Scan(&w.otherGroupID); err != nil {
@@ -480,7 +480,7 @@ func TestCheckFollowsWhetherAnyReviewerCanRead_RealPostgres(t *testing.T) {
 		"git@github.com:acme/"+repoName+".git", sha, "shared", "", time.Now().Add(-time.Hour))
 	// A shared label by itself grants nothing. Give a different accepted member
 	// an approved share to each transcript, then prove the canonical read sees it.
-	if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, groupID, reader); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, 'member', 'legacy')`, groupID, reader); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO transcript_share_attempts (transcript_id, group_id, event_num, status) VALUES ($1, $3, 1, 'approved'), ($2, $3, 1, 'approved')`, first, second, groupID); err != nil {

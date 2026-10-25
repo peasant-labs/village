@@ -170,7 +170,7 @@ func TestCollectiveGroupedRegisteredRoutesRealSQL(t *testing.T) {
 			if err := pool.QueryRow(ctx, `INSERT INTO groups(name, created_by, acceptance_mode, data_access) VALUES($1,$2,'curated','members_only') RETURNING id`, c.Name, owner).Scan(&groupID); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := pool.Exec(ctx, `INSERT INTO group_members(group_id,user_id,role) VALUES($1,$2,'owner')`, groupID, owner); err != nil {
+			if _, err := pool.Exec(ctx, `INSERT INTO group_members(group_id,user_id,role, origin) VALUES ($1, $2, 'owner', 'legacy')`, groupID, owner); err != nil {
 				t.Fatal(err)
 			}
 			var otherGroupID pgtype.UUID

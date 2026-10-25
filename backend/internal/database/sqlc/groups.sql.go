@@ -11,20 +11,49 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const addGroupMember = `-- name: AddGroupMember :exec
-INSERT INTO group_members (group_id, user_id, role)
-VALUES ($1, $2, $3)
-ON CONFLICT (group_id, user_id) DO UPDATE SET role = EXCLUDED.role
+const acceptInvitationMembership = `-- name: AcceptInvitationMembership :one
+INSERT INTO group_members (group_id, user_id, role, origin)
+VALUES ($1, $2, 'member', 'invitation')
+ON CONFLICT (group_id, user_id) DO UPDATE
+SET origin = 'invitation',
+    role = CASE WHEN group_members.role = 'pending' THEN 'member' ELSE group_members.role END
+RETURNING role
 `
 
-type AddGroupMemberParams struct {
+type AcceptInvitationMembershipParams struct {
 	GroupID pgtype.UUID `db:"group_id" json:"group_id"`
 	UserID  pgtype.UUID `db:"user_id" json:"user_id"`
-	Role    string      `db:"role" json:"role"`
 }
 
-func (q *Queries) AddGroupMember(ctx context.Context, arg AddGroupMemberParams) error {
-	_, err := q.db.Exec(ctx, addGroupMember, arg.GroupID, arg.UserID, arg.Role)
+// Joins the collective by accepting an invitation, the one membership write an
+// owner's action can lead to, and only through the person's own acceptance.
+// A new row is a member. An existing row can only be a legacy one (the handler
+// answers a consented member before this runs): it becomes an invitation
+// membership and keeps its role, because accepting never changes an existing
+// member's role. A leftover join request is not a membership yet, so it
+// becomes a member.
+func (q *Queries) AcceptInvitationMembership(ctx context.Context, arg AcceptInvitationMembershipParams) (string, error) {
+	row := q.db.QueryRow(ctx, acceptInvitationMembership, arg.GroupID, arg.UserID)
+	var role string
+	err := row.Scan(&role)
+	return role, err
+}
+
+const addGroupCreator = `-- name: AddGroupCreator :exec
+INSERT INTO group_members (group_id, user_id, role, origin)
+VALUES ($1, $2, 'owner', 'creator')
+`
+
+type AddGroupCreatorParams struct {
+	GroupID pgtype.UUID `db:"group_id" json:"group_id"`
+	UserID  pgtype.UUID `db:"user_id" json:"user_id"`
+}
+
+// The creator's owner row, written by create and by nothing else. Every
+// membership states how it came to exist (group_members.origin), and only this
+// statement writes 'creator'.
+func (q *Queries) AddGroupCreator(ctx context.Context, arg AddGroupCreatorParams) error {
+	_, err := q.db.Exec(ctx, addGroupCreator, arg.GroupID, arg.UserID)
 	return err
 }
 
@@ -134,7 +163,7 @@ func (q *Queries) GetGroupByIDForShare(ctx context.Context, id pgtype.UUID) (Gro
 }
 
 const getGroupMember = `-- name: GetGroupMember :one
-SELECT group_id, user_id, role, joined_at FROM group_members WHERE group_id = $1 AND user_id = $2
+SELECT group_id, user_id, role, joined_at, origin FROM group_members WHERE group_id = $1 AND user_id = $2
 `
 
 type GetGroupMemberParams struct {
@@ -150,12 +179,13 @@ func (q *Queries) GetGroupMember(ctx context.Context, arg GetGroupMemberParams) 
 		&i.UserID,
 		&i.Role,
 		&i.JoinedAt,
+		&i.Origin,
 	)
 	return i, err
 }
 
 const getGroupMemberForShare = `-- name: GetGroupMemberForShare :one
-SELECT group_id, user_id, role, joined_at FROM group_members WHERE group_id = $1 AND user_id = $2 FOR SHARE
+SELECT group_id, user_id, role, joined_at, origin FROM group_members WHERE group_id = $1 AND user_id = $2 FOR SHARE
 `
 
 type GetGroupMemberForShareParams struct {
@@ -171,8 +201,27 @@ func (q *Queries) GetGroupMemberForShare(ctx context.Context, arg GetGroupMember
 		&i.UserID,
 		&i.Role,
 		&i.JoinedAt,
+		&i.Origin,
 	)
 	return i, err
+}
+
+const joinGroupSelf = `-- name: JoinGroupSelf :exec
+INSERT INTO group_members (group_id, user_id, role, origin)
+VALUES ($1, $2, 'contributor', 'self_join')
+`
+
+type JoinGroupSelfParams struct {
+	GroupID pgtype.UUID `db:"group_id" json:"group_id"`
+	UserID  pgtype.UUID `db:"user_id" json:"user_id"`
+}
+
+// A person joining an open or verified collective themselves, as a
+// contributor. The handler refuses an existing member first; a concurrent
+// duplicate is refused by the primary key rather than re-roling anyone.
+func (q *Queries) JoinGroupSelf(ctx context.Context, arg JoinGroupSelfParams) error {
+	_, err := q.db.Exec(ctx, joinGroupSelf, arg.GroupID, arg.UserID)
+	return err
 }
 
 const listAllGroups = `-- name: ListAllGroups :many

@@ -245,6 +245,21 @@ boundary are documented in
   so older instances are drained before the migration runs (or detaches held
   during the roll); the same holds after a down migration.
 
+- **047 records how each membership came to exist, and adds invitations and
+  the notification address.** `group_members.origin` is `creator`,
+  `self_join`, `invitation` or `legacy` (CHECK). The migration adds it with a
+  `legacy` default, marks the creator's own owner row `creator` (an owner row
+  whose account is `groups.created_by` can only have been written by create),
+  and drops the default, so every later insert must state its origin; no
+  existing row is guessed into a consented origin. `creator` requires role
+  `owner` (`group_members_creator_is_owner`). The one-way trigger
+  `trg_group_member_origin_write_once` refuses every change of origin except
+  `legacy` to `invitation`. The same migration adds `collective_invitations`,
+  `user_notification_emails` and `user_daily_quotas` (see §3). Like 044, the column has no
+  default after the migration, so code older than 047 cannot add a member:
+  during a rolling deploy its create, join and add fail loudly until the
+  rollout finishes.
+
 ## 2. Licensing data model
 
 ### Private organization snapshot issuance
@@ -385,14 +400,14 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   (`handler/public_owner.go`), once per response for every person on it. A
   person is shown as their public profile (id, username, display name, avatar)
   when they are discoverable, when the viewer is that person, or when the viewer
-  owns a collective where the person took an act that still stands: a pending
-  or approved submission (`transcript_shares.status`) or a leftover `pending`
-  join request. A plain `member` or `contributor` row does not count: Village
-  records no provenance for membership and an owner can add anyone by
-  username, so membership alone reveals nothing about a person's transcripts.
-  Invitations the person accepts are the planned replacement for owner adds
-  (a separate follow-up), after which an accepted membership may count again.
-  The roster is the exception: a collective's owners see every member and join
+  owns a collective where the person took an act that still stands: a
+  membership they consented to (`group_members.origin` is `creator`,
+  `self_join` or `invitation`), a pending or approved submission
+  (`transcript_shares.status`), or a leftover `pending` join request. The
+  origins are a positive list, so an origin added later reveals nothing until
+  the statement names it. A `legacy` membership never counts: it predates
+  provenance, when an owner could add anyone by username, so it reveals
+  nothing about a person's transcripts. The roster is the exception: a collective's owners see every member and join
   request of that collective as a profile (`collectivePeopleFor`), because they
   added or accepted each one and need the id to manage them; other members get
   the rule above. Everyone else receives the anonymous shape,
@@ -467,7 +482,86 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   rows (`GroupedScopeResult.ownerKeys`) and the helper-group id is an HMAC under
   a per-process key, so a viewer cannot confirm an anonymous owner by hashing a
   known account id.
-- The rule reads existing rows only; it adds no column, table or migration.
+- The rule reads `group_members.origin` (migration 047) and otherwise existing
+  rows only. It never reads `collective_invitations`: an invitation the person
+  has not accepted reveals nothing.
+
+### Membership provenance and invitations (migration 047)
+
+- **No route makes a person a member without their consent.** A collective's
+  creator is written by create (`AddGroupCreator`, origin `creator`), a person
+  joining an open or verified collective writes their own row
+  (`JoinGroupSelf`, origin `self_join`), and an owner invites. The person
+  becomes a member only by accepting (`AcceptInvitationMembership`, origin
+  `invitation`). The former owner add (`POST /groups/{id}/members`, an upsert
+  that also re-roled an existing member) is removed; no statement re-roles a
+  member as a side effect of adding one.
+- **Accepting is consent, and never changes an existing member's role.** A new
+  row is a `member`. An existing row can only be `legacy` (a consented
+  member's accept joins nothing new and answers 200); its origin becomes
+  `invitation` and its role stays as it was, an owner included. A leftover
+  `pending` join request is not a membership yet, so it becomes a `member`.
+  An invitation admits the person whatever the acceptance mode, `curated` and
+  `verified_only` included (an owner's decision, as the former add was).
+- **The creator is never demoted.** `creator` requires role `owner`
+  (`group_members_creator_is_owner`), and the role route answers 400 for the
+  creator before writing, so the CHECK is never the first refusal. Another
+  owner's role is unaffected by this rule.
+- **`collective_invitations` holds one row per open invitation.**
+  `invited_username` is the handle the owner typed, lowercased, stored for
+  every invitation whether or not an account holds it, and it is the only
+  invitee field an owner ever receives. `invitee_id` is the account holding
+  the handle when the invitation was made, NULL when none did, and
+  `ON DELETE SET NULL`, so a deleted invitee leaves an inert row that only
+  expires or is revoked. `invited_by` is `ON DELETE SET NULL` too, and
+  `group_id` cascades. `status` is `pending` or `declined`; accepting and
+  revoking delete the row, because the membership's origin is the record and
+  no history of a person's answers is kept. `(group_id, invited_username)` is
+  unique.
+- **Expiry is read-time.** `expires_at` is 30 days of 24 hours after creation.
+  Every read and write filters on `expires_at > now()`; an expired row is
+  deleted by the next invitation for the same collective and handle. No job
+  runs.
+- **The invite answer never confirms an account.** The route answers the same
+  202 bytes and writes the same row for an unknown handle, a hidden account
+  and a discoverable one; only a member who consented answers 409. Inviting a
+  handle with an open invitation, pending or declined, is the same 202 with no
+  write and no email, so a decline is indistinguishable from no answer.
+  Limits: 50 open invitations per collective (counted from the open rows) and
+  20 new invitations per inviting owner per day (`user_daily_quotas`, taken on
+  the invite's own transaction so a refused invite gives its slot back), both
+  429.
+- **Daily limits are counted in the database.** `user_daily_quotas` holds one
+  row per account, limit (`invitation_sent`, `invitation_email`,
+  `verification_email`) and UTC day, `ON DELETE CASCADE` from `users`. One
+  conditional upsert (`TakeDailyQuota`) increments the count only while it is
+  under the limit and locks the row, so a restart, a second instance or two
+  concurrent requests cannot pass a limit. Counts older than yesterday are
+  deleted by the next count.
+
+### Contact data (migration 047)
+
+- **`user_notification_emails` is the only place Village keeps an email
+  address**, one row per account, `ON DELETE CASCADE` from `users`. It is a
+  table of its own rather than a `users` column because several user queries
+  return the whole row and the caller's own record is served as JSON; a
+  column there could reach responses that must never carry an address.
+- The address is returned only in the caller's own settings
+  (`VillageUserSettings.notification_email`), never in an invitation, roster,
+  profile or log. `verify_token_hash` is the SHA-256 of a one-time
+  verification token, valid 24 hours; replacing the address issues a new
+  token and clears verification. Removing the address clears it and its
+  verification but keeps `email_invitations`, so an opt-out survives removing
+  and re-adding an address. A CHECK refuses verification state without an
+  address.
+- **Invitation emails** go only to a verified address whose owner keeps
+  `email_invitations` on (the default). They are sent after the invite
+  commits and its response is written, off the request path, at most 3 per
+  recipient per day (`user_daily_quotas`; over it the invitation exists but is
+  not mailed), never retried. Verification emails are limited to 5 per account
+  per day (429). The one-click unsubscribe link is an HMAC under
+  `EMAIL_LINK_SIGNING_KEY` over the account and an expiry; it can only turn
+  `email_invitations` off.
 
 ## 4. Governance event taxonomy
 
@@ -507,8 +601,8 @@ fences, append-only audit, and private-before-replacement rules remain in force.
 
 ## 6. Triggers
 
-The audit triggers (migration 026) and the share-derivation triggers
-(migration 036).
+The audit triggers (migration 026), the share-derivation triggers
+(migration 036), and the membership-origin guard (migration 047).
 
 | Trigger | Timing | Writes | Notes |
 |---|---|---|---|
@@ -518,9 +612,10 @@ The audit triggers (migration 026) and the share-derivation triggers
 | `trg_governance_audit_immutable` | BEFORE UPDATE OR DELETE ON the audit table | - (RAISE) | §5 tamper resistance |
 | `trg_derive_transcript_share` | AFTER INSERT OR UPDATE ON transcript_share_attempts | the derived `transcript_shares` row | Upserts the row with the latest attempt's status for `pending`/`approved`/`rejected`, and DELETES it for `retracted`/`revoked`. **INSERT OR UPDATE, not INSERT**: decisions, withdrawals and removals are all UPDATEs of an existing attempt |
 | `trg_transcript_shares_fail_closed` | BEFORE INSERT OR UPDATE OR DELETE ON transcript_shares | - (RAISE) | Application SQL cannot write the derived row at all. Only the derivation may, and it proves that by holding `app.share_state_derivation`. A foreign-key cascade is allowed through, recognised by its parent row already being gone |
+| `trg_group_member_origin_write_once` | BEFORE UPDATE ON group_members WHEN (origin `IS DISTINCT FROM`) | - (RAISE) | `group_members.origin` is written once (migration 047). The only permitted change is `legacy` to `invitation`, a legacy member accepting an invitation. A role change does not fire it |
 | `trg_share_attempt_immutable` | BEFORE UPDATE ON transcript_share_attempts | - (RAISE) | Decided attempts (`approved`, `rejected`, `retracted`, `revoked`) are history. The one permitted change is the `decided_by` FK's `ON DELETE SET NULL`, which anonymises a deleted moderator's past decisions rather than blocking the deletion |
 
-- All three functions are `SET search_path = pg_catalog, public`.
+- Every trigger function here is `SET search_path = pg_catalog, public`.
 - **`session_origin` is not a governance axis.** It is discovery metadata, so a
   `session_origin`-only UPDATE does not satisfy the governance trigger's WHEN
   clause and appends no audit row. This holds however the value was decided: a

@@ -92,10 +92,34 @@ WHERE g.data_access = 'public'
    OR gm.user_id IS NOT NULL
 ORDER BY g.name;
 
--- name: AddGroupMember :exec
-INSERT INTO group_members (group_id, user_id, role)
-VALUES ($1, $2, $3)
-ON CONFLICT (group_id, user_id) DO UPDATE SET role = EXCLUDED.role;
+-- name: AddGroupCreator :exec
+-- The creator's owner row, written by create and by nothing else. Every
+-- membership states how it came to exist (group_members.origin), and only this
+-- statement writes 'creator'.
+INSERT INTO group_members (group_id, user_id, role, origin)
+VALUES ($1, $2, 'owner', 'creator');
+
+-- name: JoinGroupSelf :exec
+-- A person joining an open or verified collective themselves, as a
+-- contributor. The handler refuses an existing member first; a concurrent
+-- duplicate is refused by the primary key rather than re-roling anyone.
+INSERT INTO group_members (group_id, user_id, role, origin)
+VALUES ($1, $2, 'contributor', 'self_join');
+
+-- name: AcceptInvitationMembership :one
+-- Joins the collective by accepting an invitation, the one membership write an
+-- owner's action can lead to, and only through the person's own acceptance.
+-- A new row is a member. An existing row can only be a legacy one (the handler
+-- answers a consented member before this runs): it becomes an invitation
+-- membership and keeps its role, because accepting never changes an existing
+-- member's role. A leftover join request is not a membership yet, so it
+-- becomes a member.
+INSERT INTO group_members (group_id, user_id, role, origin)
+VALUES ($1, $2, 'member', 'invitation')
+ON CONFLICT (group_id, user_id) DO UPDATE
+SET origin = 'invitation',
+    role = CASE WHEN group_members.role = 'pending' THEN 'member' ELSE group_members.role END
+RETURNING role;
 
 -- name: RemoveGroupMember :exec
 DELETE FROM group_members WHERE group_id = $1 AND user_id = $2;
