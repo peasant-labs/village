@@ -47,9 +47,18 @@ function exploreOwner(owner: PublicOwner): ExploreOwnerPayload {
   return payload;
 }
 
+/**
+ * The label an anonymous owner is drawn with. No account may hold this handle
+ * (Village reserves it, case-insensitively), so a payload carrying it is
+ * never a profile, even if the surface hands back a copy of the payload
+ * rather than the object this adapter made.
+ */
+const ANONYMOUS_LABEL = "anon";
+
 /** The profile path an Explore owner opens, or `null` for an anonymous owner. */
 export function exploreProfilePath(owner: ExploreOwnerPayload): string | null {
   if (anonymousOwners.has(owner)) return null;
+  if (owner.githubUsername.trim().toLowerCase() === ANONYMOUS_LABEL) return null;
   return `/users/${encodeURIComponent(owner.githubUsername)}`;
 }
 

@@ -1,0 +1,12 @@
+# Which profile path an Explore owner payload opens. An anonymous owner has
+# no profile path at all, even when the surface hands back a copy of the
+# payload; "anon" is reserved on the server, so no account can hold it.
+#   payload: made   - the payload adaptExplore built for the owner
+#            copy   - a shallow copy of that payload (identity lost)
+#   want:    the path, or null
+
+cases:
+  - {name: profile_owner, owner: profile, username: alice, payload: made, want: /users/alice}
+  - {name: profile_owner_copy, owner: profile, username: alice, payload: copy, want: /users/alice}
+  - {name: anonymous_owner, owner: anonymous, payload: made, want: null}
+  - {name: anonymous_owner_copy, owner: anonymous, payload: copy, want: null}

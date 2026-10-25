@@ -210,7 +210,19 @@ func (h *Handler) signInGitHubUser(ctx context.Context, profile githubProfile) (
 // characters, case folded, and a valid handle on its own. A login that is too
 // short, too long, or was given a suffix because it was taken is not.
 func handleIsLogin(handle, login string) bool {
-	return usernamePattern.MatchString(handle) && handle == strings.ToLower(login)
+	return usernamePattern.MatchString(handle) && handle == strings.ToLower(login) && !isReservedHandle(handle)
+}
+
+// reservedHandles are handles no account may hold. "anon" is the label Village
+// serves for a person who is anonymous to the viewer (a human annotator's
+// annotatorName, the web app's attribution), so an account named "anon" would
+// be indistinguishable from a hidden person.
+var reservedHandles = map[string]bool{anonymousAnnotatorName: true}
+
+// isReservedHandle reports whether a handle, compared case-insensitively, is
+// reserved.
+func isReservedHandle(handle string) bool {
+	return reservedHandles[strings.ToLower(strings.TrimSpace(handle))]
 }
 
 // syncGitHubOrgs fetches the user's GitHub org memberships and upserts them
@@ -421,6 +433,10 @@ func (h *Handler) SetMyUsername(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Username must be 3–30 characters: lowercase letters, numbers, and single hyphens")
 		return
 	}
+	if isReservedHandle(handle) {
+		writeError(w, http.StatusBadRequest, "That username is reserved: Village shows a hidden person as \""+handle+"\", so no account may use it. Choose another username")
+		return
+	}
 
 	updated, err := h.queries.SetUsername(r.Context(), sqlc.SetUsernameParams{
 		ID:             user.PgID(),
@@ -473,6 +489,11 @@ func (h *Handler) generateUniqueUsername(ctx context.Context, base string) strin
 	root := sanitizeHandle(base)
 	candidate := root
 	for i := 2; i < 1000; i++ {
+		if isReservedHandle(candidate) {
+			// A reserved handle is never free; take the next suffix.
+			candidate = fmt.Sprintf("%s-%d", root, i)
+			continue
+		}
 		if _, err := h.queries.GetUserByUsername(ctx, candidate); err != nil {
 			return candidate // lookup failed => handle is free
 		}
