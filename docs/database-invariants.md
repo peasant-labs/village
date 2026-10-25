@@ -414,9 +414,13 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   themselves, and now return only the public profile shape.
 - **The content route and pull annotations withhold the repository too.**
   Neither response carries an owner, so the server decides: for an owner
-  anonymous to the viewer, `GET /transcripts/{id}/content` serves
-  `sessionDetail` without `project`, `workingDirectory`, `gitBranch`,
-  `gitRemote` or any `childSessions[].project` (`withholdContentRepository`),
+  anonymous to the viewer, `GET /transcripts/{id}/content` and
+  `GET /pull/transcripts/{id}/content` serve the session detail without
+  `project`, `workingDirectory`, `gitBranch`, `gitRemote` or any
+  `childSessions[].project` (`withholdContentRepository`, which also reads a
+  bare pre-envelope session detail and refuses content it cannot parse rather
+  than serve it unread; withheld pull content carries no ETag, because its
+  bytes are no longer the stored blob's),
   and annotations leave `targetProjectHash` and `targetFilePath` absent.
   Withheld means null or absent, never an empty string. The `project` and
   `repo` list filters (and the grouped `project_hash`) match only owners the

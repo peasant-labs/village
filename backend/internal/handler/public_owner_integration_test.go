@@ -119,6 +119,9 @@ type poWorld struct {
 	shared      pgtype.UUID // collective-shared, accepted: pullable by members
 	pending     pgtype.UUID // public, awaiting review
 	contentKey  string      // blob key of the accepted transcript's stored content
+	// sharedContentKey is the blob key of the shared transcript's stored
+	// content, which the pull content route serves.
+	sharedContentKey string
 }
 
 func (w *poWorld) id(v pgtype.UUID) string { return uuid.UUID(v.Bytes).String() }
@@ -191,6 +194,8 @@ func newPublicOwnerWorld(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	// content route through a test blob store.
 	w.contentKey = "transcripts/" + uuid.NewString() + ".bin"
 	execAsSystem(t, ctx, pool, `UPDATE transcripts SET blob_key = $2 WHERE id = $1`, w.accepted, w.contentKey)
+	w.sharedContentKey = "transcripts/" + uuid.NewString() + ".bin"
+	execAsSystem(t, ctx, pool, `UPDATE transcripts SET blob_key = $2 WHERE id = $1`, w.shared, w.sharedContentKey)
 	return w
 }
 
@@ -263,6 +268,7 @@ func publicOwnerRouter(h *Handler) http.Handler {
 	r.Get("/pull/transcripts", h.ListPullableTranscripts)
 	r.Get("/pull/transcripts/{id}", h.GetPullTranscript)
 	r.Get("/pull/transcripts/{id}/annotations", h.GetPullTranscriptAnnotations)
+	r.Get("/pull/transcripts/{id}/content", h.GetPullTranscriptContent)
 	r.Get("/users/{username}", h.GetUserPublicProfile)
 	r.Get("/users/{username}/projects/{projectHash}", h.GetUserProject)
 	return r
@@ -332,6 +338,7 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 			router := publicOwnerRouter(h)
 			w := newPublicOwnerWorld(t, ctx, pool, h, c)
 			blobs.put(w.contentKey, contentWithRepositoryJSON())
+			blobs.put(w.sharedContentKey, contentWithRepositoryJSON())
 			defer w.cleanup(t, ctx)
 			viewer := w.actor(c.Viewer)
 			check := func(where string, body []byte) { w.assertNoLeak(t, where, body, c) }
@@ -599,6 +606,17 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 				}
 				mustDecode(t, body, &info)
 				w.assertOwner(t, "pull metadata", info.Owner, c.Expect.Owner)
+
+				status, body = w.get(t, router, viewer, "/pull/transcripts/"+w.id(w.shared)+"/content")
+				if status != http.StatusOK {
+					t.Fatalf("pull content answered %d: %s", status, body)
+				}
+				check("pull content", body)
+				for _, value := range withheldContentValues {
+					if contains := bytes.Contains(body, []byte(value)); contains != (c.Expect.Owner == "profile") {
+						t.Errorf("pull content carries %q = %v, want %v for the %s viewer", value, contains, c.Expect.Owner == "profile", c.Viewer)
+					}
+				}
 
 				status, body = w.get(t, router, viewer, "/pull/transcripts/"+w.id(w.shared)+"/annotations")
 				if status != http.StatusOK {

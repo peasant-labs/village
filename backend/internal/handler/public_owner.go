@@ -135,26 +135,60 @@ func withholdAnnotationRepository(summary *schema.AnnotationSummary, transcriptO
 // and remote. Every child session's project is withheld too.
 var withheldSessionDetailFields = []string{"project", "workingDirectory", "gitBranch", "gitRemote"}
 
-// withholdContentRepository removes the repository identity from a served
-// transcript content envelope whose owner is anonymous to the viewer. Every
-// other field is passed through as the stored bytes encode it; text inside the
-// conversation is content and is not covered.
-func withholdContentRepository(envelope []byte) ([]byte, error) {
+// withholdContentRepository removes the repository identity from served
+// transcript content whose owner is anonymous to the viewer. It accepts the
+// durable envelope ({contractVersion, kind, sessionDetail}) and, for stored
+// blobs published before the envelope, a bare session detail. Every other
+// field is passed through as the stored bytes encode it, and content that
+// names no repository is returned byte-for-byte. Text inside the conversation
+// is content and is not covered.
+func withholdContentRepository(content []byte) ([]byte, error) {
 	fail := func(err error) ([]byte, error) {
 		return nil, fmt.Errorf("handler.withholdContentRepository: the transcript content could not be read to withhold an anonymous owner's repository; no content was served; retry, and report the transcript if it persists: %w", err)
 	}
 	var top map[string]json.RawMessage
-	if err := json.Unmarshal(envelope, &top); err != nil {
+	if err := json.Unmarshal(content, &top); err != nil {
 		return fail(err)
 	}
-	raw, ok := top["sessionDetail"]
-	if !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-		return envelope, nil
+	if raw, ok := top["sessionDetail"]; ok {
+		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			return content, nil
+		}
+		var detail map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &detail); err != nil {
+			return fail(err)
+		}
+		changed, err := withholdSessionDetailRepository(detail)
+		if err != nil {
+			return fail(err)
+		}
+		if !changed {
+			return content, nil
+		}
+		encoded, err := json.Marshal(detail)
+		if err != nil {
+			return fail(err)
+		}
+		top["sessionDetail"] = encoded
+	} else {
+		changed, err := withholdSessionDetailRepository(top)
+		if err != nil {
+			return fail(err)
+		}
+		if !changed {
+			return content, nil
+		}
 	}
-	var detail map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &detail); err != nil {
+	out, err := json.Marshal(top)
+	if err != nil {
 		return fail(err)
 	}
+	return out, nil
+}
+
+// withholdSessionDetailRepository deletes the repository fields from one
+// decoded session detail and reports whether it removed any.
+func withholdSessionDetailRepository(detail map[string]json.RawMessage) (bool, error) {
 	changed := false
 	for _, field := range withheldSessionDetailFields {
 		if _, ok := detail[field]; ok {
@@ -162,37 +196,29 @@ func withholdContentRepository(envelope []byte) ([]byte, error) {
 			changed = true
 		}
 	}
-	if children, ok := detail["childSessions"]; ok && !bytes.Equal(bytes.TrimSpace(children), []byte("null")) {
-		var list []map[string]json.RawMessage
-		if err := json.Unmarshal(children, &list); err != nil {
-			return fail(err)
+	children, ok := detail["childSessions"]
+	if !ok || bytes.Equal(bytes.TrimSpace(children), []byte("null")) {
+		return changed, nil
+	}
+	var list []map[string]json.RawMessage
+	if err := json.Unmarshal(children, &list); err != nil {
+		return false, err
+	}
+	childChanged := false
+	for _, child := range list {
+		if _, ok := child["project"]; ok {
+			delete(child, "project")
+			childChanged = true
 		}
-		for _, child := range list {
-			if _, ok := child["project"]; ok {
-				delete(child, "project")
-				changed = true
-			}
-		}
+	}
+	if childChanged {
 		encoded, err := json.Marshal(list)
 		if err != nil {
-			return fail(err)
+			return false, err
 		}
 		detail["childSessions"] = encoded
 	}
-	if !changed {
-		// Nothing names the repository: serve the stored bytes unchanged.
-		return envelope, nil
-	}
-	encodedDetail, err := json.Marshal(detail)
-	if err != nil {
-		return fail(err)
-	}
-	top["sessionDetail"] = encodedDetail
-	out, err := json.Marshal(top)
-	if err != nil {
-		return fail(err)
-	}
-	return out, nil
+	return changed || childChanged, nil
 }
 
 // annotatorNameFor applies the viewer's answer to a human annotation's

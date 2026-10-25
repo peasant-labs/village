@@ -742,7 +742,8 @@ that line:
 shows a transcript owner, member, contributor or annotation author (detail,
 flat and grouped lists and their `owner=`/`org=` filters, flat and grouped
 collective detail, the review queue, my-shares, web and pull annotations, the
-pull envelope, and the profile and project pages) for a discoverable and a
+pull envelope, the web and pull content routes, and the profile and project
+pages) for a discoverable and a
 hidden owner against five viewers: signed out, an unrelated signed-in user, a
 plain member, the owner, and the owner of the collective the owner joined. Each
 route asserts the exact owner object, and when the case expects anonymous the

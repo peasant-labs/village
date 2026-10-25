@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -388,13 +389,34 @@ func (h *Handler) GetPullTranscriptContent(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
-	if result.Row.ContentHash.Valid {
+	// The envelope carries no owner, so the repository identity of an owner who
+	// is anonymous to the caller is left out of it here, as on the web content
+	// route.
+	owner, err := h.resolvePublicOwner(r.Context(), user, t.OwnerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to resolve the transcript owner; no content was served")
+		return
+	}
+	body := result.Plaintext
+	withheld := false
+	if !owner.IsProfile() {
+		trimmed, err := withholdContentRepository(body)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		withheld = !bytes.Equal(trimmed, body)
+		body = trimmed
+	}
+	// The ETag names the stored blob's hash. Bytes with a field withheld are
+	// not that blob, so they carry no ETag and the client compares locally.
+	if result.Row.ContentHash.Valid && !withheld {
 		w.Header().Set("ETag", fmt.Sprintf("%q", result.Identity.Hash()))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(result.Plaintext)
+	_, _ = w.Write(body)
 }
 
 // GetPullTranscriptAnnotations returns the authored annotations for a pullable

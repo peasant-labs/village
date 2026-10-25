@@ -1617,6 +1617,15 @@ func (m *mockQuerier) ListPublicOwnersForViewer(ctx context.Context, arg sqlc.Li
 			users = append(users, user)
 		}
 	}
+	if users == nil && arg.ViewerID.Valid {
+		// With no user stubs, the viewer's own account still exists, as it
+		// does for any signed-in caller, and the viewer always sees it.
+		for _, id := range arg.PersonIds {
+			if id == arg.ViewerID {
+				users = append(users, sqlc.User{ID: id, GithubUsername: "mock-viewer"})
+			}
+		}
+	}
 	rows := []sqlc.ListPublicOwnersForViewerRow{}
 	for _, user := range users {
 		rows = append(rows, sqlc.ListPublicOwnersForViewerRow{
