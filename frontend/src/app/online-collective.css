@@ -405,6 +405,24 @@ section.on-choices {
 .on-settings-panel .on-mem {
   padding-inline: var(--card-pad);
 }
+/* the open invitations, under the roster: a table at the card's padding,
+   narrow enough for a settings card */
+.on-settings-panel .on-invited {
+  padding: var(--sp-4) var(--card-pad);
+  border-top: var(--bd);
+}
+.on-settings-panel .on-invited table {
+  min-width: 28rem;
+}
+.on-invited-caption {
+  caption-side: top;
+  padding-bottom: var(--sp-2);
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-3);
+}
 .on-org-label {
   display: inline-flex;
   align-items: center;

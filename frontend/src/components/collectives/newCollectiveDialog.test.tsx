@@ -36,10 +36,10 @@ interface CreateCase {
   refusals: WorldRefusal[];
   expect: {
     create: Record<string, string>;
-    memberRequests: string[];
+    inviteRequests: string[];
     ready: string;
     summary: string;
-    notAdded: string[];
+    notSent: string[];
   };
 }
 
@@ -67,7 +67,7 @@ const createCases = fixture.createCases as CreateCase[];
 const refusalCases = fixture.refusalCases as RefusalCase[];
 const guardCases = fixture.guardCases as GuardCase[];
 assertCaseNames("new-collective.yaml createCases", createCases.map((c) => c.name), [
-  "a-curated-collective-with-two-people-added",
+  "a-curated-collective-with-two-people-invited",
   "a-refused-invitation-is-reported-and-never-counted",
   "an-org-collective-sends-the-chosen-org-and-nobody-to-add",
 ]);
@@ -128,7 +128,7 @@ async function fillAccess(steps: Pick<Steps, "publish" | "org" | "read">) {
 
 function addPeople(usernames: readonly string[]) {
   for (const username of usernames) {
-    fireEvent.change(within(dialog()).getByRole("textbox", { name: "invite by github username" }), {
+    fireEvent.change(within(dialog()).getByRole("textbox", { name: "invite by username" }), {
       target: { value: username },
     });
     press("add");
@@ -163,14 +163,16 @@ describe("creating a collective", () => {
     expect(creates, c.why).toHaveLength(1);
     expect(creates[0].body).toEqual(c.expect.create);
 
-    // Every person is added after the collective exists, in the order listed.
-    const adds = requests.filter((r) => r.method === "POST" && r.path === `/collectives/${CREATED_ID}/members`);
-    expect(adds.map((r) => (r.body as { username: string }).username)).toEqual(c.expect.memberRequests);
+    // Every person is invited after the collective exists, in the order listed.
+    const adds = requests.filter((r) => r.method === "POST" && r.path === `/collectives/${CREATED_ID}/invitations`);
+    expect(adds.map((r) => (r.body as { username: string }).username)).toEqual(c.expect.inviteRequests);
+    // Nobody is made a member without accepting: the removed add-member route is never called.
+    expect(requests.some((r) => r.method === "POST" && r.path.endsWith("/members"))).toBe(false);
     expect(requests.indexOf(creates[0])).toBeLessThan(adds.length ? requests.indexOf(adds[0]) : Infinity);
 
     expect(within(dialog()).getByRole("status")).toHaveTextContent(c.expect.summary);
-    const notAdded = within(dialog()).queryByRole("list", { name: "people not added" });
-    expect(notAdded ? within(notAdded).getAllByRole("listitem").map(textOf) : []).toEqual(c.expect.notAdded);
+    const notSent = within(dialog()).queryByRole("list", { name: "invitations not sent" });
+    expect(notSent ? within(notSent).getAllByRole("listitem").map(textOf) : []).toEqual(c.expect.notSent);
 
     expect(within(dialog()).getByRole("link", { name: `open ${c.steps.name.trim()}` })).toHaveAttribute(
       "href",
@@ -202,8 +204,8 @@ describe("a refused create", () => {
       expect(name).toHaveAccessibleDescription(c.expect.message);
       expect(name).toHaveValue(c.steps.name);
     }
-    // Nobody is added to a collective that does not exist.
-    expect(requests.some((r) => r.method === "POST" && r.path.endsWith("/members"))).toBe(false);
+    // Nobody is invited to a collective that does not exist.
+    expect(requests.some((r) => r.method === "POST" && r.path.endsWith("/invitations"))).toBe(false);
     expect(within(dialog()).queryByRole("heading", { name: /is ready$/ })).not.toBeInTheDocument();
   });
 });
@@ -233,9 +235,9 @@ describe("the dialog's own checks", () => {
         press("next");
         await waitFor(() => expect(currentStep()).toBe("invite"));
         addPeople([...(c.already ?? []), c.input ?? ""]);
-        const field = within(dialog()).getByRole("textbox", { name: "invite by github username" });
+        const field = within(dialog()).getByRole("textbox", { name: "invite by username" });
         expect(field).toHaveAccessibleDescription(c.expect);
-        const listed = within(dialog()).queryByRole("list", { name: "people to add" });
+        const listed = within(dialog()).queryByRole("list", { name: "people to invite" });
         expect(listed ? within(listed).getAllByRole("listitem").map(textOf) : []).toEqual(
           (c.already ?? []).map((u) => `@${u}`),
         );
@@ -253,7 +255,7 @@ describe("the dialog's own checks", () => {
     await waitFor(() => expect(currentStep()).toBe("invite"));
     addPeople(["carol-ml", "dan-ops"]);
     press("remove carol-ml");
-    const listed = within(dialog()).getByRole("list", { name: "people to add" });
+    const listed = within(dialog()).getByRole("list", { name: "people to invite" });
     expect(within(listed).getAllByRole("listitem").map(textOf)).toEqual(["@dan-ops"]);
   });
 

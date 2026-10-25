@@ -54,8 +54,11 @@ async function perform(settingsCase: SettingsCase): Promise<void> {
       return;
     }
     case "invite":
-      fireEvent.change(screen.getByRole("textbox", { name: "invite by github username" }), { target: { value: action.value } });
+      fireEvent.change(screen.getByRole("textbox", { name: "invite by username" }), { target: { value: action.value } });
       fireEvent.click(screen.getByRole("button", { name: "invite" }));
+      return;
+    case "revoke":
+      fireEvent.click(await screen.findByRole("button", { name: `revoke the invitation to @${action.invitation}` }));
       return;
     case "delete": {
       fireEvent.click(screen.getByRole("button", { name: "delete collective" }));

@@ -2,7 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
-import type { VillageCollectiveSearchResult } from "@peasant-labs/schema";
+import type { VillageCollectiveInvitation, VillageCollectiveInvitationSent, VillageCollectiveSearchResult } from "@peasant-labs/schema";
 import type { PendingShare } from "@/lib/review/types";
 import { AuthProvider } from "@/providers/AuthProvider";
 import GroupsPage from "@/app/collectives/page";
@@ -71,6 +71,10 @@ export interface CollectiveWorld {
   searchable?: VillageCollectiveSearchResult[];
   /** `GET /collectives/{id}/pending`: what waits for the owner's approval. */
   pending?: PendingShare[];
+  /** `GET /collectives/{id}/invitations`: the open invitations the owner sees. */
+  invitations?: VillageCollectiveInvitationSent[];
+  /** `GET /users/me/invitations`: the viewer's own pending invitations. */
+  myInvitations?: VillageCollectiveInvitation[];
 }
 
 export interface RecordedRequest {
@@ -195,6 +199,7 @@ export function installCollectiveREST(world: CollectiveWorld): RecordedRequest[]
     }
     if (path === "/collectives/visible") return json(world.visible ?? []);
     if (path === "/users/me/collectives/contributions") return json({ collectives: [] });
+    if (path === "/users/me/invitations" && method === "GET") return json({ invitations: world.myInvitations ?? [] });
     if (path === "/collectives/search") {
       const q = (url.searchParams.get("q") ?? "").toLowerCase();
       const hits = (world.searchable ?? []).filter(
@@ -277,7 +282,18 @@ export function installCollectiveREST(world: CollectiveWorld): RecordedRequest[]
       world.members = world.members.filter((m) => m.id !== member[1]);
       return json({ status: "removed" });
     }
-    if (path === `${base}/members` && method === "POST") return json({ status: "added" });
+    if (path === `${base}/invitations` && method === "GET") {
+      if (world.role !== "owner") return json({ error: "Owner access required" }, 403);
+      return json({ invitations: world.invitations ?? [] });
+    }
+    if (path === `${base}/invitations` && method === "POST") return json({ status: "invited" }, 202);
+    const invitation = path.match(new RegExp(`^${base}/invitations/([^/]+)$`));
+    if (invitation && method === "DELETE") {
+      const known = (world.invitations ?? []).some((row) => row.id === invitation[1]);
+      if (!known) return json({ error: "no open invitation with this id" }, 404);
+      world.invitations = (world.invitations ?? []).filter((row) => row.id !== invitation[1]);
+      return json({ status: "revoked" });
+    }
     throw new Error(`the collective world has no route for ${method} ${path}${url.search}`);
   });
   vi.stubGlobal("fetch", fetchMock);

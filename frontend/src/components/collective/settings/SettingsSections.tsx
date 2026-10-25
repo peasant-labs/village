@@ -21,7 +21,9 @@ import {
   whoCanReadChoices,
   type CollectiveSettingKey,
 } from "@/lib/adapters/collective";
-import { ownerHandle } from "@/lib/format";
+import type { VillageCollectiveInvitationSent } from "@peasant-labs/schema";
+import { formatExpiresIn, ownerHandle } from "@/lib/format";
+import { invitedByLabel } from "@/lib/invitationCopy";
 import { publicProfile } from "@/lib/publicOwner";
 import type { Group, GroupMember } from "@/lib/types";
 import type { CollectiveGithub } from "@/components/collective/page/useCollectiveGithub";
@@ -99,8 +101,11 @@ export function AccessSection({ group, commit }: { group: Group; commit: Commit 
 export function MembersSection({
   group,
   members,
+  invitations,
+  revokingId,
   inviting,
   onInvite,
+  onRevoke,
   onOpenSearch,
   onRoleChange,
   onRemove,
@@ -108,9 +113,14 @@ export function MembersSection({
 }: {
   group: Group;
   members: GroupMember[];
+  /** The collective's open invitations, as the owner sees them. */
+  invitations: readonly VillageCollectiveInvitationSent[];
+  /** The invitation whose revoke is on its way, if any. */
+  revokingId: string | null;
   inviting: boolean;
-  /** Invite one github username; resolves true when it was added. */
+  /** Invite one username; resolves true when the server took the invitation. */
   onInvite: (username: string) => Promise<boolean>;
+  onRevoke: (invitation: VillageCollectiveInvitationSent) => void;
   onOpenSearch: () => void;
   onRoleChange: (member: GroupMember, role: string) => void;
   onRemove: (member: GroupMember) => void;
@@ -126,13 +136,13 @@ export function MembersSection({
     <Panel testId="settings-members">
       <form className="on-invite" onSubmit={(event) => void submit(event)}>
         <div className="on-field">
-          <label htmlFor="collective-invite-handle">invite by github username</label>
+          <label htmlFor="collective-invite-handle">invite by username</label>
           <input
             id="collective-invite-handle"
             className="on-input"
             value={handle}
             onChange={(event) => setHandle(event.target.value)}
-            placeholder="github username"
+            placeholder="username"
             autoComplete="off"
             spellCheck={false}
           />
@@ -193,6 +203,8 @@ export function MembersSection({
         })}
       </ul>
 
+      <InvitedList invitations={invitations} revokingId={revokingId} onRevoke={onRevoke} />
+
       <SettingRow
         label="when a member leaves"
         help="what happens to the transcripts they published here."
@@ -206,6 +218,69 @@ export function MembersSection({
         onCommit={(next) => commit("memberLeaves", next).then(() => undefined)}
       />
     </Panel>
+  );
+}
+
+/**
+ * The collective's open invitations, under the roster: the handle the owner
+ * typed, who sent it, and how long it has left. Pending and declined
+ * invitations arrive alike, so the list never says which is which. Nothing is
+ * drawn when there are none.
+ */
+function InvitedList({
+  invitations,
+  revokingId,
+  onRevoke,
+}: {
+  invitations: readonly VillageCollectiveInvitationSent[];
+  revokingId: string | null;
+  onRevoke: (invitation: VillageCollectiveInvitationSent) => void;
+}) {
+  if (invitations.length === 0) return null;
+  return (
+    <div className="on-tbl on-invited" data-testid="settings-invited" role="region" aria-label="invited" tabIndex={0}>
+      <table>
+        <caption className="on-invited-caption">invited</caption>
+        <thead>
+          <tr>
+            <th scope="col">username</th>
+            <th scope="col">invited by</th>
+            <th scope="col">expires</th>
+            <th scope="col">
+              <span className="sr-only">actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {invitations.map((invitation) => {
+            const at = `@${invitation.invited_username}`;
+            const by = invitedByLabel(invitation.invited_by);
+            const revoking = revokingId === invitation.id;
+            return (
+              <tr key={invitation.id} data-invitation-id={invitation.id}>
+                <td className="normal-case">{at}</td>
+                <td className="normal-case">{by}</td>
+                <td className="tnum">
+                  <time dateTime={invitation.expires_at}>{formatExpiresIn(invitation.expires_at)}</time>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    aria-label={`revoke the invitation to ${at}`}
+                    disabled={revoking}
+                    aria-busy={revoking || undefined}
+                    onClick={() => onRevoke(invitation)}
+                  >
+                    {revoking ? "revoking" : "revoke"}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

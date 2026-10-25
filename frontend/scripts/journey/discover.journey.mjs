@@ -72,7 +72,7 @@ test.describe('discover and new collective', () => {
     await expect(list).toBeVisible()
   })
 
-  test('creates a collective and reports who was added', async ({ page, request, theme }, testInfo) => {
+  test('creates a collective and reports who was invited', async ({ page, request, theme }, testInfo) => {
     await setScenario(request, 'viewer-in-org')
     await page.goto('/collectives')
     await expectTheme(page, theme)
@@ -96,20 +96,21 @@ test.describe('discover and new collective', () => {
     await still(page, testInfo, 'new-collective-access')
     await dialog.getByRole('button', { name: 'next', exact: true }).click()
 
-    const invite = dialog.getByRole('textbox', { name: 'invite by github username' })
+    const invite = dialog.getByRole('textbox', { name: 'invite by username' })
     for (const username of ['tomas-r', 'nobody-here']) {
       await invite.fill(username)
       await invite.press('Enter')
     }
-    await expect(dialog.getByRole('list', { name: 'people to add' }).getByRole('listitem')).toHaveCount(2)
+    await expect(dialog.getByRole('list', { name: 'people to invite' }).getByRole('listitem')).toHaveCount(2)
     const created = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().endsWith('/collectives'))
     await dialog.getByRole('button', { name: 'create collective' }).click()
     const body = (await created).request().postDataJSON()
     expect(body).toEqual({ name: 'Eval Crowd', description: 'Agent evaluation runs for the spring term.', acceptance_mode: 'curated', data_access: 'contributors' })
 
     await expect(dialog.getByRole('heading', { name: 'Eval Crowd is ready' })).toBeVisible()
-    await expect(dialog.getByRole('status')).toContainText('1 person added as a member.')
-    await expect(dialog.getByRole('list', { name: 'people not added' })).toContainText("@nobody-here hasn't joined the platform yet")
+    // Every name is invited alike, whether or not an account holds it.
+    await expect(dialog.getByRole('status')).toContainText('2 invitations sent.')
+    await expect(dialog.getByRole('list', { name: 'invitations not sent' })).toHaveCount(0)
     const id = (await (await created).json()).id
     await expect(dialog.getByRole('link', { name: 'open Eval Crowd' })).toHaveAttribute('href', `/collectives/${id}`)
     await expect(dialog.getByRole('link', { name: 'invite more people' })).toHaveAttribute('href', `/collectives/${id}/settings?section=members`)

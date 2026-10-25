@@ -6,8 +6,9 @@
 # changes. A settings change sends exactly the one field it writes with
 # `PATCH /collectives/{id}` (the server keeps every field the body leaves out),
 # and a failed write puts the old value back and says why. A member's role and
-# removal use the member routes. `{id}` and `{member}` in a path stand for the
-# collective's and the named member's ids.
+# removal use the member routes; inviting and revoking use the invitation
+# routes. `{id}`, `{member}` and `{invitation}` in a path stand for the
+# collective's, the named member's and the named invitation's ids.
 #
 # Deletion protection is the required-name manifest in
 # `src/test/collectiveSettingsFixtures.ts`.
@@ -26,6 +27,13 @@ collective:
 viewer:
   id: 5b0c9a1e-0000-4000-8000-0000000000a1
   username: alice-dev
+
+# The collective's open invitations, as its owners see them: the handle that
+# was typed, and the owner who sent it (a member's username, or `anonymous`
+# for an owner hidden from this viewer).
+invitations:
+  - { id: 5b0c9a1e-0000-4000-8000-0000000001e1, username: carol-ml, by: alice-dev }
+  - { id: 5b0c9a1e-0000-4000-8000-0000000001e2, username: tpyo-name, by: anonymous }
 
 members:
   - { id: 5b0c9a1e-0000-4000-8000-0000000000a1, username: alice-dev, name: Alice Developer, role: owner }
@@ -190,21 +198,56 @@ cases:
       replaced: null
       pushed: null
 
-  - name: an-invite-by-username-uses-the-members-route
+  - name: an-invite-by-username-sends-an-invitation
     why: >-
-      the invite field sends the username without its @ to the members route,
-      and the owner is told who can now publish.
+      the invite field sends the username without its @ to the invitation
+      route, never the removed add-member route; the owner is told it was sent
+      and that the answer does not say whether the account exists.
     search: "?section=members"
     fail: null
     action: { kind: invite, value: "@New-Person" }
     expect:
       writes:
-        - { method: POST, path: "/collectives/{id}/members", body: { username: New-Person } }
-      shows: [member added, "@New-Person can now publish here."]
+        - { method: POST, path: "/collectives/{id}/invitations", body: { username: New-Person } }
+      shows: [invitation sent, "if @New-Person has a village account they'll see it. we don't say whether they do."]
       alert: null
       switchOn: null
       pressed: null
-      notice: member added
+      notice: invitation sent
+      replaced: null
+      pushed: null
+
+  - name: the-invited-list-shows-the-typed-handle-and-who-sent-it
+    why: >-
+      under the roster the owner sees each open invitation as the handle that
+      was typed, with the inviting owner as a handle or, when hidden, "an
+      owner"; opening the section writes nothing.
+    search: "?section=members"
+    fail: null
+    action: { kind: none }
+    expect:
+      writes: []
+      shows: ["@carol-ml", "@tpyo-name", "an owner", invited]
+      alert: null
+      switchOn: null
+      pressed: null
+      notice: null
+      replaced: null
+      pushed: null
+
+  - name: revoking-an-invitation-uses-its-own-route
+    why: revoke deletes that one invitation by its id, and the row leaves the list.
+    search: "?section=members"
+    fail: null
+    action: { kind: revoke, invitation: tpyo-name }
+    expect:
+      writes:
+        - { method: DELETE, path: "/collectives/{id}/invitations/{invitation}", body: null }
+      shows: [invitation revoked, "the invitation to @tpyo-name is gone."]
+      alert: null
+      switchOn: null
+      pressed: null
+      notice: invitation revoked
       replaced: null
       pushed: null
 

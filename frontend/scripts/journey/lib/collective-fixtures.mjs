@@ -187,8 +187,6 @@ export const DISCOVER_COLLECTIVES = {
   curated: { id: 'c011ec71-0000-4000-8000-000000000013', name: 'Agents In Class' },
 }
 
-/** Handles of people who have never signed in: adding one is refused, as the server refuses it. */
-const NEVER_SIGNED_IN = new Set(['nobody-here'])
 
 function discoverEntries() {
   const { open, verified, curated } = DISCOVER_COLLECTIVES
@@ -320,6 +318,11 @@ export function handleCollectiveRequest(req, res) {
     send(res, 200, { collectives: [] })
     return true
   }
+  // The viewer holds no invitations of their own in these journeys.
+  if (req.method === 'GET' && path === '/users/me/invitations') {
+    send(res, 200, { invitations: [] })
+    return true
+  }
   if (req.method === 'GET' && path === '/collectives/search') {
     const q = (url.searchParams.get('q') || '').trim().toLowerCase()
     const hits = entries.filter((entry) =>
@@ -406,11 +409,35 @@ export function handleCollectiveRequest(req, res) {
     send(res, 200, { status: 'unlinked' })
     return true
   }
-  if (rest === '/members' && req.method === 'POST') {
+  // Inviting answers 202 for every name, as the server does, and lists the
+  // name as typed; the person joins only by accepting, so the roster is unchanged.
+  if (rest === '/invitations' && req.method === 'GET') {
+    send(res, 200, { invitations: entry.invitations ?? [] })
+    return true
+  }
+  if (rest === '/invitations' && req.method === 'POST') {
     readJSON(req).then((body) => {
-      entry.members.push(person(`invited-${body.username}`, body.username, null, 'member'))
-      send(res, 200, { status: 'added' })
+      const username = String(body.username).toLowerCase()
+      entry.invitations = entry.invitations ?? []
+      if (!entry.invitations.some((row) => row.invited_username === username)) {
+        entry.invitations.push({
+          id: `00000000-0000-4000-8000-${String(entry.invitations.length + 1).padStart(12, '0')}`,
+          invited_username: username,
+          invited_by: person(VIEWER_ID, 'alice-dev', 'Alice Developer', 'owner').member,
+          created_at: ago(0),
+          expires_at: new Date(FROZEN_EPOCH_MS + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        })
+      }
+      send(res, 202, { status: 'invited' })
     })
+    return true
+  }
+  const invitation = rest.match(/^\/invitations\/([^/]+)$/)
+  if (invitation && req.method === 'DELETE') {
+    const before = (entry.invitations ?? []).length
+    entry.invitations = (entry.invitations ?? []).filter((row) => row.id !== invitation[1])
+    if (entry.invitations.length === before) send(res, 404, { error: 'no open invitation with this id' })
+    else send(res, 200, { status: 'revoked' })
     return true
   }
   const memberRole = rest.match(/^\/members\/([^/]+)\/role$/)
@@ -554,20 +581,13 @@ export function handleNewCollectiveRequest(req, res, scenario) {
     send(res, 200, { status: 'joined', role: 'contributor' })
     return true
   }
-  // Adding people to a collective the dialog just created; additions to the
+  // Inviting people to a collective the dialog just created answers 202 for
+  // every name, whether or not an account holds it; invitations to the
   // fixture's own collectives fall through to handleCollectiveRequest, which
   // the settings journeys drive.
-  const members = path.match(/^\/collectives\/([^/]+)\/members$/)
-  if (members && req.method === 'POST' && world.collectives[members[1]]?.createdByDialog) {
-    readJSON(req).then((body) => {
-      const entry = world.collectives[members[1]]
-      if (NEVER_SIGNED_IN.has(body.username)) {
-        send(res, 404, { error: `@${body.username} hasn't joined the platform yet. They need to sign in first.` })
-        return
-      }
-      entry.members = [...entry.members.filter((m) => m.member.username !== body.username), person(`user-${body.username}`, body.username, null, 'member')]
-      send(res, 200, { status: 'added' })
-    })
+  const invites = path.match(/^\/collectives\/([^/]+)\/invitations$/)
+  if (invites && req.method === 'POST' && world.collectives[invites[1]]?.createdByDialog) {
+    readJSON(req).then(() => send(res, 202, { status: 'invited' }))
     return true
   }
   return false

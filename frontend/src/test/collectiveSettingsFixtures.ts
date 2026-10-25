@@ -3,7 +3,9 @@ import { resolve } from "node:path";
 import { parse } from "yaml";
 import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 import { makeGroup, type CollectiveWorld, type WorldMember } from "@/test/mountedCollectivePages";
+import type { VillageCollectiveInvitationSent } from "@peasant-labs/schema";
 import type { Group } from "@/lib/types";
+import { profileOwner } from "@/test/publicOwnerFixture";
 
 /** Typed loader for `src/testdata/collective-settings.yaml`. */
 
@@ -15,6 +17,7 @@ export type SettingsAction =
   | { kind: "role"; member: string; role: string }
   | { kind: "remove"; member: string }
   | { kind: "invite"; value: string }
+  | { kind: "revoke"; invitation: string }
   | { kind: "delete" }
   | { kind: "none" };
 
@@ -71,7 +74,9 @@ const REQUIRED_CASES = [
   "when-a-member-leaves-saves-the-moment-it-changes",
   "a-role-change-uses-the-member-role-route",
   "a-member-removal-asks-first-then-uses-the-member-route",
-  "an-invite-by-username-uses-the-members-route",
+  "an-invite-by-username-sends-an-invitation",
+  "the-invited-list-shows-the-typed-handle-and-who-sent-it",
+  "revoking-an-invitation-uses-its-own-route",
   "the-check-mode-radios-are-absent",
   "the-github-section-counts-the-linked-repositories",
   "github-installed-says-so-and-clears-the-parameter",
@@ -99,6 +104,7 @@ const ACTION_SECTION: Partial<Record<SettingsAction["kind"], string>> = {
   role: "members",
   remove: "members",
   invite: "members",
+  revoke: "members",
   delete: "danger",
 };
 
@@ -110,6 +116,7 @@ const ACTION_FIELDS: Record<SettingsAction["kind"], string[]> = {
   role: ["kind", "member", "role"],
   remove: ["kind", "member"],
   invite: ["kind", "value"],
+  revoke: ["kind", "invitation"],
   delete: ["kind"],
   none: ["kind"],
 };
@@ -122,6 +129,27 @@ function sectionOf(search: string): string {
   return SECTIONS.has(asked) ? asked : "general";
 }
 
+/** One open invitation as the fixture states it. */
+interface WorldInvitation {
+  id: string;
+  username: string;
+  /** The sending owner's username, or `anonymous` for one hidden from the viewer. */
+  by: string;
+}
+
+function sentInvitation(invitation: WorldInvitation, members: WorldMember[]): VillageCollectiveInvitationSent {
+  const sender = members.find((m) => m.username === invitation.by);
+  return {
+    id: invitation.id,
+    invited_username: invitation.username,
+    invited_by: sender
+      ? profileOwner({ id: sender.id, github_username: sender.username, display_name: sender.name })
+      : { kind: "anonymous" },
+    created_at: "2026-10-20T12:00:00Z",
+    expires_at: "2026-11-19T12:00:00Z",
+  };
+}
+
 function fail(where: string, reason: string): never {
   throw new Error(`collective-settings fixture ${where} ${reason}`);
 }
@@ -131,11 +159,18 @@ export function loadCollectiveSettingsFixtures(): CollectiveSettingsFixtures {
     readFileSync(resolve(process.cwd(), "src/testdata/collective-settings.yaml"), "utf8"),
     { strict: true },
   ) as Record<string, never>;
-  assertExactKeys(root, ["collective", "viewer", "members", "cases", "sectionCases"], "collective-settings root");
+  assertExactKeys(root, ["collective", "viewer", "invitations", "members", "cases", "sectionCases"], "collective-settings root");
   const collective = root.collective as Partial<Group> & { id: string; name: string };
   const viewer = root.viewer as { id: string; username: string };
   const members = root.members as WorldMember[];
   for (const member of members) assertExactKeys(member, ["id", "username", "name", "role"], `member ${member.username}`);
+  const invitations = root.invitations as WorldInvitation[];
+  for (const invitation of invitations) {
+    assertExactKeys(invitation, ["id", "username", "by"], `invitation ${invitation.username}`);
+    if (invitation.by !== "anonymous" && !members.some((m) => m.username === invitation.by && m.role === "owner")) {
+      fail(`invitation "${invitation.username}"`, "names a sender who is not an owner of the collective");
+    }
+  }
 
   const cases = root.cases as SettingsCase[];
   assertNamesMatch(cases.map((c) => c.name), REQUIRED_CASES, "collective settings");
@@ -146,6 +181,9 @@ export function loadCollectiveSettingsFixtures(): CollectiveSettingsFixtures {
     const fields = ACTION_FIELDS[c.action.kind];
     if (!fields) fail(`case "${c.name}"`, `names an unknown action "${c.action.kind}"`);
     assertExactKeys(c.action, fields, `case ${c.name} action`);
+    if (c.action.kind === "revoke" && !invitations.some((i) => i.username === (c.action as { invitation: string }).invitation)) {
+      fail(`case "${c.name}"`, "names an invitation the collective does not have");
+    }
     if ("member" in c.action && !members.some((m) => m.username === (c.action as { member: string }).member)) {
       fail(`case "${c.name}"`, "names a member the collective does not have");
     }
@@ -165,6 +203,8 @@ export function loadCollectiveSettingsFixtures(): CollectiveSettingsFixtures {
     if (!SECTIONS.has(c.expectSection)) fail(`section case "${c.name}"`, `expects an unknown section "${c.expectSection}"`);
   }
 
+  const invitationId = (c: SettingsCase) =>
+    c.action.kind === "revoke" ? invitations.find((i) => i.username === (c.action as { invitation: string }).invitation)?.id ?? "" : "";
   const memberId = (c: SettingsCase) =>
     "member" in c.action ? members.find((m) => m.username === (c.action as { member: string }).member)?.id ?? "" : "";
 
@@ -177,11 +217,16 @@ export function loadCollectiveSettingsFixtures(): CollectiveSettingsFixtures {
       role: "owner",
       canRead: true,
       members: members.map((m) => ({ ...m })),
+      invitations: invitations.map((invitation) => sentInvitation(invitation, members)),
       transcripts: [],
       linked: ["acme/ingest-api"],
       available: [{ repo: "acme/ingest-api", private: true, publishers: 1 }],
       failures: c.fail ? [{ method: c.fail.method, path: c.fail.path.replace("{id}", collective.id), status: c.fail.status, error: c.fail.error }] : [],
     }),
-    pathFor: (c, path) => path.replace("{id}", collective.id).replace("{member}", memberId(c)),
+    pathFor: (c, path) =>
+      path
+        .replace("{id}", collective.id)
+        .replace("{member}", memberId(c))
+        .replace("{invitation}", invitationId(c)),
   };
 }

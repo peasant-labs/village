@@ -6,7 +6,9 @@ import { Building2, Check, CircleAlert, DoorOpen, Eye, ShieldCheck, UserPlus, Us
 import type { VillageCollective } from "@peasant-labs/schema";
 import { Dialog } from "@/lib/ft-ui";
 import { ApiError } from "@/lib/api";
-import { useAddGroupMember, useCreateGroup } from "@/lib/queries/groups";
+import { useCreateGroup } from "@/lib/queries/groups";
+import { useInviteToCollective } from "@/lib/queries/invitations";
+import { inviteRefusal } from "@/lib/invitationCopy";
 import { createGroupRequest } from "@/lib/queries/groupRequests";
 import { useMyOrgs } from "@/lib/queries/orgs";
 import { useAuth } from "@/providers/AuthProvider";
@@ -18,7 +20,7 @@ const STEPS = ["name and purpose", "access", "invite"] as const;
 type Step = 1 | 2 | 3 | 4;
 
 /** What happened to one invitation once the collective existed. */
-export type InviteOutcome = { username: string; added: true } | { username: string; added: false; reason: string };
+export type InviteOutcome = { username: string; invited: true } | { username: string; invited: false; reason: string };
 
 const PUBLISH_CHOICES: Choice<AcceptanceMode>[] = [
   {
@@ -67,17 +69,18 @@ function isNameRefusal(error: unknown): boolean {
 }
 
 function inviteSummary(outcomes: readonly InviteOutcome[]): string {
-  const added = outcomes.filter((o) => o.added).length;
-  if (added === 0) return "";
-  return added === 1 ? "1 person added as a member." : `${added} people added as members.`;
+  const invited = outcomes.filter((o) => o.invited).length;
+  if (invited === 0) return "";
+  return invited === 1 ? "1 invitation sent." : `${invited} invitations sent.`;
 }
 
 /**
  * The new-collective dialog: name and purpose, who publishes and who reads,
- * then the people to add. The collective is created on the third step; each
- * person is then added with the same member route the settings page uses, one
- * at a time, and the last step reports every outcome. A refused invitation is
- * listed with the server's reason and is never counted as added.
+ * then the people to invite. The collective is created on the third step; each
+ * person is then invited with the same route the settings page uses, one at a
+ * time, and the last step reports every outcome. Nobody becomes a member here:
+ * an invited person joins only by accepting. A refused invitation is listed
+ * with the reason and is never counted as sent.
  *
  * Mount it only while open, so every opening starts from an empty form.
  */
@@ -94,7 +97,7 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
 
   const { user } = useAuth();
   const createGroup = useCreateGroup();
-  const addMember = useAddGroupMember();
+  const invite = useInviteToCollective();
   const myOrgs = useMyOrgs();
   const visibleOrgs = (myOrgs.data ?? []).filter((o) => o.visible).map((o) => o.org_login);
 
@@ -110,7 +113,7 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
   const [orgError, setOrgError] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"creating" | "adding" | null>(null);
+  const [busy, setBusy] = useState<"creating" | "inviting" | null>(null);
   const [created, setCreated] = useState<VillageCollective | null>(null);
   const [outcomes, setOutcomes] = useState<InviteOutcome[]>([]);
 
@@ -151,7 +154,7 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
     const username = draft.trim().replace(/^@/, "");
     if (!username) return;
     if (/\s/.test(username)) {
-      setInviteError("a github username has no spaces.");
+      setInviteError("a username has no spaces.");
       return;
     }
     const lower = username.toLowerCase();
@@ -203,14 +206,14 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
       return;
     }
     setCreated(collective);
-    setBusy("adding");
+    setBusy("inviting");
     const results: InviteOutcome[] = [];
     for (const username of invitees) {
       try {
-        await addMember.mutateAsync({ groupId: collective.id, username });
-        results.push({ username, added: true });
+        await invite.mutateAsync({ groupId: collective.id, username });
+        results.push({ username, invited: true });
       } catch (error) {
-        results.push({ username, added: false, reason: messageOf(error) });
+        results.push({ username, invited: false, reason: inviteRefusal(username, error) });
       }
     }
     setOutcomes(results);
@@ -244,12 +247,12 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
           </button>
         )}
         <button type="submit" form={formId} className="btn btn-primary" disabled={busy !== null} aria-busy={busy !== null || undefined}>
-          {step === 3 ? (busy === "creating" ? "creating" : busy === "adding" ? "adding people" : "create collective") : "next"}
+          {step === 3 ? (busy === "creating" ? "creating" : busy === "inviting" ? "inviting people" : "create collective") : "next"}
         </button>
       </>
     );
 
-  const failed = outcomes.filter((o): o is Extract<InviteOutcome, { added: false }> => !o.added);
+  const failed = outcomes.filter((o): o is Extract<InviteOutcome, { invited: false }> => !o.invited);
   const createdName = created?.name ?? name.trim();
 
   return (
@@ -388,14 +391,14 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
         {step === 3 ? (
           <form id={formId} onSubmit={onSubmit} noValidate className="on-section" style={{ gap: "var(--sp-5)" }}>
             <div className="on-field">
-              <label htmlFor={inviteId}>invite by github username</label>
+              <label htmlFor={inviteId}>invite by username</label>
               <div className="on-row">
                 <input
                   id={inviteId}
                   data-autofocus
                   className="on-input"
                   style={{ flex: "1 1 14rem", width: "auto" }}
-                  placeholder="github username"
+                  placeholder="username"
                   autoComplete="off"
                   autoCapitalize="none"
                   spellCheck={false}
@@ -422,7 +425,7 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
               ) : null}
             </div>
             {invitees.length > 0 ? (
-              <ul className="on-invitees" aria-label="people to add">
+              <ul className="on-invitees" aria-label="people to invite">
                 {invitees.map((username) => (
                   <li key={username} className="on-chip-person">
                     @{username}
@@ -439,7 +442,9 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
               </ul>
             ) : null}
             <p className="on-muted" style={{ margin: 0 }}>
-              they become members as soon as the collective exists. you can invite more people later from settings.
+              each person gets an invitation once the collective exists and joins only if they accept. if a name has a
+              village account they&apos;ll see it; we don&apos;t say whether it does. you can invite more people later
+              from settings.
             </p>
             {createError ? (
               <div className="on-notice" data-tone="danger" role="alert">
@@ -463,15 +468,12 @@ export default function NewCollectiveDialog({ onClose }: { onClose: () => void }
             {failed.length > 0 ? (
               <div className="on-notice" data-tone="danger" role="alert">
                 <div>
-                  <p>{failed.length === 1 ? "1 person was not added." : `${failed.length} people were not added.`}</p>
-                  <ul aria-label="people not added">
+                  <p>
+                    {failed.length === 1 ? "1 invitation was not sent." : `${failed.length} invitations were not sent.`}
+                  </p>
+                  <ul aria-label="invitations not sent">
                     {failed.map((outcome) => (
-                      <li key={outcome.username}>
-                        {/* The server's reason usually names the person already. */}
-                        {outcome.reason.includes(`@${outcome.username}`)
-                          ? outcome.reason
-                          : `@${outcome.username}: ${outcome.reason}`}
-                      </li>
+                      <li key={outcome.username}>{outcome.reason}</li>
                     ))}
                   </ul>
                 </div>

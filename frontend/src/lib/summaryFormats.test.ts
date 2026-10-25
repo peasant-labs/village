@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { formatRecordedDuration, formatRelativeTime } from "@/lib/format";
+import { formatExpiresIn, formatRecordedDuration, formatRelativeTime } from "@/lib/format";
 import { formatCount } from "@/lib/ft-ui";
 import { assertExactKeys, assertNamesMatch } from "@/test/fixtureAssertions";
 
@@ -21,6 +21,14 @@ const requiredRelativeTimeNames = [
   "weeks",
   "past-eight-weeks-is-the-date",
   "an-unparseable-timestamp-states-nothing",
+] as const;
+
+const requiredExpiryNames = [
+  "past-is-expired",
+  "inside-the-last-day-is-today",
+  "one-whole-day-is-tomorrow",
+  "whole-days-left",
+  "an-unparseable-expiry-states-nothing",
 ] as const;
 
 const requiredDurationNames = [
@@ -42,12 +50,14 @@ const requiredCompactNames = [
   "trillions",
 ] as const;
 
-function load(): { relativeTimeCases: RelativeTimeCase[]; durationCases: DurationCase[]; compactCases: CompactCase[] } {
+function load(): { relativeTimeCases: RelativeTimeCase[]; expiryCases: RelativeTimeCase[]; durationCases: DurationCase[]; compactCases: CompactCase[] } {
   const parsed = parse(
     readFileSync(resolve(process.cwd(), "src/testdata/summary-formats.yaml"), "utf8"),
     { strict: true },
-  ) as { relativeTimeCases: RelativeTimeCase[]; durationCases: DurationCase[]; compactCases: CompactCase[] };
-  assertExactKeys(parsed, ["relativeTimeCases", "durationCases", "compactCases"], "summary-formats root");
+  ) as { relativeTimeCases: RelativeTimeCase[]; expiryCases: RelativeTimeCase[]; durationCases: DurationCase[]; compactCases: CompactCase[] };
+  assertExactKeys(parsed, ["relativeTimeCases", "durationCases", "compactCases", "expiryCases"], "summary-formats root");
+  assertNamesMatch(parsed.expiryCases.map((c) => c.name), requiredExpiryNames, "summary-formats expiryCases");
+  for (const c of parsed.expiryCases) assertExactKeys(c, ["name", "now", "at", "expect"], c.name);
   assertNamesMatch(
     parsed.relativeTimeCases.map((c) => c.name),
     requiredRelativeTimeNames,
@@ -65,7 +75,15 @@ function load(): { relativeTimeCases: RelativeTimeCase[]; durationCases: Duratio
   return parsed;
 }
 
-const { relativeTimeCases, durationCases, compactCases } = load();
+const { relativeTimeCases, expiryCases, durationCases, compactCases } = load();
+
+describe("how long an invitation has left", () => {
+  for (const c of expiryCases) {
+    it(c.name, () => {
+      expect(formatExpiresIn(c.at, Date.parse(c.now))).toBe(c.expect);
+    });
+  }
+});
 
 describe("how long ago, for a list column", () => {
   for (const c of relativeTimeCases) {

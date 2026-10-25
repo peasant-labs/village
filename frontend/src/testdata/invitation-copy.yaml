@@ -1,0 +1,22 @@
+# What an owner is told when an invitation is not sent, by the status the
+# invite route answered (`inviteRefusal` in src/lib/invitationCopy.ts). 409 is
+# only ever a member who already consented; 429 is an invitation limit.
+# Deletion protection is the required-name manifest in
+# `src/lib/invitationCopy.test.ts`.
+
+refusalCases:
+  - name: a-consenting-member-is-already-a-member
+    username: bob-ai
+    status: 409
+    error: Already a member who consented
+    expect: "@bob-ai is already a member of this collective."
+  - name: the-limit-is-said-plainly
+    username: carol-ml
+    status: 429
+    error: invitation limit reached
+    expect: you've reached the invitation limit. revoke an open invitation or try again tomorrow.
+  - name: any-other-refusal-carries-the-server-reason
+    username: dana-q
+    status: 500
+    error: the database is unavailable
+    expect: "@dana-q: the database is unavailable. try again."

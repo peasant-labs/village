@@ -18,7 +18,7 @@ for (const testCase of loadCollectiveInviteSearchFixtures()) {
         searches.push(url.searchParams.get("q") ?? "");
         return new Response(JSON.stringify({ items: [{ login: testCase.handle, avatar_url: "" }] }), { headers: { "content-type": "application/json" } });
       }
-      if (init?.method === "POST" && url.pathname.endsWith("/members")) {
+      if (init?.method === "POST" && url.pathname.endsWith("/invitations")) {
         attempts += 1;
         if (testCase.fail && attempts === 1) return new Response(JSON.stringify({ error: "invitation unavailable" }), { status: 500, headers: { "content-type": "application/json" } });
       }
@@ -28,7 +28,7 @@ for (const testCase of loadCollectiveInviteSearchFixtures()) {
     window.history.replaceState(null, "", `/collectives/${world.group.id}/settings?section=members`);
     await renderCollectiveSettings(world);
     fireEvent.click(screen.getByRole("button", { name: "find a github user to invite" }));
-    const dialog = await screen.findByRole("dialog", { name: "invite a github user" });
+    const dialog = await screen.findByRole("dialog", { name: "invite by username" });
     fireEvent.change(within(dialog).getByRole("combobox"), { target: { value: testCase.query } });
     const result = await within(dialog).findByRole("menuitem", { name: testCase.handle });
     expect(searches).toEqual([testCase.query]);
@@ -40,8 +40,8 @@ for (const testCase of loadCollectiveInviteSearchFixtures()) {
       await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("invitation unavailable"));
       fireEvent.click(within(dialog).getByRole("button", { name: "invite" }));
     }
-    await waitFor(() => expect(requests.filter((request) => request.method === "POST")).toEqual([{ method: "POST", path: `/collectives/${world.group.id}/members`, body: { username: testCase.handle } }]));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "invite a github user" })).toBeNull());
-    expect(screen.getByTestId("collective-notice")).toHaveTextContent(`@${testCase.handle} can now publish here.`);
+    await waitFor(() => expect(requests.filter((request) => request.method === "POST")).toEqual([{ method: "POST", path: `/collectives/${world.group.id}/invitations`, body: { username: testCase.handle } }]));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "invite by username" })).toBeNull());
+    expect(screen.getByTestId("collective-notice")).toHaveTextContent(`if @${testCase.handle} has a village account they'll see it. we don't say whether they do.`);
   });
 }
