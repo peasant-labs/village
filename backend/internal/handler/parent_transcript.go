@@ -43,8 +43,9 @@ func (p parentTranscripts) of(child pgtype.UUID) *schema.TranscriptID {
 // this is how a reader folds a child under its parent without one.
 //
 // A parent is kept only when the viewer may read it under the transcript read
-// policy (transcriptViewAccess), so the id never names a transcript the viewer
-// cannot open. Nothing started the session, the parent was never published,
+// policy, read for every parent at once (ListReadableTranscriptIDs, held equal
+// to transcriptViewAccess by a test), so the id never names a transcript the
+// viewer cannot open. Nothing started the session, the parent was never published,
 // or the viewer may not read it: the child has no entry and serves null. The
 // parents of a page are read in one statement.
 func (h *Handler) resolveParentTranscripts(ctx context.Context, viewer *AuthUser, lookups []parentLookup) (parentTranscripts, error) {
@@ -70,16 +71,25 @@ func (h *Handler) resolveParentTranscripts(ctx context.Context, viewer *AuthUser
 	if err != nil {
 		return nil, fmt.Errorf("handler.resolveParentTranscripts: the parent transcripts of %d sessions could not be read; no response was built without them; retry the request: %w", len(wanted), err)
 	}
+	parentIDs := make([]pgtype.UUID, 0, len(rows))
+	for _, row := range rows {
+		if _, ok := wanted[parentKey{owner: row.OwnerID, local: row.LocalID}]; ok {
+			parentIDs = append(parentIDs, row.ID)
+		}
+	}
+	readable := map[pgtype.UUID]bool{}
+	if len(parentIDs) > 0 {
+		ids, err := h.queries.ListReadableTranscriptIDs(ctx, sqlc.ListReadableTranscriptIDsParams{TranscriptIds: parentIDs, ViewerID: viewerID(viewer)})
+		if err != nil {
+			return nil, fmt.Errorf("handler.resolveParentTranscripts: whether the viewer may read the parent transcripts could not be decided; retry the request: %w", err)
+		}
+		for _, id := range ids {
+			readable[id] = true
+		}
+	}
 	for _, row := range rows {
 		children, ok := wanted[parentKey{owner: row.OwnerID, local: row.LocalID}]
-		if !ok {
-			continue
-		}
-		readable, err := h.transcriptViewAccess(ctx, viewer, sqlc.Transcript{ID: row.ID, OwnerID: row.OwnerID, Visibility: row.Visibility})
-		if err != nil {
-			return nil, fmt.Errorf("handler.resolveParentTranscripts: whether the viewer may read a parent transcript could not be decided; retry the request: %w", err)
-		}
-		if !readable {
+		if !ok || !readable[row.ID] {
 			continue
 		}
 		parent := schema.TranscriptID(uuid.UUID(row.ID.Bytes).String())

@@ -113,6 +113,8 @@ type Querier interface {
 	ListOwnerCollectiveContributions(ctx context.Context, ownerID pgtype.UUID) ([]sqlc.ListOwnerCollectiveContributionsRow, error)
 	ListOwnerCollectiveSubmissions(ctx context.Context, arg sqlc.ListOwnerCollectiveSubmissionsParams) ([]sqlc.ListOwnerCollectiveSubmissionsRow, error)
 	ListProjectCollectiveRollup(ctx context.Context, arg sqlc.ListProjectCollectiveRollupParams) ([]sqlc.ListProjectCollectiveRollupRow, error)
+	ListReadableTranscriptIDs(ctx context.Context, arg sqlc.ListReadableTranscriptIDsParams) ([]pgtype.UUID, error)
+	ListTranscriptsCollectivesForViewer(ctx context.Context, arg sqlc.ListTranscriptsCollectivesForViewerParams) ([]sqlc.ListTranscriptsCollectivesForViewerRow, error)
 	ListTranscriptCollectivesForViewer(ctx context.Context, arg sqlc.ListTranscriptCollectivesForViewerParams) ([]sqlc.ListTranscriptCollectivesForViewerRow, error)
 	AddGroupMember(ctx context.Context, arg sqlc.AddGroupMemberParams) error
 	RemoveGroupMember(ctx context.Context, arg sqlc.RemoveGroupMemberParams) error

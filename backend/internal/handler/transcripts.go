@@ -2039,11 +2039,39 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Batch shares by transcript
+	// Batch shares by transcript. A viewer who does not own a row is told only
+	// the accepted associations the detail route would disclose to them
+	// (ListTranscriptsCollectivesForViewer): collective visibility and the
+	// owner's discoverability both apply. The owner keeps every association.
 	sharesByTranscript := map[pgtype.UUID][]sqlc.ListSharesByTranscriptIDsRow{}
 	if len(transcriptIDs) > 0 {
 		allShares, _ := h.queries.ListSharesByTranscriptIDs(r.Context(), transcriptIDs)
+		ownedByViewer := map[pgtype.UUID]bool{}
+		foreign := []pgtype.UUID{}
+		for _, t := range listed {
+			if user != nil && t.OwnerID == user.PgID() {
+				ownedByViewer[t.ID] = true
+			} else {
+				foreign = append(foreign, t.ID)
+			}
+		}
+		disclosed := map[[2]pgtype.UUID]bool{}
+		if len(foreign) > 0 {
+			visible, err := h.queries.ListTranscriptsCollectivesForViewer(r.Context(), sqlc.ListTranscriptsCollectivesForViewerParams{
+				TranscriptIds: foreign, ViewerID: viewerID(user),
+			})
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Failed to list transcripts: the disclosed collectives of the listed transcripts could not be read, so no transcript page was returned; retry the request")
+				return
+			}
+			for _, row := range visible {
+				disclosed[[2]pgtype.UUID{row.TranscriptID, row.GroupID}] = true
+			}
+		}
 		for _, s := range allShares {
+			if !ownedByViewer[s.TranscriptID] && !disclosed[[2]pgtype.UUID{s.TranscriptID, s.GroupID}] {
+				continue
+			}
 			sharesByTranscript[s.TranscriptID] = append(sharesByTranscript[s.TranscriptID], s)
 		}
 	}

@@ -34,6 +34,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/peasant-labs/village/backend/internal/config"
+	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 )
 
 //go:embed testdata/public-owner-visibility.yaml
@@ -135,6 +136,7 @@ type poWorld struct {
 	accepted    pgtype.UUID // public, accepted into the collective
 	shared      pgtype.UUID // collective-shared, accepted: pullable by members
 	pending     pgtype.UUID // public, awaiting review
+	private     pgtype.UUID // private, never shared
 	contentKey  string      // blob key of the accepted transcript's stored content
 	relOwner    pgtype.UUID // owner of the relation collective (relation_owner viewer)
 	relGroup    pgtype.UUID // the relation collective, when the case has one
@@ -180,6 +182,7 @@ func newPublicOwnerWorld(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	w.accepted = cvInsertTranscript(t, ctx, pool, w.owner, seed, 0, "public", w.projectHash)
 	w.shared = cvInsertTranscript(t, ctx, pool, w.owner, seed, 1, "shared", w.projectHash)
 	w.pending = cvInsertTranscript(t, ctx, pool, w.owner, seed, 2, "public", w.projectHash)
+	w.private = cvInsertTranscript(t, ctx, pool, w.owner, seed, 3, "private", w.projectHash)
 	// A personal repository names its owner in the remote, the way an
 	// unredacted git remote does.
 	execAsSystem(t, ctx, pool, `UPDATE transcripts SET git_remote = $2, git_branch = 'main', project_name = 'po-project'
@@ -339,6 +342,7 @@ func publicOwnerRouter(h *Handler) http.Handler {
 	r.Get("/transcripts/{id}", h.GetTranscript)
 	r.Get("/transcripts/{id}/annotations", h.ListTranscriptAnnotations)
 	r.Get("/transcripts/{id}/content", h.GetTranscriptContent)
+	r.Get("/transcripts/{id}/collectives", h.ListTranscriptCollectives)
 	r.Get("/collectives/{id}", h.GetGroup)
 	r.Get("/collectives/{id}/pending", h.ListPendingShares)
 	r.Get("/collectives/{id}/my-shares", h.ListMyGroupShares)
@@ -420,6 +424,31 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 			viewer := w.actor(c.Viewer)
 			check := func(where string, body []byte) { w.assertNoLeak(t, where, body, c) }
 
+			// The batched read policy the parent resolution uses must agree with
+			// the per-transcript policy for this viewer on every transcript.
+			ids := []pgtype.UUID{w.accepted, w.shared, w.pending, w.private}
+			readable, err := h.queries.ListReadableTranscriptIDs(ctx, sqlc.ListReadableTranscriptIDsParams{TranscriptIds: ids, ViewerID: viewerID(viewer)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			batched := map[pgtype.UUID]bool{}
+			for _, id := range readable {
+				batched[id] = true
+			}
+			for _, id := range ids {
+				row, err := h.queries.GetTranscriptByID(ctx, id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				single, err := h.transcriptViewAccess(ctx, viewer, row)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if single != batched[id] {
+					t.Errorf("transcript %s: the per-transcript read policy says %v and the batched one %v for the %s viewer", w.id(id), single, batched[id], c.Viewer)
+				}
+			}
+
 			// Transcript detail: owner and owner_orgs.
 			status, body := w.get(t, router, viewer, "/transcripts/"+w.id(w.accepted))
 			if status != http.StatusOK {
@@ -450,6 +479,9 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 				Transcripts []struct {
 					Owner      json.RawMessage   `json:"owner"`
 					OwnerOrgs  []json.RawMessage `json:"owner_orgs"`
+					Shares     []struct {
+						GroupID string `json:"group_id"`
+					} `json:"shares"`
 					Transcript struct {
 						ID string `json:"id"`
 					} `json:"transcript"`
@@ -463,6 +495,29 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 				}
 				listed++
 				w.assertOwner(t, "list row", row.Owner, c.Expect.Owner)
+				// A row discloses exactly the collectives the dedicated route
+				// discloses to this viewer (the owner keeps all of them).
+				if c.Viewer != "owner" {
+					_, collectivesBody := w.get(t, router, viewer, "/transcripts/"+row.Transcript.ID+"/collectives")
+					var dedicated struct {
+						Collectives []struct {
+							ID string `json:"id"`
+						} `json:"collectives"`
+					}
+					mustDecode(t, collectivesBody, &dedicated)
+					want := map[string]bool{}
+					for _, collective := range dedicated.Collectives {
+						want[collective.ID] = true
+					}
+					if len(row.Shares) != len(want) {
+						t.Errorf("list row %s discloses %d collectives, the dedicated route %d", row.Transcript.ID, len(row.Shares), len(want))
+					}
+					for _, share := range row.Shares {
+						if !want[share.GroupID] {
+							t.Errorf("list row %s discloses collective %s the dedicated route withholds", row.Transcript.ID, share.GroupID)
+						}
+					}
+				}
 				if c.Expect.Owner == "anonymous" && len(row.OwnerOrgs) != 0 {
 					t.Errorf("list row lists organizations beside an anonymous owner: %s", body)
 				}

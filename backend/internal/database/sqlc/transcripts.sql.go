@@ -969,6 +969,62 @@ func (q *Queries) ListProjectTranscriptsForViewer(ctx context.Context, arg ListP
 	return items, nil
 }
 
+const listReadableTranscriptIDs = `-- name: ListReadableTranscriptIDs :many
+SELECT t.id
+FROM transcripts t
+WHERE t.id = ANY($1::uuid[])
+  AND (
+        t.visibility = 'public'
+        OR t.owner_id = $2::uuid
+        OR (t.visibility = 'shared' AND EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id AND ts.status = 'approved'
+              AND gm.user_id = $2::uuid
+              AND gm.role IN ('owner', 'member', 'contributor')
+        ))
+        OR EXISTS (
+            SELECT 1 FROM transcript_shares ts
+            JOIN group_members gm ON gm.group_id = ts.group_id
+            WHERE ts.transcript_id = t.id
+              AND gm.user_id = $2::uuid
+              AND gm.role = 'owner'
+        )
+      )
+`
+
+type ListReadableTranscriptIDsParams struct {
+	TranscriptIds []pgtype.UUID `db:"transcript_ids" json:"transcript_ids"`
+	ViewerID      pgtype.UUID   `db:"viewer_id" json:"viewer_id"`
+}
+
+// Which of the named transcripts a viewer may read, for a whole page at once.
+// It is the transcript read policy (handler.transcriptViewAccess) in one
+// statement: public; or the viewer owns it; or it is collective-shared with an
+// approved share to a collective where the viewer holds an accepted role
+// (owner, member, contributor); or the viewer owns a collective holding any
+// share of it (the review preview). A test holds the two equal per viewer and
+// transcript. A NULL viewer reads public transcripts only.
+func (q *Queries) ListReadableTranscriptIDs(ctx context.Context, arg ListReadableTranscriptIDsParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listReadableTranscriptIDs, arg.TranscriptIds, arg.ViewerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTranscriptsByOwnerLocalIDs = `-- name: ListTranscriptsByOwnerLocalIDs :many
 SELECT t.id, t.owner_id, t.local_id, t.visibility
 FROM transcripts t

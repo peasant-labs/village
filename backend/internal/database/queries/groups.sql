@@ -306,3 +306,28 @@ WHERE ts.transcript_id = $1
         )
       )
 ORDER BY g.name, g.id;
+
+-- name: ListTranscriptsCollectivesForViewer :many
+-- ListTranscriptCollectivesForViewer for a whole list page: the accepted
+-- memberships of many transcripts that a viewer who does NOT own them may be
+-- told about. The predicate is the single-transcript one with viewer_is_owner
+-- read per row (the viewer owns the transcript); the collectives-visibility
+-- corpus holds the two equal. The owner of a transcript keeps every accepted
+-- association on the list, as on the detail route, so the caller asks only for
+-- the transcripts it does not own.
+SELECT ts.transcript_id, g.id AS group_id
+FROM transcript_shares ts
+JOIN groups g ON g.id = ts.group_id
+JOIN transcripts t ON t.id = ts.transcript_id
+JOIN users u ON u.id = t.owner_id
+WHERE ts.transcript_id = ANY(@transcript_ids::uuid[])
+  AND ts.status = 'approved'
+  AND (u.is_discoverable = TRUE OR t.owner_id = sqlc.narg(viewer_id)::uuid)
+  AND (
+        g.data_access = 'public'
+        OR g.acceptance_mode = 'open'
+        OR EXISTS (
+            SELECT 1 FROM group_members gm2
+            WHERE gm2.group_id = g.id AND gm2.user_id = sqlc.narg(viewer_id)::uuid
+        )
+      );
