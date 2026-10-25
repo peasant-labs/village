@@ -1,0 +1,38 @@
+# The signed-out one-click unsubscribe page an invitation email links to
+# (`/email/unsubscribe?token=`), rendered with `fetch` stubbed. `answer` is the
+# status the API gives `POST /email/unsubscribe`; `press` is whether the person
+# presses the button. Nothing may be sent on arrival, because mail scanners
+# open links. Deletion protection is the required-name manifest in
+# `src/emailUnsubscribe.test.tsx`.
+
+cases:
+  - name: arriving-sends-nothing
+    why: a scanner or a person opening the link changes nothing until the button is pressed.
+    token: signed.token
+    answer: 200
+    press: false
+    expect: { requests: [], shows: stop emails about invitations?, button: true }
+
+  - name: pressing-stops-invitation-emails
+    why: the button sends the token, unauthenticated, and the page says the emails are off.
+    token: signed.token
+    answer: 200
+    press: true
+    expect: { requests: ["POST /email/unsubscribe?token=signed.token"], shows: invitation emails are off, button: false }
+
+  - name: a-forged-or-expired-token-is-refused
+    why: the API answers 400 for a token it cannot accept; the page points to settings instead.
+    token: signed.token
+    answer: 400
+    press: true
+    expect:
+      requests: ["POST /email/unsubscribe?token=signed.token"]
+      shows: this link is invalid or expired. you can turn invitation emails off in settings.
+      button: false
+
+  - name: a-link-without-a-token-is-invalid
+    why: with no token there is nothing to send, so the page says the link is invalid and offers no button.
+    token: null
+    answer: 200
+    press: false
+    expect: { requests: [], shows: this link is invalid or expired. you can turn invitation emails off in settings., button: false }

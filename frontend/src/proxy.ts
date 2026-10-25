@@ -9,10 +9,10 @@ import { isOpenSignedOut } from "@/lib/signIn";
  * as where to come back to once signed in. The hosted app's one signed-out view
  * is a public transcript.
  *
- * Three pages are served without a session (see `isOpenSignedOut`): the two
+ * Four pages are served without a session (see `isOpenSignedOut`): the two
  * steps of signing in (`/auth/start`, where the popup's button lands, and
- * `/auth/callback`, where the provider returns) and the privacy notice the
- * popup links to.
+ * `/auth/callback`, where the provider returns), the privacy notice the popup
+ * links to, and the one-click unsubscribe an invitation email links to.
  *
  * Only a page load is redirected. A fetch the page makes (Next prefetching or
  * navigating inside the app) is served the app, and the app's frame then sends

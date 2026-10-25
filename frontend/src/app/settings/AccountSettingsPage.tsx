@@ -7,6 +7,7 @@ import {
   Building2,
   GitPullRequest,
   LogIn,
+  Mail,
   Plug,
   TriangleAlert,
   UserRound,
@@ -33,6 +34,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { ConfirmInline, SettingGroup, SettingRow, SettingsLayout } from "@/lib/ft-ui";
 import { OnEmpty, OnHead, OnPage } from "@/components/online/Page";
 import RetryButton from "@/components/RetryButton";
+import EmailSettings from "./EmailSettings";
 import { loginHref } from "@/lib/signIn";
 import type { User } from "@/lib/types";
 import "@/app/online-settings.css";
@@ -57,6 +59,7 @@ const SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "profile", label: "profile", icon: UserRound },
   { id: "organizations", label: "organizations", icon: Building2 },
   { id: "pull-requests", label: "pull requests", icon: GitPullRequest },
+  { id: "email", label: "email", icon: Mail },
   { id: "connections", label: "connections", icon: Plug },
   { id: "danger-zone", label: "danger zone", icon: TriangleAlert },
 ];
@@ -263,6 +266,8 @@ function Settings({ user }: { user: User }) {
               </div>
             )}
           </SettingGroup>
+
+          <EmailSettings handle={handle} settings={settings} />
 
           <SettingGroup
             id="connections"
