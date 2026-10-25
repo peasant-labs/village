@@ -35,10 +35,49 @@ import (
 
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
+	gh "github.com/peasant-labs/village/backend/internal/github"
 )
 
 //go:embed testdata/public-owner-visibility.yaml
 var publicOwnerVisibilityYAML []byte
+
+//go:embed testdata/public-owner-filters.yaml
+var publicOwnerFiltersYAML []byte
+
+type poFilter struct {
+	Name  string   `yaml:"name"`
+	Query string   `yaml:"query"`
+	Views []string `yaml:"views"`
+}
+
+// requiredPublicOwnerFilters names every filter the matrix must keep running.
+var requiredPublicOwnerFilters = []string{"owner", "organization", "project_name", "repository", "project_hash"}
+
+func loadPublicOwnerFilters(t *testing.T) []poFilter {
+	t.Helper()
+	filters, err := decodeFixtureRows[poFilter](publicOwnerFiltersYAML)
+	if err != nil {
+		t.Fatalf("load the public-owner filters: %v", err)
+	}
+	present := map[string]bool{}
+	for _, f := range filters {
+		if f.Name == "" || f.Query == "" || len(f.Views) == 0 || present[f.Name] {
+			t.Fatalf("public-owner filter %+v must carry a unique name, a query and its views", f)
+		}
+		for _, view := range f.Views {
+			if view != "flat" && view != "grouped" {
+				t.Fatalf("filter %q names view %q; the views are flat and grouped", f.Name, view)
+			}
+		}
+		present[f.Name] = true
+	}
+	for _, name := range requiredPublicOwnerFilters {
+		if !present[name] {
+			t.Fatalf("the public-owner filters no longer contain %q; restore it", name)
+		}
+	}
+	return filters
+}
 
 type poExpect struct {
 	Owner       string `yaml:"owner"`
@@ -55,10 +94,10 @@ type poExpect struct {
 }
 
 type poCase struct {
-	Name              string   `yaml:"name"`
-	Why               string   `yaml:"why"`
-	OwnerDiscoverable bool     `yaml:"owner_discoverable"`
-	Viewer            string   `yaml:"viewer"`
+	Name              string `yaml:"name"`
+	Why               string `yaml:"why"`
+	OwnerDiscoverable bool   `yaml:"owner_discoverable"`
+	Viewer            string `yaml:"viewer"`
 	// Relation names how the relation_owner viewer's own collective relates
 	// to the owner (see the fixture header); empty for every other viewer.
 	Relation string   `yaml:"relation"`
@@ -139,6 +178,11 @@ type poWorld struct {
 	private     pgtype.UUID // private, never shared
 	contentKey  string      // blob key of the accepted transcript's stored content
 	relOwner    pgtype.UUID // owner of the relation collective (relation_owner viewer)
+	ownedGroup  pgtype.UUID // a collective the owner created and co-owns with collective_owner
+	helper      pgtype.UUID // a helper session the accepted transcript started
+	repoOwner   string      // the GitHub account of the pull request's repository
+	installID   int64       // the App installation of the owner's linked repository
+	suffix      string
 	relGroup    pgtype.UUID // the relation collective, when the case has one
 	// sharedContentKey is the blob key of the shared transcript's stored
 	// content, which the pull content route serves.
@@ -223,7 +267,80 @@ func newPublicOwnerWorld(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	if c.Relation != "" {
 		w.buildRelation(t, ctx, h, c.Relation, suffix)
 	}
+	w.suffix = suffix
+	w.buildPersonFields(t, ctx, h)
 	return w
+}
+
+// buildPersonFields gives the owner every other way a person appears on a
+// route: an attestation, a pull request attachment they authored and asked
+// for, a collective they created, a repository they linked to it, and a
+// helper session that groups under one of their transcripts.
+func (w *poWorld) buildPersonFields(t *testing.T, ctx context.Context, h *Handler) {
+	t.Helper()
+	owner := w.actor("owner")
+	// The owner signed in with GitHub, so a requester id resolves to them.
+	if _, err := w.pool.Exec(ctx, `UPDATE users SET provider_user_id = github_id::text WHERE id = $1`, w.owner); err != nil {
+		t.Fatal(err)
+	}
+
+	// An attestation the owner made for their own transcript, naming their
+	// organization.
+	rec := httptest.NewRecorder()
+	h.CreateAttestation(rec, w.direct(owner, http.MethodPost, "/attest",
+		map[string]any{"org_login": w.orgLogin, "attestation_type": "used_in_training"},
+		map[string]string{"id": w.id(w.accepted)}))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create the owner's attestation: %d %s", rec.Code, rec.Body.String())
+	}
+
+	// A pull request in a public repository linked to the collective, which
+	// the owner authored and asked prompts for.
+	w.repoOwner = "po-repoowner-" + w.suffix
+	if _, err := w.pool.Exec(ctx, `INSERT INTO collective_repositories (group_id, owner, name, installation_id, is_private, linked_by)
+		VALUES ($1, $2, 'po-repo', $3, false, $4)`, w.group, w.repoOwner, int64(uuid.New().ID()), w.moderator); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO pull_request_attachments (repo_owner, repo_name, github_repo_id, number, head_sha,
+			base_remote, head_remote, author_id, requester_github_id, state, group_id)
+		SELECT $1, 'po-repo', $2, 7, 'deadbeef', 'github.com/x/y', 'github.com/x/y', u.id, u.github_id, 'attached', $3
+		FROM users u WHERE u.id = $4`, w.repoOwner, int64(uuid.New().ID()), w.group, w.owner); err != nil {
+		t.Fatal(err)
+	}
+
+	// A collective the owner created, co-owned by collective_owner, with
+	// member as a plain member, and a repository the owner linked to it
+	// through an App installation all three can reach.
+	if err := w.pool.QueryRow(ctx, `
+		INSERT INTO groups (name, created_by, acceptance_mode, data_access) VALUES ($1, $2, 'open', 'public') RETURNING id
+	`, "po-owned-"+w.suffix, w.owner).Scan(&w.ownedGroup); err != nil {
+		t.Fatal(err)
+	}
+	shareAddMember(t, ctx, w.pool, w.ownedGroup, w.owner, "owner")
+	shareAddMember(t, ctx, w.pool, w.ownedGroup, w.moderator, "owner")
+	shareAddMember(t, ctx, w.pool, w.ownedGroup, w.member, "member")
+	w.installID = int64(uuid.New().ID())
+	account := int64(uuid.New().ID())
+	if _, err := w.pool.Exec(ctx, `INSERT INTO github_app_installations (installation_id, account_login, account_id, account_type)
+		VALUES ($1, $2, $3, 'Organization')`, w.installID, "po-inst-"+w.suffix, account); err != nil {
+		t.Fatal(err)
+	}
+	for _, person := range []pgtype.UUID{w.owner, w.moderator, w.member} {
+		if _, err := w.pool.Exec(ctx, `INSERT INTO user_github_orgs (user_id, org_login, org_id, visible, fetched_at) VALUES ($1, $2, $3, false, now())`,
+			person, "po-inst-"+w.suffix, account); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO collective_repositories (group_id, owner, name, installation_id, is_private, linked_by)
+		VALUES ($1, $2, 'po-linked', $3, false, $4)`, w.ownedGroup, "po-inst-"+w.suffix, w.installID, w.owner); err != nil {
+		t.Fatal(err)
+	}
+
+	// A helper session the accepted transcript started, so the grouped list
+	// offers a helper group whose members route is checked too.
+	w.helper = cvInsertTranscript(t, ctx, w.pool, w.owner, "posession-"+w.suffix, 4, "public", w.projectHash)
+	execAsSystem(t, ctx, w.pool, `UPDATE transcripts SET session_purpose = 'helper_review', parent_session_id = (SELECT local_id FROM transcripts WHERE id = $2) WHERE id = $1`,
+		w.helper, w.accepted)
 }
 
 // buildRelation gives relation_owner a collective of their own and relates
@@ -282,7 +399,16 @@ func (w *poWorld) cleanup(t *testing.T, ctx context.Context) {
 	if _, err := w.pool.Exec(ctx, "DELETE FROM annotations WHERE owner_id = $1", w.owner); err != nil {
 		t.Errorf("cleanup annotations: %v", err)
 	}
-	if _, err := w.pool.Exec(ctx, "DELETE FROM groups WHERE id = ANY($1)", []pgtype.UUID{w.group, w.relGroup}); err != nil {
+	if _, err := w.pool.Exec(ctx, "DELETE FROM pull_request_attachments WHERE author_id = $1", w.owner); err != nil {
+		t.Errorf("cleanup the attachment: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, "DELETE FROM github_app_installations WHERE installation_id = $1", w.installID); err != nil {
+		t.Errorf("cleanup the installation: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, "DELETE FROM attestations WHERE attester_id = $1", w.owner); err != nil {
+		t.Errorf("cleanup the attestation: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, "DELETE FROM groups WHERE id = ANY($1)", []pgtype.UUID{w.group, w.relGroup, w.ownedGroup}); err != nil {
 		t.Errorf("cleanup the collective: %v", err)
 	}
 	cleanupOwners(t, ctx, w.pool, w.owner, w.moderator, w.member, w.other, w.relOwner)
@@ -343,6 +469,16 @@ func publicOwnerRouter(h *Handler) http.Handler {
 	r.Get("/transcripts/{id}/annotations", h.ListTranscriptAnnotations)
 	r.Get("/transcripts/{id}/content", h.GetTranscriptContent)
 	r.Get("/transcripts/{id}/collectives", h.ListTranscriptCollectives)
+	r.Get("/transcripts/{id}/attestations", h.ListTranscriptAttestations)
+	r.Get("/transcript-groups/{groupId}/members", h.ListHelperMembers)
+	r.Get("/pulls/{owner}/{name}/{number}", h.GetPullRequestAttachment)
+	r.Get("/groups", h.ListGroups)
+	r.Post("/groups", h.CreateGroup)
+	r.Get("/groups/visible", h.ListVisibleGroups)
+	r.Patch("/groups/{id}", h.UpdateGroup)
+	r.Get("/groups/{id}/repositories", h.ListRepositories)
+	r.Post("/groups/{id}/repositories", h.LinkRepository)
+	r.Get("/orgs/{login}", h.GetOrg)
 	r.Get("/collectives/{id}", h.GetGroup)
 	r.Get("/collectives/{id}/pending", h.ListPendingShares)
 	r.Get("/collectives/{id}/my-shares", h.ListMyGroupShares)
@@ -357,13 +493,268 @@ func publicOwnerRouter(h *Handler) http.Handler {
 
 func (w *poWorld) get(t *testing.T, router http.Handler, actor *AuthUser, target string) (int, []byte) {
 	t.Helper()
+	return w.send(t, router, actor, http.MethodGet, target, nil)
+}
+
+func (w *poWorld) send(t *testing.T, router http.Handler, actor *AuthUser, method, target string, body any) (int, []byte) {
+	t.Helper()
 	ctx := context.Background()
 	if actor != nil {
 		ctx = context.WithValue(ctx, UserContextKey, actor)
 	}
+	var raw []byte
+	if body != nil {
+		var err error
+		if raw, err = json.Marshal(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	request := httptest.NewRequest(method, target, bytes.NewReader(raw)).WithContext(ctx)
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil).WithContext(ctx))
+	router.ServeHTTP(rec, request)
 	return rec.Code, rec.Body.Bytes()
+}
+
+// assertPersonRoutes checks every route that shows the owner in a role other
+// than transcript owner: attester, pull request author and requester,
+// collective creator, repository linker, helper-group member, and
+// organization member.
+func (w *poWorld) assertPersonRoutes(t *testing.T, h *Handler, router http.Handler, viewer *AuthUser, c poCase, groupedList []byte) {
+	t.Helper()
+	check := func(where string, body []byte) { w.assertNoLeak(t, where, body, c) }
+	want := c.Expect.Owner
+
+	// Attestations, on their route and on the detail.
+	status, body := w.get(t, router, viewer, "/transcripts/"+w.id(w.accepted)+"/attestations")
+	if status != http.StatusOK {
+		t.Fatalf("attestations answered %d: %s", status, body)
+	}
+	check("attestations", body)
+	var attestations []struct {
+		Attester json.RawMessage `json:"attester"`
+		OrgLogin string          `json:"org_login"`
+	}
+	mustDecode(t, body, &attestations)
+	status, body = w.get(t, router, viewer, "/transcripts/"+w.id(w.accepted))
+	if status != http.StatusOK {
+		t.Fatalf("detail answered %d: %s", status, body)
+	}
+	var detail struct {
+		Attestations []struct {
+			Attester json.RawMessage `json:"attester"`
+			OrgLogin string          `json:"org_login"`
+		} `json:"attestations"`
+	}
+	mustDecode(t, body, &detail)
+	for where, rows := range map[string][]struct {
+		Attester json.RawMessage `json:"attester"`
+		OrgLogin string          `json:"org_login"`
+	}{"attestations route": attestations, "detail attestations": detail.Attestations} {
+		if len(rows) != 1 {
+			t.Fatalf("%s holds %d attestations, want 1", where, len(rows))
+		}
+		w.assertOwner(t, where+" attester", rows[0].Attester, want)
+		wantOrg := w.orgLogin
+		if want == "anonymous" {
+			wantOrg = ""
+		}
+		if rows[0].OrgLogin != wantOrg {
+			t.Errorf("%s org_login = %q, want %q", where, rows[0].OrgLogin, wantOrg)
+		}
+	}
+
+	// The pull request attachment the owner authored and asked prompts for.
+	status, body = w.get(t, router, viewer, "/pulls/"+w.repoOwner+"/po-repo/7")
+	if status != http.StatusOK {
+		t.Fatalf("pull request attachment answered %d: %s", status, body)
+	}
+	check("pull request attachment", body)
+	var attachment struct {
+		Attachment struct {
+			Author      json.RawMessage `json:"author"`
+			RequestedBy json.RawMessage `json:"requested_by"`
+		} `json:"attachment"`
+	}
+	mustDecode(t, body, &attachment)
+	w.assertOwner(t, "attachment author", attachment.Attachment.Author, want)
+	w.assertOwner(t, "attachment requested_by", attachment.Attachment.RequestedBy, want)
+
+	// The helper group under the accepted transcript, through its members route.
+	var groupedPayload struct {
+		Items []struct {
+			HelperGroups []struct {
+				GroupID     string `json:"groupId"`
+				MemberScope string `json:"memberScope"`
+			} `json:"helperGroups"`
+		} `json:"items"`
+	}
+	mustDecode(t, groupedList, &groupedPayload)
+	helperGroups := 0
+	for _, item := range groupedPayload.Items {
+		for _, group := range item.HelperGroups {
+			helperGroups++
+			status, body = w.get(t, router, viewer, "/transcript-groups/"+group.GroupID+"/members?scope="+url.QueryEscape(group.MemberScope))
+			if status != http.StatusOK {
+				t.Fatalf("helper members answered %d: %s", status, body)
+			}
+			check("helper members", body)
+			owners := groupedOwners(t, body, "members")
+			if len(owners) == 0 {
+				t.Errorf("the helper group lists no member")
+			}
+			for _, owner := range owners {
+				w.assertOwner(t, "helper member", owner, want)
+			}
+		}
+	}
+	if helperGroups == 0 {
+		t.Errorf("the grouped list offers no helper group for the owner's helper session")
+	}
+
+	// The organization page lists the owner only as a profile.
+	status, body = w.get(t, router, viewer, "/orgs/"+url.PathEscape(w.orgLogin))
+	if status != http.StatusOK {
+		t.Fatalf("organization answered %d: %s", status, body)
+	}
+	var org struct {
+		Members []struct {
+			ID string `json:"id"`
+		} `json:"members"`
+	}
+	mustDecode(t, body, &org)
+	listed := false
+	for _, member := range org.Members {
+		listed = listed || member.ID == w.id(w.owner)
+	}
+	if listed != (want == "profile") {
+		t.Errorf("the organization page lists the owner = %v, want %v", listed, want == "profile")
+	}
+	if want == "anonymous" {
+		// The organization's own login is the page's subject, so only the
+		// owner's own identifying values are checked here.
+		for label, value := range map[string]string{"username": w.ownerName, "id": w.id(w.owner), "display name": w.displayName, "avatar": w.avatarURL} {
+			if bytes.Contains(body, []byte(value)) {
+				t.Errorf("the organization page leaks the hidden owner's %s %q", label, value)
+			}
+		}
+	}
+
+	if viewer == nil {
+		return
+	}
+
+	// Collective records carry their creator: the owner created ownedGroup.
+	creatorOf := func(where string, body []byte, required bool) {
+		var rows []struct {
+			ID      string          `json:"id"`
+			Creator json.RawMessage `json:"creator"`
+		}
+		mustDecode(t, body, &rows)
+		found := false
+		for _, row := range rows {
+			if row.ID == w.id(w.ownedGroup) {
+				found = true
+				w.assertOwner(t, where+" creator", row.Creator, want)
+			}
+		}
+		if found != required {
+			t.Errorf("%s lists the owner's collective = %v, want %v", where, found, required)
+		}
+	}
+	status, body = w.get(t, router, viewer, "/groups/visible")
+	if status != http.StatusOK {
+		t.Fatalf("visible collectives answered %d: %s", status, body)
+	}
+	check("visible collectives", body)
+	creatorOf("visible collectives", body, true)
+	status, body = w.get(t, router, viewer, "/groups")
+	if status != http.StatusOK {
+		t.Fatalf("your collectives answered %d: %s", status, body)
+	}
+	check("your collectives", body)
+	member := c.Viewer == "owner" || c.Viewer == "collective_owner" || c.Viewer == "member"
+	creatorOf("your collectives", body, member)
+
+	// Creating a collective answers with the creator: the viewer themselves.
+	status, body = w.send(t, router, viewer, http.MethodPost, "/groups", map[string]any{"name": "po-created-" + w.suffix + "-" + c.Viewer})
+	if status != http.StatusCreated {
+		t.Fatalf("create collective answered %d: %s", status, body)
+	}
+	check("create collective", body)
+	var created struct {
+		ID      string `json:"id"`
+		Creator struct {
+			Kind string `json:"kind"`
+			ID   string `json:"id"`
+		} `json:"creator"`
+	}
+	mustDecode(t, body, &created)
+	if created.Creator.Kind != "profile" || created.Creator.ID != viewer.ID.String() {
+		t.Errorf("create collective creator = %+v, want the viewer's own profile", created.Creator)
+	}
+	if _, err := w.pool.Exec(context.Background(), "DELETE FROM groups WHERE id = $1", created.ID); err != nil {
+		t.Errorf("cleanup the created collective: %v", err)
+	}
+
+	if c.Viewer == "collective_owner" {
+		// A co-owner updating the owner's collective is answered with its creator.
+		status, body = w.send(t, router, viewer, http.MethodPatch, "/groups/"+w.id(w.ownedGroup), map[string]any{"description": "updated"})
+		if status != http.StatusOK {
+			t.Fatalf("update collective answered %d: %s", status, body)
+		}
+		check("update collective", body)
+		var updated struct {
+			Creator json.RawMessage `json:"creator"`
+		}
+		mustDecode(t, body, &updated)
+		w.assertOwner(t, "update collective creator", updated.Creator, want)
+	}
+
+	if !member {
+		return
+	}
+	// The repository the owner linked, as the collective's members list it.
+	f := &fakeGitHub{repoBody: `{"name":"po-linked-2","private":false,"owner":{"login":"po-inst-` + w.suffix + `"}}`, installationID: w.installID}
+	newFakeGitHub(t, f)
+	client, err := gh.NewClient(gh.Config{AppID: "123", PrivateKeyPEM: testAppPEM(t)}, gh.WithBaseURL(f.srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.gh = client
+	defer func() { h.gh = nil }()
+	status, body = w.get(t, router, viewer, "/groups/"+w.id(w.ownedGroup)+"/repositories")
+	if status != http.StatusOK {
+		t.Fatalf("linked repositories answered %d: %s", status, body)
+	}
+	check("linked repositories", body)
+	var repositories struct {
+		Repositories []struct {
+			Name     string          `json:"name"`
+			LinkedBy json.RawMessage `json:"linked_by"`
+		} `json:"repositories"`
+	}
+	mustDecode(t, body, &repositories)
+	if len(repositories.Repositories) != 1 {
+		t.Fatalf("linked repositories lists %d, want the owner's one: %s", len(repositories.Repositories), body)
+	}
+	w.assertOwner(t, "linked repository linked_by", repositories.Repositories[0].LinkedBy, want)
+	if c.Viewer == "owner" {
+		// Linking answers with the linker: the owner themselves.
+		installation := w.installID
+		status, body = w.send(t, router, viewer, http.MethodPost, "/groups/"+w.id(w.ownedGroup)+"/repositories",
+			map[string]any{"owner": "po-inst-" + w.suffix, "name": "po-linked-2", "installation_id": installation})
+		if status != http.StatusCreated {
+			t.Fatalf("link repository answered %d: %s", status, body)
+		}
+		var linked struct {
+			LinkedBy json.RawMessage `json:"linked_by"`
+		}
+		mustDecode(t, body, &linked)
+		w.assertOwner(t, "link repository linked_by", linked.LinkedBy, "profile")
+	}
 }
 
 // wantProfile is the exact profile object of the world's owner.
@@ -477,9 +868,9 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 			check("list", body)
 			var list struct {
 				Transcripts []struct {
-					Owner      json.RawMessage   `json:"owner"`
-					OwnerOrgs  []json.RawMessage `json:"owner_orgs"`
-					Shares     []struct {
+					Owner     json.RawMessage   `json:"owner"`
+					OwnerOrgs []json.RawMessage `json:"owner_orgs"`
+					Shares    []struct {
 						GroupID string `json:"group_id"`
 					} `json:"shares"`
 					Transcript struct {
@@ -528,6 +919,7 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 
 			// Grouped list.
 			status, body = w.get(t, router, viewer, "/transcripts?view=grouped&limit=100&q="+url.QueryEscape("posession"))
+			groupedListBody := body
 			if status != http.StatusOK {
 				t.Fatalf("grouped list answered %d: %s", status, body)
 			}
@@ -536,10 +928,19 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 				w.assertOwner(t, "grouped row "+string(rune('0'+i)), owner, c.Expect.Owner)
 			}
 
-			// The owner, organization, project and repository filters on both lists.
-			for _, filter := range []string{"owner=" + url.QueryEscape(w.ownerName), "org=" + url.QueryEscape(w.orgLogin),
-				"project=po-project", "repo=" + url.QueryEscape(w.ownerName+"/po-project")} {
-				for _, view := range []string{"", "&view=grouped"} {
+			// The person and repository filters, from the filter fixture.
+			for _, filterCase := range loadPublicOwnerFilters(t) {
+				filter := strings.NewReplacer(
+					"{owner_name}", url.QueryEscape(w.ownerName),
+					"{org_login}", url.QueryEscape(w.orgLogin),
+					"{project_hash}", url.QueryEscape(w.projectHash),
+				).Replace(filterCase.Query)
+				for _, view := range filterCase.Views {
+					if view == "grouped" {
+						view = "&view=grouped"
+					} else {
+						view = ""
+					}
 					status, body = w.get(t, router, viewer, "/transcripts?limit=100&"+filter+view)
 					if status != http.StatusOK {
 						t.Fatalf("filtered list %s%s answered %d: %s", filter, view, status, body)
@@ -820,6 +1221,8 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 				}
 				w.assertOwner(t, target, raw, "profile")
 			}
+
+			w.assertPersonRoutes(t, h, router, viewer, c, groupedListBody)
 		})
 	}
 }
