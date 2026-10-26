@@ -483,8 +483,9 @@ The browser half of a signed-out transcript is
 `frontend/src/signedOutTranscript.test.tsx`: the real app frame keeps a
 signed-out visitor on a transcript page the server marked public and leaves for
 sign-in otherwise, and the real transcript page signed out asks for nobody's
-collectives, links to no page that needs a session, and offers no owner or
-member action.
+collectives, links to no page that needs a session, offers no owner or member
+action, and keeps an owner the server serves as anonymous anonymous: no project
+crumb, no link to a person, and no repository text.
 
 ### The front door: sign-in, hidden surfaces, and lowercase chrome
 

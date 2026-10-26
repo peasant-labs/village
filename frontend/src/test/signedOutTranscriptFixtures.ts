@@ -25,6 +25,7 @@ export interface PageCase {
   name: string;
   why: string;
   openSignedOut: boolean;
+  owner: "profile" | "anonymous";
   search: string;
   pullRequests: VillageTranscriptPullRequest[];
   expectLeaving: boolean;
@@ -51,6 +52,7 @@ const requiredPageCases = [
   "opened-from-a-pull-request",
   "bound-to-a-pull-request-on-a-public-repository",
   "not-marked-open-is-left-for-sign-in",
+  "an-anonymous-owner-stays-anonymous-signed-out",
 ];
 
 export function loadSignedOutTranscriptFixtures(): { frameCases: FrameCase[]; pageCases: PageCase[] } {
@@ -93,10 +95,13 @@ export function loadSignedOutTranscriptFixtures(): { frameCases: FrameCase[]; pa
   for (const c of parsed.pageCases) {
     assertExactKeys(
       c,
-      ["name", "why", "openSignedOut", "search", "pullRequests", "expectLeaving", "expectCrumbs"],
+      ["name", "why", "openSignedOut", "owner", "search", "pullRequests", "expectLeaving", "expectCrumbs"],
       `page case ${c.name}`,
     );
     if (!c.why?.trim()) throw new Error(`page case ${c.name} states no reason it exists`);
+    if (!["profile", "anonymous"].includes(c.owner)) {
+      throw new Error(`page case ${c.name}: ${c.owner} is not an owner the server serves`);
+    }
     if (c.expectLeaving === c.openSignedOut) {
       throw new Error(`page case ${c.name}: a signed-out visitor stays exactly when the server marked the page open`);
     }
@@ -104,6 +109,10 @@ export function loadSignedOutTranscriptFixtures(): { frameCases: FrameCase[]; pa
   // The no-session-link check must see a pull request row, or it proves nothing about them.
   if (!parsed.pageCases.some((c) => !c.expectLeaving && c.pullRequests.length > 0)) {
     throw new Error("signed-out-transcript pageCases must serve a pull request to a page that stays open");
+  }
+  // The most restricted reader must see an anonymous owner kept anonymous.
+  if (!parsed.pageCases.some((c) => !c.expectLeaving && c.owner === "anonymous")) {
+    throw new Error("signed-out-transcript pageCases must open a transcript whose owner is anonymous");
   }
   return parsed;
 }

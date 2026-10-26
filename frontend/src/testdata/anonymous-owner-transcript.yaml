@@ -1,7 +1,8 @@
 # The mounted /transcripts/[id] page for an owner the server names as a public
 # profile and for one it names as anonymous. Loaded by
 # src/anonymousOwnerTranscript.test.tsx, which renders the REAL route with the
-# metadata and content reads mocked over REST.
+# metadata and content reads mocked over REST, for an unrelated signed-in
+# reader.
 #
 # `owner` is the metadata read's owner. `project` is the resolved project name
 # the metadata read serves, or null when the server withholds the repository

@@ -118,19 +118,24 @@ frameCases:
 # The real transcript page inside the real frame, opened signed out at
 # `/transcripts/{id}{search}`. `openSignedOut` is what the server told the
 # page; `pullRequests` are the pull requests the API serves this anonymous
-# reader (only ones on public repositories).
+# reader (only ones on public repositories). `owner` is how the server names
+# the transcript's owner to this reader: `profile` (alice, with the project
+# `village`) or `anonymous` (an owner hidden from other readers: the server
+# withholds the project and the repository fields too).
 #
 # A page the server marked open (`expectLeaving: false`) is read in the public
 # bar. Its trail is `expectCrumbs`, each crumb `label -> href` or the bare
 # label for one with no link; signed out, none links. Every such case also
 # asserts that the page asks for nobody's collectives, links to no page that
 # needs a session (pull request rows included), and offers no owner or member
-# action. A page the server did not mark open is swapped for the frame's
+# action. An anonymous owner's page also names no project and carries no
+# repository text. A page the server did not mark open is swapped for the frame's
 # "taking you to log in" note, and the visitor is sent to sign in once.
 pageCases:
   - name: opened-with-no-place
     why: a shared link names no place; the trail is home and the project, as text.
     openSignedOut: true
+    owner: profile
     search: ""
     pullRequests: []
     expectLeaving: false
@@ -138,6 +143,7 @@ pageCases:
   - name: opened-from-a-collective
     why: a link copied inside a collective keeps its place; signed out it names it without linking it.
     openSignedOut: true
+    owner: profile
     search: "?in=collective:c-guild"
     pullRequests: []
     expectLeaving: false
@@ -145,6 +151,7 @@ pageCases:
   - name: opened-from-a-pull-request
     why: a link copied from a pull request keeps its place; signed out it names it without linking it.
     openSignedOut: true
+    owner: profile
     search: "?in=pull:acme/widgets/7"
     pullRequests: []
     expectLeaving: false
@@ -155,6 +162,7 @@ pageCases:
       repositories; signed out, each row names its pull request without
       linking to the page that needs a session.
     openSignedOut: true
+    owner: profile
     search: ""
     pullRequests:
       - { owner: acme, name: widgets, number: 7, title: Fix flaky ingest test, head_ref: fix/flaky-ingest, state: attached }
@@ -165,7 +173,19 @@ pageCases:
       the real page passes on the server's answer: a transcript it did not
       mark open is never drawn for a signed-out visitor, who is sent to sign in.
     openSignedOut: false
+    owner: profile
     search: ""
     pullRequests: []
     expectLeaving: true
     expectCrumbs: []
+  - name: an-anonymous-owner-stays-anonymous-signed-out
+    why: >-
+      a signed-out reader is the most restricted reader, so an owner the server
+      hides from other readers is hidden here too: the trail names no project
+      and nothing links to a person or names the repository.
+    openSignedOut: true
+    owner: anonymous
+    search: ""
+    pullRequests: []
+    expectLeaving: false
+    expectCrumbs: ["home"]

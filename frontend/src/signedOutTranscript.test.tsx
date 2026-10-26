@@ -12,7 +12,8 @@ import { hasAuthTokenCookie } from "@/lib/api";
 import { installHomeRouteREST, renderHeaderAt } from "@/test/mountedHomeRoute";
 import { installMountedRouteTeardown, installRESTFixture } from "@/test/mountedProductionRoute";
 import { resetNextNavigation } from "@/test/nextNavigationMock";
-import { loadSignedOutTranscriptFixtures, type FrameCase } from "@/test/signedOutTranscriptFixtures";
+import { anonymousOwner } from "@/test/publicOwnerFixture";
+import { loadSignedOutTranscriptFixtures, type FrameCase, type PageCase } from "@/test/signedOutTranscriptFixtures";
 
 // A transcript page read by somebody who is not signed in: the REAL app frame
 // (`AppFrame`) inside the real `AuthProvider`, with the session answered by
@@ -74,7 +75,8 @@ describe("the app frame on a transcript page, signed out", () => {
   }
 });
 
-function detail(): SessionDetailPayload {
+/** The content read; for an anonymous owner the repository fields are left out, as the server does. */
+function detail(owner: PageCase["owner"]): SessionDetailPayload {
   return {
     id: "session-signed-out",
     harness: "claude-code",
@@ -86,7 +88,9 @@ function detail(): SessionDetailPayload {
     tokensOut: 80,
     turnCount: 2,
     toolCallCount: 0,
-    project: "village",
+    ...(owner === "anonymous"
+      ? {}
+      : { project: "village", workingDirectory: "/work/village", gitBranch: "main", gitRemote: "git@github.com:acme/village.git" }),
     model: "anthropic/claude-fable-5",
     turns: [
       { index: 0, role: "user", content: "why is ingest dropping commits?", timestamp: "2026-08-21T09:00:00.000Z", depth: 0 },
@@ -111,10 +115,11 @@ describe("the transcript page, signed out", () => {
             visibility: "public",
             title: TITLE,
             description: null,
-            project_name: "village",
+            // Withheld (null) when the owner is anonymous to this reader.
+            project_name: c.owner === "anonymous" ? null : "village",
           },
           // The owner is somebody else; nobody is signed in.
-          owner: { id: "user-alice", github_username: "alice" },
+          owner: c.owner === "anonymous" ? anonymousOwner : { id: "user-alice", github_username: "alice" },
           pull_requests: c.pullRequests,
           enriched_shares: [
             {
@@ -127,7 +132,7 @@ describe("the transcript page, signed out", () => {
             },
           ],
         },
-        detail(),
+        detail(c.owner),
         "signed-out-transcript",
         undefined,
         (url) => {
@@ -183,6 +188,17 @@ describe("the transcript page, signed out", () => {
         return href ? `${crumb.textContent ?? ""} -> ${href}` : crumb.textContent ?? "";
       });
       expect(crumbs).toEqual(c.expectCrumbs);
+
+      // An anonymous owner stays anonymous: no person is linked or named, and
+      // nothing of the withheld repository reaches the page.
+      if (c.owner === "anonymous") {
+        const userLinks = [...document.querySelectorAll("a")].filter((a) =>
+          (a.getAttribute("href") ?? "").startsWith("/users/"),
+        );
+        expect(userLinks).toEqual([]);
+        expect(document.body.textContent).not.toContain("alice");
+        expect(document.body.textContent).not.toContain("village");
+      }
 
       // Each pull request is named, as text.
       if (c.pullRequests.length > 0) {
