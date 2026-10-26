@@ -11,6 +11,14 @@
 #                 repository withholding are decided independently.
 # author_visible: whether the caller may see that other author (author:
 #                 other only).
+# stored_targets: the target kinds of the stored annotations, one each, all
+#                 written by the row's author.
+# served_targets: the target kinds the pull annotations read serves. Beside a
+#                 hidden owner, project and file_version targets name the
+#                 withheld repository, so they are left out in both envelopes;
+#                 every other target is served. A file_version row is stored
+#                 only beside a hidden owner: Village keeps no target file path
+#                 or content hash, so a served one could never be valid.
 # envelope:       the envelope served.
 #
 # A hidden person must never appear by id, username, display name or avatar
@@ -20,14 +28,14 @@
 # hidden person is an empty id beside "anon"; in 0.3.0 it is
 # {"kind":"anonymous"}. A hidden human author's annotatorName is "anon".
 
-- {name: legacy_without_header_hides_owner, header: [], owner_visible: false, author: owner, envelope: "0.2.0"}
-- {name: legacy_requested_hides_owner, header: ["0.2.0"], owner_visible: false, author: owner, envelope: "0.2.0"}
-- {name: legacy_malformed_header_hides_owner, header: ["0.3"], owner_visible: false, author: owner, envelope: "0.2.0"}
-- {name: public_owner_hides_owner, header: ["0.3.0"], owner_visible: false, author: owner, envelope: "0.3.0"}
-- {name: public_owner_patch_hides_owner, header: ["0.3.4"], owner_visible: false, author: owner, envelope: "0.3.0"}
-- {name: legacy_shows_visible_owner, header: [], owner_visible: true, author: owner, envelope: "0.2.0"}
-- {name: public_owner_shows_visible_owner, header: ["0.3.0"], owner_visible: true, author: owner, envelope: "0.3.0"}
-- {name: legacy_visible_author_on_hidden_owner, header: [], owner_visible: false, author: other, author_visible: true, envelope: "0.2.0"}
-- {name: public_owner_visible_author_on_hidden_owner, header: ["0.3.0"], owner_visible: false, author: other, author_visible: true, envelope: "0.3.0"}
-- {name: legacy_hidden_author_on_visible_owner, header: [], owner_visible: true, author: other, author_visible: false, envelope: "0.2.0"}
-- {name: public_owner_hidden_author_on_visible_owner, header: ["0.3.0"], owner_visible: true, author: other, author_visible: false, envelope: "0.3.0"}
+- {name: legacy_without_header_hides_owner, header: [], owner_visible: false, author: owner, stored_targets: [session, project, file_version], served_targets: [session], envelope: "0.2.0"}
+- {name: legacy_requested_hides_owner, header: ["0.2.0"], owner_visible: false, author: owner, stored_targets: [session, project, file_version], served_targets: [session], envelope: "0.2.0"}
+- {name: legacy_malformed_header_hides_owner, header: ["0.3"], owner_visible: false, author: owner, stored_targets: [session, project, file_version], served_targets: [session], envelope: "0.2.0"}
+- {name: public_owner_hides_owner, header: ["0.3.0"], owner_visible: false, author: owner, stored_targets: [session, project, file_version], served_targets: [session], envelope: "0.3.0"}
+- {name: public_owner_patch_hides_owner, header: ["0.3.4"], owner_visible: false, author: owner, stored_targets: [session, project, file_version], served_targets: [session], envelope: "0.3.0"}
+- {name: legacy_shows_visible_owner, header: [], owner_visible: true, author: owner, stored_targets: [session, project], served_targets: [session, project], envelope: "0.2.0"}
+- {name: public_owner_shows_visible_owner, header: ["0.3.0"], owner_visible: true, author: owner, stored_targets: [session, project], served_targets: [session, project], envelope: "0.3.0"}
+- {name: legacy_visible_author_on_hidden_owner, header: [], owner_visible: false, author: other, author_visible: true, stored_targets: [session, project, file_version], served_targets: [session], envelope: "0.2.0"}
+- {name: public_owner_visible_author_on_hidden_owner, header: ["0.3.0"], owner_visible: false, author: other, author_visible: true, stored_targets: [session, project, file_version], served_targets: [session], envelope: "0.3.0"}
+- {name: legacy_hidden_author_on_visible_owner, header: [], owner_visible: true, author: other, author_visible: false, stored_targets: [session, project], served_targets: [session, project], envelope: "0.2.0"}
+- {name: public_owner_hidden_author_on_visible_owner, header: ["0.3.0"], owner_visible: true, author: other, author_visible: false, stored_targets: [session, project], served_targets: [session, project], envelope: "0.3.0"}

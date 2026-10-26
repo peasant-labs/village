@@ -38,6 +38,8 @@ type pullPeopleCase struct {
 	OwnerVisible  bool     `yaml:"owner_visible"`
 	Author        string   `yaml:"author"`
 	AuthorVisible *bool    `yaml:"author_visible"`
+	StoredTargets []string `yaml:"stored_targets"`
+	ServedTargets []string `yaml:"served_targets"`
 	Envelope      string   `yaml:"envelope"`
 }
 
@@ -344,11 +346,26 @@ func TestPullEnvelopesNeverLeakAHiddenOwner(t *testing.T) {
 						return sqlc.GroupMember{GroupID: arg.GroupID, UserID: arg.UserID, Role: "member"}, nil
 					},
 					listAnnotationsByTranscriptID: func(context.Context, pgtype.UUID) ([]sqlc.Annotation, error) {
-						return []sqlc.Annotation{{
-							ID: pgUUIDFrom(uuid.New()), OwnerID: pgUUIDFrom(author.id), TargetKind: string(schema.TargetProject),
-							ProjectHash: pgText(projectHash), TypeID: "quality.session_outcome", Value: "success",
-							AnnotatorKind: pgText(string(schema.AnnotatorHuman)), AnnotatorName: pgText(author.username),
-						}}, nil
+						stored := make([]sqlc.Annotation, 0, len(c.StoredTargets))
+						for _, kind := range c.StoredTargets {
+							row := sqlc.Annotation{
+								ID: pgUUIDFrom(uuid.New()), OwnerID: pgUUIDFrom(author.id), TargetKind: kind,
+								TypeID: "quality.session_outcome", Value: "success",
+								AnnotatorKind: pgText(string(schema.AnnotatorHuman)), AnnotatorName: pgText(author.username),
+							}
+							switch schema.TargetKind(kind) {
+							case schema.TargetSession:
+								row.SessionID = pgText("sess-people")
+							case schema.TargetProject:
+								row.ProjectHash = pgText(projectHash)
+							case schema.TargetFileVersion:
+								// Village stores no target file path or content hash.
+							default:
+								t.Fatalf("case %q stores target %q; the stored targets are session, project and file_version", c.Name, kind)
+							}
+							stored = append(stored, row)
+						}
+						return stored, nil
 					},
 					listPublicOwnersForViewer: func(_ context.Context, arg sqlc.ListPublicOwnersForViewerParams) ([]sqlc.ListPublicOwnersForViewerRow, error) {
 						rows := make([]sqlc.ListPublicOwnersForViewerRow, 0, len(arg.PersonIds))
@@ -404,7 +421,19 @@ func TestPullEnvelopesNeverLeakAHiddenOwner(t *testing.T) {
 					person = author
 				}
 				legacyKey, currentKey := pullPersonKeys(route.name)
-				for _, row := range pullEnvelopeRows(t, route.name, body) {
+				rows := pullEnvelopeRows(t, route.name, body)
+				if route.name == "annotations" {
+					served := make([]string, 0, len(rows))
+					for _, row := range rows {
+						var kind string
+						decodePullJSON(t, row["targetKind"], &kind)
+						served = append(served, kind)
+					}
+					if strings.Join(served, ",") != strings.Join(c.ServedTargets, ",") {
+						t.Errorf("the %s annotations read serves targets %v, want %v: %s", c.Envelope, served, c.ServedTargets, body)
+					}
+				}
+				for _, row := range rows {
 					if c.Envelope == "0.2.0" {
 						assertLegacyPullPerson(t, route.name, row, legacyKey, person)
 						if _, ok := row[currentKey]; ok {
@@ -417,9 +446,11 @@ func TestPullEnvelopesNeverLeakAHiddenOwner(t *testing.T) {
 						}
 					}
 					if route.name == "annotations" {
+						var kind string
+						decodePullJSON(t, row["targetKind"], &kind)
 						_, hasHash := row["targetProjectHash"]
-						if hasHash != owner.visible {
-							t.Errorf("annotation targetProjectHash present = %v beside owner_visible %v: %s", hasHash, owner.visible, body)
+						if wantHash := kind == string(schema.TargetProject); hasHash != wantHash {
+							t.Errorf("a %s annotation carries targetProjectHash = %v, want %v: %s", kind, hasHash, wantHash, body)
 						}
 						var annotator string
 						decodePullJSON(t, row["annotatorName"], &annotator)
@@ -440,7 +471,7 @@ func TestPullEnvelopesNeverLeakAHiddenOwner(t *testing.T) {
 						t.Errorf("projectName = %v beside owner_visible %v: %s", name, owner.visible, body)
 					}
 				}
-				validatePullBody(t, c.Envelope, route.name, body, owner.visible)
+				validatePullBody(t, c.Envelope, route.name, body)
 			})
 		}
 	}
@@ -512,13 +543,9 @@ func assertCurrentPullPerson(t *testing.T, route string, raw json.RawMessage, pe
 }
 
 // validatePullBody runs the schema module's own validation over the served
-// body, so a response the contract refuses fails here too.
-//
-// An annotation's target is validated only beside a visible owner: the
-// project arm of AnnotationSummary.Validate requires targetProjectHash, which
-// Village withholds beside a hidden owner, so the module refuses that row in
-// both envelopes. The person on it is validated either way.
-func validatePullBody(t *testing.T, envelope, route string, body []byte, ownerVisible bool) {
+// body, so a response the contract refuses fails here too. Every annotation
+// row is validated, its target and its person, in both envelopes.
+func validatePullBody(t *testing.T, envelope, route string, body []byte) {
 	t.Helper()
 	var errs []error
 	switch {
@@ -534,10 +561,7 @@ func validatePullBody(t *testing.T, envelope, route string, body []byte, ownerVi
 		var rows []schema.LegacyPullAnnotation
 		decodePullJSON(t, body, &rows)
 		for _, row := range rows {
-			errs = append(errs, row.Validate())
-			if ownerVisible {
-				errs = append(errs, row.AnnotationSummary.Validate())
-			}
+			errs = append(errs, row.Validate(), row.AnnotationSummary.Validate())
 		}
 	case route == "list":
 		var v schema.PullListResponse
@@ -551,10 +575,7 @@ func validatePullBody(t *testing.T, envelope, route string, body []byte, ownerVi
 		var rows []schema.PullAnnotation
 		decodePullJSON(t, body, &rows)
 		for _, row := range rows {
-			errs = append(errs, row.Author.Validate())
-			if ownerVisible {
-				errs = append(errs, row.AnnotationSummary.Validate())
-			}
+			errs = append(errs, row.Author.Validate(), row.AnnotationSummary.Validate())
 		}
 	}
 	for _, err := range errs {

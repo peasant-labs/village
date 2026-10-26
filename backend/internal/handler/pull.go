@@ -493,12 +493,16 @@ func (h *Handler) GetPullTranscriptAnnotations(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	owner := authors.of(t.OwnerID)
 	annotations := make([]schema.PullAnnotation, 0, len(rows))
 	for _, row := range rows {
 		author := authors.of(row.OwnerID)
 		summary := annotationRowToSummary(row)
+		if annotationTargetsWithheldRepository(summary, owner) {
+			continue
+		}
 		summary.AnnotatorName = annotatorNameFor(summary, author)
-		withholdAnnotationRepository(&summary, authors.of(t.OwnerID))
+		withholdAnnotationRepository(&summary, owner)
 		annotations = append(annotations, schema.PullAnnotation{
 			AnnotationSummary: summary,
 			Author:            author,
@@ -518,6 +522,21 @@ func (h *Handler) GetPullTranscriptAnnotations(w http.ResponseWriter, r *http.Re
 		return
 	}
 	writeJSON(w, http.StatusOK, annotations)
+}
+
+// annotationTargetsWithheldRepository reports whether an annotation is about
+// the repository withheld beside an owner anonymous to the caller: a project
+// target (identified by targetProjectHash) or a file-version target
+// (targetFilePath and targetContentHash). Such a note is about exactly what is
+// withheld, and with its target withheld it no longer satisfies the schema's
+// AnnotationSummary validation in either envelope, so the pull annotations
+// read leaves it out. Session, entry, annotation and association targets are
+// served as usual.
+func annotationTargetsWithheldRepository(summary schema.AnnotationSummary, owner schema.VillagePublicOwner) bool {
+	if owner.IsProfile() {
+		return false
+	}
+	return summary.TargetKind == schema.TargetProject || summary.TargetKind == schema.TargetFileVersion
 }
 
 // lookupPullable parses the {id} param, fetches the transcript, and enforces
