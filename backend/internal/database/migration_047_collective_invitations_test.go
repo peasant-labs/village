@@ -29,6 +29,7 @@ func TestMigration047CollectiveInvitationsStructure(t *testing.T) {
 		"group_id         UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE",
 		"CHECK (status IN ('pending', 'declined'))",
 		"CREATE UNIQUE INDEX idx_collective_invitations_target",
+		"CREATE INDEX idx_collective_invitations_invited_by",
 		"CREATE TABLE user_notification_emails",
 		"user_id           UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE",
 		"email_invitations BOOLEAN NOT NULL DEFAULT true",

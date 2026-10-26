@@ -10,6 +10,16 @@
 SELECT * FROM collective_invitations
 WHERE group_id = $1 AND invited_username = $2 AND expires_at > now();
 
+-- name: RelinkGroupInvitation :exec
+-- Inviting a handle again while its invitation is open points the invitation
+-- at the account that holds the handle now, NULL when none does: a person who
+-- signed up after being invited, or who took over a handle, then sees it. A
+-- new invitee has not answered, so the status returns to pending; an
+-- unchanged invitee keeps their answer. Nothing changes for the owners.
+UPDATE collective_invitations
+SET invitee_id = sqlc.narg(invitee_id)::uuid, status = 'pending'
+WHERE id = @id AND invitee_id IS DISTINCT FROM sqlc.narg(invitee_id)::uuid;
+
 -- name: DeleteExpiredGroupInvitationByUsername :exec
 -- An expired invitation for the same collective and handle is deleted by the
 -- next invitation, so the unique target index admits the new one.

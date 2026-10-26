@@ -146,8 +146,17 @@ func (h *Handler) createGroupInvitationLocked(w http.ResponseWriter, r *http.Req
 		return nil
 	}
 
-	// The account that holds the handle, if any. Its discoverability is never
-	// consulted: a hidden person is invited exactly like a discoverable one.
+	// The same reads run in the same order for every handle, whether or not
+	// an account holds it, so the response time says nothing about the
+	// person: the open invitation, the account holding the handle (its
+	// discoverability is never consulted), and that account's membership,
+	// which with no account reads by a NULL id and finds none.
+	existingInvitation, err := h.queries.GetOpenGroupInvitationByUsername(r.Context(), sqlc.GetOpenGroupInvitationByUsernameParams{GroupID: groupID, InvitedUsername: handle})
+	openInvitation := err == nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusInternalServerError, "Could not read the collective's invitations; nobody was invited. Retry the request.")
+		return nil
+	}
 	var inviteeID pgtype.UUID
 	invitee, err := h.queries.GetUserByUsername(r.Context(), handle)
 	switch {
@@ -158,25 +167,27 @@ func (h *Handler) createGroupInvitationLocked(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusInternalServerError, "Could not read the username; nobody was invited. Retry the request.")
 		return nil
 	}
-	if inviteeID.Valid {
-		existing, err := h.queries.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{GroupID: groupID, UserID: inviteeID})
-		switch {
-		case err == nil && consentedMembership(existing):
-			writeError(w, http.StatusConflict, "@"+handle+" is already a member of this collective")
-			return nil
-		case err != nil && !errors.Is(err, pgx.ErrNoRows):
-			writeError(w, http.StatusInternalServerError, "Could not read the collective's members; nobody was invited. Retry the request.")
-			return nil
-		}
+	existing, err := h.queries.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{GroupID: groupID, UserID: inviteeID})
+	switch {
+	case err == nil && consentedMembership(existing):
+		writeError(w, http.StatusConflict, "@"+handle+" is already a member of this collective")
+		return nil
+	case err != nil && !errors.Is(err, pgx.ErrNoRows):
+		writeError(w, http.StatusInternalServerError, "Could not read the collective's members; nobody was invited. Retry the request.")
+		return nil
 	}
 
 	// Inviting again while an invitation is open, pending or declined, is the
-	// same answer with no write and no notice.
-	if _, err := h.queries.GetOpenGroupInvitationByUsername(r.Context(), sqlc.GetOpenGroupInvitationByUsernameParams{GroupID: groupID, InvitedUsername: handle}); err == nil {
+	// same answer with no new invitation and no notice. The invitation is
+	// pointed at whoever holds the handle now, so a person who signed up after
+	// being invited, or who took the handle over, can see and answer it. The
+	// update runs on every repeat, matching a row only when the holder changed.
+	if openInvitation {
+		if err := h.queries.RelinkGroupInvitation(r.Context(), sqlc.RelinkGroupInvitationParams{ID: existingInvitation.ID, InviteeID: inviteeID}); err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not update the collective's invitation; nothing changed. Retry the request.")
+			return nil
+		}
 		writeJSON(w, http.StatusAccepted, schema.VillageStatusResponse{Status: "invited"})
-		return nil
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, http.StatusInternalServerError, "Could not read the collective's invitations; nobody was invited. Retry the request.")
 		return nil
 	}
 

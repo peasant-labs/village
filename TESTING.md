@@ -800,8 +800,14 @@ Four fixtures drive the production handlers against real PostgreSQL:
   of each origin, and an earlier pending, declined or expired invitation.
   Every 202 must be the same bytes, and every invitable name must leave
   exactly one open row, linked to the account only when one holds the handle.
-  Mutation check: answering 202 for an unknown handle without writing a row
-  fails `unknown_name_is_invited`.
+  The `prior_holder` cases re-invite a handle whose open invitation names
+  nobody (the person signed up later) or another account (the handle changed
+  hands): the row is pointed at the current holder, pending again for a new
+  holder, and a linked pending row must be in that account's own list. The
+  handler runs the same reads in the same order whether or not an account
+  holds the handle. Mutation checks: answering 202 for an unknown handle
+  without writing a row fails `unknown_name_is_invited`; skipping the relink
+  on a repeat invite fails `reinvite_after_signup_links_the_account`.
 - `testdata/invitation-answers.yaml`: accept and decline by the invitee and by
   someone else, for each acceptance mode (an invitation admits through
   `curated` and `verified_only`), for legacy and consented members, and after

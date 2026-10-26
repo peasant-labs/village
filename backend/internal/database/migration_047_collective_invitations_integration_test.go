@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -121,6 +122,16 @@ func TestMigration047MembershipOriginAndInvitations(t *testing.T) {
 		if origin != want {
 			t.Errorf("backfilled origin %q, want %q", origin, want)
 		}
+	}
+
+	// Deleting an account sets invited_by NULL on the invitations it sent, so
+	// that column carries an index for the lookup.
+	var indexDef string
+	if err := pool.QueryRow(ctx, `SELECT indexdef FROM pg_indexes WHERE tablename = 'collective_invitations' AND indexname = 'idx_collective_invitations_invited_by'`).Scan(&indexDef); err != nil {
+		t.Fatalf("read the invited_by index: %v", err)
+	}
+	if !strings.Contains(indexDef, "(invited_by)") {
+		t.Fatalf("idx_collective_invitations_invited_by is %q, want an index on invited_by", indexDef)
 	}
 
 	// The default is gone: an insert that does not name its origin fails.

@@ -123,6 +123,7 @@ type Querier interface {
 	// Collective invitations
 	GetOpenGroupInvitationByUsername(ctx context.Context, arg sqlc.GetOpenGroupInvitationByUsernameParams) (sqlc.CollectiveInvitation, error)
 	DeleteExpiredGroupInvitationByUsername(ctx context.Context, arg sqlc.DeleteExpiredGroupInvitationByUsernameParams) error
+	RelinkGroupInvitation(ctx context.Context, arg sqlc.RelinkGroupInvitationParams) error
 	CountOpenGroupInvitations(ctx context.Context, groupID pgtype.UUID) (int32, error)
 	CreateGroupInvitation(ctx context.Context, arg sqlc.CreateGroupInvitationParams) (sqlc.CollectiveInvitation, error)
 	ListGroupInvitations(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListGroupInvitationsRow, error)

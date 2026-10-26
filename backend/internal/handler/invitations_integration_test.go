@@ -44,10 +44,14 @@ type invitationCase struct {
 	Invitee string `yaml:"invitee"`
 	Typed   string `yaml:"typed"`
 	Prior   string `yaml:"prior"`
-	Want    struct {
-		Status int    `yaml:"status"`
-		Row    string `yaml:"row"`
-		Linked bool   `yaml:"linked"`
+	// PriorHolder is whom the earlier invitation names: invitee (default),
+	// none, or previous.
+	PriorHolder string `yaml:"prior_holder"`
+	Want        struct {
+		Status     int    `yaml:"status"`
+		Row        string `yaml:"row"`
+		Linked     bool   `yaml:"linked"`
+		Invitation string `yaml:"invitation"`
 	} `yaml:"want"`
 }
 
@@ -62,6 +66,10 @@ var requiredInvitationCases = []string{
 	"reinvite_while_pending_is_idempotent",
 	"reinvite_after_decline_is_idempotent",
 	"reinvite_unknown_while_pending_is_idempotent",
+	"reinvite_after_signup_links_the_account",
+	"reinvite_after_the_handle_changed_hands_links_the_new_holder",
+	"reinvite_after_a_previous_holder_declined_reopens_it",
+	"reinvite_after_the_holder_gave_the_handle_up_unlinks_it",
 	"expired_invitation_is_replaced",
 }
 
@@ -326,7 +334,19 @@ func TestCreateGroupInvitationAnswersAlike(t *testing.T) {
 			}
 			var prior pgtype.UUID
 			if c.Prior != "none" {
-				prior = w.insertInvitation(t, ctx, w.group, handle, account, c.Prior)
+				holder := account
+				switch c.PriorHolder {
+				case "", "invitee":
+				case "none":
+					holder = pgtype.UUID{}
+				case "previous":
+					// Another account held the handle when it was invited
+					// and has since been renamed.
+					holder = w.person(t, ctx, "inv-previous", true)
+				default:
+					t.Fatalf("unknown prior holder %q", c.PriorHolder)
+				}
+				prior = w.insertInvitation(t, ctx, w.group, handle, holder, c.Prior)
 			}
 
 			status, body := w.call(t, w.owner, http.MethodPost, "/groups/"+pgIDString(w.group)+"/invitations", map[string]string{"username": typed})
@@ -366,6 +386,16 @@ func TestCreateGroupInvitationAnswersAlike(t *testing.T) {
 			}
 			if rows[0].InviteeID.Valid != c.Want.Linked || (c.Want.Linked && rows[0].InviteeID != account) {
 				t.Fatalf("invitee_id %v, want linked=%v to %v", rows[0].InviteeID, c.Want.Linked, account)
+			}
+			if c.Want.Invitation != "" && rows[0].Status != c.Want.Invitation {
+				t.Fatalf("invitation status %q, want %q", rows[0].Status, c.Want.Invitation)
+			}
+			// A linked pending invitation is in the account's own list.
+			if c.Want.Linked && rows[0].Status == "pending" {
+				status, body := w.call(t, &AuthUser{ID: uuid.UUID(account.Bytes)}, http.MethodGet, "/users/me/invitations", nil)
+				if status != http.StatusOK || !strings.Contains(string(body), pgIDString(rows[0].ID)) {
+					t.Fatalf("the invitee's own list (%d) %s does not carry invitation %s", status, body, pgIDString(rows[0].ID))
+				}
 			}
 
 			// The owner's list shows the typed handle, lowercased, and nothing

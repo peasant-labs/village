@@ -17,11 +17,20 @@
 #          leading @ and spaces), which must store the same lowercase handle.
 # prior:   an invitation for the same handle before this invite:
 #          none | pending | declined | expired.
+# prior_holder: whom that earlier invitation names (invitee_id): invitee (the
+#          account holding the handle now, NULL when none does; the default),
+#          none (nobody: the person signed up after being invited), or
+#          previous (another account, which has since given the handle up).
+#          A repeat invite points the invitation at whoever holds the handle
+#          now, and a new holder has not answered, so it is pending again.
 # want:
 #   status: the HTTP status.
 #   row:    new (a fresh pending row), kept (the earlier row, unchanged),
 #           none (no row).
-#   linked: whether the row names the account (invitee_id set).
+#   linked: whether the row names the account (invitee_id set). A linked
+#           pending row is in that account's own invitation list.
+#   invitation: the row's status afterwards when it is not new: pending |
+#           declined. Omitted when the row is new or there is none.
 - {name: unknown_name_is_invited, invitee: unknown, typed: exact, prior: none, want: {status: 202, row: new, linked: false}}
 - {name: hidden_account_is_invited, invitee: hidden, typed: exact, prior: none, want: {status: 202, row: new, linked: true}}
 - {name: discoverable_account_is_invited, invitee: discoverable, typed: exact, prior: none, want: {status: 202, row: new, linked: true}}
@@ -29,7 +38,11 @@
 - {name: consented_member_conflicts, invitee: consented_member, typed: exact, prior: none, want: {status: 409, row: none, linked: false}}
 - {name: legacy_member_may_be_invited, invitee: legacy_member, typed: exact, prior: none, want: {status: 202, row: new, linked: true}}
 - {name: join_request_may_be_invited, invitee: join_request, typed: exact, prior: none, want: {status: 202, row: new, linked: true}}
-- {name: reinvite_while_pending_is_idempotent, invitee: hidden, typed: exact, prior: pending, want: {status: 202, row: kept, linked: true}}
-- {name: reinvite_after_decline_is_idempotent, invitee: hidden, typed: exact, prior: declined, want: {status: 202, row: kept, linked: true}}
-- {name: reinvite_unknown_while_pending_is_idempotent, invitee: unknown, typed: exact, prior: pending, want: {status: 202, row: kept, linked: false}}
+- {name: reinvite_while_pending_is_idempotent, invitee: hidden, typed: exact, prior: pending, want: {status: 202, row: kept, linked: true, invitation: pending}}
+- {name: reinvite_after_decline_is_idempotent, invitee: hidden, typed: exact, prior: declined, want: {status: 202, row: kept, linked: true, invitation: declined}}
+- {name: reinvite_unknown_while_pending_is_idempotent, invitee: unknown, typed: exact, prior: pending, want: {status: 202, row: kept, linked: false, invitation: pending}}
+- {name: reinvite_after_signup_links_the_account, invitee: hidden, typed: exact, prior: pending, prior_holder: none, want: {status: 202, row: kept, linked: true, invitation: pending}}
+- {name: reinvite_after_the_handle_changed_hands_links_the_new_holder, invitee: discoverable, typed: exact, prior: pending, prior_holder: previous, want: {status: 202, row: kept, linked: true, invitation: pending}}
+- {name: reinvite_after_a_previous_holder_declined_reopens_it, invitee: hidden, typed: exact, prior: declined, prior_holder: previous, want: {status: 202, row: kept, linked: true, invitation: pending}}
+- {name: reinvite_after_the_holder_gave_the_handle_up_unlinks_it, invitee: unknown, typed: exact, prior: pending, prior_holder: previous, want: {status: 202, row: kept, linked: false, invitation: pending}}
 - {name: expired_invitation_is_replaced, invitee: hidden, typed: exact, prior: expired, want: {status: 202, row: new, linked: true}}

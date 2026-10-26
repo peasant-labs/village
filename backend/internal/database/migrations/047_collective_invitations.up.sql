@@ -66,9 +66,10 @@ CREATE TRIGGER trg_group_member_origin_write_once
 -- invited_username is the handle the owner typed, lowercased. It is stored for
 -- every invitation, whether or not an account holds it, and it is the only
 -- invitee field an owner ever sees. invitee_id is the account that held the
--- handle when the invitation was made, or NULL when none did; SET NULL when
--- that account is deleted leaves an inert row that only expires or is revoked.
--- invited_by is SET NULL too: the invitation belongs to the collective.
+-- handle when the invitation was made or last re-sent, or NULL when none did;
+-- SET NULL when that account is deleted leaves an inert row that only expires,
+-- is revoked, or is re-sent. invited_by is SET NULL too: the invitation
+-- belongs to the collective.
 --
 -- Accepting and revoking delete the row (the membership's origin is the
 -- record). A declined row stays, unchanged to the owner, until it expires.
@@ -99,6 +100,12 @@ CREATE UNIQUE INDEX idx_collective_invitations_target
 CREATE INDEX idx_collective_invitations_invitee
     ON collective_invitations (invitee_id)
     WHERE invitee_id IS NOT NULL;
+
+-- Deleting an account sets invited_by NULL on the invitations it sent; this
+-- index keeps that lookup off a full scan.
+CREATE INDEX idx_collective_invitations_invited_by
+    ON collective_invitations (invited_by)
+    WHERE invited_by IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- user_notification_emails: a person's one notification address.

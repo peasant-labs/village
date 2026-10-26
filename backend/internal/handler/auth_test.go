@@ -626,6 +626,9 @@ func (m *mockQuerier) GetOpenGroupInvitationByUsername(ctx context.Context, arg 
 func (m *mockQuerier) DeleteExpiredGroupInvitationByUsername(ctx context.Context, arg sqlc.DeleteExpiredGroupInvitationByUsernameParams) error {
 	panic("DeleteExpiredGroupInvitationByUsername: not stubbed")
 }
+func (m *mockQuerier) RelinkGroupInvitation(ctx context.Context, arg sqlc.RelinkGroupInvitationParams) error {
+	panic("RelinkGroupInvitation: not stubbed")
+}
 func (m *mockQuerier) CountOpenGroupInvitations(ctx context.Context, groupID pgtype.UUID) (int32, error) {
 	panic("CountOpenGroupInvitations: not stubbed")
 }

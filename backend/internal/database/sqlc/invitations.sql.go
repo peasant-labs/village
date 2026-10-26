@@ -296,6 +296,27 @@ func (q *Queries) ListMyInvitations(ctx context.Context, inviteeID pgtype.UUID) 
 	return items, nil
 }
 
+const relinkGroupInvitation = `-- name: RelinkGroupInvitation :exec
+UPDATE collective_invitations
+SET invitee_id = $1::uuid, status = 'pending'
+WHERE id = $2 AND invitee_id IS DISTINCT FROM $1::uuid
+`
+
+type RelinkGroupInvitationParams struct {
+	InviteeID pgtype.UUID `db:"invitee_id" json:"invitee_id"`
+	ID        pgtype.UUID `db:"id" json:"id"`
+}
+
+// Inviting a handle again while its invitation is open points the invitation
+// at the account that holds the handle now, NULL when none does: a person who
+// signed up after being invited, or who took over a handle, then sees it. A
+// new invitee has not answered, so the status returns to pending; an
+// unchanged invitee keeps their answer. Nothing changes for the owners.
+func (q *Queries) RelinkGroupInvitation(ctx context.Context, arg RelinkGroupInvitationParams) error {
+	_, err := q.db.Exec(ctx, relinkGroupInvitation, arg.InviteeID, arg.ID)
+	return err
+}
+
 const revokeGroupInvitation = `-- name: RevokeGroupInvitation :execrows
 DELETE FROM collective_invitations
 WHERE id = $1 AND group_id = $2 AND expires_at > now()

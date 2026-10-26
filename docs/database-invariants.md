@@ -516,9 +516,14 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   `invited_username` is the handle the owner typed, lowercased, stored for
   every invitation whether or not an account holds it, and it is the only
   invitee field an owner ever receives. `invitee_id` is the account holding
-  the handle when the invitation was made, NULL when none did, and
-  `ON DELETE SET NULL`, so a deleted invitee leaves an inert row that only
-  expires or is revoked. `invited_by` is `ON DELETE SET NULL` too, and
+  the handle when the invitation was made or last re-sent, NULL when none
+  did, and `ON DELETE SET NULL`, so a deleted invitee leaves an inert row that
+  only expires, is revoked, or is re-sent. Re-sending an open invitation
+  points it at the account that holds the handle now (a person who signed up
+  after being invited, or who took the handle over); a new invitee's row is
+  `pending` again, and the owners see no change. `invited_by` is
+  `ON DELETE SET NULL` too, with a partial index so the account-deletion
+  update finds its rows without a scan, and
   `group_id` cascades. `status` is `pending` or `declined`; accepting and
   revoking delete the row, because the membership's origin is the record and
   no history of a person's answers is kept. `(group_id, invited_username)` is
@@ -531,7 +536,11 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   202 bytes and writes the same row for an unknown handle, a hidden account
   and a discoverable one; only a member who consented answers 409. Inviting a
   handle with an open invitation, pending or declined, is the same 202 with no
-  write and no email, so a decline is indistinguishable from no answer.
+  new invitation and no email, so a decline is indistinguishable from no
+  answer; the only write is pointing the row at the handle's current holder.
+  The handler reads the open invitation, the account holding the handle and
+  that account's membership in the same order whether or not an account
+  exists, so timing does not tell the two apart.
   Limits: 50 open invitations per collective (counted from the open rows) and
   20 new invitations per inviting owner per day (`user_daily_quotas`, taken on
   the invite's own transaction so a refused invite gives its slot back), both
