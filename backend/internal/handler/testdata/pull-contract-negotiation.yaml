@@ -12,7 +12,8 @@
 #         pattern the served contract declares for the header, so a row cannot
 #         claim a form the contract disagrees with.
 # want:   the envelope served, which the response header also names; or
-#         refused, a 406 with a VillageErrorResponse and no header.
+#         refused, a 406 with a VillageErrorResponse and no header, which
+#         repeats at most the first 64 bytes of the requested value.
 
 - {name: no_header, header: [], form: absent, want: "0.2.0"}
 - {name: repeated_header, header: ["0.3.0", "0.3.0"], form: repeated, want: "0.2.0"}
@@ -34,3 +35,4 @@
 - {name: newer_beyond_integer_range, header: ["0.99999999999999999999999999.0"], form: well_formed, want: "0.3.0"}
 - {name: below_minimum_minor, header: ["0.1.9"], form: well_formed, want: refused}
 - {name: below_minimum_zero, header: ["0.0.0"], form: well_formed, want: refused}
+- {name: below_minimum_long_value, header: ["0.1.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"], form: well_formed, want: refused}
