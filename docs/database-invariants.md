@@ -412,6 +412,14 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   envelope omits `projectName`. A pull request requester is recorded as a
   GitHub id; it is resolved to the Village account that signed in with that
   identity, and a requester with no account is anonymous like a hidden one.
+- **Both pull envelopes withhold the same person.** The pull reads serve the
+  envelope a client asks for in the `Peasant-Pull-Contract` header
+  (`handler/pull_contract.go`): 0.3.0 carries the `VillagePublicOwner`, and
+  0.2.0, the default that released CLIs read without the header, is rendered
+  from the 0.3.0 values only through the schema module's `LegacyPull*From`
+  converters, so an anonymous person becomes an empty id beside `anon` and
+  `projectName` is dropped. Village adds no blanking rule of its own, and the
+  annotation repository fields are withheld before either envelope is built.
 - **A child session's parent is resolved at read time.** With no owner id on
   the wire, `parent_transcript_id` is how a reader folds a child under its
   parent: the route looks up the transcript published from

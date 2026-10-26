@@ -160,6 +160,10 @@ func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusUnauthorized, "Authentication required")
 		return
 	}
+	served, ok := negotiatePullContract(w, r)
+	if !ok {
+		return
+	}
 
 	collectives, err := parseCollectiveFilter(r.URL.Query().Get("collectives"))
 	if err != nil {
@@ -248,12 +252,17 @@ func (h *Handler) ListPullableTranscripts(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	writeJSON(w, http.StatusOK, schema.PullListResponse{
+	list := schema.PullListResponse{
 		Transcripts: infos,
 		Page:        page,
 		Limit:       limit,
 		Total:       int(total),
-	})
+	}
+	if servesLegacyPull(served) {
+		writeJSON(w, http.StatusOK, schema.LegacyPullListResponseFrom(list))
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
 }
 
 // parseCollectiveFilter parses the optional collectives query value: a
@@ -345,6 +354,10 @@ func pullInfoFromListRow(row sqlc.ListPullableTranscriptsRow, owner schema.Villa
 // GET /api/v1/pull/transcripts/{id} (AuthRequired)
 func (h *Handler) GetPullTranscript(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
+	served, ok := negotiatePullContract(w, r)
+	if !ok {
+		return
+	}
 	t, ok := h.lookupPullable(w, r, user)
 	if !ok {
 		return
@@ -354,7 +367,12 @@ func (h *Handler) GetPullTranscript(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Failed to resolve the transcript owner")
 		return
 	}
-	writeJSON(w, http.StatusOK, h.pullTranscriptInfo(r.Context(), t, owner))
+	info := h.pullTranscriptInfo(r.Context(), t, owner)
+	if servesLegacyPull(served) {
+		writeJSON(w, http.StatusOK, schema.LegacyPullTranscriptInfoFrom(info))
+		return
+	}
+	writeJSON(w, http.StatusOK, info)
 }
 
 // GetPullTranscriptContent authenticates and decrypts the stored ciphertext,
@@ -372,6 +390,12 @@ func (h *Handler) GetPullTranscript(w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/pull/transcripts/{id}/content (AuthRequired)
 func (h *Handler) GetPullTranscriptContent(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
+	// The content body is the same under every envelope; the read still
+	// negotiates so a client below the minimum is refused and every response
+	// names the envelope served.
+	if _, ok := negotiatePullContract(w, r); !ok {
+		return
+	}
 	t, ok := h.lookupPullable(w, r, user)
 	if !ok {
 		return
@@ -441,6 +465,10 @@ func (h *Handler) GetPullTranscriptContent(w http.ResponseWriter, r *http.Reques
 // GET /api/v1/pull/transcripts/{id}/annotations (AuthRequired)
 func (h *Handler) GetPullTranscriptAnnotations(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
+	served, ok := negotiatePullContract(w, r)
+	if !ok {
+		return
+	}
 	t, ok := h.lookupPullable(w, r, user)
 	if !ok {
 		return
@@ -479,6 +507,16 @@ func (h *Handler) GetPullTranscriptAnnotations(w http.ResponseWriter, r *http.Re
 
 	// The generated Village API contract defines this response as a bare
 	// PullAnnotation array, unlike the web endpoint's {"annotations":[...]} wrapper.
+	// The repository fields of an anonymous owner were withheld above, before
+	// either envelope is rendered.
+	if servesLegacyPull(served) {
+		legacy := make([]schema.LegacyPullAnnotation, 0, len(annotations))
+		for _, annotation := range annotations {
+			legacy = append(legacy, schema.LegacyPullAnnotationFrom(annotation))
+		}
+		writeJSON(w, http.StatusOK, legacy)
+		return
+	}
 	writeJSON(w, http.StatusOK, annotations)
 }
 

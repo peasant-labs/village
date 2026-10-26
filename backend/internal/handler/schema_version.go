@@ -17,23 +17,11 @@ import (
 // evidence is proven safe through Village's typed storage paths.
 const minPushContractVersion schema.PushContractVersion = "0.1.0"
 
-// pullContractVersion / minPullContractVersion advertise the PULL ENVELOPE
-// negotiation window [Min, Current]. They mirror peasant's
-// defaults.PullContractVersion / MinPullContractVersion. The pull window is
-// DISTINCT from the push window above: a client may pull a contract it could not
-// push, and vice versa, so they negotiate independently.
-//
-// The window is [0.3.0, 0.3.0]. 0.3.0 replaced the owner and annotation author
-// id and username strings with a public owner the server resolves per caller,
-// so an owner who is not discoverable is anonymous to callers who may not see
-// them. A pull request does not say which envelope the client reads, so Village
-// cannot keep serving the 0.2.0 shape to an older CLI without leaking the
-// identity 0.3.0 hides: the floor rises with it, and an older CLI receives the
-// existing pull-contract upgrade error instead.
-const (
-	pullContractVersion    schema.PushContractVersion = "0.3.0"
-	minPullContractVersion schema.PushContractVersion = "0.3.0"
-)
+// The pull window [minPullContractVersion, maxPullContractVersion] and the
+// default pullContractVersion are defined beside the negotiation in
+// pull_contract.go. The pull window is DISTINCT from the push window above: a
+// client may pull a contract it could not push, and vice versa, so they
+// negotiate independently.
 
 // GetSchemaVersion returns the annotation schema version and supported types,
 // and advertises the push-contract negotiation WINDOW [Min, Current] so the CLI
@@ -60,10 +48,13 @@ func (h *Handler) GetSchemaVersion(w http.ResponseWriter, r *http.Request) {
 		// push-acceptance floor.
 		PushContractVersion:    currentContractVersion,
 		MinPushContractVersion: minPushContractVersion,
-		// Pull-envelope negotiation window [Min, Current] — DISTINCT
-		// from the push window; the CLI preflights pulls against this.
+		// Pull-envelope window — DISTINCT from the push window. The
+		// default is what a request without the Peasant-Pull-Contract header
+		// receives, so released CLIs preflight against the envelope they get;
+		// the max is the newest envelope a client may ask for.
 		PullContractVersion:    pullContractVersion,
 		MinPullContractVersion: minPullContractVersion,
+		MaxPullContractVersion: maxPullContractVersion,
 	}
 	resp.ContentCapabilities = advertisedContentCapabilitiesWithEvaluators(h.preservationProof(), h.provenanceProof(), h.thinkingLevelProof())
 	if err := schema.ValidateContentCapabilityAdvertisements(resp.ContentCapabilities); err != nil {

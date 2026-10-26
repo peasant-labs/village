@@ -268,6 +268,8 @@ func TestPull_GetMeta_Owner_SharedMapsToGroup(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/pull/transcripts/"+tid.String(), nil)
 	r = r.WithContext(withUserID(r.Context(), owner))
+	// This test reads the public owner envelope, so it asks for it.
+	r.Header.Set(schema.PullContractHeader, schema.PublicOwnerPullContractVersion.String())
 	r = withChiURLParam(r, "id", tid.String())
 	w := httptest.NewRecorder()
 
@@ -616,6 +618,8 @@ func TestPull_Annotations_BareArray_AuthorFields(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/pull/transcripts/"+tid.String()+"/annotations", nil)
 	r = r.WithContext(withUserID(r.Context(), owner))
+	// This test reads the public owner envelope, so it asks for it.
+	r.Header.Set(schema.PullContractHeader, schema.PublicOwnerPullContractVersion.String())
 	r = withChiURLParam(r, "id", tid.String())
 	w := httptest.NewRecorder()
 
@@ -711,10 +715,23 @@ func TestPull_SchemaVersion_AdvertisesPullWindow(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.PullContractVersion != "0.3.0" {
-		t.Errorf("pullContractVersion: got %q, want %q", resp.PullContractVersion, "0.3.0")
+	// Released CLIs read pullContractVersion as the envelope they will get
+	// without the header, so the default stays the 0.2.0 envelope; the max is
+	// the public owner envelope a client may ask for.
+	if resp.PullContractVersion != schema.LegacyPullContractVersion {
+		t.Errorf("pullContractVersion: got %q, want %q", resp.PullContractVersion, schema.LegacyPullContractVersion)
 	}
-	if resp.MinPullContractVersion != "0.3.0" {
-		t.Errorf("minPullContractVersion: got %q, want %q", resp.MinPullContractVersion, "0.3.0")
+	if resp.MinPullContractVersion != schema.LegacyPullContractVersion {
+		t.Errorf("minPullContractVersion: got %q, want %q", resp.MinPullContractVersion, schema.LegacyPullContractVersion)
+	}
+	if resp.MaxPullContractVersion != schema.PublicOwnerPullContractVersion {
+		t.Errorf("pullContractMaxVersion: got %q, want %q", resp.MaxPullContractVersion, schema.PublicOwnerPullContractVersion)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode raw: %v", err)
+	}
+	if raw["pullContractMaxVersion"] != "0.3.0" || raw["pullContractVersion"] != "0.2.0" {
+		t.Errorf("wire advertisement: got default %v max %v, want 0.2.0 and 0.3.0", raw["pullContractVersion"], raw["pullContractMaxVersion"])
 	}
 }

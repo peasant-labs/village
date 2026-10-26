@@ -117,6 +117,8 @@ func postManualAnnotationAs(t *testing.T, h *Handler, viewer uuid.UUID, transcri
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/transcripts/"+transcriptID.String()+"/annotations", bytes.NewReader(raw))
 	r.Header.Set("Content-Type", "application/json")
 	r = r.WithContext(context.WithValue(r.Context(), UserContextKey, &AuthUser{ID: viewer, Username: "manual-viewer"}))
+	// This helper decodes the public owner envelope, so it asks for it.
+	r.Header.Set(schema.PullContractHeader, schema.PublicOwnerPullContractVersion.String())
 	r = withChiURLParam(r, "id", transcriptID.String())
 	w := httptest.NewRecorder()
 	h.CreateTranscriptAnnotation(w, r)
