@@ -113,6 +113,18 @@ func (h *Handler) SetMyNotificationEmail(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "Enter one email address: one @ with text on both sides and no spaces")
 		return
 	}
+	// Setting the verified address again changes nothing: it stays verified,
+	// and no verification email is sent or counted. Setting an unverified
+	// address again sends a new code, which is how a failed send is retried.
+	current, err := h.queries.GetNotificationEmail(r.Context(), user.PgID())
+	switch {
+	case err == nil && current.Address.Valid && current.Address.String == req.Address && current.VerifiedAt.Valid:
+		h.writeOwnSettings(w, r, user.PgID())
+		return
+	case err != nil && !errors.Is(err, pgx.ErrNoRows):
+		writeError(w, http.StatusInternalServerError, "Could not read your email address; nothing was saved. Retry the request.")
+		return
+	}
 	allowed, err := takeDailyQuota(r.Context(), h.queries, user.PgID(), quotaVerificationEmail, verificationEmailsPerUserPerDay)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not count your verification emails; nothing was saved. Retry the request.")

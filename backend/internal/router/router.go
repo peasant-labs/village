@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -26,6 +27,13 @@ const (
 )
 
 func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) http.Handler {
+	routes, _ := NewWithDrain(cfg, pool, blobs, titles)
+	return routes
+}
+
+// NewWithDrain is New plus the work a shutdown waits for after the server
+// stops: the invitation emails still being sent after their responses.
+func NewWithDrain(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) (http.Handler, func(context.Context) error) {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
@@ -252,5 +260,5 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Get("/integrations/github/callback", h.GitHubInstallCallback)
 	})
 
-	return r
+	return r, h.DrainNotices
 }

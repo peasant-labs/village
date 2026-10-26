@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"context"
 	_ "embed"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/peasant-labs/village/backend/internal/config"
 )
@@ -42,5 +45,35 @@ func TestEmailIsOffUnlessFullyConfigured(t *testing.T) {
 				t.Fatalf("email enabled = %v, want %v", mail != nil, c.Enabled)
 			}
 		})
+	}
+}
+
+// TestDrainNoticesWaitsForEmailsInFlight proves a shutdown waits for an
+// invitation email still being sent, and stops waiting when its time is up.
+// Mutation check: returning nil at once from DrainNotices fails the first
+// assertion.
+func TestDrainNoticesWaitsForEmailsInFlight(t *testing.T) {
+	h := &Handler{}
+	h.notices.Add(1)
+	short, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := h.DrainNotices(short); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("drain with an email in flight returned %v, want the deadline", err)
+	}
+	finished := make(chan error, 1)
+	go func() { finished <- h.DrainNotices(context.Background()) }()
+	select {
+	case err := <-finished:
+		t.Fatalf("drain returned %v before the email finished", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	h.notices.Done()
+	select {
+	case err := <-finished:
+		if err != nil {
+			t.Fatalf("drain after the email finished returned %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("drain did not return after the email finished")
 	}
 }

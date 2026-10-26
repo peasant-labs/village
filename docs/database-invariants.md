@@ -563,8 +563,11 @@ fences, append-only audit, and private-before-replacement rules remain in force.
 - The address is returned only in the caller's own settings
   (`VillageUserSettings.notification_email`), never in an invitation, roster,
   profile or log. `verify_token_hash` is the SHA-256 of a one-time
-  verification token, valid 24 hours; replacing the address issues a new
-  token and clears verification. Removing the address clears it and its
+  verification token, valid 24 hours; replacing the address with a
+  different one issues a new token and clears verification. Setting the
+  verified address again changes nothing and sends no email (the query keeps
+  `verified_at` for an unchanged address as well); setting an unverified one
+  again issues a new token. Removing the address clears it and its
   verification but keeps `email_invitations`, so an opt-out survives removing
   and re-adding an address. A CHECK refuses verification state without an
   address.

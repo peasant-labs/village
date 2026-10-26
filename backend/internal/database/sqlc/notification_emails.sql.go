@@ -105,7 +105,8 @@ INSERT INTO user_notification_emails (user_id, address, verify_token_hash, verif
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (user_id) DO UPDATE
 SET address           = EXCLUDED.address,
-    verified_at       = NULL,
+    verified_at       = CASE WHEN user_notification_emails.address IS NOT DISTINCT FROM EXCLUDED.address
+                             THEN user_notification_emails.verified_at END,
     verify_token_hash = EXCLUDED.verify_token_hash,
     verify_expires_at = EXCLUDED.verify_expires_at,
     updated_at        = now()
@@ -119,9 +120,10 @@ type SetNotificationEmailParams struct {
 	VerifyExpiresAt pgtype.Timestamptz `db:"verify_expires_at" json:"verify_expires_at"`
 }
 
-// Sets or replaces the address. A replaced address is unverified again, and
-// the new verification token replaces any earlier one, so an old token cannot
-// confirm the new address. The invitation-email choice is kept.
+// Sets or replaces the address. A different address is unverified again;
+// the same address keeps its verification. The new verification token
+// replaces any earlier one, so an old token cannot confirm a new address. The
+// invitation-email choice is kept.
 func (q *Queries) SetNotificationEmail(ctx context.Context, arg SetNotificationEmailParams) (UserNotificationEmail, error) {
 	row := q.db.QueryRow(ctx, setNotificationEmail,
 		arg.UserID,

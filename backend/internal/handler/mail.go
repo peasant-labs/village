@@ -114,6 +114,24 @@ func (h *Handler) dispatchInvitationNotice(notice invitationNotice) {
 // shutdown or a test does not cut one off.
 func (h *Handler) waitForNotices() { h.notices.Wait() }
 
+// DrainNotices waits for the invitation emails still being sent after their
+// responses, or until ctx ends. Call it once the HTTP server has shut down,
+// so no request can start another; a SIGTERM then finishes the emails it can
+// in the time given instead of dropping them.
+func (h *Handler) DrainNotices(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		h.notices.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("invitation emails still sending at shutdown: %w", ctx.Err())
+	}
+}
+
 func (h *Handler) deliverInvitationNotice(ctx context.Context, notice invitationNotice, now time.Time) error {
 	address, err := h.queries.GetInvitationEmailRecipient(ctx, notice.inviteeID)
 	if errors.Is(err, pgx.ErrNoRows) {

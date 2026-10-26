@@ -837,11 +837,16 @@ dropping the creator guard in `removeGroupMemberLocked` fails
 `co_owner_cannot_remove_the_creator` and `creator_cannot_leave`.
 
 `TestNotificationEmailLifecycleAndUnsubscribe` sets, verifies and removes an
-address, follows the emailed unsubscribe link signed out, and reads the
-owner's invitation list, the collective detail and roster, the profile, and
-the invitee's own invitation list, failing if any of them carries the
-address. Mutation check: putting the caller's address into their own
-invitation list fails it.
+address, follows the emailed unsubscribe link signed out, and walks every
+read in `testdata/notification-address-reads.yaml` (the owner's invitation
+list, the collective detail, the profile as each viewer, and the invitee's
+own invitation list), failing if any of them carries the address. Mutation
+check: putting the caller's address into their own invitation list fails it.
+`TestSettingTheSameAddressAgain` proves setting the verified address again
+keeps it verified and sends and counts no email, while a different address
+is unverified and an unverified one can be set again for a new code.
+`TestDrainNoticesWaitsForEmailsInFlight` (unit) proves a shutdown waits, up
+to its deadline, for an invitation email still being sent.
 
 ### Collectives surfaces: who may see a membership, and what the counters mean
 

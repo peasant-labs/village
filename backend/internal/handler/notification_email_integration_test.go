@@ -52,6 +52,26 @@ var requiredInvitationEmailCases = []string{
 
 const testEmailSigningKey = "integration-signing-key-0123456789abcdef"
 
+//go:embed testdata/notification-address-reads.yaml
+var notificationAddressReadsYAML []byte
+
+// notificationAddressRead is one row of
+// testdata/notification-address-reads.yaml.
+type notificationAddressRead struct {
+	Name  string `yaml:"name"`
+	Actor string `yaml:"actor"`
+	Path  string `yaml:"path"`
+}
+
+var requiredNotificationAddressReads = []string{
+	"owner_invitation_list",
+	"owner_collective_detail",
+	"owner_reads_the_invitee_profile",
+	"signed_out_reads_the_invitee_profile",
+	"invitee_own_invitation_list",
+	"invitee_own_profile",
+}
+
 // fakeSender records every message instead of sending it.
 type fakeSender struct {
 	mu   sync.Mutex
@@ -278,26 +298,21 @@ func TestNotificationEmailLifecycleAndUnsubscribe(t *testing.T) {
 
 	// The address appears in no response another viewer receives, and in
 	// none of the invitee's own responses but their settings.
-	inviteeHandle := handle
-	invitationPaths := []struct {
-		actor *AuthUser
-		path  string
-	}{
-		{w.owner, "/groups/" + pgIDString(w.group) + "/invitations"},
-		{w.owner, "/groups/" + pgIDString(w.group)},
-		{w.owner, "/users/" + inviteeHandle},
-		{nil, "/users/" + inviteeHandle},
-		{invitee, "/users/me/invitations"},
-		{invitee, "/users/" + inviteeHandle},
-	}
-	for _, read := range invitationPaths {
-		status, body := w.call(t, read.actor, http.MethodGet, read.path, nil)
+	reads := loadNamedFixture(t, notificationAddressReadsYAML, "notification-address-reads", func(c notificationAddressRead) string { return c.Name }, requiredNotificationAddressReads)
+	actors := map[string]*AuthUser{"owner": w.owner, "signed_out": nil, "invitee": invitee}
+	for _, read := range reads {
+		actor, known := actors[read.Actor]
+		if !known {
+			t.Fatalf("%s: unknown actor %q", read.Name, read.Actor)
+		}
+		path := strings.NewReplacer("{group}", pgIDString(w.group), "{invitee}", handle).Replace(read.Path)
+		status, body := w.call(t, actor, http.MethodGet, path, nil)
 		if status != http.StatusOK {
-			t.Fatalf("GET %s answered %d: %s", read.path, status, body)
+			t.Fatalf("%s: GET %s answered %d: %s", read.Name, path, status, body)
 		}
 		lower := strings.ToLower(string(body))
 		if strings.Contains(lower, strings.ToLower(address)) || strings.Contains(lower, "example.org") {
-			t.Fatalf("GET %s carries the notification address: %s", read.path, body)
+			t.Fatalf("%s: GET %s carries the notification address: %s", read.Name, path, body)
 		}
 	}
 
@@ -339,6 +354,76 @@ func TestNotificationEmailLifecycleAndUnsubscribe(t *testing.T) {
 	var kept int
 	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM user_notification_emails WHERE address IS NOT NULL AND user_id = $1`, inviteeID).Scan(&kept); err != nil || kept != 0 {
 		t.Fatalf("the removed address is still stored (%d, %v)", kept, err)
+	}
+}
+
+// TestSettingTheSameAddressAgain proves that setting the verified address
+// again keeps it verified and sends nothing, that a different address is
+// unverified and gets a code, and that setting an unverified address again
+// sends a new code (the retry after a failed send). Mutation check: dropping
+// the same-address shortcut in SetMyNotificationEmail fails the first step,
+// which then counts a second verification email.
+func TestSettingTheSameAddressAgain(t *testing.T) {
+	ctx := context.Background()
+	pool := govTestPool(t)
+	defer pool.Close()
+	w := newInvitationWorld(t, ctx, pool, "curated")
+	defer w.cleanup(t, ctx)
+	sender := withFakeMail(w)
+	person := w.person(t, ctx, "inv-person", true)
+	actor := &AuthUser{ID: uuid.UUID(person.Bytes)}
+	address := "same." + w.suffix + "@example.org"
+	set := func(address string) schema.VillageUserSettings {
+		t.Helper()
+		status, body := w.call(t, actor, http.MethodPut, "/users/me/email", map[string]string{"address": address})
+		if status != http.StatusOK {
+			t.Fatalf("set %s answered %d: %s", address, status, body)
+		}
+		var s schema.VillageUserSettings
+		if err := json.Unmarshal(body, &s); err != nil || s.NotificationEmail == nil {
+			t.Fatalf("decode settings %s: %v", body, err)
+		}
+		return s
+	}
+	verificationsCounted := func() int {
+		t.Helper()
+		var used int
+		if err := pool.QueryRow(ctx, `SELECT COALESCE(SUM(used), 0)::int FROM user_daily_quotas WHERE user_id = $1 AND quota = 'verification_email'`, person).Scan(&used); err != nil {
+			t.Fatal(err)
+		}
+		return used
+	}
+
+	set(address)
+	sent := sender.messages()
+	if len(sent) != 1 {
+		t.Fatalf("verification emails %d, want 1", len(sent))
+	}
+	link := sent[0].Text[strings.Index(sent[0].Text, "verify_email="):]
+	token := strings.TrimPrefix(strings.Fields(link)[0], "verify_email=")
+	if status, body := w.call(t, actor, http.MethodPost, "/users/me/email/verify", map[string]string{"token": token}); status != http.StatusOK {
+		t.Fatalf("verify %d: %s", status, body)
+	}
+
+	if s := set(address); !s.NotificationEmail.Verified || s.NotificationEmail.Address != address {
+		t.Fatalf("setting the verified address again left it %+v, want it verified", s.NotificationEmail)
+	}
+	if got := len(sender.messages()); got != 1 {
+		t.Fatalf("setting the verified address again sent %d emails, want none", got-1)
+	}
+	if got := verificationsCounted(); got != 1 {
+		t.Fatalf("verification emails counted %d, want 1", got)
+	}
+
+	other := "other." + w.suffix + "@example.org"
+	if s := set(other); s.NotificationEmail.Verified {
+		t.Fatal("a different address is verified; it must be unverified until its code is used")
+	}
+	if s := set(other); s.NotificationEmail.Verified {
+		t.Fatal("setting an unverified address again verified it")
+	}
+	if got := len(sender.messages()); got != 3 {
+		t.Fatalf("emails %d, want a code for the new address and one for its retry", got)
 	}
 }
 

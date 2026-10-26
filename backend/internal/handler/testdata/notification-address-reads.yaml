@@ -1,0 +1,14 @@
+# The reads that must never carry a person's notification address. The
+# address appears only in that person's own settings; every read below runs
+# after the address is set and verified and an invitation was sent to them.
+#
+# actor: who reads: owner (the inviting owner) | signed_out | invitee (the
+#        person whose address it is).
+# path:  the route, with {group} the inviting collective's id and {invitee}
+#        the invitee's handle.
+- {name: owner_invitation_list, actor: owner, path: '/groups/{group}/invitations'}
+- {name: owner_collective_detail, actor: owner, path: '/groups/{group}'}
+- {name: owner_reads_the_invitee_profile, actor: owner, path: '/users/{invitee}'}
+- {name: signed_out_reads_the_invitee_profile, actor: signed_out, path: '/users/{invitee}'}
+- {name: invitee_own_invitation_list, actor: invitee, path: /users/me/invitations}
+- {name: invitee_own_profile, actor: invitee, path: '/users/{invitee}'}
