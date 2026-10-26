@@ -742,7 +742,8 @@ that line:
 shows a transcript owner, member, contributor or annotation author (detail,
 flat and grouped lists and their `owner=`/`org=` filters, flat and grouped
 collective detail, the review queue, my-shares, web and pull annotations, the
-pull envelope, the web and pull content routes, and the profile and project
+pull envelope under every served version (0.2.0 without the header, 0.3.0 by
+request), the web and pull content routes, and the profile and project
 pages) for a discoverable and a
 hidden owner against five viewers: signed out, an unrelated signed-in user, a
 plain member, the owner, and the owner of the collective the owner joined. Each
@@ -751,6 +752,19 @@ owner's username, id, display name, avatar, organization, project hash and
 project name (the fixture gives the owner's transcripts a git remote that names
 them) must appear nowhere in the response bytes. The rule lives in SQL, so this runs against real
 PostgreSQL through the production handlers.
+
+### The requestable pull envelope
+
+Two unit fixtures drive the production pull handlers with the owner read
+mocked. `internal/handler/testdata/pull-contract-negotiation.yaml` maps each
+`Peasant-Pull-Contract` request (none, repeated, malformed, an exact or patch
+version of either envelope, a newer version, and one below the minimum) to the
+envelope served or the 406, on all four pull reads; each malformed or
+well-formed value is checked against the header pattern the served contract
+declares. `internal/handler/testdata/pull-envelope-people.yaml` requires that
+neither envelope leaks a hidden owner's id, username, display name, avatar,
+project name, project hash or content repository, and that the schema module's
+`Validate` accepts each body.
 
 ### Collectives surfaces: who may see a membership, and what the counters mean
 

@@ -1,0 +1,23 @@
+# How each pull envelope shows the owner of a pullable transcript, who is also
+# the author of its annotation. Visibility is decided by the owner read (one
+# SQL statement, covered against PostgreSQL by public-owner-visibility.yaml);
+# here the owner read answers owner_visible, and each envelope must render that
+# answer without leaking anything it withholds.
+#
+# header:        the Peasant-Pull-Contract values sent; [] sends none.
+# owner_visible: whether the caller may see the owner's profile.
+# envelope:      the envelope served.
+#
+# A hidden owner must never appear by id, username, display name or avatar,
+# nor by the transcript's project name, the annotation's project hash or file
+# path, or the content's repository values, in any pull response of either
+# envelope. In 0.2.0 a hidden person is an empty id beside "anon"; in 0.3.0 it
+# is {"kind":"anonymous"}.
+
+- {name: legacy_without_header_hides_owner, header: [], owner_visible: false, envelope: "0.2.0"}
+- {name: legacy_requested_hides_owner, header: ["0.2.0"], owner_visible: false, envelope: "0.2.0"}
+- {name: legacy_malformed_header_hides_owner, header: ["0.3"], owner_visible: false, envelope: "0.2.0"}
+- {name: public_owner_hides_owner, header: ["0.3.0"], owner_visible: false, envelope: "0.3.0"}
+- {name: public_owner_patch_hides_owner, header: ["0.3.4"], owner_visible: false, envelope: "0.3.0"}
+- {name: legacy_shows_visible_owner, header: [], owner_visible: true, envelope: "0.2.0"}
+- {name: public_owner_shows_visible_owner, header: ["0.3.0"], owner_visible: true, envelope: "0.3.0"}

@@ -36,6 +36,8 @@ import (
 	"github.com/peasant-labs/village/backend/internal/config"
 	"github.com/peasant-labs/village/backend/internal/database/sqlc"
 	gh "github.com/peasant-labs/village/backend/internal/github"
+
+	"github.com/peasant-labs/schema"
 )
 
 //go:embed testdata/public-owner-visibility.yaml
@@ -161,6 +163,9 @@ func loadPublicOwnerCases(t *testing.T) []poCase {
 }
 
 type poWorld struct {
+	// lastPullContract is the envelope the last getPull response named.
+	lastPullContract string
+
 	pool        *pgxpool.Pool
 	owner       pgtype.UUID
 	ownerName   string
@@ -496,6 +501,22 @@ func (w *poWorld) get(t *testing.T, router http.Handler, actor *AuthUser, target
 	return w.send(t, router, actor, http.MethodGet, target, nil)
 }
 
+// getPull reads a pull route with the Peasant-Pull-Contract header set to
+// contract, or with no header when contract is empty, and records the
+// envelope the response names.
+func (w *poWorld) getPull(t *testing.T, router http.Handler, actor *AuthUser, target, contract string) (int, []byte) {
+	t.Helper()
+	ctx := context.WithValue(context.Background(), UserContextKey, actor)
+	request := httptest.NewRequest(http.MethodGet, target, nil).WithContext(ctx)
+	if contract != "" {
+		request.Header.Set(schema.PullContractHeader, contract)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, request)
+	w.lastPullContract = rec.Header().Get(schema.PullContractHeader)
+	return rec.Code, rec.Body.Bytes()
+}
+
 func (w *poWorld) send(t *testing.T, router http.Handler, actor *AuthUser, method, target string, body any) (int, []byte) {
 	t.Helper()
 	ctx := context.Background()
@@ -776,6 +797,26 @@ func (w *poWorld) assertOwner(t *testing.T, where string, raw json.RawMessage, w
 	}
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("%s: owner = %v, want %v", where, got, expected)
+	}
+}
+
+// assertLegacyPerson checks a person in the 0.2.0 pull envelope: the owner's
+// real id and username for a profile, an empty id beside "anon" for an
+// anonymous owner, and never the 0.3.0 person object.
+func (w *poWorld) assertLegacyPerson(t *testing.T, where string, current json.RawMessage, id, username *string, want string) {
+	t.Helper()
+	if current != nil {
+		t.Errorf("%s carries the 0.3.0 person object %s", where, current)
+	}
+	if id == nil || username == nil {
+		t.Fatalf("%s carries no id or username", where)
+	}
+	wantID, wantName := "", schema.LegacyPullAnonymousUsername
+	if want == "profile" {
+		wantID, wantName = w.id(w.owner), w.ownerName
+	}
+	if *id != wantID || *username != wantName {
+		t.Errorf("%s person = (%q, %q), want (%q, %q)", where, *id, *username, wantID, wantName)
 	}
 }
 
@@ -1132,70 +1173,98 @@ func TestPublicOwnerVisibilityMatrix(t *testing.T) {
 			}
 			w.assertAnnotators(t, "annotations", len(web.Annotations), func(i int) string { return web.Annotations[i].AnnotatorName }, c.Expect.Annotator)
 
-			// The pull surface.
-			if viewer != nil {
-				status, body = w.get(t, router, viewer, "/pull/transcripts?limit=200")
-				if status != http.StatusOK {
-					t.Fatalf("pull list answered %d: %s", status, body)
+			// The pull surface, under every envelope Village serves. The
+			// default envelope is requested the way a released CLI does, with
+			// no header; every other one by its version.
+			for _, envelope := range servedPullContracts {
+				header := envelope.String()
+				if envelope == pullContractVersion {
+					header = ""
 				}
-				check("pull list", body)
-				var pullList struct {
-					Transcripts []struct {
-						TranscriptID string          `json:"transcriptId"`
-						Owner        json.RawMessage `json:"owner"`
-					} `json:"transcripts"`
+				legacy := servesLegacyPull(envelope)
+				pull := func(where, target string) []byte {
+					t.Helper()
+					status, body := w.getPull(t, router, viewer, target, header)
+					if status != http.StatusOK {
+						t.Fatalf("%s %s answered %d: %s", envelope, where, status, body)
+					}
+					if got := w.lastPullContract; got != envelope.String() {
+						t.Errorf("%s %s names served envelope %q", envelope, where, got)
+					}
+					check(envelope.String()+" "+where, body)
+					return body
 				}
-				mustDecode(t, body, &pullList)
-				pulled := false
-				for _, row := range pullList.Transcripts {
-					if row.TranscriptID == w.id(w.shared) {
-						pulled = true
-						w.assertOwner(t, "pull list row", row.Owner, c.Expect.Owner)
+				if viewer != nil {
+					body := pull("pull list", "/pull/transcripts?limit=200")
+					var pullList struct {
+						Transcripts []struct {
+							TranscriptID  string          `json:"transcriptId"`
+							Owner         json.RawMessage `json:"owner"`
+							OwnerUserID   *string         `json:"ownerUserId"`
+							OwnerUsername *string         `json:"ownerUsername"`
+						} `json:"transcripts"`
+					}
+					mustDecode(t, body, &pullList)
+					pulled := false
+					for _, row := range pullList.Transcripts {
+						if row.TranscriptID == w.id(w.shared) {
+							pulled = true
+							if legacy {
+								w.assertLegacyPerson(t, "0.2.0 pull list row", row.Owner, row.OwnerUserID, row.OwnerUsername, c.Expect.Owner)
+							} else {
+								w.assertOwner(t, "pull list row", row.Owner, c.Expect.Owner)
+							}
+						}
+					}
+					if pulled != c.Expect.Pull {
+						t.Errorf("%s pull list includes the shared transcript = %v, want %v", envelope, pulled, c.Expect.Pull)
 					}
 				}
-				if pulled != c.Expect.Pull {
-					t.Errorf("pull list includes the shared transcript = %v, want %v", pulled, c.Expect.Pull)
-				}
-			}
-			if c.Expect.Pull {
-				status, body = w.get(t, router, viewer, "/pull/transcripts/"+w.id(w.shared))
-				if status != http.StatusOK {
-					t.Fatalf("pull metadata answered %d: %s", status, body)
-				}
-				check("pull metadata", body)
-				var info struct {
-					Owner json.RawMessage `json:"owner"`
-				}
-				mustDecode(t, body, &info)
-				w.assertOwner(t, "pull metadata", info.Owner, c.Expect.Owner)
-
-				status, body = w.get(t, router, viewer, "/pull/transcripts/"+w.id(w.shared)+"/content")
-				if status != http.StatusOK {
-					t.Fatalf("pull content answered %d: %s", status, body)
-				}
-				check("pull content", body)
-				for _, value := range withheldContentValues {
-					if contains := bytes.Contains(body, []byte(value)); contains != (c.Expect.Owner == "profile") {
-						t.Errorf("pull content carries %q = %v, want %v for the %s viewer", value, contains, c.Expect.Owner == "profile", c.Viewer)
+				if c.Expect.Pull {
+					body := pull("pull metadata", "/pull/transcripts/"+w.id(w.shared))
+					var info struct {
+						Owner         json.RawMessage `json:"owner"`
+						OwnerUserID   *string         `json:"ownerUserId"`
+						OwnerUsername *string         `json:"ownerUsername"`
 					}
-				}
+					mustDecode(t, body, &info)
+					if legacy {
+						w.assertLegacyPerson(t, "0.2.0 pull metadata", info.Owner, info.OwnerUserID, info.OwnerUsername, c.Expect.Owner)
+						var frozen schema.LegacyPullTranscriptInfo
+						mustDecode(t, body, &frozen)
+						if err := frozen.Validate(); err != nil {
+							t.Errorf("the schema module refuses the 0.2.0 pull metadata: %v", err)
+						}
+					} else {
+						w.assertOwner(t, "pull metadata", info.Owner, c.Expect.Owner)
+					}
 
-				status, body = w.get(t, router, viewer, "/pull/transcripts/"+w.id(w.shared)+"/annotations")
-				if status != http.StatusOK {
-					t.Fatalf("pull annotations answered %d: %s", status, body)
+					body = pull("pull content", "/pull/transcripts/"+w.id(w.shared)+"/content")
+					for _, value := range withheldContentValues {
+						if contains := bytes.Contains(body, []byte(value)); contains != (c.Expect.Owner == "profile") {
+							t.Errorf("%s pull content carries %q = %v, want %v for the %s viewer", envelope, value, contains, c.Expect.Owner == "profile", c.Viewer)
+						}
+					}
+
+					body = pull("pull annotations", "/pull/transcripts/"+w.id(w.shared)+"/annotations")
+					var pulledAnnotations []struct {
+						Author            json.RawMessage `json:"author"`
+						AuthorUserID      *string         `json:"authorUserId"`
+						AuthorUsername    *string         `json:"authorUsername"`
+						AnnotatorName     string          `json:"annotatorName"`
+						TargetProjectHash *string         `json:"targetProjectHash"`
+					}
+					mustDecode(t, body, &pulledAnnotations)
+					for _, row := range pulledAnnotations {
+						if legacy {
+							w.assertLegacyPerson(t, "0.2.0 pull annotation author", row.Author, row.AuthorUserID, row.AuthorUsername, c.Expect.Owner)
+						} else {
+							w.assertOwner(t, "pull annotation author", row.Author, c.Expect.Owner)
+						}
+						w.assertTargetProject(t, envelope.String()+" pull annotations", row.TargetProjectHash, c.Expect.Owner)
+					}
+					w.assertAnnotators(t, envelope.String()+" pull annotations", len(pulledAnnotations), func(i int) string { return pulledAnnotations[i].AnnotatorName }, c.Expect.Annotator)
 				}
-				check("pull annotations", body)
-				var pulledAnnotations []struct {
-					Author            json.RawMessage `json:"author"`
-					AnnotatorName     string          `json:"annotatorName"`
-					TargetProjectHash *string         `json:"targetProjectHash"`
-				}
-				mustDecode(t, body, &pulledAnnotations)
-				for _, row := range pulledAnnotations {
-					w.assertOwner(t, "pull annotation author", row.Author, c.Expect.Owner)
-					w.assertTargetProject(t, "pull annotations", row.TargetProjectHash, c.Expect.Owner)
-				}
-				w.assertAnnotators(t, "pull annotations", len(pulledAnnotations), func(i int) string { return pulledAnnotations[i].AnnotatorName }, c.Expect.Annotator)
 			}
 
 			// The profile and project pages keep their own rule and narrow the row.

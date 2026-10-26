@@ -1,0 +1,36 @@
+# Which pull envelope each Peasant-Pull-Contract request header selects, on
+# every pull read: the list, the metadata read, the annotations read and the
+# content read.
+#
+# header: the header values the request sends, one header line each; []
+#         sends no header.
+# form:   absent      no header line;
+#         repeated    more than one header line, so no single request;
+#         malformed   one line that is not MAJOR.MINOR.PATCH digits;
+#         well_formed one line of MAJOR.MINOR.PATCH digits.
+#         The test checks a malformed or well_formed value against the
+#         pattern the served contract declares for the header, so a row cannot
+#         claim a form the contract disagrees with.
+# want:   the envelope served, which the response header also names; or
+#         refused, a 406 with a VillageErrorResponse and no header.
+
+- {name: no_header, header: [], form: absent, want: "0.2.0"}
+- {name: repeated_header, header: ["0.3.0", "0.3.0"], form: repeated, want: "0.2.0"}
+- {name: malformed_empty, header: [""], form: malformed, want: "0.2.0"}
+- {name: malformed_two_parts, header: ["0.3"], form: malformed, want: "0.2.0"}
+- {name: malformed_four_parts, header: ["0.3.0.1"], form: malformed, want: "0.2.0"}
+- {name: malformed_v_prefix, header: ["v0.3.0"], form: malformed, want: "0.2.0"}
+- {name: malformed_prerelease, header: ["0.3.0-rc1"], form: malformed, want: "0.2.0"}
+- {name: malformed_list, header: ["0.3.0, 0.2.0"], form: malformed, want: "0.2.0"}
+- {name: malformed_text, header: ["latest"], form: malformed, want: "0.2.0"}
+- {name: malformed_below_minimum, header: ["v0.1.0"], form: malformed, want: "0.2.0"}
+- {name: legacy_exact, header: ["0.2.0"], form: well_formed, want: "0.2.0"}
+- {name: legacy_patch, header: ["0.2.7"], form: well_formed, want: "0.2.0"}
+- {name: public_owner_exact, header: ["0.3.0"], form: well_formed, want: "0.3.0"}
+- {name: public_owner_patch, header: ["0.3.4"], form: well_formed, want: "0.3.0"}
+- {name: public_owner_leading_zeros, header: ["0.03.000"], form: well_formed, want: "0.3.0"}
+- {name: newer_minor, header: ["0.4.0"], form: well_formed, want: "0.3.0"}
+- {name: newer_major, header: ["1.0.0"], form: well_formed, want: "0.3.0"}
+- {name: newer_beyond_integer_range, header: ["0.99999999999999999999999999.0"], form: well_formed, want: "0.3.0"}
+- {name: below_minimum_minor, header: ["0.1.9"], form: well_formed, want: refused}
+- {name: below_minimum_zero, header: ["0.0.0"], form: well_formed, want: refused}
