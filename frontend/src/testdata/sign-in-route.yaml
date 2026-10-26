@@ -99,6 +99,14 @@ proxyCases:
     cookie: null
     fetchDest: document
     expect: { status: null, location: null }
+  - name: the-email-unsubscribe-is-served-signed-out
+    why: >-
+      the unsubscribe link in an invitation email must work without a session;
+      the page sends nothing until its button is pressed.
+    path: /email/unsubscribe?token=x
+    cookie: null
+    fetchDest: document
+    expect: { status: null, location: null }
   - name: a-crawler-reads-a-transcript-link-preview
     why: >-
       link-preview crawlers send no fetch metadata and must read the page's

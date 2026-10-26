@@ -1,0 +1,121 @@
+# The email section of /settings, mounted through the real route with REST
+# stubbed at fetch (`src/test/mountedSettingsRoute.tsx`).
+#
+# `server` is the notification email as the server holds it when the page
+# opens: the address (or null), whether it is verified, whether invitation
+# emails are on, how setting an address answers (ok, off = this Village sends
+# no email (501), limited = too many verification emails (429)), and the one
+# verification code it accepts. `search` is the page's query on arrival.
+# `steps` is what the person does, in order. `expect.writes` is every non-GET
+# request the page sent, as `METHOD path body`.
+#
+# Deletion protection is the required-name manifest in `src/accountEmail.test.tsx`.
+
+cases:
+  - name: an-address-is-added-and-a-code-sent
+    why: >-
+      a person with no address types one and asks for a code; the page sends
+      exactly that address and then asks for the code it emailed.
+    server: { address: null, verified: false, invitations: true, sending: ok, code: "123456" }
+    search: ""
+    steps:
+      - { kind: type, field: email address, value: alice@example.test }
+      - { kind: press, button: send code }
+    expect:
+      writes: ['PUT /users/me/email {"address":"alice@example.test"}']
+      shows: [alice@example.test, not verified yet, "we sent a code to that address."]
+      alert: null
+      form: false
+
+  - name: a-code-verifies-the-address
+    why: the code typed into the field is sent as the token, and the address then reads verified.
+    server: { address: alice@example.test, verified: false, invitations: true, sending: ok, code: "123456" }
+    search: ""
+    steps:
+      - { kind: type, field: verification code, value: "123456" }
+      - { kind: press, button: verify }
+    expect:
+      writes: ['POST /users/me/email/verify {"token":"123456"}']
+      shows: [alice@example.test, verified., your address is verified.]
+      alert: null
+      form: false
+
+  - name: a-wrong-code-says-so-without-saying-why
+    why: >-
+      the server does not say whether a code is wrong, expired or for a
+      replaced address, so the page gives one message for all three.
+    server: { address: alice@example.test, verified: false, invitations: true, sending: ok, code: "123456" }
+    search: ""
+    steps:
+      - { kind: type, field: verification code, value: "999999" }
+      - { kind: press, button: verify }
+    expect:
+      writes: ['POST /users/me/email/verify {"token":"999999"}']
+      shows: [not verified yet]
+      alert: that code is wrong, has expired, or is for an address you've since replaced. send a new one.
+      form: false
+
+  - name: the-email-link-verifies-on-arrival
+    why: >-
+      the link in the verification email carries the code; it is confirmed
+      once on arrival and dropped from the address.
+    server: { address: alice@example.test, verified: false, invitations: true, sending: ok, code: "123456" }
+    search: "?verify_email=123456"
+    steps: []
+    expect:
+      writes: ['POST /users/me/email/verify {"token":"123456"}']
+      shows: [verified., your address is verified.]
+      alert: null
+      form: false
+
+  - name: a-village-without-email-says-so
+    why: >-
+      a 501 means this Village sends no email; the page says so and stops
+      offering the form instead of failing the same way again.
+    server: { address: null, verified: false, invitations: true, sending: "off", code: "" }
+    search: ""
+    steps:
+      - { kind: type, field: email address, value: alice@example.test }
+      - { kind: press, button: send code }
+    expect:
+      writes: ['PUT /users/me/email {"address":"alice@example.test"}']
+      shows: [this village doesn't send email.]
+      alert: null
+      form: false
+
+  - name: too-many-codes-says-so
+    why: a 429 is the verification email limit, said plainly; the form stays to try later.
+    server: { address: null, verified: false, invitations: true, sending: limited, code: "" }
+    search: ""
+    steps:
+      - { kind: type, field: email address, value: alice@example.test }
+      - { kind: press, button: send code }
+    expect:
+      writes: ['PUT /users/me/email {"address":"alice@example.test"}']
+      shows: []
+      alert: too many verification emails for now. try again later.
+      form: true
+
+  - name: removing-the-address
+    why: remove deletes the address, and the form to add one returns.
+    server: { address: alice@example.test, verified: true, invitations: true, sending: ok, code: "" }
+    search: ""
+    steps:
+      - { kind: press, button: remove }
+    expect:
+      writes: ["DELETE /users/me/email"]
+      shows: [your address is removed. village keeps no copy of it.]
+      alert: null
+      form: true
+
+  - name: the-invitation-email-switch-sends-only-its-field
+    why: the switch writes email_invitations alone, so no other setting moves with it.
+    server: { address: alice@example.test, verified: true, invitations: true, sending: ok, code: "" }
+    search: ""
+    steps:
+      - { kind: toggle, switch: email me when a collective invites me }
+    expect:
+      writes: ['PATCH /users/me/settings {"email_invitations":false}']
+      shows: []
+      alert: null
+      form: false

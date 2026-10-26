@@ -66,6 +66,17 @@ type CliAuthSession struct {
 	ExchangedAt  pgtype.Timestamptz `db:"exchanged_at" json:"exchanged_at"`
 }
 
+type CollectiveInvitation struct {
+	ID              pgtype.UUID        `db:"id" json:"id"`
+	GroupID         pgtype.UUID        `db:"group_id" json:"group_id"`
+	InviteeID       pgtype.UUID        `db:"invitee_id" json:"invitee_id"`
+	InvitedUsername string             `db:"invited_username" json:"invited_username"`
+	InvitedBy       pgtype.UUID        `db:"invited_by" json:"invited_by"`
+	Status          string             `db:"status" json:"status"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	ExpiresAt       pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+}
+
 type CollectiveRepository struct {
 	ID             pgtype.UUID        `db:"id" json:"id"`
 	GroupID        pgtype.UUID        `db:"group_id" json:"group_id"`
@@ -126,6 +137,7 @@ type GroupMember struct {
 	UserID   pgtype.UUID        `db:"user_id" json:"user_id"`
 	Role     string             `db:"role" json:"role"`
 	JoinedAt pgtype.Timestamptz `db:"joined_at" json:"joined_at"`
+	Origin   string             `db:"origin" json:"origin"`
 }
 
 type License struct {
@@ -381,6 +393,13 @@ type User struct {
 	GithubOrgSyncGeneration int64              `db:"github_org_sync_generation" json:"-"`
 }
 
+type UserDailyQuota struct {
+	UserID pgtype.UUID `db:"user_id" json:"user_id"`
+	Quota  string      `db:"quota" json:"quota"`
+	Day    pgtype.Date `db:"day" json:"day"`
+	Used   int32       `db:"used" json:"used"`
+}
+
 type UserGithubOrg struct {
 	UserID    pgtype.UUID        `db:"user_id" json:"user_id"`
 	OrgLogin  string             `db:"org_login" json:"org_login"`
@@ -388,4 +407,15 @@ type UserGithubOrg struct {
 	AvatarUrl pgtype.Text        `db:"avatar_url" json:"avatar_url"`
 	Visible   bool               `db:"visible" json:"visible"`
 	FetchedAt pgtype.Timestamptz `db:"fetched_at" json:"fetched_at"`
+}
+
+type UserNotificationEmail struct {
+	UserID           pgtype.UUID        `db:"user_id" json:"user_id"`
+	Address          pgtype.Text        `db:"address" json:"address"`
+	VerifiedAt       pgtype.Timestamptz `db:"verified_at" json:"verified_at"`
+	VerifyTokenHash  []byte             `db:"verify_token_hash" json:"verify_token_hash"`
+	VerifyExpiresAt  pgtype.Timestamptz `db:"verify_expires_at" json:"verify_expires_at"`
+	EmailInvitations bool               `db:"email_invitations" json:"email_invitations"`
+	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }

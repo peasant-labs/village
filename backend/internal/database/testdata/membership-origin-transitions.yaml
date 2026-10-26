@@ -1,0 +1,14 @@
+# Every change of group_members.origin the write-once trigger decides. The
+# origin is written once; the only permitted change is legacy -> invitation,
+# a member whose membership predates invitations accepting one. A role change
+# never touches the origin. `role` is the row's role, so a creator row is an
+# owner (group_members_creator_is_owner).
+- {name: legacy_becomes_invitation, role: member, from: legacy, to: invitation, allowed: true}
+- {name: legacy_cannot_become_self_join, role: member, from: legacy, to: self_join, allowed: false}
+- {name: legacy_cannot_become_creator, role: owner, from: legacy, to: creator, allowed: false}
+- {name: invitation_cannot_become_legacy, role: member, from: invitation, to: legacy, allowed: false}
+- {name: invitation_cannot_become_self_join, role: member, from: invitation, to: self_join, allowed: false}
+- {name: self_join_cannot_become_invitation, role: contributor, from: self_join, to: invitation, allowed: false}
+- {name: self_join_cannot_become_legacy, role: contributor, from: self_join, to: legacy, allowed: false}
+- {name: creator_cannot_become_legacy, role: owner, from: creator, to: legacy, allowed: false}
+- {name: creator_cannot_become_invitation, role: owner, from: creator, to: invitation, allowed: false}

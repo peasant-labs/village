@@ -167,12 +167,14 @@ type mockQuerier struct {
 	listTagsByTranscriptIDs                  func(ctx context.Context, transcriptIds []pgtype.UUID) ([]sqlc.ListTagsByTranscriptIDsRow, error)
 
 	// Writes a test drives directly. Unset, updateUserAttachSettings returns a
-	// zero user, and createGroup, updateGroup and addGroupMember panic as not
+	// zero user, and createGroup, updateGroup and addGroupCreator panic as not
 	// stubbed.
 	updateUserAttachSettings func(ctx context.Context, arg sqlc.UpdateUserAttachSettingsParams) (sqlc.User, error)
 	createGroup              func(ctx context.Context, arg sqlc.CreateGroupParams) (sqlc.Group, error)
 	updateGroup              func(ctx context.Context, arg sqlc.UpdateGroupParams) (sqlc.Group, error)
-	addGroupMember           func(ctx context.Context, arg sqlc.AddGroupMemberParams) error
+	addGroupCreator          func(ctx context.Context, arg sqlc.AddGroupCreatorParams) error
+	getNotificationEmail     func(ctx context.Context, userID pgtype.UUID) (sqlc.UserNotificationEmail, error)
+	setEmailInvitations      func(ctx context.Context, arg sqlc.SetEmailInvitationsParams) (sqlc.UserNotificationEmail, error)
 }
 
 func (m *mockQuerier) IssueGitHubOrgSyncGeneration(ctx context.Context, id pgtype.UUID) (int64, error) {
@@ -606,11 +608,86 @@ func (m *mockQuerier) ListUserGroups(ctx context.Context, userID pgtype.UUID) ([
 func (m *mockQuerier) ListVisibleGroups(ctx context.Context, userID pgtype.UUID) ([]sqlc.ListVisibleGroupsRow, error) {
 	panic("ListVisibleGroups: not stubbed")
 }
-func (m *mockQuerier) AddGroupMember(ctx context.Context, arg sqlc.AddGroupMemberParams) error {
-	if m.addGroupMember != nil {
-		return m.addGroupMember(ctx, arg)
+func (m *mockQuerier) AddGroupCreator(ctx context.Context, arg sqlc.AddGroupCreatorParams) error {
+	if m.addGroupCreator != nil {
+		return m.addGroupCreator(ctx, arg)
 	}
-	panic("AddGroupMember: not stubbed")
+	panic("AddGroupCreator: not stubbed")
+}
+func (m *mockQuerier) JoinGroupSelf(ctx context.Context, arg sqlc.JoinGroupSelfParams) error {
+	panic("JoinGroupSelf: not stubbed")
+}
+func (m *mockQuerier) AcceptInvitationMembership(ctx context.Context, arg sqlc.AcceptInvitationMembershipParams) (string, error) {
+	panic("AcceptInvitationMembership: not stubbed")
+}
+func (m *mockQuerier) GetOpenGroupInvitationByUsername(ctx context.Context, arg sqlc.GetOpenGroupInvitationByUsernameParams) (sqlc.CollectiveInvitation, error) {
+	panic("GetOpenGroupInvitationByUsername: not stubbed")
+}
+func (m *mockQuerier) DeleteExpiredGroupInvitationByUsername(ctx context.Context, arg sqlc.DeleteExpiredGroupInvitationByUsernameParams) error {
+	panic("DeleteExpiredGroupInvitationByUsername: not stubbed")
+}
+func (m *mockQuerier) RelinkGroupInvitation(ctx context.Context, arg sqlc.RelinkGroupInvitationParams) error {
+	panic("RelinkGroupInvitation: not stubbed")
+}
+func (m *mockQuerier) CountOpenGroupInvitations(ctx context.Context, groupID pgtype.UUID) (int32, error) {
+	panic("CountOpenGroupInvitations: not stubbed")
+}
+func (m *mockQuerier) CreateGroupInvitation(ctx context.Context, arg sqlc.CreateGroupInvitationParams) (sqlc.CollectiveInvitation, error) {
+	panic("CreateGroupInvitation: not stubbed")
+}
+func (m *mockQuerier) ListGroupInvitations(ctx context.Context, groupID pgtype.UUID) ([]sqlc.ListGroupInvitationsRow, error) {
+	panic("ListGroupInvitations: not stubbed")
+}
+func (m *mockQuerier) RevokeGroupInvitation(ctx context.Context, arg sqlc.RevokeGroupInvitationParams) (int64, error) {
+	panic("RevokeGroupInvitation: not stubbed")
+}
+func (m *mockQuerier) ListMyInvitations(ctx context.Context, inviteeID pgtype.UUID) ([]sqlc.ListMyInvitationsRow, error) {
+	panic("ListMyInvitations: not stubbed")
+}
+func (m *mockQuerier) GetMyPendingInvitation(ctx context.Context, arg sqlc.GetMyPendingInvitationParams) (sqlc.CollectiveInvitation, error) {
+	panic("GetMyPendingInvitation: not stubbed")
+}
+func (m *mockQuerier) GetMyPendingInvitationForUpdate(ctx context.Context, arg sqlc.GetMyPendingInvitationForUpdateParams) (sqlc.CollectiveInvitation, error) {
+	panic("GetMyPendingInvitationForUpdate: not stubbed")
+}
+func (m *mockQuerier) DeleteInvitation(ctx context.Context, id pgtype.UUID) error {
+	panic("DeleteInvitation: not stubbed")
+}
+func (m *mockQuerier) DeclineMyInvitation(ctx context.Context, arg sqlc.DeclineMyInvitationParams) (int64, error) {
+	panic("DeclineMyInvitation: not stubbed")
+}
+func (m *mockQuerier) TakeDailyQuota(ctx context.Context, arg sqlc.TakeDailyQuotaParams) (int32, error) {
+	panic("TakeDailyQuota: not stubbed")
+}
+func (m *mockQuerier) DeleteStaleDailyQuotas(ctx context.Context) error {
+	panic("DeleteStaleDailyQuotas: not stubbed")
+}
+func (m *mockQuerier) GetNotificationEmail(ctx context.Context, userID pgtype.UUID) (sqlc.UserNotificationEmail, error) {
+	if m.getNotificationEmail != nil {
+		return m.getNotificationEmail(ctx, userID)
+	}
+	return sqlc.UserNotificationEmail{}, pgx.ErrNoRows
+}
+func (m *mockQuerier) SetNotificationEmail(ctx context.Context, arg sqlc.SetNotificationEmailParams) (sqlc.UserNotificationEmail, error) {
+	panic("SetNotificationEmail: not stubbed")
+}
+func (m *mockQuerier) VerifyNotificationEmail(ctx context.Context, arg sqlc.VerifyNotificationEmailParams) (sqlc.UserNotificationEmail, error) {
+	panic("VerifyNotificationEmail: not stubbed")
+}
+func (m *mockQuerier) RemoveNotificationEmail(ctx context.Context, userID pgtype.UUID) error {
+	panic("RemoveNotificationEmail: not stubbed")
+}
+func (m *mockQuerier) SetEmailInvitations(ctx context.Context, arg sqlc.SetEmailInvitationsParams) (sqlc.UserNotificationEmail, error) {
+	if m.setEmailInvitations != nil {
+		return m.setEmailInvitations(ctx, arg)
+	}
+	panic("SetEmailInvitations: not stubbed")
+}
+func (m *mockQuerier) UnsubscribeInvitationEmails(ctx context.Context, userID pgtype.UUID) error {
+	panic("UnsubscribeInvitationEmails: not stubbed")
+}
+func (m *mockQuerier) GetInvitationEmailRecipient(ctx context.Context, userID pgtype.UUID) (string, error) {
+	panic("GetInvitationEmailRecipient: not stubbed")
 }
 func (m *mockQuerier) RemoveGroupMember(ctx context.Context, arg sqlc.RemoveGroupMemberParams) error {
 	panic("RemoveGroupMember: not stubbed")

@@ -769,6 +769,15 @@ project name (the fixture gives the owner's transcripts a git remote that names
 them) must appear nowhere in the response bytes. The rule lives in SQL, so this runs against real
 PostgreSQL through the production handlers.
 
+The `relation_owner` cases relate the hidden owner to another owner's
+collective one way each: a legacy membership the other owner created
+(`force_add`), a join request, the owner's own join (`self_join`), an
+invitation that is pending, accepted, declined or revoked, and a legacy member
+who then accepts an invitation. Only the consented ones (`self_join`,
+`invitation_accepted`, `legacy_accepts_invitation`) and the join request show
+the owner's profile. Mutation check: counting `legacy` as consent in
+`ListPublicOwnersForViewer` fails `hidden_owner_force_added_by_unrelated_owner`.
+
 ### The requestable pull envelope
 
 Two unit fixtures drive the production pull handlers with the owner read
@@ -781,6 +790,63 @@ declares. `internal/handler/testdata/pull-envelope-people.yaml` requires that
 neither envelope leaks a hidden owner's id, username, display name, avatar,
 project name, project hash or content repository, and that the schema module's
 `Validate` accepts each body.
+
+### Collective invitations and the notification address
+
+Four fixtures drive the production handlers against real PostgreSQL:
+
+- `testdata/collective-invitations.yaml`: what the invite route answers and
+  writes for an unknown handle, a hidden and a discoverable account, members
+  of each origin, and an earlier pending, declined or expired invitation.
+  Every 202 must be the same bytes, and every invitable name must leave
+  exactly one open row, linked to the account only when one holds the handle.
+  The `prior_holder` cases re-invite a handle whose open invitation names
+  nobody (the person signed up later) or another account (the handle changed
+  hands): the row is pointed at the current holder, pending again for a new
+  holder, and a linked pending row must be in that account's own list. The
+  handler runs the same reads in the same order whether or not an account
+  holds the handle. Mutation checks: answering 202 for an unknown handle
+  without writing a row fails `unknown_name_is_invited`; skipping the relink
+  on a repeat invite fails `reinvite_after_signup_links_the_account`.
+- `testdata/invitation-answers.yaml`: accept and decline by the invitee and by
+  someone else, for each acceptance mode (an invitation admits through
+  `curated` and `verified_only`), for legacy and consented members, and after
+  a decline, expiry or revocation. It asserts the membership's role and origin
+  and what is left of the invitation.
+- `testdata/invitation-emails.yaml`: whether an invitation is emailed (only to
+  a verified address whose owner keeps invitation emails on) and how the
+  email names the inviting owner, through a fake sender
+  (`newMailServiceWith`). Wait for the post-response send with
+  `waitForNotices` before asserting.
+- `testdata/membership-origin-transitions.yaml` (database package): every
+  origin change the write-once trigger decides.
+
+The daily limits live in `user_daily_quotas`, so `TestInvitationLimits`,
+`TestInvitationEmailsPerRecipientCap` and `TestVerificationEmailsPerDayCap`
+take the last slot through a fresh handler on the same database
+(`invitationWorld.restart`), as a restart or a second instance would. A limit
+kept in process memory fails all three. `testdata/email-configuration.yaml`
+proves email stays off unless every `EMAIL_*` variable is set.
+
+`testdata/creator-membership.yaml` pins the creator invariant through the
+role, remove, collective-delete and account-delete handlers: neither another
+owner nor the creator can demote or remove the creator, an owner can still
+change or remove anyone else, and deleting the collective or the creator's
+account still removes the creator's row through the cascade. Mutation check:
+dropping the creator guard in `removeGroupMemberLocked` fails
+`co_owner_cannot_remove_the_creator` and `creator_cannot_leave`.
+
+`TestNotificationEmailLifecycleAndUnsubscribe` sets, verifies and removes an
+address, follows the emailed unsubscribe link signed out, and walks every
+read in `testdata/notification-address-reads.yaml` (the owner's invitation
+list, the collective detail, the profile as each viewer, and the invitee's
+own invitation list), failing if any of them carries the address. Mutation
+check: putting the caller's address into their own invitation list fails it.
+`TestSettingTheSameAddressAgain` proves setting the verified address again
+keeps it verified and sends and counts no email, while a different address
+is unverified and an unverified one can be set again for a new code.
+`TestDrainNoticesWaitsForEmailsInFlight` (unit) proves a shutdown waits, up
+to its deadline, for an invitation email still being sent.
 
 ### Collectives surfaces: who may see a membership, and what the counters mean
 
@@ -1522,8 +1588,8 @@ escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
-The published module pin is Schema v0.33.1 and the literal served/enforced
-contract expectation is Village API 0.29.1. Mounted contract bytes are pinned
+The published module pin is Schema v0.34.1 and the literal served/enforced
+contract expectation is Village API 0.30.0. Mounted contract bytes are pinned
 against the independently downloaded GitHub release asset in
 `backend/internal/router/testdata/published_schema.yaml`; the body validator uses
 that same module's embedded document. The grouped contribution transition

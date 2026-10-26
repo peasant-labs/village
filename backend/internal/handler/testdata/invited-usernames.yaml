@@ -1,0 +1,14 @@
+# How the invite route reads the handle an owner typed. It refuses only by
+# shape, never by whether an account holds the handle, so a refusal confirms
+# nothing about anyone. `stored` is the handle written, or empty when refused.
+- {name: plain_handle, typed: octocat, stored: octocat}
+- {name: leading_at_is_dropped, typed: '@octocat', stored: octocat}
+- {name: case_is_folded, typed: OctoCat, stored: octocat}
+- {name: surrounding_space_is_trimmed, typed: '  @OctoCat  ', stored: octocat}
+- {name: empty_is_refused, typed: '', stored: ''}
+- {name: only_an_at_is_refused, typed: '@', stored: ''}
+- {name: inner_space_is_refused, typed: 'octo cat', stored: ''}
+- {name: slash_is_refused, typed: 'octo/cat', stored: ''}
+- {name: control_character_is_refused, typed: "octo\tcat", stored: ''}
+- {name: one_hundred_characters_is_kept, typed: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, stored: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+- {name: one_hundred_and_one_characters_is_refused, typed: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, stored: ''}

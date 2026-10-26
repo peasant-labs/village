@@ -36,3 +36,12 @@ compactCases:
   - { name: billions, n: 66731500000, expect: 66.7B }
   - { name: rounding-up-to-a-thousand-million-is-a-billion, n: 999960000, expect: 1B }
   - { name: trillions, n: 2500000000000, expect: 2.5T }
+
+# How long an invitation has left, for the invited list and the invitee's
+# invitations block. `now` is written on every case, as above.
+expiryCases:
+  - { name: past-is-expired, now: "2026-09-30T12:00:00Z", at: "2026-09-30T11:00:00Z", expect: expired }
+  - { name: inside-the-last-day-is-today, now: "2026-09-30T12:00:00Z", at: "2026-10-01T06:00:00Z", expect: expires today }
+  - { name: one-whole-day-is-tomorrow, now: "2026-09-30T12:00:00Z", at: "2026-10-01T18:00:00Z", expect: expires tomorrow }
+  - { name: whole-days-left, now: "2026-09-30T12:00:00Z", at: "2026-10-30T12:00:00Z", expect: expires in 30 days }
+  - { name: an-unparseable-expiry-states-nothing, now: "2026-09-30T12:00:00Z", at: "not a time", expect: "" }

@@ -100,11 +100,13 @@ func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.queries.AddGroupMember(r.Context(), sqlc.AddGroupMemberParams{
+	if err := h.queries.AddGroupCreator(r.Context(), sqlc.AddGroupCreatorParams{
 		GroupID: group.ID,
 		UserID:  user.PgID(),
-		Role:    "owner",
-	})
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "The collective was created, but you could not be recorded as its owner; retry the request")
+		return
+	}
 
 	response, err := collectiveWithItsCreator(r.Context(), h, user, group, groupCreatedBy)
 	if err != nil {
@@ -565,54 +567,6 @@ func (h *Handler) deleteGroupLocked(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
-func (h *Handler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
-	h.mutateCollective(w, r, (*Handler).addGroupMemberLocked, true)
-}
-
-func (h *Handler) addGroupMemberLocked(w http.ResponseWriter, r *http.Request) {
-	user := GetUser(r.Context())
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid group ID")
-		return
-	}
-
-	pgID := toPgUUID(id)
-	member, err := h.queries.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{
-		GroupID: pgID,
-		UserID:  user.PgID(),
-	})
-	if err != nil || member.Role != "owner" {
-		writeError(w, http.StatusForbidden, "Owner access required")
-		return
-	}
-
-	var req struct {
-		Username string `json:"username"`
-	}
-	if !h.decodeContractBody(w, r, opAddGroupMember, &req) {
-		return
-	}
-
-	targetUser, err := h.queries.GetUserByUsername(r.Context(), req.Username)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "@"+req.Username+" hasn't joined the platform yet. They need to sign in first.")
-		return
-	}
-
-	err = h.queries.AddGroupMember(r.Context(), sqlc.AddGroupMemberParams{
-		GroupID: pgID,
-		UserID:  targetUser.ID,
-		Role:    "member",
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to add member")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"status": "added"})
-}
-
 // ListPendingShares returns pending transcript shares for a curated collective.
 // GET /groups/{id}/pending (AuthRequired, owner only)
 func (h *Handler) ListPendingShares(w http.ResponseWriter, r *http.Request) {
@@ -947,10 +901,9 @@ func (h *Handler) joinGroupLocked(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.queries.AddGroupMember(r.Context(), sqlc.AddGroupMemberParams{
+	err = h.queries.JoinGroupSelf(r.Context(), sqlc.JoinGroupSelfParams{
 		GroupID: pgID,
 		UserID:  user.PgID(),
-		Role:    "contributor",
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to join group")
@@ -1004,12 +957,18 @@ func (h *Handler) promoteMemberLocked(w http.ResponseWriter, r *http.Request) {
 
 	// Verify target is actually a member of the group
 	pgTargetID := toPgUUID(targetID)
-	_, err = h.queries.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{
+	target, err := h.queries.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{
 		GroupID: pgID,
 		UserID:  pgTargetID,
 	})
 	if err != nil {
 		writeError(w, http.StatusNotFound, "User is not a member of this group")
+		return
+	}
+	// The creator's membership is recorded as the creator's, which is an
+	// owner's; it is not changed to another role here.
+	if target.Origin == originCreator {
+		writeError(w, http.StatusBadRequest, "The collective's creator stays an owner; their role cannot be changed")
 		return
 	}
 
@@ -1097,6 +1056,20 @@ func (h *Handler) removeGroupMemberLocked(w http.ResponseWriter, r *http.Request
 			writeError(w, http.StatusForbidden, "Owner access required")
 			return
 		}
+	}
+
+	// The creator's membership is never removed, by another owner or by the
+	// creator: a collective always keeps the owner who made it. The creator
+	// may delete the collective instead. Deleting the collective or the
+	// creator's account still removes the row through the database cascade.
+	target, err := h.queries.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{GroupID: pgID, UserID: pgTargetID})
+	switch {
+	case err == nil && target.Origin == originCreator:
+		writeError(w, http.StatusBadRequest, creatorStaysMessage(targetID == user.ID))
+		return
+	case err != nil && !errors.Is(err, pgx.ErrNoRows):
+		writeError(w, http.StatusInternalServerError, "Could not read the membership; nobody was removed. Retry the request.")
+		return
 	}
 
 	// Resolve whether the departing user's transcripts should be retracted.

@@ -73,6 +73,7 @@ var migrations = []migration{
 	{version: 44, file: "migrations/044_auto_attach_pull_requests.up.sql"},
 	{version: 45, file: "migrations/045_github_org_sync_generation.up.sql"},
 	{version: 46, file: "migrations/046_auto_attach_pull_requests_default.up.sql"},
+	{version: 47, file: "migrations/047_collective_invitations.up.sql"},
 }
 
 func RunMigrations(pool *pgxpool.Pool) error {

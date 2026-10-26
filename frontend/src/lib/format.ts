@@ -467,3 +467,20 @@ export function formatRecordedDuration(ms: number): string {
   if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS)}m`;
   return `${Math.floor(ms / HOUR_MS).toLocaleString("en-US")}h`;
 }
+
+/**
+ * How long an invitation has left, in the words a list column has room for:
+ * `expires today` inside the last day, `expires tomorrow`, then `expires in 12
+ * days`. A time already past reads `expired`, which only a list read just
+ * before the server dropped the row shows. A value that does not parse states
+ * nothing.
+ */
+export function formatExpiresIn(iso: string, now: number = Date.now()): string {
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return "";
+  const left = at - now;
+  if (left <= 0) return "expired";
+  if (left < DAY_MS) return "expires today";
+  const days = Math.floor(left / DAY_MS);
+  return days === 1 ? "expires tomorrow" : `expires in ${days} days`;
+}

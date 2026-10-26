@@ -54,6 +54,17 @@ type Config struct {
 	// (X-Hub-Signature-256, HMAC over the raw body). When empty, the webhook
 	// route returns 501 and no delivery is trusted.
 	GitHubAppWebhookSecret string
+
+	// Email: the verification token for a notification address and the notice
+	// that a collective invited someone, sent through the provider's HTTP API.
+	// Email is on only when all three are set (see email.Settings); otherwise
+	// setting an address answers 501 and invitations stay in the app.
+	// EMAIL_PROVIDER_API_KEY and EMAIL_LINK_SIGNING_KEY are secrets and are
+	// never logged; EMAIL_FROM is the sender, for example
+	// "village <village@example.org>".
+	EmailProviderAPIKey string
+	EmailFrom           string
+	EmailLinkSigningKey string
 }
 
 // Narrow S3 accessors let the raw object adapter depend on storage authority,
@@ -111,6 +122,9 @@ func Load() *Config {
 		GitHubAppPrivateKey:     normalizePEM(getEnv("GITHUB_APP_PRIVATE_KEY", "")),
 		GitHubAppSlug:           getEnv("GITHUB_APP_SLUG", ""),
 		GitHubAppWebhookSecret:  getEnv("GITHUB_APP_WEBHOOK_SECRET", ""),
+		EmailProviderAPIKey:     getEnv("EMAIL_PROVIDER_API_KEY", ""),
+		EmailFrom:               getEnv("EMAIL_FROM", ""),
+		EmailLinkSigningKey:     getEnv("EMAIL_LINK_SIGNING_KEY", ""),
 		// Default ON: only the explicit string "false" disables it, so an unset or
 		// malformed value fails safe to enabled (legacy NULLs still get backfilled).
 	}

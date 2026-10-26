@@ -39,7 +39,7 @@ type contractBodyOperationCase struct {
 var requiredContractBodyOperations = []string{
 	"POST /api/v1/collectives",
 	"PATCH /api/v1/collectives/{id}",
-	"POST /api/v1/collectives/{id}/members",
+	"POST /api/v1/collectives/{id}/invitations",
 	"PATCH /api/v1/collectives/{id}/members/{userID}/role",
 	"POST /api/v1/collectives/{id}/repositories",
 	"POST /api/v1/collectives/{id}/shares",
@@ -47,7 +47,7 @@ var requiredContractBodyOperations = []string{
 	"PATCH /api/v1/collectives/{id}/shares/{transcriptID}",
 	"POST /api/v1/groups",
 	"PATCH /api/v1/groups/{id}",
-	"POST /api/v1/groups/{id}/members",
+	"POST /api/v1/groups/{id}/invitations",
 	"PATCH /api/v1/groups/{id}/members/{userID}/role",
 	"POST /api/v1/groups/{id}/repositories",
 	"POST /api/v1/groups/{id}/shares",
@@ -55,6 +55,8 @@ var requiredContractBodyOperations = []string{
 	"PATCH /api/v1/groups/{id}/shares/{transcriptID}",
 	"POST /api/v1/transcripts/{id}/share",
 	"PATCH /api/v1/users/me/settings",
+	"PUT /api/v1/users/me/email",
+	"POST /api/v1/users/me/email/verify",
 }
 
 func loadContractBodyOperations(t *testing.T) []contractBodyOperationCase {
@@ -242,7 +244,7 @@ func contractBodyRouter(t *testing.T) http.Handler {
 		for _, prefix := range []string{"/groups", "/collectives"} {
 			r.Post(prefix, h.CreateGroup)
 			r.Patch(prefix+"/{id}", h.UpdateGroup)
-			r.Post(prefix+"/{id}/members", h.AddGroupMember)
+			r.Post(prefix+"/{id}/invitations", h.CreateGroupInvitation)
 			r.Patch(prefix+"/{id}/members/{userID}/role", h.PromoteMember)
 			r.Post(prefix+"/{id}/repositories", h.LinkRepository)
 			r.Post(prefix+"/{id}/shares", h.BatchShareProject)
@@ -251,6 +253,8 @@ func contractBodyRouter(t *testing.T) http.Handler {
 		}
 		r.Post("/transcripts/{id}/share", h.ShareTranscript)
 		r.Patch("/users/me/settings", h.UpdateUserSettings)
+		r.Put("/users/me/email", h.SetMyNotificationEmail)
+		r.Post("/users/me/email/verify", h.VerifyMyNotificationEmail)
 	})
 	return r
 }
@@ -521,7 +525,7 @@ func TestCreateGroupAcceptsANullOrganization(t *testing.T) {
 			created = arg
 			return sqlc.Group{ID: pgtype.UUID{Bytes: [16]byte{1}, Valid: true}, Name: arg.Name}, nil
 		},
-		addGroupMember: func(context.Context, sqlc.AddGroupMemberParams) error { return nil },
+		addGroupCreator: func(context.Context, sqlc.AddGroupCreatorParams) error { return nil },
 	}
 	h := newTestHandler(q, nil)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/groups", strings.NewReader(`{"name":"Night Shift","linked_github_org":null}`))

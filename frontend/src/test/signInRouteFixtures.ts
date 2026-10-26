@@ -52,6 +52,7 @@ const requiredProxyCases = [
   "the-sign-in-start-is-served-signed-out",
   "the-oauth-landing-is-served-signed-out",
   "the-privacy-notice-is-served-signed-out",
+  "the-email-unsubscribe-is-served-signed-out",
   "a-crawler-reads-a-transcript-link-preview",
   "a-crawler-reads-the-open-graph-image",
   "a-crawler-reads-the-x-image",

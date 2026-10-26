@@ -322,7 +322,7 @@ async function mountSurface(c: LowercaseChromeCase): Promise<Element> {
         window.history.replaceState(null, "", `/collectives/${GROUP_ID}/settings?section=members`);
         await renderGroupSettingsRoute(GROUP_ID);
         fireEvent.click(await screen.findByRole("button", { name: /find a github user to invite/i }));
-        const dialog = await screen.findByRole("dialog", { name: /invite a github user/i });
+        const dialog = await screen.findByRole("dialog", { name: /invite by username/i });
         fireEvent.change(within(dialog).getByPlaceholderText("github username"), {
           target: { value: "octo" },
         });

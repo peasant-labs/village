@@ -53,6 +53,7 @@ Every callback URL is `<BASE_URL>/api/v1/auth/<provider>/callback`. Locally,
 | `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` | Collective repository linking, the commit overlay, and pull request prompts (a GitHub App, not the OAuth app: Contents read-only, Metadata read-only, Pull requests read and write, Checks read and write, installable on any account; events `installation`, `pull_request`, `check_run`, `issue_comment`). The key accepts a multi-line PEM or one line with `\n` escapes. | The feature's endpoints return `501`; everything else works. |
 | `GITHUB_APP_SLUG` | The App's URL slug, used to build the GitHub App install redirect (`github.com/apps/<slug>/installations/new`) behind the collective "Connect GitHub" action. | The install-handshake routes return `501`. |
 | `GITHUB_APP_WEBHOOK_SECRET` | Verifies inbound GitHub App webhook deliveries (`X-Hub-Signature-256`, HMAC over the raw body). Generate with `openssl rand -hex 32` and enter the same value in the App's webhook settings. | The webhook route returns `501`; no delivery is trusted. |
+| `EMAIL_PROVIDER_API_KEY` / `EMAIL_FROM` / `EMAIL_LINK_SIGNING_KEY` | Email: a person's notification address (verified by an emailed one-time token) and the email that tells them a collective invited them, sent through Resend's HTTP API. `EMAIL_PROVIDER_API_KEY` is the Resend API key (secret). `EMAIL_FROM` is the sender, such as `village <village@your-domain>`, on a domain verified in Resend with open and click tracking off. `EMAIL_LINK_SIGNING_KEY` signs the one-click unsubscribe link (secret, at least 32 characters; `openssl rand -hex 32`). All three are needed; the server logs which variable is missing, never a value. | `PUT /api/v1/users/me/email` returns `501`; invitations are created and shown in the app, and nobody is emailed. |
 
 ## Failure behavior summary
 
@@ -64,3 +65,4 @@ Every callback URL is `<BASE_URL>/api/v1/auth/<provider>/callback`. Locally,
 | One OAuth pair incomplete | That provider's sign-in returns `503`; other providers and anonymous browsing are unaffected. |
 | GitHub App pair incomplete | Repository-linking endpoints return `501`. |
 | `GITHUB_APP_WEBHOOK_SECRET` empty | The webhook route returns `501`; valid deliveries cannot be verified. |
+| Any `EMAIL_*` variable empty, or `EMAIL_LINK_SIGNING_KEY` under 32 characters | Email is off: setting an address returns `501`, unsubscribe links return `400`, and invitations stay in the app. |

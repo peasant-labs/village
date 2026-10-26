@@ -52,8 +52,8 @@ ON CONFLICT DO NOTHING;
 -- 2b. Ensure the transcript's owner is a contributor member of the collective
 --     too — otherwise the Contributors sidebar would show them while the
 --     Members list wouldn't, which is confusing in a seeded demo.
-INSERT INTO group_members (group_id, user_id, role)
-SELECT :'collective_id'::uuid, t.owner_id, 'contributor'
+INSERT INTO group_members (group_id, user_id, role, origin)
+SELECT :'collective_id'::uuid, t.owner_id, 'contributor', 'legacy'
 FROM transcripts t
 WHERE t.id = :'transcript_id'::uuid
 ON CONFLICT DO NOTHING;

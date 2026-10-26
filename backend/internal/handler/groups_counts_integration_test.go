@@ -84,7 +84,7 @@ func countsInsertGroup(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ow
 func countsAddMember(t *testing.T, ctx context.Context, pool *pgxpool.Pool, group, user pgtype.UUID, role string) {
 	t.Helper()
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)
+		INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, $3, 'legacy')
 	`, group, user, role); err != nil {
 		t.Fatalf("add member: %v", err)
 	}

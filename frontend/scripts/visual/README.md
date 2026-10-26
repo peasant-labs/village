@@ -840,6 +840,8 @@ gated by collective visibility and the owner's contributor opt-in.
 | `project-page-shoot.mjs` | Captures the page per theme and asserts build provenance BEFORE writing any PNG: the served page must carry the project heading, the repository-label subtitle in `host:owner/repo` shape, and the correction control, and `VILLAGE_URL` must be the 64-hex hash-keyed route. `PROJECT_SHOOT_MODE=path` captures the path-named project instead: it requires the heading to carry the redacted-path shape, requires NO repository subtitle (there is no repository to label), and requires the correction control to explain the path tier - a sentence only a build that knows the tier serves, which is what makes a stale server fail instead of producing a misleading PNG. It also prints a `getComputedStyle` probe (tokens, fonts, radius, tabular numerals, text-transform), because `--surface` vs `--canvas` and `--ink-2` vs `--ink-3` cannot be told apart in a scaled PNG. |
 | `pull-request-shoot.mjs` | Capture `/pulls/{owner}/{name}/{number}` in one theme: the whole page (header, the fairtrade `PromptDigest`, the attached-transcript list) and the author-only confirm/detach panel. Asserts build provenance before writing any PNG — the pull request title matching `VILLAGE_URL`, a commit anchor, and a turn link — and prints the computed prompt clamp, because a screenshot cannot tell a clamped row from one that merely fits. |
 | `profile-prompt-settings-shoot.mjs` | Capture the signed-in user's own `preview before attaching` toggle in one theme. Narrow on purpose: the existing `profile-collectives-shoot.mjs` asserts the contributed-collectives fixture values, which this rail section does not involve. Asserts the section's label text before writing the PNG. |
+| `mock-rest-invitations.mjs` | REST stand-in for the collective invitation and notification email surfaces: a curated collective with three members and two open invitations (one handle no account holds), the invitee's own two invitations (one from an owner hidden from them), and a verified notification address. `MOCK_VIEWER=owner\|invitee` chooses who is signed in; a request with no cookie is signed out. Logs every request, and an unknown route answers 404 naming itself. |
+| `invitations-shoot.mjs` | Capture one whole page (chrome plus body) per surface and theme: `invite-form`, `my-invitations`, `email-settings`, `unsubscribe`. Before writing a PNG it requires the surface's own text, the requested theme, a mounted header and navigation, and that the invited table's caption is drawn (a measured box, not the CSS). |
 
 `PROJECT_SHOOT_MODE` selects which production state is captured:
 
@@ -973,4 +975,25 @@ CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3000/ HOME_SHOOT_MODE=failure \
   node scripts/visual/home-shoot.mjs dark /tmp/village-home-failure-dark
 CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3000/ HOME_SHOOT_MODE=failure \
   node scripts/visual/home-shoot.mjs light /tmp/village-home-failure-light
+```
+
+### Collective invitations and the notification email
+
+Take these from the served production build, never `pnpm dev`. The build
+bakes in the mock's URL, and the viewer is chosen when the mock starts, so
+restart only the mock between the owner's and the invitee's captures.
+
+```sh
+MOCK_REST_PORT=8795 MOCK_VIEWER=owner node scripts/visual/mock-rest-invitations.mjs &
+NEXT_PUBLIC_API_URL=http://localhost:8795/api/v1 pnpm build
+PORT=3195 NEXT_PUBLIC_API_URL=http://localhost:8795/api/v1 pnpm start &
+for t in dark light; do
+  CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3195 node scripts/visual/invitations-shoot.mjs invite-form $t /tmp/village-invitations
+  CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3195 node scripts/visual/invitations-shoot.mjs unsubscribe $t /tmp/village-invitations
+done
+# restart the mock as the invitee, then
+for t in dark light; do
+  CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3195 node scripts/visual/invitations-shoot.mjs my-invitations $t /tmp/village-invitations
+  CHROME_PATH=$CHROME VILLAGE_URL=http://localhost:3195 node scripts/visual/invitations-shoot.mjs email-settings $t /tmp/village-invitations
+done
 ```

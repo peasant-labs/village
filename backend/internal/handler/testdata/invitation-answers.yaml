@@ -1,0 +1,33 @@
+# What the invitee's answer (accept or decline) does.
+#
+# mode:       the collective's acceptance mode. An owner's invitation admits
+#             the person whatever it is, curated and verified_only included.
+# membership: the invitee's membership before answering: none | legacy_member
+#             | legacy_contributor | legacy_owner | legacy_join_request |
+#             contributor_self_join. Accepting never changes an existing
+#             member's role; only a join request, which is not a membership
+#             yet, becomes a member.
+# state:      the invitation: pending | declined | expired | revoked.
+# actor:      who answers: invitee | other (someone the invitation is not
+#             addressed to).
+# action:     accept | decline.
+# want:
+#   status:     the HTTP status.
+#   role:       the membership role afterwards, or none.
+#   origin:     the membership origin afterwards, or none.
+#   invitation: what is left of the invitation: gone | pending | declined.
+- {name: accept_joins_an_open_collective, mode: open, membership: none, state: pending, actor: invitee, action: accept, want: {status: 200, role: member, origin: invitation, invitation: gone}}
+- {name: accept_joins_a_curated_collective, mode: curated, membership: none, state: pending, actor: invitee, action: accept, want: {status: 200, role: member, origin: invitation, invitation: gone}}
+- {name: accept_bypasses_the_organization_check, mode: verified_only, membership: none, state: pending, actor: invitee, action: accept, want: {status: 200, role: member, origin: invitation, invitation: gone}}
+- {name: accept_records_a_legacy_members_consent, mode: curated, membership: legacy_member, state: pending, actor: invitee, action: accept, want: {status: 200, role: member, origin: invitation, invitation: gone}}
+- {name: accept_keeps_a_legacy_contributors_role, mode: curated, membership: legacy_contributor, state: pending, actor: invitee, action: accept, want: {status: 200, role: contributor, origin: invitation, invitation: gone}}
+- {name: accept_turns_a_join_request_into_a_member, mode: curated, membership: legacy_join_request, state: pending, actor: invitee, action: accept, want: {status: 200, role: member, origin: invitation, invitation: gone}}
+- {name: accept_keeps_a_legacy_owner_an_owner, mode: curated, membership: legacy_owner, state: pending, actor: invitee, action: accept, want: {status: 200, role: owner, origin: invitation, invitation: gone}}
+- {name: accept_by_a_consented_member_changes_nothing, mode: open, membership: contributor_self_join, state: pending, actor: invitee, action: accept, want: {status: 200, role: contributor, origin: self_join, invitation: gone}}
+- {name: accept_by_someone_else_is_not_found, mode: curated, membership: none, state: pending, actor: other, action: accept, want: {status: 404, role: none, origin: none, invitation: pending}}
+- {name: accept_after_decline_is_not_found, mode: curated, membership: none, state: declined, actor: invitee, action: accept, want: {status: 404, role: none, origin: none, invitation: declined}}
+- {name: accept_after_expiry_is_not_found, mode: curated, membership: none, state: expired, actor: invitee, action: accept, want: {status: 404, role: none, origin: none, invitation: pending}}
+- {name: accept_after_revoke_is_not_found, mode: curated, membership: none, state: revoked, actor: invitee, action: accept, want: {status: 404, role: none, origin: none, invitation: gone}}
+- {name: decline_keeps_the_row_for_the_owner, mode: curated, membership: none, state: pending, actor: invitee, action: decline, want: {status: 200, role: none, origin: none, invitation: declined}}
+- {name: decline_by_someone_else_is_not_found, mode: curated, membership: none, state: pending, actor: other, action: decline, want: {status: 404, role: none, origin: none, invitation: pending}}
+- {name: decline_twice_is_not_found, mode: curated, membership: none, state: declined, actor: invitee, action: decline, want: {status: 404, role: none, origin: none, invitation: declined}}

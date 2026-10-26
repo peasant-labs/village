@@ -30,11 +30,12 @@
 
 -- Insert one pending member request. PK is (group_id, user_id), so re-running
 -- is idempotent.
-INSERT INTO group_members (group_id, user_id, role)
+INSERT INTO group_members (group_id, user_id, role, origin)
 VALUES (
     :'collective_id'::uuid,
     :'pending_user_id'::uuid,
-    'pending'
+    'pending',
+    'legacy'
 )
 ON CONFLICT (group_id, user_id) DO NOTHING;
 

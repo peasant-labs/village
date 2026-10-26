@@ -225,12 +225,7 @@ func (h *Handler) GetUserSettings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "Authentication required")
 		return
 	}
-	row, err := h.queries.GetUserByID(r.Context(), user.PgID())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not read your settings")
-		return
-	}
-	writeJSON(w, http.StatusOK, mapVillageUserSettings(row))
+	h.writeOwnSettings(w, r, user.PgID())
 }
 
 // PATCH /api/v1/users/me/settings (AuthRequired)
@@ -244,30 +239,37 @@ func (h *Handler) UpdateUserSettings(w http.ResponseWriter, r *http.Request) {
 	if !h.decodeContractBody(w, r, opUpdateUserSettings, &req) {
 		return
 	}
-	if req.PreviewBeforeAttach == nil && req.AutoAttachPullRequests == nil {
-		// Nothing to change: report the current settings rather than a no-op
-		// error, which is what a PATCH with every field omitted means.
-		row, err := h.queries.GetUserByID(r.Context(), user.PgID())
+	// Any field may come alone; one the PATCH omits keeps its stored value.
+	// A PATCH with every field omitted reports the current settings rather
+	// than a no-op error.
+	var updatedUser *sqlc.User
+	var updatedNotification *sqlc.UserNotificationEmail
+	if req.PreviewBeforeAttach != nil || req.AutoAttachPullRequests != nil {
+		// Both attach choices change in one statement when both come.
+		row, err := h.queries.UpdateUserAttachSettings(r.Context(), sqlc.UpdateUserAttachSettingsParams{
+			ID:                     user.PgID(),
+			PreviewBeforeAttach:    optionalBool(req.PreviewBeforeAttach),
+			AutoAttachPullRequests: optionalBool(req.AutoAttachPullRequests),
+		})
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Could not read your settings")
+			writeError(w, http.StatusInternalServerError, "Could not save your settings")
 			return
 		}
-		writeJSON(w, http.StatusOK, mapVillageUserSettings(row))
-		return
+		updatedUser = &row
 	}
-
-	// Either field may come alone; the one the PATCH omits keeps its stored
-	// value, and both change in one statement when both come.
-	row, err := h.queries.UpdateUserAttachSettings(r.Context(), sqlc.UpdateUserAttachSettingsParams{
-		ID:                     user.PgID(),
-		PreviewBeforeAttach:    optionalBool(req.PreviewBeforeAttach),
-		AutoAttachPullRequests: optionalBool(req.AutoAttachPullRequests),
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not save your settings")
-		return
+	if req.EmailInvitations != nil {
+		// The choice is kept with or without an address, so turning
+		// invitation emails off before adding one is remembered.
+		row, err := h.queries.SetEmailInvitations(r.Context(), sqlc.SetEmailInvitationsParams{
+			UserID: user.PgID(), EmailInvitations: *req.EmailInvitations,
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not save your settings")
+			return
+		}
+		updatedNotification = &row
 	}
-	writeJSON(w, http.StatusOK, mapVillageUserSettings(row))
+	h.writeSettingsFrom(w, r, user.PgID(), updatedUser, updatedNotification)
 }
 
 // pullRequestTarget reads the route's repository and pull request number.

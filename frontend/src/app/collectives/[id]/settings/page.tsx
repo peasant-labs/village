@@ -18,13 +18,13 @@ import {
 import { ConsentDialog, Dialog, RepoPicker, SettingsLayout, Toast } from "@/lib/ft-ui";
 import { OnCrumb, OnEmpty, OnPage } from "@/components/online/Page";
 import {
-  useAddGroupMember,
   useDeleteGroup,
   useGroup,
   usePromoteMember,
   useRemoveGroupMember,
   useUpdateGroup,
 } from "@/lib/queries/groups";
+import { useCollectiveInvitations, useInviteToCollective, useRevokeInvitation } from "@/lib/queries/invitations";
 import { collectiveMembers, settingPatch, type CollectiveSettingKey } from "@/lib/adapters/collective";
 import {
   INSTALLED_PARAM,
@@ -49,6 +49,8 @@ import {
 import { ownerHandle } from "@/lib/format";
 import { publicProfile } from "@/lib/publicOwner";
 import type { GroupMember } from "@/lib/types";
+import type { VillageCollectiveInvitationSent } from "@peasant-labs/schema";
+import { invitedDetail, inviteRefusal } from "@/lib/invitationCopy";
 import "@/app/online-collective.css";
 
 /** One line the page tells the owner after an action: saved, or what went wrong. */
@@ -84,9 +86,11 @@ export default function GroupSettingsPage({
   const deleteGroup = useDeleteGroup();
   const promoteMember = usePromoteMember();
   const removeMember = useRemoveGroupMember();
-  const addMember = useAddGroupMember();
+  const invite = useInviteToCollective();
+  const revokeInvitation = useRevokeInvitation();
 
   const isOwner = data?.your_role === "owner";
+  const invitations = useCollectiveInvitations(id, isOwner);
   const linkedOrg = data?.group.linked_github_org ?? null;
   const github = useCollectiveGithub(id, { isOwner, canReadLinks: isOwner, linkedOrg });
   const section = settingsSectionFrom(searchParams);
@@ -185,24 +189,37 @@ export default function GroupSettingsPage({
     );
   };
 
+  // Every name the server takes reads the same way: the answer never says
+  // whether an account holds it, so neither does the page.
   const handleInvite = (handle: string): Promise<boolean> => {
     const username = handle.trim().replace(/^@/, "");
     if (!username) return Promise.resolve(false);
     return new Promise((resolve) =>
-      addMember.mutate(
+      invite.mutate(
         { groupId: id, username },
         {
           onSuccess: () => {
             setInviteOpen(false);
-            setNotice({ ok: true, title: "member added", detail: `@${username} can now publish here.` });
+            setNotice({ ok: true, title: "invitation sent", detail: invitedDetail(username) });
             resolve(true);
           },
           onError: (error) => {
-            setNotice({ ok: false, title: "could not add a member", detail: `@${username}: ${error.message}` });
+            setNotice({ ok: false, title: "invitation not sent", detail: inviteRefusal(username, error) });
             resolve(false);
           },
         },
       ),
+    );
+  };
+
+  const handleRevoke = (invitation: VillageCollectiveInvitationSent) => {
+    const at = `@${invitation.invited_username}`;
+    revokeInvitation.mutate(
+      { groupId: id, invitationId: invitation.id },
+      {
+        onSuccess: () => setNotice({ ok: true, title: "invitation revoked", detail: `the invitation to ${at} is gone.` }),
+        onError: (error) => setNotice({ ok: false, title: "invitation not revoked", detail: `${at}: ${error.message}` }),
+      },
     );
   };
 
@@ -226,11 +243,14 @@ export default function GroupSettingsPage({
           key={membersVersion}
           group={group}
           members={members}
-          inviting={addMember.isPending && !inviteOpen}
+          invitations={invitations.data?.invitations ?? []}
+          revokingId={revokeInvitation.isPending ? (revokeInvitation.variables?.invitationId ?? null) : null}
+          inviting={invite.isPending && !inviteOpen}
           onInvite={handleInvite}
+          onRevoke={handleRevoke}
           onOpenSearch={() => {
             setInviteHandle("");
-            addMember.reset();
+            invite.reset();
             setInviteOpen(true);
           }}
           onRoleChange={handleRoleChange}
@@ -301,24 +321,26 @@ export default function GroupSettingsPage({
       <Dialog
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
-        title="invite a github user"
-        dismissible={!addMember.isPending}
+        title="invite by username"
+        dismissible={!invite.isPending}
         footer={
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            disabled={!inviteHandle.trim() || addMember.isPending}
+            disabled={!inviteHandle.trim() || invite.isPending}
             onClick={() => void handleInvite(inviteHandle)}
           >
-            {addMember.isPending ? "inviting" : "invite"}
+            {invite.isPending ? "inviting" : "invite"}
           </button>
         }
       >
-        <p className="text-[length:var(--fs-body)] text-ink-2">find their github handle, then invite them to this collective.</p>
+        <p className="text-[length:var(--fs-body)] text-ink-2">
+          find their handle, then invite them. they join only if they accept.
+        </p>
         <GitHubUserSearch value={inviteHandle} onChange={setInviteHandle} onSelect={setInviteHandle} />
-        {addMember.isError && (
+        {invite.isError && (
           <p role="alert" className="text-[length:var(--fs-body)] text-danger">
-            could not add a member: {addMember.error.message}. try again.
+            {inviteRefusal(inviteHandle.trim().replace(/^@/, ""), invite.error)}
           </p>
         )}
       </Dialog>

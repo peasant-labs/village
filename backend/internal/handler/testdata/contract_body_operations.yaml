@@ -31,14 +31,17 @@
       body: '{"display_members":"yes"}'
       expect: "/display_members: expected"
 
-- name: add group member
+- name: invite to group
   method: POST
-  path: /api/v1/groups/{id}/members
+  path: /api/v1/groups/{id}/invitations
   conforming: '{"username":"octocat"}'
   malformed:
     - name: username missing
       body: '{}'
       expect: "/: missing properties: 'username'"
+    - name: username empty
+      body: '{"username":""}'
+      expect: "/username: length must be"
 
 - name: update group member role
   method: PATCH
@@ -127,9 +130,9 @@
   conforming: '{"name":"Renamed","display_members":true}'
   malformed:
     - {name: display flag wrong type, body: '{"display_members":"yes"}', expect: '/display_members: expected'}
-- name: add collective member
+- name: invite to collective
   method: POST
-  path: /api/v1/collectives/{id}/members
+  path: /api/v1/collectives/{id}/invitations
   conforming: '{"username":"octocat"}'
   malformed:
     - {name: username missing, body: '{}', expect: "/: missing properties: 'username'"}
@@ -163,3 +166,16 @@
   conforming: '{"status":"rejected"}'
   malformed:
     - {name: decision missing, body: '{}', expect: "/: missing properties: 'status'"}
+- name: set notification email
+  method: PUT
+  path: /api/v1/users/me/email
+  conforming: '{"address":"person@example.org"}'
+  malformed:
+    - {name: address missing, body: '{}', expect: "/: missing properties: 'address'"}
+    - {name: address too short, body: '{"address":"a@"}', expect: "/address: length must be"}
+- name: verify notification email
+  method: POST
+  path: /api/v1/users/me/email/verify
+  conforming: '{"token":"abc"}'
+  malformed:
+    - {name: token missing, body: '{}', expect: "/: missing properties: 'token'"}

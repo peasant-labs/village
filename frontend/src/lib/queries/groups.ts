@@ -198,20 +198,6 @@ export function usePromoteMember() {
   });
 }
 
-export function useAddGroupMember() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ groupId, username }: { groupId: string; username: string }) =>
-      api(`/collectives/${groupId}/members`, {
-        method: "POST",
-        body: JSON.stringify({ username }),
-      }),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["group", vars.groupId] });
-    },
-  });
-}
-
 export function useRemoveGroupMember() {
   const qc = useQueryClient();
   return useMutation({

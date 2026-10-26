@@ -124,6 +124,12 @@ var requiredPublicOwnerCases = []string{
 	"hidden_owner_with_rejected_share",
 	"hidden_owner_left_with_approved_share",
 	"hidden_owner_submitted_to_deleted_collective",
+	"hidden_owner_who_joined_themselves",
+	"hidden_owner_invited_not_accepted",
+	"hidden_owner_accepted_invitation",
+	"hidden_owner_declined_invitation",
+	"hidden_owner_invitation_revoked",
+	"hidden_legacy_member_accepted_invitation",
 }
 
 func loadPublicOwnerCases(t *testing.T) []poCase {
@@ -349,9 +355,10 @@ func (w *poWorld) buildPersonFields(t *testing.T, ctx context.Context, h *Handle
 }
 
 // buildRelation gives relation_owner a collective of their own and relates
-// the owner to it in one way. Only acts the owner took (a submission, or a
-// leftover join request) may reveal the owner's transcripts to relation_owner;
-// a membership relation_owner created alone may not.
+// the owner to it in one way. Only acts the owner took (a membership they
+// consented to, a submission, or a leftover join request) may reveal the
+// owner's transcripts to relation_owner; a legacy membership relation_owner
+// created alone, or an invitation the owner did not accept, may not.
 func (w *poWorld) buildRelation(t *testing.T, ctx context.Context, h *Handler, relation, suffix string) {
 	t.Helper()
 	if err := w.pool.QueryRow(ctx, `
@@ -359,7 +366,9 @@ func (w *poWorld) buildRelation(t *testing.T, ctx context.Context, h *Handler, r
 	`, "po-rel-"+suffix, w.relOwner).Scan(&w.relGroup); err != nil {
 		t.Fatalf("create the relation collective: %v", err)
 	}
-	shareAddMember(t, ctx, w.pool, w.relGroup, w.relOwner, "owner")
+	if _, err := w.pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, 'owner', 'creator')`, w.relGroup, w.relOwner); err != nil {
+		t.Fatalf("add the relation collective's creator: %v", err)
+	}
 	owner, relOwner := w.actor("owner"), w.actor("relation_owner")
 	submit := func() {
 		w.mustOK(t, h.ShareTranscript, owner, http.MethodPost, "/share", map[string][]string{"group_ids": {w.id(w.relGroup)}},
@@ -369,6 +378,21 @@ func (w *poWorld) buildRelation(t *testing.T, ctx context.Context, h *Handler, r
 		w.mustOK(t, h.ReviewShare, relOwner, http.MethodPatch, "/review", map[string]string{"status": status},
 			map[string]string{"id": w.id(w.relGroup), "transcriptID": w.id(w.accepted)})
 	}
+	// invite has relation_owner invite the owner by username through the
+	// production handler and returns the invitation the owner received.
+	invite := func() string {
+		rec := httptest.NewRecorder()
+		h.CreateGroupInvitation(rec, w.direct(relOwner, http.MethodPost, "/invitations", map[string]string{"username": w.ownerName},
+			map[string]string{"id": w.id(w.relGroup)}))
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("invite the owner answered %d: %s", rec.Code, rec.Body.String())
+		}
+		var invitationID pgtype.UUID
+		if err := w.pool.QueryRow(ctx, `SELECT id FROM collective_invitations WHERE group_id = $1 AND invitee_id = $2`, w.relGroup, w.owner).Scan(&invitationID); err != nil {
+			t.Fatalf("read the owner's invitation: %v", err)
+		}
+		return w.id(invitationID)
+	}
 	switch relation {
 	case "force_add":
 		// The collective's owner added the person by username; the person did
@@ -376,6 +400,23 @@ func (w *poWorld) buildRelation(t *testing.T, ctx context.Context, h *Handler, r
 		shareAddMember(t, ctx, w.pool, w.relGroup, w.owner, "member")
 	case "join_request":
 		shareAddMember(t, ctx, w.pool, w.relGroup, w.owner, "pending")
+	case "self_join":
+		if _, err := w.pool.Exec(ctx, `UPDATE groups SET acceptance_mode = 'open' WHERE id = $1`, w.relGroup); err != nil {
+			t.Fatal(err)
+		}
+		w.mustOK(t, h.JoinGroup, owner, http.MethodPost, "/join", nil, map[string]string{"id": w.id(w.relGroup)})
+	case "invitation_pending":
+		invite()
+	case "invitation_accepted":
+		w.mustOK(t, h.AcceptMyInvitation, owner, http.MethodPost, "/accept", nil, map[string]string{"invitationID": invite()})
+	case "invitation_declined":
+		w.mustOK(t, h.DeclineMyInvitation, owner, http.MethodPost, "/decline", nil, map[string]string{"invitationID": invite()})
+	case "invitation_revoked":
+		w.mustOK(t, h.RevokeGroupInvitation, relOwner, http.MethodDelete, "/revoke", nil,
+			map[string]string{"id": w.id(w.relGroup), "invitationID": invite()})
+	case "legacy_accepts_invitation":
+		shareAddMember(t, ctx, w.pool, w.relGroup, w.owner, "member")
+		w.mustOK(t, h.AcceptMyInvitation, owner, http.MethodPost, "/accept", nil, map[string]string{"invitationID": invite()})
 	case "rejected_share":
 		shareAddMember(t, ctx, w.pool, w.relGroup, w.owner, "member")
 		submit()
@@ -395,7 +436,7 @@ func (w *poWorld) buildRelation(t *testing.T, ctx context.Context, h *Handler, r
 		}
 		w.relGroup = pgtype.UUID{}
 	default:
-		t.Fatalf("the fixture names relation %q; the relations are force_add, join_request, rejected_share, left_with_approved_share and deleted_collective", relation)
+		t.Fatalf("the fixture names relation %q; the relations are force_add, join_request, self_join, invitation_pending, invitation_accepted, invitation_declined, invitation_revoked, legacy_accepts_invitation, rejected_share, left_with_approved_share and deleted_collective", relation)
 	}
 }
 

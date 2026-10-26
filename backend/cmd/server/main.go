@@ -202,7 +202,8 @@ func withTranscriptStorage(cfg *config.Config, keyring *config.TranscriptKeyring
 }
 
 func serve(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) error {
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: router.New(cfg, pool, blobs, titles), ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
+	routes, drainNotices := router.NewWithDrain(cfg, pool, blobs, titles)
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: routes, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
 	signals := make(chan os.Signal, 1)
@@ -219,8 +220,20 @@ func serve(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool, blobs st
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+	shutdownErr := srv.Shutdown(shutdownCtx)
+	// No request runs any more, so no new invitation email can start. Give
+	// the ones already sending one delivery's time to finish.
+	drainCtx, cancelDrain := context.WithTimeout(context.Background(), noticeDrainTimeout)
+	defer cancelDrain()
+	if err := drainNotices(drainCtx); err != nil {
+		slog.Warn("shutdown did not wait for every invitation email", "operation", "invitation_notice_drain", "consequence", "an invitation may have no email; it is still shown in the app", "error", err.Error())
+	}
+	return shutdownErr
 }
+
+// noticeDrainTimeout bounds how long a shutdown waits for invitation emails
+// still being sent; one delivery is bounded at 15 seconds.
+const noticeDrainTimeout = 20 * time.Second
 
 // reportShareStateConsistency compares the derived transcript_shares projection
 // against a latest-event fold over the whole ledger and reports the result. It

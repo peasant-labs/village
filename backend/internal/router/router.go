@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -21,9 +22,18 @@ import (
 const (
 	authRateLimitRequests = 5
 	authRateLimitWindow   = time.Minute
+
+	unsubscribeRateLimitRequests = 60
 )
 
 func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) http.Handler {
+	routes, _ := NewWithDrain(cfg, pool, blobs, titles)
+	return routes
+}
+
+// NewWithDrain is New plus the work a shutdown waits for after the server
+// stops: the invitation emails still being sent after their responses.
+func NewWithDrain(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobStore, titles *redact.TitlePipeline) (http.Handler, func(context.Context) error) {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
@@ -36,6 +46,10 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 	// authLimiter enforces a strict per-IP rate limit on OAuth entry points to
 	// deter abuse without constraining authenticated API traffic.
 	authLimiter := httprate.LimitByIP(authRateLimitRequests, authRateLimitWindow)
+	// unsubscribeLimiter bounds the signed-out unsubscribe target. It is looser
+	// than authLimiter because mail providers send one-click unsubscribes for
+	// many people from shared addresses.
+	unsubscribeLimiter := httprate.LimitByIP(unsubscribeRateLimitRequests, authRateLimitWindow)
 
 	r.Get("/health", h.Health)
 
@@ -146,7 +160,11 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 			r.With(h.AuthRequired).Patch(prefix+"/{id}", h.UpdateGroup)
 			r.With(h.AuthRequired).Delete(prefix+"/{id}", h.DeleteGroup)
 			r.With(h.AuthRequired).Post(prefix+"/{id}/join", h.JoinGroup)
-			r.With(h.AuthRequired).Post(prefix+"/{id}/members", h.AddGroupMember)
+			// An owner invites; the person becomes a member only by accepting.
+			// No route makes someone a member without their consent.
+			r.With(h.AuthRequired).Post(prefix+"/{id}/invitations", h.CreateGroupInvitation)
+			r.With(h.AuthRequired).Get(prefix+"/{id}/invitations", h.ListGroupInvitations)
+			r.With(h.AuthRequired).Delete(prefix+"/{id}/invitations/{invitationID}", h.RevokeGroupInvitation)
 			r.With(h.AuthRequired).Patch(prefix+"/{id}/members/{userID}/role", h.PromoteMember)
 			r.With(h.AuthRequired).Delete(prefix+"/{id}/members/{userID}", h.RemoveGroupMember)
 			// Contributing a whole project: one read that says what the caller may
@@ -215,6 +233,19 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Get("/users/me/prompt-requests", h.ListMyPromptRequests)
 		r.With(h.AuthRequired).Get("/users/me/settings", h.GetUserSettings)
 		r.With(h.AuthRequired).Patch("/users/me/settings", h.UpdateUserSettings)
+
+		// The caller's own invitations, and their notification address. The
+		// address is returned only in the caller's own settings.
+		r.With(h.AuthRequired).Get("/users/me/invitations", h.ListMyInvitations)
+		r.With(h.AuthRequired).Post("/users/me/invitations/{invitationID}/accept", h.AcceptMyInvitation)
+		r.With(h.AuthRequired).Post("/users/me/invitations/{invitationID}/decline", h.DeclineMyInvitation)
+		r.With(h.AuthRequired).Put("/users/me/email", h.SetMyNotificationEmail)
+		r.With(h.AuthRequired).Delete("/users/me/email", h.RemoveMyNotificationEmail)
+		r.With(h.AuthRequired).Post("/users/me/email/verify", h.VerifyMyNotificationEmail)
+		// The one-click unsubscribe target works signed out: the signed token
+		// it carries is the authority, and it can only turn invitation emails
+		// off. Rate-limited per IP.
+		r.With(unsubscribeLimiter).Post("/email/unsubscribe", h.UnsubscribeInvitationEmails)
 		// A transcript's pull requests follow the transcript's own read: open to
 		// an anonymous reader of a public transcript, 404 for anyone who may not
 		// read it. The caller's totals are their own, so they need a session.
@@ -229,5 +260,5 @@ func New(cfg *config.Config, pool *pgxpool.Pool, blobs storage.TranscriptBlobSto
 		r.With(h.AuthRequired).Get("/integrations/github/callback", h.GitHubInstallCallback)
 	})
 
-	return r
+	return r, h.DrainNotices
 }

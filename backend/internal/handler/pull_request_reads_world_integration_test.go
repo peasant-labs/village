@@ -230,11 +230,11 @@ func buildPRWorld(t *testing.T, pool *pgxpool.Pool, w prWorld, fixture string) *
 			t.Fatalf("insert collective %s: %v", c.Name, err)
 		}
 		built.collectives[c.Name] = id
-		if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')`, id, built.people[c.CreatedBy]); err != nil {
+		if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, 'owner', 'legacy')`, id, built.people[c.CreatedBy]); err != nil {
 			t.Fatalf("add the owner of %s: %v", c.Name, err)
 		}
 		for person, role := range c.Members {
-			if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)`, id, built.people[person], role); err != nil {
+			if _, err := pool.Exec(ctx, `INSERT INTO group_members (group_id, user_id, role, origin) VALUES ($1, $2, $3, 'legacy')`, id, built.people[person], role); err != nil {
 				t.Fatalf("add %s to %s: %v", person, c.Name, err)
 			}
 		}

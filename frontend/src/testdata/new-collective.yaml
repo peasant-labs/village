@@ -2,9 +2,11 @@
 #
 # `steps` is what a person does: the name and purpose on the first step, the
 # publish and read cards (by label) and an org on the second, and the
-# usernames added on the third. The collective is created when they press
-# "create collective"; each person is then added with POST
-# /collectives/{id}/members, and the last step reports every outcome.
+# usernames to invite on the third. The collective is created when they press
+# "create collective"; each person is then invited with POST
+# /collectives/{id}/invitations, and the last step reports every outcome. The
+# server answers 202 for every name it takes, whether or not an account holds
+# it, so a sent invitation never says the person was found.
 #
 # The viewer is alice-dev; the server gives the created collective the id
 # c0000000-0000-4000-8000-0000000000aa.
@@ -14,11 +16,11 @@ orgs:
   - { login: hidden-org, visible: false }
 
 createCases:
-  - name: a-curated-collective-with-two-people-added
+  - name: a-curated-collective-with-two-people-invited
     why: >-
       the create body carries the trimmed name, the purpose and both policies;
-      a leading @ is dropped from a username; both people are added after the
-      collective exists and the summary counts them.
+      a leading @ is dropped from a username; both people are invited after the
+      collective exists and the summary counts the invitations, not members.
     steps:
       name: "  Eval Crowd  "
       purpose: Agent evaluation runs for the spring term.
@@ -28,29 +30,29 @@ createCases:
     refusals: []
     expect:
       create: { name: Eval Crowd, description: Agent evaluation runs for the spring term., acceptance_mode: curated, data_access: contributors }
-      memberRequests: [Tomas-R, jun-li]
+      inviteRequests: [Tomas-R, jun-li]
       ready: Eval Crowd is ready
-      summary: 2 people added as members. members publish to it from peasant, and you approve each session.
-      notAdded: []
+      summary: 2 invitations sent. members publish to it from peasant, and you approve each session.
+      notSent: []
 
   - name: a-refused-invitation-is-reported-and-never-counted
     why: >-
-      a person the server refuses is listed with its reason and is not in the
-      count; the person it accepted still is.
+      an invitation the server refuses (here the inviter's limit) is listed
+      with its reason and is not in the count; the one it took still is.
     steps:
       name: Night Shift
       purpose: ""
       publish: anyone who joins
       read: members
-      invite: [carol-ml, nobody-here]
+      invite: [carol-ml, dana-q]
     refusals:
-      - { method: POST, path: /collectives/c0000000-0000-4000-8000-0000000000aa/members, username: nobody-here, status: 404, error: "@nobody-here hasn't joined the platform yet. They need to sign in first." }
+      - { method: POST, path: /collectives/c0000000-0000-4000-8000-0000000000aa/invitations, username: dana-q, status: 429, error: invitation limit reached }
     expect:
       create: { name: Night Shift, description: "", acceptance_mode: open, data_access: members_only }
-      memberRequests: [carol-ml, nobody-here]
+      inviteRequests: [carol-ml, dana-q]
       ready: Night Shift is ready
-      summary: 1 person added as a member. anyone can join it and publish from peasant.
-      notAdded: ["@nobody-here hasn't joined the platform yet. They need to sign in first."]
+      summary: 1 invitation sent. anyone can join it and publish from peasant.
+      notSent: ["you've reached the invitation limit. revoke an open invitation or try again tomorrow."]
 
   - name: an-org-collective-sends-the-chosen-org-and-nobody-to-add
     why: >-
@@ -67,10 +69,10 @@ createCases:
     refusals: []
     expect:
       create: { name: Acme Reviews, description: "", acceptance_mode: verified_only, data_access: members_only, linked_github_org: acme }
-      memberRequests: []
+      inviteRequests: []
       ready: Acme Reviews is ready
       summary: members of the acme github org can join it and publish from peasant.
-      notAdded: []
+      notSent: []
 
 # A create the server refuses: each refusal is shown on the step that owns it.
 refusalCases:
@@ -91,7 +93,7 @@ refusalCases:
   - name: any-other-refusal-stays-on-the-invite-step
     why: >-
       a failure that is about no field keeps the person where they pressed
-      create, with the server's message, and adds nobody.
+      create, with the server's message, and invites nobody.
     steps: { name: Night Shift, purpose: "", publish: anyone who joins, read: members, invite: [carol-ml] }
     refusal: { status: 500, error: Failed to create group }
     expect: { step: invite, message: "could not create the collective: Failed to create group" }
@@ -106,7 +108,7 @@ guardCases:
 
   - name: you-cannot-add-yourself
     why: >-
-      adding the owner as a member would change their role on the server, so
+      the owner is a member already, so inviting them would only be refused;
       the dialog refuses the person's own handle, in any case.
     step: invite
     input: "@Alice-Dev"

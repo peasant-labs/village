@@ -234,6 +234,13 @@ export default function GroupDetailPage({
         <LogIn size={16} aria-hidden="true" /> sign in to join
       </Link>
     ) : null,
+    // A curated collective takes people only by an owner's invitation, which
+    // arrives on the invitee's collectives page; there is nothing to press here.
+    !authLoading && role === "" && !joinable ? (
+      <span key="by-invitation" className="on-chrome" data-testid="collective-joins-by-invitation">
+        joins by invitation
+      </span>
+    ) : null,
   ].filter(Boolean);
 
   const restricted = (

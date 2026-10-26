@@ -15,11 +15,11 @@
   before: neutral
   after: neutral
   during_post: private
-- name: adding_the_first_member_refreshes_the_check
+- name: accepting_an_invitation_refreshes_the_check
   visibility: shared
   share: approved
   member: absent
-  action: add-member
+  action: accept-invitation
   before: neutral
   after: success
 - name: accepting_a_pending_member_refreshes_the_check
