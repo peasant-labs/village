@@ -414,7 +414,15 @@ section.on-choices {
 .on-settings-panel .on-invited table {
   min-width: 28rem;
 }
-.on-invited-caption {
+/* visible, unlike the table captions above that only name a table to a
+   screen reader: the two-class selector outranks .on-tbl caption */
+.on-tbl .on-invited-caption {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  white-space: normal;
   caption-side: top;
   padding-bottom: var(--sp-2);
   text-align: left;

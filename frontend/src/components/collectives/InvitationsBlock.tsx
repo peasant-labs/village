@@ -184,7 +184,7 @@ export default function InvitationsBlock({ discoverable }: { discoverable: boole
                           </>
                         ) : null}
                       </td>
-                      <td className="normal-case">from {invitedByLabel(invitation.invited_by)}</td>
+                      <td className="normal-case">{invitedByLabel(invitation.invited_by)}</td>
                       <td className="tnum">
                         <time dateTime={invitation.expires_at}>{formatExpiresIn(invitation.expires_at)}</time>
                       </td>
