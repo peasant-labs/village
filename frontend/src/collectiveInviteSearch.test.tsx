@@ -37,7 +37,7 @@ for (const testCase of loadCollectiveInviteSearchFixtures()) {
     expect(within(dialog).getByRole("combobox")).toHaveValue(testCase.handle);
     fireEvent.click(within(dialog).getByRole("button", { name: "invite" }));
     if (testCase.fail) {
-      await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("invitation unavailable"));
+      await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(`@${testCase.handle} was not invited. try again.`));
       fireEvent.click(within(dialog).getByRole("button", { name: "invite" }));
     }
     await waitFor(() => expect(requests.filter((request) => request.method === "POST")).toEqual([{ method: "POST", path: `/collectives/${world.group.id}/invitations`, body: { username: testCase.handle } }]));

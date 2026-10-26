@@ -1,6 +1,9 @@
 # What an owner is told when an invitation is not sent, by the status the
 # invite route answered (`inviteRefusal` in src/lib/invitationCopy.ts). 409 is
-# only ever a member who already consented; 429 is an invitation limit.
+# only ever a member who already consented; 429 is an invitation limit. Every
+# line is lowercase chrome: the server's sentence-case message is never part
+# of it, so `error` must not appear in `expect`. status 0 is a thrown network
+# error with no response.
 # Deletion protection is the required-name manifest in
 # `src/lib/invitationCopy.test.ts`.
 
@@ -15,8 +18,28 @@ refusalCases:
     status: 429
     error: invitation limit reached
     expect: you've reached the invitation limit. revoke an open invitation or try again tomorrow.
-  - name: any-other-refusal-carries-the-server-reason
+  - name: a-malformed-name-says-what-to-type
+    username: "x y"
+    status: 400
+    error: Type a username of 1 to 100 characters with no spaces
+    expect: type a username of 1 to 100 characters with no spaces.
+  - name: a-signed-out-owner-is-asked-to-sign-in
+    username: erin-z
+    status: 401
+    error: Authentication required
+    expect: your session has ended. sign in again to invite people.
+  - name: a-non-owner-is-told-who-may-invite
+    username: frank-o
+    status: 403
+    error: Owner access required
+    expect: only an owner of this collective can invite people.
+  - name: a-server-failure-never-carries-the-server-message
     username: dana-q
     status: 500
-    error: the database is unavailable
-    expect: "@dana-q: the database is unavailable. try again."
+    error: Could not record the invitation; nobody was invited. Retry the request.
+    expect: "@dana-q was not invited. try again."
+  - name: a-dropped-connection-is-the-same-line
+    username: gus-p
+    status: 0
+    error: Failed to fetch
+    expect: "@gus-p was not invited. try again."

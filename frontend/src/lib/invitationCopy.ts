@@ -14,15 +14,22 @@ export function invitedDetail(username: string): string {
   return `if @${username} has a village account they'll see it. we don't say whether they do.`;
 }
 
-/** Why an invitation was not sent, in the owner's words. */
+/**
+ * Why an invitation was not sent, in the owner's words. Each status the invite
+ * route declares has its own lowercase line; the server's sentence-case
+ * message is never spliced into the chrome. Anything else, a dropped
+ * connection included, is one generic line.
+ */
 export function inviteRefusal(username: string, error: unknown): string {
   const at = username ? `@${username}` : "they";
   if (isApiErrorStatus(error, 409)) return `${at} is already a member of this collective.`;
   if (isApiErrorStatus(error, 429)) {
     return "you've reached the invitation limit. revoke an open invitation or try again tomorrow.";
   }
-  const message = error instanceof Error && error.message ? error.message : "something went wrong";
-  return `${at}: ${message}. try again.`;
+  if (isApiErrorStatus(error, 400)) return "type a username of 1 to 100 characters with no spaces.";
+  if (isApiErrorStatus(error, 401)) return "your session has ended. sign in again to invite people.";
+  if (isApiErrorStatus(error, 403)) return "only an owner of this collective can invite people.";
+  return `${at} was not invited. try again.`;
 }
 
 /** Who sent an invitation, as the invitee may see them: a handle, or "an owner". */
