@@ -12,7 +12,7 @@ import (
 //go:embed testdata/published_schema.yaml
 var publishedSchemaYAML []byte
 
-// The digest is the independently downloaded v0.33.1 GitHub release asset,
+// The digest is the independently downloaded v0.35.0 GitHub release asset,
 // not a checksum calculated from the server under test. Keep the literal
 // version guard as well: both bytes and intended contract version must match.
 func TestMountedSchemaMatchesPublishedReleaseAsset(t *testing.T) {
@@ -25,7 +25,7 @@ func TestMountedSchemaMatchesPublishedReleaseAsset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fixture.Name != "published-village-api-0.29.1" || fixture.Module != "v0.33.1" {
+	if fixture.Name != "published-village-api-0.30.0" || fixture.Module != "v0.35.0" {
 		t.Fatal("published artifact identity changed; review the actual release before updating this fixture")
 	}
 	rec := httptest.NewRecorder()
