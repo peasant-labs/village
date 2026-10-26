@@ -34,6 +34,8 @@
 !project-page-shoot.mjs
 !pull-request-shoot.mjs
 !profile-prompt-settings-shoot.mjs
+!mock-rest-invitations.mjs
+!invitations-shoot.mjs
 !account-orgs-shoot.mjs
 !mock-rest-home.mjs
 !home-shoot.mjs
