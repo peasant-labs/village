@@ -503,10 +503,15 @@ fences, append-only audit, and private-before-replacement rules remain in force.
   `pending` join request is not a membership yet, so it becomes a `member`.
   An invitation admits the person whatever the acceptance mode, `curated` and
   `verified_only` included (an owner's decision, as the former add was).
-- **The creator is never demoted.** `creator` requires role `owner`
-  (`group_members_creator_is_owner`), and the role route answers 400 for the
-  creator before writing, so the CHECK is never the first refusal. Another
-  owner's role is unaffected by this rule.
+- **The creator is never demoted or removed.** `creator` requires role
+  `owner` (`group_members_creator_is_owner`), and the role route answers 400
+  for the creator before writing, so the CHECK is never the first refusal.
+  The remove route answers 400 for the creator's membership too, whether
+  another owner or the creator asks; the creator deletes the collective
+  instead of leaving it. The guard is in the handler, not the database, so
+  deleting the collective or the creator's account still removes the row
+  through the cascade. Another owner's role and membership are unaffected by
+  this rule.
 - **`collective_invitations` holds one row per open invitation.**
   `invited_username` is the handle the owner typed, lowercased, stored for
   every invitation whether or not an account holds it, and it is the only

@@ -12,6 +12,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/peasant-labs/schema"
@@ -33,6 +35,9 @@ var collectiveInvitationsYAML []byte
 
 //go:embed testdata/invitation-answers.yaml
 var invitationAnswersYAML []byte
+
+//go:embed testdata/creator-membership.yaml
+var creatorMembershipYAML []byte
 
 type invitationCase struct {
 	Name    string `yaml:"name"`
@@ -621,34 +626,108 @@ func TestInvitationOwnerRoutesRefuseOthers(t *testing.T) {
 // pgIDString is a stored id as the text a path or a response carries.
 func pgIDString(id pgtype.UUID) string { return uuid.UUID(id.Bytes).String() }
 
-// TestRoleRouteNeverDemotesTheCreator proves the creator of a collective stays
-// an owner: the role route answers 400 and changes nothing, while another
-// owner's legacy row may still be changed as before.
-func TestRoleRouteNeverDemotesTheCreator(t *testing.T) {
+// creatorMembershipCase is one row of testdata/creator-membership.yaml.
+type creatorMembershipCase struct {
+	Name   string `yaml:"name"`
+	Action string `yaml:"action"`
+	Actor  string `yaml:"actor"`
+	Target string `yaml:"target"`
+	Want   struct {
+		Status  int    `yaml:"status"`
+		Target  string `yaml:"target"`
+		Creator string `yaml:"creator"`
+	} `yaml:"want"`
+}
+
+var requiredCreatorMembershipCases = []string{
+	"co_owner_cannot_demote_the_creator",
+	"creator_cannot_demote_themselves",
+	"creator_may_change_a_co_owners_role",
+	"co_owner_cannot_remove_the_creator",
+	"creator_cannot_leave",
+	"owner_removes_a_member",
+	"creator_removes_a_co_owner",
+	"deleting_the_collective_removes_the_creator",
+	"deleting_the_creators_account_removes_the_creator",
+}
+
+// membershipRole is a person's role in a collective, or "gone".
+func membershipRole(t *testing.T, ctx context.Context, pool *pgxpool.Pool, group, person pgtype.UUID) string {
+	t.Helper()
+	var role string
+	err := pool.QueryRow(ctx, `SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2`, group, person).Scan(&role)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "gone"
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return role
+}
+
+// TestCreatorMembershipStays drives every row of
+// testdata/creator-membership.yaml through the production role, remove,
+// collective-delete and account-delete handlers. Mutation check: dropping
+// the creator guard in removeGroupMemberLocked fails
+// co_owner_cannot_remove_the_creator and creator_cannot_leave.
+func TestCreatorMembershipStays(t *testing.T) {
 	ctx := context.Background()
 	pool := govTestPool(t)
 	defer pool.Close()
-	w := newInvitationWorld(t, ctx, pool, "curated")
-	defer w.cleanup(t, ctx)
-	r := chi.NewRouter()
-	r.Patch("/groups/{id}/members/{userID}/role", w.h.PromoteMember)
-	coOwner := w.person(t, ctx, "inv-co-owner", true)
-	w.member(t, ctx, w.group, coOwner, "owner", "legacy")
-	for _, target := range []struct {
-		actor  *AuthUser
-		person pgtype.UUID
-	}{{w.owner, w.ownerID}, {&AuthUser{ID: uuid.UUID(coOwner.Bytes)}, w.ownerID}} {
-		req := httptest.NewRequest(http.MethodPatch, "/groups/"+pgIDString(w.group)+"/members/"+pgIDString(target.person)+"/role", strings.NewReader(`{"role":"member"}`))
-		req.Header.Set("Content-Type", "application/json")
-		req = req.WithContext(context.WithValue(req.Context(), UserContextKey, target.actor))
-		rec := httptest.NewRecorder()
-		r.ServeHTTP(rec, req)
-		if rec.Code != http.StatusBadRequest {
-			t.Fatalf("demoting the creator answered %d: %s", rec.Code, rec.Body.String())
-		}
-		var role, origin string
-		if err := pool.QueryRow(ctx, `SELECT role, origin FROM group_members WHERE group_id = $1 AND user_id = $2`, w.group, w.ownerID).Scan(&role, &origin); err != nil || role != "owner" || origin != "creator" {
-			t.Fatalf("the creator is now %s/%s (%v)", role, origin, err)
-		}
+	cases := loadNamedFixture(t, creatorMembershipYAML, "creator-membership", func(c creatorMembershipCase) string { return c.Name }, requiredCreatorMembershipCases)
+	for _, c := range cases {
+		t.Run(c.Name, func(t *testing.T) {
+			w := newInvitationWorld(t, ctx, pool, "curated")
+			defer w.cleanup(t, ctx)
+			coOwner := w.person(t, ctx, "inv-co-owner", true)
+			w.member(t, ctx, w.group, coOwner, "owner", "legacy")
+			member := w.person(t, ctx, "inv-member", true)
+			w.member(t, ctx, w.group, member, "member", "self_join")
+			people := map[string]pgtype.UUID{"creator": w.ownerID, "co_owner": coOwner, "member": member}
+			actor, ok := people[c.Actor]
+			target, known := people[c.Target]
+			if !ok || !known {
+				t.Fatalf("unknown actor %q or target %q", c.Actor, c.Target)
+			}
+			r := chi.NewRouter()
+			r.Patch("/groups/{id}/members/{userID}/role", w.h.PromoteMember)
+			r.Delete("/groups/{id}/members/{userID}", w.h.RemoveGroupMember)
+			r.Delete("/groups/{id}", w.h.DeleteGroup)
+			r.Delete("/auth/me", w.h.DeleteAccount)
+			group := "/groups/" + pgIDString(w.group)
+			method, path, body := http.MethodDelete, "", ""
+			switch c.Action {
+			case "role":
+				method, path, body = http.MethodPatch, group+"/members/"+pgIDString(target)+"/role", `{"role":"member"}`
+			case "remove":
+				path = group + "/members/" + pgIDString(target)
+			case "delete_collective":
+				path = group
+			case "delete_account":
+				path = "/auth/me"
+			default:
+				t.Fatalf("unknown action %q", c.Action)
+			}
+			req := httptest.NewRequest(method, path, strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req = req.WithContext(context.WithValue(req.Context(), UserContextKey, &AuthUser{ID: uuid.UUID(actor.Bytes)}))
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			if rec.Code != c.Want.Status {
+				t.Fatalf("%s %s answered %d: %s, want %d", method, path, rec.Code, rec.Body.String(), c.Want.Status)
+			}
+			if got := membershipRole(t, ctx, pool, w.group, target); got != c.Want.Target {
+				t.Fatalf("target membership %s, want %s", got, c.Want.Target)
+			}
+			if got := membershipRole(t, ctx, pool, w.group, w.ownerID); got != c.Want.Creator {
+				t.Fatalf("creator membership %s, want %s", got, c.Want.Creator)
+			}
+			if c.Want.Creator == "owner" {
+				var origin string
+				if err := pool.QueryRow(ctx, `SELECT origin FROM group_members WHERE group_id = $1 AND user_id = $2`, w.group, w.ownerID).Scan(&origin); err != nil || origin != originCreator {
+					t.Fatalf("the creator's origin is now %q (%v)", origin, err)
+				}
+			}
+		})
 	}
 }

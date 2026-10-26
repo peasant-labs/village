@@ -41,6 +41,15 @@ const (
 	originInvitation = "invitation"
 )
 
+// creatorStaysMessage is the refusal to remove a collective's creator: the
+// creator stays a member and an owner for the collective's whole life.
+func creatorStaysMessage(self bool) string {
+	if self {
+		return "You created this collective, so you stay its owner and cannot leave it. Delete the collective instead."
+	}
+	return "The collective's creator stays a member and an owner; they cannot be removed"
+}
+
 // consentedMembership reports whether a membership is one the person chose:
 // a consented origin and not a leftover join request.
 func consentedMembership(member sqlc.GroupMember) bool {

@@ -819,9 +819,16 @@ The daily limits live in `user_daily_quotas`, so `TestInvitationLimits`,
 `TestInvitationEmailsPerRecipientCap` and `TestVerificationEmailsPerDayCap`
 take the last slot through a fresh handler on the same database
 (`invitationWorld.restart`), as a restart or a second instance would. A limit
-kept in process memory fails all three. `TestRoleRouteNeverDemotesTheCreator`
-pins the creator invariant, and `testdata/email-configuration.yaml` proves
-email stays off unless every `EMAIL_*` variable is set.
+kept in process memory fails all three. `testdata/email-configuration.yaml`
+proves email stays off unless every `EMAIL_*` variable is set.
+
+`testdata/creator-membership.yaml` pins the creator invariant through the
+role, remove, collective-delete and account-delete handlers: neither another
+owner nor the creator can demote or remove the creator, an owner can still
+change or remove anyone else, and deleting the collective or the creator's
+account still removes the creator's row through the cascade. Mutation check:
+dropping the creator guard in `removeGroupMemberLocked` fails
+`co_owner_cannot_remove_the_creator` and `creator_cannot_leave`.
 
 `TestNotificationEmailLifecycleAndUnsubscribe` sets, verifies and removes an
 address, follows the emailed unsubscribe link signed out, and reads the

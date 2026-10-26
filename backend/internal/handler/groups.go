@@ -1058,6 +1058,20 @@ func (h *Handler) removeGroupMemberLocked(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	// The creator's membership is never removed, by another owner or by the
+	// creator: a collective always keeps the owner who made it. The creator
+	// may delete the collective instead. Deleting the collective or the
+	// creator's account still removes the row through the database cascade.
+	target, err := h.queries.GetGroupMember(r.Context(), sqlc.GetGroupMemberParams{GroupID: pgID, UserID: pgTargetID})
+	switch {
+	case err == nil && target.Origin == originCreator:
+		writeError(w, http.StatusBadRequest, creatorStaysMessage(targetID == user.ID))
+		return
+	case err != nil && !errors.Is(err, pgx.ErrNoRows):
+		writeError(w, http.StatusInternalServerError, "Could not read the membership; nobody was removed. Retry the request.")
+		return
+	}
+
 	// Resolve whether the departing user's transcripts should be retracted.
 	// Mandatory policy always wins; otherwise the client passes ?retract=true
 	// to opt in (from the leave-collective modal).
