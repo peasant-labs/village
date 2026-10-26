@@ -29,6 +29,9 @@ function anonymousInit(signal?: AbortSignal): RequestInit {
  * API answering an anonymous read.
  */
 export async function readPublicTranscript(id: string, deps: LoadDeps = {}): Promise<Transcript | null> {
+  // URL resolution reads "." and ".." as path steps even when encoded, so the
+  // read would reach another API route. No transcript has such an id.
+  if (id === "." || id === "..") return null;
   const env = shareCardEnv();
   if (!env) return null;
   const doFetch = deps.fetch ?? fetch;

@@ -408,16 +408,17 @@ export function loadHomePageFixtures(): HomePageFixtures {
           `${surfaces.join(", ")}.`,
       );
     }
-    // The rule the routes exist to express: the app keeps no signed-out view.
-    // Every page sends a visitor without a session to the marketing site's
-    // log-in popup, `/login` included; a signed-in visitor gets the page itself.
+    // The rule the routes exist to express: none of these routes has a
+    // signed-out view (a public transcript is the app's one). Each sends a
+    // visitor without a session to the marketing site's log-in popup, `/login`
+    // included; a signed-in visitor gets the page itself.
     // A case claiming otherwise would invert the boundary rather than test it.
     const want: HomeRouteSurface =
       c.viewerUsername === null ? "marketing" : c.path === "/" ? "home" : "explore";
     if (c.expectSurface !== want) {
       throw new Error(
         `route case ${c.name}: expectSurface is ${c.expectSurface} for path ${c.path} viewed by ` +
-          `${c.viewerUsername ?? "an anonymous visitor"}. Every page sends an anonymous visitor to ` +
+          `${c.viewerUsername ?? "an anonymous visitor"}. Each of these pages sends an anonymous visitor to ` +
           `the marketing site; "/" is home to a signed-in visitor and "/explore" is discovery; ` +
           `fix the expectation rather than the rule.`,
       );

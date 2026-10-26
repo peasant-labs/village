@@ -28,7 +28,9 @@ export default function ContributePicker({
   transcriptTitle,
   transcriptVisibility,
 }: ContributePickerProps) {
-  const { data: groups, isLoading } = useGroups();
+  // Asked for when the picker opens, which needs a session; the transcript page
+  // has usually read the same list already.
+  const { data: groups, isLoading } = useGroups({ enabled: open });
   const share = useBulkShareTranscripts();
   const [selected, setSelected] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);

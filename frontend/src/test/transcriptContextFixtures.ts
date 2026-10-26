@@ -81,6 +81,8 @@ const requiredBreadcrumbCaseNames = [
   "from-a-collective",
   "from-a-collective-not-yet-named",
   "from-a-pull-request",
+  "from-a-collective-signed-out",
+  "from-a-pull-request-signed-out",
 ] as const;
 
 const requiredRouteCaseNames = [

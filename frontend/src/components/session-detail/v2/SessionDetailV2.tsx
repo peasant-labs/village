@@ -462,6 +462,8 @@ export function SessionDetailV2({
                 pullRequests={pullRequestsQuery.data ?? []}
                 failed={pullRequestsQuery.isError}
                 onRetry={() => void pullRequestsQuery.refetch()}
+                // A pull request's page needs a session.
+                linked={!!user}
               />
             ) : undefined
           }

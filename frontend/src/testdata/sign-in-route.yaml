@@ -5,9 +5,10 @@
 # `src/test/signInRouteFixtures.ts`.
 
 # The proxy's answer to a page load, decided on the address and the session
-# cookie alone. A cookie that turns out to be stale is the app frame's to
-# catch once `/auth/me` answers; these cases are what the server decides
-# before any page is served. `path` is the address asked for (with its query).
+# cookie alone; a transcript page is passed to the page, which decides itself.
+# A cookie that turns out to be stale is the app frame's to catch once
+# `/auth/me` answers; these cases are what the server decides before any page
+# is served. `path` is the address asked for (with its query).
 # `fetchDest` is the browser's `Sec-Fetch-Dest`: `document` for a page load,
 # `empty` for a fetch the page makes (Next prefetching or navigating inside the
 # app), null for a client that sends none (curl, a crawler).
@@ -50,19 +51,22 @@ proxyCases:
     expect: { status: null, location: null }
   - name: a-signed-out-deep-link-comes-back-to-its-page
     why: >-
-      the app keeps no signed-out view: a link to any page sends a signed-out
-      visitor to the log-in popup, which returns them to that page, query and
-      all, once signed in.
+      the app's one signed-out view is a public transcript: a link to any other
+      page sends a signed-out visitor to the log-in popup, which returns them
+      to that page, query and all, once signed in.
     path: /collectives/abc?tab=members
     cookie: null
     fetchDest: document
     expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Fcollectives%2Fabc%3Ftab%3Dmembers" }
-  - name: a-shared-transcript-link-signs-in-first
-    why: a shared transcript is read signed in, like every other page, and the reader comes back to it.
+  - name: a-transcript-link-is-left-to-its-page
+    why: >-
+      only the transcript page can tell a public transcript from one that is
+      not, so it reads the transcript and decides itself (transcriptPageCases
+      below); a person opening a link it refuses is sent to sign in from there.
     path: /transcripts/7f1d2c3b
     cookie: null
     fetchDest: document
-    expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+    expect: { status: null, location: null }
   - name: the-sign-in-page-hands-over-its-return-address
     why: >-
       the sign-in page itself is not a destination; the popup returns to the
@@ -122,12 +126,14 @@ proxyCases:
     cookie: null
     fetchDest: document
     expect: { status: null, location: null }
-  - name: a-browser-on-a-transcript-link-still-signs-in
-    why: a browser always says `document` for a page load, so a person opening the link signs in first, as before.
+  - name: an-in-app-navigation-to-a-transcript-is-left-to-its-page
+    why: >-
+      a signed-out reader of a public transcript can follow a link to another
+      transcript inside the app; the page decides that one too.
     path: /transcripts/7f1d2c3b
     cookie: null
-    fetchDest: document
-    expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+    fetchDest: empty
+    expect: { status: null, location: null }
   - name: a-crawler-on-another-transcript-path-is-redirected
     why: only the transcript page and its two share images are open; any deeper path stays behind sign-in.
     path: /transcripts/7f1d2c3b/anything-else
@@ -141,11 +147,170 @@ proxyCases:
     fetchDest: null
     expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Ftranscripts" }
   - name: a-crawler-on-another-app-page-is-redirected
-    why: link previews open only transcript links; every other page keeps no signed-out view.
+    why: only transcript links are left to their page; every other page sends a signed-out visitor to sign in.
     path: /collectives/abc
     cookie: null
     fetchDest: null
     expect: { status: 307, location: "https://peasantlabs.org/?login&next=%2Fcollectives%2Fabc" }
+
+# The transcript page's own decision for a request (`decideTranscriptPage`),
+# made on the server before anything is served. `session` is whether the
+# request carries a session cookie; `fetchDest` as above. `api` is how the API
+# answers the page's anonymous read of the transcript:
+#   public            200 with a public transcript
+#   not-found         404, the API's one answer to anybody without a session
+#                     for a private, a shared and a missing transcript alike
+#   non-public-body   200 with a transcript that is not public
+#   error             500
+#   unreachable       the request fails
+#   no-config         the server's API address is not configured
+#   non-public-read   the read itself hands back a transcript that is not
+#                     public (the page checks visibility again, whatever read
+#                     it is given)
+# `reads` is how many times the API was asked. `expect.serve` is whether the
+# page is served; `openSignedOut` whether the frame lets a signed-out visitor
+# stay; `location` where anybody not served is sent.
+transcriptPageCases:
+  - name: a-public-transcript-opens-signed-out
+    why: a public transcript is readable by anybody, so a signed-out visitor reads it without signing in.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: document
+    api: public
+    reads: 1
+    expect: { serve: true, openSignedOut: true, location: null }
+  - name: a-private-transcript-signs-in-first
+    why: the API answers a private transcript to nobody signed out, so the visitor signs in and comes back.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: document
+    api: not-found
+    reads: 1
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: a-shared-transcript-signs-in-first
+    why: a transcript shared with collectives is read signed in, and looks exactly like a private one.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: document
+    api: not-found
+    reads: 1
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: a-missing-transcript-signs-in-first
+    why: an id that does not exist is answered exactly as a private one, so the answer never says which it was.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: document
+    api: not-found
+    reads: 1
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: a-non-public-answer-signs-in-first
+    why: only a transcript the API itself calls public opens; any other body fails closed.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: document
+    api: non-public-body
+    reads: 1
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: a-read-of-a-non-public-transcript-signs-in-first
+    why: >-
+      the page opens only what it sees is public, so a read that passes on a
+      transcript that is not public still sends the visitor to sign in.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: document
+    api: non-public-read
+    reads: 0
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: an-api-error-fails-closed
+    why: a read that fails decides nothing, so the visitor is sent to sign in as before.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: document
+    api: error
+    reads: 1
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: an-unreachable-api-fails-closed
+    why: a read that never answers decides nothing, so the visitor is sent to sign in as before.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: document
+    api: unreachable
+    reads: 1
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: no-api-configured-fails-closed
+    why: without the server's API address there is no read, and nothing opens signed out.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: document
+    api: no-config
+    reads: 0
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: the-way-back-keeps-the-query
+    why: the visitor comes back to the same turn and place once signed in.
+    id: 7f1d2c3b
+    searchParams: { turn: "3", in: home }
+    session: false
+    fetchDest: document
+    api: not-found
+    reads: 1
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b%3Fturn%3D3%26in%3Dhome" }
+  - name: a-session-is-served-without-a-read
+    why: a signed-in request is served exactly as before; the app reads the transcript as that person.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: true
+    fetchDest: document
+    api: not-found
+    reads: 0
+    expect: { serve: true, openSignedOut: false, location: null }
+  - name: an-in-app-navigation-to-a-private-transcript-signs-in
+    why: a signed-out reader following a link inside the app to a transcript that is not public is sent to sign in.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: empty
+    api: not-found
+    reads: 1
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F7f1d2c3b" }
+  - name: a-crawler-reads-a-public-transcript
+    why: a link-preview crawler is served a public transcript's page and its card.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: null
+    api: public
+    reads: 1
+    expect: { serve: true, openSignedOut: true, location: null }
+  - name: a-crawler-reads-a-private-transcript-link-preview
+    why: >-
+      a crawler is still served the page so it can read the meta tags, which
+      are the site's generic card; the page is not marked open, so an older
+      browser that sends no fetch metadata is sent to sign in by the frame.
+    id: 7f1d2c3b
+    searchParams: {}
+    session: false
+    fetchDest: null
+    api: not-found
+    reads: 1
+    expect: { serve: true, openSignedOut: false, location: null }
+  - name: a-dot-segment-id-is-never-read
+    why: a ".." id would read another API route; no transcript has one, so it is never read and signs in.
+    id: ".."
+    searchParams: {}
+    session: false
+    fetchDest: document
+    api: public
+    reads: 0
+    expect: { serve: false, openSignedOut: false, location: "https://peasantlabs.org/?login&next=%2Ftranscripts%2F.." }
 
 # The return address a sign-in follows, from the `next` query of `/login` to
 # where `/auth/callback` lands. `expect: null` means the address is refused and

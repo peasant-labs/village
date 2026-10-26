@@ -378,12 +378,12 @@ export async function renderAppRoute(
 }
 
 /**
- * Renders the real app chrome alone at `pathname`, around an empty page, for a
- * test about the chrome rather than the page inside it.
+ * Renders the real app chrome alone at `pathname`, around an empty page (or
+ * `page`, a stand-in), for a test about the chrome rather than the page inside it.
  */
-export async function renderHeaderAt(pathname: string): Promise<void> {
+export async function renderHeaderAt(pathname: string, page: React.ReactNode = null): Promise<void> {
   window.history.replaceState({}, "", pathname);
-  return renderRoute(<AppFrame>{null}</AppFrame>);
+  return renderRoute(<AppFrame>{page}</AppFrame>);
 }
 
 /**

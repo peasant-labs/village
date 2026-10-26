@@ -13,6 +13,9 @@ interface TranscriptPullRequestsProps {
   /** The read failed: say so and offer a retry instead of showing nothing. */
   failed?: boolean;
   onRetry?: () => void;
+  /** Each row opens village's page for its pull request. False for a reader
+   *  without a session, who cannot open that page: the row is then plain text. */
+  linked?: boolean;
 }
 
 /**
@@ -20,9 +23,15 @@ interface TranscriptPullRequestsProps {
  * as the fairtrade in-use demo lays them out: a titled list with the first few
  * rows and a `show all N` control for the rest. A transcript can be bound to
  * many pull requests, so the list stays short until the reader asks for all of
- * it. Each row opens village's page for that pull request.
+ * it. Each row opens village's page for that pull request, for a reader who
+ * can open it.
  */
-export default function TranscriptPullRequests({ pullRequests, failed = false, onRetry }: TranscriptPullRequestsProps) {
+export default function TranscriptPullRequests({
+  pullRequests,
+  failed = false,
+  onRetry,
+  linked = true,
+}: TranscriptPullRequestsProps) {
   const [all, setAll] = useState(false);
   const titleId = useId();
   const listRef = useRef<HTMLUListElement>(null);
@@ -31,7 +40,7 @@ export default function TranscriptPullRequests({ pullRequests, failed = false, o
   // rather than falling back to the page.
   useEffect(() => {
     if (!all) return;
-    listRef.current?.children[PULL_REQUESTS_SHOWN]?.querySelector<HTMLElement>("a")?.focus();
+    listRef.current?.children[PULL_REQUESTS_SHOWN]?.querySelector<HTMLElement>("[data-pull-request-name]")?.focus();
   }, [all]);
   const shown = all ? pullRequests : pullRequests.slice(0, PULL_REQUESTS_SHOWN);
 
@@ -54,9 +63,18 @@ export default function TranscriptPullRequests({ pullRequests, failed = false, o
           <ul className="cmg-pr-list" ref={listRef}>
             {shown.map((pr) => (
               <li key={`${pr.owner}/${pr.name}#${pr.number}`} data-testid="transcript-pull-request">
-                <Link className="cmg-pr-link mono" href={pullPath(pr.owner, pr.name, pr.number)}>
-                  {pr.owner}/{pr.name} <span className="tnum">#{pr.number}</span>
-                </Link>
+                {linked ? (
+                  <Link className="cmg-pr-link mono" href={pullPath(pr.owner, pr.name, pr.number)} data-pull-request-name>
+                    {pr.owner}/{pr.name} <span className="tnum">#{pr.number}</span>
+                  </Link>
+                ) : (
+                  // Plain text, without the link's underline. Focusable from
+                  // script only, so `show all` can still move focus to the
+                  // first row it revealed.
+                  <span className="mono" tabIndex={-1} data-pull-request-name>
+                    {pr.owner}/{pr.name} <span className="tnum">#{pr.number}</span>
+                  </span>
+                )}
                 <span className="cmg-none">
                   {pr.state}
                   {pr.title ? `, ${pr.title}` : ""}

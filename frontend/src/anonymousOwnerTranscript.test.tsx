@@ -84,8 +84,12 @@ describe("the transcript page draws only the owner and project it receives", () 
         },
         sessionDetail(c),
         "anonymous-owner-transcript",
+        // An unrelated signed-in reader: the one who gets links, so a profile
+        // owner's project link is there to find. Signed out, the trail links
+        // nothing (`signed-out-transcript.yaml` covers an anonymous owner there).
+        { id: "fixture-reader", github_username: "fixture-reader", orgs: [] },
       );
-      await renderProductionRoute(transcriptID);
+      await renderProductionRoute(transcriptID, "", { signedIn: true });
       await waitFor(() => expect(document.querySelector(".txn-title")).not.toBeNull());
 
       const nav = document.querySelector('nav[aria-label="breadcrumb"]');

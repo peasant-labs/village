@@ -94,7 +94,7 @@ breadcrumbCases:
     context: null
     isLoggedIn: false
     collectiveName: null
-    expect: ["home", "village -> /users/alice/projects/abc"]
+    expect: ["home", "village"]
   - name: from-a-collective
     context: { kind: collective, id: c-1 }
     isLoggedIn: true
@@ -110,6 +110,18 @@ breadcrumbCases:
     isLoggedIn: true
     collectiveName: null
     expect: ["pull requests -> /pulls", "acme/app#42 -> /pulls/acme/app/42"]
+  # Signed out, the trail names the same place with no links: each page it
+  # names needs a session.
+  - name: from-a-collective-signed-out
+    context: { kind: collective, id: c-1 }
+    isLoggedIn: false
+    collectiveName: EnCUCA
+    expect: ["collectives", "EnCUCA"]
+  - name: from-a-pull-request-signed-out
+    context: { kind: pull, owner: acme, name: app, number: 42 }
+    isLoggedIn: false
+    collectiveName: null
+    expect: ["pull requests", "acme/app#42"]
 
 # The mounted transcript page, opened at `/transcripts/{id}{search}`. The trail
 # it draws is `expectCrumbs`, each crumb `label -> href` or the bare label for
@@ -159,5 +171,5 @@ routeCases:
     search: ""
     myCollectives: []
     shares: []
-    expectCrumbs: ["home", "village -> /users/fixture-owner/projects/0000000000000000000000000000000000000000000000000000000000000000"]
+    expectCrumbs: ["home", "village"]
     expectReplace: null

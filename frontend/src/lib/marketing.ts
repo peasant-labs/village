@@ -4,12 +4,13 @@ import { NEXT_PARAM, returnAddressFor, safeNextPath } from "@/lib/signIn";
  * The peasant marketing site: where somebody without a session is sent, and
  * where signing in starts.
  *
- * The hosted app keeps no signed-out view of its own. The product is introduced
- * on the marketing site, and its log-in popup holds the sign-in the app's own
- * page used to: the GitHub button (which comes back through `/auth/start`) and
- * the terminal command. An operator can point it elsewhere (a staging site, a
- * mirror) with `NEXT_PUBLIC_MARKETING_URL`, read at build time like every other
- * public value.
+ * The hosted app's one signed-out view is a public transcript (its page decides
+ * that on the server); every other page sends a visitor without a session here.
+ * The product is introduced on the marketing site, and its log-in popup holds
+ * the sign-in the app's own page used to: the GitHub button (which comes back
+ * through `/auth/start`) and the terminal command. An operator can point it
+ * elsewhere (a staging site, a mirror) with `NEXT_PUBLIC_MARKETING_URL`, read at
+ * build time like every other public value.
  */
 export const DEFAULT_MARKETING_URL = "https://peasantlabs.org";
 
@@ -41,6 +42,14 @@ export function signedOutDestination(pathname: string, search: string): string {
  */
 export function leaveForSignIn(next: string | null): void {
   window.location.replace(marketingLoginURL(next));
+}
+
+/**
+ * Loads this page again from the server, replacing this history entry: for a
+ * page the server decides on, once the browser holds no session cookie.
+ */
+export function reloadPage(): void {
+  window.location.replace(window.location.href);
 }
 
 /** Leaves the app for the marketing site itself, as somebody who just signed out. */

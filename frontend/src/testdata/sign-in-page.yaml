@@ -5,10 +5,10 @@
 # `path`, inside the real `AuthProvider`, with the session answered by
 # `GET /auth/me`. Signing in starts on the marketing site's log-in popup; its
 # github button lands on `/auth/start`, which remembers where to come back to
-# and leaves for the provider. The app keeps no signed-out view: anywhere but
-# the sign-in steps and the privacy notice, a signed-out visitor is sent to the
-# popup (`expectLeaving`). The privacy notice keeps the public bar's one "sign
-# in" link, which returns to it.
+# and leaves for the provider. Anywhere but the sign-in steps, the privacy
+# notice and a public transcript (`signed-out-transcript.yaml`), a signed-out
+# visitor is sent to the popup (`expectLeaving`). The privacy notice keeps the
+# public bar's one "sign in" link, which returns to it.
 #
 #   expectStart       the provider `/auth/start` leaves for, or null when it
 #                     leaves for none.

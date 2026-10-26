@@ -43,10 +43,11 @@ export function useCollectiveReadBinding() {
  * row is a membership and carries a role. For the browse surface, which shows
  * every collective a person may see, use {@link useVisibleGroups}.
  */
-export function useGroups() {
+export function useGroups(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["groups"],
     queryFn: () => api<Group[]>("/collectives"),
+    enabled: options.enabled ?? true,
   });
 }
 
