@@ -1522,8 +1522,8 @@ escaped and embedded secrets on both retained and whole-upload scan paths.
 The boot-time base preservation proof includes the same corpus; a lossy canonical
 encoder withholds capabilities and refuses enriched publication before writes.
 
-The published module pin is Schema v0.33.1 and the literal served/enforced
-contract expectation is Village API 0.29.1. Mounted contract bytes are pinned
+The published module pin is Schema v0.34.1 and the literal served/enforced
+contract expectation is Village API 0.30.0. Mounted contract bytes are pinned
 against the independently downloaded GitHub release asset in
 `backend/internal/router/testdata/published_schema.yaml`; the body validator uses
 that same module's embedded document. The grouped contribution transition
