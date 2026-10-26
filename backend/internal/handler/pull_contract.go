@@ -118,16 +118,32 @@ func selectPullContract(values []string) (schema.ContractVersion, bool) {
 // carries. A request below the minimum is answered 406 with a
 // VillageErrorResponse here, and the caller stops.
 func negotiatePullContract(w http.ResponseWriter, r *http.Request) (schema.ContractVersion, bool) {
+	// The body depends on the request header, so every pull response, a
+	// refusal or a 404 included, says so to caches.
+	w.Header().Add("Vary", schema.PullContractHeader)
 	values := r.Header.Values(schema.PullContractHeader)
 	served, ok := selectPullContract(values)
 	if !ok {
 		writeJSON(w, http.StatusNotAcceptable, schema.VillageErrorResponse{Error: fmt.Sprintf(
 			"this client reads pull contract %s, which Village no longer serves; Village serves pull contracts %s to %s; upgrade peasant to pull",
-			values[0], minPullContractVersion, maxPullContractVersion)})
+			echoedPullContract(values[0]), minPullContractVersion, maxPullContractVersion)})
 		return "", false
 	}
 	w.Header().Set(schema.PullContractHeader, served.String())
 	return served, true
+}
+
+// maxEchoedPullContract bounds how much of a refused header value the 406
+// repeats back.
+const maxEchoedPullContract = 64
+
+// echoedPullContract is the requested version as a refusal repeats it,
+// truncated so a long header does not grow the response.
+func echoedPullContract(raw string) string {
+	if len(raw) <= maxEchoedPullContract {
+		return raw
+	}
+	return raw[:maxEchoedPullContract] + "..."
 }
 
 // servesLegacyPull reports whether the negotiated envelope is 0.2.0, which
